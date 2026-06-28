@@ -36,14 +36,14 @@ describe("trackingExperience api", () => {
 
   it("sends ticket-bound support messages to the live claim endpoint", async () => {
     await sendTrackingSupportMessage({
-      endpoint: "/tickets/chat/42/responder_ciudadano",
+      endpoint: "/api/public/tracking/claims/42/messages",
       pin: "654321",
       message: "Necesito hablar con alguien",
       code: "M-123456",
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      "/tickets/chat/42/responder_ciudadano?pin=654321",
+      "/api/public/tracking/claims/42/messages?pin=654321",
       expect.objectContaining({
         method: "POST",
         body: {

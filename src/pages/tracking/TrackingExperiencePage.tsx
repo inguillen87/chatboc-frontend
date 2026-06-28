@@ -4,10 +4,14 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clipboard,
   Clock3,
+  FileText,
   Loader2,
   MapPinned,
+  MapPin,
   MessageCircle,
+  MessagesSquare,
   PackageCheck,
   Radio,
   RefreshCw,
@@ -115,6 +119,24 @@ const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
     })
     .filter(Boolean) as Array<{ id: string; label: string; detail: string; timestamp: string }>;
 
+const normalizeResource = (payload: TrackingExperienceResponse | null, code: string) => {
+  const resource = isRecord(payload?.resource) ? payload.resource : {};
+  const tenant = isRecord(payload?.tenant) ? payload.tenant : {};
+  const location = isRecord(payload?.location) ? payload.location : {};
+  return {
+    code: readText(resource, ["code"], code),
+    subject: readText(resource, ["subject", "title", "name"], readText(resource, ["category"], "Seguimiento")),
+    category: readText(resource, ["category", "rubro", "type"], "General"),
+    channel: readText(resource, ["channel"], "whatsapp"),
+    createdAt: readText(resource, ["created_at", "createdAt", "fecha"]),
+    updatedAt: readText(resource, ["updated_at", "updatedAt", "ultima_actividad"]),
+    tenantName: readText(tenant, ["nombre", "name"], "Chatboc"),
+    tenantSlug: readText(tenant, ["slug"]),
+    address: readText(location, ["address", "direccion"]),
+    district: readText(location, ["district", "distrito"]),
+  };
+};
+
 const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
   const support = isRecord(payload?.support) ? payload.support : null;
   const liveChat = isRecord(support?.live_chat) ? support.live_chat : {};
@@ -218,6 +240,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const [supportNotice, setSupportNotice] = useState<string | null>(null);
 
   const status = normalizeStatus(payload);
+  const resource = normalizeResource(payload, code);
   const milestones = normalizeMilestones(payload, kind);
   const timeline = normalizeTimeline(payload);
   const mapState = normalizeMapLocations(payload);
@@ -272,19 +295,24 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     setSupportSending(true);
     setSupportNotice(null);
     try {
-      await sendTrackingSupportMessage({
+      const reply = await sendTrackingSupportMessage({
         endpoint: support.endpoint,
         pin: pin.trim(),
         message,
         code,
       });
+      const updatedTracking = isRecord(reply?.tracking) ? reply.tracking : null;
+      if (updatedTracking) {
+        setPayload(updatedTracking as TrackingExperienceResponse);
+      }
       setSupportMessage("");
       setSupportNotice(
-        support.liveAvailable
+        readText(reply, ["message"]) ||
+        (support.liveAvailable
           ? "Mensaje enviado al canal en vivo del reclamo."
-          : "Mensaje guardado en el reclamo para la mesa de entrada.",
+          : "Mensaje guardado en el reclamo para la mesa de entrada."),
       );
-      await load();
+      if (!updatedTracking) await load();
     } catch (err) {
       setSupportNotice(getErrorMessage(err, "No se pudo enviar el mensaje."));
     } finally {
@@ -312,32 +340,54 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   );
 
   return (
-    <main className="min-h-screen bg-background px-4 py-10 text-foreground md:py-16">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))] px-4 py-6 text-foreground md:py-10">
       <section className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-              {payload?.contract_version || "tracking.experience.v1"}
-            </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">{titleFor(kind)}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {kind === "claim" ? "Codigo de reclamo" : "Codigo de pedido"}: <span className="font-semibold text-foreground">{code || "-"}</span>
-            </p>
+        <div className="mb-6 overflow-hidden rounded-[20px] border border-border/70 bg-card/95 shadow-sm">
+          <div className="flex flex-col gap-5 border-b border-border/70 p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-normal text-primary">
+                {resource.tenantName}
+              </p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">{titleFor(kind)}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {kind === "claim" ? "Codigo de reclamo" : "Codigo de pedido"}: <span className="font-semibold text-foreground">{resource.code || code || "-"}</span>
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {kind === "claim" ? (
+                <Input
+                  value={pin}
+                  onChange={(event) => setPin(event.target.value)}
+                  placeholder="PIN"
+                  className="h-11 rounded-[8px] bg-background/90 text-center font-mono tracking-[0.18em] sm:w-40"
+                />
+              ) : null}
+              <Button onClick={load} disabled={loading || !code} className="h-11 rounded-[8px] font-semibold">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Actualizar
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {kind === "claim" ? (
-              <Input
-                value={pin}
-                onChange={(event) => setPin(event.target.value)}
-                placeholder="PIN"
-                className="h-11 rounded-[8px] sm:w-36"
-              />
-            ) : null}
-            <Button onClick={load} disabled={loading || !code} className="h-11 rounded-[8px] font-semibold">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Actualizar
-            </Button>
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Estado", value: status.label, icon: PackageCheck },
+              { label: "Categoria", value: resource.category, icon: FileText },
+              { label: "Canal", value: resource.channel, icon: MessagesSquare },
+              { label: "Acceso", value: kind === "claim" ? "PIN seguro" : "Link seguro", icon: ShieldCheck },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="rounded-[14px] border border-border/70 bg-background/70 p-4">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 truncate text-sm font-bold capitalize text-foreground">{item.value || "-"}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -371,6 +421,39 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 <span>Inicio</span>
                 <span>{progress}%</span>
                 <span>Final</span>
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <Clipboard className="h-4 w-4 text-primary" />
+                <h2 className="font-bold">Resumen</h2>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="rounded-[12px] bg-muted/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Motivo</p>
+                  <p className="mt-1 font-semibold text-foreground">{resource.subject || status.label}</p>
+                </div>
+                {(resource.address || resource.district) ? (
+                  <div className="rounded-[12px] bg-muted/30 p-3">
+                    <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Ubicacion
+                    </p>
+                    <p className="mt-1 font-semibold text-foreground">{resource.address || "Sin direccion"}</p>
+                    {resource.district ? <p className="mt-1 text-xs text-muted-foreground">{resource.district}</p> : null}
+                  </div>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[12px] bg-muted/30 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Creado</p>
+                    <p className="mt-1 font-semibold text-foreground">{resource.createdAt || "-"}</p>
+                  </div>
+                  <div className="rounded-[12px] bg-muted/30 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Actualizado</p>
+                    <p className="mt-1 font-semibold text-foreground">{resource.updatedAt || "Hace instantes"}</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -420,15 +503,21 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
               </div>
 
               {canShowMap ? (
-                <React.Suspense fallback={<div className="flex h-[340px] items-center justify-center rounded-[14px] bg-muted/30 text-sm text-muted-foreground">Cargando mapa...</div>}>
-                  <TrackingMap
-                    className="h-[340px]"
-                    status={status.key}
-                    storeLocation={mapState.origin}
-                    customerLocation={mapState.destination}
-                    driverLocation={mapState.current || undefined}
-                  />
-                </React.Suspense>
+                <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-slate-950 p-1">
+                  <React.Suspense fallback={<div className="flex h-[340px] items-center justify-center rounded-[14px] bg-muted/30 text-sm text-muted-foreground">Cargando mapa...</div>}>
+                    <TrackingMap
+                      className="h-[340px] border-0"
+                      status={status.key}
+                      storeLocation={mapState.origin}
+                      customerLocation={mapState.destination}
+                      driverLocation={mapState.current || undefined}
+                    />
+                  </React.Suspense>
+                  <div className="pointer-events-none absolute inset-1 rounded-[14px] bg-[linear-gradient(90deg,rgba(59,130,246,0.12)_1px,transparent_1px),linear-gradient(180deg,rgba(59,130,246,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
+                  <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/25 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur">
+                    Trazabilidad activa
+                  </div>
+                </div>
               ) : (
                 <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[14px] border border-dashed border-border/70 bg-muted/30 p-6 text-center">
                   <ShieldCheck className="mb-3 h-8 w-8 text-primary" />

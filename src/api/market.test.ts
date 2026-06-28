@@ -18,6 +18,7 @@ import { ApiError } from '@/utils/api';
 import {
   addMarketItem,
   fetchMarketCart,
+  fetchMarketCatalog,
   fetchRewardsProfile,
   redeemReward,
   startMarketCheckout,
@@ -80,6 +81,46 @@ describe('market api continuity normalization', () => {
     );
     expect(cart.continuity?.summary).toBe('retomar en portal');
     expect(cart.continuity?.portal_links?.home).toBe('/tenant/portal');
+  });
+
+  it('preserves backend cart ids and cantidad for marketplace checkout continuity', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      items: [
+        {
+          catalogo_item_id: 42,
+          cart_item_id: 'line-42',
+          nombre: 'Malbec Reserva',
+          cantidad: 3,
+          price: 12000,
+        },
+      ],
+      total_estimado: 36000,
+      total_puntos_estimado: 12,
+      promotions: {
+        total_ahorrado: 6000,
+        total_con_descuento: 30000,
+        promociones_aplicadas: ['3x2 vinos'],
+        items_detalle: [{ catalogo_item_id: 42 }],
+      },
+    });
+
+    const cart = await fetchMarketCart('bodega');
+
+    expect(cart.totalAmount).toBe(36000);
+    expect(cart.totalPoints).toBe(12);
+    expect(cart.items[0]).toMatchObject({
+      id: '42',
+      catalogo_item_id: 42,
+      catalog_item_id: 42,
+      product_id: 42,
+      line_id: 'line-42',
+      quantity: 3,
+    });
+    expect(cart.promotions).toMatchObject({
+      total_ahorrado: 6000,
+      total_con_descuento: 30000,
+      promociones_aplicadas: ['3x2 vinos'],
+    });
   });
 
   it('preserves backend checkout readiness flags without assuming MercadoPago readiness', async () => {
@@ -219,6 +260,45 @@ describe('market api continuity normalization', () => {
     expect(checkout.checkoutUrl).toBe('https://checkout.example/pref_123');
   });
 
+  it('sends catalog item aliases and cantidad to checkout providers', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'payments.checkout_session.v1',
+      preference_id: 'pref_alias',
+      init_point: 'https://checkout.example/pref_alias',
+    });
+
+    await startMarketCheckout('tenant', {
+      items: [
+        {
+          id: '42',
+          product_id: 42,
+          catalogo_item_id: 42,
+          catalog_item_id: 42,
+          quantity: 2,
+          cantidad: 2,
+        },
+      ],
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/payments/checkout-session',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              id: '42',
+              product_id: 42,
+              catalogo_item_id: 42,
+              catalog_item_id: 42,
+              quantity: 2,
+              cantidad: 2,
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it('normalizes plan lock contracts from checkout-session responses', async () => {
     apiFetchMock.mockResolvedValueOnce({
       ok: false,
@@ -337,10 +417,10 @@ describe('market api continuity normalization', () => {
       ],
     });
 
-    const catalog = await import('@/api/market').then((mod) => mod.fetchMarketCatalog('bodega'));
+    const catalog = await fetchMarketCatalog('bodega');
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/public/tenants/bodega/catalog',
+      '/api/public/tenants/bodega/catalog?contract=marketplace',
       expect.objectContaining({
         tenantSlug: 'bodega',
         suppressPanel401Redirect: true,
@@ -356,5 +436,53 @@ describe('market api continuity normalization', () => {
       imageStatus: 'ready',
       imageAlt: 'Botella Malbec Reserva',
     });
+  });
+
+  it('preserves public marketplace promotions and derives product promo badges by scope', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'public.market_catalog.v1',
+      products: [
+        {
+          id: 10,
+          catalogo_item_id: 10,
+          nombre: 'Malbec Reserva',
+          categoria: 'vinos',
+          precio: 12000,
+        },
+        {
+          id: 11,
+          catalogo_item_id: 11,
+          nombre: 'Aceite de Oliva',
+          categoria: 'almacen',
+          precio: 9000,
+        },
+      ],
+      promotions: {
+        contract_version: 'public.catalog_promotions.v1',
+        enabled: true,
+        total: 1,
+        active: 1,
+        items: [
+          {
+            id: 'promo-1',
+            title: '15% vinos seleccionados',
+            descripcion_publica: 'Promo de temporada',
+            tipo_promocion: 'PORCENTAJE_CATEGORIA',
+            valor_descuento: 15,
+            alcances: [{ tipo_alcance: 'CATEGORIA', nombre_categoria: 'vinos' }],
+          },
+        ],
+      },
+    });
+
+    const catalog = await fetchMarketCatalog('bodega');
+
+    expect(catalog.promotions).toMatchObject({
+      contract_version: 'public.catalog_promotions.v1',
+      enabled: true,
+      total: 1,
+    });
+    expect(catalog.products[0].promoInfo).toBe('15% vinos seleccionados');
+    expect(catalog.products[1].promoInfo).toBeNull();
   });
 });

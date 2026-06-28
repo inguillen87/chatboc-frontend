@@ -1,6 +1,8 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import {
   MarketCartResponse,
+  MarketCartItem,
+  MarketCartPromotions,
   MarketCatalogResponse,
   MarketProduct,
   AddToCartPayload,
@@ -24,6 +26,7 @@ import {
   MarketRewardsProfile,
 } from '@/types/market';
 import { PublicOrderTrackingResponse } from '@/types/tracking';
+import type { CatalogPromotion, CatalogPromotionsOps } from '@/types/catalog';
 import {
   getProductGalleryUrls,
   getProductImageAlt,
@@ -142,7 +145,14 @@ const normalizeMarketProduct = (input: unknown): MarketProduct => {
     inventory: asRecordOrNull(record.inventory),
     sku: asStringOrNull(getFirst(record, ['sku', 'codigo'])),
     brand: asStringOrNull(getFirst(record, ['brand', 'marca'])),
-    promoInfo: asStringOrNull(getFirst(record, ['promoInfo', 'promo_info', 'promocion_activa'])),
+    promoInfo: asStringOrNull(getFirst(record, [
+      'promoInfo',
+      'promo_info',
+      'promocion_info',
+      'promocion_activa',
+      'promotion_label',
+      'discount_label',
+    ])),
     publicUrl: asStringOrNull(getFirst(record, ['publicUrl', 'public_url'])),
     whatsappShareUrl: asStringOrNull(getFirst(record, ['whatsappShareUrl', 'whatsapp_share_url'])),
     disponible: record.disponible === undefined ? true : Boolean(record.disponible),
@@ -154,9 +164,131 @@ const normalizeMarketProduct = (input: unknown): MarketProduct => {
   };
 };
 
+const normalizeMarketPromotions = (value: unknown): CatalogPromotionsOps | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const items = Array.isArray(record.items)
+    ? record.items
+        .map((item) => {
+          const itemRecord = asRecordOrNull(item);
+          if (!itemRecord) return null;
+          return {
+            ...itemRecord,
+            id: String(getFirst(itemRecord, ['id', 'promotion_id', 'codigo_promocion']) ?? ''),
+            nombre_promocion: asStringOrNull(getFirst(itemRecord, ['nombre_promocion', 'title', 'name'])),
+            descripcion_publica: asStringOrNull(getFirst(itemRecord, ['descripcion_publica', 'description', 'detail'])),
+            tipo_promocion: asStringOrNull(getFirst(itemRecord, ['tipo_promocion', 'discount_type', 'type'])),
+            valor_descuento: asNumberOrNull(getFirst(itemRecord, ['valor_descuento', 'discount_value', 'value'])),
+            monto_minimo_carrito: asNumberOrNull(getFirst(itemRecord, ['monto_minimo_carrito', 'min_cart_amount'])),
+            cantidad_minima_aplicable: asNumberOrNull(getFirst(itemRecord, ['cantidad_minima_aplicable', 'min_quantity'])),
+            codigo_promocion: asStringOrNull(getFirst(itemRecord, ['codigo_promocion', 'code'])),
+            alcances: Array.isArray(getFirst(itemRecord, ['alcances', 'scopes']))
+              ? (getFirst(itemRecord, ['alcances', 'scopes']) as CatalogPromotion['alcances'])
+              : null,
+          } as CatalogPromotion;
+        })
+        .filter((item): item is CatalogPromotion => Boolean(item?.id || item?.nombre_promocion))
+    : [];
+
+  return {
+    ...(record as CatalogPromotionsOps),
+    contract_version: asStringOrNull(record.contract_version) as CatalogPromotionsOps['contract_version'],
+    enabled: asBooleanOrNull(record.enabled),
+    total: asNumberOrNull(record.total),
+    active: asNumberOrNull(record.active),
+    catalog_items_with_promo_badge: asNumberOrNull(
+      getFirst(record, ['catalog_items_with_promo_badge', 'catalog_badge_total']),
+    ),
+    items,
+  };
+};
+
+const normalizedToken = (value: unknown): string | null => {
+  const token = asStringIdOrNull(value);
+  return token ? token.toLowerCase() : null;
+};
+
+const normalizedText = (value: unknown): string | null => {
+  const text = asStringOrNull(value);
+  return text ? text.toLowerCase() : null;
+};
+
+const promotionLabel = (promotion: CatalogPromotion): string | null => {
+  const record = promotion as CatalogPromotion & Record<string, unknown>;
+  const title =
+    promotion.nombre_promocion ??
+    asStringOrNull(getFirst(record, ['title', 'name', 'promotion_label', 'discount_label'])) ??
+    null;
+  if (title) return title;
+  const value = promotion.valor_descuento;
+  const type = promotion.tipo_promocion ?? '';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (type.includes('PORCENTAJE')) return `${value}% off`;
+    if (type.includes('FIJO')) return `$${value} off`;
+  }
+  return promotion.descripcion_publica ?? null;
+};
+
+const promotionAppliesToProduct = (promotion: CatalogPromotion, product: MarketProduct): boolean => {
+  const record = promotion as CatalogPromotion & Record<string, unknown>;
+  const productIds = new Set(
+    [
+      product.id,
+      product.catalogo_item_id,
+      product.catalog_item_id,
+      product.product_id,
+      product.item_id,
+    ]
+      .map(normalizedToken)
+      .filter((item): item is string => Boolean(item)),
+  );
+  const productCategory = normalizedText(product.category);
+  const productBrand = normalizedText(product.brand);
+  const directCatalogId = normalizedToken(getFirst(record, ['catalogo_item_id', 'catalog_item_id']));
+  const directProductName = normalizedText(getFirst(record, ['product_name', 'nombre_producto']));
+
+  if (directCatalogId && productIds.has(directCatalogId)) return true;
+  if (directProductName && directProductName === normalizedText(product.name)) return true;
+
+  const scopes = Array.isArray(promotion.alcances) ? promotion.alcances : [];
+  return scopes.some((scope) => {
+    const scopeRecord = scope as Record<string, unknown>;
+    const scopeType = asStringOrNull(scopeRecord.tipo_alcance)?.toUpperCase();
+    if (scopeType === 'PRODUCTO') {
+      const scopeCatalogId = normalizedToken(scopeRecord.catalogo_item_id);
+      return Boolean(scopeCatalogId && productIds.has(scopeCatalogId));
+    }
+    if (scopeType === 'CATEGORIA') {
+      const scopeCategory = normalizedText(scopeRecord.nombre_categoria);
+      return Boolean(scopeCategory && productCategory === scopeCategory);
+    }
+    if (scopeType === 'MARCA') {
+      const scopeBrand = normalizedText(scopeRecord.nombre_marca);
+      return Boolean(scopeBrand && productBrand === scopeBrand);
+    }
+    return false;
+  });
+};
+
+const applyCatalogPromotionsToProducts = (
+  products: MarketProduct[],
+  promotions: CatalogPromotionsOps | null,
+): MarketProduct[] => {
+  const promotionItems = promotions?.items ?? [];
+  if (!promotionItems.length) return products;
+
+  return products.map((product) => {
+    if (product.promoInfo) return product;
+    const match = promotionItems.find((promotion) => promotionAppliesToProduct(promotion, product));
+    const label = match ? promotionLabel(match) : null;
+    return label ? { ...product, promoInfo: label } : product;
+  });
+};
+
 const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse => {
   const source = getSource(input);
   const record = asUnknownRecord(source);
+  const promotions = normalizeMarketPromotions(record.promotions);
   const rawProducts =
     Array.isArray(record.products)
       ? record.products
@@ -165,9 +297,14 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
         : Array.isArray(source)
           ? source
           : [];
+  const products = applyCatalogPromotionsToProducts(
+    rawProducts.map((item) => normalizeMarketProduct(item)),
+    promotions,
+  );
   return {
     ...(record as Partial<MarketCatalogResponse>),
-    products: rawProducts.map((item) => normalizeMarketProduct(item)),
+    products,
+    promotions,
     publicCartUrl: asStringOrNull(getFirst(record, ['publicCartUrl', 'public_cart_url', 'cart_url'])),
     whatsappShareUrl: asStringOrNull(getFirst(record, ['whatsappShareUrl', 'whatsapp_share_url'])),
     heroImageUrl: asStringOrNull(getFirst(record, ['heroImageUrl', 'hero_image_url', 'banner_url'])),
@@ -612,6 +749,20 @@ const normalizeRewardRedeemResponse = (input: unknown): MarketRewardRedeemRespon
   };
 };
 
+const normalizeMarketCartPromotions = (value: unknown): MarketCartPromotions | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const applied = getFirst(record, ['promociones_aplicadas', 'applied_promotions', 'appliedPromotions']);
+  return {
+    items_detalle: Array.isArray(record.items_detalle) ? record.items_detalle : [],
+    total_ahorrado: asNumberOrNull(getFirst(record, ['total_ahorrado', 'totalSaved', 'total_saved'])),
+    total_con_descuento: asNumberOrNull(getFirst(record, ['total_con_descuento', 'discountedTotal', 'total_with_discount'])),
+    promociones_aplicadas: Array.isArray(applied) ? applied.map((item) => String(item)).filter(Boolean) : [],
+    promo_total_carrito: asRecordOrNull(getFirst(record, ['promo_total_carrito', 'cartPromotion', 'cart_promotion'])),
+    raw: value,
+  };
+};
+
 const withQuery = (path: string, params?: Record<string, string | number | boolean | null | undefined>) => {
   if (!params) return path;
   const search = new URLSearchParams();
@@ -630,12 +781,31 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
   const checkoutOptionsRaw = asRecordOrNull(payload.checkout_options);
   const checkoutPreviewRaw = asRecordOrNull(payload.checkout_preview);
   const checkoutExperienceRaw = asRecordOrNull(getFirst(payload, ['checkout_experience', 'checkoutExperience']));
+  const promotions = normalizeMarketCartPromotions(payload.promotions);
+  const items = Array.isArray(payload.items)
+    ? payload.items.map((item, index) => {
+        const raw = asUnknownRecord(item);
+        const catalogoItemId = getFirst(raw, ['catalogo_item_id', 'catalog_item_id', 'product_id', 'productId', 'id']);
+        const lineId = getFirst(raw, ['line_id', 'cart_item_id', 'cartItemId']);
+        const quantity = asNumberOrNull(getFirst(raw, ['quantity', 'cantidad', 'qty'])) ?? 1;
+        const id = asStringIdOrNull(getFirst(raw, ['id', 'product_id', 'productId', 'catalogo_item_id', 'catalog_item_id'])) ?? `product-${index}`;
+        return {
+          ...item,
+          id,
+          catalogo_item_id: catalogoItemId as MarketCartItem['catalogo_item_id'],
+          catalog_item_id: catalogoItemId as MarketCartItem['catalog_item_id'],
+          product_id: getFirst(raw, ['product_id', 'productId', 'catalogo_item_id', 'catalog_item_id']) as MarketCartItem['product_id'],
+          line_id: lineId as MarketCartItem['line_id'],
+          quantity,
+        } as MarketCartItem;
+      })
+    : [];
 
   return {
     ...payload,
-    items: Array.isArray(payload.items) ? payload.items : [],
-    totalAmount: typeof payload.totalAmount === 'number' ? payload.totalAmount : null,
-    totalPoints: typeof payload.totalPoints === 'number' ? payload.totalPoints : null,
+    items,
+    totalAmount: asNumberOrNull(getFirst(payload, ['totalAmount', 'total_amount', 'total_estimado', 'total_monetary', 'total'])) ?? null,
+    totalPoints: asNumberOrNull(getFirst(payload, ['totalPoints', 'total_points', 'total_puntos_estimado'])) ?? null,
     continuity: continuityRaw
       ? {
           resume_key: asStringOrNull(continuityRaw.resume_key),
@@ -662,6 +832,7 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
     stock_status: asStringOrNull(payload.stock_status),
     available_to_sell: asBooleanOrNull(payload.available_to_sell),
     inventory_policy: asRecordOrNull(payload.inventory_policy),
+    promotions,
   };
 };
 
@@ -676,7 +847,7 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
 
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   const response = await apiFetch<MarketCatalogResponse>(
-    `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog`,
+    `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?contract=marketplace`,
     {
     tenantSlug,
     suppressPanel401Redirect: true,

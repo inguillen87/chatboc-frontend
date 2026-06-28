@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Smartphone, Globe, MessageSquare } from 'lucide-react';
+import { Globe, MessageSquare, ShoppingCart, Smartphone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -19,109 +19,112 @@ interface CatalogStorefrontPreviewProps {
   tenantName: string;
 }
 
+const formatPrice = (price?: number) =>
+  typeof price === 'number' && Number.isFinite(price)
+    ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(price)
+    : 'Consultar';
+
+const ProductThumb = ({ product, className = '' }: { product: PreviewProduct; className?: string }) => (
+  <div className={`overflow-hidden bg-muted ${className}`}>
+    {product.imageUrl ? (
+      <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+    ) : (
+      <div className="flex h-full w-full items-center justify-center">
+        <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+      </div>
+    )}
+  </div>
+);
+
 export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> = ({ products, mode, tenantName }) => {
-  const getDeviceFrame = () => {
-     if (mode === 'whatsapp') {
-        return (
-          <div className="w-[320px] h-[550px] bg-[#efeae2] border-[8px] border-zinc-800 rounded-3xl overflow-hidden relative shadow-xl mx-auto flex flex-col">
-             <div className="bg-[#075e54] text-white p-3 flex items-center gap-3 shadow-md shrink-0">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold text-sm">
-                   {tenantName.substring(0, 1)}
-                </div>
-                <div>
-                   <div className="font-semibold text-sm leading-tight">{tenantName}</div>
-                   <div className="text-[10px] text-white/80">Cuenta de empresa</div>
-                </div>
-             </div>
-             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="bg-white rounded-lg p-3 shadow-sm relative">
-                   <div className="font-medium text-[#075e54] text-xs mb-1">Catálogo actualizado</div>
-                   <div className="text-sm mb-3">Revisa nuestros productos disponibles. ¿Qué te gustaría pedir?</div>
-
-                   <div className="space-y-2">
-                     {products.slice(0, 3).map((p, idx) => (
-                        <div key={idx} className="flex items-center gap-2 border rounded p-1.5 bg-gray-50/50">
-                           {p.imageUrl ? (
-                             <img src={p.imageUrl} alt={p.name} className="w-10 h-10 object-cover rounded bg-gray-200" />
-                           ) : (
-                             <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center"><ShoppingCart className="w-4 h-4 text-gray-400" /></div>
-                           )}
-                           <div className="flex-1 overflow-hidden">
-                              <p className="text-[11px] font-medium truncate">{p.name}</p>
-                              <p className="text-[10px] text-muted-foreground">${p.price?.toFixed(2) || 'Consultar'}</p>
-                           </div>
-                        </div>
-                     ))}
-                   </div>
-                   <div className="mt-3 border-t pt-2 text-center text-[12px] text-blue-500 font-medium">Ver catálogo completo</div>
-                </div>
-             </div>
+  if (mode === 'whatsapp') {
+    return (
+      <div className="flex justify-center rounded-xl border bg-muted/30 p-6">
+        <div className="mx-auto flex h-[550px] w-[320px] flex-col overflow-hidden rounded-[28px] border-[8px] border-zinc-900 bg-[#efeae2] shadow-2xl">
+          <div className="flex shrink-0 items-center gap-3 bg-[#075e54] p-3 text-white shadow-md">
+            <Smartphone className="h-5 w-5" />
+            <div>
+              <div className="text-sm font-semibold leading-tight">{tenantName}</div>
+              <div className="text-[10px] text-white/80">Cuenta de empresa</div>
+            </div>
           </div>
-        );
-     }
-
-     if (mode === 'widget') {
-        return (
-          <div className="w-[350px] h-[550px] bg-background border rounded-lg overflow-hidden relative shadow-2xl mx-auto flex flex-col">
-             <div className="bg-primary text-primary-foreground p-3 flex items-center gap-3 shrink-0">
-                <MessageSquare className="w-5 h-5" />
-                <span className="font-semibold text-sm">Asistente Virtual</span>
-             </div>
-             <div className="flex-1 overflow-y-auto p-4 bg-muted/20">
-                <div className="bg-background rounded-lg border shadow-sm p-3 inline-block max-w-[85%] float-left">
-                   <p className="text-sm mb-2">Aquí tienes nuestro catálogo:</p>
-                   <div className="flex overflow-x-auto gap-2 pb-2 -mx-1 px-1 snap-x">
-                     {products.slice(0, 4).map((p, idx) => (
-                        <div key={idx} className="w-32 shrink-0 border rounded bg-card snap-center">
-                           <div className="aspect-square bg-muted rounded-t flex items-center justify-center">
-                              {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover rounded-t" /> : <ShoppingCart className="w-6 h-6 text-muted-foreground" />}
-                           </div>
-                           <div className="p-2">
-                              <p className="text-xs font-medium line-clamp-1">{p.name}</p>
-                              <p className="text-xs font-bold mt-1">${p.price}</p>
-                              <Button size="sm" variant="secondary" className="w-full h-6 text-[10px] mt-2">Agregar</Button>
-                           </div>
-                        </div>
-                     ))}
-                   </div>
-                </div>
-             </div>
-          </div>
-        );
-     }
-
-     return (
-        <div className="w-full h-[550px] bg-background border rounded-lg overflow-hidden relative shadow-sm flex flex-col">
-           <div className="border-b p-4 flex items-center justify-between bg-card shrink-0">
-              <h2 className="font-bold">{tenantName} Store</h2>
-              <div className="flex gap-2">
-                 <Badge variant="outline">Portal Web</Badge>
-                 <ShoppingCart className="w-5 h-5" />
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="rounded-xl bg-white p-3 text-zinc-900 shadow-sm">
+              <div className="mb-1 text-xs font-semibold text-[#075e54]">Catalogo actualizado</div>
+              <div className="mb-3 text-sm">Estos son los productos disponibles. Elegi uno y armamos el pedido.</div>
+              <div className="space-y-2">
+                {products.slice(0, 3).map((product) => (
+                  <div key={product.id} className="flex items-center gap-2 rounded-lg border bg-zinc-50 p-1.5">
+                    <ProductThumb product={product} className="h-10 w-10 rounded" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-medium">{product.name}</p>
+                      <p className="text-[10px] text-zinc-500">{formatPrice(product.price)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-           </div>
-           <div className="flex-1 overflow-y-auto p-6 bg-muted/10 grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-max">
-              {products.map((p, idx) => (
-                 <div key={idx} className="border rounded-lg bg-card p-3 flex flex-col h-full">
-                    <div className="aspect-square bg-muted rounded-md mb-3 flex items-center justify-center">
-                       {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover rounded-md" /> : <ShoppingCart className="w-8 h-8 text-muted-foreground/50" />}
-                    </div>
-                    <div className="flex-1">
-                       <p className="text-xs font-medium text-primary mb-1">{p.category}</p>
-                       <h3 className="text-sm font-semibold line-clamp-2">{p.name}</h3>
-                       <p className="font-bold mt-2">${p.price}</p>
-                    </div>
-                    <Button size="sm" className="w-full mt-3 h-8 text-xs">Agregar al carrito</Button>
-                 </div>
-              ))}
-           </div>
+              <div className="mt-3 border-t pt-2 text-center text-[12px] font-medium text-blue-600">Ver catalogo completo</div>
+            </div>
+          </div>
         </div>
-     );
-  };
+      </div>
+    );
+  }
+
+  if (mode === 'widget') {
+    return (
+      <div className="flex justify-center rounded-xl border bg-muted/30 p-6">
+        <div className="mx-auto flex h-[550px] w-[350px] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl">
+          <div className="flex shrink-0 items-center gap-3 bg-primary p-3 text-primary-foreground">
+            <MessageSquare className="h-5 w-5" />
+            <span className="text-sm font-semibold">Asistente virtual</span>
+          </div>
+          <div className="flex-1 overflow-y-auto bg-muted/20 p-4">
+            <div className="max-w-[88%] rounded-xl border bg-background p-3 shadow-sm">
+              <p className="mb-2 text-sm">Te dejo el catalogo actualizado:</p>
+              <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2">
+                {products.slice(0, 4).map((product) => (
+                  <div key={product.id} className="w-32 shrink-0 snap-center overflow-hidden rounded-lg border bg-card">
+                    <ProductThumb product={product} className="aspect-square" />
+                    <div className="p-2">
+                      <p className="line-clamp-1 text-xs font-medium">{product.name}</p>
+                      <p className="mt-1 text-xs font-bold">{formatPrice(product.price)}</p>
+                      <Button size="sm" variant="secondary" className="mt-2 h-6 w-full text-[10px]">Agregar</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4 w-full h-full">
-      <div className="flex items-center justify-center p-8 bg-muted/30 border rounded-lg overflow-hidden">
-         {getDeviceFrame()}
+    <div className="flex h-[550px] w-full flex-col overflow-hidden rounded-xl border bg-background shadow-sm">
+      <div className="flex shrink-0 items-center justify-between border-b bg-card p-4">
+        <div>
+          <h2 className="font-bold">{tenantName}</h2>
+          <p className="text-xs text-muted-foreground">Marketplace publico</p>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline"><Globe className="mr-1 h-3 w-3" /> Portal</Badge>
+          <ShoppingCart className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="grid flex-1 auto-rows-max grid-cols-2 gap-4 overflow-y-auto bg-muted/10 p-6 md:grid-cols-4">
+        {products.map((product) => (
+          <div key={product.id} className="flex h-full flex-col rounded-xl border bg-card p-3 shadow-sm">
+            <ProductThumb product={product} className="mb-3 aspect-square rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 truncate text-xs font-medium text-primary">{product.category}</p>
+              <h3 className="line-clamp-2 text-sm font-semibold">{product.name}</h3>
+              <p className="mt-2 font-bold">{formatPrice(product.price)}</p>
+            </div>
+            <Button size="sm" className="mt-3 h-8 w-full text-xs">Agregar al carrito</Button>
+          </div>
+        ))}
       </div>
     </div>
   );

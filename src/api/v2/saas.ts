@@ -347,12 +347,36 @@ export interface ProductionSmokeCheck {
   raw: UnknownRecord;
 }
 
+export interface ProductionSmokeE2EFlow {
+  id: string;
+  label: string;
+  surface?: string;
+  ready: boolean;
+  status?: string;
+  endpoint?: string;
+  qa_scenario_id?: string;
+  meta_flow_ready?: boolean | null;
+  evidence?: UnknownRecord;
+  next_action?: string;
+  raw: UnknownRecord;
+}
+
+export interface ProductionSmokeE2EReadiness {
+  contract_version?: string;
+  status: string;
+  summary: UnknownRecord;
+  flows: ProductionSmokeE2EFlow[];
+  frontend_contract: UnknownRecord;
+  raw: UnknownRecord;
+}
+
 export interface ProductionSmokeV2 {
   contract_version?: string;
   request_id?: string;
   status: string;
   summary: UnknownRecord;
   checks: ProductionSmokeCheck[];
+  e2e_flow_readiness?: ProductionSmokeE2EReadiness;
   frontend_contract: UnknownRecord;
   raw: unknown;
 }
@@ -1407,6 +1431,38 @@ const normalizeProductionSmokeCheck = (value: unknown, index = 0): ProductionSmo
   };
 };
 
+const normalizeProductionSmokeE2EFlow = (value: unknown, index = 0): ProductionSmokeE2EFlow | null => {
+  if (!isRecord(value)) return null;
+  const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `flow_${index + 1}`;
+  return {
+    id,
+    label: asString(getFirst(value, ['label', 'title', 'name'])) ?? id,
+    surface: asString(value.surface),
+    ready: Boolean(asBoolean(getFirst(value, ['ready', 'ok', 'passed'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'ready'),
+    status: asString(getFirst(value, ['status', 'state'])),
+    endpoint: asString(value.endpoint),
+    qa_scenario_id: asString(value.qa_scenario_id),
+    meta_flow_ready: asBoolean(value.meta_flow_ready),
+    evidence: value.evidence ? asRecord(value.evidence) : undefined,
+    next_action: asString(value.next_action),
+    raw: value,
+  };
+};
+
+const normalizeProductionSmokeE2EReadiness = (value: unknown): ProductionSmokeE2EReadiness | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    contract_version: asString(value.contract_version),
+    status: asString(getFirst(value, ['status', 'state'])) ?? 'unknown',
+    summary: asRecord(value.summary),
+    flows: asArray(value.flows)
+      .map(normalizeProductionSmokeE2EFlow)
+      .filter((item): item is ProductionSmokeE2EFlow => Boolean(item)),
+    frontend_contract: asRecord(value.frontend_contract),
+    raw: value,
+  };
+};
+
 export const normalizeProductionSmokeV2 = (response: unknown): ProductionSmokeV2 => {
   const source = getSource(response);
   const record = asRecord(source);
@@ -1418,6 +1474,7 @@ export const normalizeProductionSmokeV2 = (response: unknown): ProductionSmokeV2
     checks: asArray(record.checks)
       .map(normalizeProductionSmokeCheck)
       .filter((item): item is ProductionSmokeCheck => Boolean(item)),
+    e2e_flow_readiness: normalizeProductionSmokeE2EReadiness(record.e2e_flow_readiness),
     frontend_contract: asRecord(record.frontend_contract),
     raw: response,
   };

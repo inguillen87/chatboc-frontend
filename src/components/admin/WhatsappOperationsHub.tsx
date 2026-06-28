@@ -1074,6 +1074,9 @@ const TemplateBlueprintPanel = ({
                   const confirmations = asArray(flow.server_confirmation).map(String);
                   const availability = asRecord(flow.availability);
                   const signedParams = asArray(flow.signed_params).map(String);
+                  const metaFlow = asRecord(flow.meta_flow_blueprint);
+                  const metaScreens = asArray(metaFlow.screens).map(asRecord);
+                  const dataContract = asArray(metaFlow.data_contract).map(String);
                   return (
                     <div key={String(flow.id)} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1096,6 +1099,28 @@ const TemplateBlueprintPanel = ({
                         <p className="mt-3 text-[11px] text-muted-foreground">
                           Firma: {signedParams.slice(0, 3).map(formatKey).join(" + ")}
                         </p>
+                      ) : null}
+                      {metaScreens.length ? (
+                        <div className="mt-3 rounded-xl border border-border/60 bg-background/80 p-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusPill tone="ready">Meta Flow</StatusPill>
+                            {metaFlow.category ? <StatusPill>{formatKey(String(metaFlow.category))}</StatusPill> : null}
+                            {metaFlow.endpoint_mode ? <StatusPill>{formatKey(String(metaFlow.endpoint_mode))}</StatusPill> : null}
+                          </div>
+                          <div className="mt-2 grid gap-1">
+                            {metaScreens.slice(0, 3).map((screen) => (
+                              <div key={String(screen.id)} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2 py-1 text-[11px]">
+                                <span className="font-semibold text-foreground">{String(screen.title || screen.id)}</span>
+                                <span className="text-muted-foreground">{formatKey(String(screen.id || ""))}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {dataContract.length ? (
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                              Datos: {dataContract.slice(0, 4).map(formatKey).join(" + ")}
+                            </p>
+                          ) : null}
+                        </div>
                       ) : null}
                       {confirmations.length ? (
                         <p className="mt-3 text-[11px] text-muted-foreground">
@@ -1123,6 +1148,9 @@ const TemplateBlueprintPanel = ({
                 <StatusPill tone={asNumber(qaPlaybook.ready_count) ? "ready" : "warning"}>
                   {formatNumber(qaPlaybook.ready_count)} listos
                 </StatusPill>
+                <StatusPill tone={asNumber(qaPlaybook.meta_flow_ready_count) ? "ready" : "warning"}>
+                  {formatNumber(qaPlaybook.meta_flow_ready_count)} Meta Flow
+                </StatusPill>
                 <StatusPill>{formatNumber(qaPlaybook.scenario_count)} escenarios</StatusPill>
               </div>
             </div>
@@ -1130,13 +1158,17 @@ const TemplateBlueprintPanel = ({
               {qaScenarios.slice(0, 6).map((scenario) => {
                 const templateState = asRecord(scenario.template_state);
                 const webviewState = asRecord(scenario.webview_state);
+                const metaCoverage = asRecord(scenario.meta_flow_coverage);
                 const scriptCases = asArray(scenario.script_cases).map(String);
+                const metaScreens = asArray(metaCoverage.screens).map(String);
+                const metaData = asArray(metaCoverage.data_contract).map(String);
                 return (
                   <div key={String(scenario.id)} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <StatusPill tone={toneForQaStatus(scenario.status)}>{formatKey(String(scenario.status || "review"))}</StatusPill>
                       <StatusPill>{formatKey(String(scenario.entrypoint || "whatsapp"))}</StatusPill>
                       {webviewState.status ? <StatusPill>{formatKey(String(webviewState.status))}</StatusPill> : null}
+                      {boolish(metaCoverage.ready) ? <StatusPill tone="ready">Meta Flow</StatusPill> : null}
                     </div>
                     <p className="text-sm font-semibold text-foreground">{String(scenario.label || scenario.id)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -1152,6 +1184,18 @@ const TemplateBlueprintPanel = ({
                         {scriptCases.slice(0, 4).map((item) => (
                           <StatusPill key={item}>{formatKey(item)}</StatusPill>
                         ))}
+                      </div>
+                    ) : null}
+                    {metaScreens.length ? (
+                      <div className="mt-3 rounded-xl border border-border/60 bg-background/80 p-2 text-[11px]">
+                        <div className="flex flex-wrap gap-2">
+                          {metaCoverage.flow_name ? <StatusPill tone="ready">{String(metaCoverage.flow_name)}</StatusPill> : null}
+                          {metaCoverage.endpoint_mode ? <StatusPill>{formatKey(String(metaCoverage.endpoint_mode))}</StatusPill> : null}
+                        </div>
+                        <p className="mt-2 text-muted-foreground">Pantallas: {metaScreens.slice(0, 4).map(formatKey).join(" + ")}</p>
+                        {metaData.length ? (
+                          <p className="mt-1 text-muted-foreground">Datos: {metaData.slice(0, 4).map(formatKey).join(" + ")}</p>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

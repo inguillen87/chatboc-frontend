@@ -1,3 +1,5 @@
+import type { CatalogPromotionsOps } from '@/types/catalog';
+
 export interface MarketProduct {
   id: string;
   catalogo_item_id?: string | number | null;
@@ -44,6 +46,10 @@ export interface MarketProduct {
 
 export interface MarketCartItem extends MarketProduct {
   quantity: number; // Quantity in cart
+  catalogo_item_id?: string | number | null;
+  catalog_item_id?: string | number | null;
+  product_id?: string | number | null;
+  line_id?: string | number | null;
 }
 
 export interface MarketCustomerProfile {
@@ -307,6 +313,15 @@ export interface MarketRewardRedeemResponse {
   raw?: unknown;
 }
 
+export interface MarketCartPromotions {
+  items_detalle?: unknown[];
+  total_ahorrado?: number | null;
+  total_con_descuento?: number | null;
+  promociones_aplicadas?: string[];
+  promo_total_carrito?: Record<string, unknown> | null;
+  raw?: unknown;
+}
+
 export interface MarketCartResponse {
   items: MarketCartItem[];
   totalAmount: number | null;
@@ -327,6 +342,7 @@ export interface MarketCartResponse {
   stock_status?: string | null;
   available_to_sell?: boolean | null;
   inventory_policy?: Record<string, unknown> | null;
+  promotions?: MarketCartPromotions | null;
 }
 
 export interface MarketCatalogSection {
@@ -337,16 +353,20 @@ export interface MarketCatalogSection {
 }
 
 export interface MarketCatalogResponse {
+  contract_version?: string | null;
+  tenant_slug?: string | null;
   tenantName?: string;
   tenantLogoUrl?: string;
   products: MarketProduct[];
   sections?: MarketCatalogSection[];
+  promotions?: CatalogPromotionsOps | null;
   publicCartUrl: string | null;
   whatsappShareUrl: string | null;
   heroImageUrl: string | null;
   heroSubtitle: string | null;
   isDemo?: boolean;
   demoReason?: string;
+  frontend_contract?: Record<string, unknown> | null;
 }
 
 export interface AddToCartPayload {
@@ -359,7 +379,14 @@ export interface AddToCartPayload {
 }
 
 export interface CheckoutStartPayload {
-  items?: Array<{ id: string; quantity: number }>;
+  items?: Array<{
+    id?: string;
+    product_id?: string | number;
+    catalogo_item_id?: string | number;
+    catalog_item_id?: string | number;
+    quantity?: number;
+    cantidad?: number;
+  }>;
   customer?: Record<string, any>;
   name?: string;
   phone?: string;

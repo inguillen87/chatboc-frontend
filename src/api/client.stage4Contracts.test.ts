@@ -68,6 +68,40 @@ describe('apiClient stage4 contract integrations', () => {
     );
   });
 
+  it('uses pyme promotion endpoints for marketplace discount operations', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce([{ id: 'promo-1', nombre_promocion: '10 off', is_active: true }])
+      .mockResolvedValueOnce({ id: 'promo-2', nombre_promocion: 'Categoria', is_active: true })
+      .mockResolvedValueOnce({ id: 'promo-1', nombre_promocion: '10 off', is_active: false });
+
+    const listed = await apiClient.adminListPromotions(77, 'demo-tenant');
+    const created = await apiClient.adminCreatePromotion(
+      77,
+      {
+        nombre_promocion: 'Categoria',
+        tipo_promocion: 'PORCENTAJE_CATEGORIA',
+        valor_descuento: 15,
+      },
+      'demo-tenant',
+    );
+    const toggled = await apiClient.adminTogglePromotion(77, 'promo-1', false, 'demo-tenant');
+
+    expect(listed[0].id).toBe('promo-1');
+    expect(created.id).toBe('promo-2');
+    expect(toggled.is_active).toBe(false);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/pymes/77/promociones', { tenantSlug: 'demo-tenant' });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/pymes/77/promociones',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/pymes/77/promociones/promo-1/desactivar',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+  });
+
   it('falls back to legacy widget auth paths only when canonical routes are unavailable', async () => {
     const notFound = new ApiError('Not found', 404, { reason_code: 'not_found' });
     apiFetchMock
@@ -128,7 +162,7 @@ describe('apiClient stage4 contract integrations', () => {
     expect(result.contract_version).toBe('tickets.public_status.v1');
     expect(result.request_id).toBe('req-123');
     expect(result.ticket.nro_ticket).toBe('M-12345');
-    expect(apiFetchMock).toHaveBeenCalledWith('/tickets/public/status?code=M-12345&pin=9999', { tenantSlug: 'municipio' });
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/public/status?code=M-12345&pin=9999', { tenantSlug: 'municipio' });
   });
 
   it('accepts public ticket status contract on controlled error payloads', async () => {
@@ -168,6 +202,6 @@ describe('apiClient stage4 contract integrations', () => {
     expect(result.request_id).toBe('req-workflow');
     expect(result.states).toEqual(['nuevo', 'en_proceso', 'cerrado']);
     expect(result.transitions.nuevo).toEqual(['en_proceso', 'cerrado']);
-    expect(apiFetchMock).toHaveBeenCalledWith('/tickets/workflow/metadata', { tenantSlug: 'municipio' });
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/workflow/metadata', { tenantSlug: 'municipio' });
   });
 });

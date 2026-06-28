@@ -48,11 +48,23 @@ const normalizeCartItems = (raw: any): MarketCartItem[] => {
   if (!Array.isArray(raw)) return [];
 
   return raw.map((item, index) => {
-    const id = item?.id ?? item?.product_id ?? `product-${index}`;
+    const catalogoItemId = item?.catalogo_item_id ?? item?.catalog_item_id ?? item?.product_id ?? item?.productId ?? item?.id ?? null;
+    const id = item?.id ?? item?.product_id ?? item?.productId ?? item?.catalogo_item_id ?? item?.catalog_item_id ?? `product-${index}`;
+    const quantity =
+      typeof item?.quantity === 'number'
+        ? item.quantity
+        : typeof item?.cantidad === 'number'
+          ? item.cantidad
+          : 1;
     return {
+      ...item,
       id: String(id),
+      catalogo_item_id: catalogoItemId,
+      catalog_item_id: catalogoItemId,
+      product_id: item?.product_id ?? item?.productId ?? catalogoItemId,
+      line_id: item?.line_id ?? item?.cart_item_id ?? item?.cartItemId ?? null,
       name: item?.name ?? item?.nombre ?? 'Producto',
-      quantity: typeof item?.quantity === 'number' ? item.quantity : 1,
+      quantity,
       price: typeof item?.price === 'number' ? item.price : null,
       points: typeof item?.points === 'number' ? item.points : null,
       imageUrl: item?.imageUrl ?? item?.imagen ?? null,

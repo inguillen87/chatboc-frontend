@@ -58,6 +58,48 @@ export interface CatalogLinks {
   share_hint?: string | null;
   search_placeholder?: string | null;
   cta_label?: string | null;
+  promotions_endpoint?: string | null;
+}
+
+export interface CatalogPromotionScope {
+  id?: string | number | null;
+  tipo_alcance?: 'PRODUCTO' | 'CATEGORIA' | 'MARCA' | string | null;
+  catalogo_item_id?: string | number | null;
+  nombre_categoria?: string | null;
+  nombre_marca?: string | null;
+}
+
+export interface CatalogPromotion {
+  id: string;
+  nombre_promocion?: string | null;
+  descripcion_publica?: string | null;
+  tipo_promocion?: string | null;
+  valor_descuento?: number | null;
+  monto_minimo_carrito?: number | null;
+  cantidad_minima_aplicable?: number | null;
+  is_active?: boolean | null;
+  codigo_promocion?: string | null;
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  alcances?: CatalogPromotionScope[] | null;
+}
+
+export interface CatalogPromotionsOps {
+  contract_version?: 'tenant.catalog_promotions_ops.v1' | string | null;
+  enabled?: boolean | null;
+  reason_code?: string | null;
+  total?: number | null;
+  active?: number | null;
+  inactive?: number | null;
+  catalog_items_with_promo_badge?: number | null;
+  endpoint?: string | null;
+  create_endpoint?: string | null;
+  activation_endpoint_template?: string | null;
+  deactivation_endpoint_template?: string | null;
+  supported_discount_types?: string[] | null;
+  recommended_quick_actions?: Array<Record<string, unknown>> | null;
+  items?: CatalogPromotion[] | null;
+  frontend_contract?: Record<string, unknown> | null;
 }
 
 export interface CatalogMetadata {
@@ -89,6 +131,7 @@ export interface TenantCatalog {
     items_count?: number | null;
     [key: string]: unknown;
   } | null;
+  promotions?: CatalogPromotionsOps | null;
   items?: unknown[] | null;
   metadata?: CatalogMetadata | null;
   links?: CatalogLinks | null;

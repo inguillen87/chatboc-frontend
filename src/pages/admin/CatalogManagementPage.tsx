@@ -18,12 +18,16 @@ import {
   Loader2,
   PackageCheck,
   PackageX,
+  Percent,
   Search,
+  Sparkles,
+  Tags,
   UploadCloud,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
+import { CatalogPromotion } from '@/types/catalog';
 import CatalogQualityCommandCenter from '@/components/admin/CatalogQualityCommandCenter';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
@@ -82,11 +86,38 @@ const getCatalogStock = (product: any) =>
 const getCatalogStockStatus = (product: any) =>
   firstDefined(toRecord(product), ['stock_status', 'availability_status', 'available_to_sell']);
 
+const getCatalogCategory = (product: any) =>
+  firstDefined(toRecord(product), ['category', 'categoria']) || 'General';
+
 const formatCurrency = (product: any) =>
   new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: product.currency || product.moneda || 'ARS',
   }).format(Number(getCatalogPrice(product) || 0));
+
+type PromotionScope = 'cart' | 'category' | 'product';
+
+type PromotionDraft = {
+  name: string;
+  description: string;
+  value: string;
+  fixedAmount: string;
+  minCart: string;
+  scope: PromotionScope;
+  category: string;
+  productId: string;
+};
+
+const emptyPromotionDraft: PromotionDraft = {
+  name: '',
+  description: '',
+  value: '10',
+  fixedAmount: '',
+  minCart: '',
+  scope: 'cart',
+  category: 'all',
+  productId: 'none',
+};
 
 const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: CatalogManagementPageProps) => {
   const { currentSlug, tenant } = useTenant();
@@ -105,8 +136,14 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   const [editStock, setEditStock] = useState('');
   const [updatingId, setUpdatingId] = useState<string | number | null>(null);
   const [varietalFilter, setVarietalFilter] = useState('all');
+  const [promotions, setPromotions] = useState<CatalogPromotion[]>([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(false);
+  const [promotionDraft, setPromotionDraft] = useState<PromotionDraft>(emptyPromotionDraft);
+  const [creatingPromotion, setCreatingPromotion] = useState(false);
+  const [togglingPromotionId, setTogglingPromotionId] = useState<string | null>(null);
 
   const effectiveTenantSlug = tenantSlugOverride || currentSlug;
+  const pymeOwnerId = user?.id;
 
   const isWinery = useMemo(
     () => tenant?.rubro_slug === 'bodega' || user?.rubro === 'bodega' || effectiveTenantSlug?.includes('bodega'),
@@ -121,6 +158,9 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
         const catalog = await apiClient.adminGetCatalog(effectiveTenantSlug);
         setCatalogContract(catalog);
         setProducts(normalizeAdminCatalogItems(catalog));
+        if (Array.isArray(catalog?.promotions?.items)) {
+          setPromotions(catalog.promotions.items);
+        }
       } catch {
         const data = await apiClient.adminListProducts(effectiveTenantSlug);
         setCatalogContract(null);
@@ -134,10 +174,28 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     }
   };
 
+  const loadPromotions = async () => {
+    if (!pymeOwnerId) return;
+    setPromotionsLoading(true);
+    try {
+      const data = await apiClient.adminListPromotions(pymeOwnerId, effectiveTenantSlug || undefined);
+      setPromotions(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading promotions:', error);
+    } finally {
+      setPromotionsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (effectiveTenantSlug) void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTenantSlug]);
+
+  useEffect(() => {
+    if (effectiveTenantSlug && pymeOwnerId) void loadPromotions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTenantSlug, pymeOwnerId]);
 
   const startEditing = (product: any) => {
     const itemId = getCatalogItemId(product);
@@ -203,7 +261,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     }
   };
 
-  const categories = Array.from(new Set(products.map((product) => product.category || product.categoria).filter(Boolean)));
+  const categories = Array.from(new Set(products.map((product) => getCatalogCategory(product)).filter(Boolean)));
   const varietals = isWinery
     ? Array.from(new Set(products.map((product) => product.extra_metadata?.varietal || product.varietal).filter(Boolean)))
     : [];
@@ -263,6 +321,90 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     );
   };
 
+  const activePromotions = promotions.filter((promotion) => promotion.is_active !== false);
+  const promotionEndpoint = catalogContract?.promotions?.endpoint || (pymeOwnerId ? `/api/pymes/${pymeOwnerId}/promociones` : null);
+
+  const handleCreatePromotion = async () => {
+    if (!pymeOwnerId) {
+      toast.error('No se pudo identificar el owner PYME para crear promociones.');
+      return;
+    }
+
+    const value = Number(promotionDraft.value);
+    const fixedAmount = Number(promotionDraft.fixedAmount);
+    const minCart = Number(promotionDraft.minCart);
+    if (!promotionDraft.name.trim()) {
+      toast.error('La promocion necesita un nombre.');
+      return;
+    }
+    if (promotionDraft.scope !== 'cart' && (!Number.isFinite(value) || value <= 0)) {
+      toast.error('El porcentaje debe ser mayor a 0.');
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      nombre_promocion: promotionDraft.name.trim(),
+      descripcion_publica: promotionDraft.description.trim() || undefined,
+      is_active: true,
+    };
+
+    if (promotionDraft.scope === 'cart') {
+      const usesFixedAmount = Number.isFinite(fixedAmount) && fixedAmount > 0;
+      payload.tipo_promocion = usesFixedAmount ? 'TOTAL_CARRITO_DESCUENTO_FIJO' : 'TOTAL_CARRITO_DESCUENTO_PORCENTAJE';
+      payload.valor_descuento = usesFixedAmount ? fixedAmount : value;
+      if (Number.isFinite(minCart) && minCart > 0) payload.monto_minimo_carrito = minCart;
+    }
+
+    if (promotionDraft.scope === 'category') {
+      if (!promotionDraft.category || promotionDraft.category === 'all') {
+        toast.error('Elegi una categoria para aplicar el descuento.');
+        return;
+      }
+      payload.tipo_promocion = 'PORCENTAJE_CATEGORIA';
+      payload.valor_descuento = value;
+      payload.alcances = [{ tipo_alcance: 'CATEGORIA', nombre_categoria: promotionDraft.category }];
+    }
+
+    if (promotionDraft.scope === 'product') {
+      if (!promotionDraft.productId || promotionDraft.productId === 'none') {
+        toast.error('Elegi un producto para aplicar el descuento.');
+        return;
+      }
+      payload.tipo_promocion = 'PORCENTAJE_PRODUCTO';
+      payload.valor_descuento = value;
+      payload.alcances = [{ tipo_alcance: 'PRODUCTO', catalogo_item_id: promotionDraft.productId }];
+    }
+
+    setCreatingPromotion(true);
+    try {
+      const created = await apiClient.adminCreatePromotion(pymeOwnerId, payload, effectiveTenantSlug || undefined);
+      setPromotions((prev) => [created, ...prev.filter((promotion) => promotion.id !== created.id)]);
+      setPromotionDraft(emptyPromotionDraft);
+      toast.success('Promocion creada y lista para el marketplace.');
+    } catch (error) {
+      console.error('Error creating promotion:', error);
+      toast.error('No se pudo crear la promocion.');
+    } finally {
+      setCreatingPromotion(false);
+    }
+  };
+
+  const handleTogglePromotion = async (promotion: CatalogPromotion) => {
+    if (!pymeOwnerId || !promotion.id) return;
+    const nextActive = promotion.is_active === false;
+    setTogglingPromotionId(promotion.id);
+    try {
+      const updated = await apiClient.adminTogglePromotion(pymeOwnerId, promotion.id, nextActive, effectiveTenantSlug || undefined);
+      setPromotions((prev) => prev.map((item) => (item.id === promotion.id ? { ...item, ...updated } : item)));
+      toast.success(nextActive ? 'Promocion activada.' : 'Promocion pausada.');
+    } catch (error) {
+      console.error('Error toggling promotion:', error);
+      toast.error('No se pudo actualizar la promocion.');
+    } finally {
+      setTogglingPromotionId(null);
+    }
+  };
+
   return (
     <div className={embedded ? 'space-y-6' : 'container mx-auto p-6 space-y-6'}>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -302,6 +444,179 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
         <MetricCard icon={PackageX} label="Stock sin validar" value={String(inventoryStats.stockUnknown ?? '--')} />
         <MetricCard icon={ImageOff} label="Sin imagen" value={String(imageStats.missingImages)} />
       </div>
+
+      <Card className="overflow-hidden border-primary/10">
+        <CardHeader className="border-b bg-muted/30 pb-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Tags className="h-4 w-4" />
+                </span>
+                Marketplace y promociones
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Crea descuentos por carrito, categoria o producto sin salir del catalogo operativo.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="outline">{activePromotions.length} activas</Badge>
+              <Badge variant="secondary">{promotions.length} totales</Badge>
+              {promotionEndpoint ? <Badge variant="outline">{promotionEndpoint}</Badge> : null}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-3">
+            {promotionsLoading ? (
+              <div className="flex h-28 items-center justify-center rounded-lg border border-dashed">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : promotions.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+                Todavia no hay promociones configuradas. Crea una primera regla para que el marketplace, WhatsApp y checkout muestren valor comercial real.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {promotions.slice(0, 6).map((promotion) => (
+                  <div key={promotion.id} className="rounded-lg border bg-background p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{promotion.nombre_promocion || 'Promocion sin nombre'}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                          {promotion.descripcion_publica || promotion.tipo_promocion || 'Regla comercial activa'}
+                        </p>
+                      </div>
+                      <Badge variant={promotion.is_active === false ? 'secondary' : 'default'}>
+                        {promotion.is_active === false ? 'Pausada' : 'Activa'}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+                        <Percent className="h-3 w-3" />
+                        {promotion.valor_descuento ?? 0}
+                        {String(promotion.tipo_promocion || '').includes('FIJO') ? ' fijo' : '%'}
+                      </span>
+                      {promotion.monto_minimo_carrito ? (
+                        <span className="rounded-full bg-muted px-2 py-1">Min ${promotion.monto_minimo_carrito}</span>
+                      ) : null}
+                      {promotion.alcances?.[0]?.nombre_categoria ? (
+                        <span className="rounded-full bg-muted px-2 py-1">{promotion.alcances[0].nombre_categoria}</span>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 w-full"
+                      onClick={() => void handleTogglePromotion(promotion)}
+                      disabled={togglingPromotionId === promotion.id}
+                    >
+                      {togglingPromotionId === promotion.id ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Sparkles className="mr-2 h-3 w-3" />}
+                      {promotion.is_active === false ? 'Activar' : 'Pausar'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="mb-4">
+              <p className="font-semibold">Nueva promocion rapida</p>
+              <p className="text-sm text-muted-foreground">Publica reglas simples que el carrito ya puede evaluar.</p>
+            </div>
+            <div className="space-y-3">
+              <Input
+                value={promotionDraft.name}
+                onChange={(event) => setPromotionDraft((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Nombre visible, ej: 15% en uniformes"
+              />
+              <Input
+                value={promotionDraft.description}
+                onChange={(event) => setPromotionDraft((prev) => ({ ...prev, description: event.target.value }))}
+                placeholder="Detalle corto para WhatsApp y marketplace"
+              />
+              <Select
+                value={promotionDraft.scope}
+                onValueChange={(value) => setPromotionDraft((prev) => ({ ...prev, scope: value as PromotionScope }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Alcance" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cart">Compra minima</SelectItem>
+                  <SelectItem value="category">Categoria</SelectItem>
+                  <SelectItem value="product">Producto</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {promotionDraft.scope === 'category' ? (
+                <Select
+                  value={promotionDraft.category}
+                  onValueChange={(value) => setPromotionDraft((prev) => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Elegir categoria</SelectItem>
+                    {categories.map((category: any) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              {promotionDraft.scope === 'product' ? (
+                <Select
+                  value={promotionDraft.productId}
+                  onValueChange={(value) => setPromotionDraft((prev) => ({ ...prev, productId: value }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Elegir producto</SelectItem>
+                    {products.slice(0, 80).map((product) => {
+                      const itemId = getCatalogItemId(product);
+                      if (!itemId) return null;
+                      return (
+                        <SelectItem key={String(itemId)} value={String(itemId)}>
+                          {product.name || product.nombre || itemId}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="number"
+                  min={0}
+                  value={promotionDraft.value}
+                  onChange={(event) => setPromotionDraft((prev) => ({ ...prev, value: event.target.value }))}
+                  placeholder="% descuento"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  value={promotionDraft.minCart}
+                  onChange={(event) => setPromotionDraft((prev) => ({ ...prev, minCart: event.target.value }))}
+                  placeholder="Min compra"
+                  disabled={promotionDraft.scope !== 'cart'}
+                />
+              </div>
+              {promotionDraft.scope === 'cart' ? (
+                <Input
+                  type="number"
+                  min={0}
+                  value={promotionDraft.fixedAmount}
+                  onChange={(event) => setPromotionDraft((prev) => ({ ...prev, fixedAmount: event.target.value }))}
+                  placeholder="Monto fijo opcional"
+                />
+              ) : null}
+              <Button className="w-full" onClick={() => void handleCreatePromotion()} disabled={creatingPromotion || !pymeOwnerId}>
+                {creatingPromotion ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Crear promocion
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">

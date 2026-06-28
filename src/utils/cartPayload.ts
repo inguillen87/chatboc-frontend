@@ -263,14 +263,26 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
       ? raw.promocion_activa
       : typeof raw.promocion_info === 'string'
         ? raw.promocion_info
-        : typeof raw.promoInfo === 'string'
-          ? raw.promoInfo
-          : undefined,
+        : typeof raw.promo_info === 'string'
+          ? raw.promo_info
+          : typeof raw.promoInfo === 'string'
+            ? raw.promoInfo
+            : typeof raw.promotion_label === 'string'
+              ? raw.promotion_label
+              : typeof raw.discount_label === 'string'
+                ? raw.discount_label
+                : undefined,
     promocion_info: typeof raw.promocion_info === 'string'
       ? raw.promocion_info
-      : typeof raw.promoInfo === 'string'
-        ? raw.promoInfo
-        : undefined,
+      : typeof raw.promo_info === 'string'
+        ? raw.promo_info
+        : typeof raw.promoInfo === 'string'
+          ? raw.promoInfo
+          : typeof raw.promotion_label === 'string'
+            ? raw.promotion_label
+            : typeof raw.discount_label === 'string'
+              ? raw.discount_label
+              : undefined,
     precio_mayorista: toNullableNumber(raw.precio_mayorista ?? raw.wholesale_price),
     cantidad_minima_mayorista: toNullableNumber(raw.cantidad_minima_mayorista ?? raw.wholesale_min_qty),
     modalidad,

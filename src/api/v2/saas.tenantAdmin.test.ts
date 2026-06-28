@@ -212,6 +212,25 @@ describe("tenant admin v2 contracts", () => {
         { id: "widget_platform_onboarding", ok: true, status: "pass", endpoint: "/api/public/widget-config" },
         { id: "inbox_360", ok: false, status: "warning", endpoint: "/api/v2/inbox/omnichannel" },
       ],
+      e2e_flow_readiness: {
+        contract_version: "platform.e2e_flow_readiness.v1",
+        status: "needs_attention",
+        summary: { total: 2, ready: 1 },
+        flows: [
+          {
+            id: "gov_claim_text_to_tracking",
+            label: "Municipio: reclamo por WhatsApp hasta seguimiento publico",
+            ready: true,
+            status: "ready",
+            endpoint: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+            qa_scenario_id: "gov_claim_text_to_tracking",
+            meta_flow_ready: true,
+            evidence: { tickets_recent: 3 },
+            next_action: "run_whatsapp_claim_text_to_tracking_and_open_public_status",
+          },
+        ],
+        frontend_contract: { render_as: "e2e_flow_readiness_grid" },
+      },
       frontend_contract: {
         render_as: "production_smoke_report",
       },
@@ -221,5 +240,12 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.status).toBe("warning");
     expect(normalized.checks).toHaveLength(2);
     expect(normalized.checks[1].endpoint).toBe("/api/v2/inbox/omnichannel");
+    expect(normalized.e2e_flow_readiness?.contract_version).toBe("platform.e2e_flow_readiness.v1");
+    expect(normalized.e2e_flow_readiness?.flows[0]).toMatchObject({
+      id: "gov_claim_text_to_tracking",
+      ready: true,
+      meta_flow_ready: true,
+      qa_scenario_id: "gov_claim_text_to_tracking",
+    });
   });
 });

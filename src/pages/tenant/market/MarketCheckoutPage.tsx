@@ -15,6 +15,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import SecureCheckoutNotice from '@/components/market/SecureCheckoutNotice';
+import type { MarketCartItem } from '@/types/market';
 import {
   checkoutReducer,
   createInitialCheckoutState,
@@ -24,6 +25,18 @@ import {
 } from './checkoutMachine';
 
 const checkoutStateStorageKey = (tenantSlug: string) => `chatboc_market_checkout_state_${tenantSlug}`;
+
+const checkoutItemPayload = (item: MarketCartItem) => {
+  const catalogoItemId = item.catalogo_item_id ?? item.catalog_item_id ?? item.product_id ?? item.id;
+  return {
+    id: String(item.id),
+    product_id: item.product_id ?? catalogoItemId,
+    catalogo_item_id: catalogoItemId,
+    catalog_item_id: catalogoItemId,
+    quantity: item.quantity,
+    cantidad: item.quantity,
+  };
+};
 
 function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
   const {
@@ -78,7 +91,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
     }
 
     const checkoutPayload = {
-      items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+      items: items.map(checkoutItemPayload),
       customer: {
         name,
         ...(phone ? { phone } : {}),

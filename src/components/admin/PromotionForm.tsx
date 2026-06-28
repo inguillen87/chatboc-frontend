@@ -18,17 +18,17 @@ import { Loader2 } from 'lucide-react';
 const promotionFormSchema = z.object({
   title: z
     .string()
-    .min(3, { message: 'El título debe tener al menos 3 caracteres.' })
+    .min(3, { message: 'El titulo debe tener al menos 3 caracteres.' })
     .max(100),
   description: z
     .string()
-    .min(5, { message: 'La descripción debe tener al menos 5 caracteres.' }),
+    .min(5, { message: 'La descripcion debe tener al menos 5 caracteres.' }),
   link: z
     .string()
-    .url({ message: 'Por favor, introduce una URL válida.' }),
+    .url({ message: 'Por favor, introduce una URL valida.' }),
   imageUrl: z
     .string()
-    .url({ message: 'Por favor, introduce una URL válida.' })
+    .url({ message: 'Por favor, introduce una URL valida.' })
     .optional()
     .or(z.literal('')),
 });
@@ -68,9 +68,9 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Título</FormLabel>
+              <FormLabel>Titulo</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Promoción de verano" {...field} />
+                <Input placeholder="Ej: Promocion de verano" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -81,10 +81,10 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Descripción</FormLabel>
+              <FormLabel>Descripcion</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Describe tu promoción..."
+                  placeholder="Describe tu promocion..."
                   className="resize-y"
                   {...field}
                 />
@@ -111,7 +111,7 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
           name="imageUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>URL de la Imagen (Opcional)</FormLabel>
+              <FormLabel>URL de la imagen opcional</FormLabel>
               <FormControl>
                 <Input placeholder="https://ejemplo.com/flyer.jpg" {...field} />
               </FormControl>
@@ -130,7 +130,7 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
           </Button>
           <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
             {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Enviar Promoción
+            Enviar promocion
           </Button>
         </div>
       </form>
@@ -139,4 +139,3 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
 };
 
 export default PromotionForm;
-

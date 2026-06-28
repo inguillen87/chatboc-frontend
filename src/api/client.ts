@@ -3,7 +3,7 @@ import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
-import { TenantCatalog } from '@/types/catalog';
+import { CatalogPromotion, TenantCatalog } from '@/types/catalog';
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import {
   parseIdentityCoverageResponseV1,
@@ -779,6 +779,35 @@ export const apiClient = {
 
   adminPublishCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
     return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog/publish`, {
+      method: 'POST',
+      tenantSlug,
+    });
+  },
+
+  adminListPromotions: async (pymeId: string | number, tenantSlug?: string): Promise<CatalogPromotion[]> => {
+    return apiFetch<CatalogPromotion[]>(`/api/pymes/${pymeId}/promociones`, { tenantSlug });
+  },
+
+  adminCreatePromotion: async (
+    pymeId: string | number,
+    payload: Record<string, unknown>,
+    tenantSlug?: string,
+  ): Promise<CatalogPromotion> => {
+    return apiFetch<CatalogPromotion>(`/api/pymes/${pymeId}/promociones`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  adminTogglePromotion: async (
+    pymeId: string | number,
+    promotionId: string,
+    active: boolean,
+    tenantSlug?: string,
+  ): Promise<CatalogPromotion> => {
+    const action = active ? 'activar' : 'desactivar';
+    return apiFetch<CatalogPromotion>(`/api/pymes/${pymeId}/promociones/${promotionId}/${action}`, {
       method: 'POST',
       tenantSlug,
     });

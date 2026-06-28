@@ -1,13 +1,13 @@
 import React from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 export interface CatalogPreviewItem {
-  id: string | number; // temporary ID for the frontend
+  id: string | number;
   sku: string;
   name: string;
   price: number | string;
@@ -29,125 +29,131 @@ interface CatalogItemsTableProps {
 
 const CatalogItemsTable: React.FC<CatalogItemsTableProps> = ({ items, onUpdate, onDelete, readOnly = false }) => {
   return (
-    <div className="rounded-md border max-h-[500px] overflow-y-auto relative">
+    <div className="relative max-h-[500px] overflow-y-auto rounded-md border">
       <Table>
-        <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
+        <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
           <TableRow>
             <TableHead className="w-[100px]">SKU</TableHead>
             <TableHead>Producto</TableHead>
             <TableHead className="w-[120px]">Precio</TableHead>
             <TableHead className="w-[100px]">Stock</TableHead>
-            <TableHead className="w-[150px]">Categoría</TableHead>
+            <TableHead className="w-[150px]">Categoria</TableHead>
             {!readOnly && <TableHead className="w-[50px]"></TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center">
+              <TableCell colSpan={readOnly ? 5 : 6} className="h-24 text-center">
                 No se encontraron items.
               </TableCell>
             </TableRow>
           ) : (
             items.map((item) => (
-              <TableRow key={item.id} className={cn(item.errors?.length ? "bg-red-50/50" : "")}>
+              <TableRow key={item.id} className={cn(item.errors?.length ? 'bg-red-50/50' : '')}>
                 <TableCell>
-                    {readOnly ? (
-                        <span className="font-mono text-xs">{item.sku || '-'}</span>
-                    ) : (
-                        <Input
-                            value={item.sku}
-                            onChange={(e) => onUpdate(item.id, 'sku', e.target.value)}
-                            className="h-8 font-mono text-xs"
-                            placeholder="SKU-001"
-                        />
-                    )}
+                  {readOnly ? (
+                    <span className="font-mono text-xs">{item.sku || '-'}</span>
+                  ) : (
+                    <Input
+                      value={item.sku}
+                      onChange={(event) => onUpdate(item.id, 'sku', event.target.value)}
+                      className="h-8 font-mono text-xs"
+                      placeholder="SKU-001"
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     {readOnly ? (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-medium">{item.name}</span>
-                          {item.metadata && item.metadata.length > 0 && (
-                            <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                              {item.metadata.map((entry) => (
-                                <span
-                                  key={`${entry.key}-${entry.value}`}
-                                  className="rounded border border-muted px-1 py-0.5"
-                                >
-                                  <span className="font-medium">{entry.key}</span>: {entry.value}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{item.name}</span>
+                        {item.metadata?.length ? (
+                          <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                            {item.metadata.map((entry) => (
+                              <span key={`${entry.key}-${entry.value}`} className="rounded border border-muted px-1 py-0.5">
+                                <span className="font-medium">{entry.key}</span>: {entry.value}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : (
-                        <Input
-                            value={item.name}
-                            onChange={(e) => onUpdate(item.id, 'name', e.target.value)}
-                            className={cn("h-8", !item.name && "border-red-300")}
-                            placeholder="Nombre del producto"
-                        />
+                      <Input
+                        value={item.name}
+                        onChange={(event) => onUpdate(item.id, 'name', event.target.value)}
+                        className={cn('h-8', !item.name && 'border-red-300')}
+                        placeholder="Nombre del producto"
+                      />
                     )}
-                    {(item.errors?.length || 0) > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            {item.errors?.map((err, i) => (
-                                <Badge key={i} variant="destructive" className="text-[10px] px-1 h-5">{err}</Badge>
-                            ))}
-                        </div>
-                    )}
-                    {(item.warnings?.length || 0) > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            {item.warnings?.map((warn, i) => (
-                                <Badge key={i} variant="secondary" className="text-[10px] px-1 h-5 text-amber-600 bg-amber-50 border-amber-200">
-                                    <AlertTriangle className="w-3 h-3 mr-1"/> {warn}
-                                </Badge>
-                            ))}
-                        </div>
-                    )}
+                    {item.errors?.length ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.errors.map((error, index) => (
+                          <Badge key={`${error}-${index}`} variant="destructive" className="h-5 px-1 text-[10px]">{error}</Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    {item.warnings?.length ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.warnings.map((warning, index) => (
+                          <Badge
+                            key={`${warning}-${index}`}
+                            variant="secondary"
+                            className="h-5 border-amber-200 bg-amber-50 px-1 text-[10px] text-amber-700"
+                          >
+                            <AlertTriangle className="mr-1 h-3 w-3" /> {warning}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </TableCell>
                 <TableCell>
-                    {readOnly ? (
-                        <span>${item.price}</span>
-                    ) : (
-                        <Input
-                            type="number"
-                            value={item.price}
-                            onChange={(e) => onUpdate(item.id, 'price', parseFloat(e.target.value))}
-                            className="h-8"
-                            min={0}
-                        />
-                    )}
+                  {readOnly ? (
+                    <span>${item.price}</span>
+                  ) : (
+                    <Input
+                      type="number"
+                      value={item.price}
+                      onChange={(event) => onUpdate(item.id, 'price', parseFloat(event.target.value))}
+                      className="h-8"
+                      min={0}
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
-                    {readOnly ? (
-                        <span>{item.stock}</span>
-                    ) : (
-                        <Input
-                            type="number"
-                            value={item.stock}
-                            onChange={(e) => onUpdate(item.id, 'stock', parseFloat(e.target.value))}
-                            className="h-8"
-                            min={0}
-                        />
-                    )}
+                  {readOnly ? (
+                    <span>{item.stock}</span>
+                  ) : (
+                    <Input
+                      type="number"
+                      value={item.stock}
+                      onChange={(event) => onUpdate(item.id, 'stock', parseFloat(event.target.value))}
+                      className="h-8"
+                      min={0}
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
-                     {readOnly ? (
-                        <Badge variant="outline">{item.category || 'General'}</Badge>
-                    ) : (
-                        <Input
-                            value={item.category}
-                            onChange={(e) => onUpdate(item.id, 'category', e.target.value)}
-                            className="h-8"
-                            placeholder="Categoría"
-                        />
-                    )}
+                  {readOnly ? (
+                    <Badge variant="outline">{item.category || 'General'}</Badge>
+                  ) : (
+                    <Input
+                      value={item.category}
+                      onChange={(event) => onUpdate(item.id, 'category', event.target.value)}
+                      className="h-8"
+                      placeholder="Categoria"
+                    />
+                  )}
                 </TableCell>
                 {!readOnly && (
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => onDelete(item.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDelete(item.id)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

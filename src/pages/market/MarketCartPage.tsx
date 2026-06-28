@@ -820,6 +820,7 @@ export default function MarketCartPage() {
               continuity={cartContinuity}
               suggestedActions={cartSuggestedActions}
               recommendations={cartRecommendations}
+              promotions={cartQuery.data?.promotions ?? null}
               checkoutPreview={cartCheckoutPreview}
               checkoutOptions={cartCheckoutOptions}
               checkoutBlockedReason={checkoutBlockedReason}

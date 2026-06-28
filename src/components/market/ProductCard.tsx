@@ -71,6 +71,12 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
             {product.category}
           </Badge>
         ) : null}
+        {product.promoInfo ? (
+          <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-xs font-semibold text-amber-800">
+            <Sparkles className="mr-1 h-3.5 w-3.5" />
+            {product.promoInfo}
+          </Badge>
+        ) : null}
         {hasRating ? (
           <div className="flex items-center gap-1 text-sm text-amber-600">
             <Star className="h-4 w-4 fill-amber-500 text-amber-500" />

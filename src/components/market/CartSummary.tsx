@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { MarketCartItem, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketRewardsProfile, MarketSuggestedAction } from '@/types/market';
+import { MarketCartItem, MarketCartPromotions, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketRewardsProfile, MarketSuggestedAction } from '@/types/market';
 import { formatCurrency } from '@/utils/currency';
 import { ArrowRightLeft, Gift, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ interface CartSummaryProps {
   continuity?: MarketContinuity | null;
   suggestedActions?: MarketSuggestedAction[] | null;
   recommendations?: MarketRecommendation[] | null;
+  promotions?: MarketCartPromotions | null;
   checkoutPreview?: MarketCheckoutPreview | null;
   checkoutOptions?: MarketCheckoutOptions | null;
   checkoutBlockedReason?: string | null;
@@ -51,6 +52,7 @@ export default function CartSummary({
   continuity,
   suggestedActions,
   recommendations,
+  promotions,
   checkoutPreview,
   checkoutOptions,
   checkoutBlockedReason,
@@ -89,6 +91,13 @@ export default function CartSummary({
       }),
     [rewardsProfile?.available_redemptions],
   );
+  const appliedPromotions = Array.isArray(promotions?.promociones_aplicadas)
+    ? promotions.promociones_aplicadas.filter(Boolean)
+    : [];
+  const hasPromotionSavings =
+    typeof promotions?.total_ahorrado === 'number' &&
+    promotions.total_ahorrado > 0 &&
+    typeof promotions?.total_con_descuento === 'number';
 
   const formatItemPrice = (item: MarketCartItem) => {
     if (item.priceText) return item.priceText;
@@ -214,9 +223,41 @@ export default function CartSummary({
         )}
 
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Total</span>
+          <span className="text-muted-foreground">{hasPromotionSavings ? 'Subtotal' : 'Total'}</span>
           <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, currency)}</span>
         </div>
+        {promotions ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Promociones aplicadas</p>
+                {appliedPromotions.length ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {appliedPromotions.slice(0, 4).map((promo) => (
+                      <Badge key={promo} variant="outline" className="border-emerald-300 bg-white/70 text-emerald-800">
+                        {promo}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm font-medium">El carrito ya fue evaluado contra las promociones vigentes.</p>
+                )}
+              </div>
+              {typeof promotions.total_ahorrado === 'number' && promotions.total_ahorrado > 0 ? (
+                <div className="text-right">
+                  <p className="text-xs text-emerald-700">Ahorras</p>
+                  <p className="text-base font-bold">{formatCurrency(promotions.total_ahorrado, currency)}</p>
+                </div>
+              ) : null}
+            </div>
+            {typeof promotions.total_con_descuento === 'number' ? (
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+                <span className="text-sm font-medium">Total con descuento</span>
+                <span className="text-lg font-black">{formatCurrency(promotions.total_con_descuento, currency)}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Puntos</span>
           <span className="font-medium">{derivedTotals.points}</span>
