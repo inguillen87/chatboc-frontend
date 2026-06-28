@@ -352,6 +352,103 @@ export interface MarketCatalogSection {
   items?: MarketProduct[];
 }
 
+export interface MarketCatalogFacetItem {
+  value: string;
+  label?: string | null;
+  count?: number | null;
+}
+
+export interface MarketCatalogFacets {
+  contract_version?: string | null;
+  categories?: MarketCatalogFacetItem[] | null;
+  brands?: MarketCatalogFacetItem[] | null;
+  price_range?: {
+    min?: number | null;
+    max?: number | null;
+  } | null;
+  availability?: {
+    available?: number | null;
+    unavailable?: number | null;
+  } | null;
+  promotion_count?: number | null;
+}
+
+export interface MarketCatalogSortOption {
+  id: string;
+  label?: string | null;
+}
+
+export interface MarketAssistedIntakeStep {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+  status?: string | null;
+}
+
+export interface MarketAssistedIntakeTextExample {
+  id?: string | null;
+  label?: string | null;
+  document_type?: string | null;
+  text?: string | null;
+}
+
+export interface MarketAssistedIntakeEntry {
+  contract_version?: string | null;
+  render_as?: string | null;
+  mode?: 'assisted_first' | 'catalog_plus_assisted' | string | null;
+  title?: string | null;
+  summary?: string | null;
+  anonymous_intake?: boolean | null;
+  catalog_matching?: boolean | null;
+  show_on_empty_catalog?: boolean | null;
+  submit?: {
+    contract_version?: string | null;
+    method?: string | null;
+    endpoint?: string | null;
+    content_type?: string | null;
+    tenant_fields?: string[] | null;
+    headers?: string[] | null;
+    file_field?: string | null;
+    text_field?: string | null;
+    document_type_field?: string | null;
+    contact_fields?: string[] | null;
+    accepted_mime_types?: string[] | null;
+    accepted_extensions?: string[] | null;
+    max_file_mb?: number | null;
+    max_text_chars?: number | null;
+    returns?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
+  input_examples?: string[] | null;
+  text_examples?: MarketAssistedIntakeTextExample[] | null;
+  document_types?: Array<{
+    id?: string | null;
+    label?: string | null;
+    supports_catalog_matching?: boolean | null;
+    accepted_extensions?: string[] | null;
+    helper?: string | null;
+    [key: string]: unknown;
+  }> | null;
+  pipeline?: MarketAssistedIntakeStep[] | null;
+  crm_receives?: string[] | null;
+  empty_state?: {
+    title?: string | null;
+    description?: string | null;
+    primary_cta?: string | null;
+    secondary_cta?: string | null;
+  } | null;
+  frontend_contract?: Record<string, unknown> | null;
+}
+
+export interface MarketCatalogFilters {
+  categoria?: string | null;
+  q?: string | null;
+  precio_min?: number | null;
+  precio_max?: number | null;
+  en_promocion?: boolean | null;
+  sort?: string | null;
+}
+
 export interface MarketCatalogResponse {
   contract_version?: string | null;
   tenant_slug?: string | null;
@@ -360,6 +457,12 @@ export interface MarketCatalogResponse {
   products: MarketProduct[];
   sections?: MarketCatalogSection[];
   promotions?: CatalogPromotionsOps | null;
+  facets?: MarketCatalogFacets | null;
+  filters?: MarketCatalogFilters | null;
+  sort_options?: MarketCatalogSortOption[] | null;
+  assisted_intake?: MarketAssistedIntakeEntry | null;
+  total?: number | null;
+  total_unfiltered?: number | null;
   publicCartUrl: string | null;
   whatsappShareUrl: string | null;
   heroImageUrl: string | null;

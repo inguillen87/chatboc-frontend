@@ -45,6 +45,11 @@ const asBoolean = (value: unknown): boolean | undefined => {
   return undefined;
 };
 
+const normalizeStringList = (raw: unknown): string[] | undefined =>
+  Array.isArray(raw)
+    ? raw.map((item) => asString(item)).filter((item): item is string => Boolean(item))
+    : undefined;
+
 const pickRecord = (value: unknown): Record<string, unknown> | undefined =>
   isRecord(value) ? value : undefined;
 
@@ -484,10 +489,6 @@ const normalizeHeatmapRealtime = (value: unknown): OperationsHeatmapV1['realtime
 
 const normalizeHeatmapMapExperience = (value: unknown): OperationsHeatmapV1['map_experience'] => {
   if (!isRecord(value)) return undefined;
-  const normalizeStringList = (raw: unknown) =>
-    Array.isArray(raw)
-      ? raw.map((item) => asString(item)).filter((item): item is string => Boolean(item))
-      : undefined;
 
   return {
     ...value,
@@ -497,6 +498,24 @@ const normalizeHeatmapMapExperience = (value: unknown): OperationsHeatmapV1['map
     layer_groups: normalizeStringList(value.layer_groups),
     empty_state_behavior: asString(value.empty_state_behavior),
     supports_reduced_motion: asBoolean(value.supports_reduced_motion),
+  };
+};
+
+const normalizeHeatmapGeocodingGuidance = (
+  value: unknown,
+): NonNullable<OperationsHeatmapV1['geocoding']>['guidance'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    state: asString(value.state),
+    reason_code: asString(value.reason_code),
+    candidate_count: asNumber(value.candidate_count),
+    coverage_percent: asNumber(value.coverage_percent),
+    quality_state: asString(value.quality_state),
+    backend_external_calls: asString(value.backend_external_calls),
+    queue_behavior: asString(value.queue_behavior),
+    recommended_actions: normalizeActions(value.recommended_actions),
   };
 };
 
@@ -532,8 +551,143 @@ const normalizeHeatmapGeocoding = (value: unknown): OperationsHeatmapV1['geocodi
     status: asString(value.status),
     reason_code: asString(value.reason_code),
     candidate_count: asNumber(value.candidate_count),
+    guidance: normalizeHeatmapGeocodingGuidance(value.guidance),
     candidates,
     recommended_action: normalizeActionObject(value.recommended_action),
+  };
+};
+
+const normalizeHeatmapNarrative = (value: unknown): OperationsHeatmapV1['map_narrative'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    state: asString(value.state),
+    headline: asString(value.headline),
+    body: asString(value.body),
+    title: asString(value.title ?? value.headline),
+    subtitle: asString(value.subtitle),
+    description: asString(value.description ?? value.body),
+    operator_summary: asString(value.operator_summary ?? value.summary ?? value.body),
+    empty_state_title: asString(value.empty_state_title),
+    empty_state_description: asString(value.empty_state_description),
+    primary_cta: normalizeActionObject(value.primary_cta ?? value.primary_action),
+  };
+};
+
+const normalizeHeatmapLayerStyleContract = (value: unknown): OperationsHeatmapV1['layer_style_contract'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    palette: normalizeStringList(value.palette),
+    style_tokens: pickRecord(value.style_tokens),
+    styles: normalizeBucketItems(value.styles),
+    layers: normalizeBucketItems(value.layers),
+    legend_items: normalizeBucketItems(value.legend_items ?? value.legend),
+  };
+};
+
+const normalizeHeatmapViewportPresetItems = (value: unknown): NonNullable<OperationsHeatmapV1['viewport_presets']>['presets'] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<NonNullable<OperationsHeatmapV1['viewport_presets']>['presets']>((acc, preset, index) => {
+    if (!isRecord(preset)) return acc;
+    const center = pickRecord(preset.center);
+    acc.push({
+      ...preset,
+      id: asString(preset.id ?? preset.key) ?? `viewport_${index + 1}`,
+      label: asString(preset.label ?? preset.title ?? preset.name),
+      mode: asString(preset.mode),
+      default: asBoolean(preset.default),
+      description: asString(preset.description),
+      center: center
+        ? {
+            ...center,
+            lat: asNumber(center.lat ?? center.latitude),
+            lng: asNumber(center.lng ?? center.lon ?? center.longitude),
+          }
+        : undefined,
+      zoom: asNumber(preset.zoom),
+      pitch: asNumber(preset.pitch),
+      bearing: asNumber(preset.bearing),
+      radius_km: asNumber(preset.radius_km ?? preset.radiusKm),
+      reason_code: asString(preset.reason_code),
+    });
+    return acc;
+  }, []);
+};
+
+const normalizeHeatmapViewportPresets = (value: unknown): OperationsHeatmapV1['viewport_presets'] => {
+  const record = pickRecord(value);
+  const presets = normalizeHeatmapViewportPresetItems(record?.presets ?? value);
+  if (!presets.length) return undefined;
+  return {
+    ...(record ?? {}),
+    contract_version: asString(record?.contract_version),
+    default_preset_id:
+      asString(record?.default_preset_id) ??
+      presets.find((preset) => preset.default)?.id ??
+      presets[0]?.id,
+    camera_constraints: pickRecord(record?.camera_constraints),
+    presets,
+  };
+};
+
+const normalizeHeatmapAiLayers = (value: unknown): OperationsHeatmapV1['ai_layers'] => {
+  if (!isRecord(value)) return undefined;
+  const frontendContract = pickRecord(value.frontend_contract);
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    status: asString(value.status),
+    mode: asString(value.mode),
+    summary: pickRecord(value.summary),
+    hf_status: pickRecord(value.hf_status),
+    frontend_contract: frontendContract
+      ? {
+          ...frontendContract,
+          map_engines: normalizeStringList(frontendContract.map_engines),
+          layer_groups: normalizeStringList(frontendContract.layer_groups),
+        }
+      : undefined,
+    layers: normalizeBucketItems(value.layers),
+    risk_layers: normalizeBucketItems(value.risk_layers ?? value.ai_risk_layers),
+    recommendations: normalizeActions(value.recommendations ?? value.actions),
+  };
+};
+
+const normalizeHeatmapAiStatus = (value: unknown): OperationsHeatmapV1['ai_status'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    provider_family: asString(value.provider_family),
+    mode: asString(value.mode),
+    status: asString(value.status),
+    configured: asBoolean(value.configured),
+    zero_shot_enabled: asBoolean(value.zero_shot_enabled),
+    used_hf: asBoolean(value.used_hf),
+    fallback_reason: asString(value.fallback_reason),
+    safe_to_render_without_hf_token: asBoolean(value.safe_to_render_without_hf_token),
+    ai_layers_ready: asBoolean(value.ai_layers_ready),
+    map_layer_hints: normalizeStringList(value.map_layer_hints),
+    requires_human_attention: asBoolean(value.requires_human_attention),
+  };
+};
+
+const normalizeHeatmapHotspotActions = (value: unknown): OperationsHeatmapV1['hotspot_actions'] => {
+  if (!isRecord(value)) {
+    const actions = normalizeActions(value);
+    return actions.length ? { actions, playbook: [] } : undefined;
+  }
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    safe_by_default: asBoolean(value.safe_by_default),
+    writes_enabled: asBoolean(value.writes_enabled),
+    quality_state: asString(value.quality_state),
+    actions: normalizeActions(value.actions),
+    playbook: normalizeActions(value.playbook),
   };
 };
 
@@ -561,6 +715,9 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
           map_engine: asString(renderContract.map_engine),
           layers: rawLayers.filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
           point_format: pickRecord(renderContract.point_format) as Record<string, string> | undefined,
+          can_render_heatmap: asBoolean(renderContract.can_render_heatmap),
+          recommended_views: normalizeStringList(renderContract.recommended_views ?? renderContract.views),
+          premium_metadata: pickRecord(renderContract.premium_metadata ?? renderContract.metadata),
         }
       : undefined,
     summary: pickRecord(record.summary),
@@ -573,6 +730,14 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),
+    ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
+    ai_status: normalizeHeatmapAiStatus(record.ai_status),
+    map_narrative: normalizeHeatmapNarrative(record.map_narrative ?? record.narrative),
+    layer_style_contract: normalizeHeatmapLayerStyleContract(record.layer_style_contract ?? record.style_contract),
+    viewport_presets: normalizeHeatmapViewportPresets(record.viewport_presets ?? record.viewports),
+    hotspot_actions: normalizeHeatmapHotspotActions(record.hotspot_actions),
+    hotspot_playbook: normalizeActions(record.hotspot_playbook),
+    operator_playbook: normalizeActions(record.operator_playbook),
     map_experience: normalizeHeatmapMapExperience(record.map_experience),
     geocoding: normalizeHeatmapGeocoding(record.geocoding ?? record.geocoding_queue),
     facets,

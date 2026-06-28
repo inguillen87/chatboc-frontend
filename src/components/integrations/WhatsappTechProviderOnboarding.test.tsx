@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTechProviderOnboarding";
 import { tenantService } from "@/services/tenantService";
+import { getTenantOpsQaPlaybookV2, runTenantOpsQaCheckV2 } from "@/api/v2/saas";
 
 vi.mock("@/services/tenantService", () => ({
   tenantService: {
@@ -16,6 +17,11 @@ vi.mock("@/services/tenantService", () => ({
   },
 }));
 
+vi.mock("@/api/v2/saas", () => ({
+  getTenantOpsQaPlaybookV2: vi.fn(),
+  runTenantOpsQaCheckV2: vi.fn(),
+}));
+
 vi.mock("@/utils/api", async () => {
   const actual = await vi.importActual<typeof import("@/utils/api")>("@/utils/api");
   return {
@@ -25,6 +31,8 @@ vi.mock("@/utils/api", async () => {
 });
 
 const mockedTenantService = vi.mocked(tenantService);
+const mockedGetTenantOpsQaPlaybookV2 = vi.mocked(getTenantOpsQaPlaybookV2);
+const mockedRunTenantOpsQaCheckV2 = vi.mocked(runTenantOpsQaCheckV2);
 
 const baseContract = {
   contract_version: "twilio.tech_provider.v1",
@@ -131,6 +139,58 @@ const baseContract = {
   limitations: ["El cliente debe autorizar su WABA desde Meta."],
 };
 
+const baseOpsQaPlaybook = {
+  contract_version: "tenant.ops_qa.playbook.v1",
+  request_id: "req-qa",
+  tenant: { slug: "junin-1" },
+  safe_by_default: true,
+  status: "warning",
+  score: 0.82,
+  summary: {
+    checks_total: 3,
+    passed: 2,
+    warnings: 1,
+    critical_failed: 0,
+  },
+  checks: [
+    {
+      id: "whatsapp_templates_webviews",
+      label: "Templates y webviews WhatsApp",
+      ok: false,
+      status: "warning",
+      severity: "warning",
+      endpoint: "/api/v2/tenants/junin-1/ops-qa/check/whatsapp_templates_webviews",
+      details: { templates: 12, webviews: 4 },
+      next_action: "review_templates_and_webviews",
+    },
+    {
+      id: "tenant_profile",
+      label: "Perfil del tenant",
+      ok: true,
+      status: "pass",
+      severity: "info",
+      endpoint: "/api/v2/tenants/junin-1/admin-experience",
+      details: {},
+      next_action: "continue",
+    },
+  ],
+  recommended_next_actions: [
+    {
+      id: "whatsapp_templates_webviews",
+      label: "Revisar templates y webviews",
+      ok: false,
+      status: "warning",
+      severity: "warning",
+      endpoint: "/api/v2/tenants/junin-1/ops-qa/check/whatsapp_templates_webviews",
+      details: {},
+      next_action: "review_templates_and_webviews",
+    },
+  ],
+  execution: { mode: "read_only" },
+  frontend_contract: { render_as: "tenant_ops_qa" },
+  raw: {},
+};
+
 describe("WhatsappTechProviderOnboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -156,6 +216,24 @@ describe("WhatsappTechProviderOnboarding", () => {
       next_action: "submit_or_sync_templates",
       details: { templates_total: 6 },
     });
+    mockedGetTenantOpsQaPlaybookV2.mockResolvedValue(baseOpsQaPlaybook);
+    mockedRunTenantOpsQaCheckV2.mockResolvedValue({
+      contract_version: "tenant.ops_qa.execution.v1",
+      request_id: "req-run",
+      tenant: { slug: "junin-1" },
+      check_id: "whatsapp_templates_webviews",
+      label: "Templates y webviews WhatsApp",
+      ok: true,
+      status: "pass",
+      severity: "info",
+      execution_mode: "read_only",
+      sends_real_message: false,
+      details: { templates: 12, webviews: 4 },
+      next_action: "continue_activation",
+      playbook_status: "pass",
+      playbook_score: 0.91,
+      raw: {},
+    });
     vi.stubGlobal("open", vi.fn());
   });
 
@@ -171,6 +249,11 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getAllByText("online").length).toBeGreaterThan(0);
     expect(screen.getAllByText("ready").length).toBeGreaterThan(0);
     expect(screen.getByText("Checklist operativo")).toBeInTheDocument();
+    expect(screen.getByText("QA final del tenant")).toBeInTheDocument();
+    expect(screen.getAllByText("Templates y webviews WhatsApp").length).toBeGreaterThan(0);
+    expect(screen.getByText("Score 82%")).toBeInTheDocument();
+    expect(screen.getAllByText("read-only").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Revisar plantillas y webviews").length).toBeGreaterThan(0);
     expect(screen.getByText("78% listo")).toBeInTheDocument();
     expect(screen.getByText("7/9 controles")).toBeInTheDocument();
     expect(screen.getAllByText("Plantillas y webviews").length).toBeGreaterThan(0);
@@ -186,6 +269,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("El cliente debe autorizar su WABA desde Meta.")).toBeInTheDocument();
 
     expect(mockedTenantService.getWhatsappTechProvider).toHaveBeenCalledWith("junin-1");
+    expect(mockedGetTenantOpsQaPlaybookV2).toHaveBeenCalledWith("junin-1");
   });
 
   it("updates the visible contract after preparing activation", async () => {
@@ -217,5 +301,52 @@ describe("WhatsappTechProviderOnboarding", () => {
 
     expect(await screen.findByText("Resultado:")).toBeInTheDocument();
     expect(screen.getByText("Enviar o sincronizar plantillas")).toBeInTheDocument();
+  });
+
+  it("runs the final tenant QA check in read-only mode and renders score plus next action", async () => {
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ejecutar qa read-only/i }));
+
+    await waitFor(() => {
+      expect(mockedRunTenantOpsQaCheckV2).toHaveBeenCalledWith("junin-1", "whatsapp_templates_webviews");
+    });
+
+    expect(await screen.findByText(/Resultado ejecutado:/i)).toBeInTheDocument();
+    expect(screen.getByText("Score 91%")).toBeInTheDocument();
+    expect(screen.getByText("Continue Activation")).toBeInTheDocument();
+    expect(screen.getByText(/sin mensajes reales/i)).toBeInTheDocument();
+  });
+
+  it("opens templates inside the current tenant route", async () => {
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^plantillas$/i }));
+
+    expect(window.open).toHaveBeenCalledWith("/t/junin-1/perfil/plantillas-respuesta", "_self");
+  });
+
+  it("explains why Meta signup cannot start when platform setup is incomplete", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({
+      contract: {
+        ...baseContract,
+        automation: {
+          env: {
+            ready: false,
+            missing: ["TWILIO_ACCOUNT_SID", "META_APP_ID"],
+          },
+        },
+        embedded_signup: {
+          enabled: true,
+          start_url: null,
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    expect(await screen.findByRole("button", { name: /iniciar registro embebido/i })).toBeDisabled();
+    expect(screen.getByText(/Completa la configuracion de plataforma antes de abrir Meta/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/TWILIO_ACCOUNT_SID, META_APP_ID/i).length).toBeGreaterThan(0);
   });
 });

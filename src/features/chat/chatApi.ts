@@ -12,6 +12,7 @@ export interface ChatBootstrapMessagePayload {
   intent?: string | null;
   payload?: Record<string, unknown> | null;
   attachmentInfo?: unknown;
+  attachmentFile?: File;
   location?: { lat: number; lng?: number; lon?: number; address?: string | null; accuracy?: number | null };
   audioBlob?: Blob;
   audioFilename?: string;
@@ -101,6 +102,14 @@ export interface LeadCaptureResponse {
   order?: OperationalOrderResult | null;
   media_understanding?: OperationalMediaUnderstanding | null;
   raw?: unknown;
+}
+
+export interface WidgetAssistedOrderRequest {
+  text?: string | null;
+  attachmentFile?: File | null;
+  attachmentInfo?: unknown;
+  documentType?: string | null;
+  contactNotes?: string | null;
 }
 
 export interface OperationalMediaUnderstanding {
@@ -596,7 +605,9 @@ export const extractChatBootstrapReplyText = (response: unknown): string | null 
     'respuesta',
     'agent_message',
     'assistant_message',
+    'customer_message',
     'output_text',
+    'resumen',
     'response',
     'answer',
     'message',
@@ -720,6 +731,80 @@ export const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResp
     media_understanding: mediaUnderstanding,
     raw: response,
   };
+};
+
+const readAttachmentString = (attachmentInfo: unknown, keys: string[]) =>
+  isRecord(attachmentInfo) ? readString(attachmentInfo, keys) : null;
+
+const inferWidgetDocumentType = (request: WidgetAssistedOrderRequest, payload?: ChatBootstrapMessagePayload) => {
+  const haystack = [
+    request.documentType,
+    payload?.intent,
+    payload?.action_id,
+    payload?.text,
+    request.text,
+    request.attachmentFile?.name,
+    request.attachmentFile?.type,
+    readAttachmentString(request.attachmentInfo, ['name', 'filename', 'mimeType', 'mime_type', 'type']),
+  ]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+    .join(' ')
+    .toLowerCase();
+
+  if (/boleta|impuesto|tasa|pago municipal|periodo|vencimiento/.test(haystack)) return 'tax_bill';
+  if (/certificado|constancia|permiso|tramite|trámite/.test(haystack)) return 'certificate';
+  if (/factura|recibo|comprobante|pago/.test(haystack)) return 'receipt';
+  if (/cotiza|cotizaci[oó]n|presupuesto|precio|stock/.test(haystack)) return 'quote_request';
+  return 'order_note';
+};
+
+export const submitWidgetAssistedOrder = async (
+  bootstrap: ChatBootstrapConfig,
+  request: WidgetAssistedOrderRequest,
+  tenantSlug?: string | null,
+  payload?: ChatBootstrapMessagePayload,
+): Promise<LeadCaptureResponse | null> => {
+  const text = request.text?.trim() || '';
+  const file = request.attachmentFile ?? null;
+  if (!file && !text) return null;
+
+  const { chatSessionId, tenantSlug: bootstrapTenant } = getBootstrapSessionValues(bootstrap);
+  const effectiveTenant = tenantSlug || bootstrapTenant || null;
+  const formData = new FormData();
+  if (file) {
+    formData.append('archivo', file, file.name);
+  }
+  if (text) {
+    formData.append('pedido_text', text);
+  }
+  formData.append('document_type', inferWidgetDocumentType(request, payload));
+  if (request.contactNotes?.trim()) {
+    formData.append('contact_notes', request.contactNotes.trim());
+  }
+  if (effectiveTenant) {
+    formData.append('tenant', effectiveTenant);
+    formData.append('tenant_slug', effectiveTenant);
+  }
+  if (chatSessionId) {
+    formData.append('chat_session_id', chatSessionId);
+  }
+
+  const headers = normalizeBootstrapHeaders(bootstrap) ?? {};
+  headers['X-Checkout-Origin'] = 'widget';
+
+  const response = await apiFetch('/api/pedidos/from-file?origen=widget', {
+    method: 'POST',
+    body: formData,
+    headers,
+    skipAuth: true,
+    isWidgetRequest: true,
+    tenantSlug: effectiveTenant,
+    sendAnonId: true,
+    omitChatSessionId: true,
+    suppressPanel401Redirect: true,
+  });
+
+  return normalizeLeadCaptureResponse(response);
 };
 
 export const sendConversationFeedback = async (

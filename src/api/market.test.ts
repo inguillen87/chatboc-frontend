@@ -473,6 +473,25 @@ describe('market api continuity normalization', () => {
           },
         ],
       },
+      assisted_intake: {
+        contract_version: 'marketplace.assisted_intake_entry.v1',
+        mode: 'catalog_plus_assisted',
+        text_examples: [
+          {
+            id: 'hardware_order',
+            label: 'Ferreteria',
+            document_type: 'quote_request',
+            text: '2 chapas',
+          },
+        ],
+        empty_state: {
+          title: 'Catalogo sin productos visibles, solicitud asistida activa',
+        },
+      },
+      frontend_contract: {
+        render_as: 'marketplace_catalog',
+        show_assisted_intake: true,
+      },
     });
 
     const catalog = await fetchMarketCatalog('bodega');
@@ -484,5 +503,11 @@ describe('market api continuity normalization', () => {
     });
     expect(catalog.products[0].promoInfo).toBe('15% vinos seleccionados');
     expect(catalog.products[1].promoInfo).toBeNull();
+    expect(catalog.assisted_intake).toMatchObject({
+      contract_version: 'marketplace.assisted_intake_entry.v1',
+      mode: 'catalog_plus_assisted',
+    });
+    expect(catalog.assisted_intake?.text_examples?.[0]?.document_type).toBe('quote_request');
+    expect(catalog.frontend_contract).toMatchObject({ show_assisted_intake: true });
   });
 });

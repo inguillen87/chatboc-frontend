@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  getTenantOpsQaPlaybookV2,
+  runTenantOpsQaCheckV2,
+  type TenantOpsQaCheckV2,
+  type TenantOpsQaExecutionV2,
+  type TenantOpsQaPlaybookV2,
+} from "@/api/v2/saas";
+import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
@@ -19,6 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { tenantService } from "@/services/tenantService";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/utils/api";
+import { buildTenantPath } from "@/utils/tenantPaths";
 
 type TechProviderContract = {
   contract_version?: string | null;
@@ -165,6 +173,44 @@ const actionLabel = (value?: string | null) => {
 const limitationLabel = (item: string | Record<string, unknown>) =>
   typeof item === "string" ? item.trim() : readText(item.label, item.title, item.message, item.detail, item.description);
 
+const formatQaScore = (value?: number | null) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "sin score";
+  const normalized = value > 1 ? value : value * 100;
+  return `${Math.round(normalized)}%`;
+};
+
+const qaTone = (status?: string | null, ok?: boolean) => {
+  const normalized = normalizeStatus(status);
+  if (ok || normalized === "pass" || normalized === "ready" || normalized === "ok") {
+    return "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
+  }
+  if (["fail", "failed", "critical", "blocked", "danger"].includes(normalized)) {
+    return "border-red-500/35 bg-red-500/10 text-red-700";
+  }
+  if (["warning", "degraded", "review_required"].includes(normalized)) {
+    return "border-amber-500/35 bg-amber-500/10 text-amber-700";
+  }
+  return "border-border bg-muted/35 text-muted-foreground";
+};
+
+const isWhatsappFinalQaCheck = (check: TenantOpsQaCheckV2) => {
+  const searchable = [
+    check.id,
+    check.label,
+    check.endpoint,
+    check.next_action,
+    check.status,
+    JSON.stringify(check.details ?? {}),
+  ].join(" ").toLowerCase();
+  return (
+    searchable.includes("whatsapp") ||
+    searchable.includes("template") ||
+    searchable.includes("plantilla") ||
+    searchable.includes("webview") ||
+    searchable.includes("web view")
+  );
+};
+
 const extractContract = (response: any): TechProviderContract | null => {
   if (response?.contract?.contract_version) return response.contract as TechProviderContract;
   if (response?.contract_version === "twilio.tech_provider.v1") return response as TechProviderContract;
@@ -236,6 +282,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const [provisioningVoice, setProvisioningVoice] = useState(false);
   const [runningSmokeTest, setRunningSmokeTest] = useState<string | null>(null);
   const [smokeResults, setSmokeResults] = useState<Record<string, any>>({});
+  const [opsQa, setOpsQa] = useState<TenantOpsQaPlaybookV2 | null>(null);
+  const [opsQaError, setOpsQaError] = useState<string | null>(null);
+  const [runningOpsQaCheck, setRunningOpsQaCheck] = useState<string | null>(null);
+  const [opsQaResults, setOpsQaResults] = useState<Record<string, TenantOpsQaExecutionV2>>({});
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -243,8 +293,21 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
     setLoading(true);
     setError(null);
     try {
-      const response = await tenantService.getWhatsappTechProvider(tenantSlug);
-      setContract(extractContract(response));
+      const [contractResult, qaResult] = await Promise.allSettled([
+        tenantService.getWhatsappTechProvider(tenantSlug),
+        getTenantOpsQaPlaybookV2(tenantSlug),
+      ]);
+      if (contractResult.status === "rejected") {
+        throw contractResult.reason;
+      }
+      setContract(extractContract(contractResult.value));
+      if (qaResult.status === "fulfilled") {
+        setOpsQa(qaResult.value);
+        setOpsQaError(null);
+      } else {
+        setOpsQa(null);
+        setOpsQaError(getErrorMessage(qaResult.reason, "No se pudo cargar el QA final del tenant."));
+      }
     } catch (err) {
       setContract(null);
       setError(getErrorMessage(err, "No se pudo cargar el onboarding de WhatsApp."));
@@ -274,15 +337,41 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const smokeTestEntries = Object.entries(smokeTests).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
   const smokePlaybook = contract?.smoke_playbook ?? null;
   const smokePlaybookTests = Array.isArray(smokePlaybook?.tests) ? smokePlaybook.tests : [];
+  const opsQaChecks = opsQa?.checks ?? [];
+  const whatsappFinalQaChecks = opsQaChecks.filter(isWhatsappFinalQaCheck);
+  const finalQaChecks = whatsappFinalQaChecks.length ? whatsappFinalQaChecks : opsQaChecks.slice(0, 3);
+  const primaryFinalQaCheck =
+    finalQaChecks.find((check) => normalizeStatus(check.id).includes("template") || normalizeStatus(check.id).includes("webview")) ??
+    finalQaChecks.find((check) => !check.ok) ??
+    finalQaChecks[0] ??
+    null;
+  const finalQaResult = primaryFinalQaCheck ? opsQaResults[primaryFinalQaCheck.id] : null;
+  const finalQaStatus = finalQaResult?.playbook_status || finalQaResult?.status || opsQa?.status || primaryFinalQaCheck?.status || "pendiente";
+  const finalQaScore = finalQaResult?.playbook_score ?? opsQa?.score ?? null;
+  const finalQaNextAction =
+    finalQaResult?.next_action ||
+    primaryFinalQaCheck?.next_action ||
+    opsQa?.recommended_next_actions?.[0]?.next_action ||
+    opsQa?.recommended_next_actions?.[0]?.label ||
+    null;
   const setupScore = typeof setupHealth?.activation_score === "number" ? setupHealth.activation_score : null;
   const setupCompleted = typeof setupHealth?.completed === "number" ? setupHealth.completed : null;
   const setupTotal = typeof setupHealth?.total === "number" ? setupHealth.total : null;
   const setupBlockers = Array.isArray(setupHealth?.blockers) ? setupHealth.blockers : [];
   const signupUrl = readText(embeddedSignup?.url, embeddedSignup?.start_url);
-  const canStartSignup = envReady && readBoolean(embeddedSignup?.enabled, false) && Boolean(signupUrl);
+  const embeddedSignupEnabled = readBoolean(embeddedSignup?.enabled, false);
+  const canStartSignup = envReady && embeddedSignupEnabled && Boolean(signupUrl);
   const canRegisterSender = envReady && Boolean(state?.waba_id && state?.phone_number_id);
   const canPollSender = envReady && Boolean(state?.sender_sid);
   const showProgressSteps = contract?.frontend_contract?.show_progress_steps !== false;
+  const templatesPath = useMemo(() => buildTenantPath("/perfil/plantillas-respuesta", tenantSlug), [tenantSlug]);
+  const signupUnavailableMessage = embeddedSignupEnabled && !canStartSignup
+    ? !envReady
+      ? missingEnv.length
+        ? `Completa la configuracion de plataforma antes de abrir Meta: ${missingEnv.join(", ")}.`
+        : "Completa la configuracion de plataforma antes de abrir Meta."
+      : "Meta Embedded Signup esta habilitado, pero el backend no envio una URL de inicio. Prepara la activacion o actualiza el contrato."
+    : null;
 
   const statusLabel = useMemo(() => {
     const status = readText(contract?.status, contract?.next_action);
@@ -466,6 +555,20 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
     }
   };
 
+  const handleRunFinalQaCheck = async () => {
+    if (!tenantSlug || !primaryFinalQaCheck) return;
+    setRunningOpsQaCheck(primaryFinalQaCheck.id);
+    setOpsQaError(null);
+    try {
+      const result = await runTenantOpsQaCheckV2(tenantSlug, primaryFinalQaCheck.id);
+      setOpsQaResults((current) => ({ ...current, [primaryFinalQaCheck.id]: result }));
+    } catch (err) {
+      setOpsQaError(getErrorMessage(err, "No se pudo ejecutar el QA final del tenant."));
+    } finally {
+      setRunningOpsQaCheck(null);
+    }
+  };
+
   if (!tenantSlug) return null;
 
   return (
@@ -545,6 +648,114 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
               ))}
             </div>
           </div>
+
+          {opsQa || opsQaError ? (
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">QA final del tenant</p>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Check seguro/read-only de plantillas, webviews y contrato WhatsApp antes de continuar la activacion.
+                  </p>
+                </div>
+                {opsQa ? (
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${qaTone(finalQaStatus, finalQaResult?.ok)}`}>
+                      {finalQaStatus}
+                    </span>
+                    <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      Score {formatQaScore(finalQaScore)}
+                    </span>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${opsQa.safe_by_default ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-700" : "border-amber-500/35 bg-amber-500/10 text-amber-700"}`}>
+                      {opsQa.safe_by_default ? "read-only" : "revisar modo"}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              {opsQaError ? (
+                <div className="mt-3 rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 text-xs leading-5 text-muted-foreground">
+                  {opsQaError}
+                </div>
+              ) : null}
+
+              {opsQa ? (
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr]">
+                  <div className="rounded-xl border bg-card/50 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">
+                          {primaryFinalQaCheck?.label ?? "Plantillas y webviews"}
+                        </p>
+                        <p className="mt-1 break-all text-xs leading-5 text-muted-foreground">
+                          {primaryFinalQaCheck?.endpoint ?? primaryFinalQaCheck?.id ?? "ops-qa/playbook"}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!primaryFinalQaCheck || Boolean(runningOpsQaCheck)}
+                        onClick={() => void handleRunFinalQaCheck()}
+                      >
+                        {runningOpsQaCheck ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Ejecutar QA read-only
+                      </Button>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-lg border bg-background/70 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Estado</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{finalQaStatus}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background/70 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{formatQaScore(finalQaScore)}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background/70 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next action</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{actionLabel(finalQaNextAction)}</p>
+                      </div>
+                    </div>
+                    {finalQaResult ? (
+                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
+                        Resultado ejecutado:{" "}
+                        <span className="font-medium text-foreground">{finalQaResult.label || primaryFinalQaCheck?.label || "QA final"}</span>
+                        {finalQaResult.execution_mode ? (
+                          <span> - modo {finalQaResult.execution_mode}</span>
+                        ) : null}
+                        {finalQaResult.sends_real_message === false ? <span> - sin mensajes reales</span> : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-xl border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Checks relevantes</p>
+                    <div className="mt-3 space-y-2">
+                      {finalQaChecks.slice(0, 4).map((check) => (
+                        <div key={check.id} className="flex items-start justify-between gap-2 rounded-lg border bg-background/70 p-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-foreground">{check.label}</p>
+                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{check.next_action || check.endpoint || check.id}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${qaTone(check.status, check.ok)}`}>
+                            {check.status || (check.ok ? "pass" : "review")}
+                          </span>
+                        </div>
+                      ))}
+                      {!finalQaChecks.length ? (
+                        <p className="text-xs leading-5 text-muted-foreground">
+                          El playbook no envio checks especificos para WhatsApp. Revisar contrato ops-qa.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {setupHealth || operatorChecklist.length || smokeTestEntries.length ? (
             <div className="rounded-2xl border bg-background/80 p-4">
@@ -918,7 +1129,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
                 {provisioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar activación
               </Button>
-              {readBoolean(embeddedSignup?.enabled, false) ? (
+              {embeddedSignupEnabled ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -943,9 +1154,14 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
                 {provisioningVoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar voz
               </Button>
-              <Button type="button" variant="ghost" onClick={() => window.open("/perfil/plantillas-respuesta", "_self")}>
+              <Button type="button" variant="ghost" onClick={() => window.open(templatesPath, "_self")}>
                 Plantillas
               </Button>
+              {signupUnavailableMessage ? (
+                <div className="basis-full rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                  {signupUnavailableMessage}
+                </div>
+              ) : null}
             </div>
           </div>
 

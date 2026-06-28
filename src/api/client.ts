@@ -38,6 +38,73 @@ const asStringOrUndefined = (value: unknown): string | undefined =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const normalizeAdminOrderItem = (value: unknown, index: number) => {
+  const record = isRecord(value) ? value : {};
+  const quantity = asNumberOrUndefined(record.quantity ?? record.cantidad) ?? 1;
+  const price = asNumberOrUndefined(record.price ?? record.unit_price ?? record.precio_float ?? record.precio) ?? 0;
+  const name =
+    asStringOrUndefined(record.name) ||
+    asStringOrUndefined(record.title) ||
+    asStringOrUndefined(record.nombre) ||
+    asStringOrUndefined(record.sku) ||
+    `Articulo ${index + 1}`;
+
+  return {
+    ...record,
+    id: record.id ?? record.product_id ?? record.catalogo_item_id ?? `item-${index + 1}`,
+    product_id: record.product_id ?? record.catalogo_item_id ?? record.id ?? null,
+    name,
+    title: asStringOrUndefined(record.title) || name,
+    quantity,
+    price,
+    unit_price: asNumberOrUndefined(record.unit_price) ?? price,
+    subtotal: asNumberOrUndefined(record.subtotal) ?? price * quantity,
+    sku: asStringOrUndefined(record.sku),
+    currency: asStringOrUndefined(record.currency ?? record.currency_id) || 'ARS',
+  };
+};
+
+const normalizeAdminOrder = (value: unknown): Order => {
+  const record = isRecord(value) ? value : {};
+  const totals = isRecord(record.totals) ? record.totals : {};
+  const items = asArray(record.items).map((item, index) => normalizeAdminOrderItem(item, index));
+  const total =
+    asNumberOrUndefined(record.total) ??
+    asNumberOrUndefined(totals.monetary) ??
+    asNumberOrUndefined(totals.total) ??
+    items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
+
+  return {
+    ...(record as Record<string, unknown>),
+    id: (record.id as string | number | undefined) ?? (record.source_id as string | number | undefined) ?? 'order',
+    total,
+    status: asStringOrUndefined(record.status) || 'nuevo',
+    items,
+    created_at: asStringOrUndefined(record.created_at) || new Date().toISOString(),
+    updated_at: asStringOrUndefined(record.updated_at),
+    channel: asStringOrUndefined(record.channel),
+    notes: asStringOrUndefined(record.notes),
+    customerName: asStringOrUndefined(record.customerName ?? record.contact_name),
+    customerPhone: asStringOrUndefined(record.customerPhone ?? record.contact_phone),
+    customerEmail: asStringOrUndefined(record.customerEmail ?? record.contact_email),
+    totals: isRecord(record.totals) ? (record.totals as Order['totals']) : null,
+    assisted_request: isRecord(record.assisted_request) ? (record.assisted_request as Order['assisted_request']) : null,
+    metadata: isRecord(record.metadata) ? (record.metadata as Record<string, unknown>) : null,
+  } as Order;
+};
+
+const normalizeAdminOrdersResponse = (raw: unknown): Order[] => {
+  const candidate = Array.isArray(raw)
+    ? raw
+    : isRecord(raw)
+      ? raw.orders ?? raw.results ?? raw.data ?? raw.items
+      : [];
+
+  return asArray(candidate).map(normalizeAdminOrder);
+};
+
 const serializeIdentityCoverageTargetByChannel = (
   targetByChannel?: IdentityCoverageTargetByChannel,
 ): string | null => {
@@ -315,6 +382,24 @@ const normalizeTicketWorkflowMetadata = (value: unknown) => {
  * Standardized API Client for Tenant-Aware fetching.
  * All methods require an explicit tenantSlug to ensure context isolation.
  */
+export interface IntegrationConnectResponse {
+  url?: string | null;
+  redirect_url?: string | null;
+  provider?: string | null;
+  status?: string | null;
+  error?: string | null;
+  reason_code?: string | null;
+  missing?: string[] | null;
+  contract?: Record<string, unknown> | null;
+  setup_health?: Record<string, unknown> | null;
+  frontend_contract?: {
+    render_as?: string | null;
+    mode?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export const apiClient = {
   // Updated endpoints for Commerce module
   // Legacy generic methods for backward compatibility
@@ -524,14 +609,20 @@ export const apiClient = {
   // --- Admin Methods ---
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
-    const params = new URLSearchParams(filters);
-    // Guide: GET /api/orders (alias for admin order list)
-    return apiFetch<Order[]>(`/api/orders?${params.toString()}`, { tenantSlug });
+    const normalizedFilters = { ...(filters || {}) };
+    if (String(normalizedFilters.status || '').toLowerCase() === 'all') {
+      delete normalizedFilters.status;
+    }
+    const params = new URLSearchParams(normalizedFilters);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, { tenantSlug });
+    return normalizeAdminOrdersResponse(raw);
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
-     // Guide implies /api/orders/{id} or similar standard REST
-    return apiFetch<Order>(`/api/orders/${orderId}`, { tenantSlug });
+    const encodedId = encodeURIComponent(String(orderId));
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, { tenantSlug });
+    return normalizeAdminOrder(raw);
   },
 
   adminCreateOrder: async (tenantSlug: string, payload: any): Promise<Order> => {
@@ -563,8 +654,8 @@ export const apiClient = {
     }));
   },
 
-  adminConnectIntegration: async (tenantSlug: string, type: string): Promise<{ url: string }> => {
-    return apiFetch<{ url: string }>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/connect`, { tenantSlug });
+  adminConnectIntegration: async (tenantSlug: string, type: string): Promise<IntegrationConnectResponse> => {
+    return apiFetch<IntegrationConnectResponse>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/connect`, { tenantSlug });
   },
 
   adminPreviewIntegration: async (tenantSlug: string, type: string): Promise<any> => {
@@ -861,12 +952,13 @@ export const apiClient = {
   },
 
   adminUpdateOrder: async (tenantSlug: string, orderId: string | number, data: { status: string }) => {
-    // Guide: PATCH /api/orders/{order_id}
-    return apiFetch<Order>(`/api/orders/${orderId}`, {
+    const encodedId = encodeURIComponent(String(orderId));
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, {
       method: 'PATCH',
       tenantSlug,
       body: data,
     });
+    return normalizeAdminOrder(raw);
   },
 
   superAdminGetTenant: async (slug: string): Promise<Tenant> => {

@@ -25,8 +25,9 @@ import {
 import { mapSurveyError } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
-import { useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
+import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
 import { safeSessionStorage } from '@/utils/safeLocalStorage';
+import { resolveSurveyLiveSlug } from '@/utils/surveyLiveSlug';
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v1';
 
@@ -124,13 +125,18 @@ const PublicSurveyPage = () => {
   const shouldRevealLiveResults = Boolean(
     survey?.mostrar_resultados_envivo && (!isDemoParticipationSurvey || submitted),
   );
+  const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
   const {
     liveResults: liveDashboard,
+    isLoading: isLoadingLiveDashboard,
     isFetching: isFetchingLiveDashboard,
     error: liveDashboardError,
     consecutiveErrors: liveDashboardConsecutiveErrors,
+    liveStatus,
+    pollingIntervalMs,
+    refetch: refetchLiveDashboard,
   } = useSurveyLiveResults(
-    shouldRevealLiveResults ? slug : undefined,
+    shouldRevealLiveResults ? liveSlug : undefined,
     tenantSlug,
     liveRequestParams,
   );
@@ -226,7 +232,7 @@ const PublicSurveyPage = () => {
 
   // Handle Socket.IO connection
   useSurveySocket({
-      slug: slug || '',
+      slug: liveSlug || '',
       enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
           setLiveResults(
@@ -270,9 +276,22 @@ const PublicSurveyPage = () => {
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     if (value && typeof value === 'object') {
       const record = value as Record<string, unknown>;
-      const candidate = record.texto ?? record.label ?? record.nombre ?? record.value;
+      const candidate =
+        record.texto ?? record.label ?? record.title ?? record.titulo ?? record.nombre ?? record.pregunta ?? record.value;
       if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
         return String(candidate);
+      }
+      const leader = record.lider;
+      if (leader && typeof leader === 'object') {
+        const leaderRecord = leader as Record<string, unknown>;
+        const leaderCandidate = leaderRecord.texto ?? leaderRecord.label ?? leaderRecord.title ?? leaderRecord.value;
+        if (
+          typeof leaderCandidate === 'string' ||
+          typeof leaderCandidate === 'number' ||
+          typeof leaderCandidate === 'boolean'
+        ) {
+          return String(leaderCandidate);
+        }
       }
     }
     return '';
@@ -386,20 +405,44 @@ const PublicSurveyPage = () => {
     [survey?.recursos],
   );
   const liveTimeline = useMemo(() => liveDashboard?.timeline_minute ?? [], [liveDashboard?.timeline_minute]);
+  const liveTimelineMaxValue = useMemo(
+    () => Math.max(...liveTimeline.map((point) => Number(point.respuestas ?? point.value ?? point.total ?? 0)), 1),
+    [liveTimeline],
+  );
   const liveQuestions = useMemo(() => liveDashboard?.preguntas ?? [], [liveDashboard?.preguntas]);
   const liveHeatmap = liveDashboard?.heatmap;
+  const hasLiveDashboardActivity = useMemo(() => hasSurveyLiveActivity(liveDashboard), [liveDashboard]);
   const trend = liveDashboard?.momentum?.trend;
   const trendChipClass = trend === 'subiendo'
     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
     : trend === 'bajando'
       ? 'border-amber-500/40 bg-amber-500/10 text-amber-600'
       : 'border-blue-500/40 bg-blue-500/10 text-blue-600';
+  const liveStatusToneClass = liveStatus.status === 'live'
+    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
+    : liveStatus.status === 'syncing' || liveStatus.status === 'loading'
+      ? 'border-blue-500/40 bg-blue-500/10 text-blue-700'
+      : liveStatus.status === 'empty' || liveStatus.status === 'stale'
+        ? 'border-slate-500/30 bg-slate-500/10 text-slate-700'
+        : 'border-amber-500/40 bg-amber-500/10 text-amber-700';
   const updatedAtLabel = useMemo(() => {
     if (!liveDashboard?.updated_at) return null;
     const date = new Date(liveDashboard.updated_at);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleString();
   }, [liveDashboard?.updated_at]);
+  const refreshIntervalLabel = useMemo(() => {
+    if (!pollingIntervalMs) return null;
+    const seconds = Math.max(1, Math.round(pollingIntervalMs / 1000));
+    return textOr(liveResultsUi?.refresh_interval_label, `Actualiza cada ${seconds}s`);
+  }, [liveResultsUi, pollingIntervalMs]);
+  const liveStatusLabel = textOr(liveResultsUi?.[`status_${liveStatus.status}_label`], liveStatus.label);
+  const liveStatusDescription = textOr(liveResultsUi?.[`status_${liveStatus.status}_description`], liveStatus.description);
+  const liveEmptyStateLabel = textOr(
+    liveDashboard?.render_contract?.empty_state,
+    textOr(liveResultsUi?.empty_state, 'Todavia no hay respuestas para los filtros actuales.'),
+  );
+  const manualUpdateLabel = textOr(liveResultsUi?.manual_refresh_label, 'Actualizar resultados en vivo');
   const handleExportLiveCsv = useCallback(() => {
     if (!liveDashboard) return;
     const rows = [
@@ -421,10 +464,10 @@ const PublicSurveyPage = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${slug ?? 'encuesta'}-live-results.csv`;
+    a.download = `${liveSlug || slug || 'encuesta'}-live-results.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [liveDashboard, liveQuestions, slug]);
+  }, [liveDashboard, liveQuestions, liveSlug, slug]);
 
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
   const closedMessage =
@@ -608,7 +651,7 @@ const PublicSurveyPage = () => {
 
             {survey.permitir_comentarios && (
               <SurveyComments
-                slug={slug || ''}
+                slug={liveSlug || slug || ''}
                 tenantSlug={tenantSlug || undefined}
                 realtimeComments={liveComments}
                 copy={comentariosCopy}
@@ -647,7 +690,7 @@ const PublicSurveyPage = () => {
             </div>
             {survey.permitir_comentarios && (
               <SurveyComments
-                slug={slug || ''}
+                slug={liveSlug || slug || ''}
                 tenantSlug={tenantSlug || undefined}
                 realtimeComments={liveComments}
                 copy={comentariosCopy}
@@ -732,18 +775,40 @@ const PublicSurveyPage = () => {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{textOr(liveResultsUi?.header_title, survey.titulo)}</span>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${trendChipClass}`}>
-                        {trend === 'subiendo' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                        {String(trend ?? '')}
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs ${liveStatusToneClass}`}
+                        role="status"
+                        aria-live="polite"
+                        title={liveStatusDescription}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full bg-current ${isFetchingLiveDashboard ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                        {liveStatusLabel}
                       </span>
-                      {updatedAtLabel ? <span className="text-xs text-muted-foreground">{updatedAtLabel}</span> : null}
+                      {trend ? (
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${trendChipClass}`}>
+                          {trend === 'subiendo' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                          {String(trend)}
+                        </span>
+                      ) : null}
+                      {updatedAtLabel ? <span className="text-xs text-muted-foreground">Actualizado: {updatedAtLabel}</span> : null}
+                      {refreshIntervalLabel ? <span className="text-xs text-muted-foreground">{refreshIntervalLabel}</span> : null}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={handleExportLiveCsv}>
                         <Download className="mr-2 h-3.5 w-3.5" />
                         {textOr(liveResultsUi?.export_csv_label, textOr(votacionUi?.resultados_finales_boton, 'Exportar CSV'))}
                       </Button>
-                      <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetchingLiveDashboard ? 'animate-spin' : ''}`} />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={manualUpdateLabel}
+                        title={manualUpdateLabel}
+                        disabled={isFetchingLiveDashboard}
+                        onClick={() => void refetchLiveDashboard()}
+                      >
+                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetchingLiveDashboard ? 'animate-spin' : ''}`} />
+                      </Button>
                     </div>
                   </div>
 
@@ -756,6 +821,7 @@ const PublicSurveyPage = () => {
                   {shouldRevealLiveResults ? (
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
                       <select
+                        aria-label={textOr(liveResultsUi?.filter_heatmap_label, 'Mapa de calor')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
                         value={String(liveRequestParams.include_heatmap ?? 1)}
                         onChange={(event) =>
@@ -766,6 +832,7 @@ const PublicSurveyPage = () => {
                         <option value="0">{textOr(liveResultsUi?.filter_heatmap_off_label, 'Mapa desactivado')}</option>
                       </select>
                       <select
+                        aria-label={textOr(liveResultsUi?.filter_window_label, 'Ventana de tiempo')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
                         value={String(liveRequestParams.window_minutes ?? 60)}
                         onChange={(event) =>
@@ -777,18 +844,21 @@ const PublicSurveyPage = () => {
                         <option value="1440">{textOr(liveResultsUi?.preset_last_24h_label, 'Últimas 24 horas')}</option>
                       </select>
                       <input
+                        aria-label={textOr(liveResultsUi?.filter_channel_label, 'Canal')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
                         placeholder={textOr(liveResultsUi?.filter_channel_placeholder, 'Filtrar por canal')}
                         value={liveRequestParams.canal ?? ''}
                         onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, canal: event.target.value || undefined }))}
                       />
                       <input
+                        aria-label={textOr(liveResultsUi?.filter_barrio_label, 'Barrio')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
                         placeholder={textOr(liveResultsUi?.filter_barrio_placeholder, 'Filtrar por barrio')}
                         value={liveRequestParams.barrio ?? ''}
                         onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, barrio: event.target.value || undefined }))}
                       />
                       <input
+                        aria-label={textOr(liveResultsUi?.filter_ciudad_label, 'Ciudad')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
                         placeholder={textOr(liveResultsUi?.filter_ciudad_placeholder, 'Filtrar por ciudad')}
                         value={liveRequestParams.ciudad ?? ''}
@@ -802,6 +872,13 @@ const PublicSurveyPage = () => {
                       >
                         {textOr(liveResultsUi?.filters_reset_label, 'Limpiar filtros')}
                       </Button>
+                    </div>
+                  ) : null}
+
+                  {!hasLiveDashboardActivity ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4" role="status" aria-live="polite">
+                      <p className="text-sm font-medium">{liveEmptyStateLabel}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{liveStatusDescription}</p>
                     </div>
                   ) : null}
 
@@ -820,7 +897,9 @@ const PublicSurveyPage = () => {
                     </div>
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.kpi_leader_label, 'Opción líder')}</p>
-                      <p className="text-lg font-semibold">{toDisplayText(liveDashboard.kpis?.leader) || '—'}</p>
+                      <p className="text-lg font-semibold">
+                        {liveDashboard.kpis?.leader_label || toDisplayText(liveDashboard.kpis?.leader) || '—'}
+                      </p>
                     </div>
                   </div>
 
@@ -830,12 +909,24 @@ const PublicSurveyPage = () => {
                         <TrendingUp className="h-3.5 w-3.5" />
                         {textOr(liveResultsUi?.timeline_title, 'Evolución minuto a minuto')}
                       </div>
-                      <div className="flex h-20 items-end gap-1">
+                      <div
+                        className="flex h-20 items-end gap-1"
+                        role="img"
+                        aria-label={`${textOr(liveResultsUi?.timeline_title, 'Evolucion minuto a minuto')}: ${liveTimeline.length} puntos`}
+                      >
                         {liveTimeline.slice(-60).map((item, index) => {
-                          const value = Number(item.respuestas ?? item.value ?? 0);
-                          const maxValue = Math.max(...liveTimeline.map((point) => Number(point.respuestas ?? point.value ?? 0)), 1);
-                          const height = Math.max((value / maxValue) * 100, 4);
-                          return <div key={`${index}-${item.minute ?? item.timestamp ?? item.label ?? ''}`} className="flex-1 rounded-sm bg-primary/40" style={{ height: `${height}%` }} />;
+                          const value = Number(item.respuestas ?? item.value ?? item.total ?? 0);
+                          const height = Math.max((value / liveTimelineMaxValue) * 100, 4);
+                          const label = item.label ?? item.minute ?? item.timestamp ?? `Punto ${index + 1}`;
+                          return (
+                            <div
+                              key={`${index}-${item.minute ?? item.timestamp ?? item.label ?? ''}`}
+                              aria-hidden="true"
+                              className="flex-1 rounded-sm bg-primary/40"
+                              style={{ height: `${height}%` }}
+                              title={`${label}: ${value}`}
+                            />
+                          );
                         })}
                       </div>
                     </div>
@@ -845,19 +936,38 @@ const PublicSurveyPage = () => {
                     <div className="grid gap-3 lg:grid-cols-2">
                       {liveQuestions.map((question, qIndex) => (
                         <div key={`${question.id ?? 'question'}-${qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
-                          <p className="mb-2 text-sm font-medium">{toDisplayText(question.texto)}</p>
+                          <div className="mb-2 flex items-start justify-between gap-3">
+                            <p className="text-sm font-medium">{toDisplayText(question.texto ?? question.titulo)}</p>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                              {question.total_votos ?? 0} votos
+                            </span>
+                          </div>
                           <div className="space-y-2">
-                            {(question.opciones ?? []).map((option, optionIndex) => (
-                              <div key={`${question.id ?? qIndex}-${option.value ?? 'option'}-${optionIndex}`} className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span>{toDisplayText(option.value)}</span>
-                                  <span>{option.porcentaje ?? 0}%</span>
+                            {(question.opciones ?? []).map((option, optionIndex) => {
+                              const optionLabel = toDisplayText(option.texto ?? option.label ?? option.value) || `Opcion ${optionIndex + 1}`;
+                              const optionVotes = Number(option.votos ?? 0);
+                              const optionPercentage = Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)));
+                              return (
+                              <div key={`${question.id ?? qIndex}-${option.id ?? option.value ?? option.label ?? 'option'}-${optionIndex}`} className="space-y-1">
+                                <div className="flex items-center justify-between gap-3 text-xs">
+                                  <span className="min-w-0 truncate">{optionLabel}</span>
+                                  <span className="shrink-0" title={`${optionVotes} votos`}>
+                                    {option.votos ?? 0} votos · {option.porcentaje ?? 0}%
+                                  </span>
                                 </div>
-                                <div className="h-2 rounded-full bg-muted">
-                                  <div className="h-2 rounded-full bg-primary transition-all duration-700" style={{ width: `${Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)))}%` }} />
+                                <div
+                                  className="h-2 rounded-full bg-muted"
+                                  role="progressbar"
+                                  aria-label={`${optionLabel}: ${optionPercentage}%`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={optionPercentage}
+                                >
+                                  <div className="h-2 rounded-full bg-primary transition-all duration-700" style={{ width: `${optionPercentage}%` }} />
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -876,8 +986,39 @@ const PublicSurveyPage = () => {
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.ai_summary_title, 'Resumen automático')}</p>
                       <p className="text-sm">{toDisplayText(liveDashboard.ai_summary)}</p>
+                      {liveDashboard.ai_insights?.length ? (
+                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {liveDashboard.ai_insights.slice(0, 3).map((insight, index) => (
+                            <li key={`${index}-${insight}`}>{insight}</li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {shouldRevealLiveResults && !liveDashboard && (isLoadingLiveDashboard || isFetchingLiveDashboard) ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/80 p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span>{textOr(liveResultsUi?.loading_label, 'Cargando resultados en vivo...')}</span>
+                </div>
+              ) : null}
+
+              {shouldRevealLiveResults && !liveDashboard && liveDashboardError && !isLoadingLiveDashboard && !isFetchingLiveDashboard ? (
+                <div
+                  className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+                  role="alert"
+                  aria-live="assertive"
+                >
+                  <div>
+                    <p className="font-medium">No pudimos cargar los resultados en vivo.</p>
+                    <p className="mt-1 text-xs">{liveDashboardError}</p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void refetchLiveDashboard()}>
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Reintentar
+                  </Button>
                 </div>
               ) : null}
 
@@ -905,7 +1046,7 @@ const PublicSurveyPage = () => {
 
           {survey.permitir_comentarios && (
             <SurveyComments
-              slug={slug || ''}
+              slug={liveSlug || slug || ''}
               tenantSlug={tenantSlug || undefined}
               realtimeComments={liveComments}
               copy={comentariosCopy}
@@ -926,7 +1067,7 @@ const PublicSurveyPage = () => {
           />
           {survey.permitir_comentarios && (
             <SurveyComments
-              slug={slug || ''}
+              slug={liveSlug || slug || ''}
               tenantSlug={tenantSlug || undefined}
               realtimeComments={liveComments}
               commentConfig={survey.commentConfig}

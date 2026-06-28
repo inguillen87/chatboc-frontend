@@ -11,9 +11,14 @@ import {
   Gauge,
   Layers,
   MapPin,
+  Radio,
   RefreshCw,
+  Route,
+  SlidersHorizontal,
+  Sparkles,
   Ticket,
   Users,
+  X,
 } from 'lucide-react';
 
 import { ViewState } from '@/components/app-shell/ViewState';
@@ -316,6 +321,39 @@ const heatmapDisplayLabel = (value: unknown, fallback?: unknown): string => {
   return parsed || 'Sin dato';
 };
 
+const humanizeHeatmapToken = (value: unknown, fallback = 'Capa') => {
+  const parsed = asString(value);
+  if (!parsed) return fallback;
+  return parsed
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+};
+
+const describeHeatmapLayer = (layer: string) => {
+  const normalized = layer.toLowerCase();
+  if (normalized.includes('ai') || normalized.includes('risk') || normalized.includes('riesgo')) {
+    return 'riesgo y prioridad IA';
+  }
+  if (normalized.includes('whatsapp') || normalized.includes('chat')) {
+    return 'actividad conversacional';
+  }
+  if (normalized.includes('survey') || normalized.includes('encuesta') || normalized.includes('vote')) {
+    return 'participacion y voto';
+  }
+  if (normalized.includes('geo') || normalized.includes('base') || normalized.includes('heat')) {
+    return 'base territorial';
+  }
+  if (normalized.includes('ticket') || normalized.includes('reclamo')) {
+    return 'reclamos y casos';
+  }
+  return 'capa operativa';
+};
+
+const formatEndpoint = (action?: OperationsActionItem) =>
+  asString(action?.endpoint) ?? asString(action?.endpoint_template);
+
 const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   Object.fromEntries(
     Object.entries(filters)
@@ -425,7 +463,12 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     () => mergeByIdentity([...(data?.next_best_actions ?? []), ...(actionCenter?.items ?? [])]),
     [actionCenter?.items, data?.next_best_actions],
   );
-  const canRenderHeatmap = freshness?.summary?.can_render_heatmap;
+  const heatmapContractCanRender = heatmapQuery.data?.render_contract?.can_render_heatmap;
+  const heatmapQualityCanRender = heatmapQuery.data?.quality?.can_render_heatmap;
+  const canRenderHeatmap =
+    heatmapContractCanRender === false || heatmapQualityCanRender === false || freshness?.summary?.can_render_heatmap === false
+      ? false
+      : heatmapContractCanRender ?? heatmapQualityCanRender ?? freshness?.summary?.can_render_heatmap;
   const canRenderDashboard = freshness?.summary?.can_render_dashboard;
   const focusCards: OperationsFocusCard[] = [
     {
@@ -928,7 +971,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
               const publicUrl = asString(monitor.public_url);
               const adminUrl = asString(monitor.admin_url);
               return (
-                <div key={monitor.id || monitor.slug || index} className="rounded-xl border bg-muted/20 p-4">
+                <div key={String(monitor.id ?? monitor.slug ?? index)} className="rounded-xl border bg-muted/20 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{itemLabel(monitor)}</p>
@@ -1341,69 +1384,138 @@ function OperationsHeatmapPanel({
   const realtime = heatmap?.realtime;
   const mapExperience = heatmap?.map_experience;
   const geocoding = heatmap?.geocoding;
+  const rawCoverageRate = readNumber(quality?.coverage_rate, heatmap?.summary?.coverage_rate);
+  const normalizedCoverageRate =
+    rawCoverageRate !== undefined ? (rawCoverageRate <= 1 ? rawCoverageRate * 100 : rawCoverageRate) : undefined;
   const qualityState = asString(quality?.state) ?? asString(heatmap?.summary?.quality_state);
   const qualityLabel =
     asString(quality?.label) ??
     (qualityState ? uiLabels[`quality_${qualityState}`] : undefined) ??
     'Calidad pendiente';
-  const coveragePercent = readNumber(quality?.coverage_percent ?? heatmap?.summary?.coverage_percent ?? heatmap?.summary?.coordinate_coverage_pct);
-  const pendingGeocode = readNumber(quality?.pending_geocode ?? heatmap?.summary?.pending_geocode);
-  const visiblePoints = readNumber(quality?.visible_points ?? heatmap?.summary?.points ?? heatmap?.points.length);
+  const qualityReason = quality?.reason_code
+    ? humanizeHeatmapToken(quality.reason_code, 'contrato operativo')
+    : 'contrato operativo';
+  const coveragePercent =
+    readNumber(quality?.coverage_percent, heatmap?.summary?.coverage_percent, heatmap?.summary?.coordinate_coverage_pct) ??
+    normalizedCoverageRate;
+  const geocodingCandidateCount = readNumber(geocoding?.candidate_count, geocoding?.candidates?.length);
+  const pendingGeocode = readNumber(quality?.pending_geocode, heatmap?.summary?.pending_geocode, geocodingCandidateCount);
+  const visiblePoints = readNumber(quality?.visible_points, heatmap?.summary?.points, heatmap?.points.length);
+  const totalTicketRecords = readNumber(
+    quality?.total_ticket_records,
+    heatmap?.summary?.total_ticket_records,
+    heatmap?.summary?.records_total,
+  );
+  const coordinateRecords = readNumber(
+    quality?.ticket_records_with_coordinates,
+    heatmap?.summary?.ticket_records_with_coordinates,
+    heatmap?.summary?.points_with_coordinates,
+  );
+  const recordsWithoutCoordinates = readNumber(
+    quality?.ticket_records_without_coordinates,
+    heatmap?.summary?.ticket_records_without_coordinates,
+    pendingGeocode,
+  );
+  const coverageDetail =
+    coordinateRecords !== undefined && totalTicketRecords !== undefined
+      ? `${formatNumber(coordinateRecords)} de ${formatNumber(totalTicketRecords)} registros con GPS`
+      : coordinateRecords !== undefined
+        ? `${formatNumber(coordinateRecords)} registros con GPS`
+        : 'esperando resumen de coordenadas';
+  const geocodeDetail =
+    recordsWithoutCoordinates !== undefined
+      ? `${formatNumber(recordsWithoutCoordinates)} registros sin coordenadas`
+      : 'sin cola publicada';
   const latestRealtime = asString(realtime?.latest_event_at);
-  const qualityMetrics = [
+  const realtimeEvents = realtime?.socket_events ?? [];
+  const realtimeSources = realtime?.sources ?? [];
+  const realtimeReady = Boolean(realtime?.poll_seconds || latestRealtime || realtimeEvents.length || realtimeSources.length);
+  const realtimeDetail =
+    latestRealtime
+      ? `ultimo evento ${latestRealtime}`
+      : realtimeEvents.length
+        ? `${realtimeEvents.slice(0, 2).join(', ')}`
+        : 'sin eventos recientes';
+  const mapEngines = mapExperience?.map_engines ?? [];
+  const layerGroups = mapExperience?.layer_groups ?? [];
+  const preferredVisualizationRaw = asString(mapExperience?.preferred_visualization);
+  const preferredVisualization = humanizeHeatmapToken(preferredVisualizationRaw, 'Mapa operativo interactivo');
+  const enabledLayerCount = layers.length ? enabledLayers.length : layerGroups.length;
+  const mapStateCards: Array<{
+    key: string;
+    label: string;
+    value: string;
+    detail: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string;
+    badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  }> = [
     {
       key: 'quality',
       label: uiLabels.map_quality || 'Calidad del mapa',
       value: qualityLabel,
-      detail: quality?.reason_code ? String(quality.reason_code).replace(/_/g, ' ') : 'contrato operativo',
+      detail: qualityReason,
       icon: Gauge,
+      badge: qualityState ? statusLabel(qualityState) : undefined,
+      badgeVariant: qualityState ? statusVariant(qualityState) : undefined,
     },
     {
       key: 'coverage',
       label: uiLabels.coverage || 'Cobertura GPS',
       value: coveragePercent !== undefined ? `${formatNumber(coveragePercent, '%')}` : '--',
-      detail: `${formatNumber(quality?.ticket_records_with_coordinates)} con coordenadas`,
+      detail: coverageDetail,
       icon: MapPin,
     },
     {
-      key: 'visible',
-      label: uiLabels.visible_points || 'Puntos visibles',
-      value: formatNumber(visiblePoints),
-      detail: `${formatNumber(filteredPoints.length)} tras filtros activos`,
-      icon: Layers,
-    },
-    {
-      key: 'geocode',
+      key: 'geocode_queue',
       label: uiLabels.pending_geocode || 'Pendientes de geocodificar',
       value: formatNumber(pendingGeocode),
-      detail: pendingGeocode ? 'requiere latitud y longitud' : 'sin cola pendiente',
-      icon: DatabaseZap,
+      detail: geocodeDetail,
+      icon: Route,
     },
     {
       key: 'realtime',
       label: uiLabels.realtime || 'Actualizacion en vivo',
       value: realtime?.poll_seconds ? `${formatNumber(realtime.poll_seconds)}s` : '--',
-      detail: latestRealtime ? `ultimo evento ${latestRealtime}` : 'esperando nuevos eventos',
-      icon: Activity,
+      detail: realtimeDetail,
+      icon: Radio,
+      badge: realtimeReady ? 'activo' : 'sin senal',
+      badgeVariant: realtimeReady ? 'default' : 'outline',
     },
   ];
-  const mapEngines = mapExperience?.map_engines ?? [];
-  const layerGroups = mapExperience?.layer_groups ?? [];
-  const preferredVisualization = asString(mapExperience?.preferred_visualization)?.replace(/_/g, ' ');
-  const geocodingCandidates = (geocoding?.candidates ?? []).slice(0, 3);
+  const geocodingCandidates = (geocoding?.candidates ?? []).slice(0, 4);
   const geocodingStatus = asString(geocoding?.status);
   const geocodingAction = geocoding?.recommended_action;
+  const geocodingActionTitle =
+    asString(geocodingAction?.title) ?? asString(geocodingAction?.label) ?? asString(geocodingAction?.id);
+  const geocodingActionEndpoint = formatEndpoint(geocodingAction);
+  const geocodingActionMethod = asString(geocodingAction?.method) ?? (geocodingActionEndpoint ? 'PATCH' : undefined);
+  const candidateCountLabel =
+    geocodingCandidateCount === 1 ? '1 pendiente' : `${formatNumber(geocodingCandidateCount)} pendientes`;
+  const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
+  const backendFiltersLabel = uiLabels.backend_filters || 'Filtros aplicados por backend';
+  const hasLayerSignals = Boolean(
+    layers.length ||
+      layerGroups.length ||
+      mapEngines.length ||
+      preferredVisualizationRaw ||
+      mapExperience?.supports_reduced_motion,
+  );
+  const layerStatusLabel = layers.length
+    ? `${formatNumber(enabledLayerCount)} de ${formatNumber(layers.length)} capas activas`
+    : layerGroups.length
+      ? `${formatNumber(layerGroups.length)} grupos publicados`
+      : 'sin capas publicadas';
 
   const renderState = heatmap?.render_contract?.state;
   const isFreshnessBlocked = canRenderHeatmap === false;
   const allowDemoFallback = import.meta.env.DEV && !isFreshnessBlocked && renderState !== 'empty';
   const isEmpty = isFreshnessBlocked || renderState === 'empty' || (!filteredPoints.length && !allowDemoFallback);
   const emptyDescription = isFreshnessBlocked
-    ? 'No hay datos suficientes para dibujar el mapa en este periodo.'
-    : 'Todavia no hay coordenadas para las capas activas.';
-  const selectedFiltersLabel = uiLabels.selected_filters || 'Filtros activos';
-  const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
-  const backendFiltersLabel = uiLabels.backend_filters || 'Filtros aplicados por backend';
+    ? 'El backend marco el heatmap como no renderizable para este periodo.'
+    : pendingGeocode
+      ? `${formatNumber(pendingGeocode)} direcciones pendientes de geocodificacion antes de mejorar la cobertura.`
+      : 'Todavia no hay coordenadas para las capas y filtros activos.';
   const tenantVertical = asString(heatmap?.tenant?.vertical ?? heatmap?.tenant?.tipo ?? heatmap?.tenant?.sector);
   const demoProfile =
     tenantVertical === 'educacion' || tenantVertical === 'colegio'
@@ -1435,107 +1547,400 @@ function OperationsHeatmapPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <MapPin className="h-5 w-5" />
-              Mapa operativo
-            </CardTitle>
-            <CardDescription>Reclamos, respuestas y eventos con ubicacion.</CardDescription>
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-muted/20">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MapPin className="h-5 w-5" />
+                Centro territorial
+              </CardTitle>
+              {renderState ? <Badge variant={statusVariant(renderState)}>{statusLabel(renderState)}</Badge> : null}
+            </div>
+            <CardDescription className="mt-1">
+              Calor territorial, capas IA, cobertura GPS y geocodificacion para decidir operativos.
+            </CardDescription>
           </div>
-          {heatmap?.summary ? (
-            <Badge variant="outline">{formatNumber(heatmap.summary.points)} puntos</Badge>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="gap-1">
+              <Layers className="h-3.5 w-3.5" />
+              {layerStatusLabel}
+            </Badge>
+            <Badge variant="outline">
+              {formatNumber(visiblePoints)} publicados / {formatNumber(filteredPoints.length)} visibles
+            </Badge>
+            <Button type="button" size="sm" variant="outline" onClick={refetch}>
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+              Actualizar mapa
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {quality || realtime ? (
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-            {qualityMetrics.map((metric) => {
-              const Icon = metric.icon;
-              return (
-                <div key={metric.key} className="rounded-lg border bg-background/80 p-3 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="rounded-md bg-primary/10 p-2 text-primary">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    {metric.key === 'quality' && qualityState ? (
-                      <Badge variant={statusVariant(qualityState)}>{statusLabel(qualityState)}</Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
-                  <p className="mt-1 text-lg font-semibold leading-tight">{metric.value}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{metric.detail}</p>
+      <CardContent className="space-y-4 pt-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {mapStateCards.map((metric) => {
+            const Icon = metric.icon;
+            return (
+              <div key={metric.key} className="rounded-lg border bg-background/85 p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  {metric.badge ? <Badge variant={metric.badgeVariant ?? 'outline'}>{metric.badge}</Badge> : null}
                 </div>
-              );
-            })}
-          </div>
-        ) : null}
-        {mapExperience || geocoding ? (
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="rounded-xl border bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.42))] p-4 shadow-sm">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                    {uiLabels.map_stack || 'Stack de inteligencia territorial'}
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold tracking-normal">
-                    {preferredVisualization || 'Mapa operativo interactivo'}
-                  </h3>
-                  <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                    {uiLabels.map_stack_description ||
-                      'Capas listas para operar con calor territorial, riesgo IA, actividad de WhatsApp, encuestas y geocodificacion.'}
+                <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+                <p className="mt-1 text-lg font-semibold leading-tight">{metric.value}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{metric.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="order-2 space-y-4 2xl:order-1">
+            <div className="flex flex-col gap-2 rounded-xl border bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Mapa y hotspots</p>
+                <p className="text-xs text-muted-foreground">
+                  {isEmpty
+                    ? 'Sin puntos renderizables para las capas activas.'
+                    : `${formatNumber(filteredPoints.length)} puntos tras filtros y capas activas.`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary">
+                  {visiblePointsLabel}: {formatNumber(filteredPoints.length)}
+                </Badge>
+                {activeFilterSummaries.length ? (
+                  <Badge variant="outline">{formatNumber(activeFilterSummaries.length)} filtros</Badge>
+                ) : null}
+              </div>
+            </div>
+
+            {isEmpty ? (
+              <ViewState
+                status="empty"
+                title="Mapa sin puntos operativos"
+                description={emptyDescription}
+                action={
+                  <Button type="button" variant="outline" onClick={refetch}>
+                    <RefreshCw className="h-4 w-4" />
+                    Reintentar mapa
+                  </Button>
+                }
+                className="min-h-[360px] rounded-xl border bg-background"
+              />
+            ) : (
+              <PremiumTerritoryHeatmap
+                points={filteredPoints}
+                heatmap={heatmap}
+                labels={uiLabels}
+                mapConfig={mapConfig}
+                allowDemoFallback={allowDemoFallback}
+                demoProfile={demoProfile}
+                activeFilters={activeFilterSummaries.map((filter) => ({
+                  key: String(filter.queryParam),
+                  label: filter.label,
+                  value: filter.optionLabel,
+                  onClear: () =>
+                    onFiltersChange((current) => {
+                      const next = { ...current };
+                      delete next[filter.queryParam];
+                      return next;
+                    }),
+                }))}
+              />
+            )}
+
+            {segmentBreakdowns.length ? (
+              <div className="rounded-xl border bg-background p-3 shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold">{uiLabels.segment_reading || 'Lectura de segmentos'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Distribucion visible despues de aplicar filtros y capas activas.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {mapEngines.map((engine) => (
-                    <Badge key={engine} variant="secondary" className="capitalize">
-                      {engine}
-                    </Badge>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {segmentBreakdowns.slice(0, 6).map((group) => (
+                    <MiniList key={group.key} title={group.label} items={group.items} />
                   ))}
-                  {mapExperience?.supports_reduced_motion ? (
-                    <Badge variant="outline">{uiLabels.reduced_motion || 'motion seguro'}</Badge>
-                  ) : null}
                 </div>
               </div>
-              {layerGroups.length ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {layerGroups.slice(0, 6).map((layer) => (
-                    <div key={layer} className="rounded-lg border bg-background/70 px-3 py-2">
-                      <p className="text-sm font-medium capitalize">{layer.replace(/_/g, ' ')}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {layer.includes('ai')
-                          ? 'priorizacion y riesgo'
-                          : layer.includes('whatsapp')
-                            ? 'actividad conversacional'
-                            : layer.includes('survey')
-                              ? 'participacion y voto'
-                              : 'capa territorial'}
-                      </p>
+            ) : null}
+          </div>
+
+          <aside className="order-1 space-y-3 2xl:order-2">
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Layers className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{uiLabels.map_stack || 'Capas y motor'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {uiLabels.map_stack_description ||
+                        'Activa calor territorial, riesgo IA, WhatsApp, encuestas y geocodificacion.'}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="outline">{layerStatusLabel}</Badge>
+              </div>
+
+              {hasLayerSignals ? (
+                <>
+                  <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                    <p className="text-sm font-medium">{preferredVisualization}</p>
+                    <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
+                      {mapEngines.length ? (
+                        <span>Motor: {mapEngines.map((engine) => humanizeHeatmapToken(engine, 'motor')).join(', ')}</span>
+                      ) : (
+                        <span>Motor no informado</span>
+                      )}
+                      {mapExperience?.supports_reduced_motion ? <Badge variant="outline">motion seguro</Badge> : null}
                     </div>
+                  </div>
+
+                  {layers.length ? (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capas renderizadas</p>
+                      <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+                        {layers.map((layer) => {
+                          const active = enabledLayers.includes(layer);
+                          return (
+                            <Button
+                              key={layer}
+                              type="button"
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              aria-pressed={active}
+                              className="h-auto justify-start gap-2 px-3 py-2 text-left"
+                              onClick={() => {
+                                setEnabledLayers((current) =>
+                                  current.includes(layer)
+                                    ? current.filter((item) => item !== layer)
+                                    : [...current, layer],
+                                );
+                              }}
+                            >
+                              <Layers className="h-4 w-4 shrink-0" />
+                              <span className="min-w-0">
+                                <span className="block truncate">{humanizeHeatmapToken(layer)}</span>
+                                <span className="block text-[11px] font-normal opacity-80">{describeHeatmapLayer(layer)}</span>
+                              </span>
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {layerGroups.length ? (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capas disponibles</p>
+                      <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+                        {layerGroups.slice(0, 6).map((layer) => (
+                          <div key={layer} className="rounded-lg border bg-muted/20 px-3 py-2">
+                            <p className="text-sm font-medium">{humanizeHeatmapToken(layer)}</p>
+                            <p className="text-xs text-muted-foreground">{describeHeatmapLayer(layer)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {categoryLayerItems.length ? (
+                    <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                      <p className="text-sm font-medium">{uiLabels.category_layers || 'Capas por categoria'}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {categoryLayerItems.map((item) => {
+                          const value = asString(item.key) ?? '';
+                          const active = filters.categoria === value;
+                          return (
+                            <Button
+                              key={value}
+                              type="button"
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              onClick={() =>
+                                onFiltersChange((current) => {
+                                  const next = { ...current };
+                                  if (active) {
+                                    delete next.categoria;
+                                  } else {
+                                    next.categoria = value;
+                                  }
+                                  return next;
+                                })
+                              }
+                            >
+                              {item.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <ViewState
+                  status="empty"
+                  title="Sin capas publicadas"
+                  description="El backend aun no publico contrato de capas para este mapa."
+                  className="mt-3 min-h-[130px]"
+                />
+              )}
+            </div>
+
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between 2xl:flex-col">
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{uiLabels.segment_filters || 'Filtros operativos'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {uiLabels.segment_filters_description ||
+                        'Cruza categoria, canal, estado y territorio sin perder el periodo activo.'}
+                    </p>
+                  </div>
+                </div>
+                {hasActiveSegmentFilters ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => onFiltersChange((current) => keepHeatmapPeriodFilters(current))}
+                  >
+                    <X className="h-4 w-4" />
+                    {clearFiltersLabel}
+                  </Button>
+                ) : null}
+              </div>
+
+              <label className="mt-3 block space-y-1 text-xs font-medium text-muted-foreground">
+                <span>{periodLabel}</span>
+                <select
+                  value={selectedPeriod}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    onFiltersChange((current) => {
+                      const next = { ...current };
+                      delete next.range;
+                      delete next.scope;
+                      delete next.days;
+                      if (nextValue === 'historical') {
+                        next.range = 'all';
+                        next.scope = 'historical';
+                      } else {
+                        next.days = nextValue;
+                      }
+                      return next;
+                    });
+                  }}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="historical">{uiLabels.period_historical || 'Historico completo'}</option>
+                  <option value="365">{uiLabels.period_365 || 'Ultimos 365 dias'}</option>
+                  <option value="90">{uiLabels.period_90 || 'Ultimos 90 dias'}</option>
+                  <option value="30">{uiLabels.period_30 || 'Ultimos 30 dias'}</option>
+                </select>
+              </label>
+
+              {filterControls.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+                  {filterControls.map((config) => (
+                    <label key={config.key} className="space-y-1 text-xs font-medium text-muted-foreground">
+                      <span>{config.label}</span>
+                      <select
+                        value={filters[config.queryParam] ?? ''}
+                        onChange={(event) => {
+                          const nextValue = event.target.value.trim();
+                          onFiltersChange((current) => {
+                            const next = { ...current };
+                            if (nextValue) {
+                              next[config.queryParam] = nextValue;
+                            } else {
+                              delete next[config.queryParam];
+                            }
+                            return next;
+                          });
+                        }}
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">{allLabel}</option>
+                        {config.options.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.count !== undefined ? `${option.label} (${formatNumber(option.count)})` : option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   ))}
                 </div>
+              ) : (
+                <div className="mt-3 rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
+                  Los filtros aparecen cuando el backend publica facets, segmentos o puntos con metadatos.
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">
+                  {visiblePointsLabel}: {formatNumber(filteredPoints.length)}
+                </Badge>
+                {activeFilterSummaries.map((filter) => (
+                  <Button
+                    key={`${filter.queryParam}-${filter.value}`}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 px-2 text-xs"
+                    aria-label={`Quitar filtro ${filter.label} ${filter.optionLabel}`}
+                    onClick={() =>
+                      onFiltersChange((current) => {
+                        const next = { ...current };
+                        delete next[filter.queryParam];
+                        return next;
+                      })
+                    }
+                  >
+                    <span className="font-medium">{filter.label}</span>
+                    <span>{filter.optionLabel}</span>
+                    <X className="h-3 w-3" />
+                  </Button>
+                ))}
+              </div>
+              {backendAppliedFilters.length ? (
+                <p className="mt-2 break-words text-[11px] text-muted-foreground">
+                  {backendFiltersLabel}: {backendAppliedFilters.map((filter) => `${filter.key}=${filter.value}`).join(', ')}
+                </p>
               ) : null}
             </div>
-            <div className="rounded-xl border bg-background p-4 shadow-sm">
+
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    {uiLabels.geocoding_queue || 'Cola de ubicaciones'}
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold">
-                    {formatNumber(geocoding?.candidate_count)} pendientes
-                  </h3>
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <DatabaseZap className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{uiLabels.geocoding_queue || 'Cola de geocodificacion'}</p>
+                    <p className="text-lg font-semibold">{candidateCountLabel}</p>
+                  </div>
                 </div>
                 {geocodingStatus ? <Badge variant={statusVariant(geocodingStatus)}>{statusLabel(geocodingStatus)}</Badge> : null}
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {geocodingCandidates.length
-                  ? 'Direcciones con texto util pero sin coordenadas. Resolverlas mejora mapa, SLA y asignacion de cuadrillas.'
-                  : 'No hay direcciones pendientes para geocodificar en los filtros actuales.'}
+                  ? 'Direcciones con texto util pero sin coordenadas. Resolverlas mejora mapa, SLA y asignacion de equipo.'
+                  : geocoding
+                    ? 'No hay direcciones pendientes para los filtros actuales.'
+                    : 'El backend aun no publico cola de geocodificacion para este mapa.'}
               </p>
+
               {geocodingCandidates.length ? (
                 <div className="mt-3 space-y-2">
                   {geocodingCandidates.map((candidate, index) => {
@@ -1548,181 +1953,54 @@ function OperationsHeatmapPanel({
                         <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
                           {candidate.category ? <Badge variant="outline">{candidate.category}</Badge> : null}
                           {candidate.source ? <Badge variant="outline">{candidate.source}</Badge> : null}
-                          {candidate.reason_code ? <span>{candidate.reason_code.replace(/_/g, ' ')}</span> : null}
+                          {candidate.reason_code ? <span>{humanizeHeatmapToken(candidate.reason_code, 'motivo')}</span> : null}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : null}
-              {geocodingAction ? (
-                <div className="mt-3 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">
-                    {asString(geocodingAction.title) ?? asString(geocodingAction.label) ?? 'Accion disponible'}
-                  </p>
-                  <p className="mt-1">
-                    {asString(geocodingAction.method) ?? 'PATCH'}{' '}
-                    {asString(geocodingAction.endpoint) ?? asString(geocodingAction.endpoint_template) ?? 'endpoint pendiente'}
-                  </p>
+
+              {geocodingActionTitle || geocodingActionEndpoint ? (
+                <div className="mt-3 rounded-lg border border-dashed bg-muted/20 p-3">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        {geocodingActionTitle || 'Accion de geocodificacion disponible'}
+                      </p>
+                      {geocodingActionEndpoint ? (
+                        <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                          {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ) : null}
+
+              <Button type="button" size="sm" variant="outline" className="mt-3 w-full justify-start" onClick={refetch}>
+                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+                Revisar cola
+              </Button>
             </div>
-          </div>
-        ) : null}
-        {layers.length ? (
-          <div className="flex flex-wrap gap-2">
-            {layers.map((layer) => {
-              const active = enabledLayers.includes(layer);
-              return (
-                <Button
-                  key={layer}
-                  type="button"
-                  size="sm"
-                  variant={active ? 'default' : 'outline'}
-                  onClick={() => {
-                    setEnabledLayers((current) =>
-                      current.includes(layer)
-                        ? current.filter((item) => item !== layer)
-                        : [...current, layer],
-                    );
-                  }}
-                >
-                  <Layers className="h-4 w-4" />
-                  {layer}
-                </Button>
-              );
-            })}
-          </div>
-        ) : null}
-        {filterControls.length ? (
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium">{uiLabels.segment_filters || 'Segmentos del mapa'}</p>
-                <p className="text-xs text-muted-foreground">
-                  {uiLabels.segment_filters_description || 'Cruza puntos reales por categoria, edad, genero, canal y zona cuando el backend los publica.'}
-                </p>
-              </div>
-              {hasActiveSegmentFilters ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onFiltersChange((current) => keepHeatmapPeriodFilters(current))}
-                >
-                  {clearFiltersLabel}
-                </Button>
-              ) : null}
-            </div>
-            <div className="mt-3 max-w-xs space-y-1 text-xs font-medium text-muted-foreground">
-              <span>{periodLabel}</span>
-              <select
-                value={selectedPeriod}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  onFiltersChange((current) => {
-                    const next = { ...current };
-                    delete next.range;
-                    delete next.scope;
-                    delete next.days;
-                    if (nextValue === 'historical') {
-                      next.range = 'all';
-                      next.scope = 'historical';
-                    } else {
-                      next.days = nextValue;
-                    }
-                    return next;
-                  });
-                }}
-                className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="historical">{uiLabels.period_historical || 'Historico completo'}</option>
-                <option value="365">{uiLabels.period_365 || 'Ultimos 365 dias'}</option>
-                <option value="90">{uiLabels.period_90 || 'Ultimos 90 dias'}</option>
-                <option value="30">{uiLabels.period_30 || 'Ultimos 30 dias'}</option>
-              </select>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {filterControls.map((config) => (
-                <label key={config.key} className="space-y-1 text-xs font-medium text-muted-foreground">
-                  <span>{config.label}</span>
-                  <select
-                    value={filters[config.queryParam] ?? ''}
-                    onChange={(event) => {
-                      const nextValue = event.target.value.trim();
-                      onFiltersChange((current) => {
-                        const next = { ...current };
-                        if (nextValue) {
-                          next[config.queryParam] = nextValue;
-                        } else {
-                          delete next[config.queryParam];
-                        }
-                        return next;
-                      });
-                    }}
-                    className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="">{allLabel}</option>
-                    {config.options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.count !== undefined ? `${option.label} (${formatNumber(option.count)})` : option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="secondary">
-                {visiblePointsLabel}: {formatNumber(filteredPoints.length)}
-              </Badge>
-              {activeFilterSummaries.length ? (
-                <>
-                  <span>{selectedFiltersLabel}:</span>
-                  {activeFilterSummaries.map((filter) => (
-                    <Button
-                      key={`${filter.queryParam}-${filter.value}`}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 gap-1 px-2 text-xs"
-                      onClick={() =>
-                        onFiltersChange((current) => {
-                          const next = { ...current };
-                          delete next[filter.queryParam];
-                          return next;
-                        })
-                      }
-                    >
-                      <span className="font-medium">{filter.label}:</span>
-                      <span>{filter.optionLabel}</span>
-                    </Button>
-                  ))}
-                </>
-              ) : null}
-              {backendAppliedFilters.length ? (
-                <span className="text-[11px]">
-                  {backendFiltersLabel}: {backendAppliedFilters.map((filter) => `${filter.key}=${filter.value}`).join(', ')}
-                </span>
-              ) : null}
-            </div>
-            {segmentBreakdowns.length ? (
-              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {segmentBreakdowns.slice(0, 6).map((group) => (
-                  <MiniList key={group.key} title={group.label} items={group.items} />
-                ))}
-              </div>
-            ) : null}
+
             {demographicItems.length || demographicBreakdowns.length ? (
-              <div className="mt-3 rounded-md border bg-background/70 p-3">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">{uiLabels.demographics_title || 'Cobertura demografica'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {uiLabels.demographics_description || 'Solo se muestran rangos publicados por backend; los valores unknown se tratan como sin dato.'}
-                  </p>
+              <div className="rounded-xl border bg-background p-3 shadow-sm">
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{uiLabels.demographics_title || 'Cobertura demografica'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {uiLabels.demographics_description ||
+                        'Solo se muestran rangos publicados por backend; los valores unknown se tratan como sin dato.'}
+                    </p>
+                  </div>
                 </div>
                 {demographicItems.length ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-2">
                     {demographicItems.map((item) => (
                       <div key={item.key} className="rounded-md border bg-muted/20 p-2">
                         <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -1732,7 +2010,7 @@ function OperationsHeatmapPanel({
                   </div>
                 ) : null}
                 {demographicBreakdowns.length ? (
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="mt-3 grid gap-2">
                     {demographicBreakdowns.map((group) => (
                       <MiniList key={group.key} title={group.label} items={group.items} />
                     ))}
@@ -1740,68 +2018,8 @@ function OperationsHeatmapPanel({
                 ) : null}
               </div>
             ) : null}
-            {categoryLayerItems.length ? (
-              <div className="mt-3 rounded-md border bg-background/70 p-3">
-                <p className="text-sm font-medium">{uiLabels.category_layers || 'Capas por categoria'}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {categoryLayerItems.map((item) => {
-                    const value = asString(item.key) ?? '';
-                    const active = filters.categoria === value;
-                    return (
-                      <Button
-                        key={value}
-                        type="button"
-                        size="sm"
-                        variant={active ? 'default' : 'outline'}
-                        onClick={() =>
-                          onFiltersChange((current) => {
-                            const next = { ...current };
-                            if (active) {
-                              delete next.categoria;
-                            } else {
-                              next.categoria = value;
-                            }
-                            return next;
-                          })
-                        }
-                      >
-                        {item.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {isEmpty ? (
-          <ViewState
-            status="empty"
-            title="Mapa sin puntos"
-            description={emptyDescription}
-            className="min-h-[320px]"
-          />
-        ) : (
-          <PremiumTerritoryHeatmap
-            points={filteredPoints}
-            heatmap={heatmap}
-            labels={uiLabels}
-            mapConfig={mapConfig}
-            allowDemoFallback={allowDemoFallback}
-            demoProfile={demoProfile}
-            activeFilters={activeFilterSummaries.map((filter) => ({
-              key: String(filter.queryParam),
-              label: filter.label,
-              value: filter.optionLabel,
-              onClear: () =>
-                onFiltersChange((current) => {
-                  const next = { ...current };
-                  delete next[filter.queryParam];
-                  return next;
-                }),
-            }))}
-          />
-        )}
+          </aside>
+        </div>
       </CardContent>
     </Card>
   );

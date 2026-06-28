@@ -145,6 +145,10 @@ const TenantSurveyListPage = () => {
         <div className="space-y-5">
           {surveys.map((survey) => {
             const status = getSurveyStatus(survey.inicio_at, survey.fin_at);
+            const isLiveExperience = Boolean(survey.es_votacion_envivo || survey.mostrar_resultados_envivo);
+            const surveyHref = isLiveExperience
+              ? `/e/${encodeURIComponent(survey.slug)}?tenant=${encodeURIComponent(slug)}`
+              : `${basePath}/encuestas/${survey.slug}`;
             return (
               <article key={survey.slug} className="rounded-3xl border bg-background/80 shadow-sm">
                 <CardHeader className="space-y-3">
@@ -163,7 +167,7 @@ const TenantSurveyListPage = () => {
                   ) : null}
                   {basePath ? (
                     <Button asChild>
-                      <a href={`${basePath}/encuestas/${survey.slug}`}>Responder encuesta</a>
+                      <a href={surveyHref}>{isLiveExperience ? 'Abrir sala en vivo' : 'Responder encuesta'}</a>
                     </Button>
                   ) : null}
                 </CardContent>

@@ -57,6 +57,7 @@ export interface SurveyLiveTimelineMinute {
   minute?: string;
   timestamp?: string;
   label?: string;
+  total?: number;
   respuestas?: number;
   value?: number;
 }
@@ -72,7 +73,9 @@ export interface SurveyLiveKpis {
   responses_last_hour?: number;
   participation_per_minute?: number;
   heatmap_coverage_cells?: number;
-  leader?: string;
+  leader?: unknown;
+  leader_label?: string | null;
+  active_filters?: Record<string, unknown>;
 }
 
 export interface SurveyLiveHeatmapPoint {
@@ -103,6 +106,9 @@ export interface SurveyLiveHeatmap {
 }
 
 export interface SurveyLivePublicQuestionOption {
+  id?: SurveyOptionId;
+  label?: string;
+  texto?: string;
   value?: string;
   votos?: number;
   porcentaje?: number;
@@ -111,10 +117,16 @@ export interface SurveyLivePublicQuestionOption {
 export interface SurveyLivePublicQuestion {
   id?: string | number;
   texto?: string;
+  titulo?: string;
+  total_votos?: number;
   opciones?: SurveyLivePublicQuestionOption[];
 }
 
 export interface SurveyLivePublicResultsPayload {
+  contract_version?: string;
+  request_id?: string;
+  slug?: string;
+  slug_publico?: string;
   total_respuestas?: number;
   preguntas?: SurveyLivePublicQuestion[];
   timeline_minute?: SurveyLiveTimelineMinute[];
@@ -122,6 +134,16 @@ export interface SurveyLivePublicResultsPayload {
   kpis?: SurveyLiveKpis;
   heatmap?: SurveyLiveHeatmap;
   ai_summary?: string;
+  ai_insights?: string[];
+  render_contract?: {
+    preferred_visualization?: string;
+    supports?: string[];
+    polling_interval_ms?: number;
+    empty_state?: string;
+    filter_keys?: string[];
+    map_experience?: string;
+  };
+  ui_actions?: Array<Record<string, unknown>>;
   updated_at?: string;
 }
 

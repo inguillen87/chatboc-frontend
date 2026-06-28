@@ -14,6 +14,7 @@ export interface ChatComposerPayload {
   action_id?: string | null;
   payload?: Record<string, unknown> | null;
   attachmentInfo?: unknown;
+  attachmentFile?: File;
   location?: { lat: number; lng?: number; lon?: number; address?: string | null; accuracy?: number | null };
   audioBlob?: Blob;
   audioFilename?: string;
@@ -139,6 +140,7 @@ export default function ChatComposer({
         intent,
         payload,
         attachmentInfo,
+        attachmentFile: file,
       });
       setText('');
       setError(null);

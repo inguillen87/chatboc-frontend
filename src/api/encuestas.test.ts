@@ -20,8 +20,11 @@ import {
   adminPublishSurvey,
   getHeatmap,
   getPublicSurvey,
+  getPublicSurveyLiveResults,
+  getSurveyComments,
   listPublicSurveys,
   postPublicResponse,
+  postSurveyComment,
 } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 
@@ -197,7 +200,8 @@ describe('listPublicSurveys', () => {
 
     await listPublicSurveys('rio-grande');
 
-    const [, options] = apiFetchMock.mock.calls[0];
+    const [path, options] = apiFetchMock.mock.calls[0];
+    expect(path).toBe('/api/public/encuestas/v1?tenant_slug=rio-grande');
     expect(options).toEqual(expect.objectContaining({ tenantSlug: 'rio-grande' }));
     expect((options as Record<string, unknown>).omitTenant).toBe(true);
   });
@@ -243,6 +247,55 @@ describe('listPublicSurveys', () => {
   });
 });
 
+describe('public survey tenant query contract', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('adds tenant_slug to public detail and live-results paths while omitting ambient tenant headers', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        slug: 'consulta-barrial',
+        titulo: 'Consulta barrial',
+        tipo: 'opinion',
+        preguntas: [],
+      })
+      .mockResolvedValueOnce({
+        contract_version: 'encuestas.live_results.v1',
+        slug_publico: 'consulta-barrial',
+        total_respuestas: 0,
+      })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ id: 12, texto: 'Buen punto' });
+
+    await getPublicSurvey('consulta-barrial', 'junin');
+    await getPublicSurveyLiveResults('consulta-barrial', 'junin', { include_heatmap: 0, window_minutes: 20 });
+    await getSurveyComments('consulta-barrial', 'junin', 25, 10);
+    await postSurveyComment('consulta-barrial', { texto: 'Buen punto' }, 'junin');
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/public/encuestas/v1/consulta-barrial?tenant_slug=junin',
+      expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/public/encuestas/v1/consulta-barrial/live-results?include_heatmap=0&window_minutes=20&tenant_slug=junin',
+      expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/public/encuestas/v1/consulta-barrial/comentarios?limit=25&offset=10&tenant_slug=junin',
+      expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      4,
+      '/api/public/encuestas/v1/consulta-barrial/comentarios?tenant_slug=junin',
+      expect.objectContaining({ method: 'POST', omitTenant: true, tenantSlug: 'junin' }),
+    );
+  });
+});
+
 describe('postPublicResponse', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
@@ -259,6 +312,11 @@ describe('postPublicResponse', () => {
     });
 
     await postPublicResponse('mi-encuesta', { respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] }, 'rio-grande');
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/public/encuestas/v1/mi-encuesta/responder?tenant_slug=rio-grande',
+      expect.objectContaining({ method: 'POST', omitTenant: true, tenantSlug: 'rio-grande' }),
+    );
 
     const persistedRaw = safeLocalStorage.getItem('chatboc_public_chat_context');
     const persisted = persistedRaw ? JSON.parse(persistedRaw) : null;

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Package, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
+import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -29,7 +31,8 @@ const CHANNEL_ICONS: Record<string, any> = {
   mercadolibre: ShoppingBag, // Represents a bag/store
   whatsapp: MessageCircle,
   tiendanube: Globe, // Represents a web store
-  web: Globe
+  web: Globe,
+  marketplace: ShoppingBag,
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -37,6 +40,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
   tiendanube: "Tienda Nube",
   web: "Web Propia",
+  marketplace: "Marketplace",
   manual_admin: "Manual admin",
   phone: "Teléfono",
 };
@@ -53,6 +57,150 @@ const normalizeOrders = (raw: unknown): Order[] => {
   return [];
 };
 
+const assistedSummaryNumber = (order: Order, key: 'matched' | 'unmatched' | 'detected') => {
+  const value = order.assisted_request?.match_summary?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+};
+
+const crmStateLabel = (state?: string | null) => {
+  if (state === 'ready_for_confirmation') return 'Listo para confirmar';
+  if (state === 'pending_operator_review') return 'Revisar en CRM';
+  return 'Pedido asistido';
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const textValue = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
+};
+
+const firstText = (...values: unknown[]) => {
+  for (const value of values) {
+    const text = textValue(value)?.trim();
+    if (text) return text;
+  }
+  return null;
+};
+
+const flattenSearchText = (value: unknown): string => {
+  const primitive = textValue(value);
+  if (primitive) return primitive;
+  if (Array.isArray(value)) return value.map(flattenSearchText).filter(Boolean).join(' ');
+  if (isRecord(value)) return Object.values(value).map(flattenSearchText).filter(Boolean).join(' ');
+  return '';
+};
+
+const normalizeSearchText = (value: unknown) =>
+  flattenSearchText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const getAssistedPreview = (order: Order) => {
+  const assistedRequest = order.assisted_request;
+  return firstText(
+    assistedRequest?.customer_message,
+    assistedRequest?.source?.text_preview,
+    assistedRequest?.structured_extraction?.fields?.resumen,
+    assistedRequest?.review_context?.summary,
+    order.notes,
+  );
+};
+
+const getFollowUpCode = (order: Order) => order.assisted_request?.public_follow_up?.tracking?.code || null;
+
+const buildOrderSearchText = (order: Order) => {
+  const assistedRequest = order.assisted_request;
+  const profile = (order as any).customer_profile || {};
+  return normalizeSearchText([
+    order.id,
+    order.externalId,
+    (order as any).market_order_id,
+    (order as any).order_id,
+    order.contact_name,
+    order.customerName,
+    order.customerPhone,
+    order.customerEmail,
+    profile.name,
+    profile.phone,
+    profile.email,
+    profile.contact_key,
+    profile.channel_group,
+    order.items,
+    assistedRequest?.request_kind_label,
+    assistedRequest?.customer_message,
+    assistedRequest?.source?.text_preview,
+    assistedRequest?.structured_extraction?.fields,
+    assistedRequest?.unmatched_items,
+    getFollowUpCode(order),
+    order.notes,
+  ]);
+};
+
+const resolveUpdatedOrder = (current: Order, response: unknown, fallbackStatus: string): Order => {
+  const candidate = isRecord(response)
+    ? (isRecord(response.order) ? response.order : isRecord(response.data) ? response.data : response)
+    : null;
+  return candidate ? ({ ...current, ...candidate } as Order) : { ...current, status: fallbackStatus as any };
+};
+
+const getShippingInfo = (order: Order) => {
+  const raw = order as any;
+  const metadata = isRecord(order.metadata) ? order.metadata : {};
+  const delivery = isRecord(metadata.delivery)
+    ? metadata.delivery
+    : isRecord(metadata.envio)
+      ? metadata.envio
+      : isRecord(metadata.shipping)
+        ? metadata.shipping
+        : isRecord(raw.delivery)
+          ? raw.delivery
+          : isRecord(raw.envio)
+            ? raw.envio
+            : isRecord(raw.shipping)
+              ? raw.shipping
+              : {};
+  const fields = isRecord(order.assisted_request?.structured_extraction?.fields)
+    ? order.assisted_request?.structured_extraction?.fields
+    : {};
+  const method = firstText(
+    raw.shipping_method,
+    raw.metodo_envio,
+    raw.delivery_method,
+    delivery.method,
+    delivery.metodo,
+    fields?.metodo_envio,
+    fields?.tipo_envio,
+  );
+  const address = firstText(
+    raw.shipping_address,
+    raw.direccion_envio,
+    raw.address,
+    raw.direccion,
+    delivery.address,
+    delivery.direccion,
+    fields?.direccion,
+    fields?.domicilio,
+  );
+  const notes = firstText(
+    raw.shipping_notes,
+    raw.referencias_envio,
+    delivery.notes,
+    delivery.notas,
+    fields?.referencias,
+    fields?.observaciones,
+  );
+  return {
+    hasData: Boolean(method || address || notes),
+    method: method || (address ? 'Entrega a coordinar' : 'Sin datos de envio'),
+    address,
+    notes,
+  };
+};
+
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
   const navigate = useNavigate();
@@ -60,6 +208,7 @@ const PedidosPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [aiFilter, setAiFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Manual Order State
@@ -104,27 +253,20 @@ const PedidosPage = () => {
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
     if (!currentSlug) return;
     const currentOrders = Array.isArray(orders) ? orders : [];
+    if (newStatus === 'cancelled' && !window.confirm('Confirmas cancelar este pedido?')) return;
 
     try {
-      await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
-      // Optimistic update
-      const updatedOrders = currentOrders.map(o =>
-        o.id === orderId ? { ...o, status: newStatus as any } : o,
+      const response = await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
+      const updatedOrders = currentOrders.map((order) =>
+        order.id === orderId ? resolveUpdatedOrder(order, response, newStatus) : order,
       );
       setOrders(updatedOrders);
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus as any });
+        setSelectedOrder(resolveUpdatedOrder(selectedOrder, response, newStatus));
       }
     } catch (error) {
       console.error('Failed to update status', error);
-      // Still update UI for demo purposes
-      const updatedOrders = currentOrders.map(o =>
-        o.id === orderId ? { ...o, status: newStatus as any } : o,
-      );
-      setOrders(updatedOrders);
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus as any });
-      }
+      toast.error("No se pudo actualizar el estado. El pedido no fue modificado.");
     }
   };
 
@@ -160,15 +302,35 @@ const PedidosPage = () => {
   };
 
   const safeOrders = Array.isArray(orders) ? orders : [];
+  const assistedOrders = safeOrders.filter((order) => Boolean(order.assisted_request));
+  const assistedNeedsReview = assistedOrders.filter((order) =>
+    order.assisted_request?.operator_pack?.needs_human_review ||
+    order.assisted_request?.operator_pack?.priority === 'high' ||
+    assistedSummaryNumber(order, 'unmatched') > 0,
+  );
+  const assistedReady = assistedOrders.filter((order) =>
+    order.assisted_request?.crm_state === 'ready_for_confirmation' ||
+    (Boolean(order.assisted_request) && assistedSummaryNumber(order, 'unmatched') === 0),
+  );
 
   const filteredOrders = safeOrders.filter(o => {
-    const matchesSearch =
-      o.id.toString().includes(searchTerm) ||
-      (o.items || []).some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const orderChannel = (o as any).channel || (o as any).commercial_state?.channel;
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    const matchesSearch = !normalizedSearch || buildOrderSearchText(o).includes(normalizedSearch);
+    const orderChannel = o.assisted_request?.source?.channel || (o as any).channel || (o as any).commercial_state?.channel;
     const matchesChannel = channelFilter === 'all' || orderChannel === channelFilter;
-    return matchesSearch && matchesChannel;
+    const assistedRequest = o.assisted_request;
+    const needsReview =
+      assistedRequest?.operator_pack?.needs_human_review ||
+      assistedRequest?.operator_pack?.priority === 'high' ||
+      assistedSummaryNumber(o, 'unmatched') > 0;
+    const matchesAi =
+      aiFilter === 'all' ||
+      (aiFilter === 'assisted' && Boolean(assistedRequest)) ||
+      (aiFilter === 'needs_review' && Boolean(needsReview)) ||
+      (aiFilter === 'ready' && Boolean(assistedRequest) && !needsReview);
+    return matchesSearch && matchesChannel && matchesAi;
   });
+  const selectedShippingInfo = selectedOrder ? getShippingInfo(selectedOrder) : null;
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -241,7 +403,7 @@ const PedidosPage = () => {
             <div className="relative flex-1 md:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                    placeholder="Buscar pedido..."
+                    placeholder="Buscar por cliente, WhatsApp, item, seguimiento o texto IA..."
                     className="pl-8"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
@@ -256,11 +418,89 @@ const PedidosPage = () => {
                     <SelectItem value="mercadolibre">Mercado Libre</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
                     <SelectItem value="tiendanube">Tienda Nube</SelectItem>
+                    <SelectItem value="marketplace">Marketplace</SelectItem>
                     <SelectItem value="manual_admin">Manual admin</SelectItem>
                     <SelectItem value="phone">Teléfono</SelectItem>
                 </SelectContent>
             </Select>
+            <Select value={aiFilter} onValueChange={setAiFilter}>
+                <SelectTrigger className="w-[190px]">
+                    <SelectValue placeholder="IA" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los pedidos</SelectItem>
+                    <SelectItem value="assisted">Solo IA asistida</SelectItem>
+                    <SelectItem value="needs_review">IA para revisar</SelectItem>
+                    <SelectItem value="ready">IA lista</SelectItem>
+                </SelectContent>
+            </Select>
         </div>
+      </div>
+
+      <div className={`grid gap-3 md:grid-cols-3 flex-none ${selectedOrder ? 'hidden md:grid' : ''}`}>
+        <Card
+          role="button"
+          tabIndex={0}
+          className={`cursor-pointer border-blue-200 bg-blue-50/60 transition hover:shadow-md dark:border-blue-900 dark:bg-blue-950/20 ${aiFilter === 'assisted' ? 'ring-2 ring-blue-500' : ''}`}
+          onClick={() => setAiFilter(aiFilter === 'assisted' ? 'all' : 'assisted')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setAiFilter(aiFilter === 'assisted' ? 'all' : 'assisted');
+            }
+          }}
+          aria-label="Filtrar solicitudes IA"
+        >
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Solicitudes IA</p>
+              <p className="mt-1 text-2xl font-bold">{assistedOrders.length}</p>
+            </div>
+            <Sparkles className="h-5 w-5 text-blue-600" />
+          </CardContent>
+        </Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className={`cursor-pointer border-amber-200 bg-amber-50/60 transition hover:shadow-md dark:border-amber-900 dark:bg-amber-950/20 ${aiFilter === 'needs_review' ? 'ring-2 ring-amber-500' : ''}`}
+          onClick={() => setAiFilter(aiFilter === 'needs_review' ? 'all' : 'needs_review')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setAiFilter(aiFilter === 'needs_review' ? 'all' : 'needs_review');
+            }
+          }}
+          aria-label="Filtrar solicitudes IA para revisar"
+        >
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Para revisar</p>
+              <p className="mt-1 text-2xl font-bold">{assistedNeedsReview.length}</p>
+            </div>
+            <Package className="h-5 w-5 text-amber-600" />
+          </CardContent>
+        </Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className={`cursor-pointer border-emerald-200 bg-emerald-50/60 transition hover:shadow-md dark:border-emerald-900 dark:bg-emerald-950/20 ${aiFilter === 'ready' ? 'ring-2 ring-emerald-500' : ''}`}
+          onClick={() => setAiFilter(aiFilter === 'ready' ? 'all' : 'ready')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setAiFilter(aiFilter === 'ready' ? 'all' : 'ready');
+            }
+          }}
+          aria-label="Filtrar solicitudes IA listas para confirmar"
+        >
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Listas para confirmar</p>
+              <p className="mt-1 text-2xl font-bold">{assistedReady.length}</p>
+            </div>
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0 relative">
@@ -275,12 +515,12 @@ const PedidosPage = () => {
                  </div>
                  <h3 className="font-medium text-foreground">Sin pedidos</h3>
                  <p className="text-sm text-muted-foreground mt-1">
-                     {searchTerm || channelFilter !== 'all'
+                     {searchTerm || channelFilter !== 'all' || aiFilter !== 'all'
                         ? "No hay pedidos que coincidan con los filtros."
                         : "Aún no recibiste pedidos en este canal."}
                  </p>
-                 {(searchTerm || channelFilter !== 'all') && (
-                     <Button variant="link" onClick={() => { setSearchTerm(''); setChannelFilter('all'); }}>
+                 {(searchTerm || channelFilter !== 'all' || aiFilter !== 'all') && (
+                     <Button variant="link" onClick={() => { setSearchTerm(''); setChannelFilter('all'); setAiFilter('all'); }}>
                          Limpiar filtros
                      </Button>
                  )}
@@ -291,25 +531,37 @@ const PedidosPage = () => {
              </div>
           ) : (
             filteredOrders.map(order => {
-              const orderChannel = (order as any).channel || (order as any).commercial_state?.channel || 'web';
+              const orderChannel = order.assisted_request?.source?.channel || (order as any).channel || (order as any).commercial_state?.channel || 'web';
               const stageLabel = getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage);
               const ChannelIcon = CHANNEL_ICONS[orderChannel] || Globe;
               const isSelected = selectedOrder?.id === order.id;
+              const assistedRequest = order.assisted_request;
+              const unmatchedCount = assistedSummaryNumber(order, 'unmatched');
+              const assistedLabel = assistedRequest?.request_kind_label || 'Solicitud asistida';
+              const assistedIsCatalog = assistedRequest?.document_profile?.catalog_matching !== false;
+              const assistedPreview = getAssistedPreview(order);
+              const followUpCode = getFollowUpCode(order);
+              const selectOrder = () => {
+                if (window.innerWidth < 768) {
+                  navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(order.id))}`, currentSlug));
+                } else {
+                  setSelectedOrder(order);
+                }
+              };
 
               return (
                 <Card
                   key={order.id}
-                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''}`}
-                  onClick={() => {
-                      // If on mobile or small screen, navigate to dedicated page
-                      if (window.innerWidth < 768) {
-                          // Try to detect current route context or assume a valid prefix
-                          // Since we are likely in a tenant-scoped view, we construct a relative path or a known absolute
-                          // If currentSlug is available, we assume the user is in /<slug>/pedidos context usually.
-                          navigate(`/${currentSlug}/pedidos/${order.id}`);
-                      } else {
-                          setSelectedOrder(order);
-                      }
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Abrir pedido ${order.id}`}
+                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''} ${assistedRequest ? 'border-blue-400/60 bg-blue-50/35 dark:bg-blue-950/20' : ''}`}
+                  onClick={selectOrder}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      selectOrder();
+                    }
                   }}
                 >
                   <CardContent className="p-4">
@@ -329,8 +581,33 @@ const PedidosPage = () => {
                             {stageLabel}
                           </Badge>
                         ) : null}
+                        {assistedRequest ? (
+                          <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            IA
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
+
+                    {assistedRequest ? (
+                      <div className="mb-3 rounded-md border border-blue-200 bg-background/70 p-2 text-xs dark:border-blue-900">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-blue-900 dark:text-blue-100">{assistedLabel}</span>
+                          <span className={unmatchedCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}>
+                            {crmStateLabel(assistedRequest.crm_state)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-muted-foreground">
+                          {assistedIsCatalog ? <span>{assistedSummaryNumber(order, 'matched')} en catalogo</span> : null}
+                          <span>{unmatchedCount} para revisar</span>
+                          {followUpCode ? <span className="font-mono">Seg. {followUpCode}</span> : null}
+                        </div>
+                        {assistedPreview ? (
+                          <p className="mt-2 line-clamp-2 text-muted-foreground">{assistedPreview}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <div className="flex justify-between items-end">
                         <div>
@@ -383,7 +660,7 @@ const PedidosPage = () => {
                    </div>
                    <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => window.print()}>Imprimir</Button>
-                      <Button size="sm" onClick={() => navigate(`/${currentSlug}/pedidos/${selectedOrder.id}`)}>Ver Detalle Completo</Button>
+                      <Button size="sm" onClick={() => navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(selectedOrder.id))}`, currentSlug))}>Ver Detalle Completo</Button>
                    </div>
                  </div>
                </CardHeader>
@@ -422,6 +699,8 @@ const PedidosPage = () => {
                     </div>
                   </div>
 
+                  <AssistedRequestPanel order={selectedOrder} />
+
                   <div className="grid md:grid-cols-2 gap-6">
                       {/* Customer Info */}
                       <div className="space-y-1">
@@ -446,9 +725,18 @@ const PedidosPage = () => {
                       {/* Shipping Info */}
                       <div className="space-y-1">
                           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Envío</h3>
-                           <div className="p-3 border rounded-md bg-card">
-                              <p className="font-medium">Retiro en sucursal</p>
-                              <p className="text-sm text-muted-foreground">Av. Principal 1234, Local 5</p>
+                           <div className={`p-3 border rounded-md bg-card ${selectedShippingInfo?.hasData ? '' : 'border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20'}`}>
+                              <p className="font-medium">{selectedShippingInfo?.method || 'Sin datos de envio'}</p>
+                              {selectedShippingInfo?.address ? (
+                                <p className="text-sm text-muted-foreground">{selectedShippingInfo.address}</p>
+                              ) : (
+                                <p className="text-sm text-amber-700 dark:text-amber-300">
+                                  No hay direccion ni metodo confirmado. Pedirlo antes de despachar.
+                                </p>
+                              )}
+                              {selectedShippingInfo?.notes ? (
+                                <p className="mt-1 text-xs text-muted-foreground">{selectedShippingInfo.notes}</p>
+                              ) : null}
                           </div>
                       </div>
                   </div>

@@ -1,16 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { fetchMarketCatalog } from '@/api/market';
+import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import ProductCard from '@/components/market/ProductCard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
-import type { MarketCatalogResponse, MarketProduct } from '@/types/market';
+import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { Copy, MessageCircle, Percent, QrCode, ShoppingBag, Sparkles } from 'lucide-react';
+import { Copy, MessageCircle, Percent, QrCode, Search, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -40,6 +43,8 @@ const promotionDescription = (promotion: PromotionItem): string | null => {
 };
 
 const promotionDetail = (promotion: PromotionItem): string => {
+  const record = promotion as PromotionItem & Record<string, unknown>;
+  if (typeof record.terms_short === 'string' && record.terms_short) return record.terms_short;
   const pieces: string[] = [];
   const type = promotion.tipo_promocion ?? '';
 
@@ -57,16 +62,33 @@ const promotionDetail = (promotion: PromotionItem): string => {
   return pieces.join(' - ');
 };
 
+const promotionBadge = (promotion: PromotionItem): string | null => {
+  const record = promotion as PromotionItem & Record<string, unknown>;
+  return typeof record.display_badge === 'string' && record.display_badge ? record.display_badge : promotionDetail(promotion) || null;
+};
+
+const ASSISTED_UPLOAD_ANCHOR_ID = 'market-assisted-upload';
+
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [promotions, setPromotions] = useState<MarketCatalogResponse['promotions']>(null);
+  const [facets, setFacets] = useState<MarketCatalogResponse['facets']>(null);
+  const [sortOptions, setSortOptions] = useState<MarketCatalogResponse['sort_options']>(null);
+  const [assistedIntake, setAssistedIntake] = useState<MarketAssistedIntakeEntry | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [totalUnfiltered, setTotalUnfiltered] = useState<number | null>(null);
   const [heroSubtitle, setHeroSubtitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [promotionOnly, setPromotionOnly] = useState(false);
+  const [selectedSort, setSelectedSort] = useState('promo_first');
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
   const { addItem, isLoading: isCartLoading } = useMarketCart();
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const shareUrl = useMemo(() => {
     if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
@@ -88,15 +110,54 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     () => promotions?.items?.filter((item) => item && promotionTitle(item)) ?? [],
     [promotions],
   );
+  const categoryOptions = useMemo(() => {
+    const fromBackend = facets?.categories ?? [];
+    if (fromBackend.length) return fromBackend;
+    const counts = new Map<string, number>();
+    products.forEach((product) => {
+      if (!product.category) return;
+      counts.set(product.category, (counts.get(product.category) ?? 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([value, count]) => ({ value, label: value, count }));
+  }, [facets?.categories, products]);
+  const effectiveSortOptions = sortOptions?.length
+    ? sortOptions
+    : [
+        { id: 'promo_first', label: 'Promociones primero' },
+        { id: 'name_asc', label: 'Nombre' },
+        { id: 'price_asc', label: 'Menor precio' },
+        { id: 'price_desc', label: 'Mayor precio' },
+      ];
+  const catalogStatusLine = useMemo(() => {
+    if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
+    const visibleCount = total ?? products.length;
+    if (visibleCount === 0 && totalUnfiltered === 0) {
+      return 'Catalogo en preparacion. La carga asistida por IA sigue activa para pedidos, boletas y consultas.';
+    }
+    const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
+    if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
+    if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
+    return `${parts.join(' - ')}.`;
+  }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
 
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    fetchMarketCatalog(tenantSlug)
+    fetchMarketCatalog(tenantSlug, {
+      q: deferredSearchTerm.trim() || null,
+      categoria: selectedCategory === 'all' ? null : selectedCategory,
+      en_promocion: promotionOnly || null,
+      sort: selectedSort,
+    })
       .then((response) => {
         const availableProducts = (response?.products ?? []).filter((product) => product.disponible !== false);
         setProducts(availableProducts);
         setPromotions(response?.promotions ?? null);
+        setFacets(response?.facets ?? null);
+        setSortOptions(response?.sort_options ?? null);
+        setAssistedIntake(response?.assisted_intake ?? null);
+        setTotal(response?.total ?? availableProducts.length);
+        setTotalUnfiltered(response?.total_unfiltered ?? null);
         setHeroSubtitle(response?.heroSubtitle ?? null);
         setShareMeta({
           publicCartUrl: response?.publicCartUrl ?? null,
@@ -106,15 +167,42 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       .catch((err) => {
         setProducts([]);
         setPromotions(null);
+        setFacets(null);
+        setSortOptions(null);
+        setAssistedIntake(null);
+        setTotal(null);
+        setTotalUnfiltered(null);
         setHeroSubtitle(null);
         setShareMeta({ publicCartUrl: null, whatsappShareUrl: null });
         setError(err instanceof Error ? err.message : 'No se pudo cargar el catalogo real.');
       })
       .finally(() => setIsLoading(false));
-  }, [tenantSlug]);
+  }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
   const emptyState = !isLoading && products.length === 0;
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
+  const scrollToAssistedUpload = () => {
+    const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
+    if (target) {
+      const uploadDropzone = target.querySelector<HTMLElement>('[data-assisted-upload-dropzone="true"]');
+      const firstInteractive = uploadDropzone ?? target.querySelector<HTMLElement>('textarea, input, button');
+      const scrollTarget = firstInteractive ?? target;
+      const alignTarget = () => {
+        const rect = scrollTarget.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const desiredTop = Math.max(72, Math.min(180, (viewportHeight - rect.height) / 2));
+        const nextTop = Math.max(0, window.scrollY + rect.top - desiredTop);
+        window.scrollTo({ top: nextTop, behavior: 'smooth' });
+      };
+      const focusTarget = () => firstInteractive?.focus({ preventScroll: true });
+      alignTarget();
+      focusTarget();
+      window.setTimeout(() => {
+        alignTarget();
+        focusTarget();
+      }, 450);
+    }
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
@@ -124,14 +212,20 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <ShoppingBag className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">Marketplace</h1>
+            <h1 className="text-2xl font-semibold">Marketplace asistido</h1>
             <p className="text-muted-foreground">
-              {heroSubtitle ?? 'Explora productos, promociones y compra desde el carrito conversacional.'}
+              {heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que la IA arme la solicitud.'}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={scrollToAssistedUpload}
+          >
+            <UploadIcon className="mr-2 h-4 w-4" /> Subir nota, pedido o reclamo
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -177,6 +271,22 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </header>
 
+      <UploadOrderFromFile
+        id={ASSISTED_UPLOAD_ANCHOR_ID}
+        tenantSlug={tenantSlug}
+        variant="marketplace"
+        intakeEntry={assistedIntake}
+        onProcessed={(response) => {
+          const requestId = response?.pedido_id ?? response?.lead_id;
+          toast({
+            title: 'Nota recibida por IA',
+            description: requestId
+              ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
+              : 'El equipo puede revisarla desde el CRM.',
+          });
+        }}
+      />
+
       {promotionItems.length ? (
         <section className="overflow-hidden rounded-lg border bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -200,6 +310,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {promotionItems.slice(0, 6).map((promotion) => {
               const detail = promotionDetail(promotion);
+              const badge = promotionBadge(promotion);
               return (
                 <div key={promotion.id} className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-sm">
                   <div className="flex items-start gap-3">
@@ -216,6 +327,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                           {detail}
                         </p>
                       ) : null}
+                      {badge ? (
+                        <Badge variant="outline" className="mt-2 border-emerald-200 bg-emerald-50 text-emerald-700">
+                          {badge}
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -225,6 +341,71 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </section>
       ) : null}
 
+      <section className="rounded-lg border bg-card p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <SlidersHorizontal className="h-5 w-5 text-primary" />
+              Explorar catalogo o subir pedido asistido
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {catalogStatusLine}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant={promotionOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPromotionOnly((prev) => !prev)}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              En promocion
+            </Button>
+            <Button type="button" size="sm" onClick={scrollToAssistedUpload}>
+              <UploadIcon className="mr-2 h-4 w-4" />
+              Subir nota o manuscrito
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar producto, marca o promo..."
+              className="pl-9"
+            />
+          </div>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger>
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorias</SelectItem>
+              {categoryOptions.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedSort} onValueChange={setSelectedSort}>
+            <SelectTrigger>
+              <SelectValue placeholder="Orden" />
+            </SelectTrigger>
+            <SelectContent>
+              {effectiveSortOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label ?? item.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
@@ -232,10 +413,71 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </Alert>
       ) : null}
 
-      {isLoading ? <p className="text-sm text-muted-foreground">Cargando catalogo...</p> : null}
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Cargando catalogo">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="min-h-[260px] animate-pulse rounded-lg border bg-card p-4 shadow-sm">
+              <div className="h-32 rounded-md bg-muted" />
+              <div className="mt-4 h-4 w-3/4 rounded bg-muted" />
+              <div className="mt-3 h-3 w-1/2 rounded bg-muted" />
+              <div className="mt-6 h-10 rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {emptyState ? (
-        <p className="text-sm text-muted-foreground">No hay productos disponibles.</p>
+        <div className="rounded-lg border border-dashed bg-card p-6 shadow-sm">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
+            <div className="max-w-2xl">
+              <Badge variant="secondary" className="mb-3">Compra asistida activa</Badge>
+              <h3 className="text-xl font-semibold">
+                {assistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {assistedIntake?.empty_state?.description ??
+                  'El catalogo puede estar en preparacion o la busqueda puede no coincidir. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite, crea la solicitud en CRM y genera seguimiento publico.'}
+              </p>
+              <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                <span className="rounded-md border bg-background px-3 py-2">Papel o texto recibido</span>
+                <span className="rounded-md border bg-background px-3 py-2">IA discrimina articulos</span>
+                <span className="rounded-md border bg-background px-3 py-2">CRM responde y sigue</span>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="font-semibold">Camino recomendado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, subi el archivo para generar referencia y contacto comercial.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory('all');
+                  setPromotionOnly(false);
+                }}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Limpiar filtros
+              </Button>
+              <Button type="button" onClick={scrollToAssistedUpload}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                {assistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
+              </Button>
+              {shareMeta?.whatsappShareUrl ? (
+                <Button asChild>
+                  <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Consultar por WhatsApp
+                  </a>
+                </Button>
+              ) : null}
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
@@ -260,7 +502,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
 export default function MarketCatalogPage() {
   const params = useParams();
-  const tenantSlug = useMemo(() => params.tenant ?? params.tenantSlug ?? null, [params.tenant, params.tenantSlug]);
+  const tenantSlug = useMemo(() => params.tenantSlug ?? params.tenant ?? null, [params.tenant, params.tenantSlug]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && tenantSlug) {

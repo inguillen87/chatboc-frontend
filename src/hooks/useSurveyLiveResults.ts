@@ -12,6 +12,14 @@ const HIDDEN_INTERVAL = 15000;
 const BACKOFF_INTERVALS = [5000, 10000, 20000] as const;
 const CACHE_TTL = 5 * 60 * 1000;
 
+export type SurveyLiveStatus = 'idle' | 'loading' | 'syncing' | 'live' | 'empty' | 'stale' | 'reconnecting' | 'error';
+
+export interface SurveyLiveStatusView {
+  status: SurveyLiveStatus;
+  label: string;
+  description: string;
+}
+
 export interface SurveyLiveRequestParams {
   include_heatmap?: 0 | 1;
   window_minutes?: number;
@@ -38,6 +46,145 @@ const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undef
 };
 
 const getTrend = (payload?: SurveyLivePublicResultsPayload) => payload?.momentum?.trend;
+
+const toFiniteNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getBackendPollingInterval = (payload?: SurveyLivePublicResultsPayload) => {
+  const interval = Number(payload?.render_contract?.polling_interval_ms);
+  if (!Number.isFinite(interval) || interval <= 0) return null;
+  return Math.max(2500, Math.min(interval, 30000));
+};
+
+export const getSurveyLivePollingInterval = (
+  payload?: SurveyLivePublicResultsPayload,
+  isDocumentHidden = false,
+  consecutiveErrors = 0,
+) => {
+  if (isDocumentHidden) return HIDDEN_INTERVAL;
+
+  if (consecutiveErrors > 2) {
+    const index = Math.min(consecutiveErrors - 3, BACKOFF_INTERVALS.length - 1);
+    return BACKOFF_INTERVALS[index];
+  }
+
+  const backendInterval = getBackendPollingInterval(payload);
+  if (backendInterval) return backendInterval;
+
+  return getTrend(payload) === 'subiendo' ? FAST_INTERVAL : BASE_INTERVAL;
+};
+
+export const hasSurveyLiveActivity = (payload?: SurveyLivePublicResultsPayload) => {
+  if (!payload) return false;
+  if (toFiniteNumber(payload.total_respuestas) > 0) return true;
+
+  if (
+    payload.preguntas?.some((question) => {
+      if (toFiniteNumber(question.total_votos) > 0) return true;
+      return question.opciones?.some((option) => toFiniteNumber(option.votos) > 0) ?? false;
+    })
+  ) {
+    return true;
+  }
+
+  if (payload.timeline_minute?.some((point) => toFiniteNumber(point.respuestas ?? point.value ?? point.total) > 0)) {
+    return true;
+  }
+
+  return Boolean(payload.heatmap?.points?.length || payload.heatmap?.cells?.length);
+};
+
+export const resolveSurveyLiveStatus = ({
+  enabled,
+  isLoading,
+  isFetching,
+  hasData,
+  hasActivity,
+  hasError,
+  consecutiveErrors,
+  isDocumentHidden,
+}: {
+  enabled: boolean;
+  isLoading: boolean;
+  isFetching: boolean;
+  hasData: boolean;
+  hasActivity: boolean;
+  hasError: boolean;
+  consecutiveErrors: number;
+  isDocumentHidden: boolean;
+}): SurveyLiveStatusView => {
+  if (!enabled) {
+    return {
+      status: 'idle',
+      label: 'En espera',
+      description: 'Los resultados en vivo todavia no estan activos.',
+    };
+  }
+
+  if (isLoading && !hasData) {
+    return {
+      status: 'loading',
+      label: 'Cargando',
+      description: 'Estamos preparando los resultados en vivo.',
+    };
+  }
+
+  if (hasError && !hasData) {
+    return {
+      status: 'error',
+      label: 'Sin conexion live',
+      description: 'No pudimos cargar los resultados en vivo.',
+    };
+  }
+
+  if (consecutiveErrors > 2 && hasData) {
+    return {
+      status: 'reconnecting',
+      label: 'Reintentando',
+      description: 'Se muestran datos previos mientras vuelve la conexion.',
+    };
+  }
+
+  if (isDocumentHidden && hasData) {
+    return {
+      status: 'stale',
+      label: 'Pausado',
+      description: 'La actualizacion baja frecuencia mientras la pestana no esta activa.',
+    };
+  }
+
+  if (isFetching && hasData) {
+    return {
+      status: 'syncing',
+      label: 'Actualizando',
+      description: 'Estamos buscando nuevas respuestas.',
+    };
+  }
+
+  if (hasData && !hasActivity) {
+    return {
+      status: 'empty',
+      label: 'Sin respuestas todavia',
+      description: 'La sala esta lista y va a mostrar actividad cuando entren respuestas.',
+    };
+  }
+
+  if (hasData) {
+    return {
+      status: 'live',
+      label: 'En vivo',
+      description: 'Resultados actualizados automaticamente.',
+    };
+  }
+
+  return {
+    status: 'loading',
+    label: 'Cargando',
+    description: 'Estamos preparando los resultados en vivo.',
+  };
+};
 
 export const useSurveyLiveResults = (
   slug?: string | null,
@@ -73,15 +220,11 @@ export const useSurveyLiveResults = (
     initialData: () => parseCachedPayload(cacheKey),
     retry: false,
     refetchInterval: (context) => {
-      if (isDocumentHidden) return HIDDEN_INTERVAL;
-
-      if (consecutiveErrors > 2) {
-        const index = Math.min(consecutiveErrors - 3, BACKOFF_INTERVALS.length - 1);
-        return BACKOFF_INTERVALS[index];
-      }
-
-      const trend = getTrend(context.state.data as SurveyLivePublicResultsPayload | undefined);
-      return trend === 'subiendo' ? FAST_INTERVAL : BASE_INTERVAL;
+      return getSurveyLivePollingInterval(
+        context.state.data as SurveyLivePublicResultsPayload | undefined,
+        isDocumentHidden,
+        consecutiveErrors,
+      );
     },
     refetchOnWindowFocus: true,
   });
@@ -97,12 +240,42 @@ export const useSurveyLiveResults = (
     }
   }, [query.isError, query.dataUpdatedAt]);
 
+  const pollingIntervalMs = useMemo(
+    () => getSurveyLivePollingInterval(query.data, isDocumentHidden, consecutiveErrors),
+    [consecutiveErrors, isDocumentHidden, query.data],
+  );
+
+  const liveStatus = useMemo(
+    () =>
+      resolveSurveyLiveStatus({
+        enabled: Boolean(normalizedSlug),
+        isLoading: query.isLoading,
+        isFetching: query.isFetching,
+        hasData: Boolean(query.data),
+        hasActivity: hasSurveyLiveActivity(query.data),
+        hasError: query.isError,
+        consecutiveErrors,
+        isDocumentHidden,
+      }),
+    [
+      consecutiveErrors,
+      isDocumentHidden,
+      normalizedSlug,
+      query.data,
+      query.isError,
+      query.isFetching,
+      query.isLoading,
+    ],
+  );
+
   return {
     liveResults: query.data,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error ? getErrorMessage(query.error) : null,
     consecutiveErrors,
+    liveStatus,
+    pollingIntervalMs,
     refetch: query.refetch,
   };
 };

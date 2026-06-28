@@ -97,6 +97,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   onActionComplete,
 }) => {
   const [draft, setDraft] = useState('');
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const detailQuery = useQuery({
     queryKey: ['inbox-omnichannel-v2-detail', tenantSlug, ticketId, ticket?.detail_endpoint],
     queryFn: () => getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint),
@@ -114,6 +115,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     onSuccess: (updatedTicket) => {
       if (updatedTicket.id === ticketId) {
         setDraft('');
+        setDraftSavedAt(null);
+        if (draftStorageKey) {
+          try {
+            window.localStorage.removeItem(draftStorageKey);
+          } catch {
+            // local draft cleanup is best-effort
+          }
+        }
       }
       toast({
         title: 'Accion aplicada',
@@ -130,9 +139,23 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     },
   });
 
+  const draftStorageKey = detailTicket?.id ? `chatboc:omnichannel-draft:${detailTicket.id}` : null;
+
   useEffect(() => {
-    setDraft(detailTicket?.suggested_reply ?? '');
-  }, [detailTicket?.id, detailTicket?.suggested_reply]);
+    if (!draftStorageKey) {
+      setDraft(detailTicket?.suggested_reply ?? '');
+      setDraftSavedAt(null);
+      return;
+    }
+    let storedDraft: string | null = null;
+    try {
+      storedDraft = window.localStorage.getItem(draftStorageKey);
+    } catch {
+      storedDraft = null;
+    }
+    setDraft(storedDraft ?? detailTicket?.suggested_reply ?? '');
+    setDraftSavedAt(storedDraft ? 'guardado local' : null);
+  }, [detailTicket?.id, detailTicket?.suggested_reply, draftStorageKey]);
 
   const contactLabel = useMemo(() => {
     const contact = detailTicket?.contact ?? {};
@@ -163,6 +186,22 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     });
   };
 
+  const handleSaveDraft = () => {
+    const message = draft.trim();
+    if (!message || !draftStorageKey) return;
+    try {
+      window.localStorage.setItem(draftStorageKey, message);
+      setDraftSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      toast({ title: 'Borrador guardado', description: 'Queda disponible en este dispositivo.' });
+    } catch {
+      toast({
+        title: 'No se pudo guardar el borrador',
+        description: 'El navegador no permitio guardar este texto localmente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const readSuggestionLabel = (item: ChatExperienceBlock) =>
     item.label?.trim() || item.title?.trim() || item.text?.trim() || '';
 
@@ -177,7 +216,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     );
   }
 
-  const visibleActions = detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions;
+  const visibleActions = (detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions).filter((action) => {
+    const required = action.requires ?? [];
+    if (!required.length) return true;
+    const payload = action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
+      ? action.payload as Record<string, unknown>
+      : {};
+    return required.every((key) => payload[key] !== undefined && payload[key] !== null && payload[key] !== '');
+  });
   const sourceMetadata = detailTicket.source_metadata ?? {};
   const assignee = detailTicket.assignee ?? {};
   const sla = detailTicket.sla ?? {};
@@ -342,7 +388,15 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
             onChange={(event) => setDraft(event.target.value)}
           />
           <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" className="h-8" type="button" disabled={!draft.trim()}>
+            {draftSavedAt ? <span className="mr-auto text-xs text-muted-foreground">Borrador {draftSavedAt}</span> : null}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              type="button"
+              disabled={!draft.trim()}
+              onClick={handleSaveDraft}
+            >
               Guardar borrador
             </Button>
             <Button

@@ -14,6 +14,7 @@ export interface SaasAction {
   type?: string;
   href?: string;
   method?: string;
+  requires?: string[];
   payload?: unknown;
   disabled?: boolean;
   raw?: unknown;
@@ -232,6 +233,9 @@ export interface OmnichannelInboxDetailV2 {
 export interface OmnichannelInboxActionPayload {
   action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
   ticket_id?: string | number;
+  body?: string;
+  message?: string;
+  visibility?: string;
   payload?: UnknownRecord;
 }
 
@@ -602,6 +606,7 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     type: asString(getFirst(value, ['type', 'kind'])),
     href: asString(getFirst(value, ['href', 'url', 'path'])),
     method: asString(value.method),
+    requires: Array.isArray(value.requires) ? value.requires.map(String).filter(Boolean) : undefined,
     payload: value.payload,
     disabled: asBoolean(value.disabled),
     raw: value,
@@ -1700,7 +1705,21 @@ export const postOmnichannelInboxActionV2 = async (
   tenantSlug?: string | null,
 ) => {
   const encodedTicketId = encodeURIComponent(ticketId);
-  const payloadWithTicket = { ...payload, ticket_id: payload.ticket_id ?? ticketId };
+  const nestedPayload =
+    payload.payload && typeof payload.payload === 'object' && !Array.isArray(payload.payload)
+      ? payload.payload
+      : {};
+  const payloadWithTicket = {
+    ...payload,
+    ...(payload.action === 'reply'
+      ? {
+          body: payload.body ?? payload.message ?? nestedPayload.body ?? nestedPayload.message,
+          message: payload.message ?? payload.body ?? nestedPayload.message ?? nestedPayload.body,
+          visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
+        }
+      : {}),
+    ticket_id: payload.ticket_id ?? ticketId,
+  };
   let response: unknown;
   try {
     response = await panelApi.post<unknown>(

@@ -40,6 +40,7 @@ import {
   extractChatBootstrapReplyText,
   normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
+  submitWidgetAssistedOrder,
   submitLeadCapture,
 } from './chatApi';
 
@@ -270,6 +271,73 @@ describe('sendChatBootstrapMessage', () => {
         education_context: { is_education: true },
       }),
     );
+  });
+
+  it('creates widget assisted orders with tenant, session and anon identity', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 42,
+      lead_id: 42,
+      customer_message: 'Recibimos tu nota de pedido.',
+      source: {
+        channel: 'widget',
+        chat_session_id: 'sid_widget_order',
+        anon_id: 'anon-widget-1',
+      },
+      items: [{ nombre: 'Chapa galvanizada', cantidad: 2 }],
+    });
+
+    const file = new File(['pedido'], 'pedido.txt', { type: 'text/plain' });
+    const result = await submitWidgetAssistedOrder(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/pyme',
+        method: 'POST',
+        headers: { 'X-Tenant-Slug': 'ferreteria-demo' },
+        payload: {
+          tipo_chat: 'pyme',
+          tenant_slug: 'ferreteria-demo',
+          anon_id: 'anon-widget-1',
+        },
+        session: {
+          chat_session_id: 'sid_widget_order',
+        },
+      },
+      {
+        text: '2 chapas galvanizadas',
+        attachmentFile: file,
+        contactNotes: 'Pedido escrito desde widget',
+      },
+      'ferreteria-demo',
+      { text: '2 chapas galvanizadas', intent: 'crear_pedido' },
+    );
+
+    const [endpoint, options] = apiFetchMock.mock.calls[0];
+    expect(endpoint).toBe('/api/pedidos/from-file?origen=widget');
+    expect(options.headers).toEqual(
+      expect.objectContaining({
+        'X-Checkout-Origin': 'widget',
+        'X-Chat-Session-Id': 'sid_widget_order',
+        'X-Tenant-Slug': 'ferreteria-demo',
+        'X-Anon-Id': 'anon-widget-1',
+      }),
+    );
+    expect(options.skipAuth).toBe(true);
+    expect(options.isWidgetRequest).toBe(true);
+    expect(options.sendAnonId).toBe(true);
+    expect(options.omitChatSessionId).toBe(true);
+    expect(options.tenantSlug).toBe('ferreteria-demo');
+
+    const body = options.body as FormData;
+    expect(body.get('document_type')).toBe('order_note');
+    expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
+    expect(body.get('tenant_slug')).toBe('ferreteria-demo');
+    expect(body.get('chat_session_id')).toBe('sid_widget_order');
+    expect(body.get('contact_notes')).toBe('Pedido escrito desde widget');
+    expect((body.get('archivo') as File).name).toBe('pedido.txt');
+
+    expect(result?.lead_id).toBe(42);
+    expect(result?.order?.nro_pedido).toBe('42');
   });
 
   it('sends shared location with lng for demo municipio runtime', async () => {

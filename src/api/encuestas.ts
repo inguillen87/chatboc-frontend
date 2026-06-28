@@ -84,6 +84,14 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
+const withTenantSlugParam = (path: string, tenantSlug?: string) => {
+  const normalizedTenant = tenantSlug?.trim();
+  if (!normalizedTenant) return path;
+  const query = buildQueryString({ tenant_slug: normalizedTenant });
+  if (!query) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${query.slice(1)}`;
+};
+
 type ApiFetchOptions = Parameters<typeof apiFetch>[1];
 
 
@@ -333,7 +341,7 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
-    `/api/public/encuestas/v1/${slug}`,
+    withTenantSlugParam(`/api/public/encuestas/v1/${slug}`, tenantSlug),
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -462,7 +470,7 @@ const attemptRecoveryFromRawPayload = async (
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
     const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
-      '/api/public/encuestas/v1',
+      withTenantSlugParam('/api/public/encuestas/v1', tenantSlug),
     ), {
       skipAuth: true,
       omitCredentials: true,
@@ -574,7 +582,7 @@ export const getPublicSurveyLiveResults = (
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
   callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>(buildPublicSurveyPaths(
-    `/api/public/encuestas/v1/${slug}/live-results${buildQueryString(params)}`,
+    `/api/public/encuestas/v1/${slug}/live-results${buildQueryString({ ...(params ?? {}), tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -592,7 +600,7 @@ export const postPublicResponse = (
   tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }> =>
   callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }>(buildPublicSurveyPaths(
-    `/api/public/encuestas/v1/${slug}/responder`,
+    withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
     method: 'POST',
     body: payload,
@@ -655,7 +663,7 @@ export const getSurveyComments = (
   offset = 0,
 ): Promise<SurveyComment[]> =>
   callPublicSurveyEndpoint<SurveyComment[]>(buildPublicSurveyPaths(
-    `/api/public/encuestas/v1/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+    `/api/public/encuestas/v1/${slug}/comentarios${buildQueryString({ limit, offset, tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -684,7 +692,7 @@ export const postSurveyComment = (
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
   callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
-    `/api/public/encuestas/v1/${slug}/comentarios`,
+    withTenantSlugParam(`/api/public/encuestas/v1/${slug}/comentarios`, tenantSlug),
   ), {
     method: 'POST',
     body: payload,

@@ -756,19 +756,42 @@ const IntegracionesPage = () => {
     if (!currentSlug) return;
     try {
       const response = await apiClient.adminConnectIntegration(currentSlug, provider);
-      if (response.url) {
+      const connectUrl = response.redirect_url || response.url;
+      const isTwilioTechProvider =
+        provider === 'whatsapp' &&
+        (response.provider === 'twilio_tech_provider' ||
+          response.frontend_contract?.render_as === 'twilio_tech_provider_onboarding');
+
+      if (isTwilioTechProvider && !connectUrl) {
+        toast.info("Revisa el panel de onboarding de WhatsApp: faltan pasos de plataforma antes de abrir Meta.");
+        return;
+      }
+
+      if (connectUrl) {
         const width = 600;
         const height = 700;
         const left = (window.innerWidth - width) / 2;
         const top = (window.innerHeight - height) / 2;
 
-        window.open(response.url, `Connect ${provider}`, `width=${width},height=${height},top=${top},left=${left}`);
+        window.open(connectUrl, `Connect ${provider}`, `width=${width},height=${height},top=${top},left=${left}`);
+        if (isTwilioTechProvider) {
+          toast.success("Registro embebido de WhatsApp iniciado. Al finalizar, actualiza el estado del sender.");
+        }
       } else {
           toast.error("No se pudo iniciar la conexión.");
       }
     } catch (error: any) {
         console.error('Connection failed:', error);
         const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+        if (status === 409) {
+          const body = error instanceof ApiError ? error.body : null;
+          const missing = Array.isArray(body?.missing) ? body.missing.filter(Boolean).join(", ") : "";
+          const reason = body?.reason_code === "missing_twilio_meta_platform_env"
+            ? "Faltan variables Twilio/Meta para habilitar el onboarding oficial."
+            : "La plataforma necesita configuracion antes de conectar.";
+          toast.error(missing ? `${reason} Faltante: ${missing}` : reason);
+          return;
+        }
         if (status === 503) {
           toast.error("La plataforma no está configurada todavía. Contactá soporte para habilitarla.");
           return;

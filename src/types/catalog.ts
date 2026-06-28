@@ -81,6 +81,19 @@ export interface CatalogPromotion {
   codigo_promocion?: string | null;
   fecha_inicio?: string | null;
   fecha_fin?: string | null;
+  title?: string | null;
+  description?: string | null;
+  status?: string | null;
+  active_now?: boolean | null;
+  display_badge?: string | null;
+  eligible_product_ids?: Array<string | number> | null;
+  countdown?: {
+    enabled?: boolean | null;
+    seconds_remaining?: number | null;
+    ends_at?: string | null;
+  } | null;
+  terms_short?: string | null;
+  priority?: number | null;
   alcances?: CatalogPromotionScope[] | null;
 }
 
@@ -99,6 +112,35 @@ export interface CatalogPromotionsOps {
   supported_discount_types?: string[] | null;
   recommended_quick_actions?: Array<Record<string, unknown>> | null;
   items?: CatalogPromotion[] | null;
+  frontend_contract?: Record<string, unknown> | null;
+}
+
+export interface MarketplaceReadinessItem {
+  id?: string | null;
+  label?: string | null;
+  severity?: 'blocker' | 'warning' | 'info' | string | null;
+  next_action?: string | null;
+}
+
+export interface MarketplaceReadiness {
+  contract_version?: 'tenant.marketplace_readiness.v1' | string | null;
+  ready?: boolean | null;
+  score?: number | null;
+  state?: 'ready' | 'blocked' | 'needs_attention' | string | null;
+  blockers?: MarketplaceReadinessItem[] | null;
+  warnings?: MarketplaceReadinessItem[] | null;
+  recommended_actions?: MarketplaceReadinessItem[] | null;
+  metrics?: {
+    products_total?: number | null;
+    products_available?: number | null;
+    products_with_images?: number | null;
+    products_with_prices?: number | null;
+    products_with_promotions?: number | null;
+    low_stock?: number | null;
+    checkout_configured?: boolean | null;
+    pdf_catalog_published?: boolean | null;
+    [key: string]: unknown;
+  } | null;
   frontend_contract?: Record<string, unknown> | null;
 }
 
@@ -132,6 +174,7 @@ export interface TenantCatalog {
     [key: string]: unknown;
   } | null;
   promotions?: CatalogPromotionsOps | null;
+  marketplace_readiness?: MarketplaceReadiness | null;
   items?: unknown[] | null;
   metadata?: CatalogMetadata | null;
   links?: CatalogLinks | null;

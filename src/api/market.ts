@@ -4,6 +4,8 @@ import {
   MarketCartItem,
   MarketCartPromotions,
   MarketCatalogResponse,
+  MarketCatalogFacetItem,
+  MarketCatalogFacets,
   MarketProduct,
   AddToCartPayload,
   CheckoutStartResponse,
@@ -182,6 +184,17 @@ const normalizeMarketPromotions = (value: unknown): CatalogPromotionsOps | null 
             monto_minimo_carrito: asNumberOrNull(getFirst(itemRecord, ['monto_minimo_carrito', 'min_cart_amount'])),
             cantidad_minima_aplicable: asNumberOrNull(getFirst(itemRecord, ['cantidad_minima_aplicable', 'min_quantity'])),
             codigo_promocion: asStringOrNull(getFirst(itemRecord, ['codigo_promocion', 'code'])),
+            title: asStringOrNull(getFirst(itemRecord, ['title', 'name'])),
+            description: asStringOrNull(getFirst(itemRecord, ['description', 'detail'])),
+            status: asStringOrNull(itemRecord.status),
+            active_now: asBooleanOrNull(getFirst(itemRecord, ['active_now', 'activeNow'])),
+            display_badge: asStringOrNull(getFirst(itemRecord, ['display_badge', 'displayBadge', 'badge'])),
+            eligible_product_ids: Array.isArray(getFirst(itemRecord, ['eligible_product_ids', 'eligibleProductIds']))
+              ? (getFirst(itemRecord, ['eligible_product_ids', 'eligibleProductIds']) as Array<string | number>)
+              : null,
+            countdown: asRecordOrNull(itemRecord.countdown) as CatalogPromotion['countdown'],
+            terms_short: asStringOrNull(getFirst(itemRecord, ['terms_short', 'termsShort'])),
+            priority: asNumberOrNull(itemRecord.priority),
             alcances: Array.isArray(getFirst(itemRecord, ['alcances', 'scopes']))
               ? (getFirst(itemRecord, ['alcances', 'scopes']) as CatalogPromotion['alcances'])
               : null,
@@ -200,6 +213,49 @@ const normalizeMarketPromotions = (value: unknown): CatalogPromotionsOps | null 
       getFirst(record, ['catalog_items_with_promo_badge', 'catalog_badge_total']),
     ),
     items,
+  };
+};
+
+const normalizeFacetItems = (value: unknown): MarketCatalogFacetItem[] | null => {
+  if (!Array.isArray(value)) return null;
+  const items = value
+    .map((item): MarketCatalogFacetItem | null => {
+      const record = asRecordOrNull(item);
+      if (!record) return null;
+      const value = asStringOrNull(record.value);
+      if (!value) return null;
+      return {
+        value,
+        label: asStringOrNull(record.label) ?? value,
+        count: asNumberOrNull(record.count),
+      };
+    })
+    .filter((item): item is MarketCatalogFacetItem => Boolean(item));
+  return items.length ? items : [];
+};
+
+const normalizeMarketCatalogFacets = (value: unknown): MarketCatalogFacets | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const priceRange = asRecordOrNull(record.price_range);
+  const availability = asRecordOrNull(record.availability);
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    categories: normalizeFacetItems(record.categories),
+    brands: normalizeFacetItems(record.brands),
+    price_range: priceRange
+      ? {
+          min: asNumberOrNull(priceRange.min),
+          max: asNumberOrNull(priceRange.max),
+        }
+      : null,
+    availability: availability
+      ? {
+          available: asNumberOrNull(availability.available),
+          unavailable: asNumberOrNull(availability.unavailable),
+        }
+      : null,
+    promotion_count: asNumberOrNull(record.promotion_count),
   };
 };
 
@@ -305,10 +361,25 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
     ...(record as Partial<MarketCatalogResponse>),
     products,
     promotions,
+    facets: normalizeMarketCatalogFacets(record.facets),
+    filters: asRecordOrNull(record.filters) as MarketCatalogResponse['filters'],
+    assisted_intake: asRecordOrNull(getFirst(record, ['assisted_intake', 'assistedIntake'])) as MarketCatalogResponse['assisted_intake'],
+    sort_options: Array.isArray(record.sort_options)
+      ? record.sort_options
+          .map<NonNullable<MarketCatalogResponse['sort_options']>[number] | null>((item) => {
+            const option = asRecordOrNull(item);
+            const id = asStringOrNull(option?.id);
+            return id ? { id, label: asStringOrNull(option?.label) ?? id } : null;
+          })
+          .filter((item): item is NonNullable<MarketCatalogResponse['sort_options']>[number] => item !== null)
+      : null,
+    total: asNumberOrNull(record.total),
+    total_unfiltered: asNumberOrNull(record.total_unfiltered),
     publicCartUrl: asStringOrNull(getFirst(record, ['publicCartUrl', 'public_cart_url', 'cart_url'])),
     whatsappShareUrl: asStringOrNull(getFirst(record, ['whatsappShareUrl', 'whatsapp_share_url'])),
     heroImageUrl: asStringOrNull(getFirst(record, ['heroImageUrl', 'hero_image_url', 'banner_url'])),
     heroSubtitle: asStringOrNull(getFirst(record, ['heroSubtitle', 'hero_subtitle'])),
+    frontend_contract: asRecordOrNull(getFirst(record, ['frontend_contract', 'frontendContract'])),
   } as MarketCatalogResponse;
 };
 
@@ -845,9 +916,31 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   return normalizeMarketCartResponse(response);
 }
 
-export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
+export async function fetchMarketCatalog(
+  tenantSlug: string,
+  filters?: {
+    q?: string | null;
+    categoria?: string | null;
+    precio_min?: number | string | null;
+    precio_max?: number | string | null;
+    en_promocion?: boolean | null;
+    sort?: string | null;
+  },
+): Promise<MarketCatalogResponse> {
+  const params = new URLSearchParams({ contract: 'marketplace' });
+  if (filters?.q) params.set('q', filters.q);
+  if (filters?.categoria) params.set('categoria', filters.categoria);
+  if (filters?.precio_min !== undefined && filters.precio_min !== null && filters.precio_min !== '') {
+    params.set('precio_min', String(filters.precio_min));
+  }
+  if (filters?.precio_max !== undefined && filters.precio_max !== null && filters.precio_max !== '') {
+    params.set('precio_max', String(filters.precio_max));
+  }
+  if (filters?.en_promocion === true) params.set('en_promocion', 'true');
+  if (filters?.sort) params.set('sort', filters.sort);
+
   const response = await apiFetch<MarketCatalogResponse>(
-    `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?contract=marketplace`,
+    `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?${params.toString()}`,
     {
     tenantSlug,
     suppressPanel401Redirect: true,

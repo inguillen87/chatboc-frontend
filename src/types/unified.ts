@@ -14,12 +14,239 @@ export interface CommercialState {
   continuation_available?: boolean | null;
 }
 
+export interface AssistedCatalogCandidate {
+  id?: string | number | null;
+  catalogo_item_id?: string | number | null;
+  product_id?: string | number | null;
+  sku?: string | null;
+  codigo?: string | null;
+  code?: string | null;
+  nombre?: string | null;
+  name?: string | null;
+  title?: string | null;
+  label?: string | null;
+  precio?: string | number | null;
+  price?: string | number | null;
+  precio_unitario?: string | number | null;
+  unit_price?: string | number | null;
+  price_label?: string | null;
+  precio_str?: string | null;
+  moneda?: string | null;
+  currency?: string | null;
+  unidad?: string | null;
+  score?: string | number | null;
+  confidence?: 'high' | 'medium' | 'low' | string | null;
+  reason?: string | null;
+  match_reason?: string | null;
+  motivo?: string | null;
+  href?: string | null;
+  url?: string | null;
+  product_url?: string | null;
+  reference_url?: string | null;
+  admin_url?: string | null;
+  public_url?: string | null;
+  permalink?: string | null;
+  reference?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface AssistedCatalogCandidateGroup {
+  item?: string | null;
+  item_label?: string | null;
+  requested_item?: string | null;
+  query?: string | null;
+  text?: string | null;
+  row?: Record<string, unknown> | null;
+  candidates?: AssistedCatalogCandidate[];
+  catalog_candidates?: AssistedCatalogCandidate[];
+  suggested_candidates?: AssistedCatalogCandidate[];
+  alternatives?: AssistedCatalogCandidate[];
+  alternativas?: AssistedCatalogCandidate[];
+  [key: string]: unknown;
+}
+
+export interface AssistedOrderRequest {
+  contract_version?: string | null;
+  mode?: string | null;
+  crm_state?: string | null;
+  request_kind?: string | null;
+  request_kind_label?: string | null;
+  document_profile?: {
+    kind?: string | null;
+    label?: string | null;
+    crm_type?: string | null;
+    primary_intent?: string | null;
+    catalog_matching?: boolean | null;
+    input_type?: string | null;
+    input_mode?: string | null;
+    operator_goal?: string | null;
+    supports_anonymous_intake?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  structured_extraction?: {
+    contract_version?: string | null;
+    primary_intent?: string | null;
+    catalog_matching?: boolean | null;
+    confidence?: string | null;
+    fields?: Record<string, unknown>;
+    missing_fields?: string[];
+    source?: string | null;
+    [key: string]: unknown;
+  } | null;
+  crm_handoff?: {
+    contract_version?: string | null;
+    primary_intent?: string | null;
+    operator_goal?: string | null;
+    target_module?: string | null;
+    recommended_record?: string | null;
+    contact?: Record<string, unknown> | null;
+    source?: Record<string, unknown> | null;
+    structured_extraction?: Record<string, unknown> | null;
+    draft_ticket?: Record<string, unknown> | null;
+    draft_task?: Record<string, unknown> | null;
+    draft_order?: Record<string, unknown> | null;
+    draft_assisted_order?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
+  contact?: (CustomerProfile & { notes?: string | null }) | null;
+  source?: {
+    channel?: string | null;
+    input_type?: string | null;
+    archivo_url?: string | null;
+    archivo_nombre?: string | null;
+    text_preview?: string | null;
+    request_kind?: string | null;
+    request_kind_label?: string | null;
+    extraction_error?: string | null;
+    [key: string]: unknown;
+  } | null;
+  match_summary?: {
+    matched?: number | null;
+    unmatched?: number | null;
+    detected?: number | null;
+    needs_operator_review?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  review_context?: {
+    contract_version?: string | null;
+    primary_intent?: string | null;
+    operator_goal?: string | null;
+    review_reasons?: string[];
+    catalog_matching_enabled?: boolean | null;
+    catalog_candidate_groups?: number | null;
+    recommended_channels?: string[];
+    summary?: Record<string, unknown>;
+    [key: string]: unknown;
+  } | null;
+  row_errors?: Array<Record<string, unknown>>;
+  extraction_error?: string | null;
+  next_actions?: Array<Record<string, unknown>>;
+  public_follow_up?: {
+    contract_version?: string | null;
+    tracking?: {
+      kind?: string | null;
+      code?: string | null;
+      path?: string | null;
+      api_endpoint?: string | null;
+      label?: string | null;
+      [key: string]: unknown;
+    } | null;
+    channels?: Array<{
+      id?: string | null;
+      label?: string | null;
+      type?: string | null;
+      href?: string | null;
+      description?: string | null;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  } | null;
+  operator_pack?: {
+    priority?: 'high' | 'normal' | string | null;
+    reference?: string | null;
+    suggested_reply?: string | null;
+    needs_human_review?: boolean | null;
+    suggested_tasks?: Array<{
+      id?: string | null;
+      label?: string | null;
+      description?: string | null;
+      tone?: string | null;
+    }>;
+    contact_links?: Array<{
+      type?: string | null;
+      label?: string | null;
+      href?: string | null;
+    }>;
+    [key: string]: unknown;
+  } | null;
+  intake_experience?: {
+    contract_version?: string | null;
+    render_as?: string | null;
+    title?: string | null;
+    summary?: string | null;
+    anonymous_intake?: boolean | null;
+    customer_has_contact?: boolean | null;
+    catalog_matching?: boolean | null;
+    needs_operator_review?: boolean | null;
+    input_examples?: string[];
+    capabilities?: Array<{
+      id?: string | null;
+      label?: string | null;
+      description?: string | null;
+      status?: string | null;
+      [key: string]: unknown;
+    }>;
+    pipeline?: Array<{
+      id?: string | null;
+      label?: string | null;
+      description?: string | null;
+      status?: string | null;
+      [key: string]: unknown;
+    }>;
+    customer_prompts?: Array<{
+      id?: string | null;
+      label?: string | null;
+      document_type?: string | null;
+      [key: string]: unknown;
+    }>;
+    crm_handoff?: {
+      label?: string | null;
+      recommended_next_action?: string | null;
+      channels?: string[];
+      [key: string]: unknown;
+    } | null;
+    frontend_contract?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
+  customer_message?: string | null;
+  customer_next_steps?: Array<{
+    id?: string | null;
+    label?: string | null;
+    description?: string | null;
+    status?: string | null;
+    [key: string]: unknown;
+  }>;
+  detected_items?: Array<Record<string, unknown>>;
+  catalog_candidates?: AssistedCatalogCandidateGroup[];
+  suggested_candidates?: AssistedCatalogCandidateGroup[] | AssistedCatalogCandidate[];
+  candidate_groups?: AssistedCatalogCandidateGroup[];
+  product_candidates?: AssistedCatalogCandidateGroup[];
+  unmatched_items?: string[];
+  raw_unmatched_rows?: Array<
+    Record<string, unknown> & {
+      catalog_candidates?: AssistedCatalogCandidate[];
+      candidates?: AssistedCatalogCandidate[];
+      suggested_candidates?: AssistedCatalogCandidate[];
+    }
+  >;
+}
+
 export interface Order {
   id: string | number;
   tenant_id?: string;
   user_id?: string;
   total: number;
-  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'confirmed' | 'nuevo';
+  status: string;
   items: OrderItem[];
   created_at: string;
   updated_at?: string;
@@ -47,7 +274,10 @@ export interface Order {
   commercial_state?: CommercialState | null;
   commercial_stage?: string | null;
   contact?: CustomerProfile | null;
+  assisted_request?: AssistedOrderRequest | null;
+  metadata?: Record<string, unknown> | null;
   totals?: {
+    monetary?: number | null;
     subtotal?: number | null;
     total?: number | null;
     currency?: string | null;
@@ -56,10 +286,14 @@ export interface Order {
 
 export interface OrderItem {
   id: string | number;
-  product_id: string | number;
+  product_id?: string | number | null;
   quantity: number;
   price: number;
   name: string;
+  title?: string;
+  unit_price?: number;
+  subtotal?: number;
+  currency?: string;
   sku?: string;
 }
 

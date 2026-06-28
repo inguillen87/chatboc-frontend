@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRightLeft, Loader2, Package, Truck, CheckCircle, XCircl
 import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/currency';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
+import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -77,7 +78,7 @@ export default function AdminOrderDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!currentSlug || !order) return;
     try {
-      await apiClient.adminUpdateOrder(currentSlug, Number(order.id), { status: newStatus });
+      await apiClient.adminUpdateOrder(currentSlug, order.id, { status: newStatus });
       setOrder({ ...order, status: newStatus as any });
       toast.success("Estado actualizado");
     } catch (error) {
@@ -112,6 +113,8 @@ export default function AdminOrderDetailPage() {
 
       <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">
+              <AssistedRequestPanel order={order} />
+
               <Card>
                   <CardHeader>
                       <CardTitle>Detalle de Productos</CardTitle>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { Loader2, ArrowLeft } from 'lucide-react';
 
 import { TenantShell } from '@/components/tenant/TenantShell';
@@ -26,7 +26,12 @@ const TenantSurveyDetailPage = () => {
     return null;
   }, [currentSlug, tenant?.slug]);
 
-  const basePath = tenantSlug ? `/${encodeURIComponent(tenantSlug)}` : null;
+  const basePath = tenantSlug ? `/t/${encodeURIComponent(tenantSlug)}` : null;
+  const liveExperiencePath = useMemo(() => {
+    if (!surveySlug?.trim()) return null;
+    const query = tenantSlug ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+    return `/e/${encodeURIComponent(surveySlug.trim())}${query}`;
+  }, [surveySlug, tenantSlug]);
 
   const {
     survey,
@@ -106,6 +111,8 @@ const TenantSurveyDetailPage = () => {
             ) : null}
           </CardContent>
         </Card>
+      ) : (survey.es_votacion_envivo || survey.mostrar_resultados_envivo) && liveExperiencePath ? (
+        <Navigate to={liveExperiencePath} replace />
       ) : submitted ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">

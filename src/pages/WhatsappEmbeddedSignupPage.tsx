@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { tenantService } from "@/services/tenantService";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/utils/api";
+import { buildTenantPath } from "@/utils/tenantPaths";
 
 type FacebookAuthResponse = {
   code?: string;
@@ -168,7 +169,16 @@ export default function WhatsappEmbeddedSignupPage() {
       };
 
       const payload = signupDataRef.current;
-      if (!tenant || completedRef.current || !payload.waba_id || !payload.phone_number_id) {
+      const waitingForAccountIds = !payload.waba_id || !payload.phone_number_id;
+      const waitingForCode = !payload.code;
+      if (!tenant || completedRef.current || waitingForAccountIds || waitingForCode) {
+        if (tenant && !completedRef.current) {
+          if (!waitingForAccountIds && waitingForCode) {
+            setStatus("Meta envio la cuenta. Esperando codigo de autorizacion...");
+          } else if (waitingForAccountIds && !waitingForCode) {
+            setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
+          }
+        }
         return;
       }
 
@@ -326,6 +336,15 @@ export default function WhatsappEmbeddedSignupPage() {
   ];
   const completedStages = stages.filter((stage) => stage.done).length;
   const progress = Math.round((completedStages / stages.length) * 100);
+  const integrationsPath = tenant ? buildTenantPath("/integracion", tenant) : "/integracion";
+  const waitingForSdk = !sdkReady && missingConfig.length === 0;
+  const startDisabled = missingConfig.length > 0 || !sdkReady || starting || saving || Boolean(result);
+  const integrationsLabel = result ? "Continuar activacion" : "Volver a integraciones";
+  const startLabel = result
+    ? "Registro guardado"
+    : missingConfig.length > 0
+      ? "Parametros incompletos"
+      : "Iniciar registro con Meta";
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground">
@@ -462,12 +481,13 @@ export default function WhatsappEmbeddedSignupPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={startSignup} disabled={missingConfig.length > 0 || !sdkReady || starting || saving}>
-                {!sdkReady || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Iniciar registro con Meta
+              <Button type="button" onClick={startSignup} disabled={startDisabled}>
+                {waitingForSdk || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {startLabel}
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate("/perfil?tab=integracion")}>
-                Volver a integraciones
+              <Button type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
+                {result ? <ArrowRight className="mr-2 h-4 w-4" /> : null}
+                {integrationsLabel}
               </Button>
             </div>
           </CardContent>

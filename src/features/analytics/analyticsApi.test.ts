@@ -25,6 +25,15 @@ describe('operations heatmap v2 contract', () => {
   it('passes segment filters and normalizes real category, age and gender facets', async () => {
     mocks.panelGet.mockResolvedValue({
       contract_version: 'operations.heatmap.v1',
+      render_contract: {
+        state: 'ready',
+        map_engine: 'deckgl',
+        layers: ['base_heatmap', null, 'ai_risk_layers'],
+        point_format: { lat: 'lat', lng: 'lng' },
+        can_render_heatmap: 'false',
+        recommended_views: ['interactive_globe', null, 'geocoding_queue'],
+        premium_metadata: { source: 'backend_contract' },
+      },
       facets: [
         {
           key: 'categoria',
@@ -83,6 +92,69 @@ describe('operations heatmap v2 contract', () => {
         empty_state_behavior: 'show_geocoding_queue_and_ai_summary',
         supports_reduced_motion: 'true',
       },
+      ai_layers: {
+        contract_version: 'huggingface.map_ai_layers.v1',
+        status: 'ready',
+        mode: 'municipal_risk_detection',
+        hf_status: { configured: true },
+        frontend_contract: {
+          map_engines: ['deckgl', 'maplibre', false],
+          layer_groups: ['ai_risk_layers', 'survey_participation', null],
+        },
+        risk_layers: [{ key: 'riesgo_alto', label: 'Riesgo alto', count: '2' }],
+        recommendations: [{ label: 'Priorizar cuadrilla', method: 'POST' }],
+      },
+      map_narrative: {
+        contract_version: 'operations.heatmap_narrative.v1',
+        state: 'ready',
+        headline: 'Mapa operativo Junin',
+        body: 'Zona centro concentra reclamos activos.',
+        title: 'Mapa operativo Junin',
+        summary: 'Zona centro concentra reclamos activos.',
+        empty_state_title: 'Sin coordenadas reales',
+        primary_action: { label: 'Abrir cola de geocodificacion', ui_hint: 'open_geocoding_queue' },
+      },
+      layer_style_contract: {
+        contract_version: 'operations.heatmap.layer_styles.v1',
+        palette: ['#22d3ee', 10, '#f59e0b'],
+        layers: [{ key: 'tickets', label: 'Tickets', count: '4' }],
+        legend: [{ key: 'high', label: 'Alta densidad', value: '8' }],
+      },
+      viewport_presets: {
+        contract_version: 'operations.heatmap_viewport_presets.v1',
+        default_preset_id: 'junin_centro',
+        camera_constraints: { min_zoom: '4' },
+        presets: [
+          {
+            id: 'junin_centro',
+            label: 'Centro',
+            mode: 'fly_to',
+            default: 'true',
+            center: { lat: '-34.58', lon: '-60.94' },
+            zoom: '13',
+            pitch: '45',
+            radiusKm: '2.5',
+          },
+        ],
+      },
+      hotspot_actions: {
+        contract_version: 'operations.heatmap_hotspot_actions.v1',
+        safe_by_default: 'true',
+        writes_enabled: 'false',
+        actions: [{ label: 'Asignar inspector', method: 'PATCH' }],
+        playbook: [{ label: 'Validar zona caliente', enabled: true }],
+      },
+      hotspot_playbook: [{ label: 'Enviar aviso WhatsApp', endpoint: '/api/templates/send' }],
+      operator_playbook: [{ label: 'Crear parte operativo', priority: 'high' }],
+      ai_status: {
+        contract_version: 'operations.heatmap_ai_status.v1',
+        status: 'local_fallback',
+        configured: 'true',
+        used_hf: 'false',
+        safe_to_render_without_hf_token: 'true',
+        ai_layers_ready: 'true',
+        map_layer_hints: ['risk_pulses', null, 'whatsapp_activity'],
+      },
       geocoding: {
         contract_version: 'operations.heatmap.geocoding_queue.v1',
         status: 'pending',
@@ -101,6 +173,14 @@ describe('operations heatmap v2 contract', () => {
           label: 'Geocodificar direcciones pendientes',
           method: 'PATCH',
           endpoint_template: '/api/tickets/{record_id}/ubicacion',
+        },
+        guidance: {
+          contract_version: 'operations.heatmap_geocoding_guidance.v1',
+          state: 'pending',
+          candidate_count: '1',
+          coverage_percent: '75',
+          backend_external_calls: 'none',
+          recommended_actions: [{ label: 'Abrir cola', ui_hint: 'open_geocoding_queue' }],
         },
       },
       points: [
@@ -159,6 +239,14 @@ describe('operations heatmap v2 contract', () => {
       barrio: 'Centro',
       estado: 'nuevo',
     });
+    expect(response.render_contract).toMatchObject({
+      state: 'ready',
+      map_engine: 'deckgl',
+      layers: ['base_heatmap', 'ai_risk_layers'],
+      can_render_heatmap: false,
+      recommended_views: ['interactive_globe', 'geocoding_queue'],
+      premium_metadata: { source: 'backend_contract' },
+    });
     expect(response.facets[0].items[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
     expect(response.segments?.gender?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
     expect(response.filters_applied?.categoria).toBe('alumbrado');
@@ -189,6 +277,65 @@ describe('operations heatmap v2 contract', () => {
       layer_groups: ['base_heatmap', 'ai_risk_layers', 'whatsapp_activity'],
       supports_reduced_motion: true,
     });
+    expect(response.ai_layers).toMatchObject({
+      contract_version: 'huggingface.map_ai_layers.v1',
+      status: 'ready',
+      mode: 'municipal_risk_detection',
+      frontend_contract: {
+        map_engines: ['deckgl', 'maplibre'],
+        layer_groups: ['ai_risk_layers', 'survey_participation'],
+      },
+      risk_layers: [{ label: 'Riesgo alto', count: 2 }],
+      recommendations: [{ title: 'Priorizar cuadrilla', method: 'POST' }],
+    });
+    expect(response.map_narrative).toMatchObject({
+      contract_version: 'operations.heatmap_narrative.v1',
+      state: 'ready',
+      headline: 'Mapa operativo Junin',
+      title: 'Mapa operativo Junin',
+      body: 'Zona centro concentra reclamos activos.',
+      description: 'Zona centro concentra reclamos activos.',
+      operator_summary: 'Zona centro concentra reclamos activos.',
+      primary_cta: { title: 'Abrir cola de geocodificacion', ui_hint: 'open_geocoding_queue' },
+    });
+    expect(response.layer_style_contract).toMatchObject({
+      contract_version: 'operations.heatmap.layer_styles.v1',
+      palette: ['#22d3ee', '#f59e0b'],
+      layers: [{ label: 'Tickets', count: 4 }],
+      legend_items: [{ label: 'Alta densidad', value: 8 }],
+    });
+    expect(response.viewport_presets).toMatchObject({
+      contract_version: 'operations.heatmap_viewport_presets.v1',
+      default_preset_id: 'junin_centro',
+    });
+    expect(response.viewport_presets?.presets[0]).toMatchObject({
+      id: 'junin_centro',
+      label: 'Centro',
+      mode: 'fly_to',
+      default: true,
+      center: { lat: -34.58, lng: -60.94 },
+      zoom: 13,
+      pitch: 45,
+      radius_km: 2.5,
+    });
+    expect(response.hotspot_actions).toMatchObject({
+      contract_version: 'operations.heatmap_hotspot_actions.v1',
+      safe_by_default: true,
+      writes_enabled: false,
+      actions: [{ title: 'Asignar inspector', method: 'PATCH' }],
+      playbook: [{ title: 'Validar zona caliente' }],
+    });
+    expect(response.hotspot_playbook?.[0]).toMatchObject({ title: 'Enviar aviso WhatsApp' });
+    expect(response.operator_playbook?.[0]).toMatchObject({ title: 'Crear parte operativo', priority: 'high' });
+    expect(response.ai_status).toMatchObject({
+      contract_version: 'operations.heatmap_ai_status.v1',
+      status: 'local_fallback',
+      configured: true,
+      used_hf: false,
+      safe_to_render_without_hf_token: true,
+      ai_layers_ready: true,
+      map_layer_hints: ['risk_pulses', 'whatsapp_activity'],
+    });
     expect(response.geocoding).toMatchObject({
       contract_version: 'operations.heatmap.geocoding_queue.v1',
       status: 'pending',
@@ -196,6 +343,14 @@ describe('operations heatmap v2 contract', () => {
       recommended_action: {
         title: 'Geocodificar direcciones pendientes',
         method: 'PATCH',
+      },
+      guidance: {
+        contract_version: 'operations.heatmap_geocoding_guidance.v1',
+        state: 'pending',
+        candidate_count: 1,
+        coverage_percent: 75,
+        backend_external_calls: 'none',
+        recommended_actions: [{ title: 'Abrir cola', ui_hint: 'open_geocoding_queue' }],
       },
     });
     expect(response.geocoding?.candidates?.[0]).toMatchObject({

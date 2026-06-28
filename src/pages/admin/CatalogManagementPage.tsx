@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import {
   Boxes,
   Check,
+  CheckCircle2,
   Edit2,
   ExternalLink,
   Filter,
+  Gauge,
   ImageOff,
   Loader2,
   PackageCheck,
@@ -23,11 +25,13 @@ import {
   Sparkles,
   Tags,
   UploadCloud,
+  AlertTriangle,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
-import { CatalogPromotion } from '@/types/catalog';
+import { CatalogPromotion, MarketplaceReadiness } from '@/types/catalog';
+import { Progress } from '@/components/ui/progress';
 import CatalogQualityCommandCenter from '@/components/admin/CatalogQualityCommandCenter';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
@@ -293,6 +297,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const withGallery = products.filter((product) => getProductGalleryUrls(product).length > 1).length;
     return { missingImages, withGallery };
   }, [products]);
+  const marketplaceReadiness = catalogContract?.marketplace_readiness as MarketplaceReadiness | null | undefined;
 
   const inventoryStats = useMemo(() => {
     const summary = toRecord(catalogContract?.summary);
@@ -444,6 +449,8 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
         <MetricCard icon={PackageX} label="Stock sin validar" value={String(inventoryStats.stockUnknown ?? '--')} />
         <MetricCard icon={ImageOff} label="Sin imagen" value={String(imageStats.missingImages)} />
       </div>
+
+      {marketplaceReadiness ? <MarketplaceReadinessPanel readiness={marketplaceReadiness} /> : null}
 
       <Card className="overflow-hidden border-primary/10">
         <CardHeader className="border-b bg-muted/30 pb-4">
@@ -761,6 +768,107 @@ const MetricCard = ({ icon: Icon, label, value }: { icon: React.ElementType; lab
       <p className="text-2xl font-semibold">{value}</p>
     </CardContent>
   </Card>
+);
+
+const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadiness }) => {
+  const score = Math.max(0, Math.min(100, Number(readiness.score ?? 0)));
+  const blockers = readiness.blockers ?? [];
+  const warnings = readiness.warnings ?? [];
+  const metrics = readiness.metrics ?? {};
+  const ready = readiness.ready === true;
+
+  return (
+    <Card className="overflow-hidden border-primary/10">
+      <CardContent className="p-0">
+        <div className="grid gap-0 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div className="border-b bg-muted/30 p-5 lg:border-b-0 lg:border-r">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Gauge className="h-4 w-4" />
+                  Marketplace readiness
+                </p>
+                <h2 className="mt-2 text-2xl font-bold">{score}%</h2>
+              </div>
+              <Badge variant={ready ? 'default' : blockers.length ? 'destructive' : 'secondary'}>
+                {ready ? 'Listo' : blockers.length ? 'Bloqueado' : 'Revisar'}
+              </Badge>
+            </div>
+            <Progress value={score} className="mt-4 h-2" />
+            <p className="mt-3 text-sm text-muted-foreground">
+              Estado calculado por backend con productos, imagenes, precios, stock, promociones y checkout.
+            </p>
+          </div>
+
+          <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-3">
+              {blockers.length ? (
+                <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
+                  <p className="mb-3 flex items-center gap-2 font-semibold text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    Bloqueos para vender
+                  </p>
+                  <div className="space-y-3">
+                    {blockers.map((item) => (
+                      <ReadinessIssue key={item.id || item.label || item.next_action} item={item} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Sin bloqueos operativos
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-800">El marketplace puede publicarse con el contrato actual.</p>
+                </div>
+              )}
+
+              {warnings.length ? (
+                <div className="rounded-lg border p-4">
+                  <p className="mb-3 font-semibold">Mejoras recomendadas</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {warnings.slice(0, 4).map((item) => (
+                      <ReadinessIssue key={item.id || item.label || item.next_action} item={item} compact />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm xl:grid-cols-1">
+              <ReadinessMetric label="Disponibles" value={`${metrics.products_available ?? 0}/${metrics.products_total ?? 0}`} />
+              <ReadinessMetric label="Con imagen" value={String(metrics.products_with_images ?? 0)} />
+              <ReadinessMetric label="Con precio" value={String(metrics.products_with_prices ?? 0)} />
+              <ReadinessMetric label="Con promo" value={String(metrics.products_with_promotions ?? 0)} />
+              <ReadinessMetric label="Stock bajo" value={String(metrics.low_stock ?? 0)} />
+              <ReadinessMetric label="Checkout" value={metrics.checkout_configured ? 'Configurado' : 'Pendiente'} />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const ReadinessIssue = ({
+  item,
+  compact = false,
+}: {
+  item: NonNullable<MarketplaceReadiness['warnings']>[number];
+  compact?: boolean;
+}) => (
+  <div className={compact ? 'rounded-lg bg-muted/40 p-3' : ''}>
+    <p className="font-medium">{item.label || item.id || 'Accion pendiente'}</p>
+    {item.next_action ? <p className="mt-1 text-sm text-muted-foreground">{item.next_action}</p> : null}
+  </div>
+);
+
+const ReadinessMetric = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-lg border bg-background p-3">
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className="mt-1 font-semibold">{value}</p>
+  </div>
 );
 
 const StockBadge = ({ product }: { product: any }) => {

@@ -195,6 +195,114 @@ export interface OperationsHeatmapDemographics {
   [key: string]: unknown;
 }
 
+export interface OperationsHeatmapNarrative {
+  contract_version?: string;
+  state?: string;
+  headline?: string;
+  body?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  operator_summary?: string;
+  empty_state_title?: string;
+  empty_state_description?: string;
+  primary_cta?: OperationsActionItem;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapViewportPresetItem {
+  id?: string;
+  label?: string;
+  mode?: string;
+  default?: boolean;
+  description?: string;
+  center?: {
+    lat?: number;
+    lng?: number;
+    [key: string]: unknown;
+  };
+  zoom?: number;
+  pitch?: number;
+  bearing?: number;
+  radius_km?: number;
+  reason_code?: string;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapViewportContract {
+  contract_version?: string;
+  default_preset_id?: string;
+  camera_constraints?: Record<string, unknown>;
+  presets: OperationsHeatmapViewportPresetItem[];
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapLayerStyleContract {
+  contract_version?: string;
+  palette?: string[];
+  style_tokens?: Record<string, unknown>;
+  styles?: OperationsBucketItem[];
+  layers?: OperationsBucketItem[];
+  legend_items?: OperationsBucketItem[];
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapAILayers {
+  contract_version?: string;
+  status?: string;
+  mode?: string;
+  summary?: Record<string, unknown>;
+  hf_status?: Record<string, unknown>;
+  frontend_contract?: {
+    map_engines?: string[];
+    layer_groups?: string[];
+    [key: string]: unknown;
+  };
+  layers?: OperationsBucketItem[];
+  risk_layers?: OperationsBucketItem[];
+  recommendations?: OperationsActionItem[];
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapAIStatus {
+  contract_version?: string;
+  provider_family?: string;
+  mode?: string;
+  status?: string;
+  configured?: boolean;
+  zero_shot_enabled?: boolean;
+  used_hf?: boolean;
+  fallback_reason?: string;
+  safe_to_render_without_hf_token?: boolean;
+  ai_layers_ready?: boolean;
+  map_layer_hints?: string[];
+  requires_human_attention?: boolean;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapGeocodingGuidance {
+  contract_version?: string;
+  state?: string;
+  reason_code?: string;
+  candidate_count?: number;
+  coverage_percent?: number;
+  quality_state?: string;
+  backend_external_calls?: string;
+  queue_behavior?: string;
+  recommended_actions?: OperationsActionItem[];
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapHotspotActionsContract {
+  contract_version?: string;
+  safe_by_default?: boolean;
+  writes_enabled?: boolean;
+  quality_state?: string;
+  actions: OperationsActionItem[];
+  playbook: OperationsActionItem[];
+  [key: string]: unknown;
+}
+
 export interface OperationsHeatmapV1 {
   contract_version?: string;
   request_id?: string;
@@ -205,6 +313,9 @@ export interface OperationsHeatmapV1 {
     map_engine?: string;
     layers?: string[];
     point_format?: Record<string, string>;
+    can_render_heatmap?: boolean;
+    recommended_views?: string[];
+    premium_metadata?: Record<string, unknown>;
     [key: string]: unknown;
   };
   summary?: Record<string, unknown>;
@@ -241,6 +352,14 @@ export interface OperationsHeatmapV1 {
     [key: string]: unknown;
   };
   legend?: Record<string, unknown>;
+  ai_layers?: OperationsHeatmapAILayers;
+  ai_status?: OperationsHeatmapAIStatus;
+  map_narrative?: OperationsHeatmapNarrative;
+  layer_style_contract?: OperationsHeatmapLayerStyleContract;
+  viewport_presets?: OperationsHeatmapViewportContract;
+  hotspot_actions?: OperationsHeatmapHotspotActionsContract;
+  hotspot_playbook?: OperationsActionItem[];
+  operator_playbook?: OperationsActionItem[];
   map_experience?: {
     contract_version?: string;
     preferred_visualization?: string;
@@ -255,6 +374,7 @@ export interface OperationsHeatmapV1 {
     status?: string;
     reason_code?: string;
     candidate_count?: number;
+    guidance?: OperationsHeatmapGeocodingGuidance;
     candidates?: Array<{
       record_id?: string | number;
       ticket_id?: string | number;

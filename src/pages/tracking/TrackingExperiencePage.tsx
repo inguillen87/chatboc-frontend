@@ -148,6 +148,8 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
   const webviewPolicy = isRecord(support?.webview_policy) ? support.webview_policy : {};
   const adminSurface = isRecord(support?.admin_response_surface) ? support.admin_response_surface : {};
   const polling = isRecord(support?.polling) ? support.polling : {};
+  const cta = isRecord(support?.cta) ? support.cta : {};
+  const primaryCta = isRecord(cta.primary) ? cta.primary : {};
   const messages = asArray(conversation.messages)
     .map((item, index) => {
       if (!isRecord(item)) return null;
@@ -163,18 +165,35 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
     .filter((item): item is { id: string; message: string; author: string; createdAt: string; isTeam: boolean } =>
       Boolean(item?.message),
     );
+  const rawMode =
+    readText(support, ["mode"]) ||
+    readText(liveChat, ["mode"]) ||
+    (liveChat.enabled && liveChat.available ? "live" : "offline");
+  const normalizedMode = rawMode.toLowerCase() === "live" ? "live" : "offline";
+  const liveAvailable = normalizedMode === "live";
+  const primaryCtaAction = readText(
+    primaryCta,
+    ["action"],
+    liveAvailable ? "socket_live_message" : "queue_ticket_comment",
+  );
 
   return {
     enabled: support?.enabled !== false && Boolean(support),
-    mode: readText(support, ["mode"], "offline"),
+    mode: normalizedMode,
     label: readText(availability, ["label"], "Mesa de ayuda"),
     description: readText(availability, ["description"], "Deja un mensaje asociado a este seguimiento."),
-    liveAvailable: Boolean(liveChat.enabled && liveChat.available),
+    liveAvailable,
     acceptsMessages: serviceWindow.accepts_messages !== false,
     offlineQueue: Boolean(serviceWindow.offline_queue_enabled),
     stayInsideTracking: webviewPolicy.stay_inside_tracking !== false,
     adminSurfaceLabel: readText(adminSurface, ["label"], "Inbox de reclamos"),
-    nextAction: readText(serviceWindow, ["next_action"], "queue_ticket_comment"),
+    nextAction: readText(serviceWindow, ["next_action"], primaryCtaAction),
+    primaryCtaLabel: readText(
+      primaryCta,
+      ["label", "title", "text"],
+      liveAvailable ? "Chatear con un agente" : "Dejar mensaje para el equipo",
+    ),
+    primaryCtaAction,
     pollingInterval: readText(polling, ["interval_ms"]),
     schedule: readText(serviceWindow, ["schedule_label"]) || readText(liveChat, ["description"]) || (
       readText(liveChat, ["start_time"]) && readText(liveChat, ["end_time"])
@@ -291,13 +310,13 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
 
   const handleSendSupportMessage = async () => {
     const message = supportMessage.trim();
-    if (!message || !support.endpoint || !pin.trim()) return;
+    if (!message || !support.endpoint || (support.requiresPin && !pin.trim())) return;
     setSupportSending(true);
     setSupportNotice(null);
     try {
       const reply = await sendTrackingSupportMessage({
         endpoint: support.endpoint,
-        pin: pin.trim(),
+        pin: pin.trim() || null,
         message,
         code,
       });
@@ -436,10 +455,10 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 </div>
                 {(resource.address || resource.district) ? (
                   <div className="rounded-[12px] bg-muted/30 p-3">
-                    <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
                       Ubicacion
-                    </p>
+                    </div>
                     <p className="mt-1 font-semibold text-foreground">{resource.address || "Sin direccion"}</p>
                     {resource.district ? <p className="mt-1 text-xs text-muted-foreground">{resource.district}</p> : null}
                   </div>
@@ -666,7 +685,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                       className="h-10 rounded-[8px] font-semibold"
                     >
                       {supportSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                      {support.liveAvailable ? "Enviar al vivo" : "Guardar offline"}
+                      {support.primaryCtaLabel}
                     </Button>
                   </div>
                 </div>

@@ -11,13 +11,26 @@ describe("normalizeWhatsappExperienceV2", () => {
         provider: "twilio_whatsapp",
         enabled: true,
         number: "whatsapp:+100",
+        webhook: "/webhook/whatsapp",
+        status_webhook: "/twilio/whatsapp/status",
+        waba_id: "123456789",
+        phone_number_id: "987654321",
         test_endpoint: "/api/v2/whatsapp/experience/test",
         test_method: "POST",
         test_label: "Enviar prueba",
       },
       conversation_intelligence: {
+        accessibility: {
+          enabled: true,
+          features: ["audio_transcription", "screen_reader_labels"],
+        },
+        audio_cache: {
+          enabled: true,
+          ttl_seconds: 900,
+        },
         inputs: {
           text: { enabled: true },
+          audio_note: { enabled: true, cache_enabled: true },
           video: { enabled: true, analysis_ready: false },
         },
         voice_calls: {
@@ -68,7 +81,9 @@ describe("normalizeWhatsappExperienceV2", () => {
         registry_summary: {
           operational_approved: 18,
           operational_pending: 2,
+          operational_blocking: 0,
         },
+        fallback_templates: ["fallback_status_update"],
         creation_manifest: {
           contract_version: "twilio.content.creation_manifest.v1",
           templates_total: 24,
@@ -118,6 +133,7 @@ describe("normalizeWhatsappExperienceV2", () => {
         contract_version: "whatsapp.qa_playbook.v1",
         scenario_count: 5,
         ready_count: 2,
+        recommended_order: ["gov_claim_text_to_tracking", "pyme_order_checkout"],
         local_command: "python scripts/qa_whatsapp_flows.py",
         scenarios: [
           {
@@ -140,8 +156,15 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect(normalized.contract_version).toBe("whatsapp.experience.v1");
     expect(normalized.request_id).toBe("req_whatsapp");
     expect(normalized.channel.enabled).toBe(true);
+    expect(normalized.channel.webhook).toBe("/webhook/whatsapp");
+    expect(normalized.channel.status_webhook).toBe("/twilio/whatsapp/status");
+    expect(normalized.channel.waba_id).toBe("123456789");
+    expect(normalized.channel.phone_number_id).toBe("987654321");
     expect(normalized.channel.test_endpoint).toBe("/api/v2/whatsapp/experience/test");
     expect(normalized.channel.test_label).toBe("Enviar prueba");
+    expect((normalized.conversation_intelligence.accessibility as any).features).toContain("audio_transcription");
+    expect((normalized.conversation_intelligence.audio_cache as any).ttl_seconds).toBe(900);
+    expect((normalized.conversation_intelligence.inputs as any).audio_note.cache_enabled).toBe(true);
     expect(normalized.conversation_intelligence.voice_calls?.enabled).toBe(true);
     expect(normalized.conversation_intelligence.voice_calls?.capabilities?.recommended_model).toBe("gpt-realtime");
     expect((normalized.conversation_intelligence.inputs as any).video.analysis_ready).toBe(false);
@@ -154,6 +177,8 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.tracking.milestones as any).claim).toEqual(["recibido", "validando"]);
     expect((normalized.tracking.claims as any).experience_endpoint).toContain("/api/public/tracking/experience");
     expect((normalized.template_blueprint.registry_summary as any).operational_approved).toBe(18);
+    expect((normalized.template_blueprint.registry_summary as any).operational_blocking).toBe(0);
+    expect((normalized.template_blueprint.fallback_templates as any)).toContain("fallback_status_update");
     expect((normalized.template_blueprint.next_actions as any)[0].id).toBe("gov_survey_invite");
     expect((normalized.template_blueprint.creation_manifest as any).contract_version).toBe("twilio.content.creation_manifest.v1");
     expect((normalized.template_blueprint.creation_manifest as any).items[0].id).toBe("order_checkout");
@@ -161,6 +186,7 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.webview_blueprint.summary as any).flows_total).toBe(4);
     expect((normalized.webview_blueprint.flows as any)[0].id).toBe("claim_tracking_helpdesk");
     expect((normalized.qa_playbook as any).contract_version).toBe("whatsapp.qa_playbook.v1");
+    expect((normalized.qa_playbook as any).recommended_order).toContain("pyme_order_checkout");
     expect((normalized.qa_playbook as any).scenarios[0].id).toBe("gov_claim_text_to_tracking");
     expect((normalized.message_ux_policy.interactive_limits as any).reply_buttons_max).toBe(3);
   });

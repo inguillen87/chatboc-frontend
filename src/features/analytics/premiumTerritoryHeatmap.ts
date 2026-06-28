@@ -1,4 +1,4 @@
-import type { OperationsHeatmapPoint } from './analyticsTypes';
+import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTypes';
 
 export const PREMIUM_HEATMAP_MIN_SAMPLE_SIZE = 10;
 
@@ -53,6 +53,27 @@ export interface TerritoryHeatmapAggregate {
   topCategories: TerritoryCategoryMetric[];
 }
 
+export type TerritoryReadinessState = 'ready' | 'degraded' | 'low' | 'empty';
+
+export interface TerritoryMapReadiness {
+  state: TerritoryReadinessState;
+  label: string;
+  reasonCode?: string;
+  coveragePercent?: number;
+  visiblePoints?: number;
+  pendingGeocode?: number;
+  withoutCoordinates?: number;
+  canRenderHeatmap?: boolean;
+}
+
+export interface TerritoryLayerDescriptor {
+  id: string;
+  label: string;
+  description: string;
+  tone: 'heat' | 'ai' | 'quality' | 'realtime' | 'neutral';
+  source: 'backend' | 'derived';
+}
+
 const normalizeToken = (value: unknown) => String(value ?? '').trim().toLowerCase();
 
 const asNumber = (value: unknown): number | undefined => {
@@ -68,6 +89,266 @@ const asString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed || undefined;
+};
+
+const asBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = normalizeToken(value);
+    if (['true', '1', 'yes', 'si'].includes(normalized)) return true;
+    if (['false', '0', 'no'].includes(normalized)) return false;
+  }
+  return undefined;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const readFirstNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    const parsed = asNumber(value);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
+};
+
+const readFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    const parsed = asString(value);
+    if (parsed) return parsed;
+  }
+  return undefined;
+};
+
+const readPercent = (...values: unknown[]) => {
+  const parsed = readFirstNumber(...values);
+  if (parsed === undefined) return undefined;
+  return parsed > 0 && parsed <= 1 ? Number((parsed * 100).toFixed(1)) : Number(parsed.toFixed(1));
+};
+
+export const resolveTerritoryMapReadiness = (
+  heatmap?: Pick<OperationsHeatmapV1, 'quality' | 'summary' | 'points' | 'render_contract'>,
+  fallbackPointCount = 0,
+): TerritoryMapReadiness => {
+  const quality = heatmap?.quality;
+  const summary = heatmap?.summary ?? {};
+  const rawState = normalizeToken(readFirstString(quality?.state, summary.quality_state, summary.state, heatmap?.render_contract?.state));
+  const renderState = normalizeToken(readFirstString(heatmap?.render_contract?.state));
+  const coveragePercent = readPercent(
+    quality?.coverage_percent,
+    summary.coverage_percent,
+    summary.coordinate_coverage_pct,
+    quality?.coverage_rate,
+  );
+  const visiblePoints = readFirstNumber(quality?.visible_points, summary.points, fallbackPointCount, heatmap?.points?.length);
+  const pendingGeocode = readFirstNumber(quality?.pending_geocode, summary.pending_geocode);
+  const withoutCoordinates = readFirstNumber(
+    quality?.ticket_records_without_coordinates,
+    summary.ticket_records_without_coordinates,
+  );
+  const renderContractCanRender = asBoolean(heatmap?.render_contract?.can_render_heatmap);
+  const qualityCanRender = asBoolean(quality?.can_render_heatmap);
+  const canRenderHeatmap =
+    renderContractCanRender === false || qualityCanRender === false
+      ? false
+      : renderContractCanRender ?? qualityCanRender;
+  const reasonCode = readFirstString(quality?.reason_code, summary.reason_code, summary.quality_reason_code);
+
+  const hasNoVisibleData = (visiblePoints ?? fallbackPointCount) <= 0;
+  const state: TerritoryReadinessState =
+    canRenderHeatmap === false || renderState === 'empty' || renderState === 'no_data' || rawState === 'empty' || rawState === 'no_data' || hasNoVisibleData
+      ? 'empty'
+      : rawState === 'low' || rawState === 'insufficient' || (coveragePercent !== undefined && coveragePercent < 45)
+        ? 'low'
+        : rawState === 'degraded' ||
+            rawState === 'partial' ||
+            rawState === 'stale' ||
+            (coveragePercent !== undefined && coveragePercent < 75) ||
+            Boolean(pendingGeocode && pendingGeocode > 0)
+          ? 'degraded'
+          : 'ready';
+
+  const label =
+    state === 'empty' && canRenderHeatmap === false
+      ? 'Mapa no renderizable'
+      : readFirstString(quality?.label) ??
+        (state === 'ready'
+          ? 'Cobertura lista'
+          : state === 'degraded'
+            ? 'Cobertura parcial'
+            : state === 'low'
+              ? 'Cobertura baja'
+              : 'Sin coordenadas suficientes');
+
+  return {
+    state,
+    label,
+    reasonCode,
+    coveragePercent,
+    visiblePoints,
+    pendingGeocode,
+    withoutCoordinates,
+    canRenderHeatmap,
+  };
+};
+
+const humanizeLayer = (value: string) => {
+  const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Capa territorial';
+};
+
+const normalizeLayerId = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+
+const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['source']): TerritoryLayerDescriptor => {
+  if (id.includes('ai') || id.includes('risk') || id.includes('prior')) {
+    return {
+      id,
+      label: id.includes('risk') ? 'Riesgo IA' : 'Capa IA',
+      description: 'Prioridad, riesgo y patrones sugeridos por el backend.',
+      tone: 'ai',
+      source,
+    };
+  }
+  if (id.includes('geo') || id.includes('quality') || id.includes('coverage')) {
+    return {
+      id,
+      label: id.includes('geo') ? 'Geocoding' : 'Cobertura GPS',
+      description: 'Calidad de coordenadas y direcciones pendientes.',
+      tone: 'quality',
+      source,
+    };
+  }
+  if (id.includes('realtime') || id.includes('live') || id.includes('whatsapp') || id.includes('socket')) {
+    return {
+      id,
+      label: id.includes('whatsapp') ? 'WhatsApp' : 'Tiempo real',
+      description: 'Actividad reciente y telemetria de canales activos.',
+      tone: 'realtime',
+      source,
+    };
+  }
+  if (id.includes('heat') || id.includes('hotspot') || id.includes('base')) {
+    return {
+      id,
+      label: id.includes('hotspot') ? 'Hotspots' : 'Calor territorial',
+      description: 'Densidad y volumen operativo por zona agregada.',
+      tone: 'heat',
+      source,
+    };
+  }
+  return {
+    id,
+    label: humanizeLayer(id),
+    description: 'Segmento territorial publicado por el contrato del backend.',
+    tone: 'neutral',
+    source,
+  };
+};
+
+const layerKeyFromItem = (item: unknown): string | undefined => {
+  if (typeof item === 'string') return item;
+  if (!isRecord(item)) return undefined;
+  return readFirstString(item.key, item.id, item.name, item.label, item.title);
+};
+
+const appendLayerItems = (
+  target: Array<{ key: string; source: TerritoryLayerDescriptor['source'] }>,
+  items: unknown,
+  source: TerritoryLayerDescriptor['source'],
+) => {
+  if (Array.isArray(items)) {
+    items.forEach((item) => {
+      const key = layerKeyFromItem(item);
+      if (key) target.push({ key, source });
+    });
+    return;
+  }
+
+  if (!isRecord(items)) return;
+  appendLayerItems(target, items.layers, source);
+  appendLayerItems(target, items.risk_layers, source);
+  appendLayerItems(target, items.ai_risk_layers, source);
+  appendLayerItems(target, items.layer_groups, source);
+  appendLayerItems(target, isRecord(items.frontend_contract) ? items.frontend_contract.layer_groups : undefined, source);
+  appendLayerItems(target, isRecord(items.frontend_contract) ? items.frontend_contract.map_layers : undefined, source);
+  appendLayerItems(target, isRecord(items.legend_contract) ? items.legend_contract.layers : undefined, source);
+
+  const metadataKeys = new Set([
+    'contract_version',
+    'provider_family',
+    'visual_preset',
+    'preferred_visualization',
+    'supports_globe',
+    'style_tokens',
+    'animation',
+    'interaction_model',
+    'insight_summary',
+    'frontend_contract',
+    'legend_contract',
+    'layers',
+    'risk_layers',
+    'ai_risk_layers',
+    'layer_groups',
+  ]);
+  Object.entries(items).forEach(([key, value]) => {
+    if (metadataKeys.has(key) || !isRecord(value)) return;
+    if ('type' in value || 'points' in value || 'enabled' in value || 'count' in value) {
+      target.push({ key, source });
+    }
+  });
+};
+
+const appendStyleLayerItems = (
+  target: Array<{ key: string; source: TerritoryLayerDescriptor['source'] }>,
+  items: unknown,
+) => {
+  if (!Array.isArray(items)) return;
+  items.forEach((item) => {
+    const key = layerKeyFromItem(item);
+    if (key) target.push({ key, source: 'backend' });
+  });
+};
+
+export const resolveTerritoryLayerDescriptors = (heatmap?: OperationsHeatmapV1): TerritoryLayerDescriptor[] => {
+  const record = heatmap as unknown as Record<string, unknown> | undefined;
+  const legend = heatmap?.legend;
+  const candidates: Array<{ key: string; source: TerritoryLayerDescriptor['source'] }> = [];
+
+  appendLayerItems(candidates, heatmap?.map_experience?.layer_groups, 'backend');
+  appendLayerItems(candidates, heatmap?.render_contract?.layers, 'backend');
+  appendLayerItems(candidates, isRecord(legend) ? legend.layers ?? legend.layer_groups : undefined, 'backend');
+  appendLayerItems(candidates, record?.ai_layers, 'backend');
+  appendStyleLayerItems(candidates, heatmap?.layer_style_contract?.layers);
+  appendStyleLayerItems(candidates, heatmap?.layer_style_contract?.legend_items);
+
+  if (heatmap?.quality) candidates.push({ key: 'coverage_quality', source: 'derived' });
+  if (heatmap?.geocoding) candidates.push({ key: 'geocoding_queue', source: 'derived' });
+  if (heatmap?.realtime) candidates.push({ key: 'realtime_telemetry', source: 'derived' });
+
+  if (!candidates.length) {
+    candidates.push(
+      { key: 'base_heatmap', source: 'derived' },
+      { key: 'hotspots', source: 'derived' },
+      { key: 'coverage_quality', source: 'derived' },
+    );
+  }
+
+  const seen = new Set<string>();
+  return candidates
+    .map(({ key, source }) => ({ id: normalizeLayerId(key), source }))
+    .filter(({ id }) => Boolean(id))
+    .filter(({ id }) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .map(({ id, source }) => describeTerritoryLayer(id, source))
+    .slice(0, 8);
 };
 
 const readField = (point: OperationsHeatmapPoint, fields: string[]) => {

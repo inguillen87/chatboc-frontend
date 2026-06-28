@@ -217,6 +217,326 @@ const CapabilityTile = ({
   </div>
 );
 
+const toTextList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => toTextList(item))
+      .filter(Boolean);
+  }
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([key, item]) => {
+        if (!isRecord(item)) return readText(item) || formatKey(key);
+        return readText(first(item, ["label", "title", "name", "friendly_name", "template_id", "id"])) || formatKey(key);
+      })
+      .filter(Boolean);
+  }
+  const text = readText(value);
+  return text ? [text] : [];
+};
+
+const uniqueText = (items: string[]) => Array.from(new Set(items.filter(Boolean)));
+
+const firstPositiveNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    const number = asNumber(value);
+    if (number !== null) return number;
+  }
+  return 0;
+};
+
+const countReady = (value: unknown) => firstPositiveNumber(value);
+
+const readinessTone = (ok: boolean, optional?: boolean): "ready" | "warning" | "neutral" =>
+  ok ? "ready" : optional ? "neutral" : "warning";
+
+const OperationalCheck = ({
+  action,
+  detail,
+  label,
+  ok,
+  optional,
+}: {
+  action?: string;
+  detail?: React.ReactNode;
+  label: string;
+  ok: boolean;
+  optional?: boolean;
+}) => (
+  <div
+    role="listitem"
+    aria-label={`${label}: ${ok ? "listo" : "pendiente"}`}
+    className="rounded-2xl border border-border/60 bg-background/85 p-3"
+  >
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        {detail ? <p className="mt-1 break-all text-xs leading-5 text-muted-foreground">{detail}</p> : null}
+      </div>
+      {ok ? (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+      ) : (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+      )}
+    </div>
+    {action ? (
+      <p className="mt-2 rounded-xl border border-border/60 bg-muted/25 px-2.5 py-1.5 text-[11px] font-semibold text-foreground">
+        {action}
+      </p>
+    ) : null}
+    <div className="mt-3">
+      <StatusPill tone={readinessTone(ok, optional)}>{ok ? "Listo" : optional ? "Informativo" : "Pendiente"}</StatusPill>
+    </div>
+  </div>
+);
+
+const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+  const channel = experience.channel;
+  const adminPanel = experience.admin_panel;
+  const adminState = asRecord(first(adminPanel, ["state", "whatsapp_state", "tech_provider_state", "provider_state"]));
+  const adminAccount = asRecord(first(adminPanel, ["account", "business_account", "whatsapp_business_account"]));
+  const channelAccount = asRecord(first(channel, ["account", "business_account", "whatsapp_business_account"]));
+  const blueprint = experience.template_blueprint;
+  const summary = asRecord(blueprint.registry_summary);
+  const policy = experience.message_ux_policy;
+  const qaPlaybook = experience.qa_playbook;
+  const intelligence = experience.conversation_intelligence;
+  const inputs = asRecord(intelligence.inputs);
+  const audioInput = asRecord(first(inputs, ["audio_note", "audio", "voice_note", "voice"]));
+  const voiceCalls = asRecord(intelligence.voice_calls);
+  const audioCache = asRecord(
+    first(intelligence, ["audio_cache", "audio_response_cache", "audio_note_cache", "voice_cache"]) ||
+      first(audioInput, ["cache", "audio_cache", "transcription_cache"]),
+  );
+  const accessibility = asRecord(
+    first(intelligence, ["accessibility", "accessibility_policy", "inclusive_access"]) ||
+      first(audioInput, ["accessibility", "accessibility_policy"]),
+  );
+  const fixedMenuAudioCache = asRecord(first(accessibility, ["fixed_menu_audio_cache", "menu_audio_cache", "fixed_menus"]));
+  const fixedMenuScopes = toTextList(first(fixedMenuAudioCache, ["scope", "menus", "menu_ids"]));
+  const audioCacheTtl = first(audioCache, ["ttl_seconds", "ttl"]);
+
+  const phoneNumber = first(channel, ["number", "phone_number", "sender_id"]) || first(adminState, ["sender_id", "phone_number"]);
+  const wabaId =
+    first(channel, ["waba_id", "whatsapp_business_account_id", "business_account_id"]) ||
+    first(channelAccount, ["waba_id", "id", "business_account_id"]) ||
+    first(adminAccount, ["waba_id", "id", "business_account_id"]) ||
+    first(adminState, ["waba_id", "whatsapp_business_account_id"]);
+  const phoneNumberId = first(channel, ["phone_number_id", "meta_phone_number_id"]) || first(adminState, ["phone_number_id"]);
+  const webhook =
+    first(channel, ["webhook", "inbound_webhook", "webhook_url"]) ||
+    first(channel, ["status_webhook", "status_callback_url", "delivery_webhook"]);
+  const approvedTemplates = countReady(first(summary, ["operational_approved", "approved", "approved_templates"]));
+  const pendingTemplates = countReady(first(summary, ["operational_pending", "pending", "pending_templates"]));
+  const blockingTemplates = countReady(first(summary, ["operational_blocking", "blocking", "rejected", "rejected_templates"]));
+  const fallbackTemplates = uniqueText(
+    [
+      first(blueprint, ["fallback_templates", "fallback_template_ids", "fallbacks", "fallback_strategy"]),
+      first(summary, ["fallback_templates", "fallback_template_ids"]),
+      first(policy, ["fallback_templates", "template_fallbacks", "fallback_strategy", "outside_24h_fallback"]),
+    ].flatMap(toTextList),
+  );
+  const qaScenarioCount = countReady(first(qaPlaybook, ["scenario_count", "total", "total_scenarios"]));
+  const qaReadyCount = countReady(first(qaPlaybook, ["ready_count", "executable_now", "ready_scenarios"]));
+  const qaRecommended = uniqueText(
+    [
+      first(qaPlaybook, ["recommended_order", "recommended_next_actions", "next_actions"]),
+      asArray(qaPlaybook.scenarios).map((scenario) => first(asRecord(scenario), ["label", "id", "name"])),
+    ].flatMap(toTextList),
+  );
+  const audioCacheExposed = Object.keys(audioCache).length > 0 || Object.keys(audioInput).length > 0 || Object.keys(voiceCalls).length > 0;
+  const audioCacheReady =
+    boolish(first(audioCache, ["enabled", "ready", "cache_enabled", "transcription_cache_enabled"])) ||
+    boolish(first(audioInput, ["cache_enabled", "transcription_cache_enabled", "enabled"])) ||
+    boolish(first(voiceCalls, ["enabled"]));
+  const accessibilityExposed = Object.keys(accessibility).length > 0;
+  const accessibilityReady =
+    boolish(first(accessibility, ["enabled", "ready", "screen_reader_ready", "audio_transcription", "voice_notes_transcription"])) ||
+    toTextList(first(accessibility, ["features", "supported_features", "modes"])).length > 0;
+
+  const checks = [
+    {
+      id: "number",
+      label: "Numero productivo",
+      ok: Boolean(phoneNumber),
+      detail: phoneNumber || first(channel, ["reason_code", "status"]) || "Sin numero enviado por el contrato.",
+      action: phoneNumber ? undefined : "Conectar numero o sender productivo.",
+    },
+    {
+      id: "waba",
+      label: "WABA / Meta",
+      ok: Boolean(wabaId || phoneNumberId),
+      detail: wabaId || phoneNumberId || "Falta cuenta de WhatsApp Business o phone_number_id.",
+      action: wabaId || phoneNumberId ? undefined : "Completar registro embebido de Meta.",
+    },
+    {
+      id: "templates",
+      label: "Plantillas operativas",
+      ok: approvedTemplates > 0 && blockingTemplates === 0,
+      detail: `${formatNumber(approvedTemplates)} aprobadas - ${formatNumber(pendingTemplates)} pendientes - ${formatNumber(blockingTemplates)} bloqueantes`,
+      action: approvedTemplates > 0 && blockingTemplates === 0 ? undefined : "Aprobar, refrescar o activar fallback.",
+    },
+    {
+      id: "webhook",
+      label: "Webhook",
+      ok: Boolean(webhook),
+      detail: webhook || first(channel, ["status_webhook", "webhook_status", "reason_code"]) || "Sin endpoint operativo.",
+      action: webhook ? undefined : "Publicar webhook inbound/status.",
+    },
+  ];
+
+  if (audioCacheExposed) {
+    checks.push({
+      id: "audio-cache",
+      label: "Audio cache",
+      ok: audioCacheReady,
+      detail:
+        first(audioCache, ["status", "cache_status", "ttl_seconds", "ttl"]) ||
+        first(audioInput, ["status", "provider", "endpoint"]) ||
+        first(voiceCalls, ["status", "provider"]) ||
+        "Contrato de audio expuesto.",
+      action: audioCacheReady ? undefined : "Activar cache o transcripcion de notas de voz.",
+    });
+  }
+
+  if (accessibilityExposed) {
+    checks.push({
+      id: "accessibility",
+      label: "Accesibilidad",
+      ok: accessibilityReady,
+      detail:
+        toTextList(first(accessibility, ["features", "supported_features", "modes"])).slice(0, 3).join(" + ") ||
+        first(accessibility, ["status", "policy", "label"]) ||
+        "Politica de accesibilidad expuesta.",
+      action: accessibilityReady ? undefined : "Completar reglas de accesibilidad conversacional.",
+    });
+  }
+
+  const completed = checks.filter((check) => check.ok).length;
+  const nextActions = uniqueText([
+    ...checks.filter((check) => !check.ok && check.action).map((check) => check.action as string),
+    ...asArray(blueprint.next_actions).map((item) => {
+      const action = asRecord(item);
+      return readText(first(action, ["next_action", "label", "friendly_name", "id"]));
+    }).filter((item): item is string => Boolean(item)),
+    ...toTextList(first(adminPanel, ["next_actions", "recommended_next_actions"])),
+  ]).slice(0, 4);
+  const readinessPercent = Math.round((completed / Math.max(checks.length, 1)) * 100);
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Estado operativo WhatsApp
+            </CardTitle>
+            <CardDescription>
+              Checklist compacto para activar, probar y operar el canal sin salir del panel.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill tone={completed === checks.length ? "ready" : "warning"}>
+              {completed}/{checks.length} listo
+            </StatusPill>
+            <StatusPill>{readinessPercent}% readiness</StatusPill>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Progress value={readinessPercent} className="h-2" aria-label="Readiness operativo WhatsApp" />
+        <div role="list" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {checks.map((check) => (
+            <OperationalCheck
+              key={check.id}
+              label={check.label}
+              ok={check.ok}
+              detail={check.detail}
+              action={check.action}
+              optional={check.id === "audio-cache" || check.id === "accessibility"}
+            />
+          ))}
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente accion</p>
+            <div className="mt-3 space-y-2">
+              {(nextActions.length ? nextActions : ["Ejecutar QA playbook y monitorear plantillas aprobadas."]).map((item) => (
+                <div key={item} className="flex gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+                  <Route className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="font-medium text-foreground">{formatKey(item)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plantillas y fallback</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Metric label="OK" value={formatNumber(approvedTemplates)} tone="ready" />
+              <Metric label="Pend." value={formatNumber(pendingTemplates)} tone={pendingTemplates ? "warning" : "neutral"} />
+              <Metric label="Block" value={formatNumber(blockingTemplates)} tone={blockingTemplates ? "danger" : "ready"} />
+            </div>
+            {fallbackTemplates.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {fallbackTemplates.slice(0, 4).map((item) => (
+                  <StatusPill key={item} tone="ready">
+                    Fallback: {formatKey(item)}
+                  </StatusPill>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                Sin fallback explicito en el contrato; usar plantillas aprobadas para mensajes fuera de 24h.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">QA playbook</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Metric label="Ready" value={formatNumber(qaReadyCount)} tone={qaReadyCount ? "ready" : "warning"} />
+              <Metric label="Casos" value={formatNumber(qaScenarioCount)} />
+              <Metric label="Runbook" value={qaPlaybook.local_command ? "Si" : "No"} tone={qaPlaybook.local_command ? "ready" : "neutral"} />
+            </div>
+            {qaRecommended.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {qaRecommended.slice(0, 4).map((item) => (
+                  <StatusPill key={item}>{formatKey(item)}</StatusPill>
+                ))}
+              </div>
+            ) : null}
+            {qaPlaybook.local_command ? (
+              <p className="mt-3 break-all rounded-xl border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                {String(qaPlaybook.local_command)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Audio inclusivo</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Metric label="Cache" value={audioCacheReady ? "Activo" : "Revisar"} tone={audioCacheReady ? "ready" : "warning"} />
+              <Metric label="Menus" value={fixedMenuScopes.length || (fixedMenuAudioCache.enabled ? 1 : 0)} tone={fixedMenuAudioCache.enabled ? "ready" : "neutral"} />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              Menus fijos con audio cacheado para usuarios con discapacidad visual o motriz, sin regenerar TTS en cada consulta.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {fixedMenuScopes.slice(0, 5).map((item) => (
+                <StatusPill key={item} tone="ready">{formatKey(item)}</StatusPill>
+              ))}
+              {audioCacheTtl ? <StatusPill>TTL {String(audioCacheTtl)}s</StatusPill> : null}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) => {
   const channel = experience.channel;
   const rules = experience.enterprise_rules;
@@ -1155,7 +1475,7 @@ const TemplateBlueprintPanel = ({
               </div>
             </div>
             <div className="grid gap-2 lg:grid-cols-2">
-              {qaScenarios.slice(0, 6).map((scenario) => {
+              {qaScenarios.map((scenario) => {
                 const templateState = asRecord(scenario.template_state);
                 const webviewState = asRecord(scenario.webview_state);
                 const metaCoverage = asRecord(scenario.meta_flow_coverage);
@@ -1172,7 +1492,7 @@ const TemplateBlueprintPanel = ({
                     </div>
                     <p className="text-sm font-semibold text-foreground">{String(scenario.label || scenario.id)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {asArray(scenario.covers).slice(0, 5).map(String).map(formatKey).join(" · ")}
+                      {asArray(scenario.covers).slice(0, 5).map(String).map(formatKey).join(" / ")}
                     </p>
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       <Metric label="Templates OK" value={formatNumber(templateState.approved)} tone={asNumber(templateState.blocking) ? "danger" : "ready"} />
@@ -1618,6 +1938,7 @@ export default function WhatsappOperationsHub({
         </div>
       </div>
 
+      <OperationalReadinessPanel experience={experience} />
       {!channelEnabled ? <SetupChecklist experience={experience} /> : null}
       <ChannelHealth experience={experience} tenantSlug={tenantSlug} />
       <EnterpriseRules experience={experience} />

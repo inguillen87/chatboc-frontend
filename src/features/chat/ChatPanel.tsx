@@ -16,6 +16,7 @@ import {
   extractChatBootstrapReplyText,
   normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
+  submitWidgetAssistedOrder,
   submitLeadCapture,
   type LeadCaptureNextAction,
   type LeadCaptureResponse,
@@ -65,6 +66,9 @@ type StandaloneChatPanelProps = Omit<FeatureChatPanelProps, 'variant'>;
 
 const isHumanRequest = (text: string) => /human|persona|operador|agente/i.test(text);
 const HIGH_INTENT_TERMS = ['checkout', 'pedido', 'derivar_humano', 'humano', 'reclamo', 'estado'];
+const WIDGET_ASSISTED_ORDER_TERMS =
+  /\b(pedido|cotiza|cotizacion|cotización|presupuesto|comprar|compra|stock|precio|factura|recibo|boleta|certificado|comprobante)\b/i;
+const WIDGET_QUANTITY_HINT = /\b\d+\s*(x|un|una|unidad|unidades|caja|cajas|bolsa|bolsas|kg|litro|litros|metro|metros)?\b/i;
 
 type LeadFieldErrors = Record<string, string>;
 
@@ -658,6 +662,26 @@ function StandaloneChatPanel({
     return HIGH_INTENT_TERMS.some((term) => text.includes(term));
   };
 
+  const shouldCreateWidgetAssistedOrder = (candidate: {
+    text?: string;
+    intent?: string | null;
+    actionId?: string | null;
+    hasAttachment?: boolean;
+  }) => {
+    const vertical = resolvedContext.tipoChat?.toLowerCase();
+    const sector = resolvedContext.sector?.toLowerCase();
+    const isCommerceContext = vertical === 'pyme' || sector === 'empresas';
+    if (!isCommerceContext) return false;
+    if (candidate.hasAttachment) return true;
+
+    const intentText = `${candidate.intent ?? ''} ${candidate.actionId ?? ''}`.toLowerCase();
+    if (/(pedido|order|quote|cotiza|checkout|compra|catalogo|catalog)/.test(intentText)) return true;
+
+    const text = candidate.text?.trim() || '';
+    if (!text) return false;
+    return WIDGET_ASSISTED_ORDER_TERMS.test(text) && WIDGET_QUANTITY_HINT.test(text);
+  };
+
   const submitLead = async (
     config: ChatLeadCaptureConfig,
     values: Record<string, unknown>,
@@ -793,7 +817,7 @@ function StandaloneChatPanel({
     }
     if (hasRuntimeChat && resolvedChatBootstrap) {
       void (async () => {
-        try {
+        const runRuntimeChat = async () => {
           const response = await sendChatBootstrapMessage(
             resolvedChatBootstrap,
             payload,
@@ -819,6 +843,51 @@ function StandaloneChatPanel({
               timestamp: new Date().toISOString(),
             },
           ]);
+        };
+
+        try {
+          const useAssistedOrder = shouldCreateWidgetAssistedOrder({
+            text,
+            intent: payload.intent,
+            actionId: payload.action_id,
+            hasAttachment,
+          });
+          if (useAssistedOrder) {
+            try {
+              const assistedResult = await submitWidgetAssistedOrder(
+                resolvedChatBootstrap,
+                {
+                  text,
+                  attachmentFile: payload.attachmentFile ?? null,
+                  attachmentInfo: payload.attachmentInfo,
+                  contactNotes: text || (hasAttachment ? 'Archivo enviado desde el widget publico' : null),
+                },
+                resolvedContext.tenantSlug,
+                payload,
+              );
+              if (assistedResult) {
+                setLeadResult(assistedResult);
+                onRuntimeResult?.(assistedResult.raw ?? assistedResult, assistedResult);
+                setRuntimeReplies([]);
+                const assistedReply = extractChatBootstrapReplyText(assistedResult.raw) || assistedResult.message_body;
+                if (assistedReply) {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: `a-${Date.now()}`,
+                      role: 'assistant',
+                      text: assistedReply,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ]);
+                }
+                return;
+              }
+            } catch (assistedError) {
+              console.warn('[ChatPanel] No se pudo crear pedido asistido desde widget; se usa runtime normal.', assistedError);
+            }
+          }
+          await runRuntimeChat();
         } catch {
           const errorText = runtimeUnavailableDescription || runtimeUnavailableTitle;
           if (!errorText) return;
