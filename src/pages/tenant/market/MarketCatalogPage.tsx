@@ -87,6 +87,86 @@ const ASSISTED_FIRST_MODES = [
   },
 ];
 
+const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
+  contract_version: 'marketplace.assisted_intake_entry.v1',
+  mode: 'assisted_first',
+  title: 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable',
+  summary:
+    'Funciona aunque el catalogo este vacio: la IA separa articulos, documentos, reclamos o datos de contacto y deja todo listo para revisar desde el CRM.',
+  anonymous_intake: true,
+  catalog_matching: true,
+  show_on_empty_catalog: true,
+  submit: {
+    contract_version: 'marketplace.assisted_intake_submit.v1',
+    method: 'POST',
+    endpoint: '/api/pedidos/from-file?origen=marketplace',
+    content_type: 'multipart/form-data',
+    tenant_fields: ['X-Tenant'],
+    headers: ['X-Tenant', 'X-Checkout-Origin'],
+    file_field: 'archivo',
+    text_field: 'pedido_text',
+    document_type_field: 'document_type',
+    contact_fields: ['contact_name', 'contact_phone', 'contact_email', 'contact_notes'],
+    accepted_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'],
+    accepted_extensions: ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt'],
+    max_file_mb: 8,
+    max_text_chars: 4000,
+  },
+  input_examples: [
+    'Foto de una nota manuscrita',
+    'Pedido pegado desde WhatsApp',
+    'Boleta, comprobante o certificado',
+    'Reclamo vecinal con direccion',
+  ],
+  text_examples: [
+    {
+      id: 'fallback_hardware_order',
+      label: 'Ferreteria',
+      document_type: 'quote_request',
+      text: '2 chapas galvanizadas\n1 caja de clavos punta paris\n3 bolsas de cemento',
+    },
+    {
+      id: 'fallback_municipal_claim',
+      label: 'Reclamo',
+      document_type: 'service_request',
+      text: 'Luminaria quemada en Don Bosco 55 esquina Sarmiento. De noche queda muy oscuro.',
+    },
+  ],
+  document_types: [
+    { id: 'order_note', label: 'Nota de pedido', helper: 'Lista de productos, cantidades o materiales.' },
+    { id: 'handwritten_order', label: 'Nota manuscrita', helper: 'Foto de papel o mostrador.' },
+    { id: 'quote_request', label: 'Cotizacion', helper: 'Pedido para presupuestar o revisar stock.' },
+    { id: 'receipt', label: 'Factura / recibo', helper: 'Pago, factura, recibo o constancia.' },
+    { id: 'tax_bill', label: 'Boleta / impuesto', helper: 'Tasa, impuesto, padron o vencimiento.' },
+    { id: 'certificate', label: 'Certificado / tramite', helper: 'Documentacion o permiso para validar.' },
+    { id: 'service_request', label: 'Reclamo vecinal', helper: 'Bache, luminaria, agua, limpieza o solicitud municipal.' },
+  ],
+  pipeline: [
+    { id: 'capture', label: 'Subida publica', description: 'Foto, PDF, texto o nota escrita sin registro.' },
+    { id: 'ai_parse', label: 'IA discrimina', description: 'Productos, cantidades, rubro, tramite y datos faltantes.' },
+    { id: 'crm_handoff', label: 'CRM operativo', description: 'El admin recibe resumen, archivo original y respuesta sugerida.' },
+    { id: 'public_follow_up', label: 'Seguimiento', description: 'Link seguro para continuar por WhatsApp, email o chat.' },
+  ],
+  crm_receives: [
+    'Archivo o texto original',
+    'Resumen IA con articulos, reclamos o datos detectados',
+    'Cruce con catalogo cuando exista',
+    'Datos faltantes y respuesta sugerida',
+    'Link publico de seguimiento',
+  ],
+  empty_state: {
+    title: 'Catalogo sin productos visibles, pedido asistido disponible.',
+    description:
+      'Aunque no haya productos publicados todavia, podes subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione desde el CRM.',
+    primary_cta: 'Subir pedido o documento',
+  },
+  frontend_contract: {
+    render_as: 'marketplace_assisted_intake',
+    show_quick_examples: true,
+    fallback: true,
+  },
+};
+
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [promotions, setPromotions] = useState<MarketCatalogResponse['promotions']>(null);
@@ -158,11 +238,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
     return `${parts.join(' - ')}.`;
   }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
-  const showAssistedIntake = Boolean(assistedIntake) && frontendContract?.show_assisted_intake !== false;
+  const assistedIntakeDisabled = frontendContract?.show_assisted_intake === false;
+  const effectiveAssistedIntake = assistedIntakeDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
+  const showAssistedIntake = Boolean(effectiveAssistedIntake);
   const assistedFirstActive = showAssistedIntake && !isLoading && (
-    assistedIntake?.mode === 'assisted_first' ||
+    effectiveAssistedIntake?.mode === 'assisted_first' ||
     totalUnfiltered === 0 ||
-    (products.length === 0 && assistedIntake?.show_on_empty_catalog !== false)
+    (products.length === 0 && effectiveAssistedIntake?.show_on_empty_catalog !== false)
   );
 
   useEffect(() => {
@@ -354,7 +436,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           id={ASSISTED_UPLOAD_ANCHOR_ID}
           tenantSlug={tenantSlug}
           variant="marketplace"
-          intakeEntry={assistedIntake}
+          intakeEntry={effectiveAssistedIntake}
           onProcessed={(response) => {
             const requestId = response?.pedido_id ?? response?.lead_id;
             toast({
@@ -512,10 +594,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <div className="max-w-2xl">
               <Badge variant="secondary" className="mb-3">Compra asistida activa</Badge>
               <h3 className="text-xl font-semibold">
-                {assistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
+                {effectiveAssistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                {assistedIntake?.empty_state?.description ??
+                {effectiveAssistedIntake?.empty_state?.description ??
                   'El catalogo puede estar en preparacion o la busqueda puede no coincidir. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite, crea la solicitud en CRM y genera seguimiento publico.'}
               </p>
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
@@ -546,7 +628,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               </Button>
               <Button type="button" onClick={scrollToAssistedUpload}>
                 <UploadIcon className="mr-2 h-4 w-4" />
-                {assistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
+                {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
               </Button>
               {shareMeta?.whatsappShareUrl ? (
                 <Button asChild>

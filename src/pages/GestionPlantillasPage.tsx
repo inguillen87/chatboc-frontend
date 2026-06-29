@@ -280,7 +280,7 @@ const GestionPlantillasPage: React.FC = () => {
                     Actualizar
                   </Button>
                   <Button asChild type="button" variant="ghost" className="rounded-[8px]">
-                    <Link to="/integraciones/whatsapp/embedded-signup">Onboarding WhatsApp</Link>
+                    <Link to="/integracion/whatsapp/connect">Onboarding WhatsApp</Link>
                   </Button>
                 </div>
               </div>

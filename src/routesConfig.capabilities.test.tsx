@@ -60,4 +60,12 @@ describe('routesConfig route capabilities', () => {
     expect(content).toMatch(/path:\s*'\/admin\/catalog'[\s\S]*?requiredAllCapabilities:\s*\['market\.catalog\.write'\]/);
     expect(content).toMatch(/path:\s*'\/catalog-mappings\/new'[\s\S]*?requiredAllCapabilities:\s*\['market\.catalog\.write'\]/);
   });
+
+  it('links template operations to the canonical WhatsApp onboarding route', () => {
+    const templatesPagePath = path.resolve(__dirname, 'pages/GestionPlantillasPage.tsx');
+    const content = fs.readFileSync(templatesPagePath, 'utf8');
+
+    expect(content).toContain('to="/integracion/whatsapp/connect"');
+    expect(content).not.toContain('/integraciones/whatsapp/embedded-signup');
+  });
 });

@@ -155,4 +155,41 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir nota, pedido o reclamo/i })).toBeDisabled();
   });
+
+  it('keeps a local assisted intake fallback when the catalog contract omits it', async () => {
+    fetchMarketCatalogMock.mockResolvedValueOnce({
+      products: [],
+      promotions: { items: [] },
+      facets: { categories: [], promotion_count: 0 },
+      sort_options: [],
+      total: 0,
+      total_unfiltered: 0,
+      frontend_contract: {
+        show_assisted_intake: true,
+      },
+      publicCartUrl: 'https://chatboc.ar/t/junin/cart',
+      whatsappShareUrl: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Pedido asistido por IA')).toBeInTheDocument();
+    expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
+    expect(screen.getByText('Subida publica')).toBeInTheDocument();
+    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir nota, pedido o reclamo/i })).toBeEnabled();
+  });
 });
