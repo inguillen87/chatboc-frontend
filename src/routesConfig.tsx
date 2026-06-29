@@ -33,6 +33,7 @@ const UsuariosPage = React.lazy(() => import('@/pages/UsuariosPage'));
 import { buildTenantPath, TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getReservedPublicSlugRedirect } from '@/utils/publicRoutes';
+import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 const ProductCatalog = React.lazy(() => import('@/pages/ProductCatalog'));
 const MunicipalMessageMetrics = React.lazy(() => import('@/pages/MunicipalMessageMetrics'));
 const NotificationSettings = React.lazy(() => import('@/pages/NotificationSettings'));
@@ -337,9 +338,21 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
 
   // Explicit aliases to match user mental model
-  ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/inbox', { element: <TicketInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/reclamos', {
+    element: <TicketsPanel />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
+  }),
+  ...withTenantPrefixes('/:tenant/tickets', {
+    element: <TicketsPanel />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
+  }),
+  ...withTenantPrefixes('/:tenant/inbox', {
+    element: <TicketInboxPage />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
+  }),
   ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
@@ -514,10 +527,15 @@ const routes: RouteConfig[] = [
     path: '/tickets',
     element: <TicketsPanel />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: ['tickets.read'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  { path: '/tickets/board', element: <TicketsBoardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  {
+    path: '/tickets/board',
+    element: <TicketsBoardPage />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
+  },
   { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },

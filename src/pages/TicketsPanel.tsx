@@ -5,11 +5,15 @@ import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import NewTicketsPanel from '@/components/tickets/NewTicketsPanel';
 import { apiClient } from '@/api/client';
 import { Button } from '@/components/ui/button';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useTenant } from '@/context/TenantContext';
 import { TicketProvider } from '@/context/TicketContext';
 import useRequireRole from '@/hooks/useRequireRole';
+import { useUser } from '@/hooks/useUser';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import type { Role } from '@/utils/roles';
+import { hasRequiredRole, type Role } from '@/utils/roles';
+import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 
 const TicketsIdentityCoverageAlert = () => {
   const { currentSlug } = useTenant();
@@ -79,6 +83,14 @@ interface TicketsPanelPageProps {
 
 const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanelPageProps) => {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
+  const { user } = useUser();
+  const { capabilities, hasAnyCapability } = useCapabilities();
+
+  const hasDeclaredCapabilities = capabilities.length > 0;
+  const canReadTickets =
+    !hasDeclaredCapabilities ||
+    hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin']) ||
+    hasAnyCapability(TICKET_READ_CAPABILITIES);
 
   const rootClassName = embedded
     ? 'flex min-h-[760px] h-[calc(100dvh-8rem)] flex-col overflow-hidden bg-background text-foreground'
@@ -100,6 +112,22 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
             <EnterpriseTopNav />
           </>
         ) : null}
+        {!canReadTickets ? (
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center p-4" data-testid="tickets-access-denied">
+            <ViewState
+              status="denied"
+              title="Reclamos no habilitado para esta cuenta"
+              description="Tu usuario tiene permisos declarados, pero no incluye acceso a la mesa de tickets. Pedile al administrador que active tickets.read o reclamos.read para este perfil."
+              action={
+                <Button type="button" variant="outline" onClick={() => window.location.assign('/perfil')}>
+                  Volver al panel
+                </Button>
+              }
+              className="w-full max-w-2xl bg-card/80"
+            />
+          </div>
+        ) : (
+          <>
         <TicketsIdentityCoverageAlert />
         <div className="relative flex h-full min-h-0 w-full flex-1">
           <SectionErrorBoundary
@@ -112,6 +140,8 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
             </TicketProvider>
           </SectionErrorBoundary>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

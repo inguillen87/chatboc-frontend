@@ -42,6 +42,7 @@ import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 
 interface AdminNavLink {
   to: string;
@@ -95,7 +96,7 @@ const Navbar: React.FC = () => {
   const { user } = useUser();
   const cartCount = useCartCount();
   const { currentSlug } = useTenant();
-  const { capabilities } = useCapabilities();
+  const { capabilities, hasAnyCapability } = useCapabilities();
 
   const isLanding = location.pathname === "/";
   const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
@@ -122,13 +123,13 @@ const Navbar: React.FC = () => {
         to: "/tickets",
         label: "Tickets",
         icon: TicketIcon,
-        requiredAnyCapabilities: ["tickets.read", "crm.tickets.read", "claims.read"],
+        requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
       },
       {
         to: "/pedidos",
         label: "Pedidos",
         icon: ClipboardList,
-        requiredAnyCapabilities: ["orders.read", "market.orders.read", "commerce.orders.read"],
+        requiredAnyCapabilities: ORDER_READ_CAPABILITIES,
       },
       {
         to: "/usuarios",
@@ -176,8 +177,7 @@ const Navbar: React.FC = () => {
 
     links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });
 
-    const normalizedCapabilities = capabilities.map((capability) => capability.toLowerCase());
-    const hasBackendCapabilities = normalizedCapabilities.length > 0;
+    const hasBackendCapabilities = capabilities.length > 0;
 
     return links.filter((link) => {
       if (link.roles?.length && !hasRequiredRole(userRole, link.roles)) {
@@ -188,11 +188,9 @@ const Navbar: React.FC = () => {
         return true;
       }
 
-      return link.requiredAnyCapabilities.some((requiredCapability) =>
-        normalizedCapabilities.includes(requiredCapability.toLowerCase()),
-      );
+      return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
+  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
 
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),

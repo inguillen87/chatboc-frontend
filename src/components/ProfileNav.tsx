@@ -10,23 +10,37 @@ import {
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
+import { useCapabilities } from '@/context/CapabilitiesContext';
 import { hasRequiredRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
 import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
+import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 
 interface NavItem {
   label: string;
   path: string;
   roles?: string[];
   tipo?: 'pyme' | 'municipio';
+  requiredAnyCapabilities?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Panel de Tickets', path: '/tickets', roles: ['admin', 'empleado', 'super_admin'] },
-  { label: 'Pedidos', path: '/pedidos', roles: ['admin', 'empleado', 'super_admin'], tipo: 'pyme' },
+  {
+    label: 'Panel de Tickets',
+    path: '/tickets',
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
+  },
+  {
+    label: 'Pedidos',
+    path: '/pedidos',
+    roles: ['admin', 'empleado', 'super_admin'],
+    tipo: 'pyme',
+    requiredAnyCapabilities: ORDER_READ_CAPABILITIES,
+  },
   { label: 'Usuarios', path: '/usuarios', roles: ['admin', 'empleado', 'super_admin'] },
   { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin', 'super_admin'], tipo: 'pyme' },
   { label: 'Métricas', path: '/pyme/metrics', roles: ['admin', 'super_admin'], tipo: 'pyme' },
@@ -43,6 +57,7 @@ export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const { capabilities, hasAnyCapability } = useCapabilities();
   const { currentSlug } = useTenant();
   const { ticketUnreadCount, orderUnreadCount } = useRealtimeAlerts();
 
@@ -63,6 +78,9 @@ export default function ProfileNav() {
   }
   const tipo = user.tipo_chat as 'pyme' | 'municipio';
 
+  const hasDeclaredCapabilities = capabilities.length > 0;
+  const isTenantOwnerLike = hasRequiredRole(user.rol, ['tenant_admin', 'superadmin']);
+
   const items = NAV_ITEMS.filter((it) => {
     // Check endpoint availability for relevant items
     if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
@@ -72,8 +90,18 @@ export default function ProfileNav() {
     if (it.path === '/municipal/incidents' && incidentsMapAvailable === false) return false; // Check for Mapa
     if (it.path === '/admin/encuestas' && !FEATURE_ENCUESTAS) return false;
 
-    // Standard role and tipo filtering
-    return (!it.roles || hasRequiredRole(user.rol, it.roles)) && (!it.tipo || it.tipo === tipo);
+    if (it.roles && !hasRequiredRole(user.rol, it.roles)) return false;
+    if (it.tipo && it.tipo !== tipo) return false;
+    if (
+      it.requiredAnyCapabilities?.length &&
+      hasDeclaredCapabilities &&
+      !isTenantOwnerLike &&
+      !hasAnyCapability(it.requiredAnyCapabilities)
+    ) {
+      return false;
+    }
+
+    return true;
   });
 
   // Sort items to ensure consistent order if needed, or adjust NAV_ITEMS order directly.

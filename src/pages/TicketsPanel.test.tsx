@@ -6,6 +6,8 @@ import TicketsPanelPage from '@/pages/TicketsPanel';
 
 const getIdentityCoverageMock = vi.fn();
 const trackFrontendEventMock = vi.fn();
+const useUserMock = vi.fn();
+const useCapabilitiesMock = vi.fn();
 
 vi.mock('@/hooks/useRequireRole', () => ({
   default: vi.fn(),
@@ -13,6 +15,14 @@ vi.mock('@/hooks/useRequireRole', () => ({
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'municipio-demo' }),
+}));
+
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => useUserMock(),
+}));
+
+vi.mock('@/context/CapabilitiesContext', () => ({
+  useCapabilities: () => useCapabilitiesMock(),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -49,6 +59,17 @@ describe('TicketsPanel request_id support surface', () => {
   beforeEach(() => {
     getIdentityCoverageMock.mockReset();
     trackFrontendEventMock.mockReset();
+    useUserMock.mockReset();
+    useCapabilitiesMock.mockReset();
+    useUserMock.mockReturnValue({
+      user: { rol: 'admin_municipio', tipo_chat: 'municipio' },
+      loading: false,
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
     vi.stubGlobal('navigator', {
       clipboard: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -100,5 +121,43 @@ describe('TicketsPanel request_id support surface', () => {
     expect(screen.queryByText('top-nav')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-panel-root')).toHaveClass('min-h-[760px]');
     expect(screen.getByTestId('tickets-panel-root')).toHaveClass('h-[calc(100dvh-8rem)]');
+  });
+
+  it('does not mount ticket data when an employee lacks ticket capabilities', async () => {
+    useUserMock.mockReturnValue({
+      user: { rol: 'empleado', tipo_chat: 'municipio' },
+      loading: false,
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
+    });
+
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+
+    expect(await screen.findByTestId('tickets-access-denied')).toBeInTheDocument();
+    expect(screen.queryByText('tickets-panel-body')).not.toBeInTheDocument();
+    expect(getIdentityCoverageMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps tenant admins inside the ticket desk even when fine-grained capabilities are partial', async () => {
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+    getIdentityCoverageMock.mockResolvedValueOnce({
+      contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-ok',
+      alert_count: 0,
+      slo_status: 'ok',
+      alerts: [],
+    });
+
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+
+    expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
+    expect(screen.queryByTestId('tickets-access-denied')).not.toBeInTheDocument();
   });
 });
