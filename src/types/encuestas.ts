@@ -49,6 +49,10 @@ export interface SurveyLiveQuestionResult {
 }
 
 export interface SurveyLiveResults {
+  contract_version?: string;
+  result_version?: number | string;
+  snapshot_version?: string;
+  updated_at?: string;
   total_respuestas: number;
   preguntas: Record<string, SurveyLiveQuestionResult>;
 }
@@ -124,6 +128,8 @@ export interface SurveyLivePublicQuestion {
 
 export interface SurveyLivePublicResultsPayload {
   contract_version?: string;
+  result_version?: number | string;
+  snapshot_version?: string;
   request_id?: string;
   slug?: string;
   slug_publico?: string;

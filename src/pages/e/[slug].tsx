@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
-import type { PublicResponsePayload, SurveyComment, SurveyLiveResults } from '@/types/encuestas';
+import type { PublicResponsePayload, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError } from '@/utils/api';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
@@ -64,6 +64,48 @@ const appendDemoVoteToLiveResults = (
   };
 };
 
+const isLiveResultsV2 = (
+  value: SurveyLiveResults | SurveyLivePublicResultsPayload | undefined,
+): value is SurveyLivePublicResultsPayload =>
+  Boolean(value?.contract_version === 'surveys.live_results.v2' && Array.isArray((value as SurveyLivePublicResultsPayload).preguntas));
+
+const toLegacyLiveResults = (
+  value: SurveyLiveResults | SurveyLivePublicResultsPayload | undefined,
+): SurveyLiveResults | undefined => {
+  if (!value) return undefined;
+  if (!isLiveResultsV2(value)) return value as SurveyLiveResults;
+
+  const preguntas: SurveyLiveResults['preguntas'] = {};
+  for (const question of value.preguntas ?? []) {
+    const questionId = question.id;
+    if (questionId === undefined || questionId === null) continue;
+    preguntas[String(questionId)] = {
+      tipo: String(question.tipo || 'opcion_unica'),
+      opciones: (question.opciones ?? []).map((option) => ({
+        id: option.id ?? option.value ?? '',
+        texto: String(option.texto ?? option.label ?? option.value ?? ''),
+        votos: Number(option.votos ?? option.value ?? 0) || 0,
+      })),
+    };
+  }
+
+  return {
+    contract_version: value.contract_version,
+    result_version: value.result_version,
+    snapshot_version: value.snapshot_version,
+    updated_at: value.updated_at,
+    total_respuestas: Number(value.total_respuestas ?? 0) || 0,
+    preguntas,
+  };
+};
+
+const getLivePayloadVersion = (payload?: SurveyLivePublicResultsPayload) => {
+  const resultVersion = Number(payload?.result_version);
+  if (Number.isFinite(resultVersion)) return resultVersion;
+  const updatedAt = Date.parse(String(payload?.updated_at || ''));
+  return Number.isFinite(updatedAt) ? updatedAt : 0;
+};
+
 const parseLiveRequestParams = (): SurveyLiveRequestParams => {
   const raw = safeSessionStorage.getItem(LIVE_FILTERS_STORAGE_KEY);
   if (!raw) return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
@@ -113,6 +155,7 @@ const PublicSurveyPage = () => {
   } = useSurveyPublic(slug, { tenantSlug });
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
+  const [socketLiveDashboard, setSocketLiveDashboard] = useState<SurveyLivePublicResultsPayload | undefined>(undefined);
   const [liveComments, setLiveComments] = useState<SurveyComment[]>([]);
   const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(true);
@@ -127,7 +170,7 @@ const PublicSurveyPage = () => {
   );
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
   const {
-    liveResults: liveDashboard,
+    liveResults: polledLiveDashboard,
     isLoading: isLoadingLiveDashboard,
     isFetching: isFetchingLiveDashboard,
     error: liveDashboardError,
@@ -140,6 +183,19 @@ const PublicSurveyPage = () => {
     tenantSlug,
     liveRequestParams,
   );
+  const hasActiveLiveFilters = Boolean(
+    liveRequestParams.canal ||
+      liveRequestParams.barrio ||
+      liveRequestParams.ciudad ||
+      liveRequestParams.provincia,
+  );
+  const liveDashboard = useMemo(() => {
+    if (!socketLiveDashboard || hasActiveLiveFilters) return polledLiveDashboard;
+    if (!polledLiveDashboard) return socketLiveDashboard;
+    return getLivePayloadVersion(socketLiveDashboard) >= getLivePayloadVersion(polledLiveDashboard)
+      ? socketLiveDashboard
+      : polledLiveDashboard;
+  }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
 
   useEffect(() => {
     safeSessionStorage.setItem(LIVE_FILTERS_STORAGE_KEY, JSON.stringify(liveRequestParams));
@@ -235,11 +291,17 @@ const PublicSurveyPage = () => {
       slug: liveSlug || '',
       enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
+          const legacyResults = toLegacyLiveResults(data);
           setLiveResults(
             isDemoParticipationSurvey && submitted && lastSubmission
-              ? appendDemoVoteToLiveResults(data, lastSubmission)
-              : data,
+              ? appendDemoVoteToLiveResults(legacyResults, lastSubmission)
+              : legacyResults,
           );
+          if (isLiveResultsV2(data)) {
+            setSocketLiveDashboard(data);
+          } else {
+            void refetchLiveDashboard();
+          }
       },
       onComment: (comment) => {
           setLiveComments((prev) => [comment, ...prev]);

@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from '@/config';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
-import { SurveyComment, SurveyLiveResults } from '@/types/encuestas';
+import { SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { enterpriseService } from '@/services/enterpriseService';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface UseSurveySocketOptions {
   slug: string;
   enabled?: boolean;
-  onUpdate?: (data: SurveyLiveResults) => void;
+  onUpdate?: (data: SurveyLiveResults | SurveyLivePublicResultsPayload) => void;
   onComment?: (comment: SurveyComment) => void;
 }
 
@@ -91,7 +91,7 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
       }
     };
 
-    const handleUpdate = (data: SurveyLiveResults) => {
+    const handleUpdate = (data: SurveyLiveResults | SurveyLivePublicResultsPayload) => {
       console.log('[SurveySocket] Received update:', data);
       onUpdateRef.current?.(data);
     };
@@ -105,6 +105,7 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
     safeOn(socket, 'disconnect', handleDisconnect);
     safeOn(socket, 'connect_error', handleConnectError);
     safeOn(socket, 'survey_update', handleUpdate);
+    safeOn(socket, 'survey_update_v2', handleUpdate);
     safeOn(socket, 'survey_comment', handleComment);
 
     return () => {
@@ -113,6 +114,7 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
         socket.off('disconnect', handleDisconnect);
         socket.off('connect_error', handleConnectError);
         socket.off('survey_update', handleUpdate);
+        socket.off('survey_update_v2', handleUpdate);
         socket.off('survey_comment', handleComment);
         socket.disconnect();
       }
