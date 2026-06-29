@@ -31,6 +31,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
@@ -444,32 +449,56 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-[8px] border border-border/70 bg-muted/30">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-semibold transition hover:bg-muted/50"
-            aria-expanded={advancedFiltersOpen}
-            onClick={() => setAdvancedFiltersOpen((current) => !current)}
+        <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
+              className="h-9 w-full justify-between rounded-[8px] px-3 text-sm font-semibold"
+            >
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                <span>Filtros avanzados</span>
+                {activeFilterLabels.length > 0 ? (
+                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">
+                    {activeFilterLabels.length}
+                  </span>
+                ) : null}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 transition-transform',
+                  advancedFiltersOpen && 'rotate-180',
+                )}
+              />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            sideOffset={8}
+            data-testid="sidebar-floating-filters"
+            className="w-[min(calc(100vw-2rem),28rem)] border-border/80 bg-background/95 p-3 shadow-2xl backdrop-blur-xl"
           >
-            <span className="inline-flex min-w-0 items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <span>Filtros avanzados</span>
-              {activeFilterLabels.length > 0 ? (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">
-                  {activeFilterLabels.length}
-                </span>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Filtro operativo</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                  Ajusta la bandeja sin perder de vista el acordeon de reclamos.
+                </p>
+              </div>
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
+                  onClick={resetFilters}
+                >
+                  Limpiar
+                </Button>
               ) : null}
-            </span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 shrink-0 transition-transform',
-                advancedFiltersOpen && 'rotate-180',
-              )}
-            />
-          </button>
-
-          {advancedFiltersOpen ? (
-            <div className="grid max-h-[min(44dvh,22rem)] grid-cols-1 gap-2 overflow-y-auto border-t border-border/70 p-2.5 sm:grid-cols-2">
+            </div>
+            <div className="grid max-h-[min(52dvh,24rem)] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
               <select
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.channel}
@@ -571,8 +600,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
             </div>
-          ) : null}
-        </div>
+          </PopoverContent>
+        </Popover>
         {hasActiveFilters ? (
           <div className="flex flex-wrap items-center gap-1.5 rounded-[8px] border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
             {activeFilterLabels.slice(0, 3).map((label) => (

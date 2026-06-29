@@ -36,6 +36,14 @@ const financePayload = {
     requires_session_token: true,
     session_state: 'present',
     server_to_server_confirmation_required: true,
+    requires_idempotency_key: true,
+    audit_trail_required: true,
+    highlights: [
+      'Nunca pedimos claves, PIN ni datos completos de tarjeta por chat.',
+      'Los documentos se revisan desde una vista protegida.',
+      'La confirmacion final llega desde el proveedor autorizado.',
+    ],
+    never_request_in_chat: ['clave bancaria', 'token de seguridad', 'CVV'],
   },
   steps: [
     { id: 'identity', label: 'Identidad y consentimiento', state: 'ready', detail: 'Validacion segura.' },
@@ -54,6 +62,24 @@ const financePayload = {
       label: 'Pedir ayuda de un asesor',
       enabled: true,
     },
+  },
+  experience: {
+    webview_flow_id: 'finance_credit_collection_signature',
+    templates: ['finance_credit_offer', 'finance_collection_due', 'finance_secure_payment'],
+    crm_queue: {
+      id: 'collections',
+      label: 'Cobranzas y planes de pago',
+      sla_minutes: 120,
+    },
+    user_tasks: [
+      'Revisar monto, concepto y vencimiento',
+      'Elegir pagar, pedir plan o firmar documento',
+      'Recibir comprobante y seguimiento trazable',
+    ],
+  },
+  events: {
+    success: ['payment_webhook', 'signature_completed', 'crm_operation_updated'],
+    analytics: ['collection_opened', 'payment_started', 'signature_completed'],
   },
 };
 
@@ -82,6 +108,11 @@ describe('FinanceWebviewPage', () => {
     expect(screen.getAllByText('Listo para revisar').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Datos sensibles fuera del chat')).toBeInTheDocument();
     expect(screen.getByText(/No se aceptan tarjetas, documentos completos ni claves dentro del chat/i)).toBeInTheDocument();
+    expect(screen.getByText('Proteccion de datos')).toBeInTheDocument();
+    expect(screen.getByText('Cobranzas y planes de pago')).toBeInTheDocument();
+    expect(screen.getByText('Pasos claros antes de confirmar')).toBeInTheDocument();
+    expect(screen.getByText('Revisar monto, concepto y vencimiento')).toBeInTheDocument();
+    expect(screen.getByText('Pago confirmado')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Continuar gestion segura/i })).toBeEnabled();
 
     await waitFor(() => {

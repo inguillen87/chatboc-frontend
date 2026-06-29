@@ -37,6 +37,10 @@ export interface FinanceWebviewResponse {
     requires_session_token: boolean;
     session_state: string;
     server_to_server_confirmation_required: boolean;
+    requires_idempotency_key?: boolean;
+    audit_trail_required?: boolean;
+    never_request_in_chat?: string[];
+    highlights?: string[];
   };
   steps: FinanceWebviewStep[];
   actions: {
@@ -51,6 +55,31 @@ export interface FinanceWebviewResponse {
       label: string;
       enabled: boolean;
     };
+  };
+  experience?: {
+    webview_flow_id?: string;
+    templates?: string[];
+    crm_queue?: {
+      id: string;
+      label: string;
+      sla_minutes?: number;
+    };
+    user_tasks?: string[];
+    service_level?: {
+      label?: string;
+      sla_minutes?: number;
+    };
+  };
+  compliance?: {
+    source_of_truth?: string;
+    consent_required?: boolean;
+    sensitive_data_policy?: string;
+    allowed_chat_inputs?: string[];
+    never_request_in_chat?: string[];
+  };
+  events?: {
+    success?: string[];
+    analytics?: string[];
   };
   analytics?: Record<string, unknown>;
 }

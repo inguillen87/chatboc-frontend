@@ -145,6 +145,8 @@ describe('Tickets Sidebar category density', () => {
     expect(
       screen.getByRole('button', { name: /filtros avanzados/i }),
     ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('sidebar-floating-filters')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
   });
 });

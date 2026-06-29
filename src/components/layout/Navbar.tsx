@@ -120,7 +120,7 @@ const Navbar: React.FC = () => {
 
     const links: AdminNavLink[] = [
       {
-        to: "/tickets",
+        to: "/perfil?tab=tickets",
         label: "Tickets",
         icon: TicketIcon,
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,

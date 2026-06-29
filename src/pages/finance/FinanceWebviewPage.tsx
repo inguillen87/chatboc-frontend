@@ -44,6 +44,26 @@ const statusCopy = (status: string) => {
   return status.replace(/_/g, ' ');
 };
 
+const eventCopy: Record<string, string> = {
+  identity_verified: 'Identidad validada',
+  onboarding_submitted: 'Alta enviada',
+  crm_lead_updated: 'CRM actualizado',
+  payment_webhook: 'Pago confirmado',
+  signature_completed: 'Firma completada',
+  crm_operation_updated: 'Operacion actualizada',
+  statement_opened: 'Resumen abierto',
+  support_case_linked: 'Soporte vinculado',
+  crm_contact_updated: 'Contacto actualizado',
+  transfer_validated: 'Transferencia validada',
+  transfer_receipt_ready: 'Comprobante listo',
+  insurance_claim_created: 'Siniestro creado',
+  attachments_uploaded: 'Adjuntos recibidos',
+  crm_case_updated: 'Caso actualizado',
+  financing_plan_requested: 'Plan solicitado',
+};
+
+const readableEvent = (event: string) => eventCopy[event] || event.replace(/_/g, ' ');
+
 const financeErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
     const requestSuffix = error.requestId ? ` Codigo de soporte: ${error.requestId}.` : '';
@@ -112,6 +132,16 @@ export default function FinanceWebviewPage() {
   const primary = payload?.actions.primary;
   const support = payload?.actions.support;
   const ready = primary?.enabled === true;
+  const securityHighlights = payload?.security_policy.highlights?.length
+    ? payload.security_policy.highlights
+    : [
+        'Nunca pedimos claves, PIN ni datos completos de tarjeta por chat.',
+        'Los documentos se revisan desde una vista protegida.',
+        'La confirmacion final llega desde el proveedor autorizado.',
+      ];
+  const userTasks = payload?.experience?.user_tasks ?? [];
+  const successEvents = payload?.events?.success ?? [];
+  const crmQueue = payload?.experience?.crm_queue;
 
   const load = async () => {
     if (!tenantSlug || !flow || !operationCode) {
@@ -169,6 +199,11 @@ export default function FinanceWebviewPage() {
                     <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-slate-200">
                       {payload.operation.code}
                     </span>
+                    {payload.experience?.webview_flow_id ? (
+                      <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-100">
+                        {payload.experience.webview_flow_id.replace(/_/g, ' ')}
+                      </span>
+                    ) : null}
                   </div>
                   <h2 className="text-3xl font-semibold tracking-normal sm:text-4xl">{payload.operation.title}</h2>
                   <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">{payload.operation.description}</p>
@@ -203,6 +238,26 @@ export default function FinanceWebviewPage() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-4 rounded-[8px] border border-white/10 bg-white/[0.04] p-4">
+                    <h3 className="font-semibold text-slate-50">Proteccion de datos</h3>
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                      {securityHighlights.slice(0, 4).map((item) => (
+                        <li key={item} className="flex gap-2">
+                          <ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-sky-200" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {crmQueue ? (
+                    <div className="mt-4 rounded-[8px] border border-amber-300/25 bg-amber-400/10 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-100/80">Mesa operativa</p>
+                      <p className="mt-1 font-semibold text-amber-50">{crmQueue.label}</p>
+                      {typeof crmQueue.sla_minutes === 'number' ? (
+                        <p className="mt-1 text-sm text-amber-100/75">SLA de referencia: {crmQueue.sla_minutes} min</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="mt-4 grid gap-3">
                     <Button disabled={!ready} className="h-11 rounded-[8px] bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-white/30">
                       {primary?.label || 'Continuar gestion segura'}
@@ -219,6 +274,56 @@ export default function FinanceWebviewPage() {
                 </aside>
               </div>
             </section>
+
+            {(userTasks.length || successEvents.length) ? (
+              <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+                {userTasks.length ? (
+                  <article className="rounded-[8px] border border-white/10 bg-white/[0.05] p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-sky-400/12 text-sky-100">
+                        <FileCheck2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Tu gestion</p>
+                        <h3 className="text-lg font-semibold">Pasos claros antes de confirmar</h3>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      {userTasks.map((task, index) => (
+                        <div key={task} className="flex gap-3 rounded-[8px] border border-white/10 bg-slate-950/35 p-3">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-semibold text-slate-950">
+                            {index + 1}
+                          </span>
+                          <p className="text-sm leading-6 text-slate-200">{task}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ) : null}
+
+                {successEvents.length ? (
+                  <article className="rounded-[8px] border border-white/10 bg-white/[0.05] p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-emerald-400/12 text-emerald-100">
+                        <LockKeyhole className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Seguimiento</p>
+                        <h3 className="text-lg font-semibold">Registro operativo y comprobantes</h3>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      {successEvents.slice(0, 4).map((event) => (
+                        <div key={event} className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-slate-950/35 px-3 py-2">
+                          <span className="text-sm text-slate-200">{readableEvent(event)}</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ) : null}
+              </section>
+            ) : null}
 
             <section className="grid gap-4 md:grid-cols-3">
               {payload.steps.map((step) => (
