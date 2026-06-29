@@ -40,6 +40,17 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain("path: '/t/:tenant/educacion/staff/inbox'");
   });
 
+  it('keeps WhatsApp webview and legacy marketplace redirects registered', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+
+    expect(content).toContain("path: '/catalogo/:slug'");
+    expect(content).toContain("path: '/checkout/:slug'");
+    expect(content).toContain("path: '/finanzas/:tenantSlug/:flow/:operationCode'");
+    expect(content).toContain("to={`/tracking/claim/${suffix}`}");
+    expect(content).toContain("to={`/t/${encodeURIComponent(slug)}${suffix}${location.search || ''}`}");
+  });
+
   it('guards WhatsApp setup and catalog management routes with explicit capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');

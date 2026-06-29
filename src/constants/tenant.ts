@@ -38,6 +38,8 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'analytics',
   'enterprise',
   'educacion',
+  'finance',
+  'finanzas',
   'settings',
   'config',
   'api',

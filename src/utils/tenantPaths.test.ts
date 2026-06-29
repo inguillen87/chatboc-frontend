@@ -29,6 +29,11 @@ describe('buildTenantPath', () => {
   it('should replace long-form tenant prefix with current slug', () => {
     expect(buildTenantPath('/tenant/perfil/pedidos', 'junin')).toBe('/t/junin/perfil/pedidos');
   });
+
+  it('should not treat finance webview reserved segments as tenant slugs', () => {
+    expect(buildTenantPath('/cart', 'finanzas')).toBe('/cart');
+    expect(buildTenantPath('/cart', 'finance')).toBe('/cart');
+  });
 });
 
 describe('buildTenantApiPath', () => {

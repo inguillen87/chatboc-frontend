@@ -91,6 +91,7 @@ const SmartPedidosWrapper = React.lazy(() => import('@/pages/SmartPedidosWrapper
 const SmartNotificationsWrapper = React.lazy(() => import('@/pages/SmartNotificationsWrapper'));
 const OrderTrackingPage = React.lazy(() => import('@/pages/pyme/pedidos/OrderTrackingPage'));
 const TrackingExperiencePage = React.lazy(() => import('@/pages/tracking/TrackingExperiencePage'));
+const FinanceWebviewPage = React.lazy(() => import('@/pages/finance/FinanceWebviewPage'));
 const AdminOrderDetailPage = React.lazy(() => import('@/pages/admin/AdminOrderDetailPage'));
 const ClientsPage = React.lazy(() => import('@/pages/pyme/crm/ClientsPage'));
 const ClientDetailPage = React.lazy(() => import('@/pages/pyme/crm/ClientDetailPage'));
@@ -169,8 +170,18 @@ const TwilioTicketTemplateRedirect = () => {
   const params = useParams();
   const location = useLocation();
   const ticketId = typeof params.ticketId === 'string' ? params.ticketId.trim() : '';
-  const suffix = `${ticketId}${location.search || ''}`;
-  return <Navigate to={`/chat/${suffix}`} replace />;
+  const suffix = `${encodeURIComponent(ticketId)}${location.search || ''}`;
+  return <Navigate to={`/tracking/claim/${suffix}`} replace />;
+};
+
+const LegacyPublicTenantSlugRedirect = ({ suffix }: { suffix: string }) => {
+  const params = useParams();
+  const location = useLocation();
+  const slug = typeof params.slug === 'string' ? params.slug.trim() : '';
+  if (!slug || TENANT_PLACEHOLDER_SLUGS.has(slug.toLowerCase())) {
+    return <Navigate to="/" replace />;
+  }
+  return <Navigate to={`/t/${encodeURIComponent(slug)}${suffix}${location.search || ''}`} replace />;
 };
 
 const resolvePreferredTenantForEducation = (): string | null => {
@@ -452,6 +463,9 @@ const routes: RouteConfig[] = [
   { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
   { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
   { path: '/t/chat/:ticketId', element: <TwilioTicketTemplateRedirect /> },
+  { path: '/catalogo/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/market" />, allowGuest: true },
+  { path: '/checkout/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/checkout" />, allowGuest: true },
+  { path: '/finanzas/:tenantSlug/:flow/:operationCode', element: <FinanceWebviewPage />, allowGuest: true },
   // Missing root integration route
   {
     path: '/:tenant/integracion',
