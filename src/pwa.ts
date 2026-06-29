@@ -8,6 +8,9 @@ declare global {
 }
 
 let refreshToastId: string | number | undefined;
+let localCleanupStarted = false;
+
+const LOCAL_PREVIEW_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
 const PUBLIC_RUNTIME_PREFIXES = [
   '/',
@@ -55,6 +58,29 @@ const shouldAutoApplyPublicRefresh = () => {
   );
 };
 
+const isLocalPreviewHost = () => {
+  if (typeof window === 'undefined') return false;
+  return LOCAL_PREVIEW_HOSTS.has(window.location.hostname);
+};
+
+const cleanupLocalPwaRuntime = async () => {
+  if (localCleanupStarted) return;
+  localCleanupStarted = true;
+
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+
+  if ('caches' in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+  }
+
+  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-local-pwa-cleaned')) {
+    sessionStorage.setItem('chatboc-local-pwa-cleaned', '1');
+    window.location.reload();
+  }
+};
+
 export const setupPWA = () => {
   if (typeof window === 'undefined') {
     return;
@@ -65,6 +91,13 @@ export const setupPWA = () => {
   }
 
   if (window.__CHATBOC_IFRAME__) {
+    return;
+  }
+
+  if (isLocalPreviewHost()) {
+    cleanupLocalPwaRuntime().catch((error) => {
+      console.warn('Local PWA cleanup skipped', error);
+    });
     return;
   }
 

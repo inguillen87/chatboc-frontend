@@ -36,13 +36,16 @@ describe('AccessRoute', () => {
     safeLocalStorageGetItemMock.mockReturnValue(null);
     useUserMock.mockReturnValue({ user: { rol: 'admin' }, loading: false });
     useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read', 'settings.tenant.write', 'market.catalog.write'],
       hasAllCapabilities: () => true,
       hasAnyCapability: () => true,
     });
   });
 
   it('redirects to /403 with capability context when missing requiredCapabilities', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'empleado' }, loading: false });
     useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
       hasAllCapabilities: () => false,
       hasAnyCapability: () => false,
     });
@@ -114,6 +117,7 @@ describe('AccessRoute', () => {
   it('allows Super Admin by role without requiring backend capabilities', () => {
     useUserMock.mockReturnValue({ user: { rol: 'super_admin' }, loading: false });
     useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
       hasAllCapabilities: () => false,
       hasAnyCapability: () => false,
     });
@@ -140,6 +144,7 @@ describe('AccessRoute', () => {
   it('allows Super Admin to bypass explicit route capabilities', () => {
     useUserMock.mockReturnValue({ user: { rol: 'super_admin' }, loading: false });
     useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
       hasAllCapabilities: () => false,
       hasAnyCapability: () => false,
     });
@@ -169,6 +174,7 @@ describe('AccessRoute', () => {
 
   it('redirects to /403 when missing one requiredAllCapabilities entry', () => {
     useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
       hasAllCapabilities: (required: string[]) => required.every((capability) => capability === 'tickets.read'),
       hasAnyCapability: () => true,
     });
@@ -197,6 +203,7 @@ describe('AccessRoute', () => {
 
   it('allows render when the user has at least one capability from requiredCapabilities', () => {
     useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
       hasAllCapabilities: () => false,
       hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
     });
@@ -218,5 +225,96 @@ describe('AccessRoute', () => {
     );
 
     expect(screen.getByText('analytics-ok')).toBeInTheDocument();
+  });
+
+  it('keeps legacy backoffice routes accessible when backend has not declared capabilities yet', () => {
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tickets']}>
+        <Routes>
+          <Route
+            path="/tickets"
+            element={
+              <AccessRoute roles={['tenant_admin', 'employee', 'superadmin']} requiredCapabilities={['tickets.read']}>
+                <div>tickets-legacy-capability-fallback-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('tickets-legacy-capability-fallback-ok')).toBeInTheDocument();
+  });
+
+  it('uses persisted user data while /api/me is still hydrating so navbar links do not fall into /403', () => {
+    useUserMock.mockReturnValue({ user: null, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+    safeLocalStorageGetItemMock.mockImplementation((key: string) => {
+      if (key === 'authToken') return 'stored-token';
+      if (key === 'user') {
+        return JSON.stringify({
+          rol: 'admin_municipio',
+          tenant_slug: 'junin',
+          tipo_chat: 'municipio',
+        });
+      }
+      return null;
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tickets']}>
+        <Routes>
+          <Route
+            path="/tickets"
+            element={
+              <AccessRoute roles={['tenant_admin', 'employee', 'superadmin']} requiredCapabilities={['tickets.read']}>
+                <div>tickets-persisted-user-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('tickets-persisted-user-ok')).toBeInTheDocument();
+  });
+
+  it('does not block tenant admins from operational modules when fine-grained capabilities are incomplete', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'admin_municipio' }, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tickets']}>
+        <Routes>
+          <Route
+            path="/tickets"
+            element={
+              <AccessRoute roles={['tenant_admin', 'employee', 'superadmin']} requiredCapabilities={['tickets.read']}>
+                <div>tickets-tenant-admin-operational-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('tickets-tenant-admin-operational-ok')).toBeInTheDocument();
   });
 });

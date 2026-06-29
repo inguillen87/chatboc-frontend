@@ -14,6 +14,17 @@ interface AccessRouteProps {
   requiredAllCapabilities?: string[];
 }
 
+const readStoredUser = () => {
+  try {
+    const raw = safeLocalStorage.getItem('user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const AccessRoute: React.FC<AccessRouteProps> = ({
   children,
   roles,
@@ -21,31 +32,34 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   requiredAllCapabilities,
 }) => {
   const { user, loading } = useUser();
-  const { hasAllCapabilities, hasAnyCapability } = useCapabilities();
+  const { capabilities = [], hasAllCapabilities, hasAnyCapability } = useCapabilities();
   const location = useLocation();
   const [profileSyncGrace, setProfileSyncGrace] = useState(true);
+  const storedUser = readStoredUser();
+  const effectiveUser = user ?? storedUser;
   const hasToken = Boolean(
     safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
   );
 
   useEffect(() => {
-    if (!hasToken || user) {
+    if (!hasToken || effectiveUser) {
       setProfileSyncGrace(false);
       return;
     }
     const timer = window.setTimeout(() => setProfileSyncGrace(false), 8000);
     return () => window.clearTimeout(timer);
-  }, [hasToken, user]);
+  }, [effectiveUser, hasToken]);
 
-  if (loading || (hasToken && !user && profileSyncGrace)) {
+  if (loading || (hasToken && !effectiveUser && profileSyncGrace)) {
     return <ViewState status="loading" title="Validando acceso" />;
   }
 
-  const role = normalizeRole(user?.rol);
-  const isSuperadmin = hasRequiredRole(user?.rol, ['superadmin']);
+  const role = normalizeRole(effectiveUser?.rol);
+  const isSuperadmin = hasRequiredRole(effectiveUser?.rol, ['superadmin']);
+  const isTenantAdmin = hasRequiredRole(effectiveUser?.rol, ['tenant_admin']);
 
   if (roles && roles.length > 0) {
-    if (!hasRequiredRole(user?.rol, roles)) {
+    if (!hasRequiredRole(effectiveUser?.rol, roles)) {
       return (
         <Navigate
           to="/403"
@@ -65,6 +79,8 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     return children;
   }
 
+  const hasDeclaredCapabilities = capabilities.length > 0;
+
   if (requiredAllCapabilities && requiredAllCapabilities.length > 0 && !hasAllCapabilities(requiredAllCapabilities)) {
     return (
       <Navigate
@@ -79,7 +95,13 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     );
   }
 
-  if (requiredCapabilities && requiredCapabilities.length > 0 && !hasAnyCapability(requiredCapabilities)) {
+  if (
+    requiredCapabilities &&
+    requiredCapabilities.length > 0 &&
+    hasDeclaredCapabilities &&
+    !isTenantAdmin &&
+    !hasAnyCapability(requiredCapabilities)
+  ) {
     return (
       <Navigate
         to="/403"

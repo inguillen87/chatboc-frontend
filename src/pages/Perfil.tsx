@@ -152,8 +152,9 @@ const PROVINCIAS = [
 
 const MODAL_PREVIEW_ROWS = 6;
 
-const slugify = (value?: string | null) => {
+const slugify = (value?: string | number | null) => {
   if (!value) return null;
+  if (typeof value !== "string" && typeof value !== "number") return null;
   const normalized = value
     .toString()
     .trim()
@@ -386,7 +387,8 @@ export default function Perfil() {
       (perfil as any)?.slug,
       (perfil as any)?.endpoint,
       (perfil as any)?.municipio,
-      (user as any)?.tenant,
+      (user as any)?.tenant?.slug,
+      (user as any)?.tenant?.tenant_slug,
       (user as any)?.empresa,
       (user as any)?.nombre_empresa,
       storedTenantSlug,
@@ -450,6 +452,29 @@ export default function Perfil() {
     isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
+
+  useEffect(() => {
+    if (profileReady || !user) {
+      return;
+    }
+
+    const token = safeLocalStorage.getItem("authToken");
+    if (!token) {
+      return;
+    }
+
+    const persistedTenantSlug =
+      (user as any)?.tenantSlug ||
+      (user as any)?.tenant_slug ||
+      (user as any)?.tenant?.slug ||
+      (user as any)?.tenant?.tenant_slug;
+
+    if (persistedTenantSlug) {
+      safeLocalStorage.setItem("tenantSlug", persistedTenantSlug);
+    }
+
+    setProfileReady(true);
+  }, [profileReady, user]);
 
   const {
     posts: municipalPosts,

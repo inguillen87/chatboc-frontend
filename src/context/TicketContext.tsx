@@ -7,6 +7,7 @@ import { useUser } from '@/hooks/useUser';
 import { ApiError, resolveTenantSlug } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 
 interface TicketInboxFilters {
@@ -43,6 +44,47 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   priority: 'all',
   sla: 'all',
   unread: 'all',
+};
+
+const TICKET_FETCH_TIMEOUT_MS = 25000;
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
+const resolveUserTenantSlug = (user: any): string | null => {
+  const candidates = [
+    user?.tenantSlug,
+    user?.tenant_slug,
+    user?.tenant?.slug,
+    user?.tenant?.tenant_slug,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+};
+
+const readStoredTenantSlug = (): string | null => {
+  try {
+    const stored = safeLocalStorage.getItem('tenantSlug');
+    return stored?.trim() || null;
+  } catch {
+    return null;
+  }
 };
 
 interface TicketContextType {
@@ -406,7 +448,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   );
 
   const fetchTickets = useCallback(async () => {
-    const tenantSlug = resolveTenantSlug(tenantSlugOverride ?? user?.tenantSlug ?? currentSlug);
+    const tenantSlug = resolveTenantSlug(
+      tenantSlugOverride ?? resolveUserTenantSlug(user) ?? currentSlug ?? readStoredTenantSlug(),
+      undefined,
+      { persist: false },
+    );
 
     if (!tenantSlug) {
       setError(null);
@@ -416,10 +462,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       return;
     }
 
+    setLoading(true);
     setError(null);
 
     try {
-      const apiResponse = await getTickets(tenantSlug);
+      const apiResponse = await withTimeout(
+        getTickets(tenantSlug),
+        TICKET_FETCH_TIMEOUT_MS,
+        'La bandeja de reclamos tardo demasiado en responder.',
+      );
       const fetchedTickets = (apiResponse as any)?.tickets;
 
       if (Array.isArray(fetchedTickets)) {
@@ -446,6 +497,8 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         } else {
           setError('Error al obtener los tickets.');
         }
+      } else if (err instanceof Error && err.message.includes('tardo demasiado')) {
+        setError('La bandeja de reclamos tardo demasiado en responder. Revisa la conexion y reintenta.');
       } else {
         setError('Error al obtener los tickets.');
       }
@@ -453,7 +506,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } finally {
       setLoading(false);
     }
-  }, [currentSlug, filterTicketsForUser, tenantSlugOverride, user?.tenantSlug]);
+  }, [currentSlug, filterTicketsForUser, tenantSlugOverride, user]);
 
   useEffect(() => {
     setLoading(true);

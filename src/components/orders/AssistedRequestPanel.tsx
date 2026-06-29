@@ -397,6 +397,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   if (!assistedRequest) return null;
 
   const operatorPack = assistedRequest.operator_pack || null;
+  const operatorIntakeSummary = assistedRequest.operator_intake_summary || null;
   const contact = assistedRequest.contact || order.contact || order.customer_profile || null;
   const contactNotes = assistedRequest.contact?.notes || null;
   const documentLabel =
@@ -439,9 +440,11 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const detectedCount = summaryNumber(assistedRequest, 'detected');
   const matchedCount = summaryNumber(assistedRequest, 'matched');
   const unmatchedCount = summaryNumber(assistedRequest, 'unmatched');
+  const operatorNextStep = humanizeKey(operatorIntakeSummary?.recommended_next_step);
   const primaryAction =
     firstText(nextActions[0]?.label, nextActions[0]?.title, suggestedTasks[0]?.label) ||
     (missingFields.length ? `Completar ${humanizeKey(missingFields[0]) || missingFields[0]}` : null) ||
+    operatorNextStep ||
     (suggestedReply ? 'Enviar respuesta sugerida' : 'Revisar solicitud');
   const contactRecord = isRecord(contact) ? contact : null;
   const contactSummary = contactRecord
@@ -567,6 +570,17 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
           </div>
           {assistedRequest.customer_message ? (
             <p className="rounded-lg border bg-background/75 p-3 text-sm text-foreground">{assistedRequest.customer_message}</p>
+          ) : null}
+          {operatorIntakeSummary?.objective ? (
+            <div className="rounded-lg border bg-background/75 p-3 text-sm text-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Objetivo operativo</p>
+              <p className="mt-1 font-medium">{operatorIntakeSummary.objective}</p>
+              {operatorIntakeSummary.recommended_next_step ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Accion sugerida: {humanizeKey(operatorIntakeSummary.recommended_next_step) || operatorIntakeSummary.recommended_next_step}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

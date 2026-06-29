@@ -64,6 +64,13 @@ describe('AssistedRequestPanel', () => {
             },
             source: { channel: 'marketplace' },
             match_summary: { detected: 2, matched: 1, unmatched: 1 },
+            operator_intake_summary: {
+              contract_version: 'marketplace.operator_intake_summary.v1',
+              objective: 'Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.',
+              recommended_next_step: 'resolver_faltantes_y_responder',
+              target_module: 'orders',
+              contact_state: 'available',
+            },
             public_follow_up: {
               contract_version: 'marketplace.assisted_followup.v1',
               tracking: {
@@ -128,6 +135,9 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getAllByText('Cruce con catalogo').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Proximo paso')).toBeTruthy();
     expect(screen.getByText('Completar Direccion')).toBeTruthy();
+    expect(screen.getAllByText('Objetivo operativo').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.')).toBeTruthy();
+    expect(screen.getByText('Accion sugerida: resolver faltantes y responder')).toBeTruthy();
     expect(screen.getByText('Lectura IA')).toBeTruthy();
     expect(screen.getByText(/2 detectados/)).toBeTruthy();
     expect(screen.getByText('Motivo operativo')).toBeTruthy();

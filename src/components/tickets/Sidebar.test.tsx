@@ -19,7 +19,8 @@ vi.mock('@/context/TicketContext', () => ({
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    adminGetTicketCategories: (...args: unknown[]) => adminGetTicketCategoriesMock(...args),
+    adminGetTicketCategories: (...args: unknown[]) =>
+      adminGetTicketCategoriesMock(...args),
   },
 }));
 
@@ -30,13 +31,23 @@ vi.mock('@/services/exportService', () => ({
 }));
 
 vi.mock('@/components/ui/scroll-area', () => ({
-  ScrollArea: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
+  ScrollArea: ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => <div className={className}>{children}</div>,
 }));
 
 vi.mock('./TicketListItem', () => ({
-  default: ({ ticket, onClick }: { ticket: { asunto?: string; nro_ticket?: string }; onClick: () => void }) => (
+  default: ({
+    ticket,
+    onClick,
+  }: {
+    ticket: { asunto?: string; nro_ticket?: string };
+    onClick: () => void;
+  }) => (
     <button type="button" onClick={onClick}>
       {ticket.asunto || ticket.nro_ticket}
     </button>
@@ -106,10 +117,34 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByText('luminaria (0)')).not.toBeInTheDocument();
     expect(screen.queryByText('limpieza (0)')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /mostrar 2 rubros vacíos/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /mostrar 2 rubros vacíos/i }),
+    );
 
     expect(screen.getByText('luminaria (0)')).toBeInTheDocument();
     expect(screen.getByText('limpieza (0)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /ocultar rubros vacíos/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /ocultar rubros vacíos/i }),
+    ).toBeInTheDocument();
+  });
+  it('keeps secondary filters collapsed so the ticket accordion stays readable', async () => {
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(
+      screen.getByRole('button', { name: /filtros avanzados/i }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /filtros avanzados/i }));
+
+    expect(
+      screen.getByRole('button', { name: /filtros avanzados/i }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();
   });
 });

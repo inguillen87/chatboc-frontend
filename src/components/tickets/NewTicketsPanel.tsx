@@ -149,6 +149,7 @@ const NewTicketsPanel: React.FC = () => {
   } = useTickets();
   const { currentSlug, tenant } = useTenant();
   const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
+  const [loadingTimedOut, setLoadingTimedOut] = React.useState(false);
 
   // Mobile-specific state
   const [mobileView, setMobileViewState] = React.useState<MobileView>('tickets');
@@ -180,6 +181,16 @@ const NewTicketsPanel: React.FC = () => {
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
   }, [mobileView]);
+
+  React.useEffect(() => {
+    if (!loading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 14000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -297,9 +308,27 @@ const NewTicketsPanel: React.FC = () => {
       disabled && 'hover:border-border/70 hover:text-muted-foreground',
     );
 
+  if (loading && loadingTimedOut) {
+    return (
+      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-amber-500/30 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
+        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-500">
+          <AlertTriangle className="h-5 w-5" />
+        </span>
+        <h2 className="text-lg font-semibold text-foreground">La bandeja esta tardando mas de lo esperado</h2>
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+          No dejamos el CRM en una pantalla vacia. Reintenta la carga; si el backend o la sesion fallan, lo vas a ver como error operativo.
+        </p>
+        <Button type="button" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
+          <RefreshCw className="h-4 w-4" />
+          Reintentar carga
+        </Button>
+      </Card>
+    );
+  }
+
   if (loading) {
     return (
-        <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+        <div className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden">
             {/* Skeleton for Desktop */}
             <div className="hidden md:flex w-full">
               <div className="w-80 border-r border-border p-4 space-y-4">
@@ -324,7 +353,7 @@ const NewTicketsPanel: React.FC = () => {
              {/* Skeleton for Mobile */}
             <div className="md:hidden w-full p-4 space-y-4">
               <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-screen w-full" />
+              <Skeleton className="h-[420px] w-full" />
             </div>
         </div>
     )
@@ -333,7 +362,15 @@ const NewTicketsPanel: React.FC = () => {
   if (error) {
     return (
       <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
-        <p className="text-sm text-destructive">{error}</p>
+        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive">
+          <AlertTriangle className="h-5 w-5" />
+        </span>
+        <h2 className="text-lg font-semibold text-foreground">No pudimos cargar la bandeja</h2>
+        <p className="mt-2 max-w-md text-sm leading-6 text-destructive">{error}</p>
+        <Button type="button" variant="outline" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
+          <RefreshCw className="h-4 w-4" />
+          Reintentar
+        </Button>
       </Card>
     )
   }
@@ -364,7 +401,7 @@ const NewTicketsPanel: React.FC = () => {
   return (
     <Card className={panelCardClass}>
       <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-3 sm:px-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 min-[920px]:flex-row min-[920px]:items-center min-[920px]:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold tracking-tight text-foreground">Mesa operativa</h2>
@@ -401,7 +438,7 @@ const NewTicketsPanel: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:w-[620px] xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 min-[920px]:w-[620px] min-[920px]:grid-cols-4">
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}

@@ -26,6 +26,8 @@ interface UserData {
   capabilities?: string[];
   scopes?: string[];
   tenantSlug?: string;
+  tenant_slug?: string;
+  tenant?: { slug?: string; tenant_slug?: string };
   publicCartUrl?: string;
   publicCatalogUrl?: string;
   categoria_id?: number;
@@ -106,6 +108,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, setUser } = usePanelSessionStore();
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (user) return;
+    usePanelSessionStore.getState().loadFromStorage();
+  }, [user]);
 
   const refreshUser = useCallback(async () => {
     const panelToken = getValidStoredToken('authToken');
@@ -223,6 +229,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token: activeToken,
         entityToken: normalizedEntityToken || storedEntityToken || undefined,
         tenantSlug: resolvedTenantSlug || undefined,
+        tenant_slug: resolvedTenantSlug || undefined,
+        tenant:
+          data.tenant && typeof data.tenant === 'object'
+            ? {
+                slug: resolvedTenantSlug || data.tenant.slug,
+                tenant_slug: resolvedTenantSlug || data.tenant.tenant_slug,
+              }
+            : resolvedTenantSlug
+              ? { slug: resolvedTenantSlug, tenant_slug: resolvedTenantSlug }
+              : undefined,
         publicCartUrl: normalizedPublicCartUrl,
         publicCatalogUrl: normalizedPublicCatalogUrl,
         categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,

@@ -2,20 +2,35 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileDown, RotateCcw, Search } from 'lucide-react';
+import {
+  ChevronDown,
+  FileDown,
+  Search,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
 import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
 import { apiClient } from '@/api/client';
-import { exportToPdf, exportToExcel, exportAllToPdf } from '@/services/exportService';
+import {
+  exportToPdf,
+  exportToExcel,
+  exportAllToPdf,
+} from '@/services/exportService';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
@@ -37,13 +52,27 @@ const defaultFilters = {
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tenant } = useTenant();
-  const { tickets, filteredTickets, ticketsByCategory, selectedTicket, selectTicket, filters, setFilters, filterOptions } = useTickets();
+  const {
+    tickets,
+    filteredTickets,
+    ticketsByCategory,
+    selectedTicket,
+    selectTicket,
+    filters,
+    setFilters,
+    filterOptions,
+  } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
+  const [visibleCounts, setVisibleCounts] = React.useState<{
+    [key: string]: number;
+  }>({});
   const [openCategories, setOpenCategories] = React.useState<string[]>([]);
-  const [backendCategories, setBackendCategories] = React.useState<string[]>([]);
+  const [backendCategories, setBackendCategories] = React.useState<string[]>(
+    [],
+  );
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
 
   React.useEffect(() => {
@@ -53,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           const cats = await apiClient.adminGetTicketCategories(tenant.slug);
           setBackendCategories(cats.map((c: any) => c.nombre));
         } catch (e) {
-          console.error("Failed to load ticket categories", e);
+          console.error('Failed to load ticket categories', e);
         }
       }
     };
@@ -83,53 +112,65 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     // o las agrupamos manualmente si detectamos el patrón.
 
     // Ensure all backend categories exist even if empty
-    backendCategories.forEach(cat => {
-        if (!baseCategories[cat]) {
-            baseCategories[cat] = [];
-        }
+    backendCategories.forEach((cat) => {
+      if (!baseCategories[cat]) {
+        baseCategories[cat] = [];
+      }
     });
 
     // Crear grupo explícito para Solicitudes si no existe, o renombrarlo si es necesario
     // Detectamos tickets que parezcan solicitudes de llamada en otras categorías
-    const callRequestTerms = ['solicitud de llamada', 'solicito llamada', 'pedir llamada', 'llamarme'];
+    const callRequestTerms = [
+      'solicitud de llamada',
+      'solicito llamada',
+      'pedir llamada',
+      'llamarme',
+    ];
     const callRequests: any[] = [];
 
     // Si ya existe la categoría, usémosla como base
     if (baseCategories['Solicitudes de Llamada']) {
-        callRequests.push(...baseCategories['Solicitudes de Llamada']);
-        delete baseCategories['Solicitudes de Llamada']; // Lo reinsertaremos después
+      callRequests.push(...baseCategories['Solicitudes de Llamada']);
+      delete baseCategories['Solicitudes de Llamada']; // Lo reinsertaremos después
     }
 
     // Buscar en otras categorías
-    Object.keys(baseCategories).forEach(cat => {
-        const remainingTickets: any[] = [];
-        baseCategories[cat].forEach(ticket => {
-            const subject = (ticket.asunto || '').toLowerCase();
-            const content = (ticket.mensaje || '').toLowerCase(); // Dependiendo de la estructura del ticket
+    Object.keys(baseCategories).forEach((cat) => {
+      const remainingTickets: any[] = [];
+      baseCategories[cat].forEach((ticket) => {
+        const subject = (ticket.asunto || '').toLowerCase();
+        const content = (ticket.mensaje || '').toLowerCase(); // Dependiendo de la estructura del ticket
 
-            if (callRequestTerms.some(term => subject.includes(term) || content.includes(term))) {
-                callRequests.push(ticket);
-            } else {
-                remainingTickets.push(ticket);
-            }
-        });
-        baseCategories[cat] = remainingTickets;
+        if (
+          callRequestTerms.some(
+            (term) => subject.includes(term) || content.includes(term),
+          )
+        ) {
+          callRequests.push(ticket);
+        } else {
+          remainingTickets.push(ticket);
+        }
+      });
+      baseCategories[cat] = remainingTickets;
     });
 
     // Si encontramos solicitudes, las agregamos como categoría prioritaria (al principio si es posible, o simplemente la agregamos)
     if (callRequests.length > 0) {
-        // Podemos insertarlo al principio creando un nuevo objeto
-        const newCategories = { 'Solicitudes de Llamada': callRequests, ...baseCategories };
-        // Asignar de nuevo a baseCategories (que es const, así que mejor retornamos newCategories)
-        // Pero baseCategories es una copia local de ticketsByCategory, así que podemos mutar o reasignar referencias.
-        // Dado que filteredTicketsByCategory retorna un objeto, retornaremos el nuevo objeto aquí.
-        // Sin embargo, filteredTicketsByCategory se construye iterativamente abajo con el término de búsqueda.
-        // Así que aquí solo estamos manipulando la "base" antes del filtro de búsqueda.
-        // Ah, filteredTicketsByCategory es el useMemo completo.
-        // Modifiquemos la lógica para retornar newCategories filtrado después.
+      // Podemos insertarlo al principio creando un nuevo objeto
+      const newCategories = {
+        'Solicitudes de Llamada': callRequests,
+        ...baseCategories,
+      };
+      // Asignar de nuevo a baseCategories (que es const, así que mejor retornamos newCategories)
+      // Pero baseCategories es una copia local de ticketsByCategory, así que podemos mutar o reasignar referencias.
+      // Dado que filteredTicketsByCategory retorna un objeto, retornaremos el nuevo objeto aquí.
+      // Sin embargo, filteredTicketsByCategory se construye iterativamente abajo con el término de búsqueda.
+      // Así que aquí solo estamos manipulando la "base" antes del filtro de búsqueda.
+      // Ah, filteredTicketsByCategory es el useMemo completo.
+      // Modifiquemos la lógica para retornar newCategories filtrado después.
 
-        // Re-inject into baseCategories for the search logic below to work on it
-        baseCategories['Solicitudes de Llamada'] = callRequests;
+      // Re-inject into baseCategories for the search logic below to work on it
+      baseCategories['Solicitudes de Llamada'] = callRequests;
     }
 
     if (!debouncedSearchTerm) {
@@ -157,7 +198,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         ];
 
         return fields.some((field) =>
-          String(field ?? '').toLowerCase().includes(term)
+          String(field ?? '')
+            .toLowerCase()
+            .includes(term),
         );
       });
       if (tickets.length > 0) {
@@ -226,7 +269,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     }
 
     setOpenCategories(categories);
-  }, [debouncedSearchTerm, filteredTicketsByCategory, openCategories, selectedCategory]);
+  }, [
+    debouncedSearchTerm,
+    filteredTicketsByCategory,
+    openCategories,
+    selectedCategory,
+  ]);
 
   React.useEffect(() => {
     if (debouncedSearchTerm) {
@@ -269,6 +317,21 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     filters.sla !== 'all' ||
     filters.unread !== 'all';
 
+  const activeFilterLabels = React.useMemo(
+    () =>
+      [
+        debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
+        filters.channel !== 'all' ? `Canal: ${filters.channel}` : null,
+        filters.status !== 'all' ? `Estado: ${filters.status}` : null,
+        filters.area !== 'all' ? `Area: ${filters.area}` : null,
+        filters.agent !== 'all' ? `Agente: ${filters.agent}` : null,
+        filters.priority !== 'all' ? `Prioridad: ${filters.priority}` : null,
+        filters.sla !== 'all' ? `SLA: ${filters.sla}` : null,
+        filters.unread !== 'all' ? `Lectura: ${filters.unread}` : null,
+      ].filter(Boolean) as string[],
+    [debouncedSearchTerm, filters],
+  );
+
   const resetFilters = () => {
     setSearchTerm('');
     setFilters(defaultFilters);
@@ -278,7 +341,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const visibleCategoryEntries = categoryEntries.filter(
     ([, categoryTickets]) => showEmptyCategories || categoryTickets.length > 0,
   );
-  const emptyCategoryCount = categoryEntries.filter(([, categoryTickets]) => categoryTickets.length === 0).length;
+  const emptyCategoryCount = categoryEntries.filter(
+    ([, categoryTickets]) => categoryTickets.length === 0,
+  ).length;
 
   return (
     <aside
@@ -294,7 +359,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
             </h1>
             <p className="text-xs text-muted-foreground">
-              {filteredTickets.length.toLocaleString('es-AR')} de {tickets.length.toLocaleString('es-AR')} visibles
+              {filteredTickets.length.toLocaleString('es-AR')} de{' '}
+              {tickets.length.toLocaleString('es-AR')} visibles
             </p>
           </div>
           <DropdownMenu>
@@ -311,7 +377,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
                 Exportar Todos (PDF)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToPdf(selectedTicket, selectedTicket?.messages || [])} disabled={!selectedTicket}>
+              <DropdownMenuItem
+                onClick={() =>
+                  exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                }
+                disabled={!selectedTicket}
+              >
                 Exportar Ticket Actual (PDF)
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -327,86 +398,200 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.channel}
-            onChange={(e) => setFilters((prev) => ({ ...prev, channel: e.target.value }))}
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={
+              filters.unread === 'all' && filters.sla === 'all'
+                ? 'secondary'
+                : 'outline'
+            }
+            className="h-9 rounded-lg px-2 text-xs"
+            onClick={() =>
+              setFilters((prev) => ({ ...prev, unread: 'all', sla: 'all' }))
+            }
           >
-            <option value="all">Canal: todos</option>
-            {filterOptions.channels.map((channel) => (
-              <option key={channel} value={channel}>{channel}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.status}
-            onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+            Todos
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
+            className="h-9 rounded-lg px-2 text-xs"
+            onClick={() =>
+              setFilters((prev) => ({ ...prev, unread: 'unread' }))
+            }
           >
-            <option value="all">Estado: todos</option>
-            {filterOptions.statuses.map((status) => (
-              <option key={status.value} value={status.value}>{status.label}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.area}
-            onChange={(e) => setFilters((prev) => ({ ...prev, area: e.target.value }))}
+            No leidos
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
+            className="h-9 rounded-lg px-2 text-xs"
+            onClick={() =>
+              setFilters((prev) => ({
+                ...prev,
+                sla: prev.sla === 'risk' ? 'all' : 'risk',
+              }))
+            }
           >
-            <option value="all">Área: todas</option>
-            {filterOptions.areas.map((area) => (
-              <option key={area} value={area}>{area}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.agent}
-            onChange={(e) => setFilters((prev) => ({ ...prev, agent: e.target.value }))}
+            Riesgo
+          </Button>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-muted/30">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-muted/50"
+            aria-expanded={advancedFiltersOpen}
+            onClick={() => setAdvancedFiltersOpen((current) => !current)}
           >
-            <option value="all">Agente: todos</option>
-            {filterOptions.agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>{agent.label}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm sm:col-span-2"
-            value={filters.priority}
-            onChange={(e) => setFilters((prev) => ({ ...prev, priority: e.target.value }))}
-          >
-            <option value="all">Prioridad: todas</option>
-            {filterOptions.priorities.map((priority) => (
-              <option key={priority} value={priority}>{priority}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.sla}
-            onChange={(e) => setFilters((prev) => ({ ...prev, sla: e.target.value }))}
-          >
-            <option value="all">SLA: todos</option>
-            {filterOptions.slaStatuses.map((slaStatus) => (
-              <option key={slaStatus} value={slaStatus}>{slaStatus}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filters.unread}
-            onChange={(e) => setFilters((prev) => ({ ...prev, unread: e.target.value }))}
-          >
-            {filterOptions.unreadModes.map((mode) => (
-              <option key={mode.value} value={mode.value}>{mode.label}</option>
-            ))}
-          </select>
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-primary" />
+              <span>Filtros avanzados</span>
+              {activeFilterLabels.length > 0 ? (
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">
+                  {activeFilterLabels.length}
+                </span>
+              ) : null}
+            </span>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 shrink-0 transition-transform',
+                advancedFiltersOpen && 'rotate-180',
+              )}
+            />
+          </button>
+
+          {advancedFiltersOpen ? (
+            <div className="grid grid-cols-1 gap-2 border-t border-border/70 p-3 sm:grid-cols-2">
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.channel}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, channel: e.target.value }))
+                }
+              >
+                <option value="all">Canal: todos</option>
+                {filterOptions.channels.map((channel) => (
+                  <option key={channel} value={channel}>
+                    {channel}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.status}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, status: e.target.value }))
+                }
+              >
+                <option value="all">Estado: todos</option>
+                {filterOptions.statuses.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.area}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, area: e.target.value }))
+                }
+              >
+                <option value="all">Área: todas</option>
+                {filterOptions.areas.map((area) => (
+                  <option key={area} value={area}>
+                    {area}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.agent}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, agent: e.target.value }))
+                }
+              >
+                <option value="all">Agente: todos</option>
+                {filterOptions.agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm sm:col-span-2"
+                value={filters.priority}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, priority: e.target.value }))
+                }
+              >
+                <option value="all">Prioridad: todas</option>
+                {filterOptions.priorities.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.sla}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, sla: e.target.value }))
+                }
+              >
+                <option value="all">SLA: todos</option>
+                <option value="risk">SLA: riesgo</option>
+                {filterOptions.slaStatuses
+                  .filter((slaStatus) => slaStatus !== 'risk')
+                  .map((slaStatus) => (
+                    <option key={slaStatus} value={slaStatus}>
+                      {slaStatus}
+                    </option>
+                  ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={filters.unread}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, unread: e.target.value }))
+                }
+              >
+                {filterOptions.unreadModes.map((mode) => (
+                  <option key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
         </div>
         {hasActiveFilters ? (
-          <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
-            <span className="font-medium text-primary">Filtros activos</span>
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 px-2.5 py-2 text-xs">
+            {activeFilterLabels.slice(0, 3).map((label) => (
+              <span
+                key={label}
+                className="max-w-[10rem] truncate rounded-full bg-background/80 px-2 py-1 font-medium text-primary shadow-sm"
+                title={label}
+              >
+                {label}
+              </span>
+            ))}
+            {activeFilterLabels.length > 3 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-1 font-semibold text-primary">
+                +{activeFilterLabels.length - 3}
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={resetFilters}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary transition hover:bg-primary/10"
+              className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary transition hover:bg-primary/10"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
               Limpiar
             </button>
           </div>
@@ -428,12 +613,20 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         ) : null}
         {visibleCategoryEntries.length === 0 ? (
           <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
-            <p className="text-sm font-semibold text-foreground">No hay casos para esta vista</p>
+            <p className="text-sm font-semibold text-foreground">
+              No hay casos para esta vista
+            </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Ajustá búsqueda o filtros para volver a ver conversaciones.
             </p>
             {hasActiveFilters ? (
-              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={resetFilters}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={resetFilters}
+              >
                 Limpiar filtros
               </Button>
             ) : null}
@@ -453,21 +646,26 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               <AccordionContent>
                 <div className="space-y-2 p-1">
                   {tickets.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">Sin casos abiertos en este rubro.</p>
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      Sin casos abiertos en este rubro.
+                    </p>
                   ) : (
-                    tickets.slice(0, visibleCounts[category] || ITEMS_PER_PAGE).map((ticket) => (
-                      <TicketListItem
-                        key={ticket.id}
-                        ticket={ticket}
-                        isSelected={selectedTicket?.id === ticket.id}
-                        onClick={() => {
-                          selectTicket(ticket.id);
-                          onTicketSelected?.();
-                        }}
-                      />
-                    ))
+                    tickets
+                      .slice(0, visibleCounts[category] || ITEMS_PER_PAGE)
+                      .map((ticket) => (
+                        <TicketListItem
+                          key={ticket.id}
+                          ticket={ticket}
+                          isSelected={selectedTicket?.id === ticket.id}
+                          onClick={() => {
+                            selectTicket(ticket.id);
+                            onTicketSelected?.();
+                          }}
+                        />
+                      ))
                   )}
-                  {(visibleCounts[category] || ITEMS_PER_PAGE) < tickets.length && (
+                  {(visibleCounts[category] || ITEMS_PER_PAGE) <
+                    tickets.length && (
                     <div className="p-2">
                       <Button
                         variant="outline"

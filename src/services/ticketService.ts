@@ -26,6 +26,8 @@ const ticketApiPath = (path: string): string => {
     return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
 };
 
+const TICKET_INBOX_INITIAL_PAGE_SIZE = '20';
+
 const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     const location = normalizeTicketLocation(ticket);
     return {
@@ -398,7 +400,7 @@ export const getTickets = async (
   try {
       const params = new URLSearchParams({
         page: '1',
-        per_page: '50',
+        per_page: TICKET_INBOX_INITIAL_PAGE_SIZE,
         include: 'compact',
       });
       const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath(`/tickets?${params.toString()}`), {

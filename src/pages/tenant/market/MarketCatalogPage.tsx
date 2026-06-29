@@ -13,7 +13,7 @@ import { toast } from '@/components/ui/use-toast';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { Copy, MessageCircle, Percent, QrCode, Search, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
+import { ClipboardList, Copy, FileText, MessageCircle, Percent, QrCode, Search, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -68,6 +68,24 @@ const promotionBadge = (promotion: PromotionItem): string | null => {
 };
 
 const ASSISTED_UPLOAD_ANCHOR_ID = 'market-assisted-upload';
+
+const ASSISTED_FIRST_MODES = [
+  {
+    title: 'Foto de papel o manuscrito',
+    description: 'Lista escrita a mano, mostrador, ferreteria, supermercado o pedido de materiales.',
+    icon: FileText,
+  },
+  {
+    title: 'Pedido pegado desde WhatsApp',
+    description: 'El cliente copia texto suelto y Chatboc separa articulos, cantidades y faltantes.',
+    icon: MessageCircle,
+  },
+  {
+    title: 'Boleta, certificado o reclamo',
+    description: 'Gobiernos y colegios reciben documentos, comprobantes o solicitudes trazables.',
+    icon: ClipboardList,
+  },
+];
 
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
@@ -139,6 +157,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
     return `${parts.join(' - ')}.`;
   }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
+  const assistedFirstActive = !isLoading && (
+    assistedIntake?.mode === 'assisted_first' ||
+    totalUnfiltered === 0 ||
+    (products.length === 0 && assistedIntake?.show_on_empty_catalog !== false)
+  );
 
   useEffect(() => {
     setIsLoading(true);
@@ -270,6 +293,56 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </Button>
         </div>
       </header>
+
+      {assistedFirstActive ? (
+        <section
+          data-testid="assisted-first-banner"
+          className="overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 shadow-sm"
+        >
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+            <div>
+              <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                Marketplace asistido activo
+              </Badge>
+              <h2 className="mt-3 max-w-3xl text-2xl font-semibold tracking-normal">
+                Subi el pedido como viene: foto, papel, boleta o texto.
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Ideal para vecinos o clientes que no quieren navegar un catalogo. Chatboc interpreta la nota, cruza catalogo cuando exista,
+                crea la solicitud en el CRM y devuelve seguimiento publico para continuar por WhatsApp, chat, email o telefono.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {ASSISTED_FIRST_MODES.map((mode) => {
+                  const Icon = mode.icon;
+                  return (
+                    <div key={mode.title} className="rounded-lg border bg-background/85 p-3 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">{mode.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{mode.description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="rounded-xl border bg-background/85 p-4 shadow-sm">
+              <p className="text-sm font-semibold">Salida operativa</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                El admin recibe archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
+              </p>
+              <Button type="button" className="mt-4 w-full" onClick={scrollToAssistedUpload}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                Subir pedido o documento
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <UploadOrderFromFile
         id={ASSISTED_UPLOAD_ANCHOR_ID}

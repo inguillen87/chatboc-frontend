@@ -179,6 +179,23 @@ export interface AssistedOrderRequest {
     }>;
     [key: string]: unknown;
   } | null;
+  operator_intake_summary?: {
+    contract_version?: string | null;
+    title?: string | null;
+    objective?: string | null;
+    primary_intent?: string | null;
+    target_module?: string | null;
+    recommended_record?: string | null;
+    recommended_next_step?: string | null;
+    needs_operator_review?: boolean | null;
+    contact_state?: string | null;
+    contact_channels?: string[] | null;
+    input?: Record<string, unknown> | null;
+    detected_preview?: string[] | null;
+    match_summary?: Record<string, unknown> | null;
+    follow_up?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
   intake_experience?: {
     contract_version?: string | null;
     render_as?: string | null;

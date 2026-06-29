@@ -98,5 +98,7 @@ describe('TicketsPanel request_id support surface', () => {
     expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /reclamos y conversaciones/i })).not.toBeInTheDocument();
     expect(screen.queryByText('top-nav')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tickets-panel-root')).toHaveClass('min-h-[760px]');
+    expect(screen.getByTestId('tickets-panel-root')).toHaveClass('h-[calc(100dvh-8rem)]');
   });
 });

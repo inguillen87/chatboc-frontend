@@ -83,6 +83,13 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByText('Pedido asistido por IA')).toBeInTheDocument();
     });
 
+    expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
+    expect(screen.getByText('Marketplace asistido activo')).toBeInTheDocument();
+    expect(screen.getByText(/Subi el pedido como viene/i)).toBeInTheDocument();
+    expect(screen.getByText('Foto de papel o manuscrito')).toBeInTheDocument();
+    expect(screen.getByText('Pedido pegado desde WhatsApp')).toBeInTheDocument();
+    expect(screen.getByText('Boleta, certificado o reclamo')).toBeInTheDocument();
+    expect(screen.getByText('Salida operativa')).toBeInTheDocument();
     expect(screen.getByText(/Subi boletas, certificados, pedidos o notas/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Boleta municipal/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o papel/i })).toBeInTheDocument();
@@ -98,7 +105,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Boleta / impuesto')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir nota o manuscrito/i })).toBeInTheDocument();
     expect(screen.getByText(/solicitud asistida activa/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir pedido o documento/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Subir pedido o documento/i }).length).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getByRole('button', { name: /Subir nota o manuscrito/i }));
 

@@ -40,6 +40,7 @@ import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { getValidStoredToken } from "@/utils/authTokens";
 import { buildTenantPath } from "@/utils/tenantPaths";
 
 interface AdminNavLink {
@@ -98,9 +99,11 @@ const Navbar: React.FC = () => {
 
   const isLanding = location.pathname === "/";
   const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
-  const isLoggedIn = !!safeLocalStorage.getItem("user");
+  const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
+  const isLoggedIn = Boolean(user || (hasValidStoredToken && safeLocalStorage.getItem("user")));
   const userRole = user?.rol;
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
+  const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
   const isMunicipal = user?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
@@ -181,7 +184,7 @@ const Navbar: React.FC = () => {
         return false;
       }
 
-      if (!hasBackendCapabilities || !link.requiredAnyCapabilities?.length) {
+      if (!hasBackendCapabilities || !link.requiredAnyCapabilities?.length || isTenantOwnerLike) {
         return true;
       }
 
@@ -189,7 +192,7 @@ const Navbar: React.FC = () => {
         normalizedCapabilities.includes(requiredCapability.toLowerCase()),
       );
     });
-  }, [analyticsPath, capabilities, currentSlug, isAdminLike, isMunicipal, userRole]);
+  }, [analyticsPath, capabilities, currentSlug, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
 
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),

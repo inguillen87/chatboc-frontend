@@ -19,11 +19,40 @@ const CapabilitiesContext = createContext<CapabilitiesContextValue>({
 const normalizeCapabilityToken = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
 
+const CAPABILITY_ALIASES: Record<string, string[]> = {
+  'analytics.read': ['dashboard.read', 'reports.read', 'stats.read'],
+  'market.catalog.read': ['catalog.read', 'catalogo.read', 'inventory.read'],
+  'market.catalog.write': ['catalog.write', 'catalog.manage', 'inventory.write'],
+  'market.orders.read': ['orders.read', 'commerce.orders.read', 'pedidos.read'],
+  'market.orders.write': ['orders.write', 'commerce.orders.write', 'pedidos.write'],
+  'tickets.read': ['crm.tickets.read', 'claims.read', 'reclamos.read'],
+  'tickets.write': ['crm.tickets.write', 'claims.write', 'reclamos.write'],
+  'tickets.assign': ['crm.tickets.assign', 'claims.assign', 'reclamos.assign'],
+  'tickets.admin': ['crm.tickets.admin', 'claims.admin', 'reclamos.admin'],
+};
+
+const resolveCanonicalCapability = (token: string): string => {
+  for (const [canonical, aliases] of Object.entries(CAPABILITY_ALIASES)) {
+    if (token === canonical || aliases.includes(token)) {
+      return canonical;
+    }
+  }
+
+  return token;
+};
+
 const normalizeCapabilities = (raw: unknown): string[] => {
   if (!Array.isArray(raw)) return [];
 
   return Array.from(
-    new Set(raw.map(normalizeCapabilityToken).filter((value): value is string => Boolean(value))),
+    new Set(
+      raw.flatMap((value) => {
+        const token = normalizeCapabilityToken(value);
+        if (!token) return [];
+        const canonical = resolveCanonicalCapability(token);
+        return canonical === token ? [token] : [token, canonical];
+      }),
+    ),
   );
 };
 

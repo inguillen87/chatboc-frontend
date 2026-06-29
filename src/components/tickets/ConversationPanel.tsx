@@ -851,16 +851,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-lg border border-border/60 bg-background/80 p-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
-              <p className="text-sm font-semibold text-foreground">{lastActivityLabel}</p>
-              {lastMessageSnippet && (
+              <p className="text-sm font-semibold text-foreground">
+                {isLoading ? 'Sincronizando conversacion' : lastActivityLabel}
+              </p>
+              {!isLoading && lastMessageSnippet && (
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{lastMessageSnippet}</p>
               )}
             </div>
             <div className="rounded-lg border border-border/60 bg-background/80 p-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Volumen</p>
               <p className="text-sm font-semibold text-foreground">
-                {messages.length}{' '}
-                {messages.length === 1 ? 'mensaje' : 'mensajes'}
+                {isLoading
+                  ? 'Cargando...'
+                  : `${messages.length} ${messages.length === 1 ? 'mensaje' : 'mensajes'}`}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {incomingMessagesCount} del vecino · {outgoingMessagesCount} del agente
