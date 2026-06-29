@@ -226,12 +226,12 @@ function buildPlatformWidgetFallbackConfig() {
     realtime: {
       socket_enabled: false,
       socket_url: null,
-      fallback_mode: "polling_disabled",
+      fallback_mode: "http_chat",
     },
     visibility_rules: {
       allow_websocket: false,
       allow_realtime_live_chat: false,
-      fallback_mode: "polling_disabled",
+      fallback_mode: "http_chat",
     },
     support_channels: {
       live_chat: {
@@ -240,7 +240,7 @@ function buildPlatformWidgetFallbackConfig() {
         available: false,
         socket_enabled: false,
         socket_url: null,
-        fallback_mode: "polling_disabled",
+        fallback_mode: "http_chat",
       },
     },
     quick_menu: quickMenu,

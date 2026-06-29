@@ -2113,9 +2113,20 @@ const ChatPanel = (props: ChatPanelProps) => {
     return false;
   };
 
+  const liveChatFallbackMode =
+    typeof supportChannels?.live_chat?.fallback_mode === "string"
+      ? supportChannels.live_chat.fallback_mode.trim().toLowerCase()
+      : typeof realtimeConfig?.fallbackMode === "string"
+        ? realtimeConfig.fallbackMode.trim().toLowerCase()
+        : "";
+  const liveChatHasHttpFallback =
+    liveChatFallbackMode.length > 0 &&
+    !["disabled", "none", "polling_disabled", "socket_io_enabled"].includes(
+      liveChatFallbackMode,
+    );
   const liveChatAllowedByBackend =
-    !socketDisabledByBackend &&
-    supportChannels?.live_chat?.realtime !== false &&
+    (!socketDisabledByBackend || liveChatHasHttpFallback) &&
+    (supportChannels?.live_chat?.realtime !== false || liveChatHasHttpFallback) &&
     supportChannels?.live_chat?.available !== false;
   const canRenderLiveChat = Boolean(
     liveChatAllowedByBackend && isLiveChatEnabled,
