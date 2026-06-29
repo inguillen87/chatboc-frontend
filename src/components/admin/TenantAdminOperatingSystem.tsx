@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  CreditCard,
   Database,
   ImageOff,
   Inbox,
@@ -48,6 +49,7 @@ const MODULE_ICONS: Record<string, React.ElementType> = {
   surveys_votings: MessageSquare,
   employees: Users,
   marketplace: Store,
+  transactions: CreditCard,
   widget_whatsapp: Layers3,
   education: School,
 };
@@ -431,6 +433,10 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             <EmployeeRoutingMatrix tenantSlug={effectiveSlug} />
           ) : null}
 
+          {activeModule === "transactions" ? (
+            <TransactionsModulePanel experience={whatsappExperience ?? bundle.whatsapp} />
+          ) : null}
+
           <Card className="border-border/60">
             <CardHeader>
               <CardTitle className="text-base">
@@ -665,6 +671,162 @@ const LeadDetailBlock = ({
     </div>
   </div>
 );
+
+const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null }) => {
+  const root = isRecord(experience) ? experience : {};
+  const templateBlueprint = isRecord(root.template_blueprint) ? root.template_blueprint : {};
+  const templateGroups = isRecord(templateBlueprint.operational_template_groups)
+    ? templateBlueprint.operational_template_groups
+    : {};
+  const financeGroup = isRecord(templateGroups.financial_services) ? templateGroups.financial_services : {};
+  const financeTemplates = asArray(financeGroup.items);
+  const webviewBlueprint = isRecord(root.webview_blueprint) ? root.webview_blueprint : {};
+  const webviewFlows = asArray(webviewBlueprint.flows);
+  const financeFlows = webviewFlows.filter((flow) => String(flow.id || "").startsWith("finance_"));
+  const qaPlaybook = isRecord(root.qa_playbook) ? root.qa_playbook : {};
+  const financeScenarios = asArray(qaPlaybook.scenarios).filter((scenario) =>
+    String(scenario.id || "").includes("finance"),
+  );
+  const commerce = isRecord(root.commerce) ? root.commerce : {};
+  const checkout = isRecord(commerce.checkout_experience) ? commerce.checkout_experience : {};
+  const readyFinanceFlows = financeFlows.filter((flow) => String(flow.status || "").toLowerCase() === "ready").length;
+  const flowDataContracts = financeFlows.flatMap((flow) => {
+    const meta = isRecord(flow.meta_flow_blueprint) ? flow.meta_flow_blueprint : {};
+    return asStringList(meta.data_contract);
+  });
+
+  return (
+    <Card className="border-border/60">
+      <CardHeader className="gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="h-4 w-4 text-primary" />
+            Transacciones in-chat
+          </CardTitle>
+          <CardDescription>
+            Alta digital, KYC, cobranza, pago seguro y firma desde WhatsApp o webview firmado.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatePill value={checkout.ready ? "Checkout listo" : "Checkout pendiente"} tone={checkout.ready ? "ready" : "warning"} />
+          <StatePill value={`${financeFlows.length} webviews`} tone={financeFlows.length ? "ready" : "warning"} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard label="Templates" value={formatNumber(financeTemplates.length)} icon={MessageSquare} />
+          <MetricCard label="Webviews" value={formatNumber(financeFlows.length)} icon={CreditCard} />
+          <MetricCard label="Listos" value={formatNumber(readyFinanceFlows)} icon={CheckCircle2} />
+          <MetricCard label="QA" value={formatNumber(financeScenarios.length)} icon={ShieldCheck} />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-foreground">Flujos operativos</h3>
+                <p className="text-xs text-muted-foreground">Cada flujo debe confirmar por backend antes de cerrar la operacion.</p>
+              </div>
+              <StatePill value="server-to-server" tone="ready" />
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {financeFlows.length ? (
+                financeFlows.map((flow) => {
+                  const meta = isRecord(flow.meta_flow_blueprint) ? flow.meta_flow_blueprint : {};
+                  const screens = asArray(meta.screens);
+                  const confirmations = asStringList(flow.server_confirmation);
+                  const status = String(flow.status || "review");
+                  return (
+                    <div key={String(flow.id)} className="rounded-2xl border border-border/60 bg-background/85 p-4">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <StatePill value={status.replace(/_/g, " ")} tone={status === "ready" ? "ready" : status.includes("blocked") ? "danger" : "warning"} />
+                        <StatePill value={String(flow.surface || "webview")} />
+                      </div>
+                      <p className="font-semibold text-foreground">{String(flow.label || flow.id)}</p>
+                      <p className="mt-1 break-all text-xs text-muted-foreground">{String(flow.url_template || "sin URL")}</p>
+                      {screens.length ? (
+                        <div className="mt-3 grid gap-1">
+                          {screens.slice(0, 3).map((screen) => (
+                            <div key={String(screen.id)} className="flex items-center justify-between rounded-lg bg-muted/30 px-2 py-1 text-xs">
+                              <span className="font-medium">{String(screen.title || screen.id)}</span>
+                              <span className="text-muted-foreground">{String(screen.id || "")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {confirmations.length ? (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          Confirma: {confirmations.slice(0, 3).join(" + ")}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })
+              ) : (
+                <EmptyPanel label="El backend todavia no expuso flujos finance para este tenant." />
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+              <h3 className="font-semibold text-foreground">Plantillas finance</h3>
+              <div className="mt-3 space-y-2">
+                {financeTemplates.length ? (
+                  financeTemplates.slice(0, 8).map((template) => (
+                    <div key={String(template.id)} className="rounded-xl border border-border/60 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-semibold">{String(template.id || "template")}</span>
+                        <StatePill value={String(first(template, ["stage", "entrypoint"]) || "utility")} />
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {String(first(template, ["friendly_name", "label"]) || first(template, ["twilio_type"]) || "")}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyPanel label="Sin grupo financial_services en el contrato." />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+              <h3 className="font-semibold text-foreground">Datos auditables</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {flowDataContracts.length ? (
+                  Array.from(new Set(flowDataContracts)).slice(0, 8).map((item) => (
+                    <StatePill key={item} value={item.replace(/_/g, " ")} />
+                  ))
+                ) : (
+                  <StatePill value="contrato pendiente" tone="warning" />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <h3 className="font-semibold text-foreground">QA operativo</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {financeScenarios.length
+                  ? "Hay escenarios reproducibles para alta, KYC, cobranza, pago y firma."
+                  : "Falta scenario finance en el playbook QA."}
+              </p>
+              {financeScenarios.length ? (
+                <div className="mt-3 space-y-2">
+                  {financeScenarios.map((scenario) => (
+                    <div key={String(scenario.id)} className="flex items-center justify-between rounded-xl bg-background/80 px-3 py-2 text-sm">
+                      <span className="font-medium">{String(scenario.label || scenario.id)}</span>
+                      <StatePill value={String(scenario.status || "ready")} tone={String(scenario.status || "") === "ready" ? "ready" : "warning"} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const qaTone = (status?: string | null, ok?: boolean): "ready" | "warning" | "danger" | "neutral" => {
   const normalized = String(status || "").toLowerCase();
