@@ -26,7 +26,11 @@ import {
 import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight, Bell, Flame, MessageSquare, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Tenant } from "@/types/superAdmin";
-import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
+import {
+  WhatsappExternalNumberPayload,
+  WhatsappNumberCreatePayload,
+  WhatsappNumberInventoryItem,
+} from "@/types/whatsapp";
 import { TenantTable } from "@/components/admin/TenantTable";
 import { TenantModal } from "@/components/admin/TenantModal";
 import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPanel";
@@ -192,9 +196,12 @@ export default function SuperAdminDashboard() {
     getSuperadminExecutiveSummaryV2()
       .then((response) => {
         setExecutiveSummary(response || null);
-        const bundledHealth = Array.isArray(response?.tenant_health)
-          ? response.tenant_health
-          : response?.tenant_health?.items || [];
+        const tenantHealthValue = (response?.tenant_health ?? []) as any;
+        const bundledHealth = Array.isArray(tenantHealthValue)
+          ? tenantHealthValue
+          : Array.isArray(tenantHealthValue?.items)
+            ? tenantHealthValue.items
+            : [];
         setTenantHealth(bundledHealth);
       })
       .catch((executiveError) => {
@@ -299,12 +306,7 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleCreateNumber = async (payload: {
-    phone_number: string;
-    sender_id: string;
-    status?: string;
-    tenant_slug?: string | null;
-  }) => {
+  const handleCreateNumber = async (payload: WhatsappNumberCreatePayload) => {
     try {
       await apiClient.superAdminCreateWhatsappNumber(payload);
       toast.success("Número creado.");
@@ -315,12 +317,7 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleRegisterExternal = async (payload: {
-    number: string;
-    sender_id: string;
-    status?: string;
-    tenant_slug?: string | null;
-  }) => {
+  const handleRegisterExternal = async (payload: WhatsappExternalNumberPayload) => {
     try {
       await apiClient.superAdminRegisterExternalWhatsappNumber(payload);
       toast.success("Número externo registrado.");

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Rubro } from '@/components/chat/RubroSelector';
+import type { Rubro } from '@/types/rubro';
 
 export default function DemoRubroStep({ rubros, onSelect }: { rubros: Rubro[]; onSelect: (rubro: Rubro) => void }) {
   return (

@@ -185,7 +185,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
             />
           )}
           <div className={cn("relative w-full max-w-xs", isUploading && "opacity-60")}>
-            <audio controls src={url} className="w-full rounded" disabled={isUploading}>
+            <audio controls src={url} className="w-full rounded" aria-disabled={isUploading}>
               Tu navegador no soporta el elemento de audio.
             </audio>
             {isUploading && (

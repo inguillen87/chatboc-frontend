@@ -5,9 +5,11 @@ import { buttonVariants } from "@/components/ui/button";
 
 interface ScrollToBottomButtonProps {
   target?: HTMLElement | null;
+  onClick?: () => void;
+  className?: string;
 }
 
-const ScrollToBottomButton = ({ target }: ScrollToBottomButtonProps) => {
+const ScrollToBottomButton = ({ target, onClick, className }: ScrollToBottomButtonProps) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -23,12 +25,17 @@ const ScrollToBottomButton = ({ target }: ScrollToBottomButtonProps) => {
   }, [target]);
 
   const scrollToBottom = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
     if (target) {
       target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
     }
   };
 
-  if (!target) return null;
+  if (!target && !onClick) return null;
+  const isVisible = target ? visible : true;
 
   return (
     <button
@@ -37,7 +44,8 @@ const ScrollToBottomButton = ({ target }: ScrollToBottomButtonProps) => {
       className={cn(
         buttonVariants({ variant: "secondary", size: "icon" }),
         "absolute bottom-24 right-4 z-20 transition-opacity",
-        visible ? "opacity-100" : "pointer-events-none opacity-0"
+        isVisible ? "opacity-100" : "pointer-events-none opacity-0",
+        className,
       )}
       aria-label="Ir al final"
       title="Ir al final"

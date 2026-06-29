@@ -29,6 +29,7 @@ declare global {
 }
 
 const GOOGLE_LIBRARIES: ("visualization")[] = ["visualization"];
+const GoogleMapComponent = GoogleMap as unknown as React.ComponentType<any>;
 
 const toLatLngLiteral = (coordinates?: [number, number]) => {
   if (!coordinates) return undefined;
@@ -430,7 +431,7 @@ export function GoogleHeatmapMap({
     showHeatmap && heatmapPoints && heatmapLayerAvailable && aggregatedHeatmap.length > 0;
 
   return (
-    <GoogleMap
+    <GoogleMapComponent
       onLoad={handleMapLoad}
       onUnmount={handleMapUnmount}
       onClick={handleClick}
@@ -530,6 +531,6 @@ export function GoogleHeatmapMap({
           }}
         />
       ) : null}
-    </GoogleMap>
+    </GoogleMapComponent>
   );
 }

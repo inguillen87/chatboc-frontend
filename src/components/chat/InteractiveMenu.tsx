@@ -23,8 +23,9 @@ const InteractiveMenu: React.FC<InteractiveMenuProps> = ({ sections, config, isD
 
   if (activeSections.length === 0) return null;
 
-  const handleSelect = (item: { id: string; title: string }) => {
-      onSelect(item);
+  const handleSelect = (item: { id?: string; title?: string }) => {
+      const title = item.title || item.id || 'opcion';
+      onSelect({ id: item.id || title, title });
       setOpen(false);
   };
 

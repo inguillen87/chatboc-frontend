@@ -13,7 +13,9 @@ interface Props {
 }
 
 const SocialLinks: React.FC<Props> = ({ links }) => {
-  const entries = Object.entries(links || {}).filter(([_, url]) => !!url);
+  const entries = Object.entries(links || {}).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0,
+  );
   if (entries.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-3 mt-2">

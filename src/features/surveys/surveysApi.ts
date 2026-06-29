@@ -75,7 +75,7 @@ const normalizeQuestion = (value: unknown, index = 0): SurveyQuestionDraft | nul
               value: (option.value as string | number | undefined) ?? asString(getFirst(option, ['id', 'key', 'label'])),
             };
           })
-          .filter((option): option is { id?: string; label?: string; value?: string | number } => Boolean(option))
+          .filter(Boolean) as SurveyQuestionDraft['options']
       : undefined,
   };
 };

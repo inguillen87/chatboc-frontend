@@ -151,4 +151,4 @@ export const normalizeDemoRubroTools = (
         fields: fields.length ? fields : dataFields.length ? dataFields : itemFields,
       };
     })
-    .filter((tool): tool is NormalizedDemoRubroTool => Boolean(tool));
+    .filter(Boolean) as NormalizedDemoRubroTool[];

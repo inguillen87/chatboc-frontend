@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
-import type { Map, LngLatLike } from "maplibre-gl";
+import type { Map, LngLatLike, StyleSpecification } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
@@ -439,7 +439,7 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
   const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
-  const boundingBoxCallbackRef = useRef<Props['onBoundingBoxChange']>(onBoundingBoxChange);
+  const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
 
   const effectiveProvider = providerOverride ?? provider;
 
@@ -566,9 +566,9 @@ export default function MapLibreMap({
         const customTileUrl = (mapTileUrl ?? "").trim();
         const customTileAttribution =
           (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";
-        const tileStyle = customTileUrl
+        const tileStyle: StyleSpecification | null = customTileUrl
           ? {
-              version: 8,
+              version: 8 as const,
               sources: {
                 osm: {
                   type: "raster",
@@ -586,8 +586,8 @@ export default function MapLibreMap({
               ],
             }
           : null;
-        const defaultRasterStyle = {
-          version: 8,
+        const defaultRasterStyle: StyleSpecification = {
+          version: 8 as const,
           sources: {
             osm: {
               type: "raster",

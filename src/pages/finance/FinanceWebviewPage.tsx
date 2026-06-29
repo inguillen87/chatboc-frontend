@@ -13,7 +13,13 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-import { fetchFinanceWebview, type FinanceWebviewResponse } from '@/api/finance';
+import {
+  fetchFinanceWebview,
+  sendFinanceAction,
+  type FinanceActionCatalogItem,
+  type FinanceActionResponse,
+  type FinanceWebviewResponse,
+} from '@/api/finance';
 import { Button } from '@/components/ui/button';
 import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 
@@ -119,6 +125,10 @@ export default function FinanceWebviewPage() {
   const [payload, setPayload] = useState<FinanceWebviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<FinanceActionResponse | null>(null);
 
   const pathParts = location.pathname.split('/').filter(Boolean);
   const financeIndex = pathParts.findIndex((part) => part.toLowerCase() === 'finanzas');
@@ -142,6 +152,32 @@ export default function FinanceWebviewPage() {
   const userTasks = payload?.experience?.user_tasks ?? [];
   const successEvents = payload?.events?.success ?? [];
   const crmQueue = payload?.experience?.crm_queue;
+  const templates = payload?.experience?.templates ?? [];
+  const actionCatalog = useMemo<FinanceActionCatalogItem[]>(() => {
+    if (payload?.action_catalog?.length) return payload.action_catalog;
+    const fallback: FinanceActionCatalogItem[] = [];
+    if (payload?.actions.primary) {
+      fallback.push({
+        ...payload.actions.primary,
+        event: 'finance_secure_flow_continued',
+        next_step: 'secure_webview',
+      });
+    }
+    if (payload?.actions.support) {
+      fallback.push({
+        ...payload.actions.support,
+        event: 'finance_agent_help_requested',
+        next_step: 'crm_queue',
+        disabled_reason: null,
+      });
+    }
+    return fallback;
+  }, [payload]);
+  const secondaryActions = actionCatalog.filter(
+    (action) => !['continue_secure_flow', 'request_agent_help', 'add_public_comment'].includes(action.id),
+  );
+  const actionById = (id: string) => actionCatalog.find((action) => action.id === id);
+  const commentAction = actionById('add_public_comment') || actionById('request_agent_help');
 
   const load = async () => {
     if (!tenantSlug || !flow || !operationCode) {
@@ -158,6 +194,31 @@ export default function FinanceWebviewPage() {
       setError(financeErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitAction = async (action: FinanceActionCatalogItem | undefined, overrideComment?: string) => {
+    if (!action || !payload || !tenantSlug || !flow || !operationCode) return;
+    setActionSubmitting(action.id);
+    setActionError(null);
+    setActionResult(null);
+    try {
+      const response = await sendFinanceAction({
+        tenantSlug,
+        flow,
+        operationCode,
+        searchParams,
+        actionId: action.id,
+        comment: overrideComment ?? comment,
+        amount: payload.operation.amount,
+        currency: payload.operation.currency,
+      });
+      setActionResult(response);
+      if (action.id === 'add_public_comment') setComment('');
+    } catch (err) {
+      setActionError(financeErrorMessage(err));
+    } finally {
+      setActionSubmitting(null);
     }
   };
 
@@ -224,6 +285,39 @@ export default function FinanceWebviewPage() {
                       <p className="mt-1 font-semibold">{payload.security_policy.session_state === 'present' ? 'Validada' : 'Requerida'}</p>
                     </div>
                   </div>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[8px] border border-white/10 bg-slate-950/35 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Plantillas WhatsApp</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {templates.length ? (
+                          templates.slice(0, 4).map((template) => (
+                            <span key={template} className="rounded-full border border-sky-300/25 bg-sky-400/10 px-3 py-1 text-xs text-sky-100">
+                              {template.replace(/^finance_/, '').replace(/_/g, ' ')}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-300">A definir por tenant</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-[8px] border border-white/10 bg-slate-950/35 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Confirmacion operativa</p>
+                      <div className="mt-3 grid gap-2 text-sm text-slate-200">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                          <span>Webhook servidor a servidor</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                          <span>Auditoria CRM y evento analitico</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-sky-200" />
+                          <span>Datos sensibles fuera del chat</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <aside className="border-t border-white/10 bg-slate-950/60 p-6 lg:border-l lg:border-t-0">
@@ -259,14 +353,25 @@ export default function FinanceWebviewPage() {
                     </div>
                   ) : null}
                   <div className="mt-4 grid gap-3">
-                    <Button disabled={!ready} className="h-11 rounded-[8px] bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-white/30">
+                    <Button
+                      disabled={!ready || actionSubmitting === primary?.id}
+                      onClick={() => void submitAction(actionById(primary?.id || 'continue_secure_flow'))}
+                      className="h-11 rounded-[8px] bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-white/30"
+                    >
+                      {actionSubmitting === primary?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       {primary?.label || 'Continuar gestion segura'}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                     {!ready && primary?.disabled_reason ? (
                       <p className="text-sm text-amber-100">{primary.disabled_reason}</p>
                     ) : null}
-                    <Button variant="outline" className="h-11 rounded-[8px] border-white/20 bg-transparent text-white hover:bg-white/10">
+                    <Button
+                      variant="outline"
+                      disabled={actionSubmitting === support?.id}
+                      onClick={() => void submitAction(actionById(support?.id || 'request_agent_help'))}
+                      className="h-11 rounded-[8px] border-white/20 bg-transparent text-white hover:bg-white/10"
+                    >
+                      {actionSubmitting === support?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       <MessageCircle className="mr-2 h-4 w-4" />
                       {support?.label || 'Pedir ayuda'}
                     </Button>
@@ -324,6 +429,82 @@ export default function FinanceWebviewPage() {
                 ) : null}
               </section>
             ) : null}
+
+            <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <article className="rounded-[8px] border border-white/10 bg-white/[0.05] p-5">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-sky-400/12 text-sky-100">
+                    <MessageCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Acciones</p>
+                    <h3 className="text-lg font-semibold">Resolver sin salir del flujo</h3>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {secondaryActions.length ? (
+                    secondaryActions.slice(0, 5).map((action) => (
+                      <Button
+                        key={action.id}
+                        variant="outline"
+                        disabled={!action.enabled || actionSubmitting === action.id}
+                        onClick={() => void submitAction(action)}
+                        className="h-auto justify-between rounded-[8px] border-white/15 bg-slate-950/35 px-3 py-3 text-left text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:bg-white/5"
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-semibold">{action.label}</span>
+                          <span className="mt-1 block text-xs font-normal text-slate-400">
+                            {action.disabled_reason || action.next_step?.replace(/_/g, ' ') || 'crm'}
+                          </span>
+                        </span>
+                        {actionSubmitting === action.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <ArrowRight className="h-4 w-4 shrink-0" />}
+                      </Button>
+                    ))
+                  ) : (
+                    <p className="rounded-[8px] border border-white/10 bg-slate-950/35 p-3 text-sm text-slate-300">
+                      La operacion queda disponible para asistencia y seguimiento CRM.
+                    </p>
+                  )}
+                </div>
+              </article>
+
+              <article className="rounded-[8px] border border-white/10 bg-white/[0.05] p-5">
+                <label htmlFor="finance-comment" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Comentario seguro
+                </label>
+                <textarea
+                  id="finance-comment"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  className="mt-3 min-h-[112px] w-full resize-y rounded-[8px] border border-white/10 bg-slate-950/55 px-3 py-3 text-sm text-white outline-none ring-0 placeholder:text-slate-500 focus:border-sky-300/60"
+                  placeholder="Consulta, observacion o pedido para el equipo..."
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button
+                    disabled={!comment.trim() || actionSubmitting === commentAction?.id}
+                    onClick={() => void submitAction(commentAction, comment)}
+                    className="h-10 rounded-[8px] bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-white/30"
+                  >
+                    {actionSubmitting === commentAction?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Registrar comentario
+                  </Button>
+                  <p className="text-xs text-slate-400">No incluyas claves, PIN, CVV ni tarjetas completas.</p>
+                </div>
+                {actionError ? (
+                  <div className="mt-4 rounded-[8px] border border-red-400/35 bg-red-500/10 p-3 text-sm text-red-100">
+                    {actionError}
+                  </div>
+                ) : null}
+                {actionResult ? (
+                  <div className="mt-4 rounded-[8px] border border-emerald-300/30 bg-emerald-400/10 p-3 text-sm text-emerald-50">
+                    <p className="font-semibold">{actionResult.frontend_contract?.toast || 'Gestion registrada'}</p>
+                    {actionResult.ticket?.id ? (
+                      <p className="mt-1 text-emerald-100/80">Ticket CRM #{actionResult.ticket.id}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            </section>
 
             <section className="grid gap-4 md:grid-cols-3">
               {payload.steps.map((step) => (

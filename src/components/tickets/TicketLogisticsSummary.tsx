@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
-import { fmtARWithOffset, shiftDateByHours } from '@/utils/date';
+import { fmtARWithOffset } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
 import { hasCoordinateValue } from '@/utils/location';
@@ -33,50 +33,6 @@ interface TicketLogisticsSummaryProps {
 }
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
-
-const pickHistoryDate = (entry: unknown): string | number | Date | null => {
-  if (!entry || typeof entry !== 'object') {
-    return null;
-  }
-
-  const record = entry as Record<string, unknown>;
-  const candidateKeys = ['date', 'fecha', 'created_at', 'updated_at', 'timestamp'];
-
-  for (const key of candidateKeys) {
-    const raw = record[key];
-    if (
-      typeof raw === 'string' ||
-      typeof raw === 'number' ||
-      raw instanceof Date
-    ) {
-      return raw;
-    }
-  }
-
-  return null;
-};
-
-const formatHistoryDate = (value: string | number | Date | null | undefined) => {
-  if (!value) return null;
-
-  const shifted = shiftDateByHours(value, -3);
-
-  if (!shifted) {
-    return null;
-  }
-
-  try {
-    return new Intl.DateTimeFormat('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(shifted);
-  } catch (error) {
-    console.error('Error formatting history date', error);
-    return null;
-  }
-};
 
 const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ticket,

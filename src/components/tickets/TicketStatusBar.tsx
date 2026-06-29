@@ -24,6 +24,8 @@ interface TicketStatusBarProps {
 
 const ICONS: Record<AllowedTicketStatus, React.ReactNode> = {
   nuevo: <CircleDot className="h-3.5 w-3.5" />,
+  esperando_agente_en_vivo: <CircleDot className="h-3.5 w-3.5" />,
+  en_vivo: <Check className="h-3.5 w-3.5" />,
   en_proceso: <Wrench className="h-3.5 w-3.5" />,
   resuelto: <BadgeCheck className="h-3.5 w-3.5" />,
 };

@@ -9,6 +9,16 @@ export interface FinanceWebviewStep {
   detail?: string;
 }
 
+export interface FinanceActionCatalogItem {
+  id: string;
+  label: string;
+  event?: string;
+  status?: string;
+  next_step?: string;
+  enabled: boolean;
+  disabled_reason?: string | null;
+}
+
 export interface FinanceWebviewResponse {
   contract_version: 'finance.webview.v1';
   request_id?: string;
@@ -82,6 +92,8 @@ export interface FinanceWebviewResponse {
     analytics?: string[];
   };
   analytics?: Record<string, unknown>;
+  action_catalog?: FinanceActionCatalogItem[];
+  frontend_contract?: Record<string, unknown>;
 }
 
 export interface FinanceWebviewQuery {
@@ -102,6 +114,90 @@ export async function fetchFinanceWebview({
   return apiFetch<FinanceWebviewResponse>(
     `/api/public/finance/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(flow)}/${encodeURIComponent(operationCode)}${suffix}`,
     {
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitEntityToken: true,
+      omitChatSessionId: true,
+      omitTenant: true,
+      suppressPanel401Redirect: true,
+      headers: { 'X-Tenant-Slug': tenantSlug },
+    },
+  );
+}
+
+export interface FinanceActionRequest {
+  tenantSlug: string;
+  flow: string;
+  operationCode: string;
+  searchParams?: URLSearchParams;
+  actionId: string;
+  comment?: string;
+  amount?: string | null;
+  currency?: string | null;
+}
+
+export interface FinanceActionResponse {
+  contract_version: 'finance.action.v1';
+  status: 'accepted' | 'duplicate' | string;
+  request_id?: string;
+  ticket?: {
+    id: number;
+    status?: string;
+    category?: string;
+    fingerprint?: string;
+    crm_queue?: {
+      id: string;
+      label: string;
+      sla_minutes?: number;
+    };
+  };
+  action?: {
+    id: string;
+    label: string;
+    event?: string;
+    next_step?: string;
+  };
+  crm_followup?: {
+    queue?: {
+      id: string;
+      label: string;
+      sla_minutes?: number;
+    };
+    template_candidates?: string[];
+    webview_flow_id?: string;
+  };
+  frontend_contract?: {
+    toast?: string;
+    refresh_payload_url?: string;
+    render_as?: string;
+  };
+}
+
+export async function sendFinanceAction({
+  tenantSlug,
+  flow,
+  operationCode,
+  searchParams,
+  actionId,
+  comment,
+  amount,
+  currency,
+}: FinanceActionRequest): Promise<FinanceActionResponse> {
+  const session = searchParams?.get('session') || searchParams?.get('token') || '';
+  const idempotencyBase = [tenantSlug, flow, operationCode, actionId, session || 'public'].join(':');
+  return apiFetch<FinanceActionResponse>(
+    `/api/public/finance/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(flow)}/${encodeURIComponent(operationCode)}/actions`,
+    {
+      method: 'POST',
+      body: {
+        action_id: actionId,
+        comment,
+        amount,
+        currency,
+        session,
+        idempotency_key: idempotencyBase,
+      },
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ComponentType } from 'react';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
@@ -196,7 +196,7 @@ function attemptStaleBundleRecovery() {
   }
 }
 
-class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
+class ErrorBoundaryImpl extends (React.Component as any)<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
   constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
     this.state = { hasError: false };
@@ -302,5 +302,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
     return this.props.children;
   }
 }
+
+const ErrorBoundary = ErrorBoundaryImpl as unknown as ComponentType<React.PropsWithChildren<ErrorBoundaryProps>>;
 
 export default ErrorBoundary;

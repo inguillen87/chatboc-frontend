@@ -12,6 +12,8 @@ const TYPE_LABELS: Record<SurveyQuestionDraft['type'], string> = {
   rating: 'Rating',
   text: 'Texto libre',
   nps: 'NPS',
+  location: 'Ubicacion',
+  ranking: 'Ranking',
 };
 
 export default function SurveyPreview({ questions }: { questions: SurveyQuestionDraft[] }) {

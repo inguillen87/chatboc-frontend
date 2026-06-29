@@ -1,12 +1,14 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fetchFinanceWebviewMock = vi.fn();
+const sendFinanceActionMock = vi.fn();
 
 vi.mock('@/api/finance', () => ({
   fetchFinanceWebview: (...args: unknown[]) => fetchFinanceWebviewMock(...args),
+  sendFinanceAction: (...args: unknown[]) => sendFinanceActionMock(...args),
 }));
 
 import FinanceWebviewPage from './FinanceWebviewPage';
@@ -81,6 +83,36 @@ const financePayload = {
     success: ['payment_webhook', 'signature_completed', 'crm_operation_updated'],
     analytics: ['collection_opened', 'payment_started', 'signature_completed'],
   },
+  action_catalog: [
+    {
+      id: 'continue_secure_flow',
+      label: 'Continuar gestion segura',
+      enabled: true,
+      event: 'finance_secure_flow_continued',
+      next_step: 'secure_webview',
+    },
+    {
+      id: 'request_agent_help',
+      label: 'Pedir ayuda de un asesor',
+      enabled: true,
+      event: 'finance_agent_help_requested',
+      next_step: 'crm_queue',
+    },
+    {
+      id: 'request_payment_plan',
+      label: 'Solicitar plan de pago',
+      enabled: true,
+      event: 'finance_payment_plan_requested',
+      next_step: 'collections_queue',
+    },
+    {
+      id: 'add_public_comment',
+      label: 'Agregar comentario',
+      enabled: true,
+      event: 'finance_comment_added',
+      next_step: 'crm_timeline',
+    },
+  ],
 };
 
 function renderPage(path = '/finanzas/banco-demo/operacion/OP-123?session=session-123456&amount=1500.75') {
@@ -96,6 +128,7 @@ function renderPage(path = '/finanzas/banco-demo/operacion/OP-123?session=sessio
 describe('FinanceWebviewPage', () => {
   beforeEach(() => {
     fetchFinanceWebviewMock.mockReset();
+    sendFinanceActionMock.mockReset();
   });
 
   it('renders the public finance webview contract without asking for sensitive data in chat', async () => {
@@ -106,13 +139,15 @@ describe('FinanceWebviewPage', () => {
     expect(await screen.findByText('Banco Demo')).toBeInTheDocument();
     expect(screen.getByText('Operacion segura')).toBeInTheDocument();
     expect(screen.getAllByText('Listo para revisar').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Datos sensibles fuera del chat')).toBeInTheDocument();
+    expect(screen.getAllByText('Datos sensibles fuera del chat').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/No se aceptan tarjetas, documentos completos ni claves dentro del chat/i)).toBeInTheDocument();
     expect(screen.getByText('Proteccion de datos')).toBeInTheDocument();
     expect(screen.getByText('Cobranzas y planes de pago')).toBeInTheDocument();
     expect(screen.getByText('Pasos claros antes de confirmar')).toBeInTheDocument();
     expect(screen.getByText('Revisar monto, concepto y vencimiento')).toBeInTheDocument();
     expect(screen.getByText('Pago confirmado')).toBeInTheDocument();
+    expect(screen.getByText('Solicitar plan de pago')).toBeInTheDocument();
+    expect(screen.getByLabelText('Comentario seguro')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Continuar gestion segura/i })).toBeEnabled();
 
     await waitFor(() => {
@@ -124,6 +159,51 @@ describe('FinanceWebviewPage', () => {
         }),
       );
     });
+  });
+
+  it('posts a finance action and shows the CRM ticket reference', async () => {
+    fetchFinanceWebviewMock.mockResolvedValueOnce(financePayload);
+    sendFinanceActionMock.mockResolvedValueOnce({
+      contract_version: 'finance.action.v1',
+      status: 'accepted',
+      action: {
+        id: 'request_payment_plan',
+        label: 'Solicitar plan de pago',
+        event: 'finance_payment_plan_requested',
+        next_step: 'collections_queue',
+      },
+      ticket: {
+        id: 8842,
+        status: 'nuevo',
+        category: 'Cobranzas y planes de pago',
+        crm_queue: { id: 'collections', label: 'Cobranzas y planes de pago', sla_minutes: 120 },
+      },
+      frontend_contract: { toast: 'Gestion registrada' },
+    });
+
+    renderPage();
+
+    await screen.findByText('Banco Demo');
+    fireEvent.change(screen.getByLabelText('Comentario seguro'), {
+      target: { value: 'Necesito pagar en 3 cuotas.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Solicitar plan de pago/i }));
+
+    await waitFor(() => {
+      expect(sendFinanceActionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'banco-demo',
+          flow: 'operacion',
+          operationCode: 'OP-123',
+          actionId: 'request_payment_plan',
+          comment: 'Necesito pagar en 3 cuotas.',
+          amount: '1500.75',
+          currency: 'ARS',
+        }),
+      );
+    });
+    expect(await screen.findByText('Gestion registrada')).toBeInTheDocument();
+    expect(screen.getByText('Ticket CRM #8842')).toBeInTheDocument();
   });
 
   it('shows the session blocker when the backend marks the link incomplete', async () => {

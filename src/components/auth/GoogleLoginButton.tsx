@@ -21,7 +21,7 @@ interface LoginResponse {
 }
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
-  onLoggedIn?: () => void;
+  onLoggedIn?: (role?: string) => void;
 }
 
 const GoogleLoginButton: React.FC<Props> = ({
@@ -60,7 +60,7 @@ const GoogleLoginButton: React.FC<Props> = ({
     <div className={cn('flex justify-center', className)} {...props}>
       <GoogleLogin
         onSuccess={handleSuccess}
-        onError={(err) => console.error('Google OAuth error:', err)}
+        onError={() => console.error('Google OAuth error')}
         useOneTap={false}
         locale="es"
         width={300}

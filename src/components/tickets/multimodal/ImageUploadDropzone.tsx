@@ -15,22 +15,26 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({ onImag
     }
   }, [onImageAccepted]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const dropzoneOptions = {
     onDrop,
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
     maxFiles: 1,
-    disabled: isLoading
-  });
+    disabled: Boolean(isLoading)
+  } as unknown as Parameters<typeof useDropzone>[0];
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone(dropzoneOptions);
+  const rootProps = getRootProps() as React.HTMLAttributes<HTMLDivElement>;
+  const inputProps = getInputProps() as React.InputHTMLAttributes<HTMLInputElement>;
 
   return (
     <div
-      {...getRootProps()}
+      {...rootProps}
       className={`relative w-full p-6 border-2 border-dashed rounded-lg transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 min-h-[160px]
         ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50'}
         ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}
       `}
     >
-      <input {...getInputProps()} />
+      <input {...inputProps} />
       {isLoading ? (
          <>
             <Loader2 className="w-8 h-8 text-primary animate-spin" />

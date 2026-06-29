@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { type ComponentType, useState } from 'react';
 import ChatWidget from './ChatWidget';
 import { Button } from '@/components/ui/button';
 import { Smartphone, Monitor, Sun, Moon, ArrowUpDown } from 'lucide-react';
@@ -31,7 +31,7 @@ export interface WidgetPreviewProps {
   faqSuggestions?: string[];
 }
 
-class PreviewErrorBoundary extends React.Component<
+class PreviewErrorBoundaryImpl extends (React.Component as any)<
   { children: React.ReactNode },
   { hasError: boolean }
 > {
@@ -57,6 +57,8 @@ class PreviewErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
+const PreviewErrorBoundary = PreviewErrorBoundaryImpl as unknown as ComponentType<{ children: React.ReactNode }>;
 
 const FakeWebsite = ({ mode, scrollable }: { mode: 'light' | 'dark'; scrollable: boolean }) => {
   const bgClass = mode === 'light' ? 'bg-white' : 'bg-slate-950';

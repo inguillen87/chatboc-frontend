@@ -25,7 +25,7 @@ const MenuItemEditor: React.FC<{
 }> = ({ item, onSave, onCancel }) => {
   const [editedItem, setEditedItem] = useState<AnyMenuItem>({ ...item });
 
-  const handleChange = (field: keyof AnyMenuItem, val: any) => {
+  const handleChange = (field: string, val: any) => {
     setEditedItem((prev) => ({ ...prev, [field]: val }));
   };
 
@@ -226,7 +226,7 @@ const MenuBuilder: React.FC<MenuBuilderProps> = ({ value, onChange }) => {
   // Breadcrumb navigation logic
   const activeSubmenuLabel = activeSubmenuId
     ? value.main_menu.find((i) => i.id === activeSubmenuId)?.label ||
-      Object.values(value.submenus)
+      (Object.values(value.submenus) as AnyMenuItem[][])
         .flat()
         .find((i) => i.id === activeSubmenuId)?.label ||
       activeSubmenuId

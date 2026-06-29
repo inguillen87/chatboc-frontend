@@ -477,6 +477,13 @@ interface ApiFetchOptions {
    */
   preserveAuthOn401?: boolean;
   sendAnonId?: boolean;
+  /**
+   * Legacy compatibility flag used by widget/public modules.
+   * apiFetch already sends X-Entity-Token when a token is available unless
+   * omitEntityToken is true; keeping this option prevents older callers from
+   * falling out of the typed contract.
+   */
+  sendEntityToken?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
   onResponse?: (response: Response) => void;

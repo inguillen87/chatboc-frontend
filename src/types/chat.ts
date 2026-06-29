@@ -8,6 +8,7 @@ export interface AttachmentInfo {
   thumbnailUrl?: string;
   mimeType?: string;
   size?: number;
+  isUploading?: boolean;
 }
 // Define cómo es un objeto Boton
 export interface Boton {
