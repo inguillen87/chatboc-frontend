@@ -672,7 +672,7 @@ const LeadDetailBlock = ({
   </div>
 );
 
-const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null }) => {
+export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null }) => {
   const root = isRecord(experience) ? experience : {};
   const templateBlueprint = isRecord(root.template_blueprint) ? root.template_blueprint : {};
   const templateGroups = isRecord(templateBlueprint.operational_template_groups)
@@ -696,6 +696,12 @@ const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null
   const financeFunnels = asStringList(financeAnalytics.funnels);
   const financeRiskSignals = asStringList(financeAnalytics.risk_signals);
   const financeSecurity = isRecord(financeRuntime.security_policy) ? financeRuntime.security_policy : {};
+  const activationPlan = isRecord(financeRuntime.activation_plan) ? financeRuntime.activation_plan : {};
+  const activationCapabilities = asArray(activationPlan.required_capabilities);
+  const activationTracks = asArray(activationPlan.launch_tracks);
+  const activationNextActions = asArray(activationPlan.next_actions);
+  const activationQuestions = asArray(activationPlan.setup_questions);
+  const activationState = String(first(activationPlan, ["go_live_state", "status"]) || "sin plan");
   const commerce = isRecord(root.commerce) ? root.commerce : {};
   const checkout = isRecord(commerce.checkout_experience) ? commerce.checkout_experience : {};
   const readyFinanceFlows = financeFlows.filter((flow) => String(flow.status || "").toLowerCase() === "ready").length;
@@ -728,6 +734,103 @@ const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null
           <MetricCard label="Listos" value={formatNumber(first(financeSummary, ["ready_flows"]) ?? readyFinanceFlows)} icon={CheckCircle2} />
           <MetricCard label="QA" value={formatNumber(first(financeSummary, ["qa_scenarios"]) ?? financeScenarios.length)} icon={ShieldCheck} />
         </div>
+
+        {Object.keys(activationPlan).length ? (
+          <div className="rounded-[8px] border border-primary/20 bg-primary/[0.03] p-4">
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="font-semibold text-foreground">Plan de salida a produccion finance</h3>
+                <p className="text-xs text-muted-foreground">
+                  Checklist operativo para activar pagos, KYC, firma, soporte y cobranzas sin sacar al usuario de WhatsApp.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatePill value={activationState.replace(/_/g, " ")} tone={activationState === "ready" ? "ready" : "warning"} />
+                <StatePill value={`${formatNumber(first(activationPlan, ["ready_tracks"]) ?? 0)} tracks listos`} />
+                <StatePill value={`${formatNumber(first(activationPlan, ["blocking_count"]) ?? 0)} bloqueos`} tone={(first(activationPlan, ["blocking_count"]) ?? 0) ? "warning" : "ready"} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid gap-3 lg:grid-cols-2">
+                {activationTracks.length ? (
+                  activationTracks.slice(0, 6).map((track) => {
+                    const ready = Boolean(track.ready);
+                    const surfaces = asStringList(track.surfaces);
+                    const templates = asStringList(track.required_templates);
+                    return (
+                      <div key={String(track.id)} className="rounded-[8px] border border-border/60 bg-background/90 p-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <StatePill value={ready ? "listo" : "setup"} tone={ready ? "ready" : "warning"} />
+                          <StatePill value={String(track.webview_flow || "webview")} />
+                        </div>
+                        <p className="font-semibold text-foreground">{String(track.label || track.id)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {surfaces.slice(0, 4).map((surface) => surface.replace(/_/g, " ")).join(" + ") || "Superficie pendiente"}
+                        </p>
+                        <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
+                          Templates: {templates.slice(0, 3).join(" + ") || "pendientes"}
+                        </p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <EmptyPanel label="Sin tracks de activacion finance en el contrato." />
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-[8px] border border-border/60 bg-background/90 p-4">
+                  <h4 className="text-sm font-semibold text-foreground">Faltantes criticos</h4>
+                  <div className="mt-3 space-y-2">
+                    {activationNextActions.length ? (
+                      activationNextActions.slice(0, 5).map((action) => (
+                        <div key={String(action.id)} className="rounded-xl border border-border/60 px-3 py-2 text-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-foreground">{String(action.label || action.id)}</span>
+                            <StatePill value={String(action.owner || "ops")} tone={String(action.severity || "") === "ready" ? "ready" : "warning"} />
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">{String(action.action || "Completar configuracion")}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <StatePill value="sin bloqueos" tone="ready" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[8px] border border-border/60 bg-background/90 p-4">
+                  <h4 className="text-sm font-semibold text-foreground">Capacidades requeridas</h4>
+                  <div className="mt-3 grid gap-2">
+                    {activationCapabilities.slice(0, 6).map((capability) => {
+                      const ready = Boolean(capability.ready);
+                      return (
+                        <div key={String(capability.id)} className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs">
+                          <span className="min-w-0 truncate font-medium">{String(capability.label || capability.id)}</span>
+                          <StatePill value={ready ? "ok" : "pendiente"} tone={ready ? "ready" : "warning"} />
+                        </div>
+                      );
+                    })}
+                    {!activationCapabilities.length ? (
+                      <StatePill value="capacidades pendientes" tone="warning" />
+                    ) : null}
+                  </div>
+                </div>
+
+                {activationQuestions.length ? (
+                  <div className="rounded-[8px] border border-border/60 bg-background/90 p-4">
+                    <h4 className="text-sm font-semibold text-foreground">Onboarding del tenant</h4>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activationQuestions.map((question) => (
+                        <StatePill key={String(question.id)} value={String(question.label || question.id)} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-[8px] border border-border/60 bg-background/90 p-4">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

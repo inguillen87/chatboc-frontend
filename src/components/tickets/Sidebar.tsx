@@ -337,7 +337,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     setFilters(defaultFilters);
   };
 
-  const categoryEntries = Object.entries(filteredTicketsByCategory);
+  const categoryEntries = Object.entries(filteredTicketsByCategory) as [
+    string,
+    any[],
+  ][];
   const visibleCategoryEntries = categoryEntries.filter(
     ([, categoryTickets]) => showEmptyCategories || categoryTickets.length > 0,
   );
@@ -352,10 +355,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         className,
       )}
     >
-      <div className="shrink-0 space-y-4 border-b border-border/70 bg-background/80 p-4">
-        <div className="flex justify-between items-center">
+      <div className="shrink-0 space-y-3 border-b border-border/70 bg-background/80 p-3">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
+            <h1 className="text-lg font-bold tracking-tight">
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
             </h1>
             <p className="text-xs text-muted-foreground">
@@ -365,9 +368,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <FileDown className="h-4 w-4 mr-2" />
-                Exportar
+              <Button variant="outline" size="sm" className="h-8 px-2">
+                <FileDown className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Exportar</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -392,13 +395,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nro, asunto, nombre, DNI, teléfono..."
-            className="pl-8"
+            className="h-9 pl-8 text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           <Button
             type="button"
             size="sm"
@@ -407,7 +410,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ? 'secondary'
                 : 'outline'
             }
-            className="h-9 rounded-lg px-2 text-xs"
+            className="h-8 rounded-lg px-2 text-xs"
             onClick={() =>
               setFilters((prev) => ({ ...prev, unread: 'all', sla: 'all' }))
             }
@@ -418,7 +421,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             type="button"
             size="sm"
             variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-            className="h-9 rounded-lg px-2 text-xs"
+            className="h-8 rounded-lg px-2 text-xs"
             onClick={() =>
               setFilters((prev) => ({ ...prev, unread: 'unread' }))
             }
@@ -429,7 +432,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             type="button"
             size="sm"
             variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-            className="h-9 rounded-lg px-2 text-xs"
+            className="h-8 rounded-lg px-2 text-xs"
             onClick={() =>
               setFilters((prev) => ({
                 ...prev,
@@ -441,10 +444,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-muted/30">
+        <div className="overflow-hidden rounded-[8px] border border-border/70 bg-muted/30">
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-muted/50"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-semibold transition hover:bg-muted/50"
             aria-expanded={advancedFiltersOpen}
             onClick={() => setAdvancedFiltersOpen((current) => !current)}
           >
@@ -466,9 +469,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </button>
 
           {advancedFiltersOpen ? (
-            <div className="grid grid-cols-1 gap-2 border-t border-border/70 p-3 sm:grid-cols-2">
+            <div className="grid max-h-[min(44dvh,22rem)] grid-cols-1 gap-2 overflow-y-auto border-t border-border/70 p-2.5 sm:grid-cols-2">
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.channel}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, channel: e.target.value }))
@@ -482,7 +485,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.status}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, status: e.target.value }))
@@ -496,7 +499,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.area}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, area: e.target.value }))
@@ -510,7 +513,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.agent}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, agent: e.target.value }))
@@ -524,7 +527,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm sm:col-span-2"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs sm:col-span-2"
                 value={filters.priority}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, priority: e.target.value }))
@@ -538,7 +541,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.sla}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, sla: e.target.value }))
@@ -555,7 +558,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                   ))}
               </select>
               <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.unread}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, unread: e.target.value }))
@@ -571,7 +574,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           ) : null}
         </div>
         {hasActiveFilters ? (
-          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 px-2.5 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-[8px] border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
             {activeFilterLabels.slice(0, 3).map((label) => (
               <span
                 key={label}
@@ -597,13 +600,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </div>
         ) : null}
       </div>
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {emptyCategoryCount > 0 ? (
-          <div className="border-b border-border/60 px-4 py-2">
+          <div className="border-b border-border/60 px-3 py-2">
             <button
               type="button"
               onClick={() => setShowEmptyCategories((current) => !current)}
-              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               {showEmptyCategories
                 ? 'Ocultar rubros vacíos'
@@ -612,7 +615,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </div>
         ) : null}
         {visibleCategoryEntries.length === 0 ? (
-          <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
+          <div className="mx-3 mt-3 rounded-[8px] border border-dashed border-border bg-background/70 p-4 text-center">
             <p className="text-sm font-semibold text-foreground">
               No hay casos para esta vista
             </p>
@@ -640,11 +643,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         >
           {visibleCategoryEntries.map(([category, tickets]) => (
             <AccordionItem value={category} key={category}>
-              <AccordionTrigger className="px-4 font-semibold">
+              <AccordionTrigger className="px-3 py-3 font-semibold">
                 {category} ({tickets.length})
               </AccordionTrigger>
               <AccordionContent>
-                <div className="space-y-2 p-1">
+                <div className="space-y-2 px-2 pb-2">
                   {tickets.length === 0 ? (
                     <p className="px-3 py-2 text-xs text-muted-foreground">
                       Sin casos abiertos en este rubro.
