@@ -105,6 +105,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
+import { buildLoginPathWithNext } from "@/utils/authRedirect";
 import { toLocalISOString } from "@/utils/fecha";
 import { fmtAR } from "@/utils/date";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
@@ -237,6 +238,23 @@ type ProfileTabValue =
   | "usuarios"
   | "empleados"
   | "mapas";
+
+const PROFILE_TAB_VALUES = new Set<ProfileTabValue>([
+  "perfil",
+  "tickets",
+  "pedidos",
+  "estadisticas",
+  "analytics",
+  "catalogo",
+  "usuarios",
+  "empleados",
+  "mapas",
+]);
+
+const normalizeProfileTabValue = (value: string | null): ProfileTabValue | null => {
+  if (!value) return null;
+  return PROFILE_TAB_VALUES.has(value as ProfileTabValue) ? (value as ProfileTabValue) : null;
+};
 
 type ControlCenterCard = {
   id: string;
@@ -435,7 +453,7 @@ export default function Perfil() {
   const [activeEventTab, setActiveEventTab] = useState<
     "event" | "news" | "paste" | "promotion"
   >("event");
-  const requestedProfileTab = searchParams.get("tab") as ProfileTabValue | null;
+  const requestedProfileTab = normalizeProfileTabValue(searchParams.get("tab"));
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
@@ -994,13 +1012,13 @@ export default function Perfil() {
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
-      navigate("/login"); // Usar navigate para la redirección
+      navigate(buildLoginPathWithNext(location.pathname, location.search), { replace: true });
       return;
     }
     void (async () => {
       await fetchPerfil();
     })();
-  }, [fetchPerfil, navigate]);
+  }, [fetchPerfil, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!canViewAnalytics) {

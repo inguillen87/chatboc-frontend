@@ -328,10 +328,24 @@ const NewTicketsPanel: React.FC = () => {
 
   if (loading) {
     return (
-        <div className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden">
+        <div
+          className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden"
+          role="status"
+          aria-live="polite"
+          aria-label="Cargando bandeja de reclamos"
+        >
             {/* Skeleton for Desktop */}
             <div className="hidden md:flex w-full">
               <div className="w-80 border-r border-border p-4 space-y-4">
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                      Cargando bandeja de reclamos
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      Sincronizando tickets, chats en vivo, filtros y métricas operativas.
+                    </p>
+                  </div>
                   <Skeleton className="h-12 w-full" />
                   <Skeleton className="h-10 w-full" />
                   <div className="space-y-4 mt-4">
@@ -342,6 +356,11 @@ const NewTicketsPanel: React.FC = () => {
                   </div>
               </div>
               <div className="flex-1 p-4 space-y-4">
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <Skeleton className="h-20 w-full rounded-2xl" />
+                    <Skeleton className="h-20 w-full rounded-2xl" />
+                    <Skeleton className="h-20 w-full rounded-2xl" />
+                  </div>
                   <Skeleton className="h-16 w-full" />
                   <div className="flex-1 space-y-4 mt-4">
                       <Skeleton className="h-20 w-full" />
@@ -352,6 +371,15 @@ const NewTicketsPanel: React.FC = () => {
             </div>
              {/* Skeleton for Mobile */}
             <div className="md:hidden w-full p-4 space-y-4">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                  Cargando reclamos
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Preparando la mesa operativa.
+                </p>
+              </div>
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-[420px] w-full" />
             </div>

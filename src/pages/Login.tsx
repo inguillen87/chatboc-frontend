@@ -26,6 +26,7 @@ import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
+import { getSafeAuthNextPath } from "@/utils/authRedirect";
 
 
 const isDevEnvironment = () => {
@@ -90,6 +91,7 @@ const Login = () => {
   const franchisePartner = getFranchisePartnerConfig();
 
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
+  const safeNextPath = getSafeAuthNextPath(location.search);
 
   const normalizeDemoRubro = (raw: unknown): DemoRubro | null => {
     if (typeof raw !== 'string') return null;
@@ -485,7 +487,9 @@ const Login = () => {
         }
       }
 
-      if (responseRole === "super_admin") {
+      if (safeNextPath) {
+        navigate(safeNextPath);
+      } else if (responseRole === "super_admin") {
         navigate("/superadmin");
       } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(responseRole)) {
         navigate("/perfil");
@@ -531,7 +535,9 @@ const Login = () => {
       const isSuperAdmin = resultRole === "super_admin" || resultRole === "superadmin";
       const isAdmin = isSuperAdmin || resultRole === "admin" || resultRole === "empleado";
 
-      if (isSuperAdmin) {
+      if (safeNextPath) {
+        navigate(safeNextPath);
+      } else if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
         navigate("/perfil");
