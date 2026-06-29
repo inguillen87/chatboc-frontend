@@ -129,6 +129,26 @@ describe("normalizeWhatsappExperienceV2", () => {
           signed_session_required: true,
         },
       },
+      finance_transactional: {
+        contract_version: "finance.transactional_whatsapp.v1",
+        summary: {
+          journeys: 6,
+          webview_flows: 6,
+          ready_flows: 4,
+          qa_scenarios: 5,
+        },
+        journeys: [
+          {
+            id: "digital_account_opening",
+            label: "Alta digital de cuenta o producto",
+            ready: true,
+          },
+        ],
+        security_policy: {
+          card_data_in_chat_allowed: false,
+          requires_server_to_server_confirmation: true,
+        },
+      },
       qa_playbook: {
         contract_version: "whatsapp.qa_playbook.v1",
         scenario_count: 5,
@@ -185,6 +205,10 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.webview_blueprint.security as any).signed_session_required).toBe(true);
     expect((normalized.webview_blueprint.summary as any).flows_total).toBe(4);
     expect((normalized.webview_blueprint.flows as any)[0].id).toBe("claim_tracking_helpdesk");
+    expect((normalized.finance_transactional as any).contract_version).toBe("finance.transactional_whatsapp.v1");
+    expect((normalized.finance_transactional as any).summary.journeys).toBe(6);
+    expect((normalized.finance_transactional as any).journeys[0].id).toBe("digital_account_opening");
+    expect((normalized.finance_transactional as any).security_policy.card_data_in_chat_allowed).toBe(false);
     expect((normalized.qa_playbook as any).contract_version).toBe("whatsapp.qa_playbook.v1");
     expect((normalized.qa_playbook as any).recommended_order).toContain("pyme_order_checkout");
     expect((normalized.qa_playbook as any).scenarios[0].id).toBe("gov_claim_text_to_tracking");

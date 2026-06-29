@@ -154,6 +154,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
         variant="marketplace"
         intakeEntry={{
           contract_version: 'marketplace.assisted_intake_entry.v1',
+          submit: {
+            endpoint: '/api/pedidos/from-file?origen=marketplace',
+            method: 'POST',
+          },
           document_types: [
             {
               id: 'quote_request',
@@ -191,6 +195,87 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('document_type')).toBe('quote_request');
   });
 
+  it('blocks marketplace upload when a backend contract exists without submit endpoint', async () => {
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        intakeEntry={{
+          contract_version: 'marketplace.assisted_intake_entry.v1',
+          title: 'Carga asistida controlada por backend',
+          summary: 'El endpoint se habilita desde el contrato.',
+          submit: {
+            method: 'POST',
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Carga asistida pendiente')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Crear solicitud IA/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses custom backend submit endpoint and field names from the intake contract', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 101,
+      customer_message: 'Solicitud recibida.',
+    });
+
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        intakeEntry={{
+          contract_version: 'marketplace.assisted_intake_entry.v1',
+          submit: {
+            endpoint: '/api/custom/intake',
+            method: 'POST',
+            file_field: 'document',
+            text_field: 'notes',
+            document_type_field: 'kind',
+            tenant_fields: ['tenant_slug'],
+            contact_fields: ['contact_name', 'contact_phone'],
+          },
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Nombre'), {
+      target: { value: 'Marcelo' },
+    });
+    fireEvent.change(screen.getByLabelText('WhatsApp o telefono'), {
+      target: { value: '+5492613168608' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/custom/intake',
+        expect.objectContaining({ method: 'POST', tenantSlug: 'junin' }),
+      );
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('notes')).toBe('2 chapas galvanizadas');
+    expect(body.get('kind')).toBe('order_note');
+    expect(body.get('tenant_slug')).toBe('junin');
+    expect(body.get('tenant')).toBeNull();
+    expect(body.get('contact_name')).toBe('Marcelo');
+    expect(body.get('contact_phone')).toBe('+5492613168608');
+    expect(body.get('contact_email')).toBeNull();
+  });
+
   it('submits municipal service requests as assisted marketplace intake', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',
@@ -225,6 +310,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
         variant="marketplace"
         intakeEntry={{
           contract_version: 'marketplace.assisted_intake_entry.v1',
+          submit: {
+            endpoint: '/api/pedidos/from-file?origen=marketplace',
+            method: 'POST',
+          },
           text_examples: [
             {
               id: 'gov_service_request',

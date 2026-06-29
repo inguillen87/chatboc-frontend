@@ -63,6 +63,9 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
           primary_cta: 'Subir pedido o documento',
         },
       },
+      frontend_contract: {
+        show_assisted_intake: true,
+      },
       publicCartUrl: 'https://chatboc.ar/t/junin/cart',
       whatsappShareUrl: 'https://wa.me/?text=Catalogo',
     });
@@ -117,5 +120,39 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       'junin',
       expect.objectContaining({ sort: 'promo_first' }),
     );
+  });
+
+  it('hides assisted intake when the backend frontend contract disables it', async () => {
+    fetchMarketCatalogMock.mockResolvedValueOnce({
+      products: [],
+      promotions: { items: [] },
+      facets: { categories: [], promotion_count: 0 },
+      sort_options: [],
+      total: 0,
+      total_unfiltered: 0,
+      assisted_intake: {
+        contract_version: 'marketplace.assisted_intake_entry.v1',
+        title: 'Carga asistida no visible',
+      },
+      frontend_contract: {
+        show_assisted_intake: false,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(fetchMarketCatalogMock).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText('Pedido asistido por IA')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir nota, pedido o reclamo/i })).toBeDisabled();
   });
 });

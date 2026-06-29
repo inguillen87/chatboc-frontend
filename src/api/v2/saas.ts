@@ -321,6 +321,7 @@ export interface WhatsappExperienceV2 {
   commerce: UnknownRecord;
   template_blueprint: UnknownRecord;
   webview_blueprint: UnknownRecord;
+  finance_transactional: UnknownRecord;
   qa_playbook: UnknownRecord;
   message_ux_policy: UnknownRecord;
   admin_panel: UnknownRecord;
@@ -1376,6 +1377,7 @@ export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperi
     commerce: asRecord(record.commerce),
     template_blueprint: asRecord(record.template_blueprint),
     webview_blueprint: asRecord(record.webview_blueprint),
+    finance_transactional: asRecord(record.finance_transactional),
     qa_playbook: asRecord(record.qa_playbook),
     message_ux_policy: asRecord(record.message_ux_policy),
     admin_panel: asRecord(record.admin_panel),

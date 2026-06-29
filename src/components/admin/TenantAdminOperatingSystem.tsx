@@ -687,6 +687,15 @@ const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null
   const financeScenarios = asArray(qaPlaybook.scenarios).filter((scenario) =>
     String(scenario.id || "").includes("finance"),
   );
+  const financeRuntime = isRecord(root.finance_transactional) ? root.finance_transactional : {};
+  const financeSummary = isRecord(financeRuntime.summary) ? financeRuntime.summary : {};
+  const financeJourneys = asArray(financeRuntime.journeys);
+  const financeCrm = isRecord(financeRuntime.crm_operating_model) ? financeRuntime.crm_operating_model : {};
+  const financeQueues = asArray(financeCrm.queues);
+  const financeAnalytics = isRecord(financeRuntime.analytics_model) ? financeRuntime.analytics_model : {};
+  const financeFunnels = asStringList(financeAnalytics.funnels);
+  const financeRiskSignals = asStringList(financeAnalytics.risk_signals);
+  const financeSecurity = isRecord(financeRuntime.security_policy) ? financeRuntime.security_policy : {};
   const commerce = isRecord(root.commerce) ? root.commerce : {};
   const checkout = isRecord(commerce.checkout_experience) ? commerce.checkout_experience : {};
   const readyFinanceFlows = financeFlows.filter((flow) => String(flow.status || "").toLowerCase() === "ready").length;
@@ -714,10 +723,58 @@ const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard label="Templates" value={formatNumber(financeTemplates.length)} icon={MessageSquare} />
-          <MetricCard label="Webviews" value={formatNumber(financeFlows.length)} icon={CreditCard} />
-          <MetricCard label="Listos" value={formatNumber(readyFinanceFlows)} icon={CheckCircle2} />
-          <MetricCard label="QA" value={formatNumber(financeScenarios.length)} icon={ShieldCheck} />
+          <MetricCard label="Journeys" value={formatNumber(first(financeSummary, ["journeys"]) ?? financeJourneys.length)} icon={Layers3} />
+          <MetricCard label="Webviews" value={formatNumber(first(financeSummary, ["webview_flows"]) ?? financeFlows.length)} icon={CreditCard} />
+          <MetricCard label="Listos" value={formatNumber(first(financeSummary, ["ready_flows"]) ?? readyFinanceFlows)} icon={CheckCircle2} />
+          <MetricCard label="QA" value={formatNumber(first(financeSummary, ["qa_scenarios"]) ?? financeScenarios.length)} icon={ShieldCheck} />
+        </div>
+
+        <div className="rounded-[8px] border border-border/60 bg-background/90 p-4">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-foreground">Journeys financieros WhatsApp-first</h3>
+              <p className="text-xs text-muted-foreground">
+                Alta, KYC, cobranzas, pagos, firma, remesas, seguros y financiacion con webview firmado y CRM.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatePill value={financeRuntime.enabled ? "habilitado" : "bloqueado"} tone={financeRuntime.enabled ? "ready" : "warning"} />
+              <StatePill value={checkout.ready ? "checkout listo" : "checkout pendiente"} tone={checkout.ready ? "ready" : "warning"} />
+            </div>
+          </div>
+          {financeJourneys.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {financeJourneys.map((journey) => {
+                const ready = Boolean(journey.ready);
+                const templates = asStringList(journey.templates);
+                const events = asStringList(journey.analytics_events);
+                const segments = asStringList(journey.segments);
+                return (
+                  <div key={String(journey.id)} className="rounded-[8px] border border-border/60 bg-muted/10 p-4">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <StatePill value={ready ? "ready" : "setup"} tone={ready ? "ready" : "warning"} />
+                      <StatePill value={String(journey.webview_flow || "webview")} />
+                    </div>
+                    <p className="font-semibold text-foreground">{String(journey.label || journey.id)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      CRM: {String(journey.crm_stage || "operacion")} · Evento: {String(journey.success_event || "updated")}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {segments.slice(0, 4).map((segment) => (
+                        <StatePill key={segment} value={segment.replace(/_/g, " ")} />
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <ContractLine label="Templates" value={templates.slice(0, 3).join(" + ") || "pendiente"} />
+                      <ContractLine label="Eventos" value={events.slice(0, 3).join(" + ") || "pendiente"} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyPanel label="El backend todavia no expuso el runtime finance_transactional para este tenant." />
+          )}
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -803,11 +860,48 @@ const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord | null
               </div>
             </div>
 
+            <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+              <h3 className="font-semibold text-foreground">Colas CRM finance</h3>
+              <div className="mt-3 space-y-2">
+                {financeQueues.length ? (
+                  financeQueues.map((queue) => (
+                    <div key={String(queue.id)} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate font-medium">{String(queue.label || queue.id)}</span>
+                      <StatePill value={`${String(queue.sla_minutes || "SLA")} min`} />
+                    </div>
+                  ))
+                ) : (
+                  <EmptyPanel label="Sin colas CRM finance declaradas." />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+              <h3 className="font-semibold text-foreground">Analitica y riesgo</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[...financeFunnels.slice(0, 3), ...financeRiskSignals.slice(0, 3)].map((item) => (
+                  <StatePill key={item} value={item.replace(/_/g, " ")} />
+                ))}
+                {!financeFunnels.length && !financeRiskSignals.length ? (
+                  <StatePill value="modelo pendiente" tone="warning" />
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+              <h3 className="font-semibold">Politica de seguridad</h3>
+              <div className="mt-3 grid gap-2 text-xs">
+                <ContractLine label="Tarjeta en chat" value={financeSecurity.card_data_in_chat_allowed ? "permitido" : "no permitido"} />
+                <ContractLine label="Identidad en chat" value={financeSecurity.identity_data_in_chat_allowed ? "permitido" : "no permitido"} />
+                <ContractLine label="Confirmacion" value={financeSecurity.requires_server_to_server_confirmation ? "server-to-server" : "manual"} />
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
               <h3 className="font-semibold text-foreground">QA operativo</h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 {financeScenarios.length
-                  ? "Hay escenarios reproducibles para alta, KYC, cobranza, pago y firma."
+                  ? "Hay escenarios reproducibles para alta, KYC, cobranza, pago, firma y servicios financieros."
                   : "Falta scenario finance en el playbook QA."}
               </p>
               {financeScenarios.length ? (

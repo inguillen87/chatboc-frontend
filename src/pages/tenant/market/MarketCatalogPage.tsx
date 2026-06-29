@@ -93,6 +93,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [facets, setFacets] = useState<MarketCatalogResponse['facets']>(null);
   const [sortOptions, setSortOptions] = useState<MarketCatalogResponse['sort_options']>(null);
   const [assistedIntake, setAssistedIntake] = useState<MarketAssistedIntakeEntry | null>(null);
+  const [frontendContract, setFrontendContract] = useState<MarketCatalogResponse['frontend_contract'] | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [totalUnfiltered, setTotalUnfiltered] = useState<number | null>(null);
   const [heroSubtitle, setHeroSubtitle] = useState<string | null>(null);
@@ -157,7 +158,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
     return `${parts.join(' - ')}.`;
   }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
-  const assistedFirstActive = !isLoading && (
+  const showAssistedIntake = Boolean(assistedIntake) && frontendContract?.show_assisted_intake !== false;
+  const assistedFirstActive = showAssistedIntake && !isLoading && (
     assistedIntake?.mode === 'assisted_first' ||
     totalUnfiltered === 0 ||
     (products.length === 0 && assistedIntake?.show_on_empty_catalog !== false)
@@ -179,6 +181,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setFacets(response?.facets ?? null);
         setSortOptions(response?.sort_options ?? null);
         setAssistedIntake(response?.assisted_intake ?? null);
+        setFrontendContract(response?.frontend_contract ?? null);
         setTotal(response?.total ?? availableProducts.length);
         setTotalUnfiltered(response?.total_unfiltered ?? null);
         setHeroSubtitle(response?.heroSubtitle ?? null);
@@ -193,6 +196,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setFacets(null);
         setSortOptions(null);
         setAssistedIntake(null);
+        setFrontendContract(null);
         setTotal(null);
         setTotalUnfiltered(null);
         setHeroSubtitle(null);
@@ -246,6 +250,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <Button
             size="sm"
             onClick={scrollToAssistedUpload}
+            disabled={!showAssistedIntake}
           >
             <UploadIcon className="mr-2 h-4 w-4" /> Subir nota, pedido o reclamo
           </Button>
@@ -344,21 +349,23 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </section>
       ) : null}
 
-      <UploadOrderFromFile
-        id={ASSISTED_UPLOAD_ANCHOR_ID}
-        tenantSlug={tenantSlug}
-        variant="marketplace"
-        intakeEntry={assistedIntake}
-        onProcessed={(response) => {
-          const requestId = response?.pedido_id ?? response?.lead_id;
-          toast({
-            title: 'Nota recibida por IA',
-            description: requestId
-              ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
-              : 'El equipo puede revisarla desde el CRM.',
-          });
-        }}
-      />
+      {showAssistedIntake ? (
+        <UploadOrderFromFile
+          id={ASSISTED_UPLOAD_ANCHOR_ID}
+          tenantSlug={tenantSlug}
+          variant="marketplace"
+          intakeEntry={assistedIntake}
+          onProcessed={(response) => {
+            const requestId = response?.pedido_id ?? response?.lead_id;
+            toast({
+              title: 'Nota recibida por IA',
+              description: requestId
+                ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
+                : 'El equipo puede revisarla desde el CRM.',
+            });
+          }}
+        />
+      ) : null}
 
       {promotionItems.length ? (
         <section className="overflow-hidden rounded-lg border bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4 shadow-sm">

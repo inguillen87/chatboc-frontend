@@ -358,7 +358,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
 
   const intakeExperience = processedResponse?.intake_experience ?? intakeEntry ?? null;
   const submitContract = intakeExperience?.submit ?? null;
-  const submitEndpoint = submitContract?.endpoint || '/api/pedidos/from-file?origen=marketplace';
+  const hasExplicitIntakeContract = Boolean(intakeExperience);
+  const submitEndpoint = submitContract?.endpoint || (!hasExplicitIntakeContract ? '/api/pedidos/from-file?origen=marketplace' : '');
+  const canSubmitToServer = !isMarketplace || Boolean(submitEndpoint);
+  const submitDisabled = uploading || !canSubmitToServer;
   const submitMethod = (submitContract?.method || 'POST').toUpperCase() === 'POST' ? 'POST' : 'POST';
   const submitFileField = submitContract?.file_field || 'archivo';
   const submitTextField = submitContract?.text_field || 'pedido_text';
@@ -409,6 +412,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     const normalizedText = text?.trim() ?? '';
     if (!file && !normalizedText) {
       setError('Subi un archivo o escribi el pedido para que Chatboc lo analice.');
+      return;
+    }
+    if (!canSubmitToServer) {
+      setError('Este marketplace todavia no habilito la carga asistida desde el backend.');
       return;
     }
     if (file && file.size > submitMaxFileBytes) {
@@ -649,7 +656,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 <Button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
+                  disabled={submitDisabled}
                 >
                   <FileImage className="mr-2 h-4 w-4" />
                   Subir foto o papel
@@ -689,6 +696,15 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       {isMarketplace ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
+            {!canSubmitToServer ? (
+              <Alert variant="default" className="border-amber-200 bg-amber-50 text-amber-900">
+                <FileWarning className="h-4 w-4" />
+                <AlertTitle>Carga asistida pendiente</AlertTitle>
+                <AlertDescription>
+                  El backend publico este bloque, pero no envio un endpoint de carga. El admin debe habilitar el contrato submit antes de recibir archivos.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <fieldset>
               <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de archivo</legend>
               <div className="mt-2 grid grid-cols-1 gap-2 min-[460px]:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Tipo de archivo o solicitud">
@@ -716,9 +732,12 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               data-testid="assisted-upload-dropzone"
               role="button"
               tabIndex={0}
-              onClick={() => fileInputRef.current?.click()}
+              aria-disabled={submitDisabled}
+              onClick={() => {
+                if (!submitDisabled) fileInputRef.current?.click();
+              }}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') fileInputRef.current?.click();
+                if (!submitDisabled && (event.key === 'Enter' || event.key === ' ')) fileInputRef.current?.click();
               }}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -729,7 +748,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               className={cn(
                 'flex min-h-[150px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed bg-background p-5 text-center transition-colors',
                 isDragging ? 'border-primary bg-primary/10' : 'hover:border-primary/50 hover:bg-muted/40',
-                uploading && 'pointer-events-none opacity-70',
+                submitDisabled && 'pointer-events-none opacity-70',
               )}
             >
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -771,7 +790,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 <Button
                   type="button"
                   size="sm"
-                  disabled={uploading || !orderText.trim()}
+                  disabled={submitDisabled || !orderText.trim()}
                   onClick={processText}
                   className="shrink-0"
                 >
@@ -852,7 +871,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           type="file"
           accept={submitAccept}
           onChange={handleFileChange}
-          disabled={uploading}
+          disabled={submitDisabled}
           className={cn(isMarketplace ? 'sr-only' : 'max-w-xs')}
           style={
             isMarketplace
@@ -863,7 +882,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         <Button
           type="button"
           variant={isMarketplace ? 'default' : 'secondary'}
-          disabled={uploading}
+          disabled={submitDisabled}
           onClick={() => fileInputRef.current?.click()}
           className={cn(isMarketplace && 'w-full sm:w-auto lg:hidden')}
         >
