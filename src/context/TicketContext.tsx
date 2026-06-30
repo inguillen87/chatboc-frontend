@@ -7,7 +7,7 @@ import { useUser } from '@/hooks/useUser';
 import { ApiError, resolveTenantSlug } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 
 
 interface TicketInboxFilters {
@@ -47,6 +47,88 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
 };
 
 const TICKET_FETCH_TIMEOUT_MS = 45000;
+const TICKET_INBOX_CACHE_VERSION = 1;
+const TICKET_INBOX_CACHE_TTL_MS = 10 * 60 * 1000;
+
+interface TicketInboxCachePayload {
+  version: number;
+  cached_at: number;
+  tenant_slug: string;
+  viewer_key: string;
+  tickets: Ticket[];
+  pagination: TicketInboxPagination | null;
+  selected_ticket_id: number | string | null;
+}
+
+const sanitizeCacheSegment = (value: string) =>
+  encodeURIComponent(value.trim().toLowerCase()).replace(/%/g, '_');
+
+const resolveTicketInboxViewerKey = (profile: {
+  id?: unknown;
+  rol?: unknown;
+  categoria_id?: unknown;
+  categoria_ids?: unknown[];
+  categorias?: Array<{ id?: unknown; nombre?: unknown }>;
+}) => {
+  const role = String(profile.rol || 'unknown').trim().toLowerCase();
+  const userId = profile.id !== undefined && profile.id !== null ? String(profile.id) : 'anonymous';
+  const categoryIds = [
+    profile.categoria_id,
+    ...(Array.isArray(profile.categoria_ids) ? profile.categoria_ids : []),
+    ...(Array.isArray(profile.categorias) ? profile.categorias.map((category) => category?.id) : []),
+  ]
+    .filter((value) => value !== undefined && value !== null && String(value).trim())
+    .map((value) => String(value).trim().toLowerCase())
+    .sort();
+  return `${role}:${userId}:cats:${categoryIds.join(',') || 'all'}`;
+};
+
+const buildTicketInboxCacheKey = (tenantSlug: string, viewerKey: string) =>
+  `chatboc:ticket-inbox:v${TICKET_INBOX_CACHE_VERSION}:${sanitizeCacheSegment(tenantSlug)}:${sanitizeCacheSegment(viewerKey)}`;
+
+const readCachedTicketInbox = (cacheKey: string): TicketInboxCachePayload | null => {
+  try {
+    const raw = safeSessionStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TicketInboxCachePayload>;
+    if (parsed.version !== TICKET_INBOX_CACHE_VERSION) return null;
+    if (!Array.isArray(parsed.tickets)) return null;
+    if (!parsed.cached_at || Date.now() - Number(parsed.cached_at) > TICKET_INBOX_CACHE_TTL_MS) {
+      safeSessionStorage.removeItem(cacheKey);
+      return null;
+    }
+    return {
+      version: TICKET_INBOX_CACHE_VERSION,
+      cached_at: Number(parsed.cached_at),
+      tenant_slug: String(parsed.tenant_slug || ''),
+      viewer_key: String(parsed.viewer_key || ''),
+      tickets: parsed.tickets as Ticket[],
+      pagination: (parsed.pagination as TicketInboxPagination | null) || null,
+      selected_ticket_id: parsed.selected_ticket_id ?? null,
+    };
+  } catch {
+    safeSessionStorage.removeItem(cacheKey);
+    return null;
+  }
+};
+
+const writeCachedTicketInbox = (
+  cacheKey: string,
+  payload: Omit<TicketInboxCachePayload, 'version' | 'cached_at'>,
+) => {
+  try {
+    safeSessionStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        ...payload,
+        version: TICKET_INBOX_CACHE_VERSION,
+        cached_at: Date.now(),
+      }),
+    );
+  } catch {
+    // Best-effort UX cache. Never block the live CRM if browser storage is unavailable.
+  }
+};
 
 const mergeTicketPages = (currentTickets: Ticket[], nextTickets: Ticket[]): Ticket[] => {
   const byId = new Map<number, Ticket>();
@@ -515,6 +597,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   const fetchTickets = useCallback(async () => {
     const tenantSlug = activeTenantSlug;
+    const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
 
     if (!tenantSlug) {
       setError(null);
@@ -523,6 +606,28 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setPagination(null);
       setLoading(false);
       return;
+    }
+
+    const cacheKey = buildTicketInboxCacheKey(tenantSlug, viewerKey);
+    const cachedInbox = readCachedTicketInbox(cacheKey);
+    let cacheWasApplied = false;
+
+    if (cachedInbox?.tickets?.length) {
+      const cachedTickets = filterTicketsForUser(
+        cachedInbox.tickets.map(normalizeTicketForInbox),
+      );
+      if (cachedTickets.length > 0) {
+        cacheWasApplied = true;
+        setTickets((current) => (current.length > 0 ? current : cachedTickets));
+        setPagination((current) => current || cachedInbox.pagination || null);
+        setSelectedTicket((current) => {
+          if (current) return current;
+          const cachedSelected = cachedTickets.find(
+            (ticket) => String(ticket.id) === String(cachedInbox.selected_ticket_id),
+          );
+          return cachedSelected || cachedTickets[0] || null;
+        });
+      }
     }
 
     setLoading(true);
@@ -539,8 +644,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (Array.isArray(fetchedTickets)) {
         const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
         const filteredTickets = filterTicketsForUser(normalizedTickets);
+        const nextPagination = (apiResponse as any)?.pagination || null;
         setTickets(filteredTickets);
-        setPagination((apiResponse as any)?.pagination || null);
+        setPagination(nextPagination);
         setSelectedTicket((prev) => {
           if (prev) {
             const refreshed = filteredTickets.find((ticket) => ticket.id === prev.id);
@@ -548,14 +654,27 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           }
           return filteredTickets[0] || null;
         });
+        writeCachedTicketInbox(cacheKey, {
+          tenant_slug: tenantSlug,
+          viewer_key: viewerKey,
+          tickets: filteredTickets.slice(0, 50),
+          pagination: nextPagination,
+          selected_ticket_id: filteredTickets[0]?.id ?? null,
+        });
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
-        setTickets([]);
-        setPagination(null);
+        if (!cacheWasApplied) {
+          setTickets([]);
+          setPagination(null);
+        }
       }
       setError(null);
     } catch (err) {
       console.error('Error fetching tickets:', err);
+      if (cacheWasApplied) {
+        setError(null);
+        return;
+      }
       if (err instanceof ApiError) {
         if (err.status === 401) {
           setError('La sesión del panel no está activa. Iniciá sesión para ver y responder reclamos.');
@@ -576,7 +695,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } finally {
       setLoading(false);
     }
-  }, [activeTenantSlug, filterTicketsForUser]);
+  }, [activeTenantSlug, filterTicketsForUser, userAccessProfile]);
 
   const loadMoreTickets = useCallback(async () => {
     if (!activeTenantSlug || loadingMoreTickets || !pagination?.has_next) return;
@@ -825,9 +944,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (!current) return current;
       const visibleTicket = filteredTickets.find((ticket) => ticket.id === current.id);
       if (visibleTicket) return visibleTicket;
+      if (loading && filteredTickets.length === 0) return current;
       return filteredTickets[0] || null;
     });
-  }, [filteredTickets]);
+  }, [filteredTickets, loading, tickets]);
 
   const ticketsByCategory = groupTicketsByCategory(filteredTickets);
 

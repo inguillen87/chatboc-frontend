@@ -218,6 +218,44 @@ describe('Tickets Sidebar category density', () => {
     expect(chips).toHaveTextContent('Limpiar');
   });
 
+  it('hides active filter chips in embedded compact mode so the accordion starts higher', async () => {
+    const ticket = {
+      id: 378430,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo De Calle',
+      categoria: 'Arreglo De Calle',
+      estado: 'nuevo',
+    };
+
+    useTicketsMock.mockReturnValue({
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      ticketsByCategory: {
+        'Arreglo De Calle': [ticket],
+      },
+      selectedTicket: null,
+      selectTicket: selectTicketMock,
+      filters: { ...defaultFilters, channel: 'whatsapp' },
+      setFilters: setFiltersMock,
+      filterOptions: {
+        ...defaultFilterOptions,
+        channels: ['whatsapp'],
+      },
+    });
+
+    render(<Sidebar compact />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(screen.getByRole('button', { name: /filtros secundarios, 1 activo/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Buscar reclamo...')).toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+  });
+
   it('uses Todos as a true reset and exposes unassigned as an operational shortcut', async () => {
     const ticket = {
       id: 378430,

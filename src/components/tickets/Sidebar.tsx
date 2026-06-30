@@ -41,6 +41,7 @@ import { normalizeTicketStatus } from '@/utils/ticketStatus';
 interface SidebarProps {
   className?: string;
   onTicketSelected?: () => void;
+  compact?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -57,7 +58,7 @@ const defaultFilters = {
 const FILTER_SELECT_CLASS_NAME =
   'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
 
-const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
+const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact = false }) => {
   const { tenant } = useTenant();
   const {
     tickets,
@@ -356,7 +357,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         className,
       )}
     >
-      <div className="shrink-0 space-y-2 border-b border-border/70 bg-background/80 p-2.5">
+      <div className={cn(
+        'shrink-0 border-b border-border/70 bg-background/80',
+        compact ? 'space-y-1.5 p-2' : 'space-y-2 p-2.5',
+      )}>
         <div className="flex items-center justify-between gap-2">
           <div>
             <h1 className="text-lg font-bold tracking-tight">
@@ -400,8 +404,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input
             id={searchInputId}
-            placeholder="Buscar por nro, asunto, nombre, DNI, telefono..."
-            className="h-8 pl-8 text-sm"
+            placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto, nombre, DNI, telefono...'}
+            className={cn('h-8 pl-8', compact ? 'text-xs' : 'text-sm')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -675,7 +679,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </PopoverContent>
           </Popover>
         </div>
-        {hasSecondaryFilters ? (
+        {hasSecondaryFilters && !compact ? (
           <div
             aria-label="Filtros activos aplicados"
             data-testid="sidebar-active-filter-chips"

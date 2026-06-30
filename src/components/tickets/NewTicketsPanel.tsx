@@ -140,7 +140,11 @@ const TicketOpsStat = ({
   );
 };
 
-const NewTicketsPanel: React.FC = () => {
+interface NewTicketsPanelProps {
+  embedded?: boolean;
+}
+
+const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) => {
   const isMobile = useIsMobile();
   const {
     loading,
@@ -208,7 +212,7 @@ const NewTicketsPanel: React.FC = () => {
       return;
     }
 
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 40000);
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 15000);
     return () => window.clearTimeout(timer);
   }, [loading]);
 
@@ -451,7 +455,8 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   const panelCardClass = cn(
-    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md',
+    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
+    embedded ? 'rounded-none border-x-0 border-b-0 bg-transparent shadow-none' : 'rounded-lg shadow-2xl',
     isMobile && 'h-[calc(100dvh-8rem)]',
   );
 
@@ -485,11 +490,19 @@ const NewTicketsPanel: React.FC = () => {
 
   return (
     <Card className={panelCardClass}>
-      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-2 sm:px-4">
+      <div
+        data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
+        className={cn(
+          'border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 sm:px-4',
+          embedded ? 'py-1.5' : 'py-2',
+        )}
+      >
         <div className="flex flex-col gap-2 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold tracking-tight text-foreground">Mesa operativa</h2>
+              <h2 className="text-base font-semibold tracking-tight text-foreground">
+                {embedded ? (tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets') : 'Mesa operativa'}
+              </h2>
               <Badge variant="outline" className="rounded-full">
                 {filteredTickets.length.toLocaleString('es-AR')} visibles
               </Badge>
@@ -503,7 +516,7 @@ const NewTicketsPanel: React.FC = () => {
               Priorización, conversación y detalle en una sola vista.
               {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
             </p>
-            {recommendedViews.length ? (
+            {!embedded && recommendedViews.length ? (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {recommendedViews.slice(0, 2).map((view, index) => (
                   <button
@@ -525,7 +538,11 @@ const NewTicketsPanel: React.FC = () => {
           </div>
           <div
             data-testid="ticket-ops-stat-strip"
-            className="flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 min-[1080px]:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            hidden={embedded}
+            className={cn(
+              'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 min-[1080px]:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              embedded && 'hidden',
+            )}
           >
             <TicketOpsStat
               label="Abiertos"
@@ -560,8 +577,37 @@ const NewTicketsPanel: React.FC = () => {
               onClick={() => applyQuickFilter({ status: 'resuelto' })}
             />
           </div>
+          {embedded ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {loading ? (
+                <Badge variant="secondary" className="rounded-full">
+                  Actualizando
+                </Badge>
+              ) : null}
+              <Button
+                type="button"
+                variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 gap-2 rounded-full"
+                onClick={() => {
+                  clearRealtimeActivity();
+                  void refreshTickets();
+                }}
+                title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+              >
+                <Bell className="h-4 w-4" />
+                {realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime'}
+              </Button>
+            </div>
+          ) : null}
         </div>
-        <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+        <div
+          hidden={embedded}
+          className={cn(
+            'mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between',
+            embedded && 'hidden',
+          )}
+        >
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="gap-1 rounded-full">
               <Filter className="h-3 w-3" />
@@ -671,6 +717,7 @@ const NewTicketsPanel: React.FC = () => {
                   className="absolute inset-0 flex min-h-0"
                 >
                   <Sidebar
+                    compact={embedded}
                     className="h-full min-h-0 w-full min-w-full"
                     onTicketSelected={handleMobileTicketSelection}
                   />
@@ -723,7 +770,7 @@ const NewTicketsPanel: React.FC = () => {
         >
           {isSidebarVisible && (
             <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70">
-              <Sidebar className="h-full w-full shrink-0" />
+              <Sidebar compact={embedded} className="h-full w-full shrink-0" />
             </div>
           )}
 

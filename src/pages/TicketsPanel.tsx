@@ -141,7 +141,7 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
             onRetry={() => window.location.reload()}
           >
             <TicketProvider tenantSlugOverride={tenantSlugOverride}>
-              <NewTicketsPanel />
+              <NewTicketsPanel embedded={embedded} />
             </TicketProvider>
           </SectionErrorBoundary>
         </div>

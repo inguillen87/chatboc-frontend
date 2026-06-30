@@ -90,9 +90,22 @@ const FilterSelectionConsumer = () => {
   );
 };
 
+const CachedInboxConsumer = () => {
+  const { tickets, selectedTicket, loading } = useTickets();
+  return (
+    <div>
+      <span data-testid="cached-ticket-count">{tickets.length}</span>
+      <span data-testid="cached-selected-ticket">{selectedTicket?.nro_ticket ?? 'none'}</span>
+      <span data-testid="cached-loading">{String(loading)}</span>
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     ticketUpdateHandlers = {};
     getTicketsMock.mockReset();
     useTicketUpdatesMock.mockReset();
@@ -123,6 +136,79 @@ describe('TicketContext unread delta reconciliation', () => {
           },
         },
       ],
+    });
+  });
+
+  it('hydrates the inbox from session cache while the live backend refresh is still pending', async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    getTicketsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    window.sessionStorage.setItem(
+      'chatboc:ticket-inbox:v1:demo:admin_3A1_3Acats_3Aall',
+      JSON.stringify({
+        version: 1,
+        cached_at: Date.now(),
+        tenant_slug: 'demo',
+        viewer_key: 'admin:1:cats:all',
+        selected_ticket_id: 99,
+        pagination: {
+          page: 1,
+          per_page: 20,
+          total_items: 1,
+          total_pages: 1,
+          has_next: false,
+          has_prev: false,
+        },
+        tickets: [
+          {
+            id: 99,
+            tipo: 'municipio',
+            nro_ticket: 'REC-CACHE',
+            asunto: 'Arreglo de calle',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:00:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      }),
+    );
+
+    render(
+      <TicketProvider>
+        <CachedInboxConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cached-ticket-count').textContent).toBe('1');
+      expect(screen.getByTestId('cached-selected-ticket').textContent).toBe('REC-CACHE');
+      expect(screen.getByTestId('cached-loading').textContent).toBe('true');
+    });
+    expect(getTicketsMock).toHaveBeenCalledWith('demo', { page: 1 });
+
+    act(() => {
+      resolveFetch({
+        tickets: [
+          {
+            id: 100,
+            tipo: 'municipio',
+            nro_ticket: 'REC-LIVE',
+            asunto: 'Luminaria',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:01:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cached-selected-ticket').textContent).toBe('REC-LIVE');
+      expect(screen.getByTestId('cached-loading').textContent).toBe('false');
     });
   });
 

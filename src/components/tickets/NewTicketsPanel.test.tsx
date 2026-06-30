@@ -90,4 +90,26 @@ describe('NewTicketsPanel CRM layout', () => {
       gridTemplateColumns: 'minmax(340px, 390px) minmax(480px, 1fr)',
     });
   });
+
+  it('uses a compact operational header when embedded inside the profile CRM', () => {
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+
+    expect(screen.getByTestId('tickets-embedded-ops-header')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
+    expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
+  });
 });
