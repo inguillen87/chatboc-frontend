@@ -33,6 +33,7 @@ import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 type ContactInfo = {
   name?: string;
@@ -117,7 +118,7 @@ export default function MarketCartPage() {
 
     if (typeof window === 'undefined' || !tenantSlug) return '';
     const url = new URL(window.location.href);
-    url.pathname = `/market/${tenantSlug}/cart`;
+    url.pathname = buildTenantPath('/cart', tenantSlug);
     url.search = '';
     return url.toString();
   }, [cartQuery.data?.cartUrl, catalogQuery.data?.publicCartUrl, tenantSlug]);
@@ -500,8 +501,8 @@ export default function MarketCartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24 sm:pb-12">
-      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 pb-24 text-foreground sm:pb-12">
+      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
@@ -613,7 +614,7 @@ export default function MarketCartPage() {
           </Alert>
         ) : null}
 
-        <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
           <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-4 p-6 md:p-8">
               <div className="flex flex-wrap items-center gap-2">
@@ -644,8 +645,10 @@ export default function MarketCartPage() {
                 </div>
                 <div className="rounded-xl border bg-muted/40 p-4">
                   <p className="text-xs uppercase text-muted-foreground">Carrito</p>
-                  <p className="text-xl font-semibold">/market/{tenantSlug}/cart</p>
-                  <p className="text-xs text-muted-foreground">URL lista para QR y WhatsApp.</p>
+                  <p className="text-xl font-semibold">Link activo</p>
+                  <p className="break-all text-xs text-muted-foreground">
+                    {buildTenantPath('/cart', tenantSlug)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-muted/40 p-4">
                   <p className="text-xs uppercase text-muted-foreground">Experiencia</p>
@@ -695,7 +698,7 @@ export default function MarketCartPage() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sectionsWithItems.map((section) => (
-            <div key={section.title} className="rounded-2xl border bg-white/80 p-4 shadow-sm">
+            <div key={section.title} className="rounded-2xl border bg-card/90 p-4 text-card-foreground shadow-sm">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
                 <Tag className="h-4 w-4" />
                 {section.badge ?? 'Sección'}
@@ -712,7 +715,7 @@ export default function MarketCartPage() {
                       key={item.id}
                       className="group overflow-hidden rounded-xl border bg-muted/30 p-2 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                     >
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-background">
                         {item.imageUrl ? (
                           <img
                             src={item.imageUrl}
@@ -726,7 +729,7 @@ export default function MarketCartPage() {
                           </div>
                         )}
                         {item.modality ? (
-                          <Badge className="absolute left-2 top-2 bg-white/90 text-xs font-semibold text-foreground" variant="secondary">
+                          <Badge className="absolute left-2 top-2 bg-background/90 text-xs font-semibold text-foreground" variant="secondary">
                             {item.modality}
                           </Badge>
                         ) : null}
@@ -795,7 +798,7 @@ export default function MarketCartPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
                 {catalogQuery.isLoading
                   ? 'Cargando productos...'
                   : searchTerm
@@ -841,7 +844,7 @@ export default function MarketCartPage() {
 
             <div className="mt-3 text-xs text-muted-foreground">
               <p>
-                Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras
+                Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras{' '}
                 <Link to="/legal/privacy" className="ml-1 underline">
                   políticas
                 </Link>
@@ -864,7 +867,7 @@ export default function MarketCartPage() {
       <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
         {itemsCount ? (
           <div className="fixed bottom-4 left-4 right-4 z-20 sm:hidden">
-            <div className="flex items-center justify-between gap-3 rounded-full border bg-white/95 px-4 py-3 shadow-lg">
+            <div className="flex items-center justify-between gap-3 rounded-full border bg-card/95 px-4 py-3 shadow-lg">
               <div>
                 <p className="text-xs text-muted-foreground">{itemsCount} ítem(s)</p>
                 <p className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</p>

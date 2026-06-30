@@ -327,7 +327,7 @@ const routes: RouteConfig[] = [
   // --- SPECIFIC ROUTES FIRST (Priority) ---
 
   // Cart & Checkout (Tenant) - Must be before generic tenant home
-  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
+  ...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage /> }),
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),

@@ -51,6 +51,22 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain("to={`/t/${encodeURIComponent(slug)}${suffix}${location.search || ''}`}");
   });
 
+  it('routes tenant marketplace carts to the marketplace cart experience', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+
+    expect(content).toContain("...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage /> })");
+    expect(content).not.toContain("...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> })");
+  });
+
+  it('keeps marketplace cart sharing on canonical tenant URLs', () => {
+    const cartPagePath = path.resolve(__dirname, 'pages/market/MarketCartPage.tsx');
+    const content = fs.readFileSync(cartPagePath, 'utf8');
+
+    expect(content).toContain("buildTenantPath('/cart', tenantSlug)");
+    expect(content).not.toContain('`/market/${tenantSlug}/cart`');
+  });
+
   it('guards WhatsApp setup and catalog management routes with explicit capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
