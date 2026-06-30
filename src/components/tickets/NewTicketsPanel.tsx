@@ -116,7 +116,7 @@ const TicketOpsStat = ({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'inline-flex min-w-0 items-center gap-2 rounded-full border border-border/70 bg-background/75 px-2.5 py-1.5 text-left shadow-sm',
+        'inline-flex min-w-0 shrink-0 items-center gap-2 rounded-full border border-border/70 bg-background/75 px-2.5 py-1.5 text-left shadow-sm',
         onClick && 'transition hover:border-primary/50 hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
       )}
     >
@@ -523,7 +523,10 @@ const NewTicketsPanel: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5 min-[1080px]:justify-end">
+          <div
+            data-testid="ticket-ops-stat-strip"
+            className="flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 min-[1080px]:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}
