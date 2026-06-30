@@ -251,8 +251,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const catalogStatusLine = useMemo(() => {
     if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
     const visibleCount = total ?? products.length;
-    if (visibleCount === 0 && totalUnfiltered === 0) {
-      return 'Catalogo en preparacion. Igual podes subir pedido, boleta, reclamo o consulta para que el equipo responda.';
+    const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
+    if (visibleCount === 0 && publishedCount === 0) {
+      return 'Carga asistida lista. Subi pedido, boleta, reclamo o consulta para que el equipo responda desde el CRM.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
     if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
@@ -350,7 +351,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
-              {heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
+              {assistedFirstActive
+                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. Todo queda trazado en el CRM.'
+                : heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
             </p>
           </div>
         </div>

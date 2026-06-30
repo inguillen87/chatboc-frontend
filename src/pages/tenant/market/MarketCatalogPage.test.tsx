@@ -90,7 +90,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByText(/El usuario puede mandar la foto del papel/i)).toBeInTheDocument();
     expect(screen.getByText('OCR + IA de rubro')).toBeInTheDocument();
-    expect(screen.getByText(/Catalogo en preparacion/i)).toBeInTheDocument();
+    expect(screen.getByText(/Carga asistida lista/i)).toBeInTheDocument();
     expect(screen.getByText(/Chatboc crea una solicitud trazable/i)).toBeInTheDocument();
     expect(screen.getByText('CRM con respuesta sugerida')).toBeInTheDocument();
     expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
