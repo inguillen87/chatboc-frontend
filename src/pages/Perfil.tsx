@@ -2840,7 +2840,7 @@ export default function Perfil() {
         </TabsContent>
         <TabsContent
           value="tickets"
-          className="mt-2 h-[calc(100dvh-9rem)] min-h-[620px] overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+          className="mt-2 h-[clamp(34rem,calc(100dvh-15.5rem),52rem)] overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>

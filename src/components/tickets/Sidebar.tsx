@@ -30,6 +30,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
@@ -60,6 +65,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     filters,
     setFilters,
     filterOptions,
+    pagination,
+    hasMoreTickets,
+    loadingMoreTickets,
+    loadMoreTickets,
   } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -346,6 +355,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const emptyCategoryCount = categoryEntries.filter(
     ([, categoryTickets]) => categoryTickets.length === 0,
   ).length;
+  const totalBackendTickets = pagination?.total_items ?? tickets.length;
 
   return (
     <aside
@@ -361,8 +371,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
             </h1>
             <p className="text-xs text-muted-foreground">
-              {filteredTickets.length.toLocaleString('es-AR')} de{' '}
-              {tickets.length.toLocaleString('es-AR')} visibles
+              {filteredTickets.length.toLocaleString('es-AR')} filtrados ·{' '}
+              {tickets.length.toLocaleString('es-AR')} de{' '}
+              {totalBackendTickets.toLocaleString('es-AR')} cargados
             </p>
           </div>
           <DropdownMenu>
@@ -443,14 +454,14 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </Button>
         </div>
 
-        <div className="relative">
+        <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+          <PopoverTrigger asChild>
             <Button
               type="button"
               variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
               className="h-8 w-full justify-between rounded-[8px] px-2.5 text-xs font-semibold"
               aria-expanded={advancedFiltersOpen}
-              aria-controls="sidebar-floating-filters"
-              onClick={() => setAdvancedFiltersOpen((current) => !current)}
+              aria-controls="sidebar-filter-panel"
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -468,15 +479,19 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 )}
               />
             </Button>
-          {advancedFiltersOpen ? (
-          <div
-            id="sidebar-floating-filters"
-            data-testid="sidebar-floating-filters"
-            className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] rounded-[8px] border border-border/80 bg-popover p-2 shadow-xl"
+          </PopoverTrigger>
+          <PopoverContent
+            id="sidebar-filter-panel"
+            data-testid="sidebar-filter-panel"
+            align="start"
+            side="right"
+            sideOffset={8}
+            className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold text-foreground">Filtro operativo</p>
+                <p className="text-[11px] text-muted-foreground">No ocupa espacio del listado.</p>
               </div>
               {hasActiveFilters ? (
                 <Button
@@ -490,7 +505,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 </Button>
               ) : null}
             </div>
-            <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+            <div className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
               <select
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.channel}
@@ -592,9 +607,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
             </div>
-          </div>
-          ) : null}
-        </div>
+          </PopoverContent>
+        </Popover>
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {emptyCategoryCount > 0 ? (
@@ -680,6 +694,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             </AccordionItem>
           ))}
         </Accordion>
+        {hasMoreTickets ? (
+          <div className="border-t border-border/60 p-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 w-full rounded-[8px] text-xs font-semibold"
+              onClick={loadMoreTickets}
+              disabled={loadingMoreTickets}
+            >
+              {loadingMoreTickets ? 'Cargando mas reclamos...' : 'Cargar mas reclamos'}
+            </Button>
+            <p className="mt-2 text-center text-[11px] leading-4 text-muted-foreground">
+              {tickets.length.toLocaleString('es-AR')} de {totalBackendTickets.toLocaleString('es-AR')} cargados desde el backend.
+            </p>
+          </div>
+        ) : null}
       </ScrollArea>
     </aside>
   );

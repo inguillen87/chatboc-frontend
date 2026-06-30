@@ -26,7 +26,39 @@ const ticketApiPath = (path: string): string => {
     return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
 };
 
-const TICKET_INBOX_INITIAL_PAGE_SIZE = '20';
+const TICKET_INBOX_INITIAL_PAGE_SIZE = 20;
+
+export interface TicketInboxPagination {
+    page: number;
+    per_page: number;
+    total_items: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+}
+
+export interface GetTicketsOptions {
+    page?: number;
+    perPage?: number;
+}
+
+const normalizeTicketPagination = (
+    pagination: any,
+    fallbackPage: number,
+    fallbackPerPage: number,
+    fallbackLoaded: number,
+): TicketInboxPagination => {
+    const totalItems = Number(pagination?.total_items ?? pagination?.total ?? fallbackLoaded);
+    const totalPages = Number(pagination?.total_pages ?? pagination?.pages ?? 1);
+    return {
+        page: Number(pagination?.page ?? fallbackPage) || fallbackPage,
+        per_page: Number(pagination?.per_page ?? fallbackPerPage) || fallbackPerPage,
+        total_items: Number.isFinite(totalItems) ? totalItems : fallbackLoaded,
+        total_pages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
+        has_next: Boolean(pagination?.has_next),
+        has_prev: Boolean(pagination?.has_prev),
+    };
+};
 
 const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     const location = normalizeTicketLocation(ticket);
@@ -396,14 +428,17 @@ const resolvePublicTicketAccess = (pin?: string) => {
 
 export const getTickets = async (
   tenantSlug?: string | null,
-): Promise<{ tickets: Ticket[] }> => {
+  options: GetTicketsOptions = {},
+): Promise<{ tickets: Ticket[]; pagination: TicketInboxPagination; summary?: Record<string, unknown> }> => {
   try {
+      const page = Math.max(1, Number(options.page || 1) || 1);
+      const perPage = Math.max(1, Number(options.perPage || TICKET_INBOX_INITIAL_PAGE_SIZE) || TICKET_INBOX_INITIAL_PAGE_SIZE);
       const params = new URLSearchParams({
-        page: '1',
-        per_page: TICKET_INBOX_INITIAL_PAGE_SIZE,
+        page: String(page),
+        per_page: String(perPage),
         include: 'compact',
       });
-      const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath(`/tickets?${params.toString()}`), {
+      const response = await apiFetch<{ tickets: Ticket[]; pagination?: TicketInboxPagination; summary?: Record<string, unknown> }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,
       suppressPanel401Redirect: true,
@@ -426,7 +461,11 @@ export const getTickets = async (
       };
     });
 
-    return { tickets: ticketsWithAvatars };
+    return {
+        tickets: ticketsWithAvatars,
+        pagination: normalizeTicketPagination(response.pagination, page, perPage, ticketsWithAvatars.length),
+        summary: response.summary,
+    };
 
   } catch (error) {
     console.error('Error fetching tickets:', error);

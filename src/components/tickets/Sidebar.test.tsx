@@ -127,7 +127,7 @@ describe('Tickets Sidebar category density', () => {
       screen.getByRole('button', { name: /ocultar rubros vacíos/i }),
     ).toBeInTheDocument();
   });
-  it('keeps secondary filters floating so the ticket accordion keeps its space', async () => {
+  it('keeps secondary filters collapsed in a compact floating panel', async () => {
     render(<Sidebar />);
 
     await waitFor(() => {
@@ -138,13 +138,13 @@ describe('Tickets Sidebar category density', () => {
       screen.getByRole('button', { name: /filtros avanzados/i }),
     ).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('sidebar-floating-filters')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /filtros avanzados/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('sidebar-floating-filters')).toBeInTheDocument();
+      expect(screen.getByTestId('sidebar-filter-panel')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('sidebar-inline-filters')).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();

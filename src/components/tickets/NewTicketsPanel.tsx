@@ -208,7 +208,7 @@ const NewTicketsPanel: React.FC = () => {
       return;
     }
 
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 14000);
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 40000);
     return () => window.clearTimeout(timer);
   }, [loading]);
 
@@ -283,10 +283,19 @@ const NewTicketsPanel: React.FC = () => {
       const channel = query.channel ?? query.canal;
       const status = query.status ?? query.estado;
       const area = query.area ?? query.category ?? query.categoria;
-      const agent = query.agent ?? query.assignee ?? query.assigned_agent;
+      const assigned = query.assigned ?? query.responsable;
+      let agent = query.agent ?? query.assignee ?? query.assigned_agent;
       const priority = query.priority ?? query.prioridad;
       const sla = query.sla ?? query.sla_status;
       const unread = query.unread ?? query.no_leidos;
+
+      if (
+        (agent === undefined || agent === null || agent === '') &&
+        assigned !== undefined &&
+        ['none', 'unassigned', 'sin_responsable'].includes(String(assigned).trim().toLowerCase())
+      ) {
+        agent = 'unassigned';
+      }
 
       if (channel !== undefined) nextFilters.channel = String(channel);
       if (status !== undefined) nextFilters.status = String(status);
@@ -328,7 +337,10 @@ const NewTicketsPanel: React.FC = () => {
       disabled && 'hover:border-border/70 hover:text-muted-foreground',
     );
 
-  if (loading && loadingTimedOut) {
+  const hasLoadedInboxData = tickets.length > 0 || filteredTickets.length > 0 || selectedTicket !== null;
+  const showInitialLoading = loading && !hasLoadedInboxData;
+
+  if (showInitialLoading && loadingTimedOut) {
     return (
       <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-amber-500/30 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
         <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-500">
@@ -346,7 +358,7 @@ const NewTicketsPanel: React.FC = () => {
     );
   }
 
-  if (loading) {
+  if (showInitialLoading) {
     return (
         <div
           className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden"

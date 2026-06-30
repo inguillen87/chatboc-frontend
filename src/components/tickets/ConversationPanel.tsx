@@ -453,53 +453,84 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [transcript]);
 
   useEffect(() => {
+    let cancelled = false;
+    let loadingFallbackTimer: number | null = null;
+
+    const finishLoading = () => {
+      if (loadingFallbackTimer) {
+        window.clearTimeout(loadingFallbackTimer);
+        loadingFallbackTimer = null;
+      }
+      if (!cancelled) {
+        setIsLoading(false);
+      }
+    };
+
     const fetchMessages = async () => {
       if (!selectedTicket) {
-        setMessages([]);
-        setTimelineItems([]);
-        setTimelinePartial(false);
-        setIsLoading(false);
+        if (!cancelled) {
+          setMessages([]);
+          setTimelineItems([]);
+          setTimelinePartial(false);
+          setIsLoading(false);
+        }
         return;
       }
 
       setIsLoading(true);
       setTimelineItems([]);
       setTimelinePartial(false);
+      loadingFallbackTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        setTimelinePartial(true);
+        setIsLoading(false);
+      }, 12000);
 
       try {
         const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo);
+        if (cancelled) return;
         if (Array.isArray(timeline.unified_conversation_stream)) {
           setTimelineItems(timeline.unified_conversation_stream);
         }
         setTimelinePartial(false);
         if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
           setMessages(dedupeChatMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket))));
-          setIsLoading(false);
+          finishLoading();
           return;
         }
       } catch (timelineError) {
+        if (cancelled) return;
         console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
         setTimelineItems([]);
         setTimelinePartial(true);
       }
 
       if (selectedTicket.messages) {
+        if (cancelled) return;
         setMessages(dedupeChatMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
-        setIsLoading(false);
+        finishLoading();
         return;
       }
 
       try {
         const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        if (cancelled) return;
         setMessages(dedupeChatMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
       } catch (error) {
+        if (cancelled) return;
         toast.error('No se pudo cargar el historial de mensajes.');
         setMessages([]);
       } finally {
-        setIsLoading(false);
+        finishLoading();
       }
     };
     fetchMessages();
+    return () => {
+      cancelled = true;
+      if (loadingFallbackTimer) {
+        window.clearTimeout(loadingFallbackTimer);
+      }
+    };
   }, [selectedTicket]);
 
   const { socket } = useSocket();
@@ -923,8 +954,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               ) : messages.length === 0 ? (
                 <EmptyState
                   icon={MessageSquare}
-                  title="No hay mensajes"
-                  description="Esta conversación aún no tiene mensajes. ¡Envía el primero!"
+                  title={timelinePartial ? 'Historial en sincronizacion' : 'No hay mensajes'}
+                  description={
+                    timelinePartial
+                      ? 'El historial completo todavia no respondio. Podes contestar igual; la conversacion se actualiza cuando vuelva el timeline.'
+                      : 'Esta conversacion aun no tiene mensajes. Envia el primero.'
+                  }
                 />
               ) : (
                 <AnimatePresence>

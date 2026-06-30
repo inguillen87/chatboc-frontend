@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Ticket, User } from '@/types/tickets';
-import { getTickets } from '@/services/ticketService';
+import { getTickets, type TicketInboxPagination } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
@@ -47,6 +47,18 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
 };
 
 const TICKET_FETCH_TIMEOUT_MS = 45000;
+
+const mergeTicketPages = (currentTickets: Ticket[], nextTickets: Ticket[]): Ticket[] => {
+  const byId = new Map<number, Ticket>();
+  currentTickets.forEach((ticket) => byId.set(ticket.id, ticket));
+  nextTickets.forEach((ticket) => {
+    byId.set(ticket.id, {
+      ...(byId.get(ticket.id) || {}),
+      ...ticket,
+    });
+  });
+  return Array.from(byId.values());
+};
 
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -100,6 +112,10 @@ interface TicketContextType {
   filterOptions: TicketFilterOptions;
   filteredTickets: Ticket[];
   refreshTickets: () => Promise<void>;
+  pagination: TicketInboxPagination | null;
+  hasMoreTickets: boolean;
+  loadingMoreTickets: boolean;
+  loadMoreTickets: () => Promise<void>;
   realtimeActivity: TicketRealtimeActivity;
   clearRealtimeActivity: () => void;
 }
@@ -326,7 +342,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<TicketInboxPagination | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
   const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
@@ -336,14 +354,53 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   });
   const { user } = useUser();
   const { currentSlug } = useTenant();
+  const userTenantSlug = React.useMemo(
+    () => resolveUserTenantSlug(user),
+    [
+      user?.tenantSlug,
+      user?.tenant_slug,
+      user?.tenant?.slug,
+      user?.tenant?.tenant_slug,
+    ],
+  );
+  const userCategoryIdsKey = React.useMemo(
+    () => JSON.stringify(user?.categoria_ids || []),
+    [user?.categoria_ids],
+  );
+  const userCategoriesKey = React.useMemo(
+    () =>
+      JSON.stringify(
+        (user?.categorias || []).map((category: any) => ({
+          id: category?.id ?? null,
+          nombre: category?.nombre ?? null,
+        })),
+      ),
+    [user?.categorias],
+  );
+  const userAccessProfile = React.useMemo(
+    () => ({
+      id: user?.id,
+      rol: user?.rol,
+      categoria_id: user?.categoria_id,
+      categoria_ids: user?.categoria_ids || [],
+      categorias: user?.categorias || [],
+    }),
+    [
+      user?.id,
+      user?.rol,
+      user?.categoria_id,
+      userCategoryIdsKey,
+      userCategoriesKey,
+    ],
+  );
   const activeTenantSlug = React.useMemo(
     () =>
       resolveTenantSlug(
-        tenantSlugOverride ?? resolveUserTenantSlug(user) ?? currentSlug ?? readStoredTenantSlug(),
+        tenantSlugOverride ?? userTenantSlug ?? currentSlug ?? readStoredTenantSlug(),
         undefined,
         { persist: false },
       ),
-    [currentSlug, tenantSlugOverride, user],
+    [currentSlug, tenantSlugOverride, userTenantSlug],
   );
 
   const bumpRealtimeActivity = useCallback((label: string) => {
@@ -364,13 +421,13 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   const filterTicketsForUser = useCallback(
     (list: Ticket[]): Ticket[] => {
-      const role = (user?.rol || '').toString().toLowerCase();
+      const role = (userAccessProfile.rol || '').toString().toLowerCase();
       const isSuperAdmin = role.includes('super_admin');
       const shouldRestrict = !isSuperAdmin && role.includes('empleado');
 
       if (!shouldRestrict) return list;
 
-      const userId = user?.id;
+      const userId = userAccessProfile.id;
       const normalizeId = (value: unknown) =>
         value === undefined || value === null ? null : String(value);
 
@@ -389,9 +446,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         }
       };
 
-      collectUserCategory(user?.categoria_id);
-      (user?.categoria_ids || []).forEach(collectUserCategory);
-      (user?.categorias || []).forEach((cat) => {
+      collectUserCategory(userAccessProfile.categoria_id);
+      (userAccessProfile.categoria_ids || []).forEach(collectUserCategory);
+      (userAccessProfile.categorias || []).forEach((cat) => {
         collectUserCategory(cat?.id);
         if (cat?.nombre) {
           allowedCategoryNames.add(cat.nombre.toLowerCase().trim());
@@ -453,7 +510,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         return matchesAssignee || matchesCategory;
       });
     },
-    [user]
+    [userAccessProfile]
   );
 
   const fetchTickets = useCallback(async () => {
@@ -463,6 +520,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setError(null);
       setTickets([]);
       setSelectedTicket(null);
+      setPagination(null);
       setLoading(false);
       return;
     }
@@ -472,7 +530,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     try {
       const apiResponse = await withTimeout(
-        getTickets(tenantSlug),
+        getTickets(tenantSlug, { page: 1 }),
         TICKET_FETCH_TIMEOUT_MS,
         'La bandeja de reclamos tardo demasiado en responder.',
       );
@@ -482,6 +540,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
         const filteredTickets = filterTicketsForUser(normalizedTickets);
         setTickets(filteredTickets);
+        setPagination((apiResponse as any)?.pagination || null);
         setSelectedTicket((prev) => {
           if (prev) {
             const refreshed = filteredTickets.find((ticket) => ticket.id === prev.id);
@@ -492,6 +551,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
+        setPagination(null);
       }
       setError(null);
     } catch (err) {
@@ -512,13 +572,40 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         setError('Error al obtener los tickets.');
       }
       setTickets([]);
+      setPagination(null);
     } finally {
       setLoading(false);
     }
   }, [activeTenantSlug, filterTicketsForUser]);
 
+  const loadMoreTickets = useCallback(async () => {
+    if (!activeTenantSlug || loadingMoreTickets || !pagination?.has_next) return;
+    const nextPage = Math.max(1, Number(pagination.page || 1) + 1);
+
+    setLoadingMoreTickets(true);
+    try {
+      const apiResponse = await withTimeout(
+        getTickets(activeTenantSlug, { page: nextPage, perPage: pagination.per_page || undefined }),
+        TICKET_FETCH_TIMEOUT_MS,
+        'La bandeja de reclamos tardo demasiado en cargar mas resultados.',
+      );
+      const fetchedTickets = (apiResponse as any)?.tickets;
+      if (Array.isArray(fetchedTickets)) {
+        const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
+        const filteredTickets = filterTicketsForUser(normalizedTickets);
+        setTickets((current) => mergeTicketPages(current, filteredTickets));
+        setPagination((apiResponse as any)?.pagination || null);
+        setSelectedTicket((prev) => prev || filteredTickets[0] || null);
+      }
+    } catch (err) {
+      console.error('Error loading more tickets:', err);
+      setError('No se pudieron cargar mas reclamos. Reintenta en unos segundos.');
+    } finally {
+      setLoadingMoreTickets(false);
+    }
+  }, [activeTenantSlug, filterTicketsForUser, loadingMoreTickets, pagination]);
+
   useEffect(() => {
-    setLoading(true);
     fetchTickets();
   }, [fetchTickets]);
 
@@ -664,6 +751,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
 
     const agentMap = new Map<string, string>();
+    const hasUnassignedTickets = tickets.some((ticket) => !resolveAgentFilterId(ticket));
     tickets.forEach((ticket) => {
       const id = resolveAgentFilterId(ticket);
       if (!id) return;
@@ -687,9 +775,12 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         { value: 'unread', label: 'Lectura: no leídos' },
         { value: 'read', label: 'Lectura: leídos' },
       ],
-      agents: Array.from(agentMap.entries())
-        .map(([id, label]) => ({ id, label }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
+      agents: [
+        ...(hasUnassignedTickets ? [{ id: 'unassigned', label: 'Sin responsable' }] : []),
+        ...Array.from(agentMap.entries())
+          .map(([id, label]) => ({ id, label }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      ],
     };
   }, [tickets, workflowStatuses]);
 
@@ -715,7 +806,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         }
       }
       if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
-      if (filters.agent !== 'all' && resolveAgentFilterId(ticket) !== filters.agent) return false;
+      if (filters.agent !== 'all') {
+        const agentId = resolveAgentFilterId(ticket);
+        if (filters.agent === 'unassigned') {
+          if (agentId) return false;
+        } else if (agentId !== filters.agent) {
+          return false;
+        }
+      }
       if (filters.unread === 'unread' && !hasUnreadState(ticket)) return false;
       if (filters.unread === 'read' && hasUnreadState(ticket)) return false;
       return true;
@@ -737,6 +835,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     filterOptions,
     filteredTickets,
     refreshTickets: fetchTickets,
+    pagination,
+    hasMoreTickets: Boolean(pagination?.has_next),
+    loadingMoreTickets,
+    loadMoreTickets,
     realtimeActivity,
     clearRealtimeActivity,
   };

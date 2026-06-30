@@ -1,10 +1,11 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getTicketsMock = vi.fn();
 const useTicketUpdatesMock = vi.fn();
 const getTicketWorkflowMetadataMock = vi.fn();
+const mockUser = { tenantSlug: 'demo', rol: 'admin', id: 1 };
 
 vi.mock('@/services/ticketService', () => ({
   getTickets: (...args: unknown[]) => getTicketsMock(...args),
@@ -15,7 +16,7 @@ vi.mock('@/hooks/useTicketUpdates', () => ({
 }));
 
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({ user: { tenantSlug: 'demo', rol: 'admin', id: 1 } }),
+  useUser: () => ({ user: mockUser }),
 }));
 
 vi.mock('@/context/TenantContext', () => ({
@@ -47,6 +48,21 @@ const Consumer = () => {
       <span data-testid="unread">{String(tickets[0]?.hasUnreadMessages ?? false)}</span>
       <span data-testid="unread-viewers">{String(tickets[0]?.collaboration_state?.unread_viewer_count ?? 0)}</span>
       <span data-testid="idle-viewers">{String(tickets[0]?.collaboration_state?.idle_viewer_count ?? 0)}</span>
+    </div>
+  );
+};
+
+const PaginationConsumer = () => {
+  const { tickets, hasMoreTickets, loadingMoreTickets, loadMoreTickets, pagination } = useTickets();
+  return (
+    <div>
+      <span data-testid="ticket-count">{tickets.length}</span>
+      <span data-testid="has-more">{String(hasMoreTickets)}</span>
+      <span data-testid="loading-more">{String(loadingMoreTickets)}</span>
+      <span data-testid="page">{String(pagination?.page ?? 0)}</span>
+      <button type="button" onClick={loadMoreTickets}>
+        cargar mas
+      </button>
     </div>
   );
 };
@@ -115,6 +131,72 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('idle-viewers').textContent).toBe('1');
     });
     expect(getTicketsMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('loads the next backend page and merges tickets without losing selection state', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-1',
+          asunto: 'Alumbrado',
+          estado: 'abierto',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'General',
+        },
+      ],
+      pagination: {
+        page: 1,
+        per_page: 1,
+        total_items: 2,
+        total_pages: 2,
+        has_next: true,
+        has_prev: false,
+      },
+    });
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-2',
+          asunto: 'Bache',
+          estado: 'abierto',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'General',
+        },
+      ],
+      pagination: {
+        page: 2,
+        per_page: 1,
+        total_items: 2,
+        total_pages: 2,
+        has_next: false,
+        has_prev: true,
+      },
+    });
+
+    render(
+      <TicketProvider>
+        <PaginationConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ticket-count').textContent).toBe('1');
+      expect(screen.getByTestId('has-more').textContent).toBe('true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar mas/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ticket-count').textContent).toBe('2');
+      expect(screen.getByTestId('has-more').textContent).toBe('false');
+      expect(screen.getByTestId('page').textContent).toBe('2');
+    });
+
+    expect(getTicketsMock).toHaveBeenLastCalledWith('demo', { page: 2, perPage: 1 });
   });
 
 });
