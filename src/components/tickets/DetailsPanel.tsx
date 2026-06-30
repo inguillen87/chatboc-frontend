@@ -55,6 +55,7 @@ import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
+import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -678,6 +679,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     () => normalizeOperationalActions(ticket.allowed_actions, ticket.actions, ticket.next_steps),
     [ticket.allowed_actions, ticket.actions, ticket.next_steps],
   );
+  const operationalGuidance = React.useMemo(() => deriveTicketOperationalGuidance(ticket), [ticket]);
   const priorityLabel = normalizeTextValue(ticket.priority);
   const slaLabel = normalizeTextValue(ticket.sla_status);
   const assignedAgentLabel = normalizeTextValue(
@@ -687,7 +689,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       ticket.assigned_agent_id ||
       ticket.assigned_user_id,
   );
-  const nextActionLabel = normalizeTextValue(ticket.recommended_next_action);
+  const nextActionLabel = operationalGuidance.label;
   const hasOperationalSignal =
     Boolean(nextActionLabel || priorityLabel || slaLabel || assignedAgentLabel || operationalActions.length);
   const openActionHref = (href: string) => {
@@ -755,10 +757,18 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     <p className="text-sm font-semibold">Que hacer ahora</p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {nextActionLabel || 'Sin accion recomendada publicada para este caso.'}
+                    {nextActionLabel}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'}>
+                    {operationalGuidance.source === 'backend' ? 'Accion backend' : 'Guia operativa'}
+                  </Badge>
+                  {operationalGuidance.tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="capitalize">
+                      {tag}
+                    </Badge>
+                  ))}
                   {priorityLabel ? (
                     <Badge variant="outline" className="gap-1">
                       <AlertTriangle className="h-3 w-3" />
@@ -821,7 +831,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
-                  Backend no publico acciones permitidas para este caso.
+                  Sin acciones directas publicadas. El operador puede responder, asignar o cambiar estado desde esta mesa.
                 </div>
               )}
             </CardContent>

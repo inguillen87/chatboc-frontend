@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2 } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
@@ -42,6 +42,7 @@ import {
 import { ensureAbsoluteUrl } from '@/utils/chatButtons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
+import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 
 type UploadResponse = UploadResponseLike;
 
@@ -422,6 +423,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     [timelineItems],
   );
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
+  const operationalGuidance = useMemo(
+    () => (selectedTicket ? deriveTicketOperationalGuidance(selectedTicket) : null),
+    [selectedTicket],
+  );
+  const replyDraft = useMemo(
+    () => (selectedTicket && operationalGuidance ? buildOperationalReplyDraft(selectedTicket, operationalGuidance) : ''),
+    [operationalGuidance, selectedTicket],
+  );
+  const canApplyReplyDraft = Boolean(replyDraft && !message.trim() && !listening && !isSending);
+  const applyReplyDraft = useCallback(() => {
+    if (!replyDraft || isSending || listening) return;
+    setMessage((prev) => (prev.trim() ? prev : replyDraft));
+  }, [isSending, listening, replyDraft]);
   const notifyDeliveryIssue = useCallback(
     (result: TicketHistoryDeliveryResult, contextMessage: string) => {
       if (isTicketHistoryDeliveryErrorResult(result)) {
@@ -1007,6 +1021,32 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </Button>
           </div>
         )}
+        {operationalGuidance && replyDraft ? (
+          <div className="mb-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+            <div className="flex flex-col gap-2 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Borrador asistido</p>
+                  <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'} className="h-5 rounded-full px-2 text-[11px]">
+                    {operationalGuidance.source === 'backend' ? 'backend' : 'operativo'}
+                  </Badge>
+                </div>
+                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{replyDraft}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 rounded-[8px] px-3 text-xs font-semibold"
+                onClick={applyReplyDraft}
+                disabled={!canApplyReplyDraft}
+              >
+                Usar sugerencia
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <Textarea
             placeholder={composerPlaceholder}
