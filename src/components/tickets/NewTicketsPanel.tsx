@@ -476,11 +476,11 @@ const NewTicketsPanel: React.FC = () => {
     priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? 'minmax(300px, 340px) minmax(560px, 1fr) minmax(300px, 360px)'
+    ? 'minmax(320px, 360px) minmax(480px, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
-      ? 'minmax(300px, 360px) minmax(560px, 1fr)'
+      ? 'minmax(340px, 390px) minmax(480px, 1fr)'
       : isDetailsVisible
-        ? 'minmax(560px, 1fr) minmax(300px, 380px)'
+        ? 'minmax(480px, 1fr) minmax(300px, 380px)'
         : 'minmax(0, 1fr)';
 
   return (
@@ -714,6 +714,7 @@ const NewTicketsPanel: React.FC = () => {
         </div>
       ) : (
         <div
+          data-testid="tickets-desktop-grid"
           className="grid h-full min-h-0 w-full flex-1 overflow-hidden"
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >

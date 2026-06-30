@@ -24,7 +24,27 @@ vi.mock('@/services/backofficeService', () => ({
   },
 }));
 
-describe('NewTicketsPanel loading state', () => {
+vi.mock('./Sidebar', () => ({
+  default: ({ className }: { className?: string }) => (
+    <aside className={className} data-testid="tickets-sidebar">
+      Reclamos
+    </aside>
+  ),
+}));
+
+vi.mock('./ConversationPanel', () => ({
+  default: () => <section data-testid="tickets-conversation">Conversacion</section>,
+}));
+
+vi.mock('./DetailsPanel', () => ({
+  default: () => <section data-testid="tickets-details">Detalle</section>,
+}));
+
+vi.mock('@/components/ui/sonner', () => ({
+  Toaster: () => null,
+}));
+
+describe('NewTicketsPanel CRM layout', () => {
   beforeEach(() => {
     useTicketsMock.mockReset();
     useTicketsMock.mockReturnValue({
@@ -36,7 +56,7 @@ describe('NewTicketsPanel loading state', () => {
       filters: {},
       setFilters: vi.fn(),
       refreshTickets: vi.fn(),
-      realtimeActivity: [],
+      realtimeActivity: { pending: 0, lastLabel: null },
       clearRealtimeActivity: vi.fn(),
     });
   });
@@ -46,5 +66,27 @@ describe('NewTicketsPanel loading state', () => {
 
     expect(screen.getByRole('status', { name: /cargando bandeja de reclamos/i })).toBeInTheDocument();
     expect(screen.getByText(/sincronizando tickets, chats en vivo/i)).toBeInTheDocument();
+  });
+
+  it('reserves enough desktop width for the ticket list before the chat column', () => {
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+      gridTemplateColumns: 'minmax(340px, 390px) minmax(480px, 1fr)',
+    });
   });
 });
