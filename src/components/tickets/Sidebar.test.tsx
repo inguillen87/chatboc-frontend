@@ -107,7 +107,7 @@ describe('Tickets Sidebar category density', () => {
   });
 
   it('hides empty categories by default and lets operators reveal them', async () => {
-    render(<Sidebar />);
+    const { container } = render(<Sidebar />);
 
     await waitFor(() => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
@@ -123,6 +123,10 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.getByText('luminaria (0)')).toBeInTheDocument();
     expect(screen.getByText('limpieza (0)')).toBeInTheDocument();
+    const sidebarText = container.textContent ?? '';
+    expect(sidebarText.indexOf('Arreglo De Calle (1)')).toBeLessThan(
+      sidebarText.indexOf('luminaria (0)'),
+    );
     expect(
       screen.getByRole('button', { name: /ocultar rubros vacios/i }),
     ).toBeInTheDocument();

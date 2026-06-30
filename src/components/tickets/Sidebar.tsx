@@ -337,7 +337,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     string,
     any[],
   ][];
-  const visibleCategoryEntries = categoryEntries.filter(
+  const sortedCategoryEntries = [...categoryEntries].sort(
+    ([, leftTickets], [, rightTickets]) =>
+      Number(rightTickets.length > 0) - Number(leftTickets.length > 0),
+  );
+  const visibleCategoryEntries = sortedCategoryEntries.filter(
     ([, categoryTickets]) => showEmptyCategories || categoryTickets.length > 0,
   );
   const emptyCategoryCount = categoryEntries.filter(
@@ -352,7 +356,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         className,
       )}
     >
-      <div className="shrink-0 space-y-3 border-b border-border/70 bg-background/80 p-3">
+      <div className="shrink-0 space-y-2 border-b border-border/70 bg-background/80 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h1 className="text-lg font-bold tracking-tight">
@@ -393,11 +397,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           <label className="sr-only" htmlFor={searchInputId}>
             Buscar reclamos por numero, asunto, nombre, DNI o telefono
           </label>
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input
             id={searchInputId}
             placeholder="Buscar por nro, asunto, nombre, DNI, telefono..."
-            className="h-9 pl-8 text-sm"
+            className="h-8 pl-8 text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -418,7 +422,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                   ? 'secondary'
                   : 'outline'
               }
-              className="h-8 rounded-lg px-2 text-xs"
+              className="h-7 rounded-lg px-2 text-xs"
               aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
               onClick={resetFilters}
             >
@@ -428,7 +432,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               type="button"
               size="sm"
               variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-              className="h-8 rounded-lg px-2 text-xs"
+              className="h-7 rounded-lg px-2 text-xs"
               aria-pressed={filters.unread === 'unread'}
               onClick={() =>
                 setFilters((prev) => ({ ...prev, unread: 'unread' }))
@@ -440,7 +444,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               type="button"
               size="sm"
               variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-              className="h-8 rounded-lg px-2 text-xs"
+              className="h-7 rounded-lg px-2 text-xs"
               aria-pressed={filters.sla === 'risk'}
               onClick={() =>
                 setFilters((prev) => ({
@@ -455,7 +459,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               type="button"
               size="sm"
               variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
-              className="h-8 rounded-lg px-2 text-xs"
+              className="h-7 rounded-lg px-2 text-xs"
               aria-pressed={filters.agent === 'unassigned'}
               onClick={() =>
                 setFilters((prev) => ({
@@ -473,7 +477,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               <Button
                 type="button"
                 variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
-                className="h-8 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
+                className="h-7 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
                 aria-label={secondaryFilterButtonLabel}
                 aria-expanded={advancedFiltersOpen}
                 aria-controls={filterPanelId}
@@ -701,19 +705,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
-        {emptyCategoryCount > 0 ? (
-          <div className="border-b border-border/60 px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setShowEmptyCategories((current) => !current)}
-              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-            >
-              {showEmptyCategories
-                ? 'Ocultar rubros vacios'
-                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
-            </button>
-          </div>
-        ) : null}
         {visibleCategoryEntries.length === 0 ? (
           <div className="mx-3 mt-3 rounded-[8px] border border-dashed border-border bg-background/70 p-4 text-center">
             <p className="text-sm font-semibold text-foreground">
@@ -743,7 +734,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         >
           {visibleCategoryEntries.map(([category, tickets]) => (
             <AccordionItem value={category} key={category}>
-              <AccordionTrigger className="px-3 py-3 font-semibold">
+              <AccordionTrigger className="px-3 py-2.5 font-semibold">
                 {category} ({tickets.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -784,6 +775,19 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             </AccordionItem>
           ))}
         </Accordion>
+        {emptyCategoryCount > 0 ? (
+          <div className="border-t border-border/60 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setShowEmptyCategories((current) => !current)}
+              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              {showEmptyCategories
+                ? 'Ocultar rubros vacios'
+                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
+            </button>
+          </div>
+        ) : null}
         {hasMoreTickets ? (
           <div className="border-t border-border/60 p-3">
             <Button
