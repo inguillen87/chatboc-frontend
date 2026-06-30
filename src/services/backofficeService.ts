@@ -12,6 +12,7 @@ export interface BackofficeRecommendedView {
 }
 
 export interface BackofficeInboxSummaryResponse {
+  [key: string]: unknown;
   contract_version: 'backoffice.inbox_summary.v1';
   request_id?: string;
   tenant_slug?: string;

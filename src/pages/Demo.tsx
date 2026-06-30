@@ -133,12 +133,18 @@ const readSectorTenantSlug = (group: DemoSectorGroup | null) => {
     typeof group?.tenant === 'string' ? group.tenant : null,
     typeof group?.slug === 'string' ? group.slug : null,
   ];
-  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
+  const candidate = candidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+  return candidate?.trim() ?? null;
 };
 
 const readSectorDefaultRubro = (group: DemoSectorGroup | null, sector: DemoSector | null) => {
   const candidates = [group?.default_rubro, group?.default_rubro_slug, sector];
-  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
+  const candidate = candidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+  return candidate?.trim() ?? null;
 };
 
 const normalizeDemoText = (value?: string | number | null) =>
@@ -205,7 +211,10 @@ const readRubroTenantSlug = (rubro: Rubro) => {
     rubro.demo?.slug,
     rubroAny.slug,
   ];
-  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
+  const tenantSlug = candidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+  return tenantSlug?.trim() ?? null;
 };
 
 const readRubroSessionPayload = (rubro: Rubro): Record<string, unknown> => {

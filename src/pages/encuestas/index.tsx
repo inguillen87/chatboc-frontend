@@ -37,7 +37,7 @@ const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
   votacion: 'Votación',
   sondeo: 'Sondeo',
-  planificacion: 'PlanificaciÃ³n',
+  planificacion: 'Planificación',
 };
 
 const formatDate = (value?: string | null) => {

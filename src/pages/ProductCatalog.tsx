@@ -3,7 +3,7 @@ import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -350,11 +350,11 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
             body: { disponible: newStatus },
             tenantSlug: effectiveTenantSlug
         });
-        toast({ title: "Producto actualizado", description: `Disponibilidad cambiada a: ${newStatus ? 'Disponible' : 'No disponible'}` });
+        toast.success("Producto actualizado", { description: `Disponibilidad cambiada a: ${newStatus ? 'Disponible' : 'No disponible'}` });
     } catch (err) {
         // Revert on error
         setAllProducts(originalProducts);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el producto." });
+        toast.error("Error", { description: "No se pudo actualizar el producto." });
         console.error("Failed to toggle availability", err);
     }
   };

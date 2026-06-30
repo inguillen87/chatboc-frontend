@@ -6,6 +6,7 @@ import {
   StackOption,
   ReusableModule,
   GovernanceChecklist,
+  BiPlatform,
 } from '@/config/municipalBiPlaybook';
 
 const generateId = (): string => {
@@ -78,7 +79,7 @@ const normalizeStack = (stack: unknown): StackOption | null => {
     analytics,
   };
 
-  const optionalKeys: (keyof StackOption)[] = ['dataLayer', 'observability', 'mlops'];
+  const optionalKeys: Array<'dataLayer' | 'observability' | 'mlops'> = ['dataLayer', 'observability', 'mlops'];
   optionalKeys.forEach((key) => {
     const normalized = normalizeComponentList(candidate[key]);
     if (normalized && normalized.length) {
@@ -151,7 +152,7 @@ const withFallback = (data: Partial<MunicipalPlaybookContent> | null | undefined
 
   const normalizedPlatforms = Array.isArray(data.platforms)
     ? data.platforms
-        .map((platform) => {
+        .map((platform): BiPlatform | null => {
           if (!platform || typeof platform !== 'object') return null;
           const candidate = platform as any;
           const name = isNonEmptyString(candidate.name) ? candidate.name.trim() : '';
@@ -184,7 +185,7 @@ const withFallback = (data: Partial<MunicipalPlaybookContent> | null | undefined
               : undefined,
           };
         })
-        .filter((item): item is MunicipalPlaybookContent['platforms'][number] => Boolean(item))
+        .filter((item): item is BiPlatform => Boolean(item))
     : municipalPlaybookFallback.platforms;
 
   const normalizedStacks = Array.isArray(data.stacks)

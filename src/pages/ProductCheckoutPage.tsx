@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { ArrowRightLeft, Loader2, AlertTriangle, ArrowLeft, CheckCircle, CreditCard, Hash, MapPin, User, Check, MessageCircle, Phone, ExternalLink, ListChecks } from 'lucide-react';
@@ -306,8 +307,14 @@ export default function ProductCheckoutPage() {
 
       setCheckoutResult(response);
 
-      if (response.paymentUrl) {
-        window.location.href = response.paymentUrl;
+      const paymentUrl =
+        response.paymentUrl ||
+        response.payment_url ||
+        response.checkout_url ||
+        response.init_point ||
+        null;
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
         return;
       }
 

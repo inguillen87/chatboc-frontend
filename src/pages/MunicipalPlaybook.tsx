@@ -350,7 +350,8 @@ const MunicipalPlaybookPage: React.FC = () => {
         <h2 className="text-2xl font-semibold">Módulos reutilizables</h2>
         {playbook ? (
           (() => {
-            const moduleEntries = Object.entries(moduleGroups).filter(([, modules]) => modules.length > 0);
+            const moduleEntries = Object.entries(moduleGroups as Record<string, typeof playbook.reusableModules>)
+              .filter(([, modules]) => modules.length > 0);
             if (!moduleEntries.length) {
               return <p className="text-sm text-muted-foreground">Aún no hay módulos definidos para este playbook.</p>;
             }

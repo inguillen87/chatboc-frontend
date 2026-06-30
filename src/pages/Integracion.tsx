@@ -551,7 +551,7 @@ const Integracion = () => {
                           <div key={label} className="rounded-md border p-3 space-y-2">
                             <div className="text-sm font-semibold text-foreground">{label}</div>
                             <div className="space-y-2">
-                              {entries.map((entry) => (
+                              {(entries as WhatsappNumberInventoryItem[]).map((entry) => (
                                 <label
                                   key={String(entry.id)}
                                   className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40"
@@ -780,7 +780,7 @@ const Integracion = () => {
                     <div key={channel} className="space-y-3">
                       <h4 className="text-sm font-semibold text-foreground">{channel} · Channel playbooks</h4>
                       <div className="grid gap-2 md:grid-cols-2">
-                        {items.map((item, index) => (
+                        {(items as NonNullable<DemoExperienceSources['widget']>['component_pack']).map((item, index) => (
                           <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
                             <p className="text-sm font-medium">{item.label}</p>
                             {item.description ? (

@@ -691,6 +691,7 @@ export default function TicketLookup() {
             return {
               messages: resolvedTicket.messages || [],
               realtimeState: resolvedTicket.realtime_state || null,
+              realtime_state: resolvedTicket.realtime_state || null,
             };
           }),
         ]);
@@ -717,7 +718,7 @@ export default function TicketLookup() {
               : initialMessages;
         const nextRealtimeState =
           (messages as any)?.realtimeState ||
-          timeline.realtime_state ||
+          (timeline as any)?.realtime_state ||
           resolvedTicket.realtime_state ||
           null;
         setPublicMessages(fallbackMessages);

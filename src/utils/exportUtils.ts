@@ -76,7 +76,7 @@ export async function exportElementToPng(ref: RefObject<HTMLElement>, filename: 
     img.onerror = (error) => {
       URL.revokeObjectURL(url);
       console.error('No se pudo generar PNG', error);
-      reject(error as Error);
+      reject(error instanceof Error ? error : new Error('No se pudo generar PNG'));
     };
     img.src = url;
   });

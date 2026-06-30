@@ -123,7 +123,7 @@ export const normalizeDemoRubroTools = (
   workspace?: DemoWorkspaceConfig | null,
 ): NormalizedDemoRubroTool[] =>
   collectTools(workspace)
-    .map((candidate, index) => {
+    .map((candidate, index): NormalizedDemoRubroTool | null => {
       const tool = asRecord(candidate);
       if (!tool || tool.enabled !== true) return null;
 
@@ -151,4 +151,4 @@ export const normalizeDemoRubroTools = (
         fields: fields.length ? fields : dataFields.length ? dataFields : itemFields,
       };
     })
-    .filter(Boolean) as NormalizedDemoRubroTool[];
+    .filter((tool): tool is NormalizedDemoRubroTool => tool !== null);

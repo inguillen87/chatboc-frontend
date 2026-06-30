@@ -346,7 +346,7 @@ export default function PedidosPage() {
     fetchPedidos();
   }, [fetchPedidos, navigate]);
 
-  const sortedCategories = Object.entries(categorizedPedidos).sort(([a], [b]) => {
+  const sortedCategories = (Object.entries(categorizedPedidos) as [string, Order[]][]).sort(([a], [b]) => {
     const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a);
     const indexB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b);
     return indexA - indexB;

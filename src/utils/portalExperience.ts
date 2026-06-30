@@ -17,7 +17,7 @@ export const mapPortalOrders = (rawOrders: any): Order[] => {
   if (!Array.isArray(rawOrders)) return [];
 
   return rawOrders
-    .map((order: any) => {
+    .map((order: any): Order | null => {
       const id = order?.id ?? order?.order_id ?? order?.nro_pedido;
       const status = order?.status ?? order?.estado;
       if (!id || !status) return null;
@@ -31,7 +31,7 @@ export const mapPortalOrders = (rawOrders: any): Order[] => {
         notes: order?.tracking?.latest_event ?? order?.status_label,
       };
     })
-    .filter((order): order is Order => Boolean(order));
+    .filter((order): order is Order => Boolean(order as Order | null));
 };
 
 export const mapHistoryToActivities = (historyResponse: any): PortalActivity[] => {

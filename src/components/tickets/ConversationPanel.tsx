@@ -753,77 +753,80 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         transition={{ duration: 0.5 }}
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
     >
-      <header className="p-3 border-b border-border flex items-center justify-between shrink-0 h-16">
-        <div className="flex items-center space-x-3">
-          {canToggleSidebar && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleSidebar}
-              aria-label={isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
-            >
-              {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
-            </Button>
-          )}
-          <Avatar>
-            <AvatarImage src={selectedTicket.avatarUrl} />
-            <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-md font-semibold">{selectedTicket.name}</h2>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="capitalize text-xs">
-                {formatTicketStatusLabel(selectedTicket.estado)}
-              </Badge>
-              <Badge variant="secondary" className="capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
+      <header className="shrink-0 border-b border-border px-3 py-2">
+        <div className="flex min-h-12 flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            {canToggleSidebar && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={onToggleSidebar}
+                aria-label={isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+              >
+                {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
+              </Button>
+            )}
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarImage src={selectedTicket.avatarUrl} />
+              <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-foreground sm:text-base">{selectedTicket.name}</h2>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                <Badge variant="outline" className="capitalize text-xs">
+                  {formatTicketStatusLabel(selectedTicket.estado)}
+                </Badge>
+                <Badge variant="secondary" className="max-w-[12rem] truncate capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden sm:inline-flex">
-            {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
-          </Badge>
-          <Badge variant="outline" className="hidden sm:inline-flex capitalize">
-            {activeChannel}
-          </Badge>
-          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
-            <Link to="/perfil/plantillas-respuesta">Templates</Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
-            <Link to="/notificaciones">Notificaciones</Link>
-          </Button>
-          {showDetailsToggle && (
-            <Button
-              variant={isDetailsVisible ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={onToggleDetails}
-              aria-label={isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
-              aria-pressed={isDetailsVisible}
-              className="flex items-center gap-2"
-            >
-              <Info className="h-4 w-4" />
-              <span className="text-sm font-medium">Detalles</span>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 min-[760px]:justify-end">
+            <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
+              {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
+            </Badge>
+            <Badge variant="outline" className="hidden lg:inline-flex capitalize">
+              {activeChannel}
+            </Badge>
+            <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+              <Link to="/perfil/plantillas-respuesta">Templates</Link>
             </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="capitalize" aria-label="Cambiar estado">
-                {formatTicketStatusLabel(selectedTicket.estado)}
-                <ChevronDown className="h-4 w-4 ml-2" />
+            <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+              <Link to="/notificaciones">Notificaciones</Link>
+            </Button>
+            {showDetailsToggle && (
+              <Button
+                variant={isDetailsVisible ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={onToggleDetails}
+                aria-label={isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
+                aria-pressed={isDetailsVisible}
+                className="h-9 gap-2 px-2.5"
+              >
+                <Info className="h-4 w-4" />
+                <span className="hidden text-sm font-medium sm:inline">Detalles</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {statusOptions.map((status) => (
-                <DropdownMenuItem
-                  key={status}
-                  className="capitalize"
-                  onClick={() => handleStatusChange(status as TicketStatus)}
-                >
-                  {formatTicketStatusLabel(status)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 max-w-[10rem] justify-between capitalize" aria-label="Cambiar estado">
+                  <span className="truncate">{formatTicketStatusLabel(selectedTicket.estado)}</span>
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {statusOptions.map((status) => (
+                  <DropdownMenuItem
+                    key={status}
+                    className="capitalize"
+                    onClick={() => handleStatusChange(status as TicketStatus)}
+                  >
+                    {formatTicketStatusLabel(status)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
@@ -950,9 +953,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-border bg-background/95 p-2">
+      <footer className="shrink-0 border-t border-border bg-background/95 p-2.5">
         {attachmentPreview && (
-          <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3 mb-2">
+          <div className="relative mb-2 flex w-full items-center gap-3 rounded-lg bg-muted p-2">
             {attachmentPreview.previewUrl ? (
               <img src={attachmentPreview.previewUrl} alt="Preview" className="w-14 h-14 rounded-md object-cover" />
             ) : (
@@ -969,37 +972,40 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </Button>
           </div>
         )}
-        <div className="relative">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <Textarea
             placeholder={composerPlaceholder}
-            className="pr-48 min-h-[40px]"
+            className="min-h-[44px] max-h-32 flex-1 resize-none pr-3"
+            rows={1}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={listening || isSending}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleSendMessage();
+                    void handleSendMessage();
                 }
             }}
             maxLength={1000}
-            aria-label="Message Input"
+            aria-label="Responder ticket"
           />
-          <div className="absolute bottom-2 right-2 flex items-center">
-            {selectedTicket && (
-              <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
-                  <Button variant="ghost" size="icon" disabled={isSending} aria-label="Predefined Messages">
-                      <MessageCircle className="h-5 w-5" />
+          <div className="flex w-full shrink-0 items-center justify-between gap-1 rounded-lg border border-border/70 bg-muted/30 p-1 sm:w-auto sm:justify-end">
+            <div className="flex items-center gap-1">
+              {selectedTicket && (
+                <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10" disabled={isSending} aria-label="Insertar mensaje predefinido">
+                    <MessageCircle className="h-5 w-5" />
                   </Button>
-              </PredefinedMessagesModal>
-            )}
-            {supported && (
-                 <Button variant="ghost" size="icon" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Stop Listening' : 'Start Listening'}>
+                </PredefinedMessagesModal>
+              )}
+              {supported && (
+                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Detener dictado' : 'Iniciar dictado'}>
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
-            )}
-            <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
-            <Button onClick={() => handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Send Message">
+              )}
+              <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
+            </div>
+            <Button className="h-10 min-w-10 px-3" onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
           </div>

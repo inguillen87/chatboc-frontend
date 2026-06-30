@@ -29,7 +29,10 @@ export function getChatbocConfig() {
     headerLogoUrl: g.headerLogoUrl || g.logoUrl || '',
     logoAnimation: g.logoAnimation || '',
     welcomeTitle: g.welcomeTitle || '',
-    welcomeSubtitle: g.welcomeSubtitle || ''
+    welcomeSubtitle: g.welcomeSubtitle || '',
+    userMsgColor: g.userMsgColor || '',
+    chatBackground: g.chatBackground || '',
+    fontFamily: g.fontFamily || ''
   };
 }
 

@@ -195,6 +195,62 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('document_type')).toBe('quote_request');
   });
 
+  it('explains AI processing state while the marketplace request is in flight', async () => {
+    let resolveRequest: (value: unknown) => void = () => undefined;
+    apiFetchMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+
+    expect(await screen.findByText('Procesando solicitud con IA')).toBeInTheDocument();
+    expect(screen.getByText(/Analizando nota de pedido con IA/i)).toBeInTheDocument();
+    expect(screen.getByText('Recibimos la entrada')).toBeInTheDocument();
+    expect(screen.getByText('IA desmenuza datos')).toBeInTheDocument();
+    expect(screen.getByText('Queda listo para CRM')).toBeInTheDocument();
+
+    resolveRequest({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 93,
+      customer_message: 'Solicitud recibida para revision.',
+    });
+
+    expect(await screen.findByText(/Solicitud procesada: quedo en CRM/i)).toBeInTheDocument();
+  });
+
+  it('submits a handwritten photo as an assisted marketplace file', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      lead_id: 'lead-44',
+      customer_message: 'Foto recibida para desmenuzar articulos.',
+    });
+
+    const { container } = render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['foto'], 'nota-manuscrita.jpg', { type: 'image/jpeg' });
+
+    fireEvent.change(fileInput, {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalled();
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect((body.get('archivo') as File).name).toBe('nota-manuscrita.jpg');
+    expect(body.get('document_type')).toBe('order_note');
+    expect(body.get('tenant')).toBe('junin');
+    expect(await screen.findByText('Foto recibida para desmenuzar articulos.')).toBeInTheDocument();
+  });
+
   it('blocks marketplace upload when a backend contract exists without submit endpoint', async () => {
     render(
       <UploadOrderFromFile

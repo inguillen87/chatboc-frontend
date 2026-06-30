@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
 import { TenantProvider } from "@/context/TenantContext";
@@ -20,21 +20,270 @@ const DEFAULTS = {
   right: 20,
 };
 
+type TipoChat = 'pyme' | 'municipio';
+
+type IframeWidgetParams = {
+  defaultOpen: boolean;
+  widgetId: string;
+  view: 'chat' | 'register' | 'login' | 'user' | 'info';
+  openWidth: string;
+  openHeight: string;
+  closedWidth: string;
+  closedHeight: string;
+  ctaMessage?: string;
+  rubro?: string;
+  endpoint?: TipoChat;
+  bottom: number;
+  right: number;
+  primaryColor: string;
+  accentColor: string;
+  logoUrl: string;
+  headerLogoUrl: string;
+  logoAnimation: string;
+  welcomeTitle: string;
+  welcomeSubtitle: string;
+  userMsgColor: string;
+  chatBackground: string;
+  borderRadius?: number;
+  fontFamily: string;
+  tenantSlug?: string;
+  entityToken: string | null;
+};
+
+type PublicWidgetConfig = Record<string, unknown>;
+
+const readFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+};
+
+const readOptionalBoolean = (value: unknown, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "on", "enabled"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
+  }
+  return fallback;
+};
+
+const normalizeCssLength = (value: unknown, fallback: string) => {
+  const raw = readFirstString(value);
+  if (!raw) return fallback;
+  return /^-?\d+(?:\.\d+)?$/.test(raw) ? `${raw}px` : raw;
+};
+
+const readFiniteInteger = (value: unknown, fallback: number) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const readTipoChat = (value: unknown): TipoChat | null =>
+  value === 'pyme' || value === 'municipio' ? value : null;
+
+const readView = (value: unknown): IframeWidgetParams['view'] => {
+  if (
+    value === 'chat' ||
+    value === 'register' ||
+    value === 'login' ||
+    value === 'user' ||
+    value === 'info'
+  ) {
+    return value;
+  }
+  return 'chat';
+};
+
+const resolveWidgetParams = (
+  cfg: ReturnType<typeof getChatbocConfig>,
+  urlParams: URLSearchParams,
+  fetchedConfig: PublicWidgetConfig = {},
+): IframeWidgetParams => {
+  const tenantSlug = readFirstString(urlParams.get("tenant"), urlParams.get("tenantSlug")) || undefined;
+  const endpointFromUrl = readTipoChat(urlParams.get("endpoint")) || readTipoChat(urlParams.get("tipo_chat"));
+  const endpointFromFetched =
+    readTipoChat(fetchedConfig.tipo_chat) ||
+    readTipoChat(fetchedConfig.endpoint);
+  const endpointFromConfig = readTipoChat(cfg.endpoint);
+  const endpoint = endpointFromUrl || endpointFromFetched || endpointFromConfig || undefined;
+  const defaultOpen = readOptionalBoolean(
+    urlParams.get("defaultOpen"),
+    readOptionalBoolean(fetchedConfig.default_open ?? fetchedConfig.defaultOpen, Boolean(cfg.defaultOpen)),
+  );
+  const rawEntityToken = readFirstString(
+    urlParams.get("entityToken"),
+    urlParams.get("ownerToken"),
+    cfg.entityToken,
+  );
+  const bottom = readFiniteInteger(
+    readFirstString(urlParams.get("bottom"), fetchedConfig.offset_bottom, fetchedConfig.bottom, cfg.bottom),
+    DEFAULTS.bottom,
+  );
+  const right = readFiniteInteger(
+    readFirstString(urlParams.get("right"), fetchedConfig.offset_right, fetchedConfig.right, cfg.right),
+    DEFAULTS.right,
+  );
+  const borderRadiusRaw = readFirstString(urlParams.get("borderRadius"), fetchedConfig.border_radius, fetchedConfig.borderRadius);
+  const parsedBorderRadius = Number.parseInt(borderRadiusRaw, 10);
+
+  return {
+    defaultOpen,
+    widgetId: readFirstString(urlParams.get("widgetId"), fetchedConfig.widget_id, fetchedConfig.widgetId) || "chatboc-iframe-unknown",
+    view: readView(readFirstString(urlParams.get("view"), fetchedConfig.view)),
+    openWidth: normalizeCssLength(readFirstString(urlParams.get("openWidth"), fetchedConfig.open_width, fetchedConfig.openWidth, cfg.width), DEFAULTS.openWidth),
+    openHeight: normalizeCssLength(readFirstString(urlParams.get("openHeight"), fetchedConfig.open_height, fetchedConfig.openHeight, cfg.height), DEFAULTS.openHeight),
+    closedWidth: normalizeCssLength(readFirstString(urlParams.get("closedWidth"), fetchedConfig.closed_width, fetchedConfig.closedWidth, cfg.closedWidth), DEFAULTS.closedWidth),
+    closedHeight: normalizeCssLength(readFirstString(urlParams.get("closedHeight"), fetchedConfig.closed_height, fetchedConfig.closedHeight, cfg.closedHeight), DEFAULTS.closedHeight),
+    ctaMessage: readFirstString(urlParams.get("ctaMessage"), fetchedConfig.cta_message, fetchedConfig.ctaMessage) || undefined,
+    rubro: readFirstString(urlParams.get("rubro"), fetchedConfig.rubro) || undefined,
+    endpoint,
+    bottom,
+    right,
+    primaryColor: readFirstString(urlParams.get("primaryColor"), fetchedConfig.primary_color, fetchedConfig.primaryColor, cfg.primaryColor) || "#007aff",
+    accentColor: readFirstString(urlParams.get("accentColor"), fetchedConfig.secondary_color, fetchedConfig.accentColor, cfg.accentColor),
+    logoUrl: readFirstString(urlParams.get("logoUrl"), fetchedConfig.logo_url, fetchedConfig.logoUrl, cfg.logoUrl),
+    headerLogoUrl: readFirstString(urlParams.get("headerLogoUrl"), fetchedConfig.header_logo_url, fetchedConfig.headerLogoUrl, cfg.headerLogoUrl),
+    logoAnimation: readFirstString(urlParams.get("logoAnimation"), fetchedConfig.logo_animation, fetchedConfig.logoAnimation, cfg.logoAnimation),
+    welcomeTitle: readFirstString(urlParams.get("welcomeTitle"), fetchedConfig.welcome_title, fetchedConfig.welcomeTitle, cfg.welcomeTitle),
+    welcomeSubtitle: readFirstString(urlParams.get("welcomeSubtitle"), fetchedConfig.welcome_subtitle, fetchedConfig.welcomeSubtitle, cfg.welcomeSubtitle),
+    userMsgColor: readFirstString(urlParams.get("userMsgColor"), fetchedConfig.user_msg_color, fetchedConfig.userMsgColor, cfg.userMsgColor),
+    chatBackground: readFirstString(urlParams.get("chatBackground"), fetchedConfig.chat_background, fetchedConfig.chatBackground, cfg.chatBackground),
+    borderRadius: Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined,
+    fontFamily: readFirstString(urlParams.get("fontFamily"), fetchedConfig.font_family, fetchedConfig.fontFamily, cfg.fontFamily),
+    tenantSlug,
+    entityToken: rawEntityToken || null,
+  };
+};
+
+const getInitialWidgetParams = () => {
+  if (typeof window === 'undefined') return null;
+  return resolveWidgetParams(getChatbocConfig(), new URLSearchParams(window.location.search));
+};
+
+const getIframeDimensions = (params: IframeWidgetParams) => (
+  params.defaultOpen
+    ? { width: params.openWidth, height: params.openHeight }
+    : { width: params.closedWidth, height: params.closedHeight }
+);
+
+const getIframeShellStyle = (params: IframeWidgetParams): React.CSSProperties => {
+  const dimensions = getIframeDimensions(params);
+  const width = params.defaultOpen ? `min(100dvw, ${dimensions.width})` : dimensions.width;
+  const height = params.defaultOpen ? `min(100dvh, ${dimensions.height})` : dimensions.height;
+  return {
+    width,
+    height,
+    minWidth: width,
+    minHeight: height,
+    maxWidth: "100dvw",
+    maxHeight: "100dvh",
+    overflow: "hidden",
+    display: "flex",
+    background: "transparent",
+  };
+};
+
+const postIframeState = (params: IframeWidgetParams) => {
+  if (typeof window === 'undefined' || window.parent === window) return;
+  const dimensions = getIframeDimensions(params);
+  const style = {
+    width: dimensions.width,
+    height: dimensions.height,
+    bottom: `${params.bottom}px`,
+    right: `${params.right}px`,
+    borderRadius: params.defaultOpen ? `${params.borderRadius ?? 16}px` : "999px",
+    boxShadow: params.defaultOpen ? "0 24px 70px rgba(15,23,42,0.22)" : "0 14px 34px rgba(15,23,42,0.22)",
+    transition: "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
+  };
+
+  window.parent.postMessage({ type: "chatboc-ready", widgetId: params.widgetId }, "*");
+  window.parent.postMessage({ type: "chatboc-state-change", widgetId: params.widgetId, dimensions, isOpen: params.defaultOpen }, "*");
+  window.parent.postMessage({ type: "CHATBOC_RESIZE_CONTAINER", widgetId: params.widgetId, dimensions, style, isOpen: params.defaultOpen }, "*");
+  window.parent.postMessage({ type: "CHATBOC_RESIZE", widgetId: params.widgetId, dimensions, isOpen: params.defaultOpen }, "*");
+};
+
+const IframeFallback = ({ params }: { params: IframeWidgetParams }) => (
+  <div
+    data-testid="chatboc-iframe-fallback"
+    className={
+      params.defaultOpen
+        ? "flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card text-card-foreground shadow-xl"
+        : "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-card text-primary shadow-lg"
+    }
+  >
+    {params.defaultOpen ? (
+      <>
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4">
+          <div className="h-10 w-10 rounded-full bg-primary/15" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 w-28 rounded bg-muted" />
+            <div className="h-2 w-40 max-w-full rounded bg-muted/70" />
+          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">Cargando asistente Chatboc</p>
+            <p className="mt-1 text-xs text-muted-foreground">Preparando el chat y las opciones del menu.</p>
+          </div>
+        </div>
+        <div className="h-20 shrink-0 border-t border-border/60 bg-card/95 p-3">
+          <div className="h-11 rounded-[22px] border border-border/70 bg-background" />
+        </div>
+      </>
+    ) : (
+      <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+    )}
+    <span className="sr-only">Cargando Chatboc</span>
+  </div>
+);
+
 const IframePage = () => {
-  const [widgetParams, setWidgetParams] = useState<any | null>(null);
-  const [entityToken, setEntityToken] = useState<string | null>(null);
-  const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialWidgetParams = useMemo(() => getInitialWidgetParams(), []);
+  const [widgetParams, setWidgetParams] = useState<IframeWidgetParams | null>(initialWidgetParams);
+  const [entityToken, setEntityToken] = useState<string | null>(initialWidgetParams?.entityToken ?? null);
+  const [tipoChat, setTipoChat] = useState<TipoChat | null>(initialWidgetParams?.endpoint ?? null);
+  const [isLoading, setIsLoading] = useState(() => !initialWidgetParams);
   const isInRouter = useInRouterContext();
 
   useEffect(() => {
     // Add iframe-mode class for transparent background
     document.documentElement.classList.add('iframe-mode');
     document.body.classList.add('iframe-mode');
+    const styleTargets = [
+      document.documentElement,
+      document.body,
+      document.getElementById("root"),
+      document.getElementById("__next"),
+      document.getElementById("app"),
+    ].filter((node): node is HTMLElement => Boolean(node));
+    const previousStyles = styleTargets.map((node) => ({
+      node,
+      height: node.style.height,
+      minHeight: node.style.minHeight,
+      overflow: node.style.overflow,
+      paddingBottom: node.style.paddingBottom,
+    }));
+    styleTargets.forEach((node) => {
+      node.style.height = "100%";
+      node.style.minHeight = "0";
+      node.style.overflow = "hidden";
+    });
+    document.body.style.paddingBottom = "0";
 
     return () => {
       document.documentElement.classList.remove('iframe-mode');
       document.body.classList.remove('iframe-mode');
+      previousStyles.forEach(({ node, height, minHeight, overflow, paddingBottom }) => {
+        node.style.height = height;
+        node.style.minHeight = minHeight;
+        node.style.overflow = overflow;
+        node.style.paddingBottom = paddingBottom;
+      });
     };
   }, []);
 
@@ -42,11 +291,17 @@ const IframePage = () => {
     const initializeWidget = async () => {
       const cfg = getChatbocConfig();
       const urlParams = new URLSearchParams(window.location.search);
+      const immediateParams = resolveWidgetParams(cfg, urlParams);
+      setWidgetParams(immediateParams);
+      setEntityToken(immediateParams.entityToken);
+      setTipoChat(immediateParams.endpoint ?? null);
+      postIframeState(immediateParams);
+      setIsLoading(true);
 
       // Extract tenant slug from URL or data attribute passed
-      const tenantSlug = urlParams.get("tenant") || urlParams.get("tenantSlug");
+      const tenantSlug = immediateParams.tenantSlug;
 
-      let fetchedConfig: any = {};
+      let fetchedConfig: PublicWidgetConfig = {};
       if (tenantSlug) {
         try {
           const response = await fetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
@@ -65,124 +320,50 @@ const IframePage = () => {
         }
       }
 
-      // Priority: URL Param > Fetched Config > Local Config > Default
-      const primaryColorHex = urlParams.get("primaryColor") || fetchedConfig.primary_color || cfg.primaryColor || "#007aff";
-      document.documentElement.style.setProperty("--primary", hexToHsl(primaryColorHex));
-      const accentColorHex = urlParams.get("accentColor") || fetchedConfig.secondary_color || cfg.accentColor || "";
-      if (accentColorHex) {
-        document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
+      const resolvedParams = resolveWidgetParams(cfg, urlParams, fetchedConfig);
+      document.documentElement.style.setProperty("--primary", hexToHsl(resolvedParams.primaryColor));
+      if (resolvedParams.accentColor) {
+        document.documentElement.style.setProperty("--accent", hexToHsl(resolvedParams.accentColor));
       }
 
-      const rawEntityToken =
-        urlParams.get("entityToken") ||
-        urlParams.get("ownerToken") ||
-        cfg.entityToken ||
-        '';
-      if (rawEntityToken) {
-        setEntityToken(rawEntityToken);
-        safeLocalStorage.setItem("entityToken", rawEntityToken);
+      if (resolvedParams.entityToken) {
+        setEntityToken(resolvedParams.entityToken);
+        safeLocalStorage.setItem("entityToken", resolvedParams.entityToken);
       } else {
         setEntityToken(null);
         safeLocalStorage.removeItem("entityToken");
       }
 
-      const endpointFromUrl = urlParams.get("endpoint") || urlParams.get("tipo_chat");
-      const configEndpoint =
-        cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
-          ? (cfg.endpoint as 'pyme' | 'municipio')
-          : null;
-
-      const fetchedEndpoint =
-        fetchedConfig.tipo_chat === 'pyme' || fetchedConfig.tipo_chat === 'municipio'
-          ? fetchedConfig.tipo_chat
-          : (fetchedConfig.endpoint === 'pyme' || fetchedConfig.endpoint === 'municipio' ? fetchedConfig.endpoint : null);
-
-      const endpointParam =
-        endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
-          ? (endpointFromUrl as 'pyme' | 'municipio')
-          : null;
-      const resolvedEndpoint = endpointParam || fetchedEndpoint || configEndpoint || null;
-      if (resolvedEndpoint) {
-        setTipoChat(resolvedEndpoint);
+      if (resolvedParams.endpoint) {
+        setTipoChat(resolvedParams.endpoint);
       }
 
-      const widgetId = urlParams.get("widgetId") || fetchedConfig.widget_id || "chatboc-iframe-unknown";
-      const view = urlParams.get("view") || 'chat';
-      const defaultOpenParam = urlParams.get("defaultOpen");
-      const defaultOpen =
-        typeof defaultOpenParam === 'string'
-          ? defaultOpenParam === 'true'
-          : (fetchedConfig.default_open ?? cfg.defaultOpen);
-      const openWidth = urlParams.get("openWidth") || fetchedConfig.open_width || cfg.width || DEFAULTS.openWidth;
-      const openHeight = urlParams.get("openHeight") || fetchedConfig.open_height || cfg.height || DEFAULTS.openHeight;
-      const closedWidth = urlParams.get("closedWidth") || fetchedConfig.closed_width || cfg.closedWidth || DEFAULTS.closedWidth;
-      const closedHeight = urlParams.get("closedHeight") || fetchedConfig.closed_height || cfg.closedHeight || DEFAULTS.closedHeight;
-      const bottomParam = urlParams.get("bottom") || fetchedConfig.offset_bottom || cfg.bottom || String(DEFAULTS.bottom);
-      const rightParam = urlParams.get("right") || fetchedConfig.offset_right || cfg.right || String(DEFAULTS.right);
-      const bottomValue = Number.parseInt(String(bottomParam), 10);
-      const rightValue = Number.parseInt(String(rightParam), 10);
-      const logoUrl = urlParams.get("logoUrl") || fetchedConfig.logo_url || cfg.logoUrl || '';
-      const headerLogoUrl = urlParams.get("headerLogoUrl") || fetchedConfig.header_logo_url || cfg.headerLogoUrl || '';
-      const logoAnimation = urlParams.get("logoAnimation") || fetchedConfig.logo_animation || cfg.logoAnimation || '';
-      const welcomeTitle = urlParams.get("welcomeTitle") || fetchedConfig.welcome_title || cfg.welcomeTitle || '';
-      const welcomeSubtitle = urlParams.get("welcomeSubtitle") || fetchedConfig.welcome_subtitle || cfg.welcomeSubtitle || '';
-      const userMsgColor = urlParams.get("userMsgColor") || cfg.userMsgColor || '';
-      const chatBackground = urlParams.get("chatBackground") || cfg.chatBackground || '';
-      const borderRadiusParam = urlParams.get("borderRadius") || '';
-      const parsedBorderRadius = Number.parseInt(borderRadiusParam, 10);
-      const borderRadius = Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined;
-      const fontFamily = urlParams.get("fontFamily") || cfg.fontFamily || '';
-
-      setWidgetParams({
-        defaultOpen,
-        widgetId,
-        view,
-        openWidth,
-        openHeight,
-        closedWidth,
-        closedHeight,
-        ctaMessage: urlParams.get("ctaMessage") || undefined,
-        rubro: urlParams.get("rubro") || undefined,
-        endpoint: resolvedEndpoint || undefined,
-        bottom: Number.isFinite(bottomValue) ? bottomValue : DEFAULTS.bottom,
-        right: Number.isFinite(rightValue) ? rightValue : DEFAULTS.right,
-        primaryColor: primaryColorHex,
-        accentColor: accentColorHex,
-        logoUrl,
-        headerLogoUrl,
-        logoAnimation,
-        welcomeTitle,
-        welcomeSubtitle,
-        userMsgColor,
-        chatBackground,
-        borderRadius,
-        fontFamily,
-        tenantSlug: tenantSlug,
-      });
+      setWidgetParams(resolvedParams);
+      postIframeState(resolvedParams);
 
       const mergedConfig = {
         ...cfg,
-        endpoint: resolvedEndpoint || cfg.endpoint || 'pyme',
-        entityToken: rawEntityToken || '',
-        defaultOpen,
-        width: openWidth,
-        height: openHeight,
-        closedWidth,
-        closedHeight,
-        bottom: bottomParam,
-        right: rightParam,
-        primaryColor: primaryColorHex,
-        accentColor: accentColorHex,
-        logoUrl,
-        headerLogoUrl,
-        logoAnimation,
-        welcomeTitle,
-        welcomeSubtitle,
-        userMsgColor,
-        chatBackground,
-        borderRadius,
-        fontFamily,
-        tenantSlug,
+        endpoint: resolvedParams.endpoint || cfg.endpoint || 'pyme',
+        entityToken: resolvedParams.entityToken || '',
+        defaultOpen: resolvedParams.defaultOpen,
+        width: resolvedParams.openWidth,
+        height: resolvedParams.openHeight,
+        closedWidth: resolvedParams.closedWidth,
+        closedHeight: resolvedParams.closedHeight,
+        bottom: `${resolvedParams.bottom}px`,
+        right: `${resolvedParams.right}px`,
+        primaryColor: resolvedParams.primaryColor,
+        accentColor: resolvedParams.accentColor,
+        logoUrl: resolvedParams.logoUrl,
+        headerLogoUrl: resolvedParams.headerLogoUrl,
+        logoAnimation: resolvedParams.logoAnimation,
+        welcomeTitle: resolvedParams.welcomeTitle,
+        welcomeSubtitle: resolvedParams.welcomeSubtitle,
+        userMsgColor: resolvedParams.userMsgColor,
+        chatBackground: resolvedParams.chatBackground,
+        borderRadius: resolvedParams.borderRadius,
+        fontFamily: resolvedParams.fontFamily,
+        tenantSlug: resolvedParams.tenantSlug,
       };
 
       if (typeof window !== 'undefined') {
@@ -196,10 +377,14 @@ const IframePage = () => {
   }, []);
 
   useEffect(() => {
+    if (!widgetParams) return;
+    postIframeState(widgetParams);
+  }, [widgetParams]);
+
+  useEffect(() => {
     if (entityToken && !tipoChat) {
       const fetchTokenInfo = async () => {
         try {
-          setIsLoading(true);
           const info = await apiFetch<{ tipo_chat: 'pyme' | 'municipio' }>(
             '/auth/token-info',
             {
@@ -221,10 +406,12 @@ const IframePage = () => {
     }
   }, [entityToken, tipoChat]);
 
-  // Show a loader while determining the chat type
-  if (isLoading || !widgetParams) {
-    return null;
-  }
+  const shellStyle = useMemo(
+    () => widgetParams ? getIframeShellStyle(widgetParams) : undefined,
+    [widgetParams],
+  );
+
+  if (!widgetParams || !shellStyle) return null;
 
   const initialEntry =
     typeof window !== 'undefined'
@@ -233,7 +420,7 @@ const IframePage = () => {
 
   const widgetTree = (
     <TenantProvider>
-       <React.Suspense fallback={<div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />}>
+       <React.Suspense fallback={<IframeFallback params={widgetParams} />}>
         <ChatWidgetComponent
           mode="iframe"
           ownerToken={entityToken || undefined}
@@ -273,13 +460,19 @@ const IframePage = () => {
 
   // If no Google Client ID, skip the Provider to avoid crashes.
   if (!GOOGLE_CLIENT_ID) {
-    return maybeWrappedInRouter;
+    return (
+      <div style={shellStyle} aria-busy={isLoading}>
+        {maybeWrappedInRouter}
+      </div>
+    );
   }
 
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      {maybeWrappedInRouter}
-    </GoogleOAuthProvider>
+    <div style={shellStyle} aria-busy={isLoading}>
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        {maybeWrappedInRouter}
+      </GoogleOAuthProvider>
+    </div>
   );
 };
 

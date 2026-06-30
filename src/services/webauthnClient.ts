@@ -21,8 +21,9 @@ const arrayBufferToBase64url = (buffer: ArrayBuffer): string => {
 
 const arrayBufferViewToBase64url = (view: ArrayBufferView): string => {
   const { buffer, byteOffset, byteLength } = view;
-  const slice = buffer.slice(byteOffset, byteOffset + byteLength);
-  return arrayBufferToBase64url(slice);
+  const copy = new Uint8Array(byteLength);
+  copy.set(new Uint8Array(buffer, byteOffset, byteLength));
+  return arrayBufferToBase64url(copy.buffer);
 };
 
 const convertToJSON = (value: unknown): unknown => {
@@ -111,13 +112,13 @@ const credentialToJSON = (credential: PublicKeyCredential): CredentialJSON => {
   const json: CredentialJSON = {
     id: credential.id,
     rawId: arrayBufferToBase64url(credential.rawId),
-    type: credential.type,
-    authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
+    type: credential.type as PublicKeyCredentialType,
+    authenticatorAttachment: credential.authenticatorAttachment as AuthenticatorAttachment | undefined,
     response: convertToJSON(response) as Record<string, unknown>,
     clientExtensionResults: convertToJSON(
       credential.getClientExtensionResults(),
     ) as Record<string, unknown>,
-    transports: Array.isArray(transports) ? [...transports] : undefined,
+    transports: Array.isArray(transports) ? [...transports] as AuthenticatorTransport[] : undefined,
   };
 
   return json;
@@ -145,8 +146,7 @@ export const startRegistration = async (
   const credential = (await navigator.credentials.create({
     publicKey,
     signal,
-    mediation,
-  })) as PublicKeyCredential | null;
+  } as CredentialCreationOptions)) as PublicKeyCredential | null;
 
   if (!credential) {
     throw new Error('No se pudo completar el registro con Passkey.');
@@ -170,12 +170,17 @@ export const startAuthentication = async (
     allowCredentials: transformDescriptorList(jsonOptions.allowCredentials),
   };
 
-  const credential = (await navigator.credentials.get({
+  const requestOptions: CredentialRequestOptions & {
+    mediation?: CredentialMediationRequirement;
+    hints?: string[];
+  } = {
     publicKey,
     mediation,
     signal,
     hints,
-  })) as PublicKeyCredential | null;
+  };
+
+  const credential = (await navigator.credentials.get(requestOptions)) as PublicKeyCredential | null;
 
   if (!credential) {
     throw new Error('No se pudo completar la autenticación con Passkey.');

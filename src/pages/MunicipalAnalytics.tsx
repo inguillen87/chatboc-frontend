@@ -20,7 +20,7 @@ import ChartTooltip from '@/components/analytics/ChartTooltip';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { AnalyticsHeatmap } from '@/components/analytics/Heatmap';
 import {
-  getHeatmapPoints,
+  getHeatmapDataset,
   getTicketStats,
   getMunicipalTicketStates,
   HeatPoint,
@@ -51,7 +51,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, FileDown } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  FileDown,
+  Flame,
+  GaugeCircle,
+  Layers,
+  MapPinned,
+  Timer,
+} from 'lucide-react';
 import {
   clearEndpointUnavailable,
   isEndpointMarkedUnavailable,
@@ -98,8 +107,42 @@ const safeNumber = (value: unknown): number => {
   return Number.isFinite(num) ? num : 0;
 };
 
+const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
+  value.toLocaleString('es-AR', options);
+
 const getResponseHours = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const getHeatPointWeight = (point: HeatPoint) => {
+  const candidates = [
+    point.totalWeight,
+    point.total,
+    point.weight,
+    point.clusterSize,
+    point.pointCount,
+  ];
+  const value = candidates.find((item) => typeof item === 'number' && Number.isFinite(item));
+  return Math.max(1, Number(value ?? 1));
+};
+
+const buildHeatmapRanking = (
+  points: HeatPoint[],
+  getLabel: (point: HeatPoint) => string | null | undefined,
+) => {
+  const totals = new Map<string, { points: number; weight: number }>();
+  points.forEach((point) => {
+    const rawLabel = getLabel(point);
+    const label = typeof rawLabel === 'string' && rawLabel.trim() ? rawLabel.trim() : null;
+    if (!label) return;
+    const current = totals.get(label) ?? { points: 0, weight: 0 };
+    current.points += 1;
+    current.weight += getHeatPointWeight(point);
+    totals.set(label, current);
+  });
+  return Array.from(totals.entries())
+    .map(([label, value]) => ({ label, ...value }))
+    .sort((a, b) => b.weight - a.weight);
+};
 
 const STATUS_KEYWORDS = ['estado', 'status', 'situacion', 'situación'];
 const GENDER_KEYWORDS = ['género', 'genero', 'gender'];
@@ -279,7 +322,7 @@ export default function MunicipalAnalytics() {
       const [analyticsResult, statsResult, heatmapResult] = await Promise.allSettled([
         analyticsPromise,
         getTicketStats(statsParams),
-        getHeatmapPoints({
+        getHeatmapDataset({
           tipo: 'municipio',
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
           genero: genderFilter || undefined,
@@ -885,6 +928,60 @@ export default function MunicipalAnalytics() {
   const hasChartsData = charts && charts.length > 0;
   const hasHeatmapPoints = heatmapData.length > 0;
 
+  const topMunicipality = sortedMunicipalities[0] ?? null;
+  const dominantStatus = useMemo(
+    () => [...statusSummary].sort((a, b) => safeNumber(b.value) - safeNumber(a.value))[0] ?? null,
+    [statusSummary],
+  );
+  const topCategory = useMemo(
+    () => [...categoryTotals].sort((a, b) => safeNumber(b.value) - safeNumber(a.value))[0] ?? null,
+    [categoryTotals],
+  );
+  const hotspotRows = useMemo(
+    () =>
+      buildHeatmapRanking(
+        heatmapData,
+        (point) => point.barrio || point.distrito || point.ciudad || point.tipo_ticket,
+      ).slice(0, 5),
+    [heatmapData],
+  );
+  const heatmapWeight = useMemo(
+    () => heatmapData.reduce((sum, point) => sum + getHeatPointWeight(point), 0),
+    [heatmapData],
+  );
+  const slaCoverage = filteredMunicipalities.length
+    ? Math.round((responseValues.length / filteredMunicipalities.length) * 100)
+    : 0;
+  const geoCoverage = totalTickets > 0
+    ? Math.min(100, Math.round((heatmapWeight / totalTickets) * 100))
+    : 0;
+  const executiveKpis = [
+    {
+      label: 'Tickets filtrados',
+      value: formatNumber(totalTickets),
+      detail: topMunicipality ? `Mayor carga: ${topMunicipality.name}` : 'Sin municipios',
+      icon: Activity,
+    },
+    {
+      label: 'Respuesta promedio',
+      value: Number.isFinite(averageResponseHours) ? `${averageResponseHours.toFixed(1)} h` : '0 h',
+      detail: `${slaCoverage}% con metrica SLA`,
+      icon: Timer,
+    },
+    {
+      label: 'Cobertura geo',
+      value: `${geoCoverage}%`,
+      detail: `${formatNumber(heatmapData.length)} puntos de mapa`,
+      icon: MapPinned,
+    },
+    {
+      label: 'Estado dominante',
+      value: dominantStatus ? formatLabel(dominantStatus.status) : 'Sin estado',
+      detail: dominantStatus ? `${formatNumber(safeNumber(dominantStatus.value))} tickets` : 'Sin datos',
+      icon: GaugeCircle,
+    },
+  ];
+
   if (loading) return <p className="p-4 text-center">Cargando analíticas...</p>;
   if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
   if (
@@ -902,8 +999,8 @@ export default function MunicipalAnalytics() {
     );
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-[1400px] space-y-6 p-3 sm:p-4 lg:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <h1 className="text-3xl font-extrabold text-primary">Analíticas Profesionales</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -927,6 +1024,110 @@ export default function MunicipalAnalytics() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {executiveKpis.map(({ label, value, detail, icon: Icon }) => (
+          <Card key={label} className="overflow-hidden border-border shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className="mt-2 truncate text-2xl font-bold text-foreground">{value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+                </div>
+                <span className="rounded-lg bg-primary/10 p-2 text-primary">
+                  <Icon className="h-4 w-4" />
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="border-border shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Layers className="h-5 w-5 text-primary" />
+              Lectura ejecutiva
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Municipio con mas carga
+              </p>
+              <p className="mt-2 truncate text-xl font-bold text-foreground">
+                {topMunicipality?.name ?? 'Sin municipio'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {topMunicipality
+                  ? `${formatNumber(safeNumber(topMunicipality.totalTickets))} tickets`
+                  : 'Sin filas disponibles'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Categoria lider
+              </p>
+              <p className="mt-2 truncate text-xl font-bold text-foreground">
+                {topCategory ? formatLabel(topCategory.name) : 'Sin categoria'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {topCategory ? `${formatNumber(safeNumber(topCategory.value))} tickets` : 'Sin datos'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Cobertura SLA
+              </p>
+              <p className="mt-2 text-xl font-bold text-foreground">{slaCoverage}%</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatNumber(responseValues.length)} de {formatNumber(filteredMunicipalities.length)} filas
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Flame className="h-5 w-5 text-amber-500" />
+              Zonas calientes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {hotspotRows.length > 0 ? (
+              hotspotRows.map((zone, index) => {
+                const pct = heatmapWeight > 0
+                  ? Math.min(100, Math.round((zone.weight / heatmapWeight) * 100))
+                  : 0;
+                return (
+                  <div key={zone.label} className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="truncate font-medium">
+                        {index + 1}. {formatLabel(zone.label)}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatNumber(zone.weight)}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No hay puntos georreferenciados para detectar hotspots con estos filtros.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {analyticsWarning && (
         <Alert variant="destructive" className="bg-destructive/10 text-destructive">
@@ -1114,6 +1315,7 @@ export default function MunicipalAnalytics() {
           <CardTitle className="text-xl">Detalle por Municipio</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1154,6 +1356,7 @@ export default function MunicipalAnalytics() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -1179,14 +1382,28 @@ export default function MunicipalAnalytics() {
           mapLayers={heatmapDetails?.mapLayers}
         />
       ) : (
-        <Card className="shadow-lg">
+        <Card className="overflow-hidden border-dashed border-border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-xl">Mapa de Calor</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <MapPinned className="h-5 w-5 text-primary" />
+              Mapa de Calor
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              No hay datos georreferenciados para mostrar con los filtros actuales.
-            </p>
+          <CardContent className="p-0">
+            <div className="relative min-h-[300px] overflow-hidden bg-slate-950 p-6 text-white">
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px)] bg-[size:40px_40px]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_35%_40%,rgba(245,158,11,0.2),transparent_24%),radial-gradient(circle_at_72%_58%,rgba(14,165,233,0.16),transparent_24%)]" />
+              <div className="relative max-w-xl rounded-2xl border border-white/15 bg-slate-950/75 p-5 shadow-2xl backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/60">
+                  Sin coordenadas explotables
+                </p>
+                <h2 className="mt-2 text-2xl font-bold">No hay puntos georreferenciados</h2>
+                <p className="mt-2 text-sm text-white/70">
+                  Los filtros actuales tienen actividad, pero no ubicaciones validas para pintar calor,
+                  clusters o zonas. Revisa direccion, barrio, latitud/longitud o amplia el rango.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

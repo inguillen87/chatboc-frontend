@@ -455,6 +455,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               type="button"
               variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
               className="h-9 w-full justify-between rounded-[8px] px-3 text-sm font-semibold"
+              aria-expanded={advancedFiltersOpen}
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -483,7 +484,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               <div>
                 <p className="text-sm font-semibold text-foreground">Filtro operativo</p>
                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  Ajusta la bandeja sin perder de vista el acordeon de reclamos.
+                  Ajusta la bandeja sin empujar el acordeon de reclamos.
                 </p>
               </div>
               {hasActiveFilters ? (

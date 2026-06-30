@@ -120,6 +120,7 @@ export interface SurveyLivePublicQuestionOption {
 
 export interface SurveyLivePublicQuestion {
   id?: string | number;
+  tipo?: string;
   texto?: string;
   titulo?: string;
   total_votos?: number;

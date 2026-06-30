@@ -1,5 +1,5 @@
 import { registerSW } from 'virtual:pwa-register';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 declare global {
   interface Window {

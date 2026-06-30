@@ -106,11 +106,15 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
     expect(screen.getByText('Nota manuscrita')).toBeInTheDocument();
     expect(screen.getByText('Boleta / impuesto')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir nota o manuscrito/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeInTheDocument();
+    expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('Subir foto o manuscrito')).toBeInTheDocument();
+    expect(screen.getByText('Escribir lista')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Continuar por WhatsApp/i }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/solicitud asistida activa/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Subir pedido o documento/i }).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /Subir nota o manuscrito/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i }));
 
     expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
     await waitFor(() => {
@@ -153,7 +157,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     expect(screen.queryByText('Pedido asistido por IA')).not.toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir nota, pedido o reclamo/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeDisabled();
   });
 
   it('keeps a local assisted intake fallback when the catalog contract omits it', async () => {
@@ -190,6 +194,52 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Subida publica')).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir nota, pedido o reclamo/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
+  });
+
+  it('explains filtered empty results without hiding assisted intake', async () => {
+    const filteredEmptyResponse = {
+      products: [],
+      promotions: { items: [] },
+      facets: { categories: [], promotion_count: 0 },
+      sort_options: [],
+      total: 0,
+      total_unfiltered: 3,
+      frontend_contract: {
+        show_assisted_intake: true,
+      },
+      publicCartUrl: 'https://chatboc.ar/t/junin/cart',
+      whatsappShareUrl: 'https://wa.me/?text=Catalogo',
+    };
+    fetchMarketCatalogMock
+      .mockResolvedValueOnce(filteredEmptyResponse)
+      .mockResolvedValueOnce(filteredEmptyResponse);
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Buscar producto/i), {
+      target: { value: 'no existe' },
+    });
+
+    await waitFor(() => {
+      expect(fetchMarketCatalogMock).toHaveBeenCalledWith(
+        'junin',
+        expect.objectContaining({ q: 'no existe' }),
+      );
+    });
+
+    expect(screen.getByText(/No hay productos para esos filtros/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Limpiar filtros/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
   });
 });

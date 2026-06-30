@@ -29,7 +29,7 @@ type SeedCluster = WeightedEntry<{
   codigoPostal?: string;
 }>;
 
-type SeedChannel = WeightedEntry<{ value: string }>;
+type SeedChannel = WeightedEntry<{ value: NonNullable<PublicResponsePayload['canal']> }>;
 
 type SeedUtm = WeightedEntry<{ source?: string | null; campaign?: string | null }>;
 

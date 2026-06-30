@@ -160,4 +160,29 @@ describe('TicketsPanel request_id support surface', () => {
     expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
     expect(screen.queryByTestId('tickets-access-denied')).not.toBeInTheDocument();
   });
+
+  it('allows employees with ticket admin/module capabilities to open the embedded profile ticket desk', async () => {
+    useUserMock.mockReturnValue({
+      user: { rol: 'empleado', tipo_chat: 'municipio' },
+      loading: false,
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.admin', 'crm_reclamos'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: (required: string[]) =>
+        required.includes('tickets.admin') || required.includes('crm_reclamos'),
+    });
+    getIdentityCoverageMock.mockResolvedValueOnce({
+      contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-ok',
+      alert_count: 0,
+      slo_status: 'ok',
+      alerts: [],
+    });
+
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+
+    expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
+    expect(screen.queryByTestId('tickets-access-denied')).not.toBeInTheDocument();
+  });
 });

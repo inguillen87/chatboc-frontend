@@ -230,6 +230,24 @@ const ASSISTED_OUTCOMES = [
   },
 ];
 
+const PROCESSING_STEPS = [
+  {
+    id: 'capture',
+    label: 'Recibimos la entrada',
+    description: 'Archivo, foto, PDF o texto queda asociado al espacio.',
+  },
+  {
+    id: 'ai_parse',
+    label: 'IA desmenuza datos',
+    description: 'Articulos, cantidades, reclamo, tramite y datos faltantes.',
+  },
+  {
+    id: 'crm_ready',
+    label: 'Queda listo para CRM',
+    description: 'El equipo revisa, responde y puede continuar por WhatsApp.',
+  },
+];
+
 const STRUCTURED_FIELD_LABELS: Record<string, string> = {
   categoria_probable: 'Categoria',
   direccion: 'Direccion',
@@ -434,7 +452,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     setSuccessMessage(null);
     setMatchSummary(null);
     setProcessedResponse(null);
-    setStatusMessage(`Analizando ${activeDocumentType.label.toLowerCase()} con IA...`);
+    setStatusMessage(
+      file
+        ? `Subiendo ${file.name} y preparando lectura IA...`
+        : `Analizando ${activeDocumentType.label.toLowerCase()} con IA para separar articulos y datos...`,
+    );
     setProgress(10);
 
     try {
@@ -473,13 +495,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             const total = Number(res.headers.get('Content-Length'));
             if (Number.isFinite(total) && total > 0) {
               setProgress(70);
-              setStatusMessage('Procesando respuesta del servidor...');
+              setStatusMessage('La IA termino la lectura; armando seguimiento y revision CRM...');
             }
           },
         },
       );
 
       setProgress(90);
+      setStatusMessage('Normalizando resultado para CRM y seguimiento publico...');
       setMatchSummary(response?.match_summary ?? null);
       setProcessedResponse(response ?? null);
 
@@ -500,7 +523,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       if (normalizedText) {
         setOrderText('');
       }
-      setStatusMessage('Solicitud procesada correctamente.');
+      setStatusMessage('Solicitud procesada: quedo en CRM para revision y respuesta.');
     } catch (uploadError) {
       if (uploadError instanceof ApiError) {
         const contentType = String(uploadError.body?.contentType || '').toLowerCase();
@@ -591,13 +614,13 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   };
 
   return (
-    <div id={id} className={cn('space-y-4', isMarketplace && 'rounded-xl border bg-card p-4 shadow-sm', className)}>
+    <div id={id} className={cn('space-y-4', isMarketplace && 'rounded-lg border bg-card p-3 shadow-sm sm:p-4', className)}>
       {isMarketplace ? (
-        <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
-          <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="overflow-hidden rounded-lg border bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
+          <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+            <div className="space-y-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Sparkles className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
@@ -606,35 +629,56 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                     <Badge variant="outline">Sin registro previo</Badge>
                     <Badge variant="secondary">IA + revision humana</Badge>
                   </div>
-                  <h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-normal">
+                  <h2 className="mt-2 max-w-2xl text-lg font-semibold tracking-normal sm:text-xl">
                     {intakeExperience?.title ?? 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable'}
                   </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  <p className="mt-1 line-clamp-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                     {intakeExperience?.summary ??
-                      'Pensado para vecinos y clientes que no quieren navegar un catalogo: suben una foto de papel, pegan una lista o adjuntan una boleta, y el equipo recibe un lead/pedido con lectura IA, link de seguimiento y respuesta lista desde el CRM.'}
+                      'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe un lead/pedido con lectura IA, seguimiento y respuesta lista desde el CRM.'}
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {marketplaceExamples.map((example) => (
-                  <span key={example} className="rounded-md border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
+                  <span key={example} className="max-w-full break-words rounded-md border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
                     {example}
                   </span>
                 ))}
               </div>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-3">
                 {ASSISTED_OUTCOMES.map((outcome) => (
-                  <div key={outcome.label} className="rounded-lg border bg-background/80 p-3">
+                  <div key={outcome.label} className="min-w-0 rounded-lg border bg-background/80 p-2.5">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <ClipboardCheck className="h-4 w-4 text-primary" />
                       {outcome.label}
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{outcome.description}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{outcome.description}</p>
                   </div>
                 ))}
               </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitDisabled}
+                  className="w-full sm:w-auto"
+                >
+                  <FileImage className="mr-2 h-4 w-4" />
+                  Subir foto o papel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => textAreaRef.current?.focus()}
+                  disabled={uploading}
+                  className="w-full sm:w-auto"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Escribir pedido
+                </Button>
+              </div>
               {marketplaceTextExamples.length ? (
-                <div className="rounded-xl border bg-background/80 p-3">
+                <div className="rounded-lg border bg-background/80 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ejemplos rapidos</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {marketplaceTextExamples.map((example) => (
@@ -652,31 +696,12 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                   </div>
                 </div>
               ) : null}
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={submitDisabled}
-                >
-                  <FileImage className="mr-2 h-4 w-4" />
-                  Subir foto o papel
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => textAreaRef.current?.focus()}
-                  disabled={uploading}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Escribir pedido
-                </Button>
-              </div>
             </div>
 
-            <div className="grid gap-2 rounded-xl border bg-card/80 p-3">
+            <div className="grid gap-2 rounded-lg border bg-card/80 p-3">
               <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Flujo operativo</p>
               {marketplacePipeline.map((step, index) => (
-                <div key={step.id ?? step.label ?? index} className="rounded-lg border bg-background p-3">
+                <div key={step.id ?? step.label ?? index} className="rounded-lg border bg-background p-2.5">
                   <div className="flex items-center gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
                       {index + 1}
@@ -705,28 +730,6 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 </AlertDescription>
               </Alert>
             ) : null}
-            <fieldset>
-              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de archivo</legend>
-              <div className="mt-2 grid grid-cols-1 gap-2 min-[460px]:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Tipo de archivo o solicitud">
-                {documentTypeOptions.map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    aria-pressed={documentType === item.value}
-                    disabled={uploading}
-                    onClick={() => setDocumentType(item.value)}
-                    className={cn(
-                      'min-w-0 rounded-lg border p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      documentType === item.value ? 'border-primary bg-primary/10 text-primary' : 'bg-background',
-                    )}
-                  >
-                    <span className="block break-words text-sm font-semibold">{item.label}</span>
-                    <span className="mt-1 block break-words text-xs text-muted-foreground">{item.helper}</span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
             <div
               data-assisted-upload-dropzone="true"
               data-testid="assisted-upload-dropzone"
@@ -746,7 +749,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
               className={cn(
-                'flex min-h-[150px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed bg-background p-5 text-center transition-colors',
+                'flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed bg-background p-4 text-center transition-colors',
                 isDragging ? 'border-primary bg-primary/10' : 'hover:border-primary/50 hover:bg-muted/40',
                 submitDisabled && 'pointer-events-none opacity-70',
               )}
@@ -756,7 +759,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               </div>
               <p className="font-semibold">Arrastra el archivo o seleccionalo</p>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Acepta imagenes, PDF, Excel, Word, CSV y TXT. Puede ser una foto de papel, una nota manuscrita o una boleta; si la IA no puede leerlo con confianza, igual crea la solicitud para revision humana.
+                Acepta imagenes, PDF, Excel, Word, CSV y TXT. Si la IA no lo lee con confianza, igual queda para revision humana.
               </p>
             </div>
 
@@ -779,26 +782,48 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 placeholder={`Ej: 2 chapas galvanizadas
 1 caja de clavos
 3 bolsas de cemento`}
-                rows={4}
+                rows={3}
                 disabled={uploading}
                 className="mt-3"
               />
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Chatboc lo transforma en borrador de pedido, reclamo, tramite o lead para que el equipo responda desde el CRM. Maximo {submitMaxTextChars.toLocaleString()} caracteres.
+                  Chatboc lo transforma en pedido, reclamo, tramite o lead. Maximo {submitMaxTextChars.toLocaleString()} caracteres.
                 </p>
                 <Button
                   type="button"
                   size="sm"
                   disabled={submitDisabled || !orderText.trim()}
                   onClick={processText}
-                  className="shrink-0"
+                  className="w-full shrink-0 sm:w-auto"
                 >
                   {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                   Crear solicitud IA
                 </Button>
               </div>
             </div>
+
+            <fieldset>
+              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de archivo</legend>
+              <div className="mt-2 grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Tipo de archivo o solicitud">
+                {documentTypeOptions.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    aria-pressed={documentType === item.value}
+                    disabled={uploading}
+                    onClick={() => setDocumentType(item.value)}
+                    className={cn(
+                      'min-w-0 rounded-lg border p-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      documentType === item.value ? 'border-primary bg-primary/10 text-primary' : 'bg-background',
+                    )}
+                  >
+                    <span className="block break-words text-sm font-semibold">{item.label}</span>
+                    <span className="mt-1 block break-words text-xs text-muted-foreground">{item.helper}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
 
           <div className="rounded-lg border bg-muted/30 p-3">
@@ -879,16 +904,17 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               : undefined
           }
         />
-        <Button
-          type="button"
-          variant={isMarketplace ? 'default' : 'secondary'}
-          disabled={submitDisabled}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(isMarketplace && 'w-full sm:w-auto lg:hidden')}
-        >
-          {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-          {isMarketplace ? 'Subir archivo' : 'Subir nota de pedido'}
-        </Button>
+        {!isMarketplace ? (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={submitDisabled}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            Subir nota de pedido
+          </Button>
+        ) : null}
         {isMarketplace ? (
           <p className="text-xs text-muted-foreground">
             El equipo ve el archivo o texto original, el resumen IA y las acciones siguientes desde el CRM.
@@ -896,12 +922,45 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         ) : null}
       </div>
 
-      {uploading && <Progress value={progress} className="h-2" />}
-
-      {statusMessage && (
-        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-          {statusMessage}
-        </p>
+      {(uploading || statusMessage) && (
+        <div className="rounded-lg border bg-muted/25 p-3" role="status" aria-live="polite">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                {uploading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" /> : <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" />}
+                <span>{uploading ? 'Procesando solicitud con IA' : 'Estado de la solicitud'}</span>
+              </div>
+              {statusMessage ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {statusMessage}
+                </p>
+              ) : null}
+            </div>
+            {uploading ? (
+              <Badge variant="outline" className="w-fit shrink-0">
+                {Math.min(100, Math.max(0, progress))}%
+              </Badge>
+            ) : null}
+          </div>
+          {uploading ? <Progress value={progress} className="mt-3 h-2" /> : null}
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {PROCESSING_STEPS.map((step, index) => {
+              const isActive = uploading && progress >= index * 35;
+              return (
+                <div
+                  key={step.id}
+                  className={cn(
+                    'min-w-0 rounded-md border bg-background px-3 py-2 text-xs',
+                    isActive && 'border-primary/40 bg-primary/5',
+                  )}
+                >
+                  <p className="break-words font-semibold">{step.label}</p>
+                  <p className="mt-1 break-words text-muted-foreground">{step.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {successMessage && (

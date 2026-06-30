@@ -173,7 +173,7 @@ export function getTicketChannel(ticket?: Ticket | null): string {
   }
 
   if (typeof ticket === 'object' && ticket !== null) {
-    for (const [key, value] of Object.entries(ticket as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(ticket as unknown as Record<string, unknown>)) {
       if (!value) continue;
       if (/canal|channel|medio|via|origen/i.test(key)) {
         const candidate = normalizeCandidate(value);

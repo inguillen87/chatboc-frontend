@@ -88,13 +88,14 @@ const addPdfFooter = (doc: any) => {
 
 export const exportToPdf = async (ticket: Ticket, messages: Message[]) => {
   if (!ticket) return;
+  const { jsPDF, autoTable } = await loadPdfTools();
   const doc = new jsPDF();
   const ticketData = getTicketData(ticket);
 
   addPdfHeader(doc, `Ticket #${ticket.nro_ticket}`);
 
   // Ticket Details
-  autoTable(doc, {
+  getAutoTable()(doc, {
     startY: 40,
     head: [['Campo', 'Valor']],
     body: Object.entries(ticketData),
@@ -132,6 +133,7 @@ export const exportToPdf = async (ticket: Ticket, messages: Message[]) => {
 
 export const exportToXlsx = async (ticket: Ticket, messages: Message[]) => {
   if (!ticket) return;
+  const XLSX = await loadXlsx();
   const ticketData = getTicketData(ticket);
   const ticketWorksheet = XLSX.utils.json_to_sheet(Object.entries(ticketData).map(([key, value]) => ({ Campo: key, Valor: value })));
   const workbook = XLSX.utils.book_new();
@@ -152,6 +154,7 @@ export const exportToXlsx = async (ticket: Ticket, messages: Message[]) => {
 };
 
 export const exportToExcel = async (tickets: Ticket[]) => {
+  const XLSX = await loadXlsx();
   const headerStyle = {
     font: { bold: true, color: { rgb: "FFFFFF" } },
     fill: { fgColor: { rgb: "4F81BD" } },
@@ -210,10 +213,11 @@ export const exportToExcel = async (tickets: Ticket[]) => {
 };
 
 export const exportAllToPdf = async (tickets: Ticket[]) => {
+  const { jsPDF, autoTable } = await loadPdfTools();
   const doc = new jsPDF();
   addPdfHeader(doc, 'Resumen de Tickets');
 
-  autoTable(doc, {
+  getAutoTable()(doc, {
     startY: 40,
     head: [['ID', 'Asunto', 'Estado', 'Cliente', 'Fecha', 'Canal', 'Agente']],
     body: tickets.map(ticket => [
@@ -297,7 +301,7 @@ const addPdfSection = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
   cursor = ensurePdfSpace(doc, cursor, 12);
-  autoTable(doc, {
+  getAutoTable()(doc, {
     startY: cursor,
     head: [head],
     body,
@@ -359,6 +363,7 @@ export interface MunicipalAnalyticsExportOptions {
 
 export const exportMunicipalAnalyticsPdf = async (options: MunicipalAnalyticsExportOptions) => {
   if (!options) return;
+  const { jsPDF } = await loadPdfTools();
   const doc = new jsPDF();
   addPdfHeader(doc, 'Analíticas Municipales');
   let cursor = 40;
@@ -497,6 +502,7 @@ export const exportMunicipalAnalyticsPdf = async (options: MunicipalAnalyticsExp
 
 export const exportMunicipalAnalyticsExcel = async (options: MunicipalAnalyticsExportOptions) => {
   if (!options) return;
+  const XLSX = await loadXlsx();
   const workbook = XLSX.utils.book_new();
 
   const summaryRows: Record<string, string | number>[] = [
@@ -732,6 +738,7 @@ const flattenHeatmap = (rows: StatsHeatmapRow[] | undefined) => {
 
 export const exportMunicipalStatsPdf = async (options: MunicipalStatsExportOptions) => {
   if (!options) return;
+  const { jsPDF } = await loadPdfTools();
   const { data } = options;
   const doc = new jsPDF();
   addPdfHeader(doc, 'Estadísticas Municipales');
@@ -916,6 +923,7 @@ export const exportMunicipalStatsPdf = async (options: MunicipalStatsExportOptio
 
 export const exportMunicipalStatsExcel = async (options: MunicipalStatsExportOptions) => {
   if (!options) return;
+  const XLSX = await loadXlsx();
   const { data } = options;
   const workbook = XLSX.utils.book_new();
 

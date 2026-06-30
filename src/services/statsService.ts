@@ -148,6 +148,9 @@ export interface HeatmapParams {
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+  genero?: string | string[];
+  edad_min?: string | number;
+  edad_max?: string | number;
 }
 
 export interface TicketStatsParams extends HeatmapParams {

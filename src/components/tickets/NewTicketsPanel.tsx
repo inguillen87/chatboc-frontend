@@ -115,20 +115,20 @@ const TicketOpsStat = ({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'rounded-2xl border border-border/70 bg-background/75 p-3 text-left shadow-sm',
+        'h-full rounded-lg border border-border/70 bg-background/75 p-2.5 text-left shadow-sm',
         onClick && 'transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">{value.toLocaleString('es-AR')}</p>
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+          <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground">{value.toLocaleString('es-AR')}</p>
         </div>
-        <span className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl border', toneClass)}>
+        <span className={cn('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">{helper}</p>
+      <p className="mt-1 line-clamp-1 text-[11px] leading-4 text-muted-foreground">{helper}</p>
     </Comp>
   );
 };
@@ -418,18 +418,28 @@ const NewTicketsPanel: React.FC = () => {
   const riskTickets = typeof summary?.sla_risk === 'number' ? summary.sla_risk : localRiskTickets;
   const resolvedTickets = typeof summary?.resolved === 'number' ? summary.resolved : localResolvedTickets;
   const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
+  const unreadFilter = filters.unread ?? 'all';
+  const statusFilter = filters.status ?? 'all';
+  const slaFilter = filters.sla ?? 'all';
+  const priorityFilter = filters.priority ?? 'all';
+  const operationalFilterBadges = [
+    unreadFilter !== 'all' ? `Lectura: ${unreadFilter}` : null,
+    statusFilter !== 'all' ? `Estado: ${statusFilter}` : null,
+    slaFilter !== 'all' ? `SLA: ${slaFilter}` : null,
+    priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
+  ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? 'minmax(300px, 360px) minmax(420px, 1fr) minmax(360px, 440px)'
+    ? 'minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 380px)'
     : isSidebarVisible
-      ? 'minmax(300px, 380px) minmax(520px, 1fr)'
+      ? 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
-        ? 'minmax(520px, 1fr) minmax(360px, 460px)'
+        ? 'minmax(0, 1fr) minmax(300px, 400px)'
         : 'minmax(0, 1fr)';
 
   return (
     <Card className={panelCardClass}>
-      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-3 sm:px-4">
-        <div className="flex flex-col gap-3 min-[920px]:flex-row min-[920px]:items-center min-[920px]:justify-between">
+      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-2.5 sm:px-4">
+        <div className="flex flex-col gap-2.5 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold tracking-tight text-foreground">Mesa operativa</h2>
@@ -466,7 +476,7 @@ const NewTicketsPanel: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 min-[920px]:w-[620px] min-[920px]:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 min-[1080px]:w-[560px]">
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}
@@ -501,50 +511,61 @@ const NewTicketsPanel: React.FC = () => {
             />
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="gap-1 rounded-full">
-            <Filter className="h-3 w-3" />
-            Filtros activos
-          </Badge>
-          <Badge variant={filters.unread !== 'all' ? 'secondary' : 'outline'}>Lectura: {filters.unread}</Badge>
-          <Badge variant={filters.status !== 'all' ? 'secondary' : 'outline'}>Estado: {filters.status}</Badge>
-          <Badge variant={filters.sla !== 'all' ? 'secondary' : 'outline'}>SLA: {filters.sla}</Badge>
-          <Badge variant={filters.priority !== 'all' ? 'secondary' : 'outline'}>Prioridad: {filters.priority}</Badge>
-          <Button type="button" variant="ghost" size="sm" onClick={resetOperationalFilters}>
-            Limpiar
-          </Button>
-          {typeof summary?.unassigned === 'number' ? (
-            <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1">
-              <UserRound className="h-3 w-3" />
-              Sin responsable: {summary.unassigned}
+        <div className="mt-2 flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="gap-1 rounded-full">
+              <Filter className="h-3 w-3" />
+              Filtros
             </Badge>
-          ) : null}
-          <Button
-            type="button"
-            variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
-            size="sm"
-            className="gap-2 rounded-full"
-            onClick={() => {
-              clearRealtimeActivity();
-              void refreshTickets();
-            }}
-            title={realtimeActivity.lastLabel || 'Actualizar mesa'}
-          >
-            <Bell className="h-4 w-4" />
-            {realtimeActivity.pending > 0
-              ? `${realtimeActivity.pending} novedades`
-              : 'Realtime listo'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-full"
-            onClick={() => void refreshTickets()}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Actualizar
-          </Button>
+            {operationalFilterBadges.length > 0 ? (
+              operationalFilterBadges.map((label) => (
+                <Badge key={label} variant="secondary" className="max-w-[12rem] truncate rounded-full">
+                  {label}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">Sin filtros activos</span>
+            )}
+            {operationalFilterBadges.length > 0 ? (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={resetOperationalFilters}>
+                Limpiar
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {typeof summary?.unassigned === 'number' ? (
+              <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1">
+                <UserRound className="h-3 w-3" />
+                Sin responsable: {summary.unassigned}
+              </Badge>
+            ) : null}
+            <Button
+              type="button"
+              variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-2 rounded-full"
+              onClick={() => {
+                clearRealtimeActivity();
+                void refreshTickets();
+              }}
+              title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+            >
+              <Bell className="h-4 w-4" />
+              {realtimeActivity.pending > 0
+                ? `${realtimeActivity.pending} novedades`
+                : 'Realtime listo'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 rounded-full"
+              onClick={() => void refreshTickets()}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Actualizar
+            </Button>
+          </div>
         </div>
       </div>
       {isMobile ? (

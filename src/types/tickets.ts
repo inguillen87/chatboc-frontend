@@ -1,4 +1,4 @@
-import { Boton, StructuredContentItem } from "./chat";
+import { AttachmentInfo, Boton, StructuredContentItem } from "./chat";
 
 export type TicketStatus =
   | "nuevo"
@@ -256,6 +256,9 @@ export interface Ticket {
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
   foto_url_directa?: string;
+  archivo_url?: string | null;
+  imagen_url?: string | null;
+  attachment_info?: AttachmentInfo | null;
 
   // Tenant/Branding info
   tenant_slug?: string;

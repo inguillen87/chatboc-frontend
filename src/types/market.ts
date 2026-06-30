@@ -511,6 +511,9 @@ export interface CheckoutStartResponse {
   contract_version?: string | null;
   request_id?: string | null;
   checkoutUrl?: string;
+  checkout_url?: string | null;
+  paymentUrl?: string | null;
+  payment_url?: string | null;
   preferenceId?: string;
   orderId?: string | number;
   order_id?: string | number;

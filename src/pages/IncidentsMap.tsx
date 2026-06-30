@@ -9,7 +9,7 @@ import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
 import {
   getTicketStats,
-  getHeatmapPoints,
+  getHeatmapDataset,
   HeatPoint,
   HeatmapDataset,
   TicketStatsResponse,
@@ -21,6 +21,7 @@ import { mergeAndSortStrings } from '@/utils/collections';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { Activity, AlertCircle, Flame, Layers, MapPin } from 'lucide-react';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -39,7 +40,7 @@ const normalizeArrayValue = (value: unknown): string[] => {
 };
 
 const buildHeatmapCacheKey = (filters: Record<string, unknown>): string => {
-  const normalizedEntries = Object.entries(filters).map(([key, value]) => {
+  const normalizedEntries: Array<[string, string | string[]]> = Object.entries(filters).map(([key, value]) => {
     if (Array.isArray(value)) {
       return [key, normalizeArrayValue(value)];
     }
@@ -54,6 +55,45 @@ const sanitizeFilterValue = (value?: string | null): string | undefined => {
   if (value === undefined || value === null) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
+  value.toLocaleString('es-AR', options);
+
+const formatMapLabel = (value?: string | null) => {
+  if (!value) return 'Sin dato';
+  return value.replace(/_/g, ' ');
+};
+
+const getPointWeight = (point: HeatPoint) => {
+  const candidates = [
+    point.totalWeight,
+    point.total,
+    point.weight,
+    point.clusterSize,
+    point.pointCount,
+  ];
+  const value = candidates.find((item) => typeof item === 'number' && Number.isFinite(item));
+  return Math.max(1, Number(value ?? 1));
+};
+
+const buildWeightedBreakdown = (
+  points: HeatPoint[],
+  getLabel: (point: HeatPoint) => string | null | undefined,
+) => {
+  const totals = new Map<string, { count: number; weight: number }>();
+  points.forEach((point) => {
+    const rawLabel = getLabel(point);
+    const label = typeof rawLabel === 'string' && rawLabel.trim() ? rawLabel.trim() : null;
+    if (!label) return;
+    const current = totals.get(label) ?? { count: 0, weight: 0 };
+    current.count += 1;
+    current.weight += getPointWeight(point);
+    totals.set(label, current);
+  });
+  return Array.from(totals.entries())
+    .map(([label, value]) => ({ label, ...value }))
+    .sort((a, b) => b.weight - a.weight);
 };
 
 export default function IncidentsMap() {
@@ -293,7 +333,7 @@ export default function IncidentsMap() {
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
         ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
-        : getHeatmapPoints({ tipo: ticketType, ...filters }).then((data) => {
+        : getHeatmapDataset({ tipo: ticketType, ...filters }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;
@@ -311,7 +351,8 @@ export default function IncidentsMap() {
       setCharts(stats.charts || []);
 
       const heatmapPoints = heatmapDatasetResult.points ?? [];
-      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
+      const statsDataset = stats.heatmapDataset;
+      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsDataset?.points ?? stats.heatmap ?? [];
       const usedFallback = combinedHeatmap.length === 0;
 
       if (usedFallback) {
@@ -321,7 +362,9 @@ export default function IncidentsMap() {
       applyHeatmapDataset(
         heatmapPoints.length > 0
           ? heatmapDatasetResult
-          : { points: combinedHeatmap, metadata: undefined },
+          : statsDataset && (statsDataset.points?.length ?? 0) > 0
+            ? statsDataset
+            : { points: combinedHeatmap, metadata: undefined },
         {
           mergeFilters: usedFallback,
           fallback: usedFallback,
@@ -399,12 +442,118 @@ export default function IncidentsMap() {
       : 'Todos los estados',
   ].join(' | ');
 
+  const mapInsights = useMemo(() => {
+    const totalWeight = heatmapData.reduce((sum, point) => sum + getPointWeight(point), 0);
+    const weightedZones = buildWeightedBreakdown(
+      heatmapData,
+      (point) => point.barrio || point.distrito || point.ciudad,
+    );
+    const weightedCategories = buildWeightedBreakdown(heatmapData, (point) => point.categoria);
+    const weightedStates = buildWeightedBreakdown(heatmapData, (point) => point.estado);
+    const clusteredZones = heatmapData.filter(
+      (point) => (point.clusterSize ?? 0) > 1 || Boolean(point.clusterId) || Boolean(point.cellId),
+    ).length;
+
+    return {
+      totalWeight,
+      pointCount: heatmapData.length,
+      zoneCount: weightedZones.length,
+      hotZones: weightedZones.slice(0, 4),
+      topCategory: weightedCategories[0],
+      topState: weightedStates[0],
+      clusteredZones,
+    };
+  }, [heatmapData]);
+
+  const activeFilterCount = [
+    selectedCategories.length,
+    selectedStates.length,
+    sanitizeFilterValue(districtRef.current?.value) ? 1 : 0,
+    sanitizeFilterValue(barrioRef.current?.value) ? 1 : 0,
+    sanitizeFilterValue(genderRef.current?.value) ? 1 : 0,
+    sanitizeFilterValue(ageMinRef.current?.value) || sanitizeFilterValue(ageMaxRef.current?.value) ? 1 : 0,
+  ].reduce((sum, value) => sum + value, 0);
+
+  const mapKpis = [
+    {
+      label: 'Incidencias',
+      value: formatNumber(mapInsights.totalWeight),
+      detail: `${formatNumber(mapInsights.pointCount)} puntos`,
+      icon: Activity,
+    },
+    {
+      label: 'Zonas activas',
+      value: formatNumber(mapInsights.zoneCount),
+      detail: `${formatNumber(mapInsights.clusteredZones)} agregadas`,
+      icon: Layers,
+    },
+    {
+      label: 'Zona caliente',
+      value: formatMapLabel(mapInsights.hotZones[0]?.label),
+      detail: mapInsights.hotZones[0]
+        ? `${formatNumber(mapInsights.hotZones[0].weight)} reportes`
+        : 'Sin ubicaciones',
+      icon: Flame,
+    },
+    {
+      label: 'Estado dominante',
+      value: formatMapLabel(mapInsights.topState?.label),
+      detail: mapInsights.topCategory
+        ? `Categoria: ${formatMapLabel(mapInsights.topCategory.label)}`
+        : 'Sin categoria',
+      icon: AlertCircle,
+    },
+  ];
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Mapa de Incidentes</h1>
-      <Accordion type="single" collapsible className="w-full" defaultValue='filters'>
-        <AccordionItem value="filters">
-          <AccordionTrigger>Filtros y Opciones</AccordionTrigger>
+    <div className="mx-auto max-w-[1400px] space-y-5 p-3 sm:p-4 lg:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Mercator Mapas y Analitica
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
+            Mapa operativo de incidentes
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+            Vista de calor, zonas agregadas y actividad real para priorizar reclamos por territorio,
+            categoria y estado.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span className="rounded-full border border-border bg-background px-3 py-1">
+            {activeFilterCount > 0 ? `${activeFilterCount} filtros activos` : 'Sin filtros activos'}
+          </span>
+          <span className="rounded-full border border-border bg-background px-3 py-1">
+            {showHeatmap ? 'Capa calor activa' : 'Puntos y clusters'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {mapKpis.map(({ label, value, detail, icon: Icon }) => (
+          <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </p>
+                <p className="mt-2 truncate text-2xl font-bold text-foreground">{value}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+              </div>
+              <span className="rounded-lg bg-primary/10 p-2 text-primary">
+                <Icon className="h-4 w-4" />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Accordion type="single" collapsible className="w-full rounded-xl border border-border bg-card px-4 shadow-sm" defaultValue='filters'>
+        <AccordionItem value="filters" className="border-0">
+          <AccordionTrigger className="text-sm font-semibold hover:no-underline">
+            Filtros y capas
+          </AccordionTrigger>
           <AccordionContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 items-end">
               <div className="flex items-center space-x-2 pt-5">
@@ -580,21 +729,22 @@ export default function IncidentsMap() {
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
-              <div className="sm:col-span-full flex justify-between mt-2">
-                <div className="flex items-center">
+              <div className="sm:col-span-full mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Button
                     onClick={() => {
                       void fetchData(true);
                     }}
                     disabled={isLoading}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground mr-2"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     {isLoading ? 'Actualizando...' : 'Aplicar Filtros y Actualizar Mapa'}
                   </Button>
                   <Button
                     onClick={handleLocate}
                     disabled={isLoading}
-                    className="bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                    variant="outline"
+                    className="gap-2"
                   >
                     Centrar en mi ubicación
                   </Button>
@@ -605,9 +755,18 @@ export default function IncidentsMap() {
         </AccordionItem>
       </Accordion>
 
-      {error && <p className="text-destructive text-center mb-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
+      {error && (
+        <Alert variant="default" className="border-destructive/30 bg-destructive/10 text-destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Datos de mapa limitados</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="relative mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="relative min-h-[520px] overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-xl">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:44px_44px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,rgba(239,68,68,0.22),transparent_26%),radial-gradient(circle_at_68%_58%,rgba(245,158,11,0.2),transparent_24%),radial-gradient(circle_at_52%_76%,rgba(14,165,233,0.16),transparent_22%)]" />
         <MapLibreMap
           provider={provider}
           center={center ? [center.lng, center.lat] : undefined}
@@ -615,20 +774,96 @@ export default function IncidentsMap() {
           adminLocation={adminCoords}
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
-          className="h-[600px]"
+          className="h-[520px] sm:h-[620px] rounded-2xl"
           fitToBounds={heatmapBounds.length === 2 ? heatmapBounds : undefined}
           onProviderUnavailable={handleProviderUnavailable}
           disableClientClustering={disableClustering}
         />
-        <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
-          {legendText}
+        <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 grid gap-2 md:left-4 md:right-auto md:w-[420px]">
+          <div className="rounded-xl border border-white/15 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/60">
+                  Lectura territorial
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {mapInsights.hotZones[0]
+                    ? formatMapLabel(mapInsights.hotZones[0].label)
+                    : 'Sin zona dominante'}
+                </p>
+              </div>
+              <MapPin className="h-5 w-5 text-amber-300" />
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-lg bg-white/10 p-2">
+                <span className="block text-white/55">Peso</span>
+                <strong>{formatNumber(mapInsights.totalWeight)}</strong>
+              </div>
+              <div className="rounded-lg bg-white/10 p-2">
+                <span className="block text-white/55">Puntos</span>
+                <strong>{formatNumber(mapInsights.pointCount)}</strong>
+              </div>
+              <div className="rounded-lg bg-white/10 p-2">
+                <span className="block text-white/55">Zonas</span>
+                <strong>{formatNumber(mapInsights.zoneCount)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="rounded-xl bg-background/90 px-3 py-2 text-xs text-foreground shadow-lg backdrop-blur">
+            {legendText}
+          </div>
+          <div className="rounded-xl bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-lg backdrop-blur">
+            {provider === 'google' ? 'Google con fallback MapLibre' : 'MapLibre GL local'}
+          </div>
         </div>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
             <p className="text-lg font-semibold text-foreground">Cargando datos en el mapa...</p>
           </div>
         )}
-      </div>
+        </div>
+
+        <aside className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Zonas calientes</p>
+              <p className="text-xs text-muted-foreground">Ordenadas por peso de reclamos.</p>
+            </div>
+            <Flame className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="mt-4 space-y-3">
+            {mapInsights.hotZones.length > 0 ? (
+              mapInsights.hotZones.map((zone, index) => {
+                const pct =
+                  mapInsights.totalWeight > 0
+                    ? Math.min(100, Math.round((zone.weight / mapInsights.totalWeight) * 100))
+                    : 0;
+                return (
+                  <div key={zone.label} className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="truncate font-medium">
+                        {index + 1}. {formatMapLabel(zone.label)}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatNumber(zone.weight)}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                Todavia no hay zonas con coordenadas para los filtros actuales.
+              </div>
+            )}
+          </div>
+        </aside>
+      </section>
       {!isLoading && heatmapData.length === 0 && (
         <Alert variant="default" className="mb-6 border-border/60 border-dashed bg-muted/40">
           <AlertTitle>No hay puntos para mostrar</AlertTitle>

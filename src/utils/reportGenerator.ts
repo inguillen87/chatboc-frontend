@@ -33,6 +33,7 @@ const COLORS = {
 const LOGO_TEXT = "CHATBOC INTELLIGENCE";
 
 export const generatePdfReport = async (data: ReportData) => {
+  const { jsPDF, autoTable } = await loadPdfTools();
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
@@ -216,6 +217,7 @@ export const generatePdfReport = async (data: ReportData) => {
 };
 
 export const generateExcelReport = async (data: ReportData) => {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   // --- SHEET 1: RESUMEN ---

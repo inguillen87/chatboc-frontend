@@ -1801,8 +1801,15 @@ export default function Perfil() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
-      <div className="mx-auto mb-5 w-full max-w-7xl px-2 pt-16 sm:pt-0">
+    <div className="flex min-h-screen flex-col bg-background px-2 py-4 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto w-full px-2 pt-16 sm:pt-0",
+          activeProfileTab === "tickets"
+            ? "mb-2 max-w-[min(1920px,calc(100vw-1rem))]"
+            : "mb-5 max-w-7xl",
+        )}
+      >
         <Button
           variant="outline"
           className="float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10"
@@ -1813,6 +1820,20 @@ export default function Perfil() {
         >
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
+        {activeProfileTab === "tickets" ? (
+          <div className="clear-both flex flex-col gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Consola tickets</p>
+              <h1 className="truncate text-lg font-semibold text-foreground">
+                {perfil.nombre_empresa || "Panel de Empresa"}
+              </h1>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Badge variant="secondary" className="capitalize">{perfil.rubro || "Rubro no especificado"}</Badge>
+              <Badge variant="outline">{plan === "full" ? "Plan Full" : plan === "pro" ? "Plan Pro" : "Plan activo"}</Badge>
+            </div>
+          </div>
+        ) : (
         <div className="clear-both rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
@@ -1836,6 +1857,7 @@ export default function Perfil() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {activeProfileTab === "perfil" && (
@@ -1893,7 +1915,16 @@ export default function Perfil() {
       </section>
       )}
 
-      <Tabs value={activeProfileTab} onValueChange={(value) => updateProfileTab(value as ProfileTabValue)} className="w-full max-w-7xl mx-auto">
+      <Tabs
+        value={activeProfileTab}
+        onValueChange={(value) => updateProfileTab(value as ProfileTabValue)}
+        className={cn(
+          "mx-auto w-full",
+          activeProfileTab === "tickets"
+            ? "max-w-[min(1920px,calc(100vw-1rem))]"
+            : "max-w-7xl",
+        )}
+      >
         <div className="sticky top-0 z-30 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border">
         <TabsList className={`grid h-auto w-full gap-1 ${canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8"}`}>
           <TabsTrigger value="perfil">Inicio</TabsTrigger>
@@ -2790,7 +2821,10 @@ export default function Perfil() {
           </div>
           </details>
         </TabsContent>
-        <TabsContent value="tickets">
+        <TabsContent
+          value="tickets"
+          className="mt-3 h-[calc(100dvh-10rem)] min-h-[560px] overflow-hidden pb-2 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+        >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>
         <TabsContent value="estadisticas">

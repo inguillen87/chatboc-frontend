@@ -18,6 +18,29 @@ export interface MunicipioContext {
 }
 
 // Estado inicial para el contexto de municipio.
+const KNOWN_CATEGORIES = [
+  'Luminaria',
+  'Arbolado',
+  'Limpieza y riego',
+  'Arreglo de calle',
+  'Perdida de agua',
+  'Otros',
+] as const;
+
+const normalizeCategoryText = (value: unknown): string =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+
+const mapToKnownCategory = (value: unknown): string => {
+  const normalized = normalizeCategoryText(value);
+  const matched = KNOWN_CATEGORIES.find((category) => normalizeCategoryText(category) === normalized);
+  const fallback = String(value ?? '').trim();
+  return matched ?? (fallback || 'Otros');
+};
+
 export function getInitialMunicipioContext(): MunicipioContext {
   return {
     estado_conversacion: 'inicio',

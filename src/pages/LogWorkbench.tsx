@@ -302,7 +302,7 @@ const LogWorkbench: React.FC = () => {
               <div key={level} className="rounded-md border p-3">
                 <div className="flex items-center gap-2">
                   <Badge className={severityBadges[level] || severityBadges.OTHER}>{level}</Badge>
-                  <span className="text-2xl font-semibold">{count}</span>
+                  <span className="text-2xl font-semibold">{Number(count)}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">Líneas detectadas</p>
               </div>

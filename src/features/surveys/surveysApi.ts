@@ -67,7 +67,7 @@ const normalizeQuestion = (value: unknown, index = 0): SurveyQuestionDraft | nul
     type: normalizeQuestionType(getFirst(value, ['type', 'tipo'])),
     options: optionsSource.length
       ? optionsSource
-          .map((option) => {
+          .map((option): NonNullable<SurveyQuestionDraft['options']>[number] | null => {
             if (!isRecord(option)) return null;
             return {
               id: asString(getFirst(option, ['id', 'key'])) ?? undefined,
@@ -75,7 +75,7 @@ const normalizeQuestion = (value: unknown, index = 0): SurveyQuestionDraft | nul
               value: (option.value as string | number | undefined) ?? asString(getFirst(option, ['id', 'key', 'label'])),
             };
           })
-          .filter(Boolean) as SurveyQuestionDraft['options']
+          .filter((option): option is NonNullable<SurveyQuestionDraft['options']>[number] => option !== null)
       : undefined,
   };
 };

@@ -93,6 +93,13 @@ const readOptionalBoolean = (value: unknown, fallback = false) => {
   return fallback;
 };
 
+const readCssPixelValue = (value: string) => {
+  const trimmed = value.trim();
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed);
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)px$/);
+  return match ? Number(match[1]) : null;
+};
+
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -1931,35 +1938,38 @@ function ChatWidgetInner({
   }, [isOpen, isMobileView, mode]);
 
   const finalOpenWidth = useMemo(() => {
+    const desired = readCssPixelValue(openWidth);
+    if (mode === "iframe") {
+      if (desired === null) return openWidth;
+      if (viewport.width >= 320) {
+        return `${Math.min(desired, viewport.width)}px`;
+      }
+      return `${desired}px`;
+    }
     if (isMobileView) {
       return "100dvw";
     }
-    const desired = parseInt(openWidth, 10);
     const max = viewport.width - (initialPosition.right || 0) - 16;
-    return !isNaN(desired) && viewport.width
+    return desired !== null && viewport.width
       ? `${Math.min(desired, max)}px`
       : openWidth;
-  }, [isMobileView, openWidth, viewport.width, initialPosition.right]);
+  }, [isMobileView, mode, openWidth, viewport.width, initialPosition.right]);
 
   const finalOpenHeight = useMemo(() => {
     // Determine the desired height
-    const desired = parseInt(openHeight, 10);
-    const heightToUse = isNaN(desired) ? 680 : desired;
+    const desired = readCssPixelValue(openHeight);
+    const heightToUse = desired ?? 680;
+
+    if (mode === 'iframe') {
+      if (desired === null) return openHeight;
+      if (viewport.height >= 360) {
+        return `${Math.min(heightToUse, viewport.height)}px`;
+      }
+      return `${heightToUse}px`;
+    }
 
     if (isMobileView) {
       return "calc(100dvh - max(4.5rem, env(safe-area-inset-top)) - 0.75rem)";
-    }
-
-    if (mode === 'iframe') {
-        // Even in iframe mode, we should respect the viewport height to avoid scrolling issues in the host
-        // However, the iframe itself is resized by the host script.
-        // We just return the desired height so the host knows how big to make the iframe.
-        // But if the viewport is small (mobile), we want to be full screen or max-height.
-        if (typeof window !== 'undefined' && window.innerHeight) {
-            // Cap at window height to be safe
-             return `${Math.min(heightToUse, window.innerHeight)}px`;
-        }
-        return `${heightToUse}px`;
     }
 
     // In Standalone mode (Landing page), use aggressive height
@@ -2015,7 +2025,7 @@ function ChatWidgetInner({
     (open: boolean) => {
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
-          ? { width: openWidth, height: openHeight }
+          ? { width: finalOpenWidth, height: finalOpenHeight }
           : { width: launcherSize, height: launcherHeight };
 
         window.parent.postMessage(
@@ -2024,7 +2034,7 @@ function ChatWidgetInner({
         );
       }
     },
-    [mode, widgetId, openWidth, openHeight, launcherSize, launcherHeight]
+    [mode, widgetId, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight]
   );
 
   useEffect(() => {
@@ -2729,6 +2739,21 @@ function ChatWidgetInner({
         zIndex: 10
       };
     }
+    if (mode === "iframe") {
+      const width = isOpen ? finalOpenWidth : launcherSize;
+      const height = isOpen ? finalOpenHeight : launcherHeight;
+      return {
+        position: "relative",
+        width,
+        height,
+        minWidth: width,
+        minHeight: height,
+        maxWidth: "100dvw",
+        maxHeight: "100dvh",
+        overflow: "hidden",
+        transition: "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
+      };
+    }
     return {};
   }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview]);
 
@@ -2800,12 +2825,17 @@ function ChatWidgetInner({
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
+      const dimensions = isOpen
+        ? { width: finalOpenWidth, height: finalOpenHeight }
+        : { width: launcherSize, height: launcherHeight };
       window.parent.postMessage({
         type: 'CHATBOC_RESIZE',
+        widgetId,
+        dimensions,
         isOpen: isOpen
       }, '*');
     }
-  }, [isOpen, mode]);
+  }, [finalOpenHeight, finalOpenWidth, isOpen, launcherHeight, launcherSize, mode, widgetId]);
 
   // MOVED: duplicateInstance check is now at the end to prevent Hook Violation
   if (duplicateInstance) {
@@ -2901,8 +2931,32 @@ function ChatWidgetInner({
 
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
-          <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-border/60 bg-card text-card-foreground shadow-xl">
+            {isOpen ? (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/15" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="h-3 w-28 rounded bg-muted" />
+                    <div className="h-2 w-40 max-w-full rounded bg-muted/70" />
+                  </div>
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Cargando asistente Chatboc</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Preparando mensajes, menu y accesibilidad.</p>
+                  </div>
+                </div>
+                <div className="h-20 shrink-0 border-t border-border/60 bg-card/95 p-3">
+                  <div className="h-11 rounded-[22px] border border-border/70 bg-background" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center rounded-full">
+                <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+            )}
           </div>
         ) : profileError ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
@@ -2961,8 +3015,9 @@ function ChatWidgetInner({
               {view === "register" || view === "login" || view === "user" || view === "info" ? (
                 <Suspense
                   fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-card rounded-2xl px-6 text-center">
                       <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-semibold text-foreground">Cargando panel</p>
                     </div>
                   }
                 >
@@ -2974,8 +3029,9 @@ function ChatWidgetInner({
               ) : (
                 <Suspense
                   fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-card rounded-2xl px-6 text-center">
                       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-semibold text-foreground">Cargando conversacion</p>
                     </div>
                   }
                 >

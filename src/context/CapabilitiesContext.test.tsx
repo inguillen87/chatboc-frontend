@@ -81,4 +81,24 @@ describe('CapabilitiesContext', () => {
     expect(payload.hasTicketsRead).toBe(true);
     expect(payload.hasOrdersRead).toBe(true);
   });
+
+  it('treats ticket admin and module-level access as valid ticket read access', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        permissions: ['crm_reclamos'],
+        capabilities: ['tickets.admin'],
+        scopes: [],
+      },
+    });
+
+    render(
+      <CapabilitiesProvider>
+        <CapabilityProbe />
+      </CapabilitiesProvider>,
+    );
+
+    const payload = JSON.parse(screen.getByTestId('capabilities').textContent || '{}');
+    expect(payload.capabilities).toEqual(['crm_reclamos', 'tickets.read', 'tickets.admin']);
+    expect(payload.hasTicketsRead).toBe(true);
+  });
 });

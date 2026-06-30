@@ -132,7 +132,11 @@ export default function CustomerHistory() {
   };
 
   useEffect(() => {
-    apiFetch('/historial')
+    apiFetch<{
+      consultas?: any[];
+      archivos?: any[];
+      tickets?: any[];
+    }>('/historial')
       .then((data) => {
         // Unificar los tres arrays en uno solo
         const consultas = (data.consultas || []).map((c: any) => ({

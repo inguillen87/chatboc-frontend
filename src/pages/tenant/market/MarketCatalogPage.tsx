@@ -87,6 +87,21 @@ const ASSISTED_FIRST_MODES = [
   },
 ];
 
+const EMPTY_FLOW_STEPS = [
+  {
+    label: 'Subir foto o manuscrito',
+    description: 'Nota de mostrador, lista escrita, boleta, comprobante o PDF.',
+  },
+  {
+    label: 'Escribir lista',
+    description: 'Pegas el pedido desde WhatsApp o lo cargas como texto simple.',
+  },
+  {
+    label: 'Continuar por WhatsApp',
+    description: 'El equipo responde con seguimiento si faltan datos, stock o precio.',
+  },
+];
+
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
   mode: 'assisted_first',
@@ -289,6 +304,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
   const emptyState = !isLoading && products.length === 0;
+  const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
+  const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const scrollToAssistedUpload = () => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
@@ -314,28 +331,21 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:py-6 md:py-8">
+      <header className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary">
             <ShoppingBag className="h-6 w-6" />
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold">Marketplace asistido</h1>
-            <p className="text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
+            <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
               {heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que la IA arme la solicitud.'}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            onClick={scrollToAssistedUpload}
-            disabled={!showAssistedIntake}
-          >
-            <UploadIcon className="mr-2 h-4 w-4" /> Subir nota, pedido o reclamo
-          </Button>
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <Button
             variant="outline"
             size="sm"
@@ -381,55 +391,111 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </header>
 
-      {assistedFirstActive ? (
-        <section
-          data-testid="assisted-first-banner"
-          className="overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 shadow-sm"
-        >
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-            <div>
-              <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                Marketplace asistido activo
-              </Badge>
-              <h2 className="mt-3 max-w-3xl text-2xl font-semibold tracking-normal">
-                Subi el pedido como viene: foto, papel, boleta o texto.
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Ideal para vecinos o clientes que no quieren navegar un catalogo. Chatboc interpreta la nota, cruza catalogo cuando exista,
-                crea la solicitud en el CRM y devuelve seguimiento publico para continuar por WhatsApp, chat, email o telefono.
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {ASSISTED_FIRST_MODES.map((mode) => {
-                  const Icon = mode.icon;
-                  return (
-                    <div key={mode.title} className="rounded-lg border bg-background/85 p-3 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold">{mode.title}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{mode.description}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="rounded-xl border bg-background/85 p-4 shadow-sm">
-              <p className="text-sm font-semibold">Salida operativa</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                El admin recibe archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
-              </p>
-              <Button type="button" className="mt-4 w-full" onClick={scrollToAssistedUpload}>
-                <UploadIcon className="mr-2 h-4 w-4" />
-                Subir pedido o documento
-              </Button>
-            </div>
+      <section
+        data-testid="market-primary-actions"
+        className="rounded-lg border bg-card p-3 shadow-sm sm:p-4"
+      >
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
+            <SlidersHorizontal className="h-5 w-5 shrink-0 text-primary" />
+            <span className="min-w-0 truncate">Buscar o cargar pedido</span>
+          </h2>
+          <p className="text-sm text-muted-foreground">{catalogStatusLine}</p>
+        </div>
+
+        <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_190px_190px_auto]">
+          <div className="relative min-w-0 md:col-span-2 lg:col-span-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar producto, marca o promo..."
+              className="w-full min-w-0 pl-9"
+            />
           </div>
-        </section>
-      ) : null}
+          <Button
+            type="button"
+            data-testid="market-assisted-upload-cta"
+            onClick={scrollToAssistedUpload}
+            disabled={!showAssistedIntake}
+            className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
+          >
+            <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
+            Subir pedido/foto/texto
+          </Button>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorias</SelectItem>
+              {categoryOptions.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedSort} onValueChange={setSelectedSort}>
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder="Orden" />
+            </SelectTrigger>
+            <SelectContent>
+              {effectiveSortOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label ?? item.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant={promotionOnly ? 'default' : 'outline'}
+            onClick={() => setPromotionOnly((prev) => !prev)}
+            className="w-full whitespace-normal leading-tight sm:whitespace-nowrap lg:w-auto"
+          >
+            <Sparkles className="mr-2 h-4 w-4 shrink-0" />
+            En promocion
+          </Button>
+        </div>
+
+        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (!shareMessage) return;
+              const whatsappUrl = shareMessage.startsWith('https://wa.me')
+                ? shareMessage
+                : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+            }}
+            disabled={!shareMessage}
+            className="w-full"
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Continuar por WhatsApp
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              try {
+                if (!shareUrl || !canUseClipboard) return;
+                await navigator.clipboard.writeText(shareUrl);
+                toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
+              } catch (copyError) {
+                toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
+              }
+            }}
+            disabled={!shareUrl || !canUseClipboard}
+            className="w-full"
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copiar enlace
+          </Button>
+        </div>
+      </section>
 
       {showAssistedIntake ? (
         <UploadOrderFromFile
@@ -447,6 +513,63 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             });
           }}
         />
+      ) : null}
+
+      {assistedFirstActive ? (
+        <section
+          data-testid="assisted-first-banner"
+          className="overflow-hidden rounded-lg border border-primary/20 bg-primary/5 p-3 shadow-sm sm:p-4"
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                Marketplace asistido activo
+              </Badge>
+              <h2 className="mt-2 max-w-3xl text-lg font-semibold tracking-normal sm:text-xl">
+                Subi el pedido como viene: foto, papel, boleta o texto.
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Chatboc interpreta la nota, cruza catalogo cuando exista y deja una solicitud trazable para responder desde el CRM.
+              </p>
+            </div>
+            <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
+              <UploadIcon className="mr-2 h-4 w-4" />
+              Subir pedido o documento
+            </Button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {ASSISTED_FIRST_MODES.map((mode) => {
+              const Icon = mode.icon;
+              return (
+                <div key={mode.title} className="min-w-0 rounded-lg border bg-background/85 p-3">
+                  <div className="flex items-start gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold">{mode.title}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{mode.description}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 rounded-lg border bg-background/85 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Salida operativa</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
+                </p>
+              </div>
+              <Button type="button" variant="outline" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                Cargar ahora
+              </Button>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {promotionItems.length ? (
@@ -503,71 +626,6 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </section>
       ) : null}
 
-      <section className="rounded-lg border bg-card p-4 shadow-sm">
-        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <SlidersHorizontal className="h-5 w-5 text-primary" />
-              Explorar catalogo o subir pedido asistido
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {catalogStatusLine}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Button
-              type="button"
-              variant={promotionOnly ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPromotionOnly((prev) => !prev)}
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              En promocion
-            </Button>
-            <Button type="button" size="sm" onClick={scrollToAssistedUpload}>
-              <UploadIcon className="mr-2 h-4 w-4" />
-              Subir nota o manuscrito
-            </Button>
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar producto, marca o promo..."
-              className="pl-9"
-            />
-          </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorias</SelectItem>
-              {categoryOptions.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedSort} onValueChange={setSelectedSort}>
-            <SelectTrigger>
-              <SelectValue placeholder="Orden" />
-            </SelectTrigger>
-            <SelectContent>
-              {effectiveSortOptions.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.label ?? item.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
-
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
@@ -589,55 +647,62 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       ) : null}
 
       {emptyState ? (
-        <div className="rounded-lg border border-dashed bg-card p-6 shadow-sm">
+        <div data-testid="market-empty-state" className="rounded-lg border border-dashed bg-card p-4 shadow-sm sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
             <div className="max-w-2xl">
               <Badge variant="secondary" className="mb-3">Compra asistida activa</Badge>
               <h3 className="text-xl font-semibold">
-                {effectiveAssistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
+                {hasActiveFilters && !catalogActuallyEmpty
+                  ? 'No hay productos para esos filtros, pero podes cargar el pedido igual.'
+                  : effectiveAssistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                {effectiveAssistedIntake?.empty_state?.description ??
-                  'El catalogo puede estar en preparacion o la busqueda puede no coincidir. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite, crea la solicitud en CRM y genera seguimiento publico.'}
+                {hasActiveFilters && !catalogActuallyEmpty
+                  ? 'Limpia filtros para volver al catalogo o subi una nota/foto: Chatboc la transforma en lead, pedido o reclamo para que el equipo responda desde el CRM.'
+                  : effectiveAssistedIntake?.empty_state?.description ??
+                    'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite, crea la solicitud en CRM y genera seguimiento publico.'}
               </p>
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                <span className="rounded-md border bg-background px-3 py-2">Papel o texto recibido</span>
-                <span className="rounded-md border bg-background px-3 py-2">IA discrimina articulos</span>
-                <span className="rounded-md border bg-background px-3 py-2">CRM responde y sigue</span>
+                {EMPTY_FLOW_STEPS.map((step) => (
+                  <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
+                    <p className="break-words font-semibold text-foreground">{step.label}</p>
+                    <p className="mt-1 break-words text-xs leading-5">{step.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
             <div className="rounded-lg border bg-muted/30 p-4">
               <p className="font-semibold">Camino recomendado</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, subi el archivo para generar referencia y contacto comercial.
+                Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia y contacto comercial.
               </p>
             </div>
           </div>
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('all');
-                  setPromotionOnly(false);
-                }}
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Limpiar filtros
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('all');
+                setPromotionOnly(false);
+              }}
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Limpiar filtros
+            </Button>
+            <Button type="button" onClick={scrollToAssistedUpload}>
+              <UploadIcon className="mr-2 h-4 w-4" />
+              {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
+            </Button>
+            {shareMeta?.whatsappShareUrl ? (
+              <Button asChild variant="outline">
+                <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Continuar por WhatsApp
+                </a>
               </Button>
-              <Button type="button" onClick={scrollToAssistedUpload}>
-                <UploadIcon className="mr-2 h-4 w-4" />
-                {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
-              </Button>
-              {shareMeta?.whatsappShareUrl ? (
-                <Button asChild>
-                  <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Consultar por WhatsApp
-                  </a>
-                </Button>
-              ) : null}
+            ) : null}
           </div>
         </div>
       ) : (

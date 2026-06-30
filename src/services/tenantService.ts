@@ -121,16 +121,16 @@ export const tenantService = {
   },
 
   // Public endpoints
-  getPublicMenu: async (slug: string, channel: "widget" | "whatsapp" = "widget") => {
-    return apiFetch(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);
+  getPublicMenu: async (slug: string, channel: "widget" | "whatsapp" = "widget"): Promise<any> => {
+    return apiFetch<any>(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);
   },
 
-  getIntegrationEmbed: async (slug: string) => {
-    return apiFetch(`/api/portal/${slug}/integration`, { tenantSlug: slug });
+  getIntegrationEmbed: async (slug: string): Promise<any> => {
+    return apiFetch<any>(`/api/portal/${slug}/integration`, { tenantSlug: slug });
   },
 
-  getPlatformWidgetConfig: async () => {
-    return apiFetch(`/api/public/widget-config`, {
+  getPlatformWidgetConfig: async (): Promise<any> => {
+    return apiFetch<any>(`/api/public/widget-config`, {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
@@ -139,9 +139,9 @@ export const tenantService = {
     });
   },
 
-  getPublicWidgetConfig: async (slug: string) => {
+  getPublicWidgetConfig: async (slug: string): Promise<any> => {
     try {
-      return await apiFetch(`${PUBLIC_BASE_URL}/${slug}/widget-config`, {
+      return await apiFetch<any>(`${PUBLIC_BASE_URL}/${slug}/widget-config`, {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
@@ -151,7 +151,7 @@ export const tenantService = {
       if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
         throw error;
       }
-      return apiFetch(`/api/public/widget-config?tenant=${encodeURIComponent(slug)}`, {
+      return apiFetch<any>(`/api/public/widget-config?tenant=${encodeURIComponent(slug)}`, {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,

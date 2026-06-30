@@ -3263,7 +3263,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     resolvedSelectedRubro,
   );
   const personalizedEmptyTitle = visitorDisplayName
-    ? `${emptyStateTitle.replace(/[?.!Â¿]+$/g, "")}, ${visitorDisplayName}`
+    ? `${emptyStateTitle.replace(/[?.!¿]+$/g, "")}, ${visitorDisplayName}`
     : emptyStateTitle;
   const menuContextLabel = rubroDisplayName
     ? `Menu corto para ${rubroDisplayName}. Elegi una opcion o escribi con tus palabras.`
@@ -3806,7 +3806,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       aria-label="Chat widget"
       data-motion-level={motionLevel}
       className={cn(
-        "chat-root flex flex-col w-full h-full bg-gradient-to-b from-card via-card to-card/95 text-card-foreground overflow-hidden relative",
+        "chat-root flex h-full min-h-0 w-full flex-col overflow-hidden bg-gradient-to-b from-card via-card to-card/95 text-card-foreground relative",
         isMobile ? undefined : "rounded-[inherit]",
       )}
     >
@@ -4329,7 +4329,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="chatboc-chat-footer w-full bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] sm:px-2.5 sm:py-1.5 border-t min-w-0 relative backdrop-blur-sm">
+      <div className="chatboc-chat-footer relative w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">

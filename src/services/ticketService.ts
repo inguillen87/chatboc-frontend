@@ -331,8 +331,8 @@ const buildFallbackUnifiedConversationStream = (
                 badge: evt.tipo === 'estado' ? 'status_changed' : evt.tipo,
                 is_read: true,
                 is_unread: false,
-                payload: evt as Record<string, unknown>,
-                raw: evt as Record<string, unknown>,
+                payload: evt as unknown as Record<string, unknown>,
+                raw: evt as unknown as Record<string, unknown>,
             } as UnifiedConversationStreamItem;
         })
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -555,7 +555,7 @@ export const getTicketByNumber = async (
         } catch (err) {
             const apiErr = err as ApiError;
             if (apiErr?.status === 400 && !pin) {
-                throw new ApiError('El PIN es obligatorio', 400, apiErr.data);
+                throw new ApiError('El PIN es obligatorio', 400, apiErr.body);
             }
             if (apiErr?.status !== 404) {
                 throw err;
@@ -581,6 +581,11 @@ export interface TicketHistoryEmailOptions {
     estado?: string;
     actor?: 'agent' | 'user';
     pin?: string;
+    channels?: Iterable<unknown>;
+    notifyChannels?: Iterable<unknown>;
+    sendEmail?: boolean;
+    sendSms?: boolean;
+    notify?: { email?: boolean; sms?: boolean };
     [key: string]: unknown;
 }
 
@@ -922,7 +927,7 @@ export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
   opts?: { public?: boolean; pin?: string }
-): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[] }> => {
+): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[]; realtime_state?: TicketRealtimeState | null }> => {
   try {
     const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/timeline`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
@@ -1178,8 +1183,8 @@ export const sendMessage = async (
             ? `${baseEndpoint}?pin=${encodeURIComponent(opts.pin)}`
             : baseEndpoint;
         const fetchOptions = opts?.public
-            ? { method: 'POST', body, ...(publicAccess?.fetchOptions ?? { skipAuth: true, sendAnonId: true, sendEntityToken: true }) }
-            : { method: 'POST', body };
+            ? { method: 'POST' as const, body, ...(publicAccess?.fetchOptions ?? { skipAuth: true, sendAnonId: true, sendEntityToken: true }) }
+            : { method: 'POST' as const, body };
         const response = await apiFetch(endpoint, fetchOptions);
         return response;
     } catch (error) {
