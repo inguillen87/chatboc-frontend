@@ -820,6 +820,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     });
   }, [tickets, filters]);
 
+  useEffect(() => {
+    setSelectedTicket((current) => {
+      if (!current) return current;
+      const visibleTicket = filteredTickets.find((ticket) => ticket.id === current.id);
+      if (visibleTicket) return visibleTicket;
+      return filteredTickets[0] || null;
+    });
+  }, [filteredTickets]);
+
   const ticketsByCategory = groupTicketsByCategory(filteredTickets);
 
   const value = {

@@ -67,6 +67,29 @@ const PaginationConsumer = () => {
   );
 };
 
+const FilterSelectionConsumer = () => {
+  const { selectedTicket, filteredTickets, filters, setFilters } = useTickets();
+  return (
+    <div>
+      <span data-testid="selected-ticket">{selectedTicket?.nro_ticket ?? 'none'}</span>
+      <span data-testid="visible-tickets">{filteredTickets.map((ticket) => ticket.nro_ticket).join(',')}</span>
+      <button
+        type="button"
+        onClick={() => setFilters((current) => ({ ...current, status: 'cerrado' }))}
+      >
+        filtrar cerrados
+      </button>
+      <button
+        type="button"
+        onClick={() => setFilters((current) => ({ ...current, channel: 'sin-resultados' }))}
+      >
+        dejar sin resultados
+      </button>
+      <span data-testid="active-status-filter">{filters.status}</span>
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
@@ -197,6 +220,59 @@ describe('TicketContext unread delta reconciliation', () => {
     });
 
     expect(getTicketsMock).toHaveBeenLastCalledWith('demo', { page: 2, perPage: 1 });
+  });
+
+  it('keeps selected ticket aligned with the visible filtered inbox', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-1',
+          asunto: 'Alumbrado',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'General',
+        },
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-2',
+          asunto: 'Bache',
+          estado: 'cerrado',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'General',
+        },
+      ],
+    });
+
+    render(
+      <TicketProvider>
+        <FilterSelectionConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-ticket').textContent).toBe('REC-1');
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-1,REC-2');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /filtrar cerrados/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-status-filter').textContent).toBe('cerrado');
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-2');
+      expect(screen.getByTestId('selected-ticket').textContent).toBe('REC-2');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /dejar sin resultados/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('');
+      expect(screen.getByTestId('selected-ticket').textContent).toBe('none');
+    });
   });
 
 });
