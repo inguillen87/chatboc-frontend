@@ -5,15 +5,18 @@ import {
   AlertTriangle,
   Brain,
   CheckCircle2,
+  Compass,
   DatabaseZap,
   Eye,
   Gauge,
   Globe2,
   Layers,
+  ListChecks,
   MapPin,
   Radar,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 
@@ -157,6 +160,19 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
   };
 };
 
+const uniqueActionSummaries = (actions: unknown[]) => {
+  const seen = new Set<string>();
+  return actions.reduce<BackendActionSummary[]>((acc, action) => {
+    const summary = summarizeBackendAction(action);
+    if (!summary) return acc;
+    const key = `${summary.label}|${summary.detail ?? ''}`;
+    if (seen.has(key)) return acc;
+    seen.add(key);
+    acc.push(summary);
+    return acc;
+  }, []);
+};
+
 const layerIsEnabled = (enabledLayerIds: string[], fragments: string[]) =>
   enabledLayerIds.some((layerId) => fragments.some((fragment) => layerId.includes(fragment)));
 
@@ -282,6 +298,51 @@ export function PremiumTerritoryHeatmap({
   const realtimeSources = heatmap?.realtime?.sources ?? [];
   const realtimeEvents = heatmap?.realtime?.socket_events ?? [];
   const latestRealtime = readString(heatmap?.realtime?.latest_event_at);
+  const narrativeTitle = readString(
+    heatmap?.map_narrative?.headline,
+    heatmap?.map_narrative?.title,
+    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_title : undefined,
+  );
+  const narrativeBody = readString(
+    heatmap?.map_narrative?.operator_summary,
+    heatmap?.map_narrative?.body,
+    heatmap?.map_narrative?.description,
+    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
+  );
+  const narrativeAction = summarizeBackendAction(heatmap?.map_narrative?.primary_cta);
+  const viewportPresets = heatmap?.viewport_presets?.presets?.slice(0, 3) ?? [];
+  const defaultViewportId = heatmap?.viewport_presets?.default_preset_id;
+  const defaultViewport = viewportPresets.find((preset) => preset.id === defaultViewportId) ?? viewportPresets[0];
+  const defaultViewportZoom = readNumber(defaultViewport?.zoom);
+  const defaultViewportRadius = readNumber(defaultViewport?.radius_km);
+  const defaultViewportDetail = defaultViewport
+    ? [
+        humanizeContractValue(readString(defaultViewport.mode), ''),
+        defaultViewportZoom !== undefined ? `zoom ${formatNumber(defaultViewportZoom)}` : undefined,
+        defaultViewportRadius !== undefined ? `${formatNumber(defaultViewportRadius)} km` : undefined,
+      ]
+        .filter(Boolean)
+        .join(' - ')
+    : undefined;
+  const aiStatus = heatmap?.ai_status;
+  const aiStatusLabel = humanizeContractValue(readString(aiStatus?.status, heatmap?.ai_layers?.status), 'sin estado IA');
+  const aiModeLabel = humanizeContractValue(readString(aiStatus?.mode, heatmap?.ai_layers?.mode), 'capas operativas');
+  const aiHintLabels = (aiStatus?.map_layer_hints ?? []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
+  const hotspotActionSummaries = uniqueActionSummaries([
+    ...(heatmap?.hotspot_actions?.actions ?? []),
+    ...(heatmap?.hotspot_actions?.playbook ?? []),
+    ...(heatmap?.hotspot_playbook ?? []),
+    ...(heatmap?.operator_playbook ?? []),
+  ]).slice(0, 4);
+  const hasOperationalBrief = Boolean(
+    narrativeTitle ||
+      narrativeBody ||
+      narrativeAction ||
+      viewportPresets.length ||
+      hotspotActionSummaries.length ||
+      aiStatus ||
+      heatmap?.ai_layers,
+  );
   const showHeatLayer = layerIsEnabled(enabledLayerIds, ['heat', 'hotspot', 'base']) || !displayLayers.length;
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
   const showQualityLayer = layerIsEnabled(enabledLayerIds, ['quality', 'coverage', 'geo']);
@@ -878,6 +939,96 @@ export function PremiumTerritoryHeatmap({
               ))}
             </div>
           </div>
+
+          {hasOperationalBrief ? (
+            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Brief operativo IA
+                  </div>
+                  <h4 className="mt-2 text-base font-semibold leading-snug">
+                    {narrativeTitle || 'Mapa territorial accionable'}
+                  </h4>
+                  {narrativeBody ? (
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{narrativeBody}</p>
+                  ) : null}
+                </div>
+                <Badge variant={aiStatus?.requires_human_attention ? 'secondary' : 'outline'} className="shrink-0 capitalize">
+                  {aiStatusLabel}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                <div className="rounded-lg border bg-background/65 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    <Brain className="h-3.5 w-3.5" />
+                    Motor cognitivo
+                  </div>
+                  <p className="mt-1 text-sm font-medium capitalize">{aiModeLabel}</p>
+                  {aiHintLabels.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {aiHintLabels.map((hint) => (
+                        <Badge key={hint} variant="secondary" className="text-[11px] capitalize">
+                          {hint}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                {defaultViewport ? (
+                  <div className="rounded-lg border bg-background/65 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        <Compass className="h-3.5 w-3.5" />
+                        Vista sugerida
+                      </div>
+                      {defaultViewport.default ? <Badge variant="outline">default</Badge> : null}
+                    </div>
+                    <p className="mt-1 truncate text-sm font-medium">
+                      {defaultViewport.label || defaultViewport.id || 'Foco territorial'}
+                    </p>
+                    {defaultViewportDetail ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{defaultViewportDetail}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {narrativeAction || hotspotActionSummaries.length ? (
+                  <div className="rounded-lg border bg-background/65 p-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Acciones seguras
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {[narrativeAction, ...hotspotActionSummaries]
+                        .filter(Boolean)
+                        .slice(0, 4)
+                        .map((action) => (
+                          <div
+                            key={`${action?.label}-${action?.detail ?? ''}`}
+                            className="rounded-md border border-border/60 bg-muted/25 px-2.5 py-2"
+                          >
+                            <p className="text-sm font-medium">{action?.label}</p>
+                            {action?.detail ? (
+                              <p className="mt-0.5 truncate text-xs text-muted-foreground">{action.detail}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                    </div>
+                    {heatmap?.hotspot_actions ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {heatmap.hotspot_actions.safe_by_default ? 'Safe by default' : 'Revisar permisos'} -{' '}
+                        {heatmap.hotspot_actions.writes_enabled ? 'acciones con escritura' : 'solo preparacion operativa'}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">

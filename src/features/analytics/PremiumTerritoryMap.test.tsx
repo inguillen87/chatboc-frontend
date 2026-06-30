@@ -59,6 +59,40 @@ describe('PremiumTerritoryHeatmap', () => {
         sources: ['tickets'],
         socket_events: ['operations.heatmap.updated'],
       },
+      map_narrative: {
+        headline: 'Zona centro requiere seguimiento',
+        operator_summary: 'Alta demanda concentrada con reclamos pendientes de coordenadas.',
+        primary_cta: {
+          label: 'Abrir cola operativa',
+          ui_hint: 'open_geocoding_queue',
+        },
+      },
+      viewport_presets: {
+        default_preset_id: 'centro',
+        presets: [
+          {
+            id: 'centro',
+            label: 'Centro operativo',
+            mode: 'fly_to',
+            default: true,
+            zoom: 13,
+            radius_km: 2.5,
+          },
+        ],
+      },
+      hotspot_actions: {
+        safe_by_default: true,
+        writes_enabled: false,
+        actions: [{ label: 'Asignar inspector', method: 'PATCH', endpoint: '/api/tickets/11' }],
+        playbook: [{ label: 'Validar zona caliente' }],
+      },
+      ai_status: {
+        status: 'local_fallback',
+        mode: 'municipal_risk_detection',
+        safe_to_render_without_hf_token: true,
+        ai_layers_ready: true,
+        map_layer_hints: ['risk_pulses', 'whatsapp_activity'],
+      },
       ai_layers: {
         contract_version: 'huggingface.map_ai_layers.v1',
         layers: [{ key: 'priority_forecast', label: 'Prioridad IA', count: 2 }],
@@ -73,5 +107,14 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
     expect(screen.getByText('Resolver direcciones')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Capas visibles' })).toBeTruthy();
+    expect(screen.getByText('Brief operativo IA')).toBeTruthy();
+    expect(screen.getByText('Zona centro requiere seguimiento')).toBeTruthy();
+    expect(screen.getByText('Alta demanda concentrada con reclamos pendientes de coordenadas.')).toBeTruthy();
+    expect(screen.getByText('local fallback')).toBeTruthy();
+    expect(screen.getByText('municipal risk detection')).toBeTruthy();
+    expect(screen.getByText('Centro operativo')).toBeTruthy();
+    expect(screen.getByText('fly to - zoom 13 - 2,5 km')).toBeTruthy();
+    expect(screen.getByText('Asignar inspector')).toBeTruthy();
+    expect(screen.getByText('Safe by default - solo preparacion operativa')).toBeTruthy();
   });
 });

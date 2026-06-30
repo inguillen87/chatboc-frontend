@@ -171,4 +171,26 @@ describe('premium territory heatmap aggregation', () => {
     ]);
     expect(layers.find((layer) => layer.id === 'ai_risk_layers')?.tone).toBe('ai');
   });
+
+  it('promotes ai status layer hints into selectable map layers', () => {
+    const layers = resolveTerritoryLayerDescriptors({
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      ai_status: {
+        status: 'local_fallback',
+        map_layer_hints: ['risk_pulses', 'whatsapp_activity', 'geocoding_queue'],
+      },
+    } as any);
+
+    expect(layers.map((layer) => layer.id)).toEqual([
+      'risk_pulses',
+      'whatsapp_activity',
+      'geocoding_queue',
+    ]);
+    expect(layers.find((layer) => layer.id === 'whatsapp_activity')?.tone).toBe('realtime');
+  });
 });
