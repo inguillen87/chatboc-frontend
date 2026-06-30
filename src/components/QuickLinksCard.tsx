@@ -17,6 +17,7 @@ import {
 import { useUser } from "@/hooks/useUser";
 import { hasRequiredRole } from "@/utils/roles";
 import useEndpointAvailable from "@/hooks/useEndpointAvailable";
+import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 
 interface LinkItem {
@@ -28,7 +29,7 @@ interface LinkItem {
 }
 
 const ITEMS: LinkItem[] = [
-  { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado", "super_admin"] },
+  { label: "Tickets", path: TICKET_DESK_PATH, icon: Ticket, roles: ["admin", "empleado", "super_admin"] },
   { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado", "super_admin"], tipo: "pyme" },
   { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "pyme" },
   { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin", "super_admin"], tipo: "pyme" },

@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { isBackofficeRouteActive, TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
 
 const items = [
-  { to: '/tickets', label: 'Reclamos' },
+  { to: TICKET_DESK_PATH, label: 'Reclamos' },
   { to: '/empleados', label: 'Equipo' },
   { to: '/analytics/operations', label: 'Metricas y mapa' },
   { to: '/admin/encuestas', label: 'Encuestas' },
@@ -16,7 +17,7 @@ export const EnterpriseTopNav = () => {
   return (
     <nav className="mb-4 flex flex-wrap gap-2 rounded-2xl border border-border/70 bg-background/80 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {items.map((item) => {
-        const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+        const isActive = isBackofficeRouteActive(location.pathname, location.search, item.to);
         return (
           <Link
             key={item.to}

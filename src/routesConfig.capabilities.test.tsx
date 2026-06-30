@@ -61,6 +61,18 @@ describe('routesConfig route capabilities', () => {
     expect(content).toMatch(/path:\s*'\/catalog-mappings\/new'[\s\S]*?requiredAllCapabilities:\s*\['market\.catalog\.write'\]/);
   });
 
+  it('keeps the legacy root tickets route as a profile desk redirect without capability 403', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const routeBlock = content.match(/\{\s*path:\s*'\/tickets',[\s\S]*?\n\s*\},/)?.[0] ?? '';
+
+    expect(content).toContain('const TicketDeskRedirect');
+    expect(routeBlock).toContain("path: '/tickets'");
+    expect(routeBlock).toContain('element: <TicketDeskRedirect />');
+    expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
+    expect(routeBlock).not.toContain('requiredCapabilities');
+  });
+
   it('links template operations to the canonical WhatsApp onboarding route', () => {
     const templatesPagePath = path.resolve(__dirname, 'pages/GestionPlantillasPage.tsx');
     const content = fs.readFileSync(templatesPagePath, 'utf8');

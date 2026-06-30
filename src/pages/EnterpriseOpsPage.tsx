@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
+import { TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
 
 const statusLabel = (query: { isLoading: boolean; isError: boolean; data?: { contract_version?: string; version?: string } }) => {
   if (query.isLoading) return 'Cargando';
@@ -129,7 +130,7 @@ const EnterpriseOpsPage = () => {
     {
       key: 'inbox-omnichannel',
       title: 'Conversaciones',
-      to: currentSlug ? `/t/${encodeURIComponent(currentSlug)}/inbox` : '/tickets',
+      to: currentSlug ? `/t/${encodeURIComponent(currentSlug)}/inbox` : TICKET_DESK_PATH,
       icon: Inbox,
       note: 'Conversaciones, reclamos, ubicaciones y acciones en continuidad.',
       query: inboxQuery,

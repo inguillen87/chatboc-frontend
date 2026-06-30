@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { fmtAR } from '@/utils/date';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { LOCALE_OPTIONS } from '@/utils/localeOptions';
+import { TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
 import {
   Select,
   SelectContent,
@@ -253,7 +254,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
       </h1>
       <Button
         variant="ghost"
-        onClick={() => navigate('/tickets')}
+        onClick={() => navigate(TICKET_DESK_PATH)}
         className="hidden sm:inline-flex text-muted-foreground hover:text-foreground mr-4"
         aria-label="Ver Tickets"
       >

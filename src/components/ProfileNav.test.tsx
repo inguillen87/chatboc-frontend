@@ -33,9 +33,9 @@ vi.mock('@/context/TenantContext', () => ({
   useTenant: () => mocks.useTenant(),
 }));
 
-const renderProfileNav = () =>
+const renderProfileNav = (initialEntry = '/perfil') =>
   render(
-    <MemoryRouter initialEntries={['/perfil']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <ProfileNav />
     </MemoryRouter>,
   );
@@ -86,7 +86,9 @@ describe('ProfileNav operational access', () => {
 
     renderProfileNav();
 
-    expect(screen.getByText('Panel de Tickets')).toBeInTheDocument();
+    const ticketTab = screen.getByRole('tab', { name: /Panel de Tickets/i });
+    expect(ticketTab).toBeInTheDocument();
+    expect(ticketTab).toHaveAttribute('data-route', '/perfil?tab=tickets');
   });
 
   it('keeps the ticket tab visible for tenant admins while capabilities are incomplete', () => {
@@ -102,5 +104,17 @@ describe('ProfileNav operational access', () => {
     renderProfileNav();
 
     expect(screen.getByText('Panel de Tickets')).toBeInTheDocument();
+  });
+
+  it('keeps the ticket tab active when the profile opens from a ticket query link', () => {
+    mocks.useCapabilities.mockReturnValue({
+      capabilities: ['crm.tickets.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: (required: string[]) => required.includes('crm.tickets.read'),
+    });
+
+    renderProfileNav('/perfil?tab=tickets&codex_verify=1');
+
+    expect(screen.getByRole('tab', { name: /Panel de Tickets/i })).toHaveAttribute('data-state', 'active');
   });
 });

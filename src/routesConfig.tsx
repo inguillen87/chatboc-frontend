@@ -146,6 +146,8 @@ const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
   return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
 };
 
+const TicketDeskRedirect = () => <Navigate to="/perfil?tab=tickets" replace />;
+
 const TenantHomeRoute = () => {
   const params = useParams();
   const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
@@ -539,9 +541,8 @@ const routes: RouteConfig[] = [
   { path: '/eliminacion-datos', element: <DataDeletion /> },
   {
     path: '/tickets',
-    element: <TicketsPanel />,
+    element: <TicketDeskRedirect />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: TICKET_READ_CAPABILITIES,
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {

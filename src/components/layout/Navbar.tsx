@@ -42,6 +42,7 @@ import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 
 interface AdminNavLink {
@@ -120,7 +121,7 @@ const Navbar: React.FC = () => {
 
     const links: AdminNavLink[] = [
       {
-        to: "/perfil?tab=tickets",
+        to: TICKET_DESK_PATH,
         label: "Tickets",
         icon: TicketIcon,
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,

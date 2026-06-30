@@ -16,6 +16,7 @@ import useEndpointAvailable from '@/hooks/useEndpointAvailable';
 import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { isBackofficeRouteActive, TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 
@@ -30,7 +31,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   {
     label: 'Panel de Tickets',
-    path: '/tickets',
+    path: TICKET_DESK_PATH,
     roles: ['admin', 'empleado', 'super_admin'],
     requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
   },
@@ -120,9 +121,9 @@ export default function ProfileNav() {
   });
 
   const currentPath = location.pathname;
+  const isTicketBadgePath = (path: string) => path === TICKET_DESK_PATH;
   const selectedPath =
-    resolvedItems.find((it) => it.path === currentPath)?.path
-    ?? resolvedItems.find((it) => currentPath.endsWith(it.path))?.path
+    resolvedItems.find((it) => isBackofficeRouteActive(currentPath, location.search, it.path))?.path
     ?? resolvedItems[0]?.path;
 
   if (!resolvedItems.length) return null;
@@ -136,11 +137,12 @@ export default function ProfileNav() {
               <TabsTrigger
                 key={it.path}
                 value={it.path}
+                data-route={it.path}
                 className="rounded-lg px-4 py-2 text-sm font-semibold leading-snug text-center transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md whitespace-normal"
               >
                 <span className="flex items-center gap-2">
                   {it.label}
-                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                  {isTicketBadgePath(it.path) && ticketUnreadCount > 0 && (
                     <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                       {ticketUnreadCount}
                     </span>
@@ -171,7 +173,7 @@ export default function ProfileNav() {
               <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
                 <span className="flex items-center gap-2">
                   {it.label}
-                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                  {isTicketBadgePath(it.path) && ticketUnreadCount > 0 && (
                     <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                       {ticketUnreadCount}
                     </span>
