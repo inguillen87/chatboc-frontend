@@ -266,11 +266,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     frontendContract?.show_assisted_intake === false && !forceAssistedIntakeForEmptyCatalog;
   const effectiveAssistedIntake = assistedIntakeDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
+  const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
   const assistedFirstActive = showAssistedIntake && !isLoading && (
     effectiveAssistedIntake?.mode === 'assisted_first' ||
     totalUnfiltered === 0 ||
     (products.length === 0 && effectiveAssistedIntake?.show_on_empty_catalog !== false)
   );
+  const showCatalogFilters = !assistedFirstActive || !catalogActuallyEmpty || hasActiveFilters;
 
   useEffect(() => {
     setIsLoading(true);
@@ -313,7 +315,6 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       .finally(() => setIsLoading(false));
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
-  const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const scrollToAssistedUpload = () => {
@@ -406,13 +407,55 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       >
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
-            <SlidersHorizontal className="h-5 w-5 shrink-0 text-primary" />
-            <span className="min-w-0 truncate">Buscar o cargar pedido</span>
+            {assistedFirstActive ? (
+              <UploadIcon className="h-5 w-5 shrink-0 text-primary" />
+            ) : (
+              <SlidersHorizontal className="h-5 w-5 shrink-0 text-primary" />
+            )}
+            <span className="min-w-0 truncate">
+              {assistedFirstActive ? 'Cargar pedido, reclamo o documento' : 'Buscar o cargar pedido'}
+            </span>
           </h2>
           <p className="text-sm text-muted-foreground">{catalogStatusLine}</p>
         </div>
 
-        {showAssistedIntake ? (
+        {assistedFirstActive ? (
+          <div
+            data-testid="market-assisted-command"
+            className="mt-3 overflow-hidden rounded-lg border border-primary/25 bg-primary/5 p-3 sm:p-4"
+          >
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                  Ingreso sin registro
+                </Badge>
+                <h3 className="mt-2 text-lg font-semibold tracking-normal">
+                  El usuario puede mandar la foto del papel, pegar la lista o adjuntar una boleta.
+                </h3>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  Chatboc crea una solicitud trazable para el CRM con lectura IA, faltantes, contacto recomendado y link publico de seguimiento.
+                </p>
+              </div>
+              <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
+                <Button type="button" className="w-full" onClick={scrollToAssistedUpload}>
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  Subir foto o archivo
+                </Button>
+                <Button type="button" variant="outline" className="w-full" onClick={scrollToAssistedUpload}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Escribir lista
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+              {['OCR + IA de rubro', 'CRM con respuesta sugerida', 'Seguimiento seguro por link'].map((promise) => (
+                <span key={promise} className="rounded-md border bg-background/85 px-2.5 py-2 font-semibold leading-5 text-foreground">
+                  {promise}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : showAssistedIntake ? (
           <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -443,61 +486,63 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </div>
         ) : null}
 
-        <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_190px_190px_auto]">
-          <div className="relative min-w-0 md:col-span-2 lg:col-span-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar producto, marca o promo..."
-              className="w-full min-w-0 pl-9"
-            />
+        {showCatalogFilters ? (
+          <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_190px_190px_auto]">
+            <div className="relative min-w-0 md:col-span-2 lg:col-span-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar producto, marca o promo..."
+                className="w-full min-w-0 pl-9"
+              />
+            </div>
+            <Button
+              type="button"
+              data-testid="market-assisted-upload-cta"
+              onClick={scrollToAssistedUpload}
+              disabled={!showAssistedIntake}
+              className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
+            >
+              <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
+              Subir pedido/foto/texto
+            </Button>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full min-w-0">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las categorias</SelectItem>
+                {categoryOptions.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedSort} onValueChange={setSelectedSort}>
+              <SelectTrigger className="w-full min-w-0">
+                <SelectValue placeholder="Orden" />
+              </SelectTrigger>
+              <SelectContent>
+                {effectiveSortOptions.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.label ?? item.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant={promotionOnly ? 'default' : 'outline'}
+              onClick={() => setPromotionOnly((prev) => !prev)}
+              className="w-full whitespace-normal leading-tight sm:whitespace-nowrap lg:w-auto"
+            >
+              <Sparkles className="mr-2 h-4 w-4 shrink-0" />
+              En promocion
+            </Button>
           </div>
-          <Button
-            type="button"
-            data-testid="market-assisted-upload-cta"
-            onClick={scrollToAssistedUpload}
-            disabled={!showAssistedIntake}
-            className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
-          >
-            <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
-            Subir pedido/foto/texto
-          </Button>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full min-w-0">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorias</SelectItem>
-              {categoryOptions.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedSort} onValueChange={setSelectedSort}>
-            <SelectTrigger className="w-full min-w-0">
-              <SelectValue placeholder="Orden" />
-            </SelectTrigger>
-            <SelectContent>
-              {effectiveSortOptions.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.label ?? item.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant={promotionOnly ? 'default' : 'outline'}
-            onClick={() => setPromotionOnly((prev) => !prev)}
-            className="w-full whitespace-normal leading-tight sm:whitespace-nowrap lg:w-auto"
-          >
-            <Sparkles className="mr-2 h-4 w-4 shrink-0" />
-            En promocion
-          </Button>
-        </div>
+        ) : null}
 
         <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 md:hidden">
           <Button

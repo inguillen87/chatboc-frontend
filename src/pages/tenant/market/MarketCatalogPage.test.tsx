@@ -86,10 +86,13 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
-    expect(screen.getByText(/Aunque no haya productos visibles/i)).toBeInTheDocument();
-    expect(screen.getByText(/Foto de papel, boleta, certificado o comprobante/i)).toBeInTheDocument();
-    expect(screen.getByText(/El CRM recibe archivo\/texto original/i)).toBeInTheDocument();
+    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
+    expect(screen.getByText(/El usuario puede mandar la foto del papel/i)).toBeInTheDocument();
+    expect(screen.getByText('OCR + IA de rubro')).toBeInTheDocument();
+    expect(screen.getByText(/Catalogo en preparacion/i)).toBeInTheDocument();
+    expect(screen.getByText(/Chatboc crea una solicitud trazable/i)).toBeInTheDocument();
+    expect(screen.getByText('CRM con respuesta sugerida')).toBeInTheDocument();
     expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
     expect(screen.getByText('Marketplace asistido activo')).toBeInTheDocument();
     expect(screen.getByText(/Subi el pedido como viene/i)).toBeInTheDocument();
@@ -110,15 +113,16 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
     expect(screen.getByText('Nota manuscrita')).toBeInTheDocument();
     expect(screen.getByText('Boleta / impuesto')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Escribir lista/i })).toBeInTheDocument();
     expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
     expect(screen.getByText('Subir foto o manuscrito')).toBeInTheDocument();
-    expect(screen.getByText('Escribir lista')).toBeInTheDocument();
+    expect(screen.getAllByText('Escribir lista').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /Continuar por WhatsApp/i }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/solicitud asistida activa/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Subir pedido o documento/i }).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Subir foto o archivo/i }));
 
     expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
     await waitFor(() => {
@@ -160,9 +164,9 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
+    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
     expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
   });
 
   it('hides assisted intake when the catalog has products and the backend contract disables it', async () => {
@@ -251,14 +255,14 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
+    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
     expect(screen.getByText('Carga publica')).toBeInTheDocument();
     expect(screen.getByText('Equipo informado')).toBeInTheDocument();
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
   });
 
   it('explains filtered empty results without hiding assisted intake', async () => {
