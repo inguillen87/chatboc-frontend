@@ -71,17 +71,17 @@ const ASSISTED_UPLOAD_ANCHOR_ID = 'market-assisted-upload';
 
 const ASSISTED_FIRST_MODES = [
   {
-    title: 'Foto de papel o manuscrito',
+    title: 'Foto o manuscrito',
     description: 'Lista escrita a mano, mostrador, ferreteria, supermercado o pedido de materiales.',
     icon: FileText,
   },
   {
-    title: 'Pedido pegado desde WhatsApp',
+    title: 'Texto de WhatsApp',
     description: 'El cliente copia texto suelto y Chatboc separa articulos, cantidades y faltantes.',
     icon: MessageCircle,
   },
   {
-    title: 'Boleta, certificado o reclamo',
+    title: 'Documento o reclamo',
     description: 'Gobiernos y colegios reciben documentos, comprobantes o solicitudes trazables.',
     icon: ClipboardList,
   },
@@ -262,7 +262,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     const visibleCount = total ?? products.length;
     const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
     if (visibleCount === 0 && publishedCount === 0) {
-      return 'Carga asistida lista. Subi pedido, boleta, reclamo o consulta para que el equipo responda con seguimiento.';
+      return 'Subi una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
     if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
@@ -361,7 +361,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
               {assistedFirstActive
-                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. Todo queda trazado para el equipo.'
+                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. El equipo recibe todo ordenado para responder.'
                 : heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
             </p>
           </div>
@@ -439,13 +439,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  Ingreso sin registro
+                  Sin registro
                 </Badge>
                 <h3 className="mt-2 text-lg font-semibold tracking-normal">
-                  El usuario puede mandar la foto del papel, pegar la lista o adjuntar una boleta.
+                  Subi una foto, lista o documento. El equipo te responde con seguimiento.
                 </h3>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Chatboc crea una solicitud trazable con datos ordenados, faltantes, contacto recomendado y link publico de seguimiento.
+                  Sirve para notas manuscritas, boletas, certificados, reclamos, pedidos de ferreteria, supermercado, bebidas o mensajes copiados de WhatsApp.
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
@@ -459,12 +459,31 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 </Button>
               </div>
             </div>
-            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-              {['Lectura del documento', 'Equipo con respuesta sugerida', 'Seguimiento seguro por link'].map((promise) => (
-                <span key={promise} className="rounded-md border bg-background/85 px-2.5 py-2 font-semibold leading-5 text-foreground">
-                  {promise}
-                </span>
-              ))}
+            <div
+              data-testid="market-assisted-public-promise"
+              className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"
+            >
+              {ASSISTED_FIRST_MODES.map((mode) => {
+                const Icon = mode.icon;
+                return (
+                  <div key={mode.title} className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
+                    <div className="flex items-center gap-2 font-semibold text-foreground">
+                      <Icon className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="truncate">{mode.title}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{mode.description}</p>
+                  </div>
+                );
+              })}
+              <div className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
+                <div className="flex items-center gap-2 font-semibold text-foreground">
+                  <ClipboardList className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate">Seguimiento seguro</span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  Referencia publica para consultar estado o continuar por WhatsApp.
+                </p>
+              </div>
             </div>
           </div>
         ) : showAssistedIntake ? (
@@ -594,63 +613,6 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </section>
 
-      {assistedFirstActive ? (
-        <section
-          data-testid="assisted-first-banner"
-          className="overflow-hidden rounded-lg border border-primary/20 bg-primary/5 p-3 shadow-sm sm:p-4"
-        >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                Marketplace asistido activo
-              </Badge>
-              <h2 className="mt-2 max-w-3xl text-lg font-semibold tracking-normal sm:text-xl">
-                Subi el pedido como viene: foto, papel, boleta o texto.
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Chatboc interpreta la nota, cruza catalogo cuando exista y deja una solicitud trazable para responder desde el panel.
-              </p>
-            </div>
-            <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
-              <UploadIcon className="mr-2 h-4 w-4" />
-              Subir pedido o documento
-            </Button>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {ASSISTED_FIRST_MODES.map((mode) => {
-              const Icon = mode.icon;
-              return (
-                <div key={mode.title} className="min-w-0 rounded-lg border bg-background/85 p-3">
-                  <div className="flex items-start gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="break-words text-sm font-semibold">{mode.title}</p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{mode.description}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-3 rounded-lg border bg-background/85 p-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Resultado para el equipo</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Archivo/texto original, datos ordenados, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
-                </p>
-              </div>
-              <Button type="button" variant="outline" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
-                <UploadIcon className="mr-2 h-4 w-4" />
-                Cargar ahora
-              </Button>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       {showAssistedIntake ? (
         <UploadOrderFromFile
           id={ASSISTED_UPLOAD_ANCHOR_ID}
@@ -744,7 +706,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       ) : null}
 
-      {emptyState ? (
+      {emptyState && !(assistedFirstActive && catalogActuallyEmpty) ? (
         <div data-testid="market-empty-state" className="rounded-lg border border-dashed bg-card p-4 shadow-sm sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
             <div className="max-w-2xl">

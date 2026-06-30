@@ -86,20 +86,17 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
+    expect(screen.getByText('Sin registro')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
-    expect(screen.getByText(/El usuario puede mandar la foto del papel/i)).toBeInTheDocument();
-    expect(screen.getByText('Lectura del documento')).toBeInTheDocument();
-    expect(screen.getByText(/Carga asistida lista/i)).toBeInTheDocument();
-    expect(screen.getByText(/Chatboc crea una solicitud trazable/i)).toBeInTheDocument();
-    expect(screen.getByText('Equipo con respuesta sugerida')).toBeInTheDocument();
-    expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
-    expect(screen.getByText('Marketplace asistido activo')).toBeInTheDocument();
-    expect(screen.getByText(/Subi el pedido como viene/i)).toBeInTheDocument();
-    expect(screen.getByText('Foto de papel o manuscrito')).toBeInTheDocument();
-    expect(screen.getByText('Pedido pegado desde WhatsApp')).toBeInTheDocument();
-    expect(screen.getByText('Boleta, certificado o reclamo')).toBeInTheDocument();
-    expect(screen.getByText('Resultado para el equipo')).toBeInTheDocument();
+    expect(screen.getByText(/Subi una foto, lista o documento/i)).toBeInTheDocument();
+    expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sirve para notas manuscritas/i)).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-public-promise')).toBeInTheDocument();
+    expect(screen.getByText('Foto o manuscrito')).toBeInTheDocument();
+    expect(screen.getByText('Texto de WhatsApp')).toBeInTheDocument();
+    expect(screen.getByText('Documento o reclamo')).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento seguro')).toBeInTheDocument();
+    expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
     expect(screen.getByText(/Subi boletas, certificados, pedidos o notas/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Boleta municipal/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o papel/i })).toBeInTheDocument();
@@ -115,12 +112,10 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Boleta / impuesto')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Escribir lista/i })).toBeInTheDocument();
-    expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('Subir foto o manuscrito')).toBeInTheDocument();
+    expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
     expect(screen.getAllByText('Escribir lista').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: /Continuar por WhatsApp/i }).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/solicitud asistida activa/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Subir pedido o documento/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: /Continuar por WhatsApp/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bCRM\b|Intake IA|OCR \+ IA|\bIA\b desmenuza|lectura IA/i);
 
     fireEvent.click(screen.getByRole('button', { name: /Subir foto o archivo/i }));
@@ -165,8 +160,8 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
-    expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
+    expect(screen.getByText('Sin registro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
   });
 
@@ -252,11 +247,11 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
+      expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Ingreso sin registro')).toBeInTheDocument();
+    expect(screen.getByText('Sin registro')).toBeInTheDocument();
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
