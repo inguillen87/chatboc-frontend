@@ -62,6 +62,59 @@ describe('AssistedRequestPanel', () => {
                 canal_ingreso: 'marketplace',
               },
             },
+            crm_order_draft: {
+              contract_version: 'marketplace.crm_order_draft.v1',
+              request_kind: 'quote_request',
+              request_kind_label: 'pedido de cotizacion',
+              target_module: 'orders',
+              recommended_record: 'assisted_order',
+              recommended_next_step: 'resolver_items_y_cotizar',
+              needs_operator_review: true,
+              pedido_id: 42,
+              lead_id: 42,
+              reference: 'pedido:42',
+              contact_state: 'available',
+              source: {
+                channel: 'marketplace',
+                input_type: 'txt',
+              },
+              summary: {
+                detected: 2,
+                matched: 1,
+                unmatched: 1,
+                has_contact: true,
+                needs_operator_review: true,
+              },
+              lines: [
+                {
+                  line_id: 'line-1',
+                  status: 'catalog_matched',
+                  source_name: '2 Chapas',
+                  quantity: 2,
+                  unit: 'un',
+                  sku: 'CH-01',
+                  catalog_item_id: 11,
+                  catalog_match: {
+                    catalogo_item_id: 11,
+                    name: 'Chapa galvanizada acanalada',
+                    sku: 'CH-01',
+                    price: 12000,
+                    currency: 'ARS',
+                  },
+                  candidate_count: 0,
+                  needs_operator_review: false,
+                },
+                {
+                  line_id: 'line-2',
+                  status: 'needs_catalog_resolution',
+                  source_name: '1 Clavos 2 pulgadas',
+                  quantity: 1,
+                  unit: 'caja',
+                  candidate_count: 1,
+                  needs_operator_review: true,
+                },
+              ],
+            },
             source: { channel: 'marketplace' },
             match_summary: { detected: 2, matched: 1, unmatched: 1 },
             operator_intake_summary: {
@@ -133,7 +186,7 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getByText('Alternativas de catalogo')).toBeTruthy();
     expect(screen.getByText('Pedido o cotizacion')).toBeTruthy();
     expect(screen.getAllByText('Cruce con catalogo').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Proximo paso')).toBeTruthy();
+    expect(screen.getAllByText('Proximo paso').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Completar Direccion')).toBeTruthy();
     expect(screen.getAllByText('Objetivo operativo').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.')).toBeTruthy();
@@ -152,7 +205,15 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getByText('Pedidos y cotizaciones')).toBeTruthy();
     expect(screen.getByText('Pedido asistido')).toBeTruthy();
     expect(screen.getByText('convertir a pedido o cotizacion')).toBeTruthy();
-    expect(screen.getByText('Canal de ingreso')).toBeTruthy();
+    expect(screen.getByText('Borrador de pedido armado')).toBeTruthy();
+    expect(screen.getByText('pedido:42')).toBeTruthy();
+    expect(screen.getByText('resolver items y cotizar')).toBeTruthy();
+    expect(screen.getByText('Catalogo confirmado')).toBeTruthy();
+    expect(screen.getByText('Resolver catalogo')).toBeTruthy();
+    expect(screen.getByText('2 Chapas')).toBeTruthy();
+    expect(screen.getByText('Chapa galvanizada acanalada')).toBeTruthy();
+    expect(screen.getByText('Sin producto confirmado. Resolver alternativa antes de confirmar.')).toBeTruthy();
+    expect(screen.getAllByText('1 candidato').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Plan para el cliente')).toBeTruthy();
     expect(screen.getByText('Seguimiento publico')).toBeTruthy();
     expect(screen.getAllByText('pc-42').length).toBeGreaterThanOrEqual(1);
@@ -180,7 +241,13 @@ describe('AssistedRequestPanel', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Resumen operativo Chatboc'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Pedido/Solicitud: conversational:42'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Seguimiento: pc-42'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Pedido armado:'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('2 un 2 Chapas -> Chapa galvanizada acanalada'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('1 Clavos 2 pulgadas'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar pedido' }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Pedido armado por Chatboc'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Referencia: pedido:42'));
 
     fireEvent.click(screen.getByLabelText('Copiar candidato Clavos punta paris'));
 

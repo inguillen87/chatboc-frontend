@@ -4,7 +4,14 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { AssistedCatalogCandidate, AssistedCatalogCandidateGroup, AssistedOrderRequest, Order } from '@/types/unified';
+import type {
+  AssistedCatalogCandidate,
+  AssistedCatalogCandidateGroup,
+  AssistedOrderRequest,
+  CrmOrderDraft,
+  CrmOrderDraftLine,
+  Order,
+} from '@/types/unified';
 
 type AssistedRequestPanelProps = {
   order: Order;
@@ -181,6 +188,59 @@ const candidateScore = (candidate: AssistedCatalogCandidate) => {
   return valueText(raw);
 };
 
+const isCrmOrderDraft = (value: unknown): value is CrmOrderDraft =>
+  isRecord(value) &&
+  (value.contract_version === 'marketplace.crm_order_draft.v1' || Array.isArray(value.lines));
+
+const resolveCrmOrderDraft = (assistedRequest: AssistedOrderRequest): CrmOrderDraft | null => {
+  if (isCrmOrderDraft(assistedRequest.crm_order_draft)) return assistedRequest.crm_order_draft;
+  if (isCrmOrderDraft(assistedRequest.crm_handoff?.draft_order)) {
+    return assistedRequest.crm_handoff?.draft_order as CrmOrderDraft;
+  }
+  return null;
+};
+
+const draftLineStatusLabel = (status?: string | null) => {
+  if (status === 'catalog_matched') return 'Catalogo confirmado';
+  if (status === 'needs_catalog_resolution') return 'Resolver catalogo';
+  if (status === 'needs_review') return 'Revision';
+  return status ? status.replace(/_/g, ' ') : 'Sin estado';
+};
+
+const draftLineStatusClassName = (status?: string | null) => {
+  if (status === 'catalog_matched') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-100';
+  }
+  if (status === 'needs_catalog_resolution' || status === 'needs_review') {
+    return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100';
+  }
+  return 'bg-background/80';
+};
+
+const draftLineName = (line: CrmOrderDraftLine) =>
+  firstText(line.source_name, line.catalog_match?.name, line.catalog_match?.nombre, line.catalog_match?.sku) || 'Item detectado';
+
+const draftLineQuantity = (line: CrmOrderDraftLine) => {
+  const quantity = firstText(line.quantity);
+  const unit = firstText(line.unit, line.catalog_match?.unidad);
+  if (quantity && unit) return `${quantity} ${unit}`;
+  return quantity || '1';
+};
+
+const draftLineSku = (line: CrmOrderDraftLine) => firstText(line.sku, line.catalog_match?.sku, line.catalog_match?.codigo);
+
+const draftLineCatalogName = (line: CrmOrderDraftLine) =>
+  line.catalog_match ? candidateName(line.catalog_match) : null;
+
+const draftSummaryNumber = (draft: CrmOrderDraft | null, key: 'detected' | 'matched' | 'unmatched') => {
+  const value = draft?.summary?.[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const lines = draft?.lines || [];
+  if (key === 'detected') return lines.length;
+  if (key === 'matched') return lines.filter((line) => line.status === 'catalog_matched').length;
+  return lines.filter((line) => line.status !== 'catalog_matched').length;
+};
+
 const confidenceLabel = (value: unknown) => {
   const text = valueText(value)?.toLowerCase();
   if (!text) return null;
@@ -342,6 +402,7 @@ const operatorSummaryText = ({
   followUpCode,
   followUpHref,
   suggestedReply,
+  crmOrderDraft,
 }: {
   order: Order;
   assistedRequest: AssistedOrderRequest;
@@ -356,6 +417,7 @@ const operatorSummaryText = ({
   followUpCode?: string | null;
   followUpHref?: string | null;
   suggestedReply?: string | null;
+  crmOrderDraft?: CrmOrderDraft | null;
 }) =>
   [
     'Resumen operativo Chatboc',
@@ -373,6 +435,17 @@ const operatorSummaryText = ({
           .join('\n')}`
       : null,
     missingFields.length ? `Faltantes: ${missingFields.map((field) => humanizeKey(field) || field).join(', ')}` : null,
+    crmOrderDraft?.lines?.length
+      ? `Pedido armado:\n${crmOrderDraft.lines
+          .slice(0, 12)
+          .map((line) => {
+            const catalogName = draftLineCatalogName(line);
+            return `- ${draftLineQuantity(line)} ${draftLineName(line)}${
+              catalogName ? ` -> ${catalogName}` : ''
+            } (${draftLineStatusLabel(line.status)})`;
+          })
+          .join('\n')}`
+      : null,
     unmatchedItems.length ? `Para revisar: ${unmatchedItems.join(', ')}` : null,
     catalogCandidateGroups.length
       ? `Candidatos de catalogo:\n${catalogCandidateGroups
@@ -417,16 +490,18 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const documentProfile = assistedRequest.document_profile || null;
   const structuredExtraction = assistedRequest.structured_extraction || null;
   const crmHandoff = assistedRequest.crm_handoff || null;
+  const crmOrderDraft = resolveCrmOrderDraft(assistedRequest);
   const reviewContext = assistedRequest.review_context || null;
   const reviewReasons = reviewContext?.review_reasons || [];
   const structuredFields = fieldEntriesFrom(structuredExtraction?.fields);
   const missingFields = structuredExtraction?.missing_fields || [];
-  const draftRecord =
-    crmHandoff?.draft_ticket ||
-    crmHandoff?.draft_task ||
-    crmHandoff?.draft_order ||
-    crmHandoff?.draft_assisted_order ||
-    null;
+  const draftRecord = crmOrderDraft
+    ? null
+    : crmHandoff?.draft_ticket ||
+      crmHandoff?.draft_task ||
+      crmHandoff?.draft_order ||
+      crmHandoff?.draft_assisted_order ||
+      null;
   const draftFields = fieldEntriesFrom(draftRecord);
   const customerNextSteps = assistedRequest.customer_next_steps || [];
   const intakeExperience = assistedRequest.intake_experience || null;
@@ -440,6 +515,10 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const detectedCount = summaryNumber(assistedRequest, 'detected');
   const matchedCount = summaryNumber(assistedRequest, 'matched');
   const unmatchedCount = summaryNumber(assistedRequest, 'unmatched');
+  const draftLines = crmOrderDraft?.lines || [];
+  const draftDetectedCount = draftSummaryNumber(crmOrderDraft, 'detected');
+  const draftMatchedCount = draftSummaryNumber(crmOrderDraft, 'matched');
+  const draftUnmatchedCount = draftSummaryNumber(crmOrderDraft, 'unmatched');
   const operatorNextStep = humanizeKey(operatorIntakeSummary?.recommended_next_step);
   const primaryAction =
     firstText(nextActions[0]?.label, nextActions[0]?.title, suggestedTasks[0]?.label) ||
@@ -477,6 +556,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
           followUpCode,
           followUpHref,
           suggestedReply,
+          crmOrderDraft,
         }),
       );
       toast.success('Resumen operativo copiado');
@@ -492,6 +572,36 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
       toast.success('Respuesta copiada');
     } catch (error) {
       toast.error('No se pudo copiar la respuesta');
+    }
+  };
+
+  const handleCopyCrmOrderDraft = async () => {
+    if (!crmOrderDraft) return;
+    const text = [
+      'Pedido armado por Chatboc',
+      crmOrderDraft.reference ? `Referencia: ${crmOrderDraft.reference}` : null,
+      crmOrderDraft.recommended_next_step
+        ? `Proximo paso: ${humanizeKey(crmOrderDraft.recommended_next_step) || crmOrderDraft.recommended_next_step}`
+        : null,
+      draftLines.length
+        ? draftLines
+            .map((line) => {
+              const catalogName = draftLineCatalogName(line);
+              return `- ${draftLineQuantity(line)} ${draftLineName(line)}${
+                catalogName ? ` -> ${catalogName}` : ''
+              } (${draftLineStatusLabel(line.status)})`;
+            })
+            .join('\n')
+        : 'Sin lineas detectadas',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(text);
+      toast.success('Pedido armado copiado');
+    } catch (error) {
+      toast.error('No se pudo copiar el pedido armado');
     }
   };
 
@@ -652,6 +762,115 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
           ) : null}
         </div>
       </div>
+
+      {crmOrderDraft ? (
+        <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-background to-blue-50 shadow-sm dark:border-emerald-900 dark:from-emerald-950/25 dark:via-background dark:to-blue-950/20">
+          <div className="flex flex-col gap-3 border-b border-emerald-200/70 p-3 md:flex-row md:items-start md:justify-between dark:border-emerald-900/60">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+                <h4 className="font-semibold text-emerald-950 dark:text-emerald-100">Borrador de pedido armado</h4>
+                {crmOrderDraft.reference ? (
+                  <Badge variant="outline" className="bg-background/80 font-mono">
+                    {crmOrderDraft.reference}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Lineas normalizadas desde foto, papel, PDF, WhatsApp o marketplace para confirmar stock, precio y respuesta comercial.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Badge variant="outline" className={crmOrderDraft.needs_operator_review ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800'}>
+                {crmOrderDraft.needs_operator_review ? 'Revision humana' : 'Listo para confirmar'}
+              </Badge>
+              <Button type="button" size="sm" variant="outline" onClick={handleCopyCrmOrderDraft}>
+                <Copy className="h-4 w-4" />
+                Copiar pedido
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 p-3 md:grid-cols-4">
+            <div className="rounded-lg border bg-background/80 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detectados</p>
+              <p className="mt-1 text-xl font-bold">{draftDetectedCount}</p>
+            </div>
+            <div className="rounded-lg border bg-background/80 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">En catalogo</p>
+              <p className="mt-1 text-xl font-bold text-emerald-700">{draftMatchedCount}</p>
+            </div>
+            <div className="rounded-lg border bg-background/80 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">A resolver</p>
+              <p className="mt-1 text-xl font-bold text-amber-700">{draftUnmatchedCount}</p>
+            </div>
+            <div className="rounded-lg border bg-background/80 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proximo paso</p>
+              <p className="mt-1 line-clamp-2 font-semibold">
+                {humanizeKey(crmOrderDraft.recommended_next_step) || crmOrderDraft.recommended_next_step || 'Revisar y responder'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 px-3 pb-3">
+            {draftLines.length ? (
+              draftLines.slice(0, 12).map((line, index) => {
+                const catalogName = draftLineCatalogName(line);
+                const sku = draftLineSku(line);
+                const price = line.catalog_match ? candidatePrice(line.catalog_match) : null;
+                const candidateCount = typeof line.candidate_count === 'number' ? line.candidate_count : null;
+                return (
+                  <div key={line.line_id || `${draftLineName(line)}-${index}`} className="rounded-lg border bg-background/90 p-3 text-sm">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="bg-muted/30 font-mono">
+                            {draftLineQuantity(line)}
+                          </Badge>
+                          <p className="font-semibold text-foreground">{draftLineName(line)}</p>
+                          <Badge variant="outline" className={draftLineStatusClassName(line.status)}>
+                            {draftLineStatusLabel(line.status)}
+                          </Badge>
+                        </div>
+                        {catalogName ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Match catalogo: <span className="font-medium text-foreground">{catalogName}</span>
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                            Sin producto confirmado. Resolver alternativa antes de confirmar.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {sku ? (
+                          <Badge variant="outline" className="bg-background/80 font-mono">
+                            SKU {sku}
+                          </Badge>
+                        ) : null}
+                        {price ? (
+                          <Badge variant="outline" className="bg-background/80">
+                            {price}
+                          </Badge>
+                        ) : null}
+                        {candidateCount ? (
+                          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-100">
+                            {candidateCount} candidato{candidateCount === 1 ? '' : 's'}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+                Todavia no hay lineas confiables. Revisar el adjunto o pedir al cliente que reenvie la nota con mas claridad.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {publicFollowUp && (followUpCode || followUpHref || followUpChannels.length) ? (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">

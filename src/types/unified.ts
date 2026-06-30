@@ -65,6 +65,47 @@ export interface AssistedCatalogCandidateGroup {
   [key: string]: unknown;
 }
 
+export interface CrmOrderDraftLine {
+  line_id?: string | null;
+  status?: 'catalog_matched' | 'needs_catalog_resolution' | 'needs_review' | string | null;
+  source_name?: string | null;
+  quantity?: string | number | null;
+  unit?: string | null;
+  sku?: string | null;
+  catalog_item_id?: string | number | null;
+  catalog_match?: AssistedCatalogCandidate | null;
+  candidate_count?: number | null;
+  needs_operator_review?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface CrmOrderDraft {
+  contract_version?: string | null;
+  request_kind?: string | null;
+  request_kind_label?: string | null;
+  target_module?: string | null;
+  recommended_record?: string | null;
+  recommended_next_step?: string | null;
+  needs_operator_review?: boolean | null;
+  pedido_id?: string | number | null;
+  lead_id?: string | number | null;
+  reference?: string | null;
+  contact_state?: string | null;
+  contact?: Record<string, unknown> | null;
+  source?: Record<string, unknown> | null;
+  lines?: CrmOrderDraftLine[];
+  catalog_candidate_groups?: number | null;
+  summary?: {
+    detected?: number | null;
+    matched?: number | null;
+    unmatched?: number | null;
+    has_contact?: boolean | null;
+    needs_operator_review?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface AssistedOrderRequest {
   contract_version?: string | null;
   mode?: string | null;
@@ -108,6 +149,7 @@ export interface AssistedOrderRequest {
     draft_assisted_order?: Record<string, unknown> | null;
     [key: string]: unknown;
   } | null;
+  crm_order_draft?: CrmOrderDraft | null;
   contact?: (CustomerProfile & { notes?: string | null }) | null;
   source?: {
     channel?: string | null;
