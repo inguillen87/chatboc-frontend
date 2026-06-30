@@ -52,33 +52,38 @@ const getInitials = (name: string) => {
   const subject = ticket.categoria || ticket.asunto || 'Sin asunto';
 
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        'p-3 rounded-lg border cursor-pointer transition-colors relative',
-        isSelected ? 'bg-primary/10 border-primary' : 'bg-background hover:bg-muted/50',
-        hasUnread && !isSelected && 'border-primary/50'
+        'relative w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        isSelected
+          ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
+          : 'border-border/80 bg-background hover:bg-muted/50',
+        hasUnread && !isSelected && 'border-primary/50',
       )}
       onClick={onClick}
+      aria-pressed={isSelected}
+      aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (
         <span className="absolute top-2 right-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {unreadViewers > 0 ? unreadViewers : '•'}
         </span>
       )}
-      <div className="flex items-start justify-between mb-1">
-        <div className="flex items-center gap-3">
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarImage src={ticket.avatarUrl} alt={ticket.display_name} />
             <AvatarFallback>{getInitials(ticket.display_name || '')}</AvatarFallback>
           </Avatar>
-          <div>
-            <h4 className="text-sm font-semibold truncate" title={ticket.display_name}>
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold leading-5" title={ticket.display_name}>
               {ticket.display_name}
             </h4>
-            <p className="text-xs text-muted-foreground truncate max-w-[140px]">{ticket.nro_ticket}</p>
+            <p className="max-w-[12rem] truncate text-xs text-muted-foreground">{ticket.nro_ticket}</p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           <span className="text-xs text-muted-foreground">{formattedTime}</span>
           {activeViewers > 0 ? (
             <Badge variant="secondary" className="text-[10px]">
@@ -104,7 +109,7 @@ const getInitials = (name: string) => {
           })()}
         </div>
       </div>
-      <p className="mb-2 ml-[52px] truncate text-sm font-semibold">{subject}</p>
+      <p className="mb-1.5 ml-[52px] line-clamp-1 text-sm font-semibold leading-5">{subject}</p>
       {(priorityLabel || slaLabel || assignedLabel) && (
         <div className="mb-2 ml-[52px] flex flex-wrap gap-1.5">
           {priorityLabel ? (
@@ -140,13 +145,13 @@ const getInitials = (name: string) => {
           ) : null}
         </div>
       )}
-      <p className="ml-[52px] truncate text-sm text-muted-foreground">{ticket.lastMessage || '...'}</p>
+      <p className="ml-[52px] line-clamp-2 text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
       {nextAction ? (
-        <p className="ml-[52px] mt-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs text-primary">
+        <p className="ml-[52px] mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary">
           {nextAction}
         </p>
       ) : null}
-    </div>
+    </button>
   );
 };
 

@@ -730,7 +730,7 @@ export default function UsuariosPage() {
           <div>
             <h1 className="text-3xl font-black tracking-tight">Usuarios y contactos</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              CRM operativo con motivo de conversacion, temperatura del lead, consentimiento y campanas trazables.
+              Centro de contactos con motivo de conversacion, temperatura del lead, consentimiento y campanas trazables.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

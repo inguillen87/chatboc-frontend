@@ -107,7 +107,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   mode: 'assisted_first',
   title: 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable',
   summary:
-    'Funciona aunque el catalogo este vacio: la IA separa articulos, documentos, reclamos o datos de contacto y deja todo listo para revisar desde el CRM.',
+    'Funciona aunque el catalogo este vacio: interpreta articulos, documentos, reclamos o datos de contacto y deja una solicitud clara para responder.',
   anonymous_intake: true,
   catalog_matching: true,
   show_on_empty_catalog: true,
@@ -157,14 +157,14 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
     { id: 'service_request', label: 'Reclamo vecinal', helper: 'Bache, luminaria, agua, limpieza o solicitud municipal.' },
   ],
   pipeline: [
-    { id: 'capture', label: 'Subida publica', description: 'Foto, PDF, texto o nota escrita sin registro.' },
-    { id: 'ai_parse', label: 'IA discrimina', description: 'Productos, cantidades, rubro, tramite y datos faltantes.' },
-    { id: 'crm_handoff', label: 'CRM operativo', description: 'El admin recibe resumen, archivo original y respuesta sugerida.' },
-    { id: 'public_follow_up', label: 'Seguimiento', description: 'Link seguro para continuar por WhatsApp, email o chat.' },
+    { id: 'capture', label: 'Carga publica', description: 'Foto, PDF, texto o nota escrita sin registro.' },
+    { id: 'ai_parse', label: 'Datos ordenados', description: 'Productos, cantidades, tramite, reclamo y faltantes.' },
+    { id: 'crm_handoff', label: 'Equipo informado', description: 'Resumen, archivo original y respuesta sugerida.' },
+    { id: 'public_follow_up', label: 'Seguimiento', description: 'Link o WhatsApp para continuar sin perder contexto.' },
   ],
   crm_receives: [
     'Archivo o texto original',
-    'Resumen IA con articulos, reclamos o datos detectados',
+    'Resumen con articulos, reclamos o datos detectados',
     'Cruce con catalogo cuando exista',
     'Datos faltantes y respuesta sugerida',
     'Link publico de seguimiento',
@@ -246,7 +246,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
     const visibleCount = total ?? products.length;
     if (visibleCount === 0 && totalUnfiltered === 0) {
-      return 'Catalogo en preparacion. La carga asistida por IA sigue activa para pedidos, boletas y consultas.';
+      return 'Catalogo en preparacion. Igual podes subir pedido, boleta, reclamo o consulta para que el equipo responda.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
     if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
@@ -340,7 +340,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
-              {heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que la IA arme la solicitud.'}
+              {heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
             </p>
           </div>
         </div>
@@ -530,7 +530,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 Subi el pedido como viene: foto, papel, boleta o texto.
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Chatboc interpreta la nota, cruza catalogo cuando exista y deja una solicitud trazable para responder desde el CRM.
+                Chatboc interpreta la nota, cruza catalogo cuando exista y deja una solicitud trazable para responder desde el panel.
               </p>
             </div>
             <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>

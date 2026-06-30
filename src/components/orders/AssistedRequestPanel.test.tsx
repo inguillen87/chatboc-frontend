@@ -148,7 +148,7 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getAllByText(/Marcelo/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Faltantes para completar')).toBeTruthy();
     expect(screen.getByText('Direccion')).toBeTruthy();
-    expect(screen.getByText('Handoff al CRM')).toBeTruthy();
+    expect(screen.getByText('Derivacion operativa')).toBeTruthy();
     expect(screen.getByText('Pedidos y cotizaciones')).toBeTruthy();
     expect(screen.getByText('Pedido asistido')).toBeTruthy();
     expect(screen.getByText('convertir a pedido o cotizacion')).toBeTruthy();

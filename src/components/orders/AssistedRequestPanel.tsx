@@ -801,7 +801,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
           <div className="rounded-lg border bg-background/80 p-3 text-sm">
             <div className="flex items-center gap-2 font-medium">
               <ClipboardCheck className="h-4 w-4 text-emerald-700" />
-              Handoff al CRM
+              Derivacion operativa
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Donde deberia continuar el caso y que registro conviene crear o revisar.
@@ -809,7 +809,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
             <div className="mt-3 grid gap-2">
               <div className="rounded-md border bg-muted/20 p-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Modulo destino</p>
-                <p className="mt-1 font-medium">{targetModuleLabel(crmHandoff?.target_module) || 'CRM operativo'}</p>
+                <p className="mt-1 font-medium">{targetModuleLabel(crmHandoff?.target_module) || 'Panel operativo'}</p>
               </div>
               <div className="rounded-md border bg-muted/20 p-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registro sugerido</p>

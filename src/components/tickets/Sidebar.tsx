@@ -31,11 +31,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
@@ -449,13 +444,14 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </Button>
         </div>
 
-        <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-          <PopoverTrigger asChild>
+        <div className="space-y-2">
             <Button
               type="button"
               variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
-              className="h-9 w-full justify-between rounded-[8px] px-3 text-sm font-semibold"
+              className="h-8 w-full justify-between rounded-[8px] px-2.5 text-xs font-semibold"
               aria-expanded={advancedFiltersOpen}
+              aria-controls="sidebar-inline-filters"
+              onClick={() => setAdvancedFiltersOpen((current) => !current)}
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -473,19 +469,15 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 )}
               />
             </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            sideOffset={8}
-            data-testid="sidebar-floating-filters"
-            className="w-[min(calc(100vw-2rem),28rem)] border-border/80 bg-background/95 p-3 shadow-2xl backdrop-blur-xl"
+          {advancedFiltersOpen ? (
+          <div
+            id="sidebar-inline-filters"
+            data-testid="sidebar-inline-filters"
+            className="rounded-[8px] border border-border/80 bg-background/70 p-2 shadow-sm"
           >
-            <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-foreground">Filtro operativo</p>
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  Ajusta la bandeja sin empujar el acordeon de reclamos.
-                </p>
+                <p className="text-xs font-semibold text-foreground">Filtro operativo</p>
               </div>
               {hasActiveFilters ? (
                 <Button
@@ -499,7 +491,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 </Button>
               ) : null}
             </div>
-            <div className="grid max-h-[min(52dvh,24rem)] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+            <div className="grid max-h-32 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
               <select
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.channel}
@@ -601,8 +593,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 ))}
               </select>
             </div>
-          </PopoverContent>
-        </Popover>
+          </div>
+          ) : null}
+        </div>
         {hasActiveFilters ? (
           <div className="flex flex-wrap items-center gap-1.5 rounded-[8px] border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
             {activeFilterLabels.slice(0, 3).map((label) => (

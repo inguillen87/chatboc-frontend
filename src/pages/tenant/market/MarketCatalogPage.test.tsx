@@ -83,7 +83,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Pedido asistido por IA')).toBeInTheDocument();
+      expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     });
 
     expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('IA desmenuza')).toBeInTheDocument();
     expect(screen.getAllByText('CRM responde').length).toBeGreaterThan(0);
     expect(screen.getByText('Seguimiento publico')).toBeInTheDocument();
-    expect(screen.getByText('El CRM recibe')).toBeInTheDocument();
+    expect(screen.getByText('El equipo recibe')).toBeInTheDocument();
     expect(screen.getByText('Archivo o texto original')).toBeInTheDocument();
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
     expect(screen.getByText('Nota manuscrita')).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(fetchMarketCatalogMock).toHaveBeenCalled();
     });
 
-    expect(screen.queryByText('Pedido asistido por IA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeDisabled();
   });
@@ -187,12 +187,12 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Pedido asistido por IA')).toBeInTheDocument();
+    expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
-    expect(screen.getByText('Subida publica')).toBeInTheDocument();
-    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.getByText('Carga publica')).toBeInTheDocument();
+    expect(screen.getByText('Equipo informado')).toBeInTheDocument();
     expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
   });

@@ -1510,6 +1510,7 @@ function OperationsHeatmapPanel({
   const renderState = heatmap?.render_contract?.state;
   const isFreshnessBlocked = canRenderHeatmap === false;
   const allowDemoFallback = import.meta.env.DEV && !isFreshnessBlocked && renderState !== 'empty';
+  const usesDemoFallback = allowDemoFallback && !filteredPoints.length;
   const isEmpty = isFreshnessBlocked || renderState === 'empty' || (!filteredPoints.length && !allowDemoFallback);
   const emptyDescription = isFreshnessBlocked
     ? 'El backend marco el heatmap como no renderizable para este periodo.'
@@ -1557,9 +1558,10 @@ function OperationsHeatmapPanel({
                 Centro territorial
               </CardTitle>
               {renderState ? <Badge variant={statusVariant(renderState)}>{statusLabel(renderState)}</Badge> : null}
+              {usesDemoFallback ? <Badge variant="outline">demo local</Badge> : null}
             </div>
             <CardDescription className="mt-1">
-              Calor territorial, capas IA, cobertura GPS y geocodificacion para decidir operativos.
+              Mapa operativo con calor territorial, capas IA, cobertura GPS y calidad de geocodificacion.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1605,7 +1607,9 @@ function OperationsHeatmapPanel({
                 <p className="text-xs text-muted-foreground">
                   {isEmpty
                     ? 'Sin puntos renderizables para las capas activas.'
-                    : `${formatNumber(filteredPoints.length)} puntos tras filtros y capas activas.`}
+                    : usesDemoFallback
+                      ? 'Vista demo local: el tenant real todavia no publico puntos geograficos renderizables.'
+                      : `${formatNumber(filteredPoints.length)} puntos tras filtros y capas activas.`}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1632,25 +1636,32 @@ function OperationsHeatmapPanel({
                 className="min-h-[360px] rounded-xl border bg-background"
               />
             ) : (
-              <PremiumTerritoryHeatmap
-                points={filteredPoints}
-                heatmap={heatmap}
-                labels={uiLabels}
-                mapConfig={mapConfig}
-                allowDemoFallback={allowDemoFallback}
-                demoProfile={demoProfile}
-                activeFilters={activeFilterSummaries.map((filter) => ({
-                  key: String(filter.queryParam),
-                  label: filter.label,
-                  value: filter.optionLabel,
-                  onClear: () =>
-                    onFiltersChange((current) => {
-                      const next = { ...current };
-                      delete next[filter.queryParam];
-                      return next;
-                    }),
-                }))}
-              />
+              <>
+                {usesDemoFallback ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
+                    Esta visualizacion usa datos demo solo en desarrollo. En un tenant real, Chatboc debe mostrar cobertura, pendientes de geocodificacion o el motivo de ausencia de puntos, no inventar geografia.
+                  </div>
+                ) : null}
+                <PremiumTerritoryHeatmap
+                  points={filteredPoints}
+                  heatmap={heatmap}
+                  labels={uiLabels}
+                  mapConfig={mapConfig}
+                  allowDemoFallback={allowDemoFallback}
+                  demoProfile={demoProfile}
+                  activeFilters={activeFilterSummaries.map((filter) => ({
+                    key: String(filter.queryParam),
+                    label: filter.label,
+                    value: filter.optionLabel,
+                    onClear: () =>
+                      onFiltersChange((current) => {
+                        const next = { ...current };
+                        delete next[filter.queryParam];
+                        return next;
+                      }),
+                  }))}
+                />
+              </>
             )}
 
             {segmentBreakdowns.length ? (

@@ -210,7 +210,7 @@ const DEFAULT_TEXT_EXAMPLES: MarketAssistedIntakeTextExample[] = [
 
 const CRM_RECEIVES = [
   'Archivo o texto original',
-  'Resumen IA con articulos, reclamos o datos detectados',
+  'Resumen con articulos, reclamos o datos detectados',
   'Cruce con catalogo y faltantes',
   'Categoria, area o tramite probable cuando no hay catalogo',
   'Link publico de seguimiento',
@@ -239,13 +239,13 @@ const PROCESSING_STEPS = [
   },
   {
     id: 'ai_parse',
-    label: 'IA desmenuza datos',
-    description: 'Articulos, cantidades, reclamo, tramite y datos faltantes.',
+    label: 'Identificamos datos',
+    description: 'Articulos, cantidades, reclamo, tramite y datos que falten.',
   },
   {
     id: 'crm_ready',
-    label: 'Queda listo para CRM',
-    description: 'El equipo revisa, responde y puede continuar por WhatsApp.',
+    label: 'El equipo lo recibe',
+    description: 'Queda listo para responder por WhatsApp, chat, mail o telefono.',
   },
 ];
 
@@ -427,6 +427,38 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       ? values.join(',')
       : '.pdf,.jpg,.jpeg,.png,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt';
   }, [submitContract?.accepted_extensions, submitContract?.accepted_mime_types]);
+  const submitAcceptedLabel = useMemo(() => {
+    const extensionLabels = (submitContract?.accepted_extensions?.filter(Boolean) ?? [])
+      .map((extension) => extension.replace(/^\./, '').trim().toUpperCase())
+      .filter(Boolean);
+    const mimeLabels = (submitContract?.accepted_mime_types?.filter(Boolean) ?? [])
+      .map((mimeType) => {
+        const normalized = mimeType.toLowerCase();
+        if (normalized.includes('jpeg')) return 'JPG';
+        if (normalized.includes('png')) return 'PNG';
+        if (normalized.includes('webp')) return 'WEBP';
+        if (normalized.includes('pdf')) return 'PDF';
+        if (normalized.includes('csv')) return 'CSV';
+        if (normalized.includes('spreadsheet') || normalized.includes('excel')) return 'EXCEL';
+        if (normalized.includes('wordprocessing') || normalized.includes('msword')) return 'WORD';
+        if (normalized.includes('plain')) return 'TXT';
+        if (normalized.startsWith('image/')) return 'IMAGEN';
+        return null;
+      })
+      .filter((label): label is string => Boolean(label));
+    const labels = Array.from(new Set([...extensionLabels, ...mimeLabels]));
+    const order = ['JPG', 'JPEG', 'PNG', 'WEBP', 'PDF', 'TXT', 'CSV', 'XLS', 'XLSX', 'EXCEL', 'DOC', 'DOCX', 'WORD'];
+    const sorted = labels.sort((a, b) => {
+      const aIndex = order.indexOf(a);
+      const bIndex = order.indexOf(b);
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+    return sorted.length ? sorted.join(', ') : 'PDF, JPG, PNG, WEBP, CSV, Excel, Word o TXT';
+  }, [submitContract?.accepted_extensions, submitContract?.accepted_mime_types]);
+  const submitMaxFileMbLabel = Math.max(1, Math.floor(submitMaxFileBytes / (1024 * 1024)));
   const marketplacePipeline =
     intakeExperience?.pipeline?.length ? intakeExperience.pipeline.slice(0, 4) : DEFAULT_MARKETPLACE_PIPELINE;
   const marketplaceExamples = intakeExperience?.input_examples?.length
@@ -516,14 +548,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             const total = Number(res.headers.get('Content-Length'));
             if (Number.isFinite(total) && total > 0) {
               setProgress(70);
-              setStatusMessage('La IA termino la lectura; armando seguimiento y revision CRM...');
+              setStatusMessage('Terminamos la lectura inicial; armando constancia y proximo paso...');
             }
           },
         },
       );
 
       setProgress(90);
-      setStatusMessage('Normalizando resultado para CRM y seguimiento publico...');
+      setStatusMessage('Preparando solicitud para que el equipo responda sin perder contexto...');
       setMatchSummary(response?.match_summary ?? null);
       setProcessedResponse(response ?? null);
 
@@ -544,7 +576,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       if (normalizedText) {
         setOrderText('');
       }
-      setStatusMessage('Solicitud procesada: quedo en CRM para revision y respuesta.');
+      setStatusMessage('Solicitud procesada: quedo lista para revision, respuesta y seguimiento.');
     } catch (uploadError) {
       if (uploadError instanceof ApiError) {
         const contentType = String(uploadError.body?.contentType || '').toLowerCase();
@@ -656,7 +688,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">Pedido asistido por IA</Badge>
+                    <Badge variant="outline">Carga asistida</Badge>
                     <Badge variant="outline">Sin registro previo</Badge>
                     <Badge variant="secondary">IA + revision humana</Badge>
                   </div>
@@ -665,7 +697,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                   </h2>
                   <p className="mt-1 line-clamp-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                     {intakeExperience?.summary ??
-                      'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe un lead/pedido con lectura IA, seguimiento y respuesta lista desde el CRM.'}
+                      'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe la solicitud ordenada, con datos faltantes y un canal claro para responderte.'}
                   </p>
                 </div>
               </div>
@@ -730,7 +762,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             </div>
 
             <div className="grid gap-2 rounded-lg border bg-card/80 p-3">
-              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Flujo operativo</p>
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Como se resuelve</p>
               {marketplacePipeline.map((step, index) => (
                 <div key={step.id ?? step.label ?? index} className="rounded-lg border bg-background p-2.5">
                   <div className="flex items-center gap-3">
@@ -790,16 +822,16 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               </div>
               <p className="font-semibold">Arrastra el archivo o seleccionalo</p>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Acepta imagenes, PDF, Excel, Word, CSV y TXT. Si la IA no lo lee con confianza, igual queda para revision humana.
+                Acepta {submitAcceptedLabel}. Maximo {submitMaxFileMbLabel} MB. Si no lo leemos con confianza, igual queda para revision humana.
               </p>
             </div>
 
             <div className="rounded-lg border bg-background p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Tambien podes escribir o pegar el pedido</p>
+                  <p className="text-sm font-semibold">Tambien podes escribir o pegar lo que necesitas</p>
                   <p className="text-xs text-muted-foreground">
-                    Para listas copiadas de WhatsApp, pedidos de mostrador o notas simples sin archivo.
+                    Sirve para listas copiadas de WhatsApp, pedidos de mostrador, reclamos, boletas o notas simples sin archivo.
                   </p>
                 </div>
                 <Badge variant="outline" className="w-fit">
@@ -819,7 +851,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               />
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Chatboc lo transforma en pedido, reclamo, tramite o lead. Maximo {submitMaxTextChars.toLocaleString()} caracteres.
+                  Lo convertimos en solicitud trazable. Maximo {submitMaxTextChars.toLocaleString()} caracteres.
                 </p>
                 <Button
                   type="button"
@@ -857,11 +889,16 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             </fieldset>
           </div>
 
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-sm font-semibold">Contacto para seguimiento</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Opcional, pero ayuda a responder por WhatsApp, email o llamada si faltan datos.
-            </p>
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Contacto para respuesta</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Recomendado: ayuda a responder por WhatsApp, email o llamada si faltan datos.
+                </p>
+              </div>
+              <Badge variant="secondary" className="shrink-0">Recomendado</Badge>
+            </div>
             <div className="mt-3 grid gap-2">
               <div className="grid gap-1.5">
                 <Label htmlFor="assisted-contact-name">Nombre</Label>
@@ -874,7 +911,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="assisted-contact-phone">WhatsApp o telefono</Label>
+                <Label htmlFor="assisted-contact-phone">WhatsApp para respuesta</Label>
                 <Input
                   id="assisted-contact-phone"
                   value={contactPhone}
@@ -907,7 +944,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             </div>
             <Separator className="my-3" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">El CRM recibe</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">El equipo recibe</p>
               <div className="mt-2 grid gap-2">
                 {crmReceives.map((item) => (
                   <div key={item} className="flex items-start gap-2 rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
@@ -948,7 +985,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         ) : null}
         {isMarketplace ? (
           <p className="text-xs text-muted-foreground">
-            El equipo ve el archivo o texto original, el resumen IA y las acciones siguientes desde el CRM.
+            El equipo ve el archivo o texto original, los datos detectados y las acciones siguientes desde su panel.
           </p>
         ) : null}
       </div>

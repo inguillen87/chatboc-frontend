@@ -79,7 +79,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByLabelText('Nombre'), {
       target: { value: 'Marcelo' },
     });
-    fireEvent.change(screen.getByLabelText('WhatsApp o telefono'), {
+    fireEvent.change(screen.getByLabelText('WhatsApp para respuesta'), {
       target: { value: '+5492613168608' },
     });
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -213,8 +213,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(await screen.findByText('Procesando solicitud con IA')).toBeInTheDocument();
     expect(screen.getByText(/Analizando nota de pedido con IA/i)).toBeInTheDocument();
     expect(screen.getByText('Recibimos la entrada')).toBeInTheDocument();
-    expect(screen.getByText('IA desmenuza datos')).toBeInTheDocument();
-    expect(screen.getByText('Queda listo para CRM')).toBeInTheDocument();
+    expect(screen.getByText('Identificamos datos')).toBeInTheDocument();
+    expect(screen.getByText('El equipo lo recibe')).toBeInTheDocument();
 
     resolveRequest({
       contract_version: 'marketplace.assisted_request.v1',
@@ -222,7 +222,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
       customer_message: 'Solicitud recibida para revision.',
     });
 
-    expect(await screen.findByText(/Solicitud procesada: quedo en CRM/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Solicitud procesada: quedo lista/i)).toBeInTheDocument();
   });
 
   it('submits a handwritten photo as an assisted marketplace file', async () => {
@@ -307,7 +307,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByLabelText('Nombre'), {
       target: { value: 'Marcelo' },
     });
-    fireEvent.change(screen.getByLabelText('WhatsApp o telefono'), {
+    fireEvent.change(screen.getByLabelText('WhatsApp para respuesta'), {
       target: { value: '+5492613168608' },
     });
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
