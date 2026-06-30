@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -118,21 +118,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
 
   const filteredTicketsByCategory = React.useMemo(() => {
     const baseCategories = { ...ticketsByCategory };
-
-    // Agrupar 'solicitudes de llamada' si existen en una categoría específica o inferida
-    // Si el ticket tiene un tipo especial o prefijo, se podría mover aquí.
-    // Por ahora, asumimos que vienen como categoría 'Solicitud de Llamada' desde el backend
-    // o las agrupamos manualmente si detectamos el patrón.
-
     // Ensure all backend categories exist even if empty
     backendCategories.forEach((cat) => {
       if (!baseCategories[cat]) {
         baseCategories[cat] = [];
       }
     });
-
-    // Crear grupo explícito para Solicitudes si no existe, o renombrarlo si es necesario
-    // Detectamos tickets que parezcan solicitudes de llamada en otras categorías
+    // Keep call requests grouped so operators can answer them without scanning every category.
     const callRequestTerms = [
       'solicitud de llamada',
       'solicito llamada',
@@ -140,19 +132,15 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       'llamarme',
     ];
     const callRequests: any[] = [];
-
-    // Si ya existe la categoría, usémosla como base
     if (baseCategories['Solicitudes de Llamada']) {
       callRequests.push(...baseCategories['Solicitudes de Llamada']);
-      delete baseCategories['Solicitudes de Llamada']; // Lo reinsertaremos después
+      delete baseCategories['Solicitudes de Llamada'];
     }
-
-    // Buscar en otras categorías
     Object.keys(baseCategories).forEach((cat) => {
       const remainingTickets: any[] = [];
       baseCategories[cat].forEach((ticket) => {
         const subject = (ticket.asunto || '').toLowerCase();
-        const content = (ticket.mensaje || '').toLowerCase(); // Dependiendo de la estructura del ticket
+        const content = (ticket.mensaje || '').toLowerCase();
 
         if (
           callRequestTerms.some(
@@ -166,23 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       });
       baseCategories[cat] = remainingTickets;
     });
-
-    // Si encontramos solicitudes, las agregamos como categoría prioritaria (al principio si es posible, o simplemente la agregamos)
     if (callRequests.length > 0) {
-      // Podemos insertarlo al principio creando un nuevo objeto
-      const newCategories = {
-        'Solicitudes de Llamada': callRequests,
-        ...baseCategories,
-      };
-      // Asignar de nuevo a baseCategories (que es const, así que mejor retornamos newCategories)
-      // Pero baseCategories es una copia local de ticketsByCategory, así que podemos mutar o reasignar referencias.
-      // Dado que filteredTicketsByCategory retorna un objeto, retornaremos el nuevo objeto aquí.
-      // Sin embargo, filteredTicketsByCategory se construye iterativamente abajo con el término de búsqueda.
-      // Así que aquí solo estamos manipulando la "base" antes del filtro de búsqueda.
-      // Ah, filteredTicketsByCategory es el useMemo completo.
-      // Modifiquemos la lógica para retornar newCategories filtrado después.
-
-      // Re-inject into baseCategories for the search logic below to work on it
       baseCategories['Solicitudes de Llamada'] = callRequests;
     }
 
@@ -340,6 +312,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       ? '1 activo'
       : `${secondaryFilterCount} activos`;
   const hasActiveFilters = Boolean(debouncedSearchTerm) || hasSecondaryFilters;
+  const isDefaultFilterSet = React.useMemo(
+    () =>
+      Object.entries(defaultFilters).every(
+        ([key, value]) => filters[key as keyof typeof defaultFilters] === value,
+      ),
+    [filters],
+  );
   const secondaryFilterButtonLabel = hasSecondaryFilters
     ? `Filtros secundarios, ${secondaryFilterCountLabel}`
     : 'Filtros secundarios';
@@ -375,7 +354,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
             </h1>
             <p className="text-xs text-muted-foreground">
-              {filteredTickets.length.toLocaleString('es-AR')} filtrados ·{' '}
+              {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
               {tickets.length.toLocaleString('es-AR')} de{' '}
               {totalBackendTickets.toLocaleString('es-AR')} cargados
             </p>
@@ -412,7 +391,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             id={searchInputId}
-            placeholder="Buscar por nro, asunto, nombre, DNI, teléfono..."
+            placeholder="Buscar por nro, asunto, nombre, DNI, telefono..."
             className="h-9 pl-8 text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -421,24 +400,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
 
         <div className="flex items-center gap-1.5">
           <div
-            className="grid min-w-0 flex-1 grid-cols-3 gap-1.5"
+            className="grid min-w-0 flex-1 grid-cols-4 gap-1.5"
             role="group"
-            aria-label="Vistas rapidas de reclamos"
+            aria-label="Vistas rapidas de la bandeja"
             data-testid="sidebar-primary-filters"
           >
             <Button
               type="button"
               size="sm"
               variant={
-                filters.unread === 'all' && filters.sla === 'all'
+                !debouncedSearchTerm && isDefaultFilterSet
                   ? 'secondary'
                   : 'outline'
               }
               className="h-8 rounded-lg px-2 text-xs"
-              aria-pressed={filters.unread === 'all' && filters.sla === 'all'}
-              onClick={() =>
-                setFilters((prev) => ({ ...prev, unread: 'all', sla: 'all' }))
-              }
+              aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
+              onClick={resetFilters}
             >
               Todos
             </Button>
@@ -468,6 +445,21 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               }
             >
               Riesgo
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
+              className="h-8 rounded-lg px-2 text-xs"
+              aria-pressed={filters.agent === 'unassigned'}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
+                }))
+              }
+            >
+              Sin resp.
             </Button>
           </div>
 
@@ -580,7 +572,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                     setFilters((prev) => ({ ...prev, area: e.target.value }))
                   }
                 >
-                  <option value="all">Área: todas</option>
+                  <option value="all">Area: todas</option>
                   {filterOptions.areas.map((area) => (
                     <option key={area} value={area}>
                       {area}
@@ -684,8 +676,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               {showEmptyCategories
-                ? 'Ocultar rubros vacíos'
-                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacíos`}
+                ? 'Ocultar rubros vacios'
+                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
             </button>
           </div>
         ) : null}
@@ -695,7 +687,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               No hay casos para esta vista
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Ajustá búsqueda o filtros para volver a ver conversaciones.
+              Ajusta busqueda o filtros para volver a ver conversaciones.
             </p>
             {hasActiveFilters ? (
               <Button
@@ -750,7 +742,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                         className="w-full"
                         onClick={() => handleLoadMore(category)}
                       >
-                        Cargar más
+                        Cargar mas
                       </Button>
                     </div>
                   )}

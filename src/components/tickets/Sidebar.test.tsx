@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -118,13 +118,13 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByText('limpieza (0)')).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole('button', { name: /mostrar 2 rubros vacíos/i }),
+      screen.getByRole('button', { name: /mostrar 2 rubros vacios/i }),
     );
 
     expect(screen.getByText('luminaria (0)')).toBeInTheDocument();
     expect(screen.getByText('limpieza (0)')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /ocultar rubros vacíos/i }),
+      screen.getByRole('button', { name: /ocultar rubros vacios/i }),
     ).toBeInTheDocument();
   });
   it('keeps secondary filters collapsed in a compact floating panel', async () => {
@@ -136,7 +136,7 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.getByTestId('sidebar-primary-filters')).toBeInTheDocument();
     expect(
-      screen.getByRole('group', { name: /vistas rapidas de reclamos/i }),
+      screen.getByRole('group', { name: /vistas rapidas de la bandeja/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^todos$/i })).toHaveAttribute(
       'aria-pressed',
@@ -149,6 +149,10 @@ describe('Tickets Sidebar category density', () => {
     expect(
       screen.getByRole('button', { name: /filtros secundarios/i }),
     ).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: /sin resp/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
@@ -203,5 +207,47 @@ describe('Tickets Sidebar category density', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('1');
+  });
+
+  it('uses Todos as a true reset and exposes unassigned as an operational shortcut', async () => {
+    const ticket = {
+      id: 378430,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo De Calle',
+      categoria: 'Arreglo De Calle',
+      estado: 'nuevo',
+    };
+
+    useTicketsMock.mockReturnValue({
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      ticketsByCategory: {
+        'Arreglo De Calle': [ticket],
+      },
+      selectedTicket: null,
+      selectTicket: selectTicketMock,
+      filters: { ...defaultFilters, channel: 'whatsapp' },
+      setFilters: setFiltersMock,
+      filterOptions: {
+        ...defaultFilterOptions,
+        channels: ['whatsapp'],
+      },
+    });
+
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^todos$/i }));
+    expect(setFiltersMock).toHaveBeenCalledWith(defaultFilters);
+
+    fireEvent.click(screen.getByRole('button', { name: /sin resp/i }));
+    expect(setFiltersMock).toHaveBeenCalledWith(expect.any(Function));
+    const lastCall = setFiltersMock.mock.calls[setFiltersMock.mock.calls.length - 1];
+    const updater = lastCall?.[0] as (previous: typeof defaultFilters) => typeof defaultFilters;
+    expect(updater(defaultFilters)).toMatchObject({ agent: 'unassigned' });
   });
 });
