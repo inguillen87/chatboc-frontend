@@ -1,5 +1,15 @@
 import { useMemo } from 'react';
-import { Copy, ExternalLink, MessageCircle, QrCode, Share2, TrendingUp } from 'lucide-react';
+import {
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  MessageCircle,
+  QrCode,
+  Radio,
+  ScanLine,
+  Share2,
+  TrendingUp,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -83,6 +93,11 @@ const openShareWindow = (url: string) => {
     console.warn('[PublicSurveyShareActions] No se pudo abrir la ventana de compartir', error);
     window.location.href = url;
   }
+};
+
+const humanizeChannel = (value?: string | null) => {
+  if (!value) return undefined;
+  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
 export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveyShareActionsProps) => {
@@ -226,6 +241,38 @@ export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveySha
     return highlights;
   }, [submission]);
 
+  const distributionStatus = useMemo(() => {
+    const isRealtime = Boolean(survey.es_votacion_envivo || survey.mostrar_resultados_envivo);
+    const channel = humanizeChannel(submission?.canal ?? submission?.metadata?.canal);
+
+    return [
+      {
+        id: 'status',
+        icon: CheckCircle2,
+        label: submission ? 'Respuesta registrada' : 'Link publico activo',
+        detail: submission ? 'La participacion ya entro al tablero.' : 'Listo para copiar, publicar y medir.',
+      },
+      {
+        id: 'realtime',
+        icon: Radio,
+        label: isRealtime ? 'Realtime encendido' : 'Realtime trazable',
+        detail: isRealtime ? 'Resultados, QR y canales alimentan la lectura en vivo.' : 'UTM, canal y metadatos quedan listos para analytics.',
+      },
+      {
+        id: 'qr',
+        icon: ScanLine,
+        label: 'QR para sala',
+        detail: 'Pantalla completa para eventos, comercios o territorio.',
+      },
+      {
+        id: 'share',
+        icon: Share2,
+        label: channel ? `Canal ${channel}` : 'Share multicanal',
+        detail: 'WhatsApp, redes, link nativo y enlace directo.',
+      },
+    ];
+  }, [submission, survey.es_votacion_envivo, survey.mostrar_resultados_envivo]);
+
   const handleCopyLink = async () => {
     const success = await copyToClipboard(shareUrl);
     if (success) {
@@ -270,6 +317,44 @@ export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveySha
 
   return (
     <div className="w-full space-y-5 text-left">
+      <div
+        className="overflow-hidden rounded-xl border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_32%),linear-gradient(135deg,#ffffff,rgba(248,250,252,0.92))] shadow-sm"
+        data-testid="public-survey-distribution-status"
+      >
+        <div className="flex flex-col gap-3 border-b border-slate-200/80 p-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <QrCode className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Difusion operativa
+              </p>
+              <h3 className="mt-1 text-lg font-semibold tracking-normal text-foreground">
+                QR, share y resultados listos para operar
+              </h3>
+            </div>
+          </div>
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            {submission ? 'Sincronizado' : 'Preparado'}
+          </span>
+        </div>
+        <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          {distributionStatus.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.id} className="rounded-lg border border-slate-200/80 bg-white/80 p-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span>{item.label}</span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button onClick={handleCopyLink} className="min-w-[180px]">
           <Copy className="mr-2 h-4 w-4" /> Copiar enlace

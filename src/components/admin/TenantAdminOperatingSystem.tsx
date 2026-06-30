@@ -26,6 +26,7 @@ import {
   normalizeOmnichannelInboxItemV2,
   runTenantOpsQaCheckV2,
   type OmnichannelInboxItem,
+  type ProductionSmokeE2EFlow,
   type TenantAdminExperienceV2,
   type TenantOpsQaExecutionV2,
   type TenantOpsQaPlaybookV2,
@@ -1033,7 +1034,40 @@ const qaTone = (status?: string | null, ok?: boolean): "ready" | "warning" | "da
   return "neutral";
 };
 
-const OpsQaCommandCenter = ({
+const readFlowEntry = (flow: ProductionSmokeE2EFlow) =>
+  flow.frontend_entry || flow.endpoint || flow.next_action || flow.qa_scenario_id || flow.id;
+
+const readFlowAutomationState = (flow: ProductionSmokeE2EFlow) => {
+  const automation = flow.automation ?? {};
+  const safeValue = String(first(automation, ["safe_by_default", "read_only", "safe"]) ?? "").toLowerCase();
+  const liveValue = String(first(automation, ["live_side_effects", "sends_real_message"]) ?? "").toLowerCase();
+  const runner = asString(first(automation, ["runner", "command", "script", "job_id"]));
+  const safe = ["true", "1", "yes", "read_only"].includes(safeValue) || !["true", "1", "yes"].includes(liveValue);
+  return {
+    label: runner || (safe ? "Automatizacion segura" : "Automatizacion con efectos"),
+    tone: safe ? "ready" : "warning",
+  } as const;
+};
+
+const FlowListPreview = ({ title, items }: { title: string; items: string[] }) => {
+  const visible = items.slice(0, 3);
+  if (!visible.length) return null;
+  return (
+    <div className="rounded-[8px] border border-border/60 bg-muted/20 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</p>
+      <ul className="mt-2 space-y-1 text-xs leading-5 text-muted-foreground">
+        {visible.map((item, index) => (
+          <li key={`${title}-${index}`} className="flex gap-2">
+            <span className="font-semibold text-primary">{index + 1}.</span>
+            <span className="min-w-0">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export const OpsQaCommandCenter = ({
   playbook,
   error,
   results,
@@ -1052,6 +1086,11 @@ const OpsQaCommandCenter = ({
   const checks = playbook?.checks ?? [];
   const critical = checks.filter((check) => !check.ok && String(check.severity || "").toLowerCase() === "critical");
   const visibleChecks = [...critical, ...checks.filter((check) => !critical.some((item) => item.id === check.id))].slice(0, 8);
+  const e2e = playbook?.e2e_flow_readiness;
+  const e2eSummary = e2e?.summary ?? {};
+  const e2eFlows = e2e?.flows ?? [];
+  const e2eReady = asNumber(first(e2eSummary, ["ready", "ready_flows"])) ?? e2eFlows.filter((flow) => flow.ready).length;
+  const e2eTotal = asNumber(first(e2eSummary, ["total", "flows_total"])) ?? e2eFlows.length;
 
   return (
     <section className="rounded-[28px] border border-border/60 bg-background/90 p-5 shadow-sm">
@@ -1092,6 +1131,63 @@ const OpsQaCommandCenter = ({
             <MetricCard label="Warnings" value={formatNumber(first(summary, ["warnings"]))} icon={AlertTriangle} />
             <MetricCard label="Criticos" value={formatNumber(first(summary, ["critical_failed"]))} icon={AlertTriangle} />
           </div>
+
+          {e2eFlows.length ? (
+            <div className="mt-4 rounded-[8px] border border-primary/20 bg-primary/5 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Matriz operativa</p>
+                  <h3 className="mt-1 text-base font-black tracking-tight text-foreground">Flujos E2E listos para probar y vender</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Reclamos, pedidos, encuestas, WhatsApp, widget y webviews se ven como experiencias reales, con pasos y criterios claros.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatePill value={`${e2eReady}/${e2eTotal} listos`} tone={e2eReady === e2eTotal ? "ready" : "warning"} />
+                  <StatePill value={e2e?.status || "sin estado"} tone={qaTone(e2e?.status, e2eReady === e2eTotal)} />
+                  <StatePill value="Read-only primero" tone="ready" />
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                {e2eFlows.slice(0, 8).map((flow) => {
+                  const automationState = readFlowAutomationState(flow);
+                  return (
+                    <div key={flow.id} className="rounded-[8px] border border-border/60 bg-background p-4 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-semibold text-foreground">{flow.label}</h4>
+                            <StatePill value={flow.status || (flow.ready ? "ready" : "needs_attention")} tone={qaTone(flow.status, flow.ready)} />
+                          </div>
+                          <p className="mt-1 break-all text-xs text-muted-foreground">{readFlowEntry(flow)}</p>
+                        </div>
+                        <StatePill value={flow.surface || "omnicanal"} />
+                      </div>
+
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        <ContractLine label="Entrada" value={readFlowEntry(flow)} />
+                        <ContractLine label="QA scenario" value={flow.qa_scenario_id || flow.next_action || "pendiente"} />
+                      </div>
+
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        <FlowListPreview title="Pasos manuales" items={flow.manual_test_steps} />
+                        <FlowListPreview title="Criterios" items={flow.acceptance_criteria} />
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <StatePill value={automationState.label} tone={automationState.tone} />
+                        {flow.meta_flow_ready !== null && flow.meta_flow_ready !== undefined ? (
+                          <StatePill value={flow.meta_flow_ready ? "Meta Flow listo" : "Meta Flow pendiente"} tone={flow.meta_flow_ready ? "ready" : "warning"} />
+                        ) : null}
+                        {flow.next_action ? <StatePill value={flow.next_action} /> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
             {visibleChecks.map((check) => {

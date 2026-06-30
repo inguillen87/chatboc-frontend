@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TransactionsModulePanel } from "./TenantAdminOperatingSystem";
+import { OpsQaCommandCenter, TransactionsModulePanel } from "./TenantAdminOperatingSystem";
 
 const financeExperience = {
   commerce: {
@@ -131,6 +131,75 @@ const financeExperience = {
     },
   },
 };
+
+describe("OpsQaCommandCenter", () => {
+  it("renders backend E2E flow readiness with manual steps and criteria", () => {
+    render(
+      <OpsQaCommandCenter
+        playbook={{
+          contract_version: "tenant.ops_qa.playbook.v1",
+          tenant: { slug: "junin" },
+          safe_by_default: true,
+          status: "warning",
+          score: 0.86,
+          summary: { checks_total: 1, passed: 1, warnings: 0, critical_failed: 0 },
+          checks: [
+            {
+              id: "whatsapp_webhook",
+              label: "Webhook WhatsApp",
+              ok: true,
+              status: "pass",
+              endpoint: "/api/twilio/whatsapp",
+              details: {},
+            },
+          ],
+          e2e_flow_readiness: {
+            contract_version: "platform.e2e_flow_readiness.v1",
+            status: "ready",
+            summary: { total: 1, ready: 1 },
+            flows: [
+              {
+                id: "gov_claim_text_to_tracking",
+                label: "Municipio: reclamo por WhatsApp",
+                surface: "whatsapp",
+                ready: true,
+                status: "ready",
+                endpoint: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+                frontend_entry: "/perfil?tab=tickets",
+                qa_scenario_id: "gov_claim_text_to_tracking",
+                meta_flow_ready: true,
+                evidence: { tickets_recent: 3 },
+                manual_test_steps: ["Crear un reclamo por WhatsApp", "Abrir el estado publico"],
+                acceptance_criteria: ["El ticket aparece en CRM", "El link publico muestra el estado"],
+                automation: { safe_by_default: true, runner: "tenant_ops_qa" },
+                next_action: "run_whatsapp_claim_text_to_tracking_and_open_public_status",
+                raw: {},
+              },
+            ],
+            frontend_contract: { render_as: "e2e_flow_readiness_grid" },
+            raw: {},
+          },
+          recommended_next_actions: [],
+          execution: {},
+          frontend_contract: {},
+          raw: {},
+        }}
+        error={null}
+        results={{}}
+        runningCheckId={null}
+        onRunCheck={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Flujos E2E listos para probar y vender")).toBeInTheDocument();
+    expect(screen.getByText("Municipio: reclamo por WhatsApp")).toBeInTheDocument();
+    expect(screen.getAllByText("/perfil?tab=tickets").length).toBeGreaterThan(0);
+    expect(screen.getByText("Crear un reclamo por WhatsApp")).toBeInTheDocument();
+    expect(screen.getByText("El ticket aparece en CRM")).toBeInTheDocument();
+    expect(screen.getByText("tenant_ops_qa")).toBeInTheDocument();
+    expect(screen.getByText("Meta Flow listo")).toBeInTheDocument();
+  });
+});
 
 describe("TransactionsModulePanel", () => {
   it("renders the finance activation plan from the backend contract", () => {

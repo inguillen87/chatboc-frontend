@@ -223,8 +223,15 @@ describe("tenant admin v2 contracts", () => {
             ready: true,
             status: "ready",
             endpoint: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+            frontend_entry: "/perfil?tab=tickets",
             qa_scenario_id: "gov_claim_text_to_tracking",
             meta_flow_ready: true,
+            manual_test_steps: ["Crear un reclamo por WhatsApp", "Abrir el estado publico"],
+            acceptance_criteria: ["El ticket aparece en CRM", "El link publico muestra el estado"],
+            automation: {
+              safe_by_default: true,
+              runner: "tenant_ops_qa",
+            },
             evidence: { tickets_recent: 3 },
             next_action: "run_whatsapp_claim_text_to_tracking_and_open_public_status",
           },
@@ -245,7 +252,14 @@ describe("tenant admin v2 contracts", () => {
       id: "gov_claim_text_to_tracking",
       ready: true,
       meta_flow_ready: true,
+      frontend_entry: "/perfil?tab=tickets",
       qa_scenario_id: "gov_claim_text_to_tracking",
+      manual_test_steps: ["Crear un reclamo por WhatsApp", "Abrir el estado publico"],
+      acceptance_criteria: ["El ticket aparece en CRM", "El link publico muestra el estado"],
+      automation: {
+        safe_by_default: true,
+        runner: "tenant_ops_qa",
+      },
     });
   });
 });

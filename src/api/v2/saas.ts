@@ -278,6 +278,7 @@ export interface TenantOpsQaPlaybookV2 {
   score?: number;
   summary: UnknownRecord;
   checks: TenantOpsQaCheckV2[];
+  e2e_flow_readiness?: ProductionSmokeE2EReadiness;
   recommended_next_actions: TenantOpsQaCheckV2[];
   execution: UnknownRecord;
   frontend_contract: UnknownRecord;
@@ -359,9 +360,13 @@ export interface ProductionSmokeE2EFlow {
   ready: boolean;
   status?: string;
   endpoint?: string;
+  frontend_entry?: string;
   qa_scenario_id?: string;
   meta_flow_ready?: boolean | null;
   evidence?: UnknownRecord;
+  manual_test_steps: string[];
+  acceptance_criteria: string[];
+  automation: UnknownRecord;
   next_action?: string;
   raw: UnknownRecord;
 }
@@ -559,6 +564,20 @@ const normalizeRatio = (value: number | undefined) => {
 const arrayOfStrings = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value.map((item) => asString(item)).filter((item): item is string => Boolean(item));
+};
+
+const normalizeMaybeStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string' || typeof item === 'number') return asString(item);
+        if (isRecord(item)) return asString(getFirst(item, ['label', 'title', 'text', 'description', 'id']));
+        return undefined;
+      })
+      .filter((item): item is string => Boolean(item));
+  }
+  const single = asString(value);
+  return single ? [single] : [];
 };
 
 const normalizeStringList = (value: unknown): string[] => {
@@ -1296,6 +1315,7 @@ export const normalizeTenantOpsQaPlaybookV2 = (response: unknown): TenantOpsQaPl
     score: asNumber(record.score) ?? undefined,
     summary: asRecord(record.summary),
     checks: asArray(record.checks).map((item, index) => normalizeTenantOpsQaCheckV2(item, index)),
+    e2e_flow_readiness: normalizeProductionSmokeE2EReadiness(record.e2e_flow_readiness),
     recommended_next_actions: asArray(record.recommended_next_actions).map((item, index) =>
       normalizeTenantOpsQaCheckV2(item, index),
     ),
@@ -1448,9 +1468,13 @@ const normalizeProductionSmokeE2EFlow = (value: unknown, index = 0): ProductionS
     ready: Boolean(asBoolean(getFirst(value, ['ready', 'ok', 'passed'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'ready'),
     status: asString(getFirst(value, ['status', 'state'])),
     endpoint: asString(value.endpoint),
+    frontend_entry: asString(getFirst(value, ['frontend_entry', 'frontend_route', 'route', 'href'])),
     qa_scenario_id: asString(value.qa_scenario_id),
     meta_flow_ready: asBoolean(value.meta_flow_ready),
     evidence: value.evidence ? asRecord(value.evidence) : undefined,
+    manual_test_steps: normalizeMaybeStringList(getFirst(value, ['manual_test_steps', 'manual_steps', 'test_steps'])),
+    acceptance_criteria: normalizeMaybeStringList(getFirst(value, ['acceptance_criteria', 'criteria'])),
+    automation: asRecord(value.automation),
     next_action: asString(value.next_action),
     raw: value,
   };
