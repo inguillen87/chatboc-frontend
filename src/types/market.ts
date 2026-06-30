@@ -444,20 +444,24 @@ export interface MarketPublicApiEndpoint {
   method?: string | null;
   endpoint?: string | null;
   alias_endpoint?: string | null;
+  guest_safe?: boolean | null;
   [key: string]: unknown;
 }
 
 export interface MarketPublicApiContract {
   contract_version?: string | null;
   anonymous?: boolean | null;
+  guest_safe?: boolean | null;
   identity_headers?: string[] | null;
   catalog?: MarketPublicApiEndpoint | null;
   cart?: {
     summary?: MarketPublicApiEndpoint | null;
+    items?: MarketPublicApiEndpoint | null;
     add?: MarketPublicApiEndpoint | null;
     update?: MarketPublicApiEndpoint | null;
     remove?: MarketPublicApiEndpoint | null;
     clear?: MarketPublicApiEndpoint | null;
+    legacy?: MarketPublicApiEndpoint | null;
     checkout?: MarketPublicApiEndpoint | null;
     [key: string]: unknown;
   } | null;

@@ -525,6 +525,7 @@ describe('market api continuity normalization', () => {
       public_api: {
         contract_version: 'marketplace.public_api.v1',
         anonymous: true,
+        guest_safe: true,
         identity_headers: ['X-Anon-Id', 'X-Chat-Session-Id', 'X-Tenant'],
         catalog: {
           method: 'GET',
@@ -532,11 +533,13 @@ describe('market api continuity normalization', () => {
           alias_endpoint: '/api/public/tenants/junin/catalog?contract=marketplace',
         },
         cart: {
-          summary: { method: 'GET', endpoint: '/api/market/junin/cart' },
-          add: { method: 'POST', endpoint: '/api/market/junin/cart/add' },
+          summary: { method: 'GET', endpoint: '/api/pwa/public/cart/summary?tenant=junin', guest_safe: true },
+          add: { method: 'POST', endpoint: '/api/pwa/public/cart/add?tenant=junin', guest_safe: true },
+          items: { method: 'GET', endpoint: '/api/pwa/public/cart/items?tenant=junin', guest_safe: true },
         },
         checkout: {
-          start: { method: 'POST', endpoint: '/api/market/junin/checkout/start' },
+          start: { method: 'POST', endpoint: '/api/checkout/crear-preferencia' },
+          preview: { method: 'GET', endpoint: '/api/pwa/public/cart/summary?tenant=junin', guest_safe: true },
           fallback_behavior: 'return_structured_plan_or_payment_error_never_tokenized_endpoint',
         },
         assisted_upload: {
@@ -554,16 +557,20 @@ describe('market api continuity normalization', () => {
     expect(catalog.public_api).toMatchObject({
       contract_version: 'marketplace.public_api.v1',
       anonymous: true,
+      guest_safe: true,
       identity_headers: ['X-Anon-Id', 'X-Chat-Session-Id', 'X-Tenant'],
       catalog: {
         endpoint: '/api/market/junin/catalog?contract=marketplace',
         alias_endpoint: '/api/public/tenants/junin/catalog?contract=marketplace',
       },
       cart: {
-        add: { endpoint: '/api/market/junin/cart/add' },
+        summary: { endpoint: '/api/pwa/public/cart/summary?tenant=junin', guest_safe: true },
+        add: { endpoint: '/api/pwa/public/cart/add?tenant=junin', guest_safe: true },
+        items: { endpoint: '/api/pwa/public/cart/items?tenant=junin', guest_safe: true },
       },
       checkout: {
-        start: { endpoint: '/api/market/junin/checkout/start' },
+        start: { endpoint: '/api/checkout/crear-preferencia' },
+        preview: { endpoint: '/api/pwa/public/cart/summary?tenant=junin', guest_safe: true },
         fallback_behavior: 'return_structured_plan_or_payment_error_never_tokenized_endpoint',
       },
       assisted_upload: {
@@ -577,5 +584,54 @@ describe('market api continuity normalization', () => {
       method: 'POST',
       endpoint: '/api/pedidos/from-file?origen=marketplace',
     });
+  });
+
+  it('uses canonical guest-safe marketplace cart endpoints after reading the public API contract', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        contract_version: 'public.market_catalog.v1',
+        products: [],
+        public_api: {
+          contract_version: 'marketplace.public_api.v1',
+          anonymous: true,
+          guest_safe: true,
+          cart: {
+            summary: { method: 'GET', endpoint: '/api/pwa/public/cart/summary?tenant=canonic', guest_safe: true },
+            add: { method: 'POST', endpoint: '/api/pwa/public/cart/add?tenant=canonic', guest_safe: true },
+          },
+        },
+      })
+      .mockResolvedValueOnce({ items: [], totalAmount: 0 })
+      .mockResolvedValueOnce({ items: [{ id: '22', name: 'Chapa', quantity: 2 }], totalAmount: 2400 });
+
+    await fetchMarketCatalog('canonic');
+    await fetchMarketCart('canonic');
+    await addMarketItem('canonic', { productId: '22', quantity: 2 });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/pwa/public/cart/summary?tenant=canonic',
+      expect.objectContaining({
+        tenantSlug: 'canonic',
+        skipAuth: true,
+        omitCredentials: true,
+        sendAnonId: true,
+      }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/pwa/public/cart/add?tenant=canonic',
+      expect.objectContaining({
+        method: 'POST',
+        tenantSlug: 'canonic',
+        skipAuth: true,
+        omitCredentials: true,
+        sendAnonId: true,
+        body: expect.objectContaining({
+          catalogo_item_id: '22',
+          cantidad: 2,
+        }),
+      }),
+    );
   });
 });

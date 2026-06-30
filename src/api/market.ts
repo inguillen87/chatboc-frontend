@@ -86,6 +86,56 @@ const getFirst = (record: Record<string, unknown>, keys: string[]) => {
   return undefined;
 };
 
+const marketPublicApiContracts = new Map<string, MarketPublicApiContract>();
+
+const normalizeTenantContractKey = (tenantSlug: string | null | undefined): string | null => {
+  const normalized = typeof tenantSlug === 'string' ? tenantSlug.trim().toLowerCase() : '';
+  return normalized || null;
+};
+
+const endpointIsGuestSafe = (endpoint: MarketPublicApiEndpoint | null | undefined, tenantSlug: string): boolean => {
+  const path = endpoint?.endpoint;
+  if (!path) return false;
+  if (endpoint.guest_safe === true) return true;
+  return (
+    path.startsWith('/api/pwa/public/cart') ||
+    path.startsWith(`/api/${encodeURIComponent(tenantSlug)}/carrito`) ||
+    path.startsWith(`/api/${tenantSlug}/carrito`)
+  );
+};
+
+const rememberMarketPublicApiContract = (
+  tenantSlug: string | null | undefined,
+  contract: MarketPublicApiContract | null | undefined,
+) => {
+  const key = normalizeTenantContractKey(tenantSlug);
+  if (!key || !contract) return;
+  marketPublicApiContracts.set(key, contract);
+};
+
+const resolveMarketCartEndpoint = (
+  tenantSlug: string,
+  action: 'summary' | 'add',
+): string | null => {
+  const key = normalizeTenantContractKey(tenantSlug);
+  const contract = key ? marketPublicApiContracts.get(key) : null;
+  const endpoint = action === 'summary' ? contract?.cart?.summary : contract?.cart?.add;
+  return endpointIsGuestSafe(endpoint, tenantSlug) ? endpoint?.endpoint ?? null : null;
+};
+
+const marketCartFetchOptions = (endpoint: string, tenantSlug: string) => ({
+  tenantSlug,
+  suppressPanel401Redirect: true,
+  omitChatSessionId: true,
+  ...(endpoint.startsWith('/api/pwa/public/cart')
+    ? {
+        skipAuth: true,
+        omitCredentials: true,
+        sendAnonId: true,
+      }
+    : {}),
+});
+
 const getSource = (input: unknown): unknown => {
   const record = asRecordOrNull(input);
   if (record && asRecordOrNull(record.data)) return record.data;
@@ -272,6 +322,7 @@ const normalizePublicApiEndpoint = (value: unknown): MarketPublicApiEndpoint | n
     endpoint,
     alias_endpoint: aliasEndpoint,
     method,
+    guest_safe: asBooleanOrNull(getFirst(record, ['guest_safe', 'guestSafe'])),
   };
 };
 
@@ -281,10 +332,12 @@ const normalizePublicApiCart = (value: unknown): MarketPublicApiContract['cart']
   return {
     ...record,
     summary: normalizePublicApiEndpoint(getFirst(record, ['summary', 'get'])),
+    items: normalizePublicApiEndpoint(record.items),
     add: normalizePublicApiEndpoint(record.add),
     update: normalizePublicApiEndpoint(record.update),
     remove: normalizePublicApiEndpoint(record.remove),
     clear: normalizePublicApiEndpoint(record.clear),
+    legacy: normalizePublicApiEndpoint(record.legacy),
     checkout: normalizePublicApiEndpoint(record.checkout),
   };
 };
@@ -315,6 +368,7 @@ const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | n
     ...record,
     contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
     anonymous: asBooleanOrNull(record.anonymous),
+    guest_safe: asBooleanOrNull(getFirst(record, ['guest_safe', 'guestSafe'])),
     identity_headers: asArrayOfStringsOrNull(getFirst(record, ['identity_headers', 'identityHeaders'])),
     catalog: normalizePublicApiEndpoint(record.catalog),
     cart: normalizePublicApiCart(record.cart),
@@ -1008,11 +1062,8 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
 };
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
-  const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
-    tenantSlug,
-    suppressPanel401Redirect: true,
-    omitChatSessionId: true,
-  });
+  const endpoint = resolveMarketCartEndpoint(tenantSlug, 'summary') ?? `/api/${tenantSlug}/carrito`;
+  const response = await apiFetch<MarketCartResponse>(endpoint, marketCartFetchOptions(endpoint, tenantSlug));
   return normalizeMarketCartResponse(response);
 }
 
@@ -1047,7 +1098,9 @@ export async function fetchMarketCatalog(
     omitChatSessionId: true,
     },
   );
-  return normalizeMarketCatalogResponse(response);
+  const catalog = normalizeMarketCatalogResponse(response);
+  rememberMarketPublicApiContract(tenantSlug, catalog.public_api);
+  return catalog;
 }
 
 export async function searchCatalog(tenantSlug: string, query: string): Promise<MarketCatalogResponse> {
@@ -1090,11 +1143,11 @@ const normalizeAddToCartPayload = (payload: AddToCartPayload): AddToCartPayload 
 };
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
-  const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+  const endpoint = resolveMarketCartEndpoint(tenantSlug, 'add') ?? `/api/${tenantSlug}/carrito`;
+  const response = await apiFetch<MarketCartResponse>(endpoint, {
+    ...marketCartFetchOptions(endpoint, tenantSlug),
     method: 'POST',
     body: normalizeAddToCartPayload(payload),
-    tenantSlug,
-    omitChatSessionId: true,
     headers: { 'X-Persist-Session': 'true' }
   });
   return normalizeMarketCartResponse(response);
