@@ -132,9 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
   );
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
-  const [listMode, setListMode] = React.useState<'queue' | 'categories'>(
-    () => (compact ? 'queue' : 'categories'),
-  );
+  const [listMode, setListMode] = React.useState<'queue' | 'categories'>('queue');
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
     QUEUE_ITEMS_PER_PAGE,
   );

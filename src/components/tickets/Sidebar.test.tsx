@@ -113,6 +113,12 @@ describe('Tickets Sidebar category density', () => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
     });
 
+    expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+
     expect(await screen.findByText('Arreglo De Calle (1)')).toBeInTheDocument();
     expect(screen.queryByText('luminaria (0)')).not.toBeInTheDocument();
     expect(screen.queryByText('limpieza (0)')).not.toBeInTheDocument();
@@ -160,7 +166,13 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
-    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.queryByText('Arreglo De Calle (1)')).not.toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /filtros secundarios/i }));
 
@@ -171,7 +183,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
-    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
   });
 
   it('shows only secondary filters in the compact filter badge', async () => {
