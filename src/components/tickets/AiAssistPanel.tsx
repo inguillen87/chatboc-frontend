@@ -56,6 +56,30 @@ const formatPercent = (score: number | null): string | null => (
   score === null ? null : `${Math.round(score * 100)}%`
 );
 
+const providerLabel = (provider: unknown): string => {
+  const normalized = asString(provider).toLowerCase();
+  if (normalized === 'deterministic_local_fallback') return 'IA local deterministica';
+  if (normalized === 'huggingface_zero_shot') return 'Hugging Face zero-shot';
+  if (normalized === 'huggingface') return 'Hugging Face';
+  return humanizeToken(normalized);
+};
+
+const providerModeFromPayload = (provider: RecordLike): { label: string; fallbackReason?: string } => {
+  const nestedProviders = ['category', 'priority', 'operational_signals', 'sentiment', 'intent']
+    .map((key) => asRecord(provider[key]))
+    .filter((record) => Object.keys(record).length > 0);
+  const providerValues = nestedProviders.map((record) => asString(record.provider)).filter(Boolean);
+  const fallbackReason = nestedProviders.map((record) => asString(record.fallback_reason)).find(Boolean);
+
+  if (providerValues.includes('deterministic_local_fallback')) {
+    return { label: 'IA local deterministica', fallbackReason };
+  }
+  if (providerValues.includes('huggingface_zero_shot')) {
+    return { label: 'Hugging Face zero-shot', fallbackReason };
+  }
+  return { label: providerLabel(provider.provider_family) || 'IA operativa', fallbackReason };
+};
+
 const normalizeRisk = (risk: string): string => {
   const normalized = risk.toLowerCase().trim();
   if (['critico', 'critical', 'urgente'].includes(normalized)) return 'critico';
@@ -145,21 +169,25 @@ const buildSignalRows = (payload: TicketAiEnrichmentResponse | null) => {
       label: 'Categoria sugerida',
       value: asString(category.categoria || category.label),
       score: asScore(category.score),
+      provider: asString(category.provider),
     },
     {
       label: 'Prioridad IA',
       value: asString(priority.prioridad || priority.label),
       score: asScore(priority.score),
+      provider: asString(priority.provider),
     },
     {
       label: 'Sentimiento',
       value: asString(sentiment.label || sentiment.sentiment),
       score: asScore(sentiment.score),
+      provider: asString(sentiment.provider),
     },
     {
       label: 'Intencion pyme',
       value: asString(intent.label || intent.intent),
       score: asScore(intent.score),
+      provider: asString(intent.provider),
     },
   ];
 
@@ -241,7 +269,7 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   const provider = asRecord(enrichment?.huggingface);
   const advisoryOnly = asBoolean(enrichment?.advisory_policy?.advisory_only) || asBoolean(hints.advisory_only);
   const mutatesState = asBoolean(enrichment?.advisory_policy?.mutates_operational_state) || asBoolean(hints.mutates_operational_state);
-  const engineLabel = asString(provider.provider_family) || 'huggingface/local';
+  const engine = providerModeFromPayload(provider);
 
   return (
     <Card className="overflow-hidden border-primary/20 bg-background/95 shadow-sm">
@@ -270,8 +298,13 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="gap-1 bg-background/80">
             <Sparkles className="h-3 w-3" />
-            {engineLabel}
+            {engine.label}
           </Badge>
+          {engine.fallbackReason ? (
+            <Badge variant="outline" className="bg-background/80">
+              fallback seguro
+            </Badge>
+          ) : null}
           <Badge variant="outline" className="gap-1 bg-background/80">
             <ShieldCheck className="h-3 w-3" />
             {advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision'}
@@ -334,6 +367,11 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
                         <Badge variant="outline">{formatPercent(row.score)}</Badge>
                       ) : null}
                     </div>
+                    {row.provider ? (
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {providerLabel(row.provider)}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>
