@@ -134,20 +134,74 @@ describe('Tickets Sidebar category density', () => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
     });
 
+    expect(screen.getByTestId('sidebar-primary-filters')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /filtros avanzados/i }),
+      screen.getByRole('group', { name: /vistas rapidas de reclamos/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^todos$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: /no le/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(
+      screen.getByRole('button', { name: /filtros secundarios/i }),
     ).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /filtros avanzados/i }));
+    fireEvent.click(screen.getByRole('button', { name: /filtros secundarios/i }));
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-filter-panel')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('sidebar-inline-filters')).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();
+    expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+  });
+
+  it('shows only secondary filters in the compact filter badge', async () => {
+    const ticket = {
+      id: 378430,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo De Calle',
+      categoria: 'Arreglo De Calle',
+      estado: 'nuevo',
+    };
+
+    useTicketsMock.mockReturnValue({
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      ticketsByCategory: {
+        'Arreglo De Calle': [ticket],
+      },
+      selectedTicket: null,
+      selectTicket: selectTicketMock,
+      filters: { ...defaultFilters, channel: 'whatsapp' },
+      setFilters: setFiltersMock,
+      filterOptions: {
+        ...defaultFilterOptions,
+        channels: ['whatsapp'],
+      },
+    });
+
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    const trigger = screen.getByRole('button', {
+      name: /filtros secundarios, 1 activo/i,
+    });
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveTextContent('1');
   });
 });

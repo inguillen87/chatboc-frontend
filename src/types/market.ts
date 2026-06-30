@@ -440,6 +440,37 @@ export interface MarketAssistedIntakeEntry {
   frontend_contract?: Record<string, unknown> | null;
 }
 
+export interface MarketPublicApiEndpoint {
+  method?: string | null;
+  endpoint?: string | null;
+  alias_endpoint?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketPublicApiContract {
+  contract_version?: string | null;
+  anonymous?: boolean | null;
+  identity_headers?: string[] | null;
+  catalog?: MarketPublicApiEndpoint | null;
+  cart?: {
+    summary?: MarketPublicApiEndpoint | null;
+    add?: MarketPublicApiEndpoint | null;
+    update?: MarketPublicApiEndpoint | null;
+    remove?: MarketPublicApiEndpoint | null;
+    clear?: MarketPublicApiEndpoint | null;
+    checkout?: MarketPublicApiEndpoint | null;
+    [key: string]: unknown;
+  } | null;
+  checkout?: {
+    start?: MarketPublicApiEndpoint | null;
+    fallback_behavior?: string | null;
+    [key: string]: unknown;
+  } | null;
+  assisted_upload?: MarketPublicApiEndpoint | null;
+  tracking?: Record<string, string | null> | null;
+  [key: string]: unknown;
+}
+
 export interface MarketCatalogFilters {
   categoria?: string | null;
   q?: string | null;
@@ -470,6 +501,7 @@ export interface MarketCatalogResponse {
   isDemo?: boolean;
   demoReason?: string;
   frontend_contract?: Record<string, unknown> | null;
+  public_api?: MarketPublicApiContract | null;
 }
 
 export interface AddToCartPayload {

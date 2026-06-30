@@ -510,4 +510,72 @@ describe('market api continuity normalization', () => {
     expect(catalog.assisted_intake?.text_examples?.[0]?.document_type).toBe('quote_request');
     expect(catalog.frontend_contract).toMatchObject({ show_assisted_intake: true });
   });
+
+  it('normalizes the canonical anonymous marketplace public API contract', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'public.market_catalog.v1',
+      products: [],
+      assisted_intake: {
+        contract_version: 'marketplace.assisted_intake_entry.v1',
+        mode: 'assisted_first',
+        frontend_contract: {
+          submit_endpoint: '/legacy/should-not-win',
+        },
+      },
+      public_api: {
+        contract_version: 'marketplace.public_api.v1',
+        anonymous: true,
+        identity_headers: ['X-Anon-Id', 'X-Chat-Session-Id', 'X-Tenant'],
+        catalog: {
+          method: 'GET',
+          endpoint: '/api/market/junin/catalog?contract=marketplace',
+          alias_endpoint: '/api/public/tenants/junin/catalog?contract=marketplace',
+        },
+        cart: {
+          summary: { method: 'GET', endpoint: '/api/market/junin/cart' },
+          add: { method: 'POST', endpoint: '/api/market/junin/cart/add' },
+        },
+        checkout: {
+          start: { method: 'POST', endpoint: '/api/market/junin/checkout/start' },
+          fallback_behavior: 'return_structured_plan_or_payment_error_never_tokenized_endpoint',
+        },
+        assisted_upload: {
+          method: 'POST',
+          endpoint: '/api/pedidos/from-file?origen=marketplace',
+        },
+        tracking: {
+          order_path_template: '/tracking/order/{code}?tenant_slug=junin',
+        },
+      },
+    });
+
+    const catalog = await fetchMarketCatalog('junin');
+
+    expect(catalog.public_api).toMatchObject({
+      contract_version: 'marketplace.public_api.v1',
+      anonymous: true,
+      identity_headers: ['X-Anon-Id', 'X-Chat-Session-Id', 'X-Tenant'],
+      catalog: {
+        endpoint: '/api/market/junin/catalog?contract=marketplace',
+        alias_endpoint: '/api/public/tenants/junin/catalog?contract=marketplace',
+      },
+      cart: {
+        add: { endpoint: '/api/market/junin/cart/add' },
+      },
+      checkout: {
+        start: { endpoint: '/api/market/junin/checkout/start' },
+        fallback_behavior: 'return_structured_plan_or_payment_error_never_tokenized_endpoint',
+      },
+      assisted_upload: {
+        endpoint: '/api/pedidos/from-file?origen=marketplace',
+      },
+      tracking: {
+        order_path_template: '/tracking/order/{code}?tenant_slug=junin',
+      },
+    });
+    expect(catalog.assisted_intake?.submit).toMatchObject({
+      method: 'POST',
+      endpoint: '/api/pedidos/from-file?origen=marketplace',
+    });
+  });
 });

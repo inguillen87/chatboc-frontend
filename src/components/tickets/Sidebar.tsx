@@ -54,6 +54,9 @@ const defaultFilters = {
   unread: 'all',
 };
 
+const FILTER_SELECT_CLASS_NAME =
+  'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
+
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tenant } = useTenant();
   const {
@@ -82,6 +85,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
+  const searchInputId = React.useId();
+  const filterPanelId = React.useId();
 
   React.useEffect(() => {
     const fetchCategories = async () => {
@@ -315,20 +320,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     }));
   };
 
-  const hasActiveFilters =
-    Boolean(debouncedSearchTerm) ||
-    filters.channel !== 'all' ||
-    filters.status !== 'all' ||
-    filters.area !== 'all' ||
-    filters.agent !== 'all' ||
-    filters.priority !== 'all' ||
-    filters.sla !== 'all' ||
-    filters.unread !== 'all';
-
-  const activeFilterLabels = React.useMemo(
+  const secondaryFilterLabels = React.useMemo(
     () =>
       [
-        debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
         filters.channel !== 'all' ? `Canal: ${filters.channel}` : null,
         filters.status !== 'all' ? `Estado: ${filters.status}` : null,
         filters.area !== 'all' ? `Area: ${filters.area}` : null,
@@ -337,8 +331,18 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         filters.sla !== 'all' ? `SLA: ${filters.sla}` : null,
         filters.unread !== 'all' ? `Lectura: ${filters.unread}` : null,
       ].filter(Boolean) as string[],
-    [debouncedSearchTerm, filters],
+    [filters],
   );
+  const secondaryFilterCount = secondaryFilterLabels.length;
+  const hasSecondaryFilters = secondaryFilterCount > 0;
+  const secondaryFilterCountLabel =
+    secondaryFilterCount === 1
+      ? '1 activo'
+      : `${secondaryFilterCount} activos`;
+  const hasActiveFilters = Boolean(debouncedSearchTerm) || hasSecondaryFilters;
+  const secondaryFilterButtonLabel = hasSecondaryFilters
+    ? `Filtros secundarios, ${secondaryFilterCountLabel}`
+    : 'Filtros secundarios';
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -402,8 +406,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </DropdownMenu>
         </div>
         <div className="relative">
+          <label className="sr-only" htmlFor={searchInputId}>
+            Buscar reclamos por numero, asunto, nombre, DNI o telefono
+          </label>
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            id={searchInputId}
             placeholder="Buscar por nro, asunto, nombre, DNI, teléfono..."
             className="h-9 pl-8 text-sm"
             value={searchTerm}
@@ -411,87 +419,100 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant={
-              filters.unread === 'all' && filters.sla === 'all'
-                ? 'secondary'
-                : 'outline'
-            }
-            className="h-8 rounded-lg px-2 text-xs"
-            onClick={() =>
-              setFilters((prev) => ({ ...prev, unread: 'all', sla: 'all' }))
-            }
+        <div className="flex items-center gap-1.5">
+          <div
+            className="grid min-w-0 flex-1 grid-cols-3 gap-1.5"
+            role="group"
+            aria-label="Vistas rapidas de reclamos"
+            data-testid="sidebar-primary-filters"
           >
-            Todos
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-            className="h-8 rounded-lg px-2 text-xs"
-            onClick={() =>
-              setFilters((prev) => ({ ...prev, unread: 'unread' }))
-            }
-          >
-            No leidos
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-            className="h-8 rounded-lg px-2 text-xs"
-            onClick={() =>
-              setFilters((prev) => ({
-                ...prev,
-                sla: prev.sla === 'risk' ? 'all' : 'risk',
-              }))
-            }
-          >
-            Riesgo
-          </Button>
-        </div>
-
-        <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-          <PopoverTrigger asChild>
             <Button
               type="button"
-              variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
-              className="h-8 w-full justify-between rounded-[8px] px-2.5 text-xs font-semibold"
-              aria-expanded={advancedFiltersOpen}
-              aria-controls="sidebar-filter-panel"
+              size="sm"
+              variant={
+                filters.unread === 'all' && filters.sla === 'all'
+                  ? 'secondary'
+                  : 'outline'
+              }
+              className="h-8 rounded-lg px-2 text-xs"
+              aria-pressed={filters.unread === 'all' && filters.sla === 'all'}
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, unread: 'all', sla: 'all' }))
+              }
             >
-              <span className="inline-flex min-w-0 items-center gap-2">
+              Todos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
+              className="h-8 rounded-lg px-2 text-xs"
+              aria-pressed={filters.unread === 'unread'}
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, unread: 'unread' }))
+              }
+            >
+              No leidos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
+              className="h-8 rounded-lg px-2 text-xs"
+              aria-pressed={filters.sla === 'risk'}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  sla: prev.sla === 'risk' ? 'all' : 'risk',
+                }))
+              }
+            >
+              Riesgo
+            </Button>
+          </div>
+
+          <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
+                className="h-8 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
+                aria-label={secondaryFilterButtonLabel}
+                aria-expanded={advancedFiltersOpen}
+                aria-controls={filterPanelId}
+              >
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
-                <span>Filtros avanzados</span>
-                {activeFilterLabels.length > 0 ? (
-                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">
-                    {activeFilterLabels.length}
+                <span className="hidden sm:inline">Filtros</span>
+                {hasSecondaryFilters ? (
+                  <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold text-primary">
+                    {secondaryFilterCount}
                   </span>
                 ) : null}
-              </span>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 shrink-0 transition-transform',
-                  advancedFiltersOpen && 'rotate-180',
-                )}
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            id="sidebar-filter-panel"
-            data-testid="sidebar-filter-panel"
-            align="start"
-            side="right"
-            sideOffset={8}
-            className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
-          >
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-transform',
+                    advancedFiltersOpen && 'rotate-180',
+                  )}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              id={filterPanelId}
+              data-testid="sidebar-filter-panel"
+              aria-label="Filtros secundarios de reclamos"
+              align="start"
+              side="right"
+              sideOffset={8}
+              className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
+            >
             <div className="mb-2 flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold text-foreground">Filtro operativo</p>
-                <p className="text-[11px] text-muted-foreground">No ocupa espacio del listado.</p>
+                <p className="text-xs font-semibold text-foreground">Filtros secundarios</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {hasSecondaryFilters
+                    ? secondaryFilterCountLabel
+                    : 'Sin filtros secundarios'}
+                </p>
               </div>
               {hasActiveFilters ? (
                 <Button
@@ -505,110 +526,154 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 </Button>
               ) : null}
             </div>
-            <div className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.channel}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, channel: e.target.value }))
-                }
-              >
-                <option value="all">Canal: todos</option>
-                {filterOptions.channels.map((channel) => (
-                  <option key={channel} value={channel}>
-                    {channel}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.status}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, status: e.target.value }))
-                }
-              >
-                <option value="all">Estado: todos</option>
-                {filterOptions.statuses.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.area}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, area: e.target.value }))
-                }
-              >
-                <option value="all">Área: todas</option>
-                {filterOptions.areas.map((area) => (
-                  <option key={area} value={area}>
-                    {area}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.agent}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, agent: e.target.value }))
-                }
-              >
-                <option value="all">Agente: todos</option>
-                {filterOptions.agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs sm:col-span-2"
-                value={filters.priority}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, priority: e.target.value }))
-                }
-              >
-                <option value="all">Prioridad: todas</option>
-                {filterOptions.priorities.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.sla}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, sla: e.target.value }))
-                }
-              >
-                <option value="all">SLA: todos</option>
-                <option value="risk">SLA: riesgo</option>
-                {filterOptions.slaStatuses
-                  .filter((slaStatus) => slaStatus !== 'risk')
-                  .map((slaStatus) => (
-                    <option key={slaStatus} value={slaStatus}>
-                      {slaStatus}
+            <fieldset className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+              <legend className="sr-only">Filtros secundarios de reclamos</legend>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-channel`}>
+                  Filtrar por canal
+                </label>
+                <select
+                  id={`${filterPanelId}-channel`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.channel}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, channel: e.target.value }))
+                  }
+                >
+                  <option value="all">Canal: todos</option>
+                  {filterOptions.channels.map((channel) => (
+                    <option key={channel} value={channel}>
+                      {channel}
                     </option>
                   ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={filters.unread}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, unread: e.target.value }))
-                }
-              >
-                {filterOptions.unreadModes.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {mode.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-status`}>
+                  Filtrar por estado
+                </label>
+                <select
+                  id={`${filterPanelId}-status`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.status}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                >
+                  <option value="all">Estado: todos</option>
+                  {filterOptions.statuses.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-area`}>
+                  Filtrar por area
+                </label>
+                <select
+                  id={`${filterPanelId}-area`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.area}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, area: e.target.value }))
+                  }
+                >
+                  <option value="all">Área: todas</option>
+                  {filterOptions.areas.map((area) => (
+                    <option key={area} value={area}>
+                      {area}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-agent`}>
+                  Filtrar por agente
+                </label>
+                <select
+                  id={`${filterPanelId}-agent`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.agent}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, agent: e.target.value }))
+                  }
+                >
+                  <option value="all">Agente: todos</option>
+                  {filterOptions.agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0 sm:col-span-2">
+                <label className="sr-only" htmlFor={`${filterPanelId}-priority`}>
+                  Filtrar por prioridad
+                </label>
+                <select
+                  id={`${filterPanelId}-priority`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.priority}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, priority: e.target.value }))
+                  }
+                >
+                  <option value="all">Prioridad: todas</option>
+                  {filterOptions.priorities.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-sla`}>
+                  Filtrar por SLA
+                </label>
+                <select
+                  id={`${filterPanelId}-sla`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.sla}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, sla: e.target.value }))
+                  }
+                >
+                  <option value="all">SLA: todos</option>
+                  <option value="risk">SLA: riesgo</option>
+                  {filterOptions.slaStatuses
+                    .filter((slaStatus) => slaStatus !== 'risk')
+                    .map((slaStatus) => (
+                      <option key={slaStatus} value={slaStatus}>
+                        {slaStatus}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="sr-only" htmlFor={`${filterPanelId}-unread`}>
+                  Filtrar por lectura
+                </label>
+                <select
+                  id={`${filterPanelId}-unread`}
+                  className={FILTER_SELECT_CLASS_NAME}
+                  value={filters.unread}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, unread: e.target.value }))
+                  }
+                >
+                  {filterOptions.unreadModes.map((mode) => (
+                    <option key={mode.value} value={mode.value}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </fieldset>
           </PopoverContent>
-        </Popover>
+          </Popover>
+        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {emptyCategoryCount > 0 ? (

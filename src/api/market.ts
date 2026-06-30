@@ -7,6 +7,8 @@ import {
   MarketCatalogFacetItem,
   MarketCatalogFacets,
   MarketProduct,
+  MarketPublicApiContract,
+  MarketPublicApiEndpoint,
   AddToCartPayload,
   CheckoutStartResponse,
   CheckoutStartPayload,
@@ -259,6 +261,102 @@ const normalizeMarketCatalogFacets = (value: unknown): MarketCatalogFacets | nul
   };
 };
 
+const normalizePublicApiEndpoint = (value: unknown): MarketPublicApiEndpoint | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const endpoint = asStringOrNull(getFirst(record, ['endpoint', 'url', 'path']));
+  const aliasEndpoint = asStringOrNull(getFirst(record, ['alias_endpoint', 'aliasEndpoint']));
+  const method = asStringOrNull(record.method);
+  return {
+    ...record,
+    endpoint,
+    alias_endpoint: aliasEndpoint,
+    method,
+  };
+};
+
+const normalizePublicApiCart = (value: unknown): MarketPublicApiContract['cart'] => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    summary: normalizePublicApiEndpoint(getFirst(record, ['summary', 'get'])),
+    add: normalizePublicApiEndpoint(record.add),
+    update: normalizePublicApiEndpoint(record.update),
+    remove: normalizePublicApiEndpoint(record.remove),
+    clear: normalizePublicApiEndpoint(record.clear),
+    checkout: normalizePublicApiEndpoint(record.checkout),
+  };
+};
+
+const normalizePublicApiCheckout = (value: unknown): MarketPublicApiContract['checkout'] => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    start: normalizePublicApiEndpoint(record.start),
+    fallback_behavior: asStringOrNull(getFirst(record, ['fallback_behavior', 'fallbackBehavior'])),
+  };
+};
+
+const normalizePublicApiTracking = (value: unknown): Record<string, string | null> | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return Object.entries(record).reduce<Record<string, string | null>>((acc, [key, item]) => {
+    acc[key] = asStringOrNull(item);
+    return acc;
+  }, {});
+};
+
+const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
+    anonymous: asBooleanOrNull(record.anonymous),
+    identity_headers: asArrayOfStringsOrNull(getFirst(record, ['identity_headers', 'identityHeaders'])),
+    catalog: normalizePublicApiEndpoint(record.catalog),
+    cart: normalizePublicApiCart(record.cart),
+    checkout: normalizePublicApiCheckout(record.checkout),
+    assisted_upload: normalizePublicApiEndpoint(getFirst(record, ['assisted_upload', 'assistedUpload'])),
+    tracking: normalizePublicApiTracking(record.tracking),
+  };
+};
+
+const normalizeAssistedIntake = (
+  value: unknown,
+  publicApi: MarketPublicApiContract | null,
+): MarketCatalogResponse['assisted_intake'] => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+
+  const submitRecord = asRecordOrNull(record.submit);
+  const frontendContract = asRecordOrNull(getFirst(record, ['frontend_contract', 'frontendContract']));
+  const publicUploadEndpoint = publicApi?.assisted_upload?.endpoint ?? null;
+  const publicUploadMethod = publicApi?.assisted_upload?.method ?? null;
+  const frontendSubmitEndpoint = asStringOrNull(
+    getFirst(frontendContract ?? {}, ['submit_endpoint', 'submitEndpoint']),
+  );
+  const submitEndpoint =
+    publicUploadEndpoint ??
+    asStringOrNull(submitRecord?.endpoint) ??
+    frontendSubmitEndpoint;
+
+  return {
+    ...record,
+    submit:
+      submitRecord || submitEndpoint
+        ? {
+            ...(submitRecord ?? {}),
+            endpoint: submitEndpoint,
+            method: asStringOrNull(submitRecord?.method) ?? publicUploadMethod ?? 'POST',
+          }
+        : null,
+    frontend_contract: frontendContract,
+  } as MarketCatalogResponse['assisted_intake'];
+};
+
 const normalizedToken = (value: unknown): string | null => {
   const token = asStringIdOrNull(value);
   return token ? token.toLowerCase() : null;
@@ -345,6 +443,7 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
   const source = getSource(input);
   const record = asUnknownRecord(source);
   const promotions = normalizeMarketPromotions(record.promotions);
+  const publicApi = normalizePublicApiContract(getFirst(record, ['public_api', 'publicApi']));
   const rawProducts =
     Array.isArray(record.products)
       ? record.products
@@ -363,7 +462,7 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
     promotions,
     facets: normalizeMarketCatalogFacets(record.facets),
     filters: asRecordOrNull(record.filters) as MarketCatalogResponse['filters'],
-    assisted_intake: asRecordOrNull(getFirst(record, ['assisted_intake', 'assistedIntake'])) as MarketCatalogResponse['assisted_intake'],
+    assisted_intake: normalizeAssistedIntake(getFirst(record, ['assisted_intake', 'assistedIntake']), publicApi),
     sort_options: Array.isArray(record.sort_options)
       ? record.sort_options
           .map<NonNullable<MarketCatalogResponse['sort_options']>[number] | null>((item) => {
@@ -380,6 +479,7 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
     heroImageUrl: asStringOrNull(getFirst(record, ['heroImageUrl', 'hero_image_url', 'banner_url'])),
     heroSubtitle: asStringOrNull(getFirst(record, ['heroSubtitle', 'hero_subtitle'])),
     frontend_contract: asRecordOrNull(getFirst(record, ['frontend_contract', 'frontendContract'])),
+    public_api: publicApi,
   } as MarketCatalogResponse;
 };
 
