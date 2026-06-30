@@ -185,6 +185,8 @@ export interface RealtimeHubResponse {
       loading?: string;
       empty?: string;
       empty_filtered?: string;
+      survey_ops_title?: string;
+      survey_ops_quiet?: string;
       cards_events?: string;
       cards_survey_responses?: string;
       cards_survey_comments?: string;
@@ -209,6 +211,18 @@ export interface RealtimeHubResponse {
     survey_responses?: number;
     survey_comments?: number;
     live_chat_comments?: number;
+  };
+  survey_operations?: {
+    contract_version?: string;
+    status?: 'live' | 'quiet' | string;
+    headline?: string;
+    window_minutes?: number;
+    responses?: number;
+    comments?: number;
+    vote_events?: number;
+    engagement?: number;
+    live_signal?: boolean;
+    recommended_actions?: Array<{ id?: string; label?: string; route?: string; href?: string }>;
   };
   top_channels?: Array<{ channel?: string; count?: number }>;
   top_events?: Array<{ event?: string; count?: number }>;
@@ -1025,7 +1039,6 @@ export const analyticsService = {
     };
 
     const queryFilters: Record<string, unknown> = { ...filters };
-    delete queryFilters.tenantSlug;
     delete queryFilters.tenant;
     delete queryFilters.limit;
     const query = buildQuery({ ...queryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });

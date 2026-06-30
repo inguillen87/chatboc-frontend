@@ -6,6 +6,7 @@ import type { RealtimeHubResponse } from '@/services/analyticsService';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
+import { Activity, BarChart3, MessageCircle, Radio, Vote } from 'lucide-react';
 
 interface Props {
   data: RealtimeHubResponse | null;
@@ -25,6 +26,12 @@ const isFeatureCollection = (value: unknown): value is { type: 'FeatureCollectio
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
   return record.type === 'FeatureCollection' && Array.isArray(record.features);
+};
+
+const toDisplayNumber = (value: unknown): string => {
+  const number = toFiniteNumber(value);
+  if (number === null) return '0';
+  return new Intl.NumberFormat('es-AR').format(number);
 };
 
 const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
@@ -54,6 +61,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
   }, [search, selectedChannel, selectedSentiment]);
 
   const totals = data?.totals || {};
+  const surveyOps = data?.survey_operations;
   const labels = data?.ui?.labels || {};
   const topChannels = Array.isArray(data?.top_channels) ? data!.top_channels! : [];
   const topEvents = Array.isArray(data?.top_events) ? data!.top_events! : [];
@@ -131,8 +139,73 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
     return <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">{labels.loading || '…'}</div>;
   }
 
+  const surveyActions = Array.isArray(surveyOps?.recommended_actions) ? surveyOps.recommended_actions : [];
+  const surveyIsLive = Boolean(surveyOps?.live_signal || surveyOps?.status === 'live');
+
   return (
     <div className="space-y-4">
+      <Card className="overflow-hidden border-blue-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white shadow-lg shadow-blue-950/20">
+        <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200 ring-1 ring-blue-300/30">
+                <Radio className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-200/80">Centro operativo</p>
+                <h2 className="truncate text-xl font-semibold">{labels.survey_ops_title || 'Encuestas y votaciones en vivo'}</h2>
+              </div>
+              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${surveyIsLive ? 'bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/25' : 'bg-slate-700/60 text-slate-200 ring-1 ring-white/10'}`}>
+                <span className={`h-2 w-2 rounded-full ${surveyIsLive ? 'animate-pulse bg-emerald-300' : 'bg-slate-400'}`} />
+                {surveyIsLive ? 'Actividad en vivo' : 'Sin pulso activo'}
+              </span>
+            </div>
+            <p className="max-w-3xl text-sm leading-6 text-slate-200">
+              {surveyOps?.headline || labels.survey_ops_quiet || 'Sin actividad de encuestas en este periodo'}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-4">
+              {[
+                { label: 'Participaciones', value: surveyOps?.responses ?? totals.survey_responses, icon: Vote },
+                { label: 'Comentarios', value: surveyOps?.comments ?? totals.survey_comments, icon: MessageCircle },
+                { label: 'Eventos voto', value: surveyOps?.vote_events, icon: Activity },
+                { label: 'Engagement', value: surveyOps?.engagement, icon: BarChart3 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-300">
+                    <span>{item.label}</span>
+                    <item.icon className="h-4 w-4 text-blue-200" aria-hidden="true" />
+                  </div>
+                  <div className="text-2xl font-semibold">{toDisplayNumber(item.value)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-slate-100">Acciones recomendadas</span>
+              <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-300">
+                {surveyOps?.window_minutes || 30} min
+              </span>
+            </div>
+            <div className="space-y-2">
+              {surveyActions.length ? surveyActions.slice(0, 3).map((action) => (
+                <a
+                  key={action.id || action.label}
+                  href={action.href || action.route || '/admin/encuestas'}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:border-blue-300/40 hover:bg-blue-400/15"
+                >
+                  <span>{action.label || 'Abrir encuestas'}</span>
+                  <span className="text-blue-200">Abrir</span>
+                </a>
+              )) : (
+                <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3 text-sm text-slate-300">
+                  {labels.survey_ops_quiet || 'Sin actividad de encuestas en este periodo'}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-4">
         <Select value={selectedChannel} onValueChange={setSelectedChannel}>
           <SelectTrigger><SelectValue placeholder={labels.filters_channel || ''} /></SelectTrigger>

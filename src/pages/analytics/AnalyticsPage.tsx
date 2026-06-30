@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Vote } from 'lucide-react';
+import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Radio, Vote } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
 import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
@@ -42,6 +42,13 @@ const resolveDefaultScope = (tenantType?: string | null) => {
   }
 
   return 'municipio';
+};
+
+const resolveRequestedScope = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'municipio' || normalized === 'municipal') return 'municipio';
+  if (normalized === 'pyme' || normalized === 'empresa' || normalized === 'ventas') return 'pyme';
+  return null;
 };
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
@@ -108,7 +115,7 @@ const AnalyticsPage = () => {
   const [genderFilter, setGenderFilter] = useState(searchParams.get('genero') || searchParams.get('sexo') || '');
   const [ageRangeFilter, setAgeRangeFilter] = useState(searchParams.get('rango_edad') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
-  const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
+  const [scope, setScope] = useState(() => resolveRequestedScope(searchParams.get('scope')) || resolveDefaultScope(tenant?.tipo));
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [executiveModelPolicy, setExecutiveModelPolicy] = useState<Record<string, unknown> | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -153,9 +160,13 @@ const AnalyticsPage = () => {
       return ['overview', 'operations', 'municipio', 'pyme', 'geo', 'realtime'] as AnalyticsTab[];
     }
 
-    return tabsFromHub.includes('operations')
+    const withOperations = tabsFromHub.includes('operations')
       ? tabsFromHub
       : [...tabsFromHub.slice(0, 1), 'operations', ...tabsFromHub.slice(1)];
+
+    return withOperations.includes('realtime')
+      ? withOperations
+      : [...withOperations, 'realtime'];
   }, [hubSections]);
 
   useEffect(() => {
@@ -190,11 +201,12 @@ const AnalyticsPage = () => {
   }, [timeRange, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter, scope, searchParams, navigate]);
 
   useEffect(() => {
+    const requestedScope = resolveRequestedScope(searchParams.get('scope'));
     setScope((prevScope) => {
-      const defaultScope = resolveDefaultScope(tenant?.tipo ?? null);
-      return prevScope === defaultScope ? prevScope : defaultScope;
+      const nextScope = requestedScope || resolveDefaultScope(tenant?.tipo ?? null);
+      return prevScope === nextScope ? prevScope : nextScope;
     });
-  }, [tenant?.tipo]);
+  }, [searchParams, tenant?.tipo]);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -466,7 +478,7 @@ const AnalyticsPage = () => {
                 resumen IA y exportar PDF/CSV.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('overview')}>
                 <Gauge className="h-4 w-4" />
                 Estado general
@@ -478,6 +490,10 @@ const AnalyticsPage = () => {
               <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('geo')}>
                 <MapPinned className="h-4 w-4" />
                 Mapas de calor
+              </Button>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('realtime')}>
+                <Radio className="h-4 w-4" />
+                Tiempo real
               </Button>
               <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => navigate(hubEncuestasPath)}>
                 <Vote className="h-4 w-4" />
