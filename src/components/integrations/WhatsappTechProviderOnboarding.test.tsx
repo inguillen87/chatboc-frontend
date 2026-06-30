@@ -241,6 +241,11 @@ describe("WhatsappTechProviderOnboarding", () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
     expect(await screen.findByText("WhatsApp productivo")).toBeInTheDocument();
+    expect(screen.getByText("Resumen de activacion")).toBeInTheDocument();
+    expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
+    expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
+    expect(screen.getByText(/Cerrar pendiente: Falta revisar plantillas/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
     expect(screen.getByText("Activación guiada por Chatboc")).toBeInTheDocument();
     expect(screen.getByText("123456789")).toBeInTheDocument();
     expect(screen.getByText("987654321")).toBeInTheDocument();
@@ -257,7 +262,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("78% listo")).toBeInTheDocument();
     expect(screen.getByText("7/9 controles")).toBeInTheDocument();
     expect(screen.getAllByText("Plantillas y webviews").length).toBeGreaterThan(0);
-    expect(screen.getByText("Falta revisar plantillas")).toBeInTheDocument();
+    expect(screen.getAllByText("Falta revisar plantillas").length).toBeGreaterThan(0);
     expect(screen.getAllByText("/api/admin/templates/twilio-content/sync").length).toBeGreaterThan(0);
     expect(screen.getByText("Plan de pruebas guiado")).toBeInTheDocument();
     expect(screen.getByText("seguro por defecto")).toBeInTheDocument();
@@ -289,8 +294,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("runs a safe smoke test and renders the result inline", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
-    const runButtons = await screen.findAllByRole("button", { name: /ejecutar prueba/i });
-    fireEvent.click(runButtons[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /ejecutar prueba de conexion/i }));
 
     await waitFor(() => {
       expect(mockedTenantService.runWhatsappTechProviderSmokeTest).toHaveBeenCalledWith("junin-1", "template_registry", {
@@ -299,6 +303,7 @@ describe("WhatsappTechProviderOnboarding", () => {
       });
     });
 
+    expect(await screen.findByText(/Ultimo resultado:/i)).toBeInTheDocument();
     expect(await screen.findByText("Resultado:")).toBeInTheDocument();
     expect(screen.getByText("Enviar o sincronizar plantillas")).toBeInTheDocument();
   });
@@ -346,7 +351,42 @@ describe("WhatsappTechProviderOnboarding", () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
     expect(await screen.findByRole("button", { name: /iniciar registro embebido/i })).toBeDisabled();
+    expect(screen.getByText("Bloqueado por plataforma")).toBeInTheDocument();
+    expect(screen.getByText("Completar variables: TWILIO_ACCOUNT_SID, META_APP_ID")).toBeInTheDocument();
     expect(screen.getByText(/Completa la configuracion de plataforma antes de abrir Meta/i)).toBeInTheDocument();
     expect(screen.getAllByText(/TWILIO_ACCOUNT_SID, META_APP_ID/i).length).toBeGreaterThan(0);
+  });
+
+  it("surfaces first-run WhatsApp setup gaps when Meta and sender are missing", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({
+      contract: {
+        ...baseContract,
+        status: "prepare_activation",
+        state: {
+          sender_status: "pending",
+        },
+        setup_health: {
+          ...baseContract.setup_health,
+          blockers: [],
+        },
+        api_workflow: [],
+        smoke_playbook: {
+          ...baseContract.smoke_playbook,
+          tests: [],
+        },
+        voice: {
+          status: "pending",
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    expect(await screen.findByText("Falta autorizar Meta")).toBeInTheDocument();
+    expect(screen.getByText("Autorizar cuenta WhatsApp Business en Meta")).toBeInTheDocument();
+    expect(screen.getByText("Configurar plantillas, menu y webviews del tenant")).toBeInTheDocument();
+    expect(screen.getByText("Preparar voz y rutas de asistencia")).toBeInTheDocument();
+    expect(screen.getByText("El backend todavia no informo una prueba segura ejecutable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeDisabled();
   });
 });

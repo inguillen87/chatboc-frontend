@@ -173,6 +173,7 @@ describe('AccessRoute', () => {
   });
 
   it('redirects to /403 when missing one requiredAllCapabilities entry', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'empleado' }, loading: false });
     useCapabilitiesMock.mockReturnValue({
       capabilities: ['tickets.read'],
       hasAllCapabilities: (required: string[]) => required.every((capability) => capability === 'tickets.read'),
@@ -199,6 +200,33 @@ describe('AccessRoute', () => {
     expect(payload.reason).toBe('capability');
     expect(payload.requiredCapabilities).toEqual(['tickets.read', 'settings.tenant.write']);
     expect(payload.from).toBe('/integracion');
+  });
+
+  it('keeps tenant admins inside sensitive tenant setup when fine-grained settings capability is stale', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'admin_municipio' }, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/integracion']}>
+        <Routes>
+          <Route
+            path="/integracion"
+            element={
+              <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['settings.tenant.write']}>
+                <div>integration-tenant-admin-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('integration-tenant-admin-ok')).toBeInTheDocument();
   });
 
   it('allows render when the user has at least one capability from requiredCapabilities', () => {

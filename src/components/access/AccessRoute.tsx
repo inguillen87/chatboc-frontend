@@ -81,7 +81,12 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
 
   const hasDeclaredCapabilities = capabilities.length > 0;
 
-  if (requiredAllCapabilities && requiredAllCapabilities.length > 0 && !hasAllCapabilities(requiredAllCapabilities)) {
+  if (
+    requiredAllCapabilities &&
+    requiredAllCapabilities.length > 0 &&
+    !isTenantAdmin &&
+    !hasAllCapabilities(requiredAllCapabilities)
+  ) {
     return (
       <Navigate
         to="/403"

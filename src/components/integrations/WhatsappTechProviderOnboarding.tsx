@@ -193,6 +193,9 @@ const qaTone = (status?: string | null, ok?: boolean) => {
   return "border-border bg-muted/35 text-muted-foreground";
 };
 
+const isExecutableSmokeTest = (item: Record<string, unknown>) =>
+  readBoolean(item.can_execute, false) && !normalizeStatus(readText(item.danger_level)).includes("real_message");
+
 const isWhatsappFinalQaCheck = (check: TenantOpsQaCheckV2) => {
   const searchable = [
     check.id,
@@ -469,6 +472,72 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
       active: senderReady && !operationalReady,
     },
   ];
+  const primarySmokeTest =
+    smokePlaybookTests.find(isExecutableSmokeTest) ??
+    smokePlaybookTests.find((item) => readBoolean(item.can_execute, false)) ??
+    null;
+  const primarySmokeTestId = readText(primarySmokeTest?.id);
+  const primarySmokeResult = primarySmokeTestId ? smokeResults[primarySmokeTestId] : null;
+  const canRunPrimarySmokeTest = Boolean(primarySmokeTest && primarySmokeTestId && isExecutableSmokeTest(primarySmokeTest));
+  const missingConfigurationItems = Array.from(
+    new Set(
+      [
+        !envReady
+          ? missingEnv.length
+            ? `Completar variables: ${missingEnv.join(", ")}`
+            : "Completar configuracion de plataforma"
+          : null,
+        !hasMetaAccount ? "Autorizar cuenta WhatsApp Business en Meta" : null,
+        hasMetaAccount && !hasSender ? "Registrar el numero como sender productivo" : null,
+        hasSender && !senderReady ? `Actualizar aprobacion del sender (${state?.sender_status || "pendiente"})` : null,
+        !hasTemplateConfig ? "Configurar plantillas, menu y webviews del tenant" : null,
+        !voiceReady ? "Preparar voz y rutas de asistencia" : null,
+        senderReady && !operationalReady ? "Verificar webhooks de entrega, lectura y actividad" : null,
+        ...setupBlockers.map((blocker) => readText(blocker.label, blocker.code, blocker.detail)),
+      ].filter((item): item is string => Boolean(item?.trim())),
+    ),
+  ).slice(0, 6);
+  const readinessLabel = !envReady
+    ? "Bloqueado por plataforma"
+    : !hasMetaAccount
+      ? "Falta autorizar Meta"
+      : !hasSender
+        ? "Falta registrar sender"
+        : !senderReady
+          ? "Sender en revision"
+          : missingConfigurationItems.length
+            ? "Listo con pendientes"
+            : "Listo para operar";
+  const readinessTone = !envReady
+    ? "border-red-500/35 bg-red-500/10 text-red-700"
+    : !hasMetaAccount || !hasSender || !senderReady || missingConfigurationItems.length
+      ? "border-amber-500/35 bg-amber-500/10 text-amber-700"
+      : "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
+  const readinessDetail = !envReady
+    ? "No abras Meta hasta completar la configuracion base."
+    : !hasMetaAccount
+      ? "Primero el cliente autoriza su cuenta desde el registro embebido."
+      : !hasSender
+        ? "La WABA existe; falta asociar el numero productivo."
+        : !senderReady
+          ? "El numero esta registrado, pero todavia no esta listo para operar."
+          : missingConfigurationItems.length
+            ? "El canal base responde, pero quedan controles antes de produccion completa."
+            : "El canal tiene cuenta, sender y controles operativos listos.";
+  const recommendedNextActionRaw = readText(setupHealth?.recommended_next_action, finalQaNextAction, contract?.next_action, currentStep.label);
+  const recommendedNextActionLabel =
+    recommendedNextActionRaw === currentStep.label ? currentStep.label : actionLabel(recommendedNextActionRaw);
+  const recommendedNextActionDetail = missingConfigurationItems[0]
+    ? `Cerrar pendiente: ${missingConfigurationItems[0]}`
+    : "Mantener QA final y monitoreo antes de abrir mas trafico.";
+  const connectionTestLabel = readText(primarySmokeTest?.label, primarySmokeTest?.id) ?? "Sin prueba ejecutable";
+  const connectionTestMode = readText(primarySmokeTest?.execution_mode, primarySmokeTest?.method) ?? "dry_run";
+  const connectionResultStatus = primarySmokeResult
+    ? readText(primarySmokeResult.status) ?? (readBoolean(primarySmokeResult.ok, false) ? "pass" : "warning")
+    : null;
+  const summaryProgressLabel = missingConfigurationItems.length
+    ? `${completedSteps}/${activationSteps.length} pasos tecnicos`
+    : `${progressPercent}% de ruta completada`;
 
   const handleProvision = async () => {
     if (!tenantSlug) return;
@@ -621,6 +690,83 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
 
       {contract ? (
         <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border bg-background/85 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Resumen de activacion</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Estado, proximo paso, prueba de conexion y faltantes visibles antes de operar.
+                </p>
+              </div>
+              <span className="w-fit rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                {summaryProgressLabel}
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border bg-card/60 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Estado</p>
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${readinessTone}`}>
+                    {readinessLabel}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-foreground">{currentStep.label}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{readinessDetail}</p>
+              </div>
+
+              <div className="rounded-xl border bg-card/60 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Proximo paso</p>
+                <p className="mt-3 text-sm font-semibold text-foreground">{recommendedNextActionLabel}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{recommendedNextActionDetail}</p>
+              </div>
+
+              <div className="rounded-xl border bg-card/60 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Prueba de conexion</p>
+                <p className="mt-3 text-sm font-semibold text-foreground">{connectionTestLabel}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {canRunPrimarySmokeTest
+                    ? `Ejecutable ahora en modo ${connectionTestMode}; no envia mensajes reales.`
+                    : "El backend todavia no informo una prueba segura ejecutable."}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 w-full justify-center"
+                  disabled={!canRunPrimarySmokeTest || Boolean(runningSmokeTest)}
+                  onClick={() => void handleRunSmokeTest(primarySmokeTestId)}
+                >
+                  {runningSmokeTest === primarySmokeTestId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Ejecutar prueba de conexion
+                </Button>
+                {connectionResultStatus ? (
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    Ultimo resultado: <span className="font-medium text-foreground">{connectionResultStatus}</span>
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border bg-card/60 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Falta configurar</p>
+                {missingConfigurationItems.length ? (
+                  <ul className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
+                    {missingConfigurationItems.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                    No hay faltantes criticos informados por el contrato actual.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-2xl border bg-background/80 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
