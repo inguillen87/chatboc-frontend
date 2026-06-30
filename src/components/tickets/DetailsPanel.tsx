@@ -26,6 +26,7 @@ import TicketTimeline from './TicketTimeline';
 import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
 import TicketAssignment from './TicketAssignment';
+import AiAssistPanel from './AiAssistPanel';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import {
@@ -825,6 +826,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               )}
             </CardContent>
           </Card>
+          <AiAssistPanel ticket={ticket} />
           <TicketLogisticsSummary
             ticket={locationTicket || ticket}
             statusOverride={currentStatus}

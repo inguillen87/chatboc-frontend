@@ -214,6 +214,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/admin': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
         '/me': {
           target: backendTarget,
           changeOrigin: true,

@@ -574,6 +574,42 @@ export interface RealtimeAiOverviewResponse {
   coverage_ratio?: number;
 }
 
+export interface TicketAiActionHint {
+  id?: string;
+  label?: string;
+  priority?: string;
+  [key: string]: unknown;
+}
+
+export interface TicketAiCrmHints {
+  risk_level?: string | null;
+  suggested_queue?: string | null;
+  requires_photo?: boolean | null;
+  requires_exact_location?: boolean | null;
+  requires_human_attention?: boolean | null;
+  tags?: string[];
+  recommended_actions?: TicketAiActionHint[];
+  advisory_only?: boolean;
+  mutates_operational_state?: boolean;
+  [key: string]: unknown;
+}
+
+export interface TicketAiEnrichmentResponse {
+  contract_version?: string;
+  generated_at?: string;
+  ticket_id?: number | string;
+  ticket_type?: string;
+  tenant_id?: number | string;
+  advisory_policy?: Record<string, unknown>;
+  thresholds?: Record<string, unknown>;
+  source?: Record<string, unknown>;
+  huggingface?: Record<string, unknown>;
+  crm_hints?: TicketAiCrmHints;
+  state_mutation?: Record<string, unknown>;
+  persisted?: boolean;
+  secret_values_exposed?: boolean;
+}
+
 export interface StrategicOverviewResponse {
   totals?: Record<string, number>;
   by_stage?: Record<string, number>;
@@ -1398,6 +1434,35 @@ export const enterpriseService = {
       {
         method: "POST",
         body: payload,
+        tenantSlug,
+      },
+    );
+  },
+
+  getTicketAiEnrichment: async (
+    ticketId: string | number,
+    payload: {
+      scope?: "municipio" | "pyme" | string;
+      comments_limit?: number;
+      exclude_comments?: boolean;
+      nro_ticket?: string | number;
+      ticket_number?: string | number;
+      ticket_type?: string;
+    } = {},
+    tenantSlug?: string,
+  ) => {
+    return apiFetch<TicketAiEnrichmentResponse>(
+      `/admin/tickets/${ticketId}/ai-enrichment`,
+      {
+        method: "POST",
+        body: {
+          scope: payload.scope || "municipio",
+          comments_limit: payload.comments_limit ?? 40,
+          exclude_comments: payload.exclude_comments,
+          nro_ticket: payload.nro_ticket,
+          ticket_number: payload.ticket_number,
+          ticket_type: payload.ticket_type,
+        },
         tenantSlug,
       },
     );

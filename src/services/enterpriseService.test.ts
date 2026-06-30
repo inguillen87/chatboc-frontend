@@ -116,6 +116,27 @@ describe('enterpriseService demo endpoints', () => {
     });
   });
 
+  it('requests ticket AI enrichment as advisory-only CRM context', async () => {
+    await enterpriseService.getTicketAiEnrichment(
+      44,
+      { scope: 'municipio', comments_limit: 25, nro_ticket: 'M-378430', ticket_type: 'municipio' },
+      'junin',
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/admin/tickets/44/ai-enrichment', {
+      method: 'POST',
+      body: {
+        scope: 'municipio',
+        comments_limit: 25,
+        exclude_comments: undefined,
+        nro_ticket: 'M-378430',
+        ticket_number: undefined,
+        ticket_type: 'municipio',
+      },
+      tenantSlug: 'junin',
+    });
+  });
+
   it('normalizes collaboration metrics in tenant dashboard bundle', async () => {
     apiFetchMock.mockResolvedValueOnce({
       summary: { active_viewers: '3', unread_viewers: 2 },
