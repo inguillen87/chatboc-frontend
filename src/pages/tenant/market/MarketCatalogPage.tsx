@@ -102,6 +102,12 @@ const EMPTY_FLOW_STEPS = [
   },
 ];
 
+const ASSISTED_ENTRY_PROMISES = [
+  'Foto de papel, boleta, certificado o comprobante',
+  'Pedido escrito, lista de materiales o texto de WhatsApp',
+  'Reclamo, tramite o consulta con seguimiento publico',
+];
+
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
   mode: 'assisted_first',
@@ -306,6 +312,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const emptyState = !isLoading && products.length === 0;
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
   const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
+  const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const scrollToAssistedUpload = () => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
@@ -403,6 +410,37 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <p className="text-sm text-muted-foreground">{catalogStatusLine}</p>
         </div>
 
+        {showAssistedIntake ? (
+          <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                  Intake IA sin registro
+                </Badge>
+                <p className="mt-2 text-sm font-semibold">
+                  {catalogActuallyEmpty
+                    ? 'Aunque no haya productos visibles, el cliente puede iniciar una solicitud completa.'
+                    : 'Si el cliente no encuentra el producto, puede subir su pedido como lo tiene.'}
+                </p>
+                <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                  {ASSISTED_ENTRY_PROMISES.map((promise) => (
+                    <span key={promise} className="rounded-md border bg-background/85 px-2.5 py-2 leading-5">
+                      {promise}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  El CRM recibe archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes y respuesta sugerida.
+                </p>
+              </div>
+              <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                {assistedPrimaryCta}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_190px_190px_auto]">
           <div className="relative min-w-0 md:col-span-2 lg:col-span-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -497,25 +535,6 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </section>
 
-      {showAssistedIntake ? (
-        <UploadOrderFromFile
-          id={ASSISTED_UPLOAD_ANCHOR_ID}
-          tenantSlug={tenantSlug}
-          variant="marketplace"
-          intakeEntry={effectiveAssistedIntake}
-          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
-          onProcessed={(response) => {
-            const requestId = response?.pedido_id ?? response?.lead_id;
-            toast({
-              title: 'Nota recibida por IA',
-              description: requestId
-                ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
-                : 'El equipo puede revisarla desde el CRM.',
-            });
-          }}
-        />
-      ) : null}
-
       {assistedFirstActive ? (
         <section
           data-testid="assisted-first-banner"
@@ -571,6 +590,25 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {showAssistedIntake ? (
+        <UploadOrderFromFile
+          id={ASSISTED_UPLOAD_ANCHOR_ID}
+          tenantSlug={tenantSlug}
+          variant="marketplace"
+          intakeEntry={effectiveAssistedIntake}
+          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
+          onProcessed={(response) => {
+            const requestId = response?.pedido_id ?? response?.lead_id;
+            toast({
+              title: 'Nota recibida por IA',
+              description: requestId
+                ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
+                : 'El equipo puede revisarla desde el CRM.',
+            });
+          }}
+        />
       ) : null}
 
       {promotionItems.length ? (

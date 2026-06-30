@@ -86,6 +86,10 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     });
 
+    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
+    expect(screen.getByText(/Aunque no haya productos visibles/i)).toBeInTheDocument();
+    expect(screen.getByText(/Foto de papel, boleta, certificado o comprobante/i)).toBeInTheDocument();
+    expect(screen.getByText(/El CRM recibe archivo\/texto original/i)).toBeInTheDocument();
     expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
     expect(screen.getByText('Marketplace asistido activo')).toBeInTheDocument();
     expect(screen.getByText(/Subi el pedido como viene/i)).toBeInTheDocument();
@@ -156,6 +160,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
+    expect(screen.queryByText('Intake IA sin registro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeDisabled();
   });
@@ -188,6 +193,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
+    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
