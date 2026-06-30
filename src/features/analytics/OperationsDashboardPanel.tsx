@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   Brain,
   CheckCircle2,
   DatabaseZap,
+  ExternalLink,
   Gauge,
   Layers,
   MapPin,
@@ -356,6 +358,11 @@ const describeHeatmapLayer = (layer: string) => {
 
 const formatEndpoint = (action?: OperationsActionItem) =>
   asString(action?.endpoint) ?? asString(action?.endpoint_template);
+
+const actionHref = (action?: OperationsActionItem) =>
+  asString(action?.href) ?? asString(action?.frontend_path) ?? asString(action?.route);
+
+const isExternalHref = (href: string) => /^https?:\/\//i.test(href);
 
 const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   Object.fromEntries(
@@ -739,6 +746,8 @@ function AIOpsQueuePanel({
 
 function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
   const action = item.recommended_action;
+  const actionLabel = action?.label || action?.title;
+  const uiHref = actionHref(action);
   const signals = item.signals ?? {};
   const reasonCodes = item.reason_codes ?? [];
   const signalPairs = Object.entries(signals)
@@ -757,9 +766,23 @@ function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
             {item.title || 'Operacion requiere revision'}
           </p>
         </div>
-        {action?.label || action?.title ? (
+        {actionLabel && uiHref ? (
+          <Button asChild size="sm" variant="secondary" className="h-8 shrink-0 px-3">
+            {isExternalHref(uiHref) ? (
+              <a href={uiHref} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                {actionLabel}
+              </a>
+            ) : (
+              <Link to={uiHref}>
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                {actionLabel}
+              </Link>
+            )}
+          </Button>
+        ) : actionLabel ? (
           <Badge variant="secondary" className="shrink-0">
-            {action.label || action.title}
+            {actionLabel}
           </Badge>
         ) : null}
       </div>

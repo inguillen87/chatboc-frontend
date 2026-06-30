@@ -91,7 +91,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
       target: { value: '2 chapas galvanizadas' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -184,7 +184,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
       '2 chapas galvanizadas\n1 caja de clavos punta paris',
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
       target: { value: '2 chapas galvanizadas' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -257,10 +257,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
       target: { value: '2 chapas galvanizadas' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
-    expect(await screen.findByText('Procesando solicitud con IA')).toBeInTheDocument();
-    expect(screen.getByText(/Analizando nota de pedido con IA/i)).toBeInTheDocument();
+    expect(await screen.findByText('Procesando solicitud')).toBeInTheDocument();
+    expect(screen.getByText(/Analizando nota de pedido para separar articulos/i)).toBeInTheDocument();
     expect(screen.getByText('Recibimos la entrada')).toBeInTheDocument();
     expect(screen.getByText('Identificamos datos')).toBeInTheDocument();
     expect(screen.getByText('El equipo lo recibe')).toBeInTheDocument();
@@ -318,12 +318,12 @@ describe('UploadOrderFromFile marketplace intake', () => {
     );
 
     expect(screen.getByText('Carga asistida pendiente')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Crear solicitud IA/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Crear solicitud/i })).toBeDisabled();
 
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
       target: { value: '2 chapas galvanizadas' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
@@ -363,7 +363,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
       target: { value: '2 chapas galvanizadas' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -434,7 +434,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Reclamo$/i }));
     expect(screen.getByRole('button', { name: /Reclamo vecinal/i })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalled();

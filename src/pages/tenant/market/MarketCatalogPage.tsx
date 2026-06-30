@@ -108,6 +108,15 @@ const ASSISTED_ENTRY_PROMISES = [
   'Reclamo, tramite o consulta con seguimiento publico',
 ];
 
+const publicMarketplaceText = (value: unknown) =>
+  String(value ?? '')
+    .replace(/\bOCR\s*\+\s*IA\b/gi, 'Lectura del documento')
+    .replace(/\bIntake\b/gi, 'Ingreso')
+    .replace(/\bCRM\b/g, 'panel')
+    .replace(/\bIA\b/g, 'lectura')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
   mode: 'assisted_first',
@@ -178,7 +187,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   empty_state: {
     title: 'Catalogo sin productos visibles, pedido asistido disponible.',
     description:
-      'Aunque no haya productos publicados todavia, podes subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione desde el CRM.',
+      'Aunque no haya productos publicados todavia, podes subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione.',
     primary_cta: 'Subir pedido o documento',
   },
   frontend_contract: {
@@ -253,7 +262,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     const visibleCount = total ?? products.length;
     const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
     if (visibleCount === 0 && publishedCount === 0) {
-      return 'Carga asistida lista. Subi pedido, boleta, reclamo o consulta para que el equipo responda desde el CRM.';
+      return 'Carga asistida lista. Subi pedido, boleta, reclamo o consulta para que el equipo responda con seguimiento.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
     if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
@@ -352,7 +361,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
               {assistedFirstActive
-                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. Todo queda trazado en el CRM.'
+                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. Todo queda trazado para el equipo.'
                 : heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
             </p>
           </div>
@@ -436,7 +445,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   El usuario puede mandar la foto del papel, pegar la lista o adjuntar una boleta.
                 </h3>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Chatboc crea una solicitud trazable para el CRM con lectura IA, faltantes, contacto recomendado y link publico de seguimiento.
+                  Chatboc crea una solicitud trazable con datos ordenados, faltantes, contacto recomendado y link publico de seguimiento.
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
@@ -451,7 +460,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               </div>
             </div>
             <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-              {['OCR + IA de rubro', 'CRM con respuesta sugerida', 'Seguimiento seguro por link'].map((promise) => (
+              {['Lectura del documento', 'Equipo con respuesta sugerida', 'Seguimiento seguro por link'].map((promise) => (
                 <span key={promise} className="rounded-md border bg-background/85 px-2.5 py-2 font-semibold leading-5 text-foreground">
                   {promise}
                 </span>
@@ -463,7 +472,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  Intake IA sin registro
+                  Ingreso sin registro
                 </Badge>
                 <p className="mt-2 text-sm font-semibold">
                   {catalogActuallyEmpty
@@ -478,7 +487,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   ))}
                 </div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  El CRM recibe archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes y respuesta sugerida.
+                  El equipo recibe archivo/texto original, datos ordenados, candidatos de catalogo, datos faltantes y respuesta sugerida.
                 </p>
               </div>
               <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
@@ -628,9 +637,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="mt-3 rounded-lg border bg-background/85 p-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-semibold">Salida operativa</p>
+                <p className="text-sm font-semibold">Resultado para el equipo</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Archivo/texto original, lectura IA, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
+                  Archivo/texto original, datos ordenados, candidatos de catalogo, datos faltantes, respuesta sugerida y link seguro.
                 </p>
               </div>
               <Button type="button" variant="outline" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
@@ -652,10 +661,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           onProcessed={(response) => {
             const requestId = response?.pedido_id ?? response?.lead_id;
             toast({
-              title: 'Nota recibida por IA',
+              title: 'Solicitud recibida',
               description: requestId
-                ? `Solicitud #${requestId}. El equipo puede revisarla desde el CRM.`
-                : 'El equipo puede revisarla desde el CRM.',
+                ? `Solicitud #${requestId}. El equipo puede revisarla desde el panel.`
+                : 'El equipo puede revisarla desde el panel.',
             });
           }}
         />
@@ -743,13 +752,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <h3 className="text-xl font-semibold">
                 {hasActiveFilters && !catalogActuallyEmpty
                   ? 'No hay productos para esos filtros, pero podes cargar el pedido igual.'
-                  : effectiveAssistedIntake?.empty_state?.title ?? 'Catalogo sin productos visibles, pedido asistido disponible.'}
+                  : publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) || 'Catalogo sin productos visibles, pedido asistido disponible.'}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 {hasActiveFilters && !catalogActuallyEmpty
-                  ? 'Limpia filtros para volver al catalogo o subi una nota/foto: Chatboc la transforma en lead, pedido o reclamo para que el equipo responda desde el CRM.'
-                  : effectiveAssistedIntake?.empty_state?.description ??
-                    'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite, crea la solicitud en CRM y genera seguimiento publico.'}
+                  ? 'Limpia filtros para volver al catalogo o subi una nota/foto: Chatboc la transforma en pedido, reclamo o consulta para que el equipo responda.'
+                  : publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
+                    'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite y genera seguimiento publico.'}
               </p>
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
                 {EMPTY_FLOW_STEPS.map((step) => (

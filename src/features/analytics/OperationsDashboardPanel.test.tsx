@@ -230,7 +230,12 @@ const aiOpsQueueFixture = (): OperationsAIOpsQueueV1 => ({
       title: 'Reclamo requiere revision humana',
       priority: 'high',
       reason_codes: ['sla_overdue', 'citizen_or_customer_channel'],
-      recommended_action: { label: 'Abrir caso', method: 'GET', endpoint: '/api/v2/tickets/1' },
+      recommended_action: {
+        label: 'Abrir caso',
+        method: 'GET',
+        endpoint: '/api/v2/tickets/1',
+        href: '/t/junin/tickets?ticket_id=1&source=tenant_ticket',
+      },
       signals: { category: 'alumbrado', channel: 'whatsapp' },
       pii: { redacted: true },
     },
@@ -240,7 +245,12 @@ const aiOpsQueueFixture = (): OperationsAIOpsQueueV1 => ({
       title: 'Pedido asistido requiere revision',
       priority: 'medium',
       reason_codes: ['unmatched_items'],
-      recommended_action: { label: 'Revisar pedido', method: 'GET', endpoint: '/api/admin/tenants/junin/orders/2' },
+      recommended_action: {
+        label: 'Revisar pedido',
+        method: 'GET',
+        endpoint: '/api/admin/tenants/junin/orders/2',
+        href: '/t/junin/pedidos/2',
+      },
       signals: { unmatched: 2, detected: 5 },
       pii: { redacted: true },
     },
@@ -250,7 +260,12 @@ const aiOpsQueueFixture = (): OperationsAIOpsQueueV1 => ({
       title: 'Encuesta o votacion en monitoreo',
       priority: 'low',
       reason_codes: ['survey_live_monitoring'],
-      recommended_action: { label: 'Ver analitica', method: 'GET', endpoint: '/api/v2/public/surveys/demo/live-results' },
+      recommended_action: {
+        label: 'Ver analitica',
+        method: 'GET',
+        endpoint: '/api/v2/public/surveys/demo/live-results',
+        href: '/admin/encuestas/3/analytics',
+      },
       signals: { responses: 10 },
       pii: { redacted: true },
     },
@@ -329,8 +344,11 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Reclamo requiere revision humana')).toBeTruthy();
     expect(screen.getByText('Pedido asistido requiere revision')).toBeTruthy();
     expect(screen.getByText('Encuesta o votacion en monitoreo')).toBeTruthy();
-    expect(screen.getByText('Abrir caso')).toBeTruthy();
-    expect(screen.getByText('Revisar pedido')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Abrir caso/i }).getAttribute('href')).toBe(
+      '/t/junin/tickets?ticket_id=1&source=tenant_ticket',
+    );
+    expect(screen.getByRole('link', { name: /Revisar pedido/i }).getAttribute('href')).toBe('/t/junin/pedidos/2');
+    expect(screen.getByRole('link', { name: /Ver analitica/i }).getAttribute('href')).toBe('/admin/encuestas/3/analytics');
     await waitFor(() => {
       expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledWith(
         expect.objectContaining({

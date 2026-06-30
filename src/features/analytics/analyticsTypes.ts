@@ -50,6 +50,9 @@ export interface OperationsActionItem {
   priority?: string;
   reason_code?: string;
   endpoint?: string;
+  href?: string;
+  frontend_path?: string;
+  route?: string;
   method?: string;
   template_id?: string;
   payload_template?: Record<string, unknown>;

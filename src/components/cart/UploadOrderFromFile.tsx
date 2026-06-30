@@ -139,7 +139,7 @@ const DOCUMENT_TYPES = [
   { value: 'tax_bill', label: 'Boleta / impuesto', helper: 'Tasa, impuesto, padron, periodo o vencimiento.' },
   { value: 'certificate', label: 'Certificado / tramite', helper: 'Documentacion, permiso o tramite para validar.' },
   { value: 'service_request', label: 'Reclamo vecinal', helper: 'Luminaria, bache, perdida de agua, limpieza o solicitud municipal.' },
-  { value: 'other', label: 'Otro archivo', helper: 'El equipo lo clasifica desde el CRM.' },
+  { value: 'other', label: 'Otro archivo', helper: 'El equipo lo clasifica antes de responder.' },
 ] as const;
 
 type DocumentType = (typeof DOCUMENT_TYPES)[number]['value'];
@@ -182,12 +182,12 @@ const DEFAULT_MARKETPLACE_PIPELINE = [
   },
   {
     id: 'ai_parse',
-    label: 'La IA separa datos',
+    label: 'Datos ordenados',
     description: 'Productos, cantidades, referencias, comprobantes y datos operativos.',
   },
   {
     id: 'crm_handoff',
-    label: 'El CRM responde',
+    label: 'Equipo responde',
     description: 'El equipo confirma stock, precio, tramite o proximo paso.',
   },
   {
@@ -239,6 +239,20 @@ const CRM_RECEIVES = [
   'Link publico de seguimiento',
 ];
 
+const PUBLIC_PIPELINE_LABELS: Record<string, string> = {
+  ai_parse: 'Datos ordenados',
+  crm_handoff: 'Equipo responde',
+};
+
+const publicFacingText = (value: unknown) =>
+  String(value ?? '')
+    .replace(/\bOCR\s*\+\s*IA\b/gi, 'Lectura del documento')
+    .replace(/\bIntake\b/gi, 'Ingreso')
+    .replace(/\bCRM\b/g, 'panel')
+    .replace(/\bIA\b/g, 'lectura')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const ASSISTED_OUTCOMES = [
   {
     label: 'Pedido o cotizacion',
@@ -250,7 +264,7 @@ const ASSISTED_OUTCOMES = [
   },
   {
     label: 'Lead listo para responder',
-    description: 'Contacto, canal sugerido, respuesta borrador y seguimiento publico para el CRM.',
+    description: 'Contacto, canal sugerido, respuesta borrador y seguimiento publico para el equipo.',
   },
 ];
 
@@ -407,7 +421,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         return {
           value: id,
           label: item.label || fallback?.label || id,
-          helper: item.helper || fallback?.helper || 'Solicitud asistida para revisar desde el CRM.',
+          helper: item.helper || fallback?.helper || 'Solicitud asistida para revisar antes de responder.',
         };
       })
       .filter((item): item is DocumentTypeOption => Boolean(item));
@@ -482,15 +496,27 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     return sorted.length ? sorted.join(', ') : 'PDF, JPG, PNG, WEBP, CSV, Excel, Word o TXT';
   }, [submitContract?.accepted_extensions, submitContract?.accepted_mime_types]);
   const submitMaxFileMbLabel = Math.max(1, Math.floor(submitMaxFileBytes / (1024 * 1024)));
-  const marketplacePipeline =
-    intakeExperience?.pipeline?.length ? intakeExperience.pipeline.slice(0, 4) : DEFAULT_MARKETPLACE_PIPELINE;
+  const marketplacePipeline = (
+    intakeExperience?.pipeline?.length ? intakeExperience.pipeline.slice(0, 4) : DEFAULT_MARKETPLACE_PIPELINE
+  ).map((step) => ({
+    ...step,
+    label: PUBLIC_PIPELINE_LABELS[String(step.id ?? '')] ?? publicFacingText(step.label),
+    description: publicFacingText(step.description),
+  }));
   const marketplaceExamples = intakeExperience?.input_examples?.length
     ? intakeExperience.input_examples.slice(0, 4)
     : DEFAULT_MARKETPLACE_EXAMPLES;
   const marketplaceTextExamples = intakeExperience?.text_examples?.length
     ? intakeExperience.text_examples.filter((example) => example?.label && example?.text).slice(0, 4)
     : DEFAULT_TEXT_EXAMPLES;
-  const crmReceives = intakeExperience?.crm_receives?.length ? intakeExperience.crm_receives.slice(0, 5) : CRM_RECEIVES;
+  const crmReceives = (intakeExperience?.crm_receives?.length ? intakeExperience.crm_receives.slice(0, 5) : CRM_RECEIVES)
+    .map(publicFacingText)
+    .filter(Boolean);
+  const publicIntakeTitle =
+    publicFacingText(intakeExperience?.title) || 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable';
+  const publicIntakeSummary =
+    publicFacingText(intakeExperience?.summary) ||
+    'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe la solicitud ordenada, con datos faltantes y un canal claro para responderte.';
 
   const applyTextExample = (example: MarketAssistedIntakeTextExample) => {
     if (isDocumentType(example.document_type)) {
@@ -530,8 +556,8 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     setProcessedResponse(null);
     setStatusMessage(
       file
-        ? `Subiendo ${file.name} y preparando lectura IA...`
-        : `Analizando ${activeDocumentType.label.toLowerCase()} con IA para separar articulos y datos...`,
+        ? `Subiendo ${file.name} y preparando lectura...`
+        : `Analizando ${activeDocumentType.label.toLowerCase()} para separar articulos y datos...`,
     );
     setProgress(10);
 
@@ -699,15 +725,15 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const isClaimFollowUp = trackingKind === 'claim' || processedResponse?.request_kind === 'service_request';
   const followUpBadgeLabel = hasRealTracking
     ? isClaimFollowUp ? 'Reclamo trazable' : 'Pedido trazable'
-    : 'Referencia CRM';
+    : 'Referencia interna';
   const followUpTitle = hasRealTracking
     ? isClaimFollowUp ? 'Seguimiento de reclamo creado' : 'Seguimiento publico creado'
     : 'Referencia recibida';
   const followUpDescription = !hasRealTracking
-    ? 'La solicitud quedo registrada para el equipo. Si todavia no hay link publico, la referencia permite continuar por WhatsApp o desde el CRM sin perder el contexto.'
+    ? 'La solicitud quedo registrada para el equipo. Si todavia no hay link publico, la referencia permite continuar por WhatsApp sin perder el contexto.'
     : isClaimFollowUp
-    ? 'El vecino puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El CRM conserva el archivo o texto original, la lectura de IA y el ticket municipal.'
-    : 'El cliente puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El CRM conserva el archivo o texto original y la lectura de IA.';
+    ? 'El vecino puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El equipo conserva el archivo o texto original, la lectura y el ticket municipal.'
+    : 'El cliente puede consultar el estado y continuar por WhatsApp sin registrarse. El equipo conserva el archivo o texto original y la lectura.';
   const structuredFields = structuredFieldEntries(processedResponse?.structured_extraction?.fields);
   const missingStructuredFields = processedResponse?.structured_extraction?.missing_fields?.filter(Boolean) ?? [];
   const copyFollowUpLink = async () => {
@@ -736,14 +762,13 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">Carga asistida</Badge>
                     <Badge variant="outline">Sin registro previo</Badge>
-                    <Badge variant="secondary">IA + revision humana</Badge>
+                    <Badge variant="secondary">Revision humana</Badge>
                   </div>
                   <h2 className="mt-2 max-w-2xl text-lg font-semibold tracking-normal sm:text-xl">
-                    {intakeExperience?.title ?? 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable'}
+                    {publicIntakeTitle}
                   </h2>
                   <p className="mt-1 line-clamp-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-                    {intakeExperience?.summary ??
-                      'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe la solicitud ordenada, con datos faltantes y un canal claro para responderte.'}
+                    {publicIntakeSummary}
                   </p>
                 </div>
               </div>
@@ -907,7 +932,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                   className="w-full shrink-0 sm:w-auto"
                 >
                   {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                  Crear solicitud IA
+                  Crear solicitud
                 </Button>
               </div>
             </div>
@@ -1042,7 +1067,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 {uploading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" /> : <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" />}
-                <span>{uploading ? 'Procesando solicitud con IA' : 'Estado de la solicitud'}</span>
+                <span>{uploading ? 'Procesando solicitud' : 'Estado de la solicitud'}</span>
               </div>
               {statusMessage ? (
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -1102,7 +1127,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             ) : null}
             {processedResponse?.operator_pack?.needs_human_review ? (
               <span className="mt-2 block text-xs font-medium">
-                El CRM lo marco para revision humana antes de responder.
+                El equipo lo marco para revision humana antes de responder.
               </span>
             ) : null}
           </AlertDescription>
@@ -1172,7 +1197,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 Lo que entendimos
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Estos datos quedan normalizados para que el CRM responda sin volver a interpretar el papel o mensaje original.
+                Estos datos quedan normalizados para que el equipo responda sin volver a interpretar el papel o mensaje original.
               </p>
             </div>
             {processedResponse.structured_extraction?.confidence ? (
@@ -1209,11 +1234,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold">Proximos pasos</p>
-              <p className="text-xs text-muted-foreground">La solicitud ya quedo asociada al CRM del espacio.</p>
+              <p className="text-xs text-muted-foreground">La solicitud ya quedo asociada al panel del espacio.</p>
             </div>
-            <Badge variant="outline">
-              {processedResponse.crm_state === 'ready_for_confirmation' ? 'Lista para confirmar' : 'Revision operativa'}
-            </Badge>
+                  <Badge variant="outline">
+                    {processedResponse.crm_state === 'ready_for_confirmation' ? 'Lista para confirmar' : 'Revision del equipo'}
+                  </Badge>
           </div>
           <Separator className="my-3" />
           {customerNextSteps.length ? (
