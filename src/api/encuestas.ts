@@ -386,7 +386,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
 
 const shouldRetryPublicSurveyRequest = (error: unknown) => {
   if (error instanceof ApiError) {
-    return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 405 || error.status >= 500;
+    return error.status === 404 || error.status === 405 || error.status >= 500;
   }
   return false;
 };
@@ -599,12 +599,26 @@ export const getPublicSurveyLiveResults = (
     omitTenant: true,
   });
 
+type PublicSurveyResponseAck = {
+  ok: boolean;
+  id?: number;
+  respuesta_id?: number | string;
+  response_id?: number | string;
+  contact_key?: string;
+  conversation_id?: string;
+  contract_version?: string;
+  request_id?: string;
+  live_results_url?: string;
+  realtime?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
-): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }> =>
-  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }>(buildPublicSurveyPaths(
+): Promise<PublicSurveyResponseAck> =>
+  callPublicSurveyEndpoint<PublicSurveyResponseAck>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/v2/public/surveys/${slug}/respond`, tenantSlug),
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
@@ -629,9 +643,21 @@ export const postPublicResponse = (
     const contactKey = typeof response?.contact_key === 'string' ? response.contact_key.trim() : '';
     const conversationId =
       typeof response?.conversation_id === 'string' ? response.conversation_id.trim() : '';
+    const rawNormalizedId = response?.id ?? response?.response_id ?? response?.respuesta_id;
+    const numericId =
+      typeof rawNormalizedId === 'number'
+        ? rawNormalizedId
+        : typeof rawNormalizedId === 'string' && rawNormalizedId.trim() && Number.isFinite(Number(rawNormalizedId))
+          ? Number(rawNormalizedId)
+          : undefined;
+    const normalizedResponse = {
+      ...response,
+      ...(numericId !== undefined ? { id: numericId } : {}),
+      ...(contractVersion ? { contract_version: contractVersion } : {}),
+    };
 
     if (!contactKey && !conversationId) {
-      return response;
+      return normalizedResponse;
     }
 
     try {
@@ -656,10 +682,7 @@ export const postPublicResponse = (
       // no-op: identity persistence is best-effort
     }
 
-    return {
-      ...response,
-      ...(contractVersion ? { contract_version: contractVersion } : {}),
-    };
+    return normalizedResponse;
   });
 
 export const getSurveyComments = (

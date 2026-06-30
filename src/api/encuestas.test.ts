@@ -330,6 +330,20 @@ describe('public survey tenant query contract', () => {
       expect.objectContaining({ method: 'POST', omitTenant: true, tenantSlug: 'junin' }),
     );
   });
+
+  it('does not fall back to legacy live-results when v2 intentionally hides results', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Live results hidden', 403));
+
+    await expect(
+      getPublicSurveyLiveResults('consulta-barrial', 'junin', { include_heatmap: 0 }),
+    ).rejects.toMatchObject({ status: 403 });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=0&tenant_slug=junin',
+      expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
+    );
+  });
 });
 
 describe('postPublicResponse', () => {
@@ -382,6 +396,8 @@ describe('postPublicResponse', () => {
     );
 
     expect(response.contract_version).toBe('surveys.public_response.v2');
+    expect(response.id).toBe(99);
+    expect(response.live_results_url).toBe('/api/v2/public/surveys/mi-encuesta/live-results?tenant_slug=rio-grande');
   });
 
   it('accepts explicit demo survey response contract', async () => {
