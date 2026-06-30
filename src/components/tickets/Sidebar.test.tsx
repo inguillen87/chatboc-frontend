@@ -251,9 +251,12 @@ describe('Tickets Sidebar category density', () => {
     });
 
     expect(screen.getByRole('button', { name: /filtros secundarios, 1 activo/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar reclamo...')).toBeInTheDocument();
-    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+    expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
   });
 
   it('uses Todos as a true reset and exposes unassigned as an operational shortcut', async () => {

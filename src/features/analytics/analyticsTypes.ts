@@ -426,6 +426,37 @@ export interface OperationsActionCenterV1 {
   frontend_contract?: OperationsFrontendContract;
 }
 
+export interface OperationsAIOpsQueueItem {
+  id?: string;
+  source?: string;
+  source_model?: string;
+  record_id?: string | number;
+  title?: string;
+  priority?: string;
+  reason_codes?: string[];
+  recommended_action?: OperationsActionItem;
+  signals?: Record<string, unknown>;
+  pii?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface OperationsAIOpsQueueV1 {
+  contract_version?: string;
+  request_id?: string;
+  enabled?: boolean;
+  reason_code?: string;
+  agent_display_name?: string;
+  tenant?: Record<string, unknown>;
+  period?: Record<string, unknown>;
+  generated_at?: string;
+  summary?: Record<string, unknown>;
+  advisory_policy?: Record<string, unknown>;
+  items: OperationsAIOpsQueueItem[];
+  signals?: Record<string, unknown>;
+  model_policy?: Record<string, unknown>;
+  frontend_contract?: OperationsFrontendContract;
+}
+
 export interface OperationsAIBriefV1 {
   contract_version?: string;
   request_id?: string;

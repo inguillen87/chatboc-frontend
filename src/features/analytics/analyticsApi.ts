@@ -1,6 +1,8 @@
 import { panelApi } from '@/api/v2/client';
 import type {
   AnalyticsOverview,
+  OperationsAIOpsQueueItem,
+  OperationsAIOpsQueueV1,
   OperationsAIBriefV1,
   OperationsActionCenterV1,
   OperationsActionItem,
@@ -823,6 +825,46 @@ const normalizeAIBrief = (response: unknown): OperationsAIBriefV1 => {
   };
 };
 
+const normalizeAIOpsQueueItem = (value: unknown, index: number): OperationsAIOpsQueueItem | null => {
+  if (!isRecord(value)) return null;
+  return {
+    ...value,
+    id: asString(value.id) ?? `ai_ops_${index + 1}`,
+    source: asString(value.source),
+    source_model: asString(value.source_model),
+    record_id: asString(value.record_id) ?? asNumber(value.record_id),
+    title: asString(value.title) ?? asString(value.label),
+    priority: asString(value.priority),
+    reason_codes: normalizeStringList(value.reason_codes) ?? [],
+    recommended_action: normalizeActionObject(value.recommended_action),
+    signals: pickRecord(value.signals),
+    pii: pickRecord(value.pii),
+  };
+};
+
+const normalizeAIOpsQueue = (response: unknown): OperationsAIOpsQueueV1 => {
+  const record = pickRecord(response) ?? {};
+  const rawItems = Array.isArray(record.items) ? record.items : [];
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    enabled: asBoolean(record.enabled),
+    reason_code: asString(record.reason_code),
+    agent_display_name: asString(record.agent_display_name),
+    tenant: pickRecord(record.tenant),
+    period: pickRecord(record.period),
+    generated_at: asString(record.generated_at),
+    summary: pickRecord(record.summary),
+    advisory_policy: pickRecord(record.advisory_policy),
+    items: rawItems
+      .map((item, index) => normalizeAIOpsQueueItem(item, index))
+      .filter((item): item is OperationsAIOpsQueueItem => item !== null),
+    signals: pickRecord(record.signals),
+    model_policy: pickRecord(record.model_policy),
+    frontend_contract: normalizeFrontendContract(record.frontend_contract),
+  };
+};
+
 const normalizeFreshnessSource = (value: unknown, index: number): OperationsFreshnessSource | null => {
   if (!isRecord(value)) return null;
   return {
@@ -983,6 +1025,22 @@ export const getOperationsAIBriefV2 = async (params?: {
     tenantSlug: params?.tenantSlug,
   });
   return normalizeAIBrief(response);
+};
+
+export const getOperationsAIOpsQueueV2 = async (params?: {
+  tenantSlug?: string | null;
+  tenant_id?: number | string | null;
+  from?: string | null;
+  to?: string | null;
+  range?: string | null;
+  scope?: string | null;
+  limit?: number | null;
+}) => {
+  const query = buildQuery(params);
+  const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-ops-queue${query}`, {
+    tenantSlug: params?.tenantSlug,
+  });
+  return normalizeAIOpsQueue(response);
 };
 
 export const getOperationsFreshnessV2 = async (params?: {

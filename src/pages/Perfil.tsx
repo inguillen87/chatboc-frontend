@@ -1817,7 +1817,10 @@ export default function Perfil() {
       >
         <Button
           variant="outline"
-          className="float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10"
+          className={cn(
+            "float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10",
+            activeProfileTab === "tickets" && "hidden",
+          )}
           onClick={() => {
             safeLocalStorage.clear();
             navigate("/login"); // Usa navigate para la redirección
@@ -1826,17 +1829,32 @@ export default function Perfil() {
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
         {activeProfileTab === "tickets" ? (
-          <div className="clear-both flex flex-col gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Consola tickets</p>
-              <h1 className="truncate text-lg font-semibold text-foreground">
-                {perfil.nombre_empresa || "Panel de Empresa"}
-              </h1>
+          <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:px-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Consola tickets</p>
+                <span className="hidden h-3 w-px bg-border sm:block" />
+                <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
+                  {perfil.nombre_empresa || "Panel de Empresa"}
+                </h1>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
+            <div className="hidden shrink-0 items-center gap-2 md:flex">
               <Badge variant="secondary" className="capitalize">{perfil.rubro || "Rubro no especificado"}</Badge>
               <Badge variant="outline">{plan === "full" ? "Plan Full" : plan === "pro" ? "Plan Pro" : "Plan activo"}</Badge>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 rounded-lg border-destructive px-2.5 text-xs text-destructive hover:bg-destructive/10 sm:px-3"
+              onClick={() => {
+                safeLocalStorage.clear();
+                navigate("/login"); // Usa navigate para la redirecciÃ³n
+              }}
+            >
+              <LogOut className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Salir</span>
+            </Button>
           </div>
         ) : (
         <div className="clear-both rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur sm:p-6">
@@ -1934,15 +1952,15 @@ export default function Perfil() {
           className={cn(
             "sticky z-30 border-y border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border",
             activeProfileTab === "tickets"
-              ? "top-14 -mx-1 px-1 py-1"
+              ? "top-0 -mx-1 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               : "top-0 -mx-2 px-2 py-2",
           )}
         >
         <TabsList className={cn(
-          "grid h-auto w-full gap-1",
+          "h-auto gap-1",
           activeProfileTab === "tickets"
-            ? "grid-cols-4 lg:grid-cols-8 xl:grid-cols-9"
-            : canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8",
+            ? "inline-flex min-h-8 w-max min-w-full justify-start"
+            : canViewAnalytics ? "grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-8",
         )}>
           <TabsTrigger value="perfil">Inicio</TabsTrigger>
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
@@ -2840,7 +2858,7 @@ export default function Perfil() {
         </TabsContent>
         <TabsContent
           value="tickets"
-          className="mt-2 min-h-0 flex-1 overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+          className="mt-1 min-h-0 flex-1 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>

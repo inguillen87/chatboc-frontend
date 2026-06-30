@@ -228,7 +228,17 @@ describe("WhatsappTechProviderOnboarding", () => {
       severity: "info",
       execution_mode: "read_only",
       sends_real_message: false,
-      details: { templates: 12, webviews: 4 },
+      details: {
+        templates: 12,
+        webviews: 4,
+        executable_matrix: {
+          contract_version: "whatsapp.qa_script_matrix.v1",
+          loaded: true,
+          local_command: "python scripts/qa_whatsapp_flows.py",
+          sends_real_message: false,
+          summary: { scenarios: 12, cases: 31 },
+        },
+      },
       next_action: "continue_activation",
       playbook_status: "pass",
       playbook_score: 0.91,
@@ -321,6 +331,11 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("Score 91%")).toBeInTheDocument();
     expect(screen.getByText("Continue Activation")).toBeInTheDocument();
     expect(screen.getByText(/sin mensajes reales/i)).toBeInTheDocument();
+    expect(screen.getByText("Escenarios")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("Casos")).toBeInTheDocument();
+    expect(screen.getByText("31")).toBeInTheDocument();
+    expect(screen.getByText("python scripts/qa_whatsapp_flows.py")).toBeInTheDocument();
   });
 
   it("opens templates inside the current tenant route", async () => {

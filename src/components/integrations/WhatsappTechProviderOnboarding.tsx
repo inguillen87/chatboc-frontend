@@ -117,6 +117,14 @@ const readText = (...values: unknown[]) => {
 const readBoolean = (value: unknown, fallback = false) =>
   typeof value === "boolean" ? value : fallback;
 
+const readNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+};
+
 const normalizeStatus = (value?: string | null) => String(value ?? "").trim().toLowerCase();
 
 const isReadyStatus = (value?: string | null) => {
@@ -357,6 +365,16 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
     opsQa?.recommended_next_actions?.[0]?.next_action ||
     opsQa?.recommended_next_actions?.[0]?.label ||
     null;
+  const finalQaDetails = finalQaResult?.details ?? {};
+  const finalQaMatrix = finalQaDetails.executable_matrix && typeof finalQaDetails.executable_matrix === "object"
+    ? (finalQaDetails.executable_matrix as Record<string, unknown>)
+    : null;
+  const finalQaMatrixSummary = finalQaMatrix?.summary && typeof finalQaMatrix.summary === "object"
+    ? (finalQaMatrix.summary as Record<string, unknown>)
+    : {};
+  const finalQaScenarioCount = readNumber(finalQaMatrixSummary.scenarios);
+  const finalQaCaseCount = readNumber(finalQaMatrixSummary.cases);
+  const finalQaCommand = readText(finalQaMatrix?.local_command, (finalQaDetails.runner as Record<string, unknown> | undefined)?.local_command);
   const setupScore = typeof setupHealth?.activation_score === "number" ? setupHealth.activation_score : null;
   const setupCompleted = typeof setupHealth?.completed === "number" ? setupHealth.completed : null;
   const setupTotal = typeof setupHealth?.total === "number" ? setupHealth.total : null;
@@ -867,12 +885,30 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
                     </div>
                     {finalQaResult ? (
                       <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
-                        Resultado ejecutado:{" "}
-                        <span className="font-medium text-foreground">{finalQaResult.label || primaryFinalQaCheck?.label || "QA final"}</span>
-                        {finalQaResult.execution_mode ? (
-                          <span> - modo {finalQaResult.execution_mode}</span>
+                        <div>
+                          Resultado ejecutado:{" "}
+                          <span className="font-medium text-foreground">{finalQaResult.label || primaryFinalQaCheck?.label || "QA final"}</span>
+                          {finalQaResult.execution_mode ? (
+                            <span> - modo {finalQaResult.execution_mode}</span>
+                          ) : null}
+                          {finalQaResult.sends_real_message === false ? <span> - sin mensajes reales</span> : null}
+                        </div>
+                        {finalQaMatrix ? (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            <div className="rounded-lg border bg-background/70 p-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Escenarios</p>
+                              <p className="mt-1 text-sm font-semibold text-foreground">{finalQaScenarioCount ?? "-"}</p>
+                            </div>
+                            <div className="rounded-lg border bg-background/70 p-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Casos</p>
+                              <p className="mt-1 text-sm font-semibold text-foreground">{finalQaCaseCount ?? "-"}</p>
+                            </div>
+                            <div className="rounded-lg border bg-background/70 p-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Runner</p>
+                              <p className="mt-1 break-all text-[11px] font-medium text-foreground">{finalQaCommand ?? "sin comando"}</p>
+                            </div>
+                          </div>
                         ) : null}
-                        {finalQaResult.sends_real_message === false ? <span> - sin mensajes reales</span> : null}
                       </div>
                     ) : null}
                   </div>

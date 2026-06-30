@@ -5,6 +5,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   ChevronDown,
   FileDown,
+  FolderOpen,
+  List,
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -45,6 +47,7 @@ interface SidebarProps {
 }
 
 const ITEMS_PER_PAGE = 10;
+const QUEUE_ITEMS_PER_PAGE = 25;
 const defaultFilters = {
   channel: 'all',
   status: 'all',
@@ -57,6 +60,50 @@ const defaultFilters = {
 
 const FILTER_SELECT_CLASS_NAME =
   'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
+
+const isUnreadQueueTicket = (ticket: any) =>
+  Boolean(
+    ticket.hasUnreadMessages ||
+      ticket.collaboration_state?.has_unread ||
+      Number(ticket.collaboration_state?.unread_count || 0) > 0 ||
+      Number(ticket.collaboration_state?.unread_viewer_count || 0) > 0,
+  );
+
+const isRiskQueueTicket = (ticket: any) => {
+  const sla = String(ticket.sla_status || '').toLowerCase();
+  const priority = String(ticket.priority || '').toLowerCase();
+  return (
+    sla.includes('breach') ||
+    sla.includes('venc') ||
+    sla.includes('overdue') ||
+    priority.includes('alta') ||
+    priority.includes('urgent') ||
+    priority.includes('urgente')
+  );
+};
+
+const getQueueTimestamp = (ticket: any) => {
+  const raw =
+    ticket.updated_at ||
+    ticket.fecha_actualizacion ||
+    ticket.last_message_at ||
+    ticket.ultimo_mensaje_at ||
+    ticket.created_at ||
+    ticket.fecha_creacion ||
+    ticket.fecha;
+  const parsed = raw ? Date.parse(String(raw)) : 0;
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const getQueueScore = (ticket: any) => {
+  const status = normalizeTicketStatus(ticket.estado);
+  const isResolved = status === 'resuelto' || String(ticket.estado).toLowerCase() === 'cerrado';
+  return (
+    (isUnreadQueueTicket(ticket) ? 100 : 0) +
+    (isRiskQueueTicket(ticket) ? 50 : 0) +
+    (!isResolved ? 10 : 0)
+  );
+};
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact = false }) => {
   const { tenant } = useTenant();
@@ -85,9 +132,21 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
   );
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
+  const [listMode, setListMode] = React.useState<'queue' | 'categories'>(
+    () => (compact ? 'queue' : 'categories'),
+  );
+  const [queueVisibleCount, setQueueVisibleCount] = React.useState(
+    QUEUE_ITEMS_PER_PAGE,
+  );
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
   const searchInputId = React.useId();
   const filterPanelId = React.useId();
+
+  React.useEffect(() => {
+    if (compact) {
+      setListMode('queue');
+    }
+  }, [compact]);
 
   React.useEffect(() => {
     const fetchCategories = async () => {
@@ -202,6 +261,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
       newVisibleCounts[category] = ITEMS_PER_PAGE;
     }
     setVisibleCounts(newVisibleCounts);
+    setQueueVisibleCount(QUEUE_ITEMS_PER_PAGE);
   }, [filteredTicketsByCategory]);
 
   React.useEffect(() => {
@@ -349,6 +409,286 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     ([, categoryTickets]) => categoryTickets.length === 0,
   ).length;
   const totalBackendTickets = pagination?.total_items ?? tickets.length;
+  const queueEntries = visibleCategoryEntries
+    .flatMap(([category, categoryTickets]) =>
+      categoryTickets.map((ticket) => ({ category, ticket })),
+    )
+    .sort((left, right) => {
+      const scoreDelta = getQueueScore(right.ticket) - getQueueScore(left.ticket);
+      if (scoreDelta !== 0) return scoreDelta;
+      return getQueueTimestamp(right.ticket) - getQueueTimestamp(left.ticket);
+    });
+  const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
+  const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
+  const filterPopover = (
+    <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
+          className="h-7 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
+          aria-label={secondaryFilterButtonLabel}
+          aria-expanded={advancedFiltersOpen}
+          aria-controls={filterPanelId}
+        >
+          <SlidersHorizontal className="h-4 w-4 text-primary" />
+          <span className="hidden sm:inline">Filtros</span>
+          {hasSecondaryFilters ? (
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold text-primary">
+              {secondaryFilterCount}
+            </span>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 transition-transform',
+              advancedFiltersOpen && 'rotate-180',
+            )}
+          />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        id={filterPanelId}
+        data-testid="sidebar-filter-panel"
+        aria-label="Filtros secundarios de reclamos"
+        align={compact ? 'end' : 'start'}
+        side={compact ? 'bottom' : 'right'}
+        sideOffset={8}
+        className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Filtros secundarios</p>
+            <p className="text-[11px] text-muted-foreground">
+              {hasSecondaryFilters
+                ? secondaryFilterCountLabel
+                : 'Sin filtros secundarios'}
+            </p>
+          </div>
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 px-2 text-xs"
+              onClick={resetFilters}
+            >
+              Limpiar
+            </Button>
+          ) : null}
+        </div>
+        {compact ? (
+          <div
+            className="mb-2 grid grid-cols-4 gap-1.5"
+            role="group"
+            aria-label="Vistas rapidas de la bandeja"
+            data-testid="sidebar-compact-primary-filters"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={
+                !debouncedSearchTerm && isDefaultFilterSet
+                  ? 'secondary'
+                  : 'outline'
+              }
+              className="h-7 rounded-lg px-2 text-xs"
+              aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
+              onClick={resetFilters}
+            >
+              Todos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
+              className="h-7 rounded-lg px-2 text-xs"
+              aria-pressed={filters.unread === 'unread'}
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, unread: 'unread' }))
+              }
+            >
+              No leidos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
+              className="h-7 rounded-lg px-2 text-xs"
+              aria-pressed={filters.sla === 'risk'}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  sla: prev.sla === 'risk' ? 'all' : 'risk',
+                }))
+              }
+            >
+              Riesgo
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
+              className="h-7 rounded-lg px-2 text-xs"
+              aria-pressed={filters.agent === 'unassigned'}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
+                }))
+              }
+            >
+              Sin resp.
+            </Button>
+          </div>
+        ) : null}
+        <fieldset className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+          <legend className="sr-only">Filtros secundarios de reclamos</legend>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-channel`}>
+              Filtrar por canal
+            </label>
+            <select
+              id={`${filterPanelId}-channel`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.channel}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, channel: e.target.value }))
+              }
+            >
+              <option value="all">Canal: todos</option>
+              {filterOptions.channels.map((channel) => (
+                <option key={channel} value={channel}>
+                  {channel}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-status`}>
+              Filtrar por estado
+            </label>
+            <select
+              id={`${filterPanelId}-status`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.status}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, status: e.target.value }))
+              }
+            >
+              <option value="all">Estado: todos</option>
+              {filterOptions.statuses.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-area`}>
+              Filtrar por area
+            </label>
+            <select
+              id={`${filterPanelId}-area`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.area}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, area: e.target.value }))
+              }
+            >
+              <option value="all">Area: todas</option>
+              {filterOptions.areas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-agent`}>
+              Filtrar por agente
+            </label>
+            <select
+              id={`${filterPanelId}-agent`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.agent}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, agent: e.target.value }))
+              }
+            >
+              <option value="all">Agente: todos</option>
+              {filterOptions.agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0 sm:col-span-2">
+            <label className="sr-only" htmlFor={`${filterPanelId}-priority`}>
+              Filtrar por prioridad
+            </label>
+            <select
+              id={`${filterPanelId}-priority`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.priority}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, priority: e.target.value }))
+              }
+            >
+              <option value="all">Prioridad: todas</option>
+              {filterOptions.priorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-sla`}>
+              Filtrar por SLA
+            </label>
+            <select
+              id={`${filterPanelId}-sla`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.sla}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, sla: e.target.value }))
+              }
+            >
+              <option value="all">SLA: todos</option>
+              <option value="risk">SLA: riesgo</option>
+              {filterOptions.slaStatuses
+                .filter((slaStatus) => slaStatus !== 'risk')
+                .map((slaStatus) => (
+                  <option key={slaStatus} value={slaStatus}>
+                    {slaStatus}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor={`${filterPanelId}-unread`}>
+              Filtrar por lectura
+            </label>
+            <select
+              id={`${filterPanelId}-unread`}
+              className={FILTER_SELECT_CLASS_NAME}
+              value={filters.unread}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, unread: e.target.value }))
+              }
+            >
+              {filterOptions.unreadModes.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </fieldset>
+      </PopoverContent>
+    </Popover>
+  );
 
   return (
     <aside
@@ -362,11 +702,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         compact ? 'space-y-1.5 p-2' : 'space-y-2 p-2.5',
       )}>
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-bold tracking-tight">
+          <div className="min-w-0">
+            <h1 className={cn('truncate font-bold tracking-tight', compact ? 'text-sm' : 'text-lg')}>
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className={cn('truncate text-muted-foreground', compact ? 'text-[11px]' : 'text-xs')}>
               {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
               {tickets.length.toLocaleString('es-AR')} de{' '}
               {totalBackendTickets.toLocaleString('es-AR')} cargados
@@ -397,20 +737,24 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="relative">
-          <label className="sr-only" htmlFor={searchInputId}>
-            Buscar reclamos por numero, asunto, nombre, DNI o telefono
-          </label>
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            id={searchInputId}
-            placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto, nombre, DNI, telefono...'}
-            className={cn('h-8 pl-8', compact ? 'text-xs' : 'text-sm')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex items-center gap-1.5">
+          <div className="relative min-w-0 flex-1">
+            <label className="sr-only" htmlFor={searchInputId}>
+              Buscar reclamos por numero, asunto, nombre, DNI o telefono
+            </label>
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id={searchInputId}
+              placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto, nombre, DNI, telefono...'}
+              className={cn('h-8 pl-8', compact ? 'text-xs' : 'text-sm')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {compact ? filterPopover : null}
         </div>
 
+        {!compact ? (
         <div className="flex items-center gap-1.5">
           <div
             className="grid min-w-0 flex-1 grid-cols-4 gap-1.5"
@@ -476,209 +820,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </Button>
           </div>
 
-          <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
-                className="h-7 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
-                aria-label={secondaryFilterButtonLabel}
-                aria-expanded={advancedFiltersOpen}
-                aria-controls={filterPanelId}
-              >
-                <SlidersHorizontal className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">Filtros</span>
-                {hasSecondaryFilters ? (
-                  <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold text-primary">
-                    {secondaryFilterCount}
-                  </span>
-                ) : null}
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 shrink-0 transition-transform',
-                    advancedFiltersOpen && 'rotate-180',
-                  )}
-                />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              id={filterPanelId}
-              data-testid="sidebar-filter-panel"
-              aria-label="Filtros secundarios de reclamos"
-              align="start"
-              side="right"
-              sideOffset={8}
-              className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
-            >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-semibold text-foreground">Filtros secundarios</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {hasSecondaryFilters
-                    ? secondaryFilterCountLabel
-                    : 'Sin filtros secundarios'}
-                </p>
-              </div>
-              {hasActiveFilters ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 shrink-0 px-2 text-xs"
-                  onClick={resetFilters}
-                >
-                  Limpiar
-                </Button>
-              ) : null}
-            </div>
-            <fieldset className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
-              <legend className="sr-only">Filtros secundarios de reclamos</legend>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-channel`}>
-                  Filtrar por canal
-                </label>
-                <select
-                  id={`${filterPanelId}-channel`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.channel}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, channel: e.target.value }))
-                  }
-                >
-                  <option value="all">Canal: todos</option>
-                  {filterOptions.channels.map((channel) => (
-                    <option key={channel} value={channel}>
-                      {channel}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-status`}>
-                  Filtrar por estado
-                </label>
-                <select
-                  id={`${filterPanelId}-status`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.status}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, status: e.target.value }))
-                  }
-                >
-                  <option value="all">Estado: todos</option>
-                  {filterOptions.statuses.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-area`}>
-                  Filtrar por area
-                </label>
-                <select
-                  id={`${filterPanelId}-area`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.area}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, area: e.target.value }))
-                  }
-                >
-                  <option value="all">Area: todas</option>
-                  {filterOptions.areas.map((area) => (
-                    <option key={area} value={area}>
-                      {area}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-agent`}>
-                  Filtrar por agente
-                </label>
-                <select
-                  id={`${filterPanelId}-agent`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.agent}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, agent: e.target.value }))
-                  }
-                >
-                  <option value="all">Agente: todos</option>
-                  {filterOptions.agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-0 sm:col-span-2">
-                <label className="sr-only" htmlFor={`${filterPanelId}-priority`}>
-                  Filtrar por prioridad
-                </label>
-                <select
-                  id={`${filterPanelId}-priority`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.priority}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, priority: e.target.value }))
-                  }
-                >
-                  <option value="all">Prioridad: todas</option>
-                  {filterOptions.priorities.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-sla`}>
-                  Filtrar por SLA
-                </label>
-                <select
-                  id={`${filterPanelId}-sla`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.sla}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, sla: e.target.value }))
-                  }
-                >
-                  <option value="all">SLA: todos</option>
-                  <option value="risk">SLA: riesgo</option>
-                  {filterOptions.slaStatuses
-                    .filter((slaStatus) => slaStatus !== 'risk')
-                    .map((slaStatus) => (
-                      <option key={slaStatus} value={slaStatus}>
-                        {slaStatus}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="min-w-0">
-                <label className="sr-only" htmlFor={`${filterPanelId}-unread`}>
-                  Filtrar por lectura
-                </label>
-                <select
-                  id={`${filterPanelId}-unread`}
-                  className={FILTER_SELECT_CLASS_NAME}
-                  value={filters.unread}
-                  onChange={(e) =>
-                    setFilters((prev) => ({ ...prev, unread: e.target.value }))
-                  }
-                >
-                  {filterOptions.unreadModes.map((mode) => (
-                    <option key={mode.value} value={mode.value}>
-                      {mode.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </fieldset>
-          </PopoverContent>
-          </Popover>
+          {filterPopover}
         </div>
+        ) : null}
         {hasSecondaryFilters && !compact ? (
           <div
             aria-label="Filtros activos aplicados"
@@ -707,6 +851,33 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </button>
           </div>
         ) : null}
+        <div
+          className="grid grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/60 p-1"
+          data-testid="sidebar-list-mode-toggle"
+        >
+          <Button
+            type="button"
+            variant={listMode === 'queue' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1.5 rounded-md px-2 text-xs"
+            aria-pressed={listMode === 'queue'}
+            onClick={() => setListMode('queue')}
+          >
+            <List className="h-3.5 w-3.5" />
+            Cola
+          </Button>
+          <Button
+            type="button"
+            variant={listMode === 'categories' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1.5 rounded-md px-2 text-xs"
+            aria-pressed={listMode === 'categories'}
+            onClick={() => setListMode('categories')}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Rubros
+          </Button>
+        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (
@@ -730,85 +901,119 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             ) : null}
           </div>
         ) : null}
-        <Accordion
-          type="multiple"
-          className="w-full"
-          value={openCategories}
-          onValueChange={setOpenCategories}
-        >
-          {visibleCategoryEntries.map(([category, tickets]) => (
-            <AccordionItem value={category} key={category}>
-              <AccordionTrigger className="px-3 py-2.5 font-semibold">
-                {category} ({tickets.length})
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-2 px-2 pb-2">
-                  {tickets.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                      Sin casos abiertos en este rubro.
-                    </p>
-                  ) : (
-                    tickets
-                      .slice(0, visibleCounts[category] || ITEMS_PER_PAGE)
-                      .map((ticket) => (
-                        <TicketListItem
-                          key={ticket.id}
-                          ticket={ticket}
-                          isSelected={selectedTicket?.id === ticket.id}
-                          onClick={() => {
-                            selectTicket(ticket.id);
-                            onTicketSelected?.();
-                          }}
-                        />
-                      ))
-                  )}
-                  {(visibleCounts[category] || ITEMS_PER_PAGE) <
-                    tickets.length && (
-                    <div className="p-2">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleLoadMore(category)}
-                      >
-                        Cargar mas
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-        {emptyCategoryCount > 0 ? (
-          <div className="border-t border-border/60 px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setShowEmptyCategories((current) => !current)}
-              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-            >
-              {showEmptyCategories
-                ? 'Ocultar rubros vacios'
-                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
-            </button>
+        {listMode === 'queue' && queueEntries.length > 0 ? (
+          <div className="space-y-2 px-2 py-2" data-testid="sidebar-ticket-queue">
+            {visibleQueueEntries.map(({ ticket, category }) => (
+              <div key={`${category}-${ticket.id}`} className="min-w-0">
+                <TicketListItem
+                  ticket={ticket}
+                  isSelected={selectedTicket?.id === ticket.id}
+                  onClick={() => {
+                    selectTicket(ticket.id);
+                    onTicketSelected?.();
+                  }}
+                />
+              </div>
+            ))}
+            {hasMoreQueueItems ? (
+              <div className="px-1 pb-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 w-full rounded-[8px] text-xs font-semibold"
+                  onClick={() =>
+                    setQueueVisibleCount((current) => current + QUEUE_ITEMS_PER_PAGE)
+                  }
+                >
+                  Ver mas en esta vista
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
-        {hasMoreTickets ? (
-          <div className="border-t border-border/60 p-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 w-full rounded-[8px] text-xs font-semibold"
-              onClick={loadMoreTickets}
-              disabled={loadingMoreTickets}
+        {listMode === 'categories' ? (
+          <>
+            <Accordion
+              type="multiple"
+              className="w-full"
+              value={openCategories}
+              onValueChange={setOpenCategories}
             >
-              {loadingMoreTickets ? 'Cargando mas reclamos...' : 'Cargar mas reclamos'}
-            </Button>
-            <p className="mt-2 text-center text-[11px] leading-4 text-muted-foreground">
-              {tickets.length.toLocaleString('es-AR')} de {totalBackendTickets.toLocaleString('es-AR')} cargados desde el backend.
-            </p>
-          </div>
+              {visibleCategoryEntries.map(([category, tickets]) => (
+                <AccordionItem value={category} key={category}>
+                  <AccordionTrigger className="px-3 py-2.5 font-semibold">
+                    {category} ({tickets.length})
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 px-2 pb-2">
+                      {tickets.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">
+                          Sin casos abiertos en este rubro.
+                        </p>
+                      ) : (
+                        tickets
+                          .slice(0, visibleCounts[category] || ITEMS_PER_PAGE)
+                          .map((ticket) => (
+                            <TicketListItem
+                              key={ticket.id}
+                              ticket={ticket}
+                              isSelected={selectedTicket?.id === ticket.id}
+                              onClick={() => {
+                                selectTicket(ticket.id);
+                                onTicketSelected?.();
+                              }}
+                            />
+                          ))
+                      )}
+                      {(visibleCounts[category] || ITEMS_PER_PAGE) <
+                        tickets.length && (
+                        <div className="p-2">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleLoadMore(category)}
+                          >
+                            Cargar mas
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+            {emptyCategoryCount > 0 ? (
+              <div className="border-t border-border/60 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEmptyCategories((current) => !current)}
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  {showEmptyCategories
+                    ? 'Ocultar rubros vacios'
+                    : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </ScrollArea>
+      {hasMoreTickets ? (
+        <div className="shrink-0 border-t border-border/70 bg-background/90 p-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 w-full rounded-[8px] text-xs font-semibold"
+            onClick={loadMoreTickets}
+            disabled={loadingMoreTickets}
+          >
+            {loadingMoreTickets ? 'Cargando mas reclamos...' : 'Cargar mas reclamos'}
+          </Button>
+          <p className="mt-1 text-center text-[11px] leading-4 text-muted-foreground">
+            {tickets.length.toLocaleString('es-AR')} de {totalBackendTickets.toLocaleString('es-AR')} cargados desde el backend.
+          </p>
+        </div>
+      ) : null}
     </aside>
   );
 };

@@ -87,7 +87,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(340px, 390px) minmax(480px, 1fr)',
+      gridTemplateColumns: 'minmax(340px, 390px) minmax(520px, 1fr)',
     });
   });
 

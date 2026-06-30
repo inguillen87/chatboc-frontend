@@ -32,6 +32,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 import {
   getOperationsAIBriefV2,
+  getOperationsAIOpsQueueV2,
   getOperationsActionCenterV2,
   getOperationsDashboardV2,
   getOperationsFreshnessV2,
@@ -40,6 +41,8 @@ import {
 } from './analyticsApi';
 import { PremiumTerritoryHeatmap } from './PremiumTerritoryMap';
 import type {
+  OperationsAIOpsQueueItem,
+  OperationsAIOpsQueueV1,
   OperationsActionItem,
   OperationsAIBriefV1,
   OperationsAlert,
@@ -419,6 +422,12 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     retry: 0,
     staleTime: 30_000,
   });
+  const aiOpsQueueQuery = useQuery({
+    queryKey: ['v2-operations-ai-ops-queue', tenantSlug],
+    queryFn: () => getOperationsAIOpsQueueV2({ tenantSlug, limit: 12 }),
+    retry: 0,
+    staleTime: 30_000,
+  });
   const freshnessQuery = useQuery({
     queryKey: ['v2-operations-freshness', tenantSlug],
     queryFn: () => getOperationsFreshnessV2({ tenantSlug }),
@@ -429,12 +438,14 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const refetchHeatmap = heatmapQuery.refetch;
   const refetchActionCenter = actionCenterQuery.refetch;
   const refetchAIBrief = aiBriefQuery.refetch;
+  const refetchAIOpsQueue = aiOpsQueueQuery.refetch;
   const refetchFreshness = freshnessQuery.refetch;
 
   const refreshSeconds = getRefreshSeconds(
     dashboardQuery.data?.frontend_contract?.primary_refresh_seconds,
     actionCenterQuery.data?.frontend_contract?.primary_refresh_seconds,
     aiBriefQuery.data?.frontend_contract?.primary_refresh_seconds,
+    aiOpsQueueQuery.data?.frontend_contract?.primary_refresh_seconds,
     freshnessQuery.data?.frontend_contract?.primary_refresh_seconds,
   );
 
@@ -445,15 +456,17 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       void refetchHeatmap();
       void refetchActionCenter();
       void refetchAIBrief();
+      void refetchAIOpsQueue();
       void refetchFreshness();
     }, refreshSeconds * 1000);
 
     return () => window.clearInterval(timer);
-  }, [refetchAIBrief, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
+  }, [refetchAIBrief, refetchAIOpsQueue, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
 
   const data = dashboardQuery.data;
   const actionCenter = actionCenterQuery.data;
   const aiBrief = aiBriefQuery.data ?? (data?.ai_brief as OperationsAIBriefV1 | undefined);
+  const aiOpsQueue = aiOpsQueueQuery.data;
   const freshness = freshnessQuery.data;
   const alerts = useMemo(
     () => mergeByIdentity([...(data?.alerts ?? []), ...(actionCenter?.alerts ?? [])]),
@@ -533,7 +546,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         </div>
         <div className="flex flex-wrap gap-2">
           {refreshSeconds ? <Badge variant="outline">Actualizacion cada {refreshSeconds}s</Badge> : null}
-          {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || aiBriefQuery.isFetching || freshnessQuery.isFetching ? (
+          {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || aiBriefQuery.isFetching || aiOpsQueueQuery.isFetching || freshnessQuery.isFetching ? (
             <Badge variant="secondary">Actualizando</Badge>
           ) : null}
           {freshness?.status ? <Badge variant={statusVariant(freshness.status)}>{statusLabel(freshness.status)}</Badge> : null}
@@ -546,6 +559,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
               void refetchHeatmap();
               void refetchActionCenter();
               void refetchAIBrief();
+              void refetchAIOpsQueue();
               void refetchFreshness();
             }}
           >
@@ -610,6 +624,12 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
           />
         </div>
         <div className="space-y-5">
+          <AIOpsQueuePanel
+            queue={aiOpsQueue}
+            loading={aiOpsQueueQuery.isLoading}
+            error={aiOpsQueueQuery.error}
+            refetch={() => void refetchAIOpsQueue()}
+          />
           <ActionCenterPanel
             items={actions}
             summary={actionCenter?.summary}
@@ -621,6 +641,148 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         </div>
       </div>
     </section>
+  );
+}
+
+const aiOpsSourceLabel = (source?: string) => {
+  const normalized = (source || '').toLowerCase();
+  if (normalized === 'ticket') return 'Reclamo';
+  if (normalized === 'order') return 'Pedido';
+  if (normalized === 'survey') return 'Encuesta';
+  return source || 'Operacion';
+};
+
+const aiOpsReasonLabel = (reason: string) =>
+  reason
+    .replace(/_/g, ' ')
+    .replace(/\bsla\b/i, 'SLA')
+    .replace(/\bia\b/i, 'IA');
+
+function AIOpsQueuePanel({
+  queue,
+  loading,
+  error,
+  refetch,
+}: {
+  queue?: OperationsAIOpsQueueV1;
+  loading?: boolean;
+  error?: unknown;
+  refetch: () => void;
+}) {
+  const items = queue?.items ?? [];
+  const summary = queue?.summary ?? {};
+  const policy = queue?.advisory_policy ?? {};
+  const enabled = queue?.enabled !== false;
+  const total = readNumber(summary.total) ?? items.length;
+  const high = readNumber(summary.high) ?? 0;
+  const agentName = queue?.agent_display_name || 'Valeria IA-Analytics';
+  const advisoryOnly = policy.advisory_only !== false && policy.mutates_operational_state !== true;
+
+  return (
+    <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-primary/5">
+      <CardHeader className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Cola IA operativa
+            </CardTitle>
+            <CardDescription>
+              Priorizacion de reclamos, pedidos y encuestas para operar primero.
+            </CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} className="h-8 shrink-0">
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={enabled ? 'default' : 'outline'}>
+            {enabled ? `${formatNumber(total)} items` : 'feature apagado'}
+          </Badge>
+          {high ? <Badge variant="destructive">{formatNumber(high)} alta</Badge> : null}
+          {advisoryOnly ? <Badge variant="secondary">solo lectura</Badge> : null}
+          <Badge variant="outline">{agentName}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {error ? (
+          <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
+            No se pudo cargar la cola IA. El tablero principal sigue disponible.
+          </div>
+        ) : null}
+
+        {!enabled ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+            <p className="text-sm font-semibold text-foreground">Listo para activar por flag</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              El backend ya publica el contrato; cuando se habilite, esta bandeja muestra prioridades reales sin cambiar estados automaticamente.
+            </p>
+          </div>
+        ) : null}
+
+        {enabled && !items.length && !error ? (
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <p className="text-sm font-semibold text-foreground">Sin trabajo critico sugerido</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              No hay pedidos, reclamos o encuestas que requieran intervencion prioritaria en este periodo.
+            </p>
+          </div>
+        ) : null}
+
+        {items.slice(0, 5).map((item) => (
+          <AIOpsQueueItemCard key={item.id || `${item.source}-${item.record_id}`} item={item} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
+  const action = item.recommended_action;
+  const signals = item.signals ?? {};
+  const reasonCodes = item.reason_codes ?? [];
+  const signalPairs = Object.entries(signals)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 3);
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-background/70 p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline">{aiOpsSourceLabel(item.source)}</Badge>
+            <Badge variant={priorityVariant(item.priority)}>{priorityLabel(item.priority)}</Badge>
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-5 text-foreground">
+            {item.title || 'Operacion requiere revision'}
+          </p>
+        </div>
+        {action?.label || action?.title ? (
+          <Badge variant="secondary" className="shrink-0">
+            {action.label || action.title}
+          </Badge>
+        ) : null}
+      </div>
+      {reasonCodes.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {reasonCodes.slice(0, 4).map((reason) => (
+            <span key={reason} className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {aiOpsReasonLabel(reason)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {signalPairs.length ? (
+        <dl className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-3">
+          {signalPairs.map(([key, value]) => (
+            <div key={key} className="min-w-0 rounded-md bg-muted/40 px-2 py-1">
+              <dt className="truncate uppercase tracking-[0.12em]">{aiOpsReasonLabel(key)}</dt>
+              <dd className="truncate font-semibold text-foreground">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
   );
 }
 

@@ -481,11 +481,15 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? 'minmax(320px, 360px) minmax(480px, 1fr) minmax(300px, 360px)'
+    ? embedded
+      ? 'minmax(330px, 380px) minmax(520px, 1fr) minmax(340px, 400px)'
+      : 'minmax(330px, 370px) minmax(520px, 1fr) minmax(320px, 380px)'
     : isSidebarVisible
-      ? 'minmax(340px, 390px) minmax(480px, 1fr)'
+      ? embedded
+        ? 'minmax(320px, 370px) minmax(520px, 1fr)'
+        : 'minmax(340px, 390px) minmax(520px, 1fr)'
       : isDetailsVisible
-        ? 'minmax(480px, 1fr) minmax(300px, 380px)'
+        ? 'minmax(520px, 1fr) minmax(320px, 400px)'
         : 'minmax(0, 1fr)';
 
   return (
@@ -493,11 +497,18 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
         className={cn(
-          'border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 sm:px-4',
-          embedded ? 'py-1.5' : 'py-2',
+          'border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95',
+          embedded ? 'px-2.5 py-1 sm:px-3' : 'px-3 py-2 sm:px-4',
         )}
       >
-        <div className="flex flex-col gap-2 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
+        <div
+          className={cn(
+            'flex gap-2',
+            embedded
+              ? 'flex-row items-center justify-between'
+              : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
+          )}
+        >
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold tracking-tight text-foreground">

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  OperationsAIOpsQueueV1,
   OperationsActionCenterV1,
   OperationsDashboardV1,
   OperationsFreshnessV1,
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getOperationsHeatmapV2: vi.fn(),
   getOperationsActionCenterV2: vi.fn(),
   getOperationsAIBriefV2: vi.fn(),
+  getOperationsAIOpsQueueV2: vi.fn(),
   getOperationsFreshnessV2: vi.fn(),
   getPublicMapConfigV1: vi.fn(),
 }));
@@ -48,6 +50,7 @@ vi.mock('./analyticsApi', () => ({
   getOperationsHeatmapV2: mocks.getOperationsHeatmapV2,
   getOperationsActionCenterV2: mocks.getOperationsActionCenterV2,
   getOperationsAIBriefV2: mocks.getOperationsAIBriefV2,
+  getOperationsAIOpsQueueV2: mocks.getOperationsAIOpsQueueV2,
   getOperationsFreshnessV2: mocks.getOperationsFreshnessV2,
   getPublicMapConfigV1: mocks.getPublicMapConfigV1,
 }));
@@ -205,6 +208,55 @@ const actionCenterFixture = (): OperationsActionCenterV1 => ({
   alerts: [],
 });
 
+const aiOpsQueueFixture = (): OperationsAIOpsQueueV1 => ({
+  contract_version: 'operations.ai_ops_queue.v1',
+  enabled: true,
+  agent_display_name: 'Valeria IA-Analytics',
+  summary: {
+    total: 3,
+    high: 1,
+    medium: 1,
+    low: 1,
+    advisory_only: true,
+  },
+  advisory_policy: {
+    advisory_only: true,
+    mutates_operational_state: false,
+  },
+  items: [
+    {
+      id: 'ticket:tenant_ticket:1',
+      source: 'ticket',
+      title: 'Reclamo requiere revision humana',
+      priority: 'high',
+      reason_codes: ['sla_overdue', 'citizen_or_customer_channel'],
+      recommended_action: { label: 'Abrir caso', method: 'GET', endpoint: '/api/v2/tickets/1' },
+      signals: { category: 'alumbrado', channel: 'whatsapp' },
+      pii: { redacted: true },
+    },
+    {
+      id: 'order:pedido_conversacional:2',
+      source: 'order',
+      title: 'Pedido asistido requiere revision',
+      priority: 'medium',
+      reason_codes: ['unmatched_items'],
+      recommended_action: { label: 'Revisar pedido', method: 'GET', endpoint: '/api/admin/tenants/junin/orders/2' },
+      signals: { unmatched: 2, detected: 5 },
+      pii: { redacted: true },
+    },
+    {
+      id: 'survey:enc_encuesta:3',
+      source: 'survey',
+      title: 'Encuesta o votacion en monitoreo',
+      priority: 'low',
+      reason_codes: ['survey_live_monitoring'],
+      recommended_action: { label: 'Ver analitica', method: 'GET', endpoint: '/api/v2/public/surveys/demo/live-results' },
+      signals: { responses: 10 },
+      pii: { redacted: true },
+    },
+  ],
+});
+
 const mapConfigFixture = (): PublicMapConfigV1 => ({
   provider: 'maplibre',
   available_providers: ['maplibre'],
@@ -234,6 +286,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
     mocks.getOperationsAIBriefV2.mockResolvedValue(null);
+    mocks.getOperationsAIOpsQueueV2.mockResolvedValue(aiOpsQueueFixture());
     mocks.getOperationsFreshnessV2.mockResolvedValue(freshnessFixture());
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
   });
@@ -263,6 +316,29 @@ describe('OperationsDashboardPanel territory UX', () => {
       );
     });
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoria Alumbrado/i })).toBeTruthy();
+  });
+
+  it('renders the AI operations queue for tickets, assisted orders and surveys', async () => {
+    renderPanel();
+
+    expect(await screen.findByText('Cola IA operativa')).toBeTruthy();
+    expect(screen.getByText('Valeria IA-Analytics')).toBeTruthy();
+    expect(screen.getByText('3 items')).toBeTruthy();
+    expect(screen.getByText('1 alta')).toBeTruthy();
+    expect(screen.getByText('solo lectura')).toBeTruthy();
+    expect(screen.getByText('Reclamo requiere revision humana')).toBeTruthy();
+    expect(screen.getByText('Pedido asistido requiere revision')).toBeTruthy();
+    expect(screen.getByText('Encuesta o votacion en monitoreo')).toBeTruthy();
+    expect(screen.getByText('Abrir caso')).toBeTruthy();
+    expect(screen.getByText('Revisar pedido')).toBeTruthy();
+    await waitFor(() => {
+      expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'junin',
+          limit: 12,
+        }),
+      );
+    });
   });
 
   it('keeps a professional map empty state visible when coordinates are not renderable', async () => {
