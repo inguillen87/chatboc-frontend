@@ -850,34 +850,34 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       )}
 
       {!isMobile && isDetailsVisible && (
-        <div className="border-b border-border bg-muted/30 px-3 py-3">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+        <div className="border-b border-border bg-muted/25 px-3 py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
               <p className="text-sm font-semibold text-foreground">
                 {isLoading ? 'Sincronizando conversacion' : lastActivityLabel}
               </p>
               {!isLoading && lastMessageSnippet && (
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{lastMessageSnippet}</p>
+                <p className="hidden max-w-[16rem] truncate text-xs text-muted-foreground xl:block">{lastMessageSnippet}</p>
               )}
             </div>
-            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Volumen</p>
               <p className="text-sm font-semibold text-foreground">
                 {isLoading
                   ? 'Cargando...'
                   : `${messages.length} ${messages.length === 1 ? 'mensaje' : 'mensajes'}`}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground xl:block">
                 {incomingMessagesCount} del vecino · {outgoingMessagesCount} del agente
               </p>
             </div>
-            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Seguimiento</p>
-              <Badge variant={isResponsePending ? 'destructive' : 'secondary'} className="mt-1 w-fit">
+              <Badge variant={isResponsePending ? 'destructive' : 'secondary'} className="w-fit">
                 {isResponsePending ? 'Respuesta pendiente' : 'Al día'}
               </Badge>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground xl:block">
                 {attachmentsCount > 0
                   ? `${attachmentsCount} ${attachmentsCount === 1 ? 'adjunto' : 'adjuntos'} compartidos`
                   : 'Sin adjuntos'}

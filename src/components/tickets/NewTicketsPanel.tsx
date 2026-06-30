@@ -116,20 +116,26 @@ const TicketOpsStat = ({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'h-full rounded-lg border border-border/70 bg-background/75 p-2.5 text-left shadow-sm',
-        onClick && 'transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+        'inline-flex min-w-0 items-center gap-2 rounded-full border border-border/70 bg-background/75 px-2.5 py-1.5 text-left shadow-sm',
+        onClick && 'transition hover:border-primary/50 hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-          <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground">{value.toLocaleString('es-AR')}</p>
-        </div>
-        <span className={cn('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
-          <Icon className="h-4 w-4" />
+      <span className={cn('inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border', toneClass)}>
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-sm font-bold tabular-nums tracking-tight text-foreground">
+            {value.toLocaleString('es-AR')}
+          </span>
+          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {label}
+          </span>
         </span>
-      </div>
-      <p className="mt-1 line-clamp-1 text-[11px] leading-4 text-muted-foreground">{helper}</p>
+        <span className="block max-w-[9.5rem] truncate text-[11px] leading-4 text-muted-foreground">
+          {helper}
+        </span>
+      </span>
     </Comp>
   );
 };
@@ -468,7 +474,7 @@ const NewTicketsPanel: React.FC = () => {
   return (
     <Card className={panelCardClass}>
       <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-2 sm:px-4">
-        <div className="flex flex-col gap-2.5 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
+        <div className="flex flex-col gap-2 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold tracking-tight text-foreground">Mesa operativa</h2>
@@ -481,20 +487,20 @@ const NewTicketsPanel: React.FC = () => {
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="sr-only">
               Priorización, conversación y detalle en una sola vista.
               {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
             </p>
             {recommendedViews.length ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {recommendedViews.slice(0, 3).map((view, index) => (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {recommendedViews.slice(0, 2).map((view, index) => (
                   <button
                     key={view.id || `recommended_${index}`}
                     type="button"
                     onClick={() => applyRecommendedView(view.query)}
                     className="inline-flex max-w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                   >
-                    <Badge variant="secondary" className="max-w-full rounded-full">
+                    <Badge variant="secondary" className="max-w-full rounded-full text-[11px]">
                       <span className="truncate">
                         {view.label}
                         {view.description ? `: ${view.description}` : ''}
@@ -505,7 +511,7 @@ const NewTicketsPanel: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 min-[1080px]:w-[500px] min-[1440px]:w-[560px]">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 min-[1080px]:justify-end">
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}
@@ -540,7 +546,7 @@ const NewTicketsPanel: React.FC = () => {
             />
           </div>
         </div>
-        <div className="mt-2 flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+        <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="gap-1 rounded-full">
               <Filter className="h-3 w-3" />

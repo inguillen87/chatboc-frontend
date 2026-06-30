@@ -7,7 +7,6 @@ import {
   FileDown,
   Search,
   SlidersHorizontal,
-  X,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
@@ -596,32 +595,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </div>
           ) : null}
         </div>
-        {hasActiveFilters ? (
-          <div className="flex flex-wrap items-center gap-1.5 rounded-[8px] border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
-            {activeFilterLabels.slice(0, 3).map((label) => (
-              <span
-                key={label}
-                className="max-w-[10rem] truncate rounded-full bg-background/80 px-2 py-1 font-medium text-primary shadow-sm"
-                title={label}
-              >
-                {label}
-              </span>
-            ))}
-            {activeFilterLabels.length > 3 ? (
-              <span className="rounded-full bg-primary/10 px-2 py-1 font-semibold text-primary">
-                +{activeFilterLabels.length - 3}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary transition hover:bg-primary/10"
-            >
-              <X className="h-3.5 w-3.5" />
-              Limpiar
-            </button>
-          </div>
-        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {emptyCategoryCount > 0 ? (
