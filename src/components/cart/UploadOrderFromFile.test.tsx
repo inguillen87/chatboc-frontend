@@ -195,6 +195,55 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('document_type')).toBe('quote_request');
   });
 
+  it('honors marketplace submit headers without leaking header fields into the form payload', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 104,
+      customer_message: 'Solicitud marketplace recibida.',
+    });
+
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        intakeEntry={{
+          contract_version: 'marketplace.assisted_intake_entry.v1',
+          submit: {
+            endpoint: '/api/pedidos/from-file?origen=marketplace',
+            method: 'POST',
+            tenant_fields: ['X-Tenant'],
+            headers: ['X-Tenant', 'X-Checkout-Origin'],
+          },
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud IA/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/pedidos/from-file?origen=marketplace',
+        expect.objectContaining({
+          method: 'POST',
+          tenantSlug: 'junin',
+          headers: {
+            'X-Tenant': 'junin',
+            'X-Checkout-Origin': 'marketplace',
+          },
+        }),
+      );
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
+    expect(body.get('X-Tenant')).toBeNull();
+    expect(body.get('tenant')).toBeNull();
+    expect(body.get('tenant_slug')).toBeNull();
+  });
+
   it('explains AI processing state while the marketplace request is in flight', async () => {
     let resolveRequest: (value: unknown) => void = () => undefined;
     apiFetchMock.mockReturnValue(

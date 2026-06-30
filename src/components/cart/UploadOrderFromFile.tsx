@@ -149,6 +149,29 @@ type DocumentTypeOption = {
   helper: string;
 };
 
+const normalizeContractName = (value: string | null | undefined) => value?.trim() ?? '';
+
+const isHeaderContractName = (value: string | null | undefined) => {
+  const normalized = normalizeContractName(value);
+  return /^x-/i.test(normalized);
+};
+
+const resolveCheckoutOrigin = (endpoint: string, isMarketplace: boolean) => {
+  try {
+    const base =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost';
+    const url = new URL(endpoint || '/', base);
+    const fromQuery = url.searchParams.get('origen') || url.searchParams.get('origin');
+    if (fromQuery?.trim()) return fromQuery.trim();
+  } catch {
+    // Keep the origin deterministic even when a tenant sends a non URL-like endpoint.
+  }
+
+  return isMarketplace ? 'marketplace' : 'web';
+};
+
 const DEFAULT_MAX_SAFE_FILE_BYTES = 8 * 1024 * 1024;
 
 const DEFAULT_MARKETPLACE_PIPELINE = [
@@ -532,15 +555,38 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         if (value) formData.append(fieldName, value);
       });
       if (effectiveTenantSlug) {
-        submitTenantFields.forEach((fieldName) => formData.append(fieldName, effectiveTenantSlug));
+        submitTenantFields
+          .map(normalizeContractName)
+          .filter((fieldName) => fieldName && !isHeaderContractName(fieldName))
+          .forEach((fieldName) => formData.append(fieldName, effectiveTenantSlug));
       }
 
       const endpoint = isMarketplace ? submitEndpoint : '/api/pedidos/from-file';
+      const submitHeaderNames = Array.from(
+        new Map(
+          [
+            ...(submitContract?.headers ?? []),
+            ...submitTenantFields.filter(isHeaderContractName),
+          ]
+            .map(normalizeContractName)
+            .filter(Boolean)
+            .map((headerName) => [headerName.toLowerCase(), headerName] as const),
+        ).values(),
+      );
+      const submitHeaders = submitHeaderNames.reduce<Record<string, string>>((headers, headerName) => {
+        if (/^x-tenant(?:-slug)?$/i.test(headerName) && effectiveTenantSlug) {
+          headers[headerName] = effectiveTenantSlug;
+        } else if (/^x-checkout-origin$/i.test(headerName)) {
+          headers[headerName] = resolveCheckoutOrigin(endpoint, isMarketplace);
+        }
+        return headers;
+      }, {});
       const response = await apiFetch<AssistedOrderUploadResponse>(
         endpoint,
         {
           method: submitMethod,
           body: formData,
+          ...(Object.keys(submitHeaders).length ? { headers: submitHeaders } : {}),
           sendAnonId: true,
           tenantSlug: effectiveTenantSlug ?? undefined,
           suppressPanel401Redirect: true,
