@@ -155,6 +155,7 @@ describe('Tickets Sidebar category density', () => {
     );
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /filtros secundarios/i }));
@@ -207,6 +208,10 @@ describe('Tickets Sidebar category density', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('1');
+    const chips = screen.getByTestId('sidebar-active-filter-chips');
+    expect(chips).toHaveAccessibleName('Filtros activos aplicados');
+    expect(chips).toHaveTextContent('Canal: whatsapp');
+    expect(chips).toHaveTextContent('Limpiar');
   });
 
   it('uses Todos as a true reset and exposes unassigned as an operational shortcut', async () => {

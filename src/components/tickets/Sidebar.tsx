@@ -322,6 +322,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const secondaryFilterButtonLabel = hasSecondaryFilters
     ? `Filtros secundarios, ${secondaryFilterCountLabel}`
     : 'Filtros secundarios';
+  const visibleSecondaryFilterLabels = secondaryFilterLabels.slice(0, 3);
+  const hiddenSecondaryFilterCount = Math.max(
+    0,
+    secondaryFilterLabels.length - visibleSecondaryFilterLabels.length,
+  );
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -666,6 +671,34 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </PopoverContent>
           </Popover>
         </div>
+        {hasSecondaryFilters ? (
+          <div
+            aria-label="Filtros activos aplicados"
+            data-testid="sidebar-active-filter-chips"
+            className="-mx-0.5 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {visibleSecondaryFilterLabels.map((label) => (
+              <span
+                key={label}
+                className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-semibold leading-none text-primary"
+              >
+                {label}
+              </span>
+            ))}
+            {hiddenSecondaryFilterCount > 0 ? (
+              <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground">
+                +{hiddenSecondaryFilterCount}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              Limpiar
+            </button>
+          </div>
+        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {emptyCategoryCount > 0 ? (
