@@ -1801,15 +1801,15 @@ export default function Perfil() {
   return (
     <div
       className={cn(
-        "flex min-h-screen flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
+        "flex flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         activeProfileTab === "tickets"
-          ? "px-1 py-1 sm:px-2 md:px-3"
-          : "px-2 py-4 sm:px-4 md:px-6 lg:px-8",
+          ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
+          : "min-h-screen px-2 py-4 sm:px-4 md:px-6 lg:px-8",
       )}
     >
       <div
         className={cn(
-          "mx-auto w-full",
+          "mx-auto w-full shrink-0",
           activeProfileTab === "tickets"
             ? "mb-1 max-w-[min(2200px,calc(100vw-0.5rem))] px-1 pt-1"
             : "mb-5 max-w-7xl px-2 pt-16 sm:pt-0",
@@ -1926,7 +1926,7 @@ export default function Perfil() {
         className={cn(
           "mx-auto w-full",
           activeProfileTab === "tickets"
-            ? "max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
+            ? "flex min-h-0 flex-1 flex-col max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
             : "max-w-7xl",
         )}
       >
@@ -2840,7 +2840,7 @@ export default function Perfil() {
         </TabsContent>
         <TabsContent
           value="tickets"
-          className="mt-2 h-[clamp(34rem,calc(100dvh-15.5rem),52rem)] overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+          className="mt-2 min-h-0 flex-1 overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>

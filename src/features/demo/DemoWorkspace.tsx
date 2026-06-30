@@ -102,11 +102,11 @@ const DemoRubroToolsPanel = ({
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {tools.map((tool) => {
+        {tools.map((tool, toolIndex) => {
           const Icon = getToolIcon(tool.kind);
 
           return (
-            <article key={tool.id} className="rounded-xl border bg-card/70 p-3">
+            <article key={`${tool.id}-${toolIndex}`} className="rounded-xl border bg-card/70 p-3">
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="h-4 w-4" />
@@ -125,8 +125,8 @@ const DemoRubroToolsPanel = ({
                   ) : null}
                   {tool.fields.length ? (
                     <dl className="mt-2 grid gap-1 text-xs">
-                      {tool.fields.slice(0, 4).map((field) => (
-                        <div key={`${tool.id}-${field.label}`} className="flex justify-between gap-3">
+                      {tool.fields.slice(0, 4).map((field, fieldIndex) => (
+                        <div key={`${tool.id}-${field.label}-${fieldIndex}`} className="flex justify-between gap-3">
                           <dt className="text-muted-foreground">{field.label}</dt>
                           <dd className="text-right font-medium text-foreground">{field.value}</dd>
                         </div>
