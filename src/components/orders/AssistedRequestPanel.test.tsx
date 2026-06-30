@@ -115,13 +115,34 @@ describe('AssistedRequestPanel', () => {
                 },
               ],
             },
-            source: { channel: 'marketplace' },
+            source: {
+              channel: 'marketplace',
+              original_filename: 'pedido-ferreteria.png',
+              mime_type: 'image/png',
+              file_size_bytes: 2400,
+            },
             match_summary: { detected: 2, matched: 1, unmatched: 1 },
+            operator_pack: {
+              priority: 'high',
+              priority_reason: 'datos_no_interpretados',
+              priority_reason_label: 'Hay datos para resolver',
+              sla_hint: { label: '3 h', minutes: 180, basis: 'datos_no_interpretados' },
+              operator_queue: 'commerce_assisted_orders',
+              operator_queue_label: 'Pedidos asistidos y catalogo',
+              primary_missing_field: 'catalog_resolution',
+              missing_fields: ['catalog_resolution'],
+            },
             operator_intake_summary: {
               contract_version: 'marketplace.operator_intake_summary.v1',
               objective: 'Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.',
               recommended_next_step: 'resolver_faltantes_y_responder',
               target_module: 'orders',
+              operator_queue: 'commerce_assisted_orders',
+              operator_queue_label: 'Pedidos asistidos y catalogo',
+              priority_reason: 'datos_no_interpretados',
+              priority_reason_label: 'Hay datos para resolver',
+              sla_hint: { label: '3 h', minutes: 180 },
+              primary_missing_field: 'catalog_resolution',
               contact_state: 'available',
             },
             public_follow_up: {
@@ -142,6 +163,10 @@ describe('AssistedRequestPanel', () => {
             },
             review_context: {
               review_reasons: ['items_sin_match_exacto', 'contacto_incompleto'],
+              operator_queue_label: 'Pedidos asistidos y catalogo',
+              priority_reason_label: 'Hay datos para resolver',
+              sla_hint: { label: '3 h', minutes: 180 },
+              primary_missing_field: 'catalog_resolution',
             },
             intake_experience: {
               contract_version: 'marketplace.assisted_intake_experience.v1',
@@ -191,6 +216,11 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getAllByText('Objetivo operativo').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.')).toBeTruthy();
     expect(screen.getByText('Accion sugerida: resolver faltantes y responder')).toBeTruthy();
+    expect(screen.getAllByText('Pedidos asistidos y catalogo').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('SLA')).toBeTruthy();
+    expect(screen.getAllByText('3 h').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Hay datos para resolver')).toBeTruthy();
+    expect(screen.getByText('Resolucion de catalogo')).toBeTruthy();
     expect(screen.getByText('Lectura IA')).toBeTruthy();
     expect(screen.getByText(/2 detectados/)).toBeTruthy();
     expect(screen.getByText('Motivo operativo')).toBeTruthy();

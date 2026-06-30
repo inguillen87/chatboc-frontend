@@ -156,6 +156,9 @@ export interface AssistedOrderRequest {
     input_type?: string | null;
     archivo_url?: string | null;
     archivo_nombre?: string | null;
+    original_filename?: string | null;
+    mime_type?: string | null;
+    file_size_bytes?: number | null;
     text_preview?: string | null;
     request_kind?: string | null;
     request_kind_label?: string | null;
@@ -174,6 +177,14 @@ export interface AssistedOrderRequest {
     primary_intent?: string | null;
     operator_goal?: string | null;
     review_reasons?: string[];
+    priority?: string | null;
+    priority_reason?: string | null;
+    priority_reason_label?: string | null;
+    sla_hint?: Record<string, unknown> | string | null;
+    operator_queue?: string | null;
+    operator_queue_label?: string | null;
+    primary_missing_field?: string | null;
+    missing_fields?: string[] | null;
     catalog_matching_enabled?: boolean | null;
     catalog_candidate_groups?: number | null;
     recommended_channels?: string[];
@@ -205,6 +216,14 @@ export interface AssistedOrderRequest {
   } | null;
   operator_pack?: {
     priority?: 'high' | 'normal' | string | null;
+    priority_reason?: string | null;
+    priority_reason_label?: string | null;
+    sla_hint?: Record<string, unknown> | string | null;
+    operator_queue?: string | null;
+    operator_queue_label?: string | null;
+    target_module?: string | null;
+    primary_missing_field?: string | null;
+    missing_fields?: string[] | null;
     reference?: string | null;
     suggested_reply?: string | null;
     needs_human_review?: boolean | null;
@@ -230,6 +249,14 @@ export interface AssistedOrderRequest {
     recommended_record?: string | null;
     recommended_next_step?: string | null;
     needs_operator_review?: boolean | null;
+    priority?: string | null;
+    priority_reason?: string | null;
+    priority_reason_label?: string | null;
+    sla_hint?: Record<string, unknown> | string | null;
+    operator_queue?: string | null;
+    operator_queue_label?: string | null;
+    primary_missing_field?: string | null;
+    missing_fields?: string[] | null;
     contact_state?: string | null;
     contact_channels?: string[] | null;
     input?: Record<string, unknown> | null;

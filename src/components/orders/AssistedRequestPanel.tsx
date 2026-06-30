@@ -299,6 +299,10 @@ const HUMAN_FIELD_LABELS: Record<string, string> = {
   prioridad: 'Prioridad',
   tipo: 'Tipo',
   campos: 'Campos detectados',
+  contact: 'Contacto',
+  source_file: 'Archivo fuente',
+  catalog_resolution: 'Resolucion de catalogo',
+  triage_data: 'Datos de triage',
 };
 
 const TARGET_MODULE_LABELS: Record<string, string> = {
@@ -345,6 +349,20 @@ const formatStructuredValue = (value: unknown): string | null => {
       })
       .filter(Boolean);
     return parts.join(' · ') || null;
+  }
+  return null;
+};
+
+const formatSlaHint = (value: unknown) => {
+  const primitive = valueText(value);
+  if (primitive) return primitive;
+  if (!isRecord(value)) return null;
+  const label = firstText(value.label, value.display, value.text);
+  if (label) return label;
+  const minutes = Number(value.minutes);
+  if (Number.isFinite(minutes) && minutes > 0) {
+    if (minutes % 60 === 0) return `${minutes / 60} h`;
+    return `${minutes} min`;
   }
   return null;
 };
@@ -537,6 +555,38 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
     ? 'Chatboc separo datos, cruzo catalogo y marco lo que requiere revision humana.'
     : 'Chatboc separo datos, clasifico la solicitud y marco lo que requiere revision humana.';
   const originalTextLabel = documentProfile?.catalog_matching ? 'Pedido escrito por el cliente' : 'Texto original del solicitante';
+  const operatorQueue = firstText(
+    operatorPack?.operator_queue_label,
+    operatorIntakeSummary?.operator_queue_label,
+    reviewContext?.operator_queue_label,
+    targetModuleLabel(operatorIntakeSummary?.target_module || crmHandoff?.target_module),
+  );
+  const operatorPriorityReason =
+    firstText(
+      operatorPack?.priority_reason_label,
+      operatorIntakeSummary?.priority_reason_label,
+      reviewContext?.priority_reason_label,
+      humanizeKey(operatorPack?.priority_reason),
+      humanizeKey(operatorIntakeSummary?.priority_reason),
+      humanizeKey(reviewContext?.priority_reason),
+    ) || null;
+  const slaHint = firstText(
+    formatSlaHint(operatorPack?.sla_hint),
+    formatSlaHint(operatorIntakeSummary?.sla_hint),
+    formatSlaHint(reviewContext?.sla_hint),
+  );
+  const primaryMissingField = firstText(
+    humanizeKey(operatorPack?.primary_missing_field),
+    humanizeKey(operatorIntakeSummary?.primary_missing_field),
+    humanizeKey(reviewContext?.primary_missing_field),
+    missingFields.length ? humanizeKey(missingFields[0]) : null,
+  );
+  const triageSummaryItems = [
+    operatorQueue ? { label: 'Cola', value: operatorQueue } : null,
+    slaHint ? { label: 'SLA', value: slaHint } : null,
+    operatorPriorityReason ? { label: 'Motivo', value: operatorPriorityReason } : null,
+    primaryMissingField ? { label: 'Faltante', value: primaryMissingField } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   const handleCopyOperatorSummary = async () => {
     try {
@@ -675,6 +725,16 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                     {documentProfile.input_mode === 'file' ? 'Archivo' : 'Texto'}
                   </Badge>
                 ) : null}
+                {operatorQueue ? (
+                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-100">
+                    {operatorQueue}
+                  </Badge>
+                ) : null}
+                {slaHint ? (
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+                    SLA {slaHint}
+                  </Badge>
+                ) : null}
               </div>
             </div>
           </div>
@@ -689,6 +749,16 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                 <p className="mt-1 text-xs text-muted-foreground">
                   Accion sugerida: {humanizeKey(operatorIntakeSummary.recommended_next_step) || operatorIntakeSummary.recommended_next_step}
                 </p>
+              ) : null}
+              {triageSummaryItems.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {triageSummaryItems.map((item) => (
+                    <div key={item.label} className="rounded-md border bg-muted/25 px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                      <p className="mt-1 truncate font-semibold">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </div>
           ) : null}
