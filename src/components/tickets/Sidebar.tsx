@@ -444,13 +444,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </Button>
         </div>
 
-        <div className="space-y-2">
+        <div className="relative">
             <Button
               type="button"
               variant={advancedFiltersOpen || activeFilterLabels.length > 0 ? 'secondary' : 'outline'}
               className="h-8 w-full justify-between rounded-[8px] px-2.5 text-xs font-semibold"
               aria-expanded={advancedFiltersOpen}
-              aria-controls="sidebar-inline-filters"
+              aria-controls="sidebar-floating-filters"
               onClick={() => setAdvancedFiltersOpen((current) => !current)}
             >
               <span className="inline-flex min-w-0 items-center gap-2">
@@ -471,9 +471,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             </Button>
           {advancedFiltersOpen ? (
           <div
-            id="sidebar-inline-filters"
-            data-testid="sidebar-inline-filters"
-            className="rounded-[8px] border border-border/80 bg-background/70 p-2 shadow-sm"
+            id="sidebar-floating-filters"
+            data-testid="sidebar-floating-filters"
+            className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] rounded-[8px] border border-border/80 bg-popover p-2 shadow-xl"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               <div>
@@ -491,7 +491,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                 </Button>
               ) : null}
             </div>
-            <div className="grid max-h-32 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+            <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
               <select
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={filters.channel}
