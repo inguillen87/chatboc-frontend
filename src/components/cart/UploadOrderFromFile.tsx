@@ -33,6 +33,7 @@ interface UploadOrderFromFileProps {
   tenantSlug?: string | null;
   variant?: 'inline' | 'marketplace';
   intakeEntry?: MarketAssistedIntakeEntry | null;
+  fallbackWhatsappHref?: string | null;
   className?: string;
   id?: string;
 }
@@ -314,6 +315,25 @@ const makeAbsoluteHref = (href?: string | null) => {
 const openTargetForHref = (href?: string | null) =>
   href && /^(https?:|mailto:|tel:|whatsapp:)/i.test(href) ? '_blank' : '_self';
 
+const buildWhatsappFollowUpHref = (baseHref: string | null | undefined, requestId: number | string | null) => {
+  if (!baseHref) return null;
+
+  const reference = requestId ? ` Referencia #${requestId}.` : '';
+  const text = `Hola, subi una solicitud en Chatboc.${reference} Quiero continuar por WhatsApp.`;
+
+  try {
+    const url = new URL(baseHref);
+    if (url.hostname.includes('wa.me') || url.hostname.includes('whatsapp.com')) {
+      url.searchParams.set('text', text);
+      return url.toString();
+    }
+  } catch {
+    return baseHref;
+  }
+
+  return baseHref;
+};
+
 const isDocumentType = (value?: string | null): value is DocumentType =>
   DOCUMENT_TYPES.some((item) => item.value === value);
 
@@ -323,6 +343,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   tenantSlug,
   variant = 'inline',
   intakeEntry,
+  fallbackWhatsappHref,
   className,
   id,
 }) => {
@@ -584,32 +605,42 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const trackingCode =
     processedResponse?.public_follow_up?.tracking?.code ??
     trackingAction?.tracking_code ??
-    (requestId ? `pc-${requestId}` : null);
+    null;
+  const referenceCode = trackingCode ?? (requestId ? String(requestId) : null);
   const trackingPath =
     processedResponse?.public_follow_up?.tracking?.path ??
     trackingAction?.href ??
     null;
   const trackingHref = makeAbsoluteHref(trackingPath);
-  const whatsappHandoffHref = whatsappHandoffAction?.href ?? null;
-  const hasPublicFollowUp = Boolean(processedResponse && (trackingCode || trackingHref || whatsappHandoffHref));
+  const whatsappHandoffHref =
+    whatsappHandoffAction?.href ??
+    buildWhatsappFollowUpHref(fallbackWhatsappHref, requestId);
+  const hasRealTracking = Boolean(trackingCode || trackingHref);
+  const hasPublicFollowUp = Boolean(processedResponse && (hasRealTracking || whatsappHandoffHref || requestId));
   const trackingKind = processedResponse?.public_follow_up?.tracking?.kind ?? null;
   const isClaimFollowUp = trackingKind === 'claim' || processedResponse?.request_kind === 'service_request';
-  const followUpBadgeLabel = isClaimFollowUp ? 'Reclamo trazable' : 'Pedido trazable';
-  const followUpTitle = isClaimFollowUp ? 'Seguimiento de reclamo creado' : 'Seguimiento publico creado';
-  const followUpDescription = isClaimFollowUp
+  const followUpBadgeLabel = hasRealTracking
+    ? isClaimFollowUp ? 'Reclamo trazable' : 'Pedido trazable'
+    : 'Referencia CRM';
+  const followUpTitle = hasRealTracking
+    ? isClaimFollowUp ? 'Seguimiento de reclamo creado' : 'Seguimiento publico creado'
+    : 'Referencia recibida';
+  const followUpDescription = !hasRealTracking
+    ? 'La solicitud quedo registrada para el equipo. Si todavia no hay link publico, la referencia permite continuar por WhatsApp o desde el CRM sin perder el contexto.'
+    : isClaimFollowUp
     ? 'El vecino puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El CRM conserva el archivo o texto original, la lectura de IA y el ticket municipal.'
     : 'El cliente puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El CRM conserva el archivo o texto original y la lectura de IA.';
   const structuredFields = structuredFieldEntries(processedResponse?.structured_extraction?.fields);
   const missingStructuredFields = processedResponse?.structured_extraction?.missing_fields?.filter(Boolean) ?? [];
   const copyFollowUpLink = async () => {
-    const value = trackingHref ?? trackingCode;
+    const value = trackingHref ?? referenceCode;
     if (!value) return;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
       await navigator.clipboard.writeText(value);
-      setStatusMessage('Link de seguimiento copiado.');
+      setStatusMessage(hasRealTracking ? 'Link de seguimiento copiado.' : 'Referencia copiada.');
     } catch {
-      setError('No pudimos copiar el link. Abrilo desde el boton de seguimiento.');
+      setError(hasRealTracking ? 'No pudimos copiar el link. Abrilo desde el boton de seguimiento.' : 'No pudimos copiar la referencia.');
     }
   };
 
@@ -1010,12 +1041,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 {followUpDescription}
               </p>
             </div>
-            {trackingCode ? (
+            {referenceCode ? (
               <div className="rounded-lg border bg-background px-4 py-3 text-left shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Codigo</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {hasRealTracking ? 'Codigo' : 'Referencia'}
+                </p>
                 <div className="mt-1 flex items-center gap-2 text-lg font-semibold">
                   <Hash className="h-4 w-4 text-primary" />
-                  {trackingCode}
+                  {referenceCode}
                 </div>
               </div>
             ) : null}
@@ -1029,10 +1062,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 </a>
               </Button>
             ) : null}
-            {trackingHref || trackingCode ? (
+            {trackingHref || referenceCode ? (
               <Button type="button" variant="outline" size="sm" onClick={copyFollowUpLink}>
                 <Copy className="mr-2 h-4 w-4" />
-                Copiar seguimiento
+                {hasRealTracking ? 'Copiar seguimiento' : 'Copiar referencia'}
               </Button>
             ) : null}
             {whatsappHandoffHref ? (

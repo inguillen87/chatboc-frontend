@@ -366,10 +366,6 @@ const shouldLogVerboseApi = (): boolean => {
       ? (import.meta as any).env
       : undefined;
 
-  if (metaEnv?.DEV || metaEnv?.MODE === "development") {
-    return true;
-  }
-
   if (
     typeof process !== "undefined" &&
     typeof process.env?.CHATBOC_DEBUG_API === "string" &&

@@ -503,6 +503,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           tenantSlug={tenantSlug}
           variant="marketplace"
           intakeEntry={effectiveAssistedIntake}
+          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
           onProcessed={(response) => {
             const requestId = response?.pedido_id ?? response?.lead_id;
             toast({

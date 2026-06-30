@@ -406,6 +406,7 @@ export const getTickets = async (
       const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,
+      suppressPanel401Redirect: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });

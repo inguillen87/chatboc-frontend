@@ -104,9 +104,9 @@ const getInitials = (name: string) => {
           })()}
         </div>
       </div>
-      <p className="font-semibold text-sm ml-13 mb-2">{subject}</p>
+      <p className="mb-2 ml-[52px] truncate text-sm font-semibold">{subject}</p>
       {(priorityLabel || slaLabel || assignedLabel) && (
-        <div className="mb-2 ml-13 flex flex-wrap gap-1.5">
+        <div className="mb-2 ml-[52px] flex flex-wrap gap-1.5">
           {priorityLabel ? (
             <Badge
               variant="outline"
@@ -140,9 +140,9 @@ const getInitials = (name: string) => {
           ) : null}
         </div>
       )}
-      <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
+      <p className="ml-[52px] truncate text-sm text-muted-foreground">{ticket.lastMessage || '...'}</p>
       {nextAction ? (
-        <p className="mt-2 ml-13 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs text-primary">
+        <p className="ml-[52px] mt-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs text-primary">
           {nextAction}
         </p>
       ) : null}

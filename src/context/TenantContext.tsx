@@ -484,9 +484,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     followCurrentTenant,
     unfollowCurrentTenant,
     setTenantSlug: (slug: string) => {
-        setCurrentSlug(slug);
-        currentSlugRef.current = slug;
-        if (slug) safeLocalStorage.setItem('tenantSlug', slug);
+        const sanitized = sanitizeTenantSlug(slug);
+        setCurrentSlug(sanitized);
+        currentSlugRef.current = sanitized;
+        if (sanitized) safeLocalStorage.setItem('tenantSlug', sanitized);
+        else safeLocalStorage.removeItem('tenantSlug');
     }
   }), [
     currentSlug,

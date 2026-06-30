@@ -524,7 +524,10 @@ export const apiClient = {
   },
 
   getTicketWorkflowMetadata: async (tenantSlug?: string) => {
-    const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', { tenantSlug });
+    const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+    });
     return normalizeTicketWorkflowMetadata(response);
   },
 

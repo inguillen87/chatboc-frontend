@@ -103,7 +103,13 @@ const resolveWidgetParams = (
   urlParams: URLSearchParams,
   fetchedConfig: PublicWidgetConfig = {},
 ): IframeWidgetParams => {
-  const tenantSlug = readFirstString(urlParams.get("tenant"), urlParams.get("tenantSlug")) || undefined;
+  const tenantSlug = readFirstString(
+    urlParams.get("tenant"),
+    urlParams.get("tenantSlug"),
+    fetchedConfig.slug,
+    (fetchedConfig.tenant as Record<string, unknown> | undefined)?.slug,
+    (fetchedConfig.tenant as Record<string, unknown> | undefined)?.tenant_slug,
+  ) || undefined;
   const endpointFromUrl = readTipoChat(urlParams.get("endpoint")) || readTipoChat(urlParams.get("tipo_chat"));
   const endpointFromFetched =
     readTipoChat(fetchedConfig.tipo_chat) ||
@@ -117,6 +123,12 @@ const resolveWidgetParams = (
   const rawEntityToken = readFirstString(
     urlParams.get("entityToken"),
     urlParams.get("ownerToken"),
+    fetchedConfig.entityToken,
+    fetchedConfig.entity_token,
+    fetchedConfig.widgetToken,
+    fetchedConfig.widget_token,
+    fetchedConfig.owner_token,
+    fetchedConfig.token,
     cfg.entityToken,
   );
   const bottom = readFiniteInteger(

@@ -86,6 +86,22 @@ const getCurrentOrigin = (): string => {
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 const CURRENT_ORIGIN = getCurrentOrigin();
 
+const isLocalBrowserOrigin = (origin: string): boolean => {
+  if (!origin) return false;
+
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
+};
+
 const inferSameOriginProxy = (): string | null => {
   const locationRef = getGlobalLocation();
   if (!locationRef?.href) return null;
@@ -171,12 +187,21 @@ export const BASE_API_URL = sanitizeBaseUrl(
 // public routes that return HTML (and break JSON parsing) when the same-origin
 // proxy is not available. The order below tries the proxy first, then the
 // configured backend, and only after that the current origin.
-export const API_BASE_CANDIDATES = [
-  SAME_ORIGIN_PROXY_BASE,
-  RESOLVED_BACKEND_URL,
-  CURRENT_ORIGIN,
-  FALLBACK_BACKEND_URL,
-]
+const API_BASE_CANDIDATE_ORDER = isLocalBrowserOrigin(CURRENT_ORIGIN)
+  ? [
+      SAME_ORIGIN_PROXY_BASE,
+      CURRENT_ORIGIN,
+      RESOLVED_BACKEND_URL,
+      FALLBACK_BACKEND_URL,
+    ]
+  : [
+      SAME_ORIGIN_PROXY_BASE,
+      RESOLVED_BACKEND_URL,
+      CURRENT_ORIGIN,
+      FALLBACK_BACKEND_URL,
+    ];
+
+export const API_BASE_CANDIDATES = API_BASE_CANDIDATE_ORDER
   .filter((value): value is string => typeof value === 'string' && !!value)
   .filter((value, index, self) => self.indexOf(value) === index);
 

@@ -46,7 +46,7 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   unread: 'all',
 };
 
-const TICKET_FETCH_TIMEOUT_MS = 25000;
+const TICKET_FETCH_TIMEOUT_MS = 45000;
 
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -336,6 +336,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   });
   const { user } = useUser();
   const { currentSlug } = useTenant();
+  const activeTenantSlug = React.useMemo(
+    () =>
+      resolveTenantSlug(
+        tenantSlugOverride ?? resolveUserTenantSlug(user) ?? currentSlug ?? readStoredTenantSlug(),
+        undefined,
+        { persist: false },
+      ),
+    [currentSlug, tenantSlugOverride, user],
+  );
 
   const bumpRealtimeActivity = useCallback((label: string) => {
     setRealtimeActivity((current) => ({
@@ -448,11 +457,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   );
 
   const fetchTickets = useCallback(async () => {
-    const tenantSlug = resolveTenantSlug(
-      tenantSlugOverride ?? resolveUserTenantSlug(user) ?? currentSlug ?? readStoredTenantSlug(),
-      undefined,
-      { persist: false },
-    );
+    const tenantSlug = activeTenantSlug;
 
     if (!tenantSlug) {
       setError(null);
@@ -492,7 +497,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } catch (err) {
       console.error('Error fetching tickets:', err);
       if (err instanceof ApiError) {
-        if (err.status >= 500) {
+        if (err.status === 401) {
+          setError('La sesión del panel no está activa. Iniciá sesión para ver y responder reclamos.');
+        } else if (err.status === 403) {
+          setError('Tu usuario no tiene permisos para abrir la bandeja de reclamos de este tenant.');
+        } else if (err.status >= 500) {
           setError('Ocurrió un error en el servidor.');
         } else {
           setError('Error al obtener los tickets.');
@@ -506,7 +515,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } finally {
       setLoading(false);
     }
-  }, [currentSlug, filterTicketsForUser, tenantSlugOverride, user]);
+  }, [activeTenantSlug, filterTicketsForUser]);
 
   useEffect(() => {
     setLoading(true);
@@ -518,7 +527,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     const loadWorkflowMetadata = async () => {
       try {
-        const metadata = await apiClient.getTicketWorkflowMetadata(currentSlug ?? resolveTenantSlug());
+        const metadata = await apiClient.getTicketWorkflowMetadata(activeTenantSlug ?? undefined);
         if (cancelled) return;
         const normalized = metadata.states
           .map((state, index) => ({
@@ -541,7 +550,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     return () => {
       cancelled = true;
     };
-  }, [currentSlug]);
+  }, [activeTenantSlug]);
 
   const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {

@@ -14,15 +14,20 @@ import { useUser } from '@/hooks/useUser';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { hasRequiredRole, type Role } from '@/utils/roles';
 import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
+import { resolveTenantSlug } from '@/utils/api';
 
-const TicketsIdentityCoverageAlert = () => {
+const TicketsIdentityCoverageAlert = ({ tenantSlugOverride }: { tenantSlugOverride?: string | null }) => {
   const { currentSlug } = useTenant();
+  const resolvedTenantSlug = React.useMemo(
+    () => resolveTenantSlug(tenantSlugOverride ?? currentSlug, undefined, { persist: false }),
+    [currentSlug, tenantSlugOverride],
+  );
   const [requestId, setRequestId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
-    if (!currentSlug) {
+    if (!resolvedTenantSlug) {
       setRequestId(null);
       setMessage(null);
       return () => {
@@ -31,7 +36,7 @@ const TicketsIdentityCoverageAlert = () => {
     }
 
     apiClient
-      .getIdentityCoverage(currentSlug, { emit_alert_events: 1 })
+      .getIdentityCoverage(resolvedTenantSlug, { emit_alert_events: 1 })
       .then((response) => {
         if (!mounted) return;
         if (response.alert_count > 0 && response.slo_status === 'below_target') {
@@ -51,7 +56,7 @@ const TicketsIdentityCoverageAlert = () => {
     return () => {
       mounted = false;
     };
-  }, [currentSlug]);
+  }, [resolvedTenantSlug]);
 
   if (!requestId) return null;
 
@@ -93,7 +98,7 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
     hasAnyCapability(TICKET_READ_CAPABILITIES);
 
   const rootClassName = embedded
-    ? 'flex min-h-[760px] h-[calc(100dvh-8rem)] flex-col overflow-hidden bg-background text-foreground'
+    ? 'flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground'
     : 'flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5';
   const shellClassName = embedded
     ? 'relative flex h-full min-h-0 w-full flex-1 flex-col'
@@ -128,7 +133,7 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
           </div>
         ) : (
           <>
-        <TicketsIdentityCoverageAlert />
+            <TicketsIdentityCoverageAlert tenantSlugOverride={tenantSlugOverride} />
         <div className="relative flex h-full min-h-0 w-full flex-1">
           <SectionErrorBoundary
             title="Ocurrio un problema al cargar reclamos"

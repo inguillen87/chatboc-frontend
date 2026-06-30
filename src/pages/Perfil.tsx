@@ -102,7 +102,7 @@ import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
+import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { buildLoginPathWithNext } from "@/utils/authRedirect";
@@ -410,13 +410,11 @@ export default function Perfil() {
       (user as any)?.empresa,
       (user as any)?.nombre_empresa,
       storedTenantSlug,
-      user?.name,
-      user?.email?.split("@")[0],
     ];
 
     for (const candidate of candidates) {
       const normalized = slugify(candidate);
-      if (normalized) return normalized;
+      if (normalized && !TENANT_PLACEHOLDER_SLUGS.has(normalized)) return normalized;
     }
 
     return null;
@@ -1801,13 +1799,20 @@ export default function Perfil() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background px-2 py-4 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
+        activeProfileTab === "tickets"
+          ? "px-1 py-1 sm:px-2 md:px-3"
+          : "px-2 py-4 sm:px-4 md:px-6 lg:px-8",
+      )}
+    >
       <div
         className={cn(
-          "mx-auto w-full px-2 pt-16 sm:pt-0",
+          "mx-auto w-full",
           activeProfileTab === "tickets"
-            ? "mb-2 max-w-[min(1920px,calc(100vw-1rem))]"
-            : "mb-5 max-w-7xl",
+            ? "mb-1 max-w-[min(2200px,calc(100vw-0.5rem))] px-1 pt-1"
+            : "mb-5 max-w-7xl px-2 pt-16 sm:pt-0",
         )}
       >
         <Button
@@ -1921,12 +1926,24 @@ export default function Perfil() {
         className={cn(
           "mx-auto w-full",
           activeProfileTab === "tickets"
-            ? "max-w-[min(1920px,calc(100vw-1rem))]"
+            ? "max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
             : "max-w-7xl",
         )}
       >
-        <div className="sticky top-0 z-30 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border">
-        <TabsList className={`grid h-auto w-full gap-1 ${canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8"}`}>
+        <div
+          className={cn(
+            "sticky z-30 border-y border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border",
+            activeProfileTab === "tickets"
+              ? "top-14 -mx-1 px-1 py-1"
+              : "top-0 -mx-2 px-2 py-2",
+          )}
+        >
+        <TabsList className={cn(
+          "grid h-auto w-full gap-1",
+          activeProfileTab === "tickets"
+            ? "grid-cols-4 lg:grid-cols-8 xl:grid-cols-9"
+            : canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8",
+        )}>
           <TabsTrigger value="perfil">Inicio</TabsTrigger>
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
           <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
@@ -2823,7 +2840,7 @@ export default function Perfil() {
         </TabsContent>
         <TabsContent
           value="tickets"
-          className="mt-3 h-[calc(100dvh-10rem)] min-h-[560px] overflow-hidden pb-2 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+          className="mt-2 h-[calc(100dvh-9rem)] min-h-[620px] overflow-hidden pb-1 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>

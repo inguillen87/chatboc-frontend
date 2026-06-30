@@ -11,11 +11,12 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { useTenant } from '@/context/TenantContext';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
+import { resolveTenantSlug } from '@/utils/api';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -173,7 +174,9 @@ const NewTicketsPanel: React.FC = () => {
 
   // Desktop-specific state
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
-  const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
+  const [isDetailsVisible, setIsDetailsVisible] = React.useState(
+    () => !isMobile && (typeof window === 'undefined' || window.innerWidth >= 1440),
+  );
   const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
 
   const lastMobileTicketId = React.useRef<string | number | null>(null);
@@ -181,6 +184,17 @@ const NewTicketsPanel: React.FC = () => {
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
   }, [mobileView]);
+
+  React.useEffect(() => {
+    if (isMobile) {
+      setIsSidebarVisible(false);
+      setIsDetailsVisible(false);
+      return;
+    }
+
+    setIsSidebarVisible(true);
+    setIsDetailsVisible(typeof window === 'undefined' || window.innerWidth >= 1440);
+  }, [isMobile]);
 
   React.useEffect(() => {
     if (!loading) {
@@ -194,7 +208,7 @@ const NewTicketsPanel: React.FC = () => {
 
   React.useEffect(() => {
     let cancelled = false;
-    const tenantSlug = currentSlug || tenant?.slug || null;
+    const tenantSlug = resolveTenantSlug(currentSlug || tenant?.slug, undefined, { persist: false });
     if (!tenantSlug || tenantSlug === 'default') {
       setInboxSummary(null);
       return;
@@ -388,6 +402,13 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   if (error) {
+    const isSessionError = /sesión|sesion|iniciá sesión|inicia sesión/i.test(error);
+    const goToLogin = () => {
+      if (typeof window === 'undefined') return;
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.href = `/login?next=${encodeURIComponent(next)}`;
+    };
+
     return (
       <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
         <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive">
@@ -395,10 +416,18 @@ const NewTicketsPanel: React.FC = () => {
         </span>
         <h2 className="text-lg font-semibold text-foreground">No pudimos cargar la bandeja</h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-destructive">{error}</p>
-        <Button type="button" variant="outline" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
-          <RefreshCw className="h-4 w-4" />
-          Reintentar
-        </Button>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {isSessionError ? (
+            <Button type="button" className="gap-2 rounded-full" onClick={goToLogin}>
+              <LogIn className="h-4 w-4" />
+              Iniciar sesión
+            </Button>
+          ) : null}
+          <Button type="button" variant="outline" className="gap-2 rounded-full" onClick={() => void refreshTickets()}>
+            <RefreshCw className="h-4 w-4" />
+            Reintentar
+          </Button>
+        </div>
       </Card>
     )
   }
@@ -429,16 +458,16 @@ const NewTicketsPanel: React.FC = () => {
     priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? 'minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 380px)'
+    ? 'minmax(300px, 340px) minmax(560px, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
-      ? 'minmax(280px, 340px) minmax(0, 1fr)'
+      ? 'minmax(300px, 360px) minmax(560px, 1fr)'
       : isDetailsVisible
-        ? 'minmax(0, 1fr) minmax(300px, 400px)'
+        ? 'minmax(560px, 1fr) minmax(300px, 380px)'
         : 'minmax(0, 1fr)';
 
   return (
     <Card className={panelCardClass}>
-      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-2.5 sm:px-4">
+      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-2 sm:px-4">
         <div className="flex flex-col gap-2.5 min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -476,7 +505,7 @@ const NewTicketsPanel: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 min-[1080px]:w-[560px]">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 min-[1080px]:w-[500px] min-[1440px]:w-[560px]">
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}

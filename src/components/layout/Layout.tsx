@@ -9,6 +9,9 @@ const Layout = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const isEmbed = searchParams.get('mode') === 'embed';
+  const isTicketsWorkspace =
+    location.pathname.replace(/\/+$/, '') === '/perfil' &&
+    searchParams.get('tab') === 'tickets';
 
   // Public navigation should land immediately at the top of the new screen.
   useLayoutEffect(() => {
@@ -29,11 +32,23 @@ const Layout = () => {
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors duration-300">
       <DemoModeBanner />
       <Navbar />
-      <main id="main-content" tabIndex={-1} className="flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={
+          isTicketsWorkspace
+            ? 'flex-1 w-full pt-14'
+            : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
+        }
+      >
         <Outlet />
       </main>
-      <ScrollToTopButton />
-      <Footer />
+      {!isTicketsWorkspace ? (
+        <>
+          <ScrollToTopButton />
+          <Footer />
+        </>
+      ) : null}
     </div>
   );
 };
