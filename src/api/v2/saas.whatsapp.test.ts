@@ -119,6 +119,12 @@ describe("normalizeWhatsappExperienceV2", () => {
             id: "claim_tracking_helpdesk",
             status: "ready",
             url_template: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+            executable_contract: {
+              contract_version: "whatsapp.webview.executable_contract.v1",
+              backend_actions: ["create_signed_webview_session"],
+              crm_writebacks: ["public_comment_created"],
+              qa_assertions: ["claim_tracking_helpdesk:crm_timeline_updated"],
+            },
           },
         ],
         summary: {
@@ -205,6 +211,12 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.webview_blueprint.security as any).signed_session_required).toBe(true);
     expect((normalized.webview_blueprint.summary as any).flows_total).toBe(4);
     expect((normalized.webview_blueprint.flows as any)[0].id).toBe("claim_tracking_helpdesk");
+    expect((normalized.webview_blueprint.flows as any)[0].executable_contract.contract_version).toBe(
+      "whatsapp.webview.executable_contract.v1",
+    );
+    expect((normalized.webview_blueprint.flows as any)[0].executable_contract.backend_actions).toContain(
+      "create_signed_webview_session",
+    );
     expect((normalized.finance_transactional as any).contract_version).toBe("finance.transactional_whatsapp.v1");
     expect((normalized.finance_transactional as any).summary.journeys).toBe(6);
     expect((normalized.finance_transactional as any).journeys[0].id).toBe("digital_account_opening");

@@ -1394,6 +1394,10 @@ const TemplateBlueprintPanel = ({
                   const confirmations = asArray(flow.server_confirmation).map(String);
                   const availability = asRecord(flow.availability);
                   const signedParams = asArray(flow.signed_params).map(String);
+                  const executableContract = asRecord(flow.executable_contract);
+                  const backendActions = asArray(executableContract.backend_actions).map(String);
+                  const crmWritebacks = asArray(executableContract.crm_writebacks).map(String);
+                  const qaAssertions = asArray(executableContract.qa_assertions).map(String);
                   const metaFlow = asRecord(flow.meta_flow_blueprint);
                   const metaScreens = asArray(metaFlow.screens).map(asRecord);
                   const dataContract = asArray(metaFlow.data_contract).map(String);
@@ -1419,6 +1423,31 @@ const TemplateBlueprintPanel = ({
                         <p className="mt-3 text-[11px] text-muted-foreground">
                           Firma: {signedParams.slice(0, 3).map(formatKey).join(" + ")}
                         </p>
+                      ) : null}
+                      {backendActions.length || crmWritebacks.length || qaAssertions.length ? (
+                        <div className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-2">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <StatusPill tone="ready">Contrato ejecutable</StatusPill>
+                            {executableContract.contract_version ? (
+                              <StatusPill>{formatKey(String(executableContract.contract_version))}</StatusPill>
+                            ) : null}
+                          </div>
+                          {backendActions.length ? (
+                            <p className="text-[11px] text-muted-foreground">
+                              Backend: {backendActions.slice(0, 3).map(formatKey).join(" + ")}
+                            </p>
+                          ) : null}
+                          {crmWritebacks.length ? (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              CRM: {crmWritebacks.slice(0, 3).map(formatKey).join(" + ")}
+                            </p>
+                          ) : null}
+                          {qaAssertions.length ? (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              QA: {qaAssertions.slice(0, 2).map(formatKey).join(" + ")}
+                            </p>
+                          ) : null}
+                        </div>
                       ) : null}
                       {metaScreens.length ? (
                         <div className="mt-3 rounded-xl border border-border/60 bg-background/80 p-2">
