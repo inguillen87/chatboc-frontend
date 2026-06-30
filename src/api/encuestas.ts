@@ -38,6 +38,7 @@ const PUBLIC_SURVEY_API_BASE =
 
 const PUBLIC_CHAT_CONTEXT_STORAGE_KEY = 'chatboc_public_chat_context';
 const PUBLIC_RESPONSE_CONTRACTS = new Set([
+  'surveys.public_response.v2',
   'encuestas.public_response.v1',
   'demo.survey_response_ack.v1',
 ]);
@@ -341,6 +342,7 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
+    withTenantSlugParam(`/api/v2/public/surveys/${slug}`, tenantSlug),
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}`, tenantSlug),
   ), {
     skipAuth: true,
@@ -409,9 +411,11 @@ const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOpt
 const buildPublicSurveyPaths = (...paths: string[]) => {
   if (paths.length === 0) return [];
   const unique = Array.from(new Set(paths.filter(Boolean)));
-  const contractPaths = unique.filter((path) => path.startsWith('/api/public/encuestas/v1'));
+  const contractPaths = unique.filter(
+    (path) => path.startsWith('/api/v2/public/surveys') || path.startsWith('/api/public/encuestas/v1'),
+  );
   if (contractPaths.length) return contractPaths;
-  return unique.filter((path) => path.startsWith('/api/public/'));
+  return unique.filter((path) => path.startsWith('/api/v2/public/') || path.startsWith('/api/public/'));
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -582,6 +586,7 @@ export const getPublicSurveyLiveResults = (
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
   callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>(buildPublicSurveyPaths(
+    `/api/v2/public/surveys/${slug}/live-results${buildQueryString({ ...(params ?? {}), tenant_slug: tenantSlug?.trim() })}`,
     `/api/public/encuestas/v1/${slug}/live-results${buildQueryString({ ...(params ?? {}), tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
@@ -600,6 +605,7 @@ export const postPublicResponse = (
   tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }> =>
   callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }>(buildPublicSurveyPaths(
+    withTenantSlugParam(`/api/v2/public/surveys/${slug}/respond`, tenantSlug),
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
     method: 'POST',

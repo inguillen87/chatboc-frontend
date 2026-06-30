@@ -65,18 +65,21 @@ describe('getPublicSurvey', () => {
     apiFetchMock.mockReset();
   });
 
-  it('uses canonical /api/public v1 endpoint first when legacy fallback is disabled', async () => {
+  it('uses canonical public v2 endpoint first for survey detail', async () => {
     apiFetchMock.mockResolvedValueOnce({
-      contract_version: 'encuestas.public.v1',
-      encuesta: {
-        slug: 'movilidad-y-transporte-junin',
-        titulo: 'Movilidad',
-        tipo: 'opinion',
-        inicio_at: '2026-01-01',
-        fin_at: '2026-12-31',
-        politica_unicidad: 'libre',
-        preguntas: [],
+      contract_version: 'surveys.public.v2',
+      slug: 'movilidad-y-transporte-junin',
+      titulo: 'Movilidad',
+      tipo: 'opinion',
+      inicio_at: '2026-01-01',
+      fin_at: '2026-12-31',
+      politica_unicidad: 'libre',
+      preguntas: [],
+      links: {
+        respond_endpoint: '/api/v2/public/surveys/movilidad-y-transporte-junin/respond',
+        live_results_endpoint: '/api/v2/public/surveys/movilidad-y-transporte-junin/live-results',
       },
+      realtime: { contract_version: 'surveys.realtime.v2', enabled: true },
     });
 
     const survey = await getPublicSurvey('movilidad-y-transporte-junin');
@@ -84,8 +87,39 @@ describe('getPublicSurvey', () => {
     expect(survey.slug).toBe('movilidad-y-transporte-junin');
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/public/encuestas/v1/movilidad-y-transporte-junin',
+      '/api/v2/public/surveys/movilidad-y-transporte-junin',
       expect.any(Object),
+    );
+  });
+
+  it('falls back to legacy public v1 detail when v2 cannot resolve the survey', async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new ApiError('Not Found', 404))
+      .mockResolvedValueOnce({
+        contract_version: 'encuestas.public.v1',
+        encuesta: {
+          slug: 'movilidad-y-transporte-junin',
+          titulo: 'Movilidad',
+          tipo: 'opinion',
+          inicio_at: '2026-01-01',
+          fin_at: '2026-12-31',
+          politica_unicidad: 'libre',
+          preguntas: [],
+        },
+      });
+
+    const survey = await getPublicSurvey('movilidad-y-transporte-junin', 'junin');
+
+    expect(survey.slug).toBe('movilidad-y-transporte-junin');
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v2/public/surveys/movilidad-y-transporte-junin?tenant_slug=junin',
+      expect.objectContaining({ tenantSlug: 'junin', omitTenant: true }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/public/encuestas/v1/movilidad-y-transporte-junin?tenant_slug=junin',
+      expect.objectContaining({ tenantSlug: 'junin', omitTenant: true }),
     );
   });
 
@@ -255,15 +289,17 @@ describe('public survey tenant query contract', () => {
   it('adds tenant_slug to public detail and live-results paths while omitting ambient tenant headers', async () => {
     apiFetchMock
       .mockResolvedValueOnce({
+        contract_version: 'surveys.public.v2',
         slug: 'consulta-barrial',
         titulo: 'Consulta barrial',
         tipo: 'opinion',
         preguntas: [],
       })
       .mockResolvedValueOnce({
-        contract_version: 'encuestas.live_results.v1',
+        contract_version: 'surveys.live_results.v2',
         slug_publico: 'consulta-barrial',
         total_respuestas: 0,
+        realtime: { contract_version: 'surveys.realtime.v2', room: 'encuesta_consulta-barrial' },
       })
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ id: 12, texto: 'Buen punto' });
@@ -275,12 +311,12 @@ describe('public survey tenant query contract', () => {
 
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
-      '/api/public/encuestas/v1/consulta-barrial?tenant_slug=junin',
+      '/api/v2/public/surveys/consulta-barrial?tenant_slug=junin',
       expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
-      '/api/public/encuestas/v1/consulta-barrial/live-results?include_heatmap=0&window_minutes=20&tenant_slug=junin',
+      '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=0&window_minutes=20&tenant_slug=junin',
       expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
@@ -314,7 +350,7 @@ describe('postPublicResponse', () => {
     await postPublicResponse('mi-encuesta', { respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] }, 'rio-grande');
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/public/encuestas/v1/mi-encuesta/responder?tenant_slug=rio-grande',
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=rio-grande',
       expect.objectContaining({ method: 'POST', omitTenant: true, tenantSlug: 'rio-grande' }),
     );
 
@@ -332,9 +368,11 @@ describe('postPublicResponse', () => {
 
   it('returns contract_version in survey response ack when available', async () => {
     apiFetchMock.mockResolvedValueOnce({
-      contract_version: 'encuestas.public_response.v1',
+      contract_version: 'surveys.public_response.v2',
       ok: true,
-      id: 99,
+      response_id: 99,
+      live_results_url: '/api/v2/public/surveys/mi-encuesta/live-results?tenant_slug=rio-grande',
+      realtime: { contract_version: 'surveys.realtime.v2', room: 'encuesta_mi-encuesta' },
     });
 
     const response = await postPublicResponse(
@@ -343,7 +381,7 @@ describe('postPublicResponse', () => {
       'rio-grande',
     );
 
-    expect(response.contract_version).toBe('encuestas.public_response.v1');
+    expect(response.contract_version).toBe('surveys.public_response.v2');
   });
 
   it('accepts explicit demo survey response contract', async () => {
