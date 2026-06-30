@@ -68,6 +68,13 @@ const crmStateLabel = (state?: string | null) => {
   return 'Pedido asistido';
 };
 
+const assistedConfirmActionLabel = (order: Order) => {
+  const state = order.assisted_request?.crm_state;
+  if (state === 'ready_for_confirmation') return 'Crear pedido';
+  if (state === 'pending_operator_review') return 'Revisar y confirmar';
+  return order.assisted_request ? 'Confirmar candidato' : 'Confirmar';
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -331,6 +338,7 @@ const PedidosPage = () => {
     return matchesSearch && matchesChannel && matchesAi;
   });
   const selectedShippingInfo = selectedOrder ? getShippingInfo(selectedOrder) : null;
+  const selectedAssistedCrmState = selectedOrder?.assisted_request?.crm_state || null;
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -682,10 +690,18 @@ const PedidosPage = () => {
                         Order #{(selectedOrder as any).market_order_id}
                       </Badge>
                     ) : null}
+                    {selectedOrder.assisted_request ? (
+                      <Badge variant="outline" className="gap-1 border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {crmStateLabel(selectedAssistedCrmState)}
+                      </Badge>
+                    ) : null}
                     <div className="flex-1" />
                     <div className="flex gap-2">
                         {selectedOrder.status === 'nuevo' && (
-                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}>Confirmar</Button>
+                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}>
+                              {assistedConfirmActionLabel(selectedOrder)}
+                            </Button>
                         )}
                         {selectedOrder.status === 'confirmed' && (
                             <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'shipped')}>Marcar Despachado</Button>

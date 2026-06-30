@@ -96,6 +96,8 @@ describe('PedidosPage', () => {
     fireEvent.click(screen.getByLabelText('Abrir pedido assistida-1'));
 
     await waitFor(() => expect(screen.getByText('Pedido #assistida-1')).toBeTruthy());
+    expect(screen.getAllByText('Revisar en CRM').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /Revisar y confirmar/i })).toBeTruthy();
     expect(screen.queryByText('Av. Principal 1234, Local 5')).toBeNull();
     expect(screen.getByText(/No hay direccion ni metodo confirmado/)).toBeTruthy();
   });
