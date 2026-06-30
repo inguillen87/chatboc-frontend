@@ -302,10 +302,11 @@ const PublicClaimCard = ({
 
 const LegacyTicketCard = ({ ticket }: { ticket: Ticket; currentSlug: string | null }) => {
   const ticketRecord = ticket as Ticket & Record<string, unknown>;
-  const ticketCode = ticketRecord.nro_ticket || ticketRecord.ticket_number || ticketRecord.codigo || ticket.id;
+  const ticketCodeValue = ticketRecord.nro_ticket || ticketRecord.ticket_number || ticketRecord.codigo || ticket.id;
+  const ticketCode = String(ticketCodeValue || ticket.id);
   const trackingPath =
     buildPublicClaimPath(ticketCode, ticketRecord.consulta_pin || ticketRecord.pin) ||
-    `/ticket/${encodeURIComponent(String(ticketCode || ticket.id))}`;
+    `/ticket/${encodeURIComponent(ticketCode)}`;
 
   return (
     <Card className="overflow-hidden">

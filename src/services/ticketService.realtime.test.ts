@@ -19,7 +19,7 @@ vi.mock('@/utils/anonIdGenerator', () => ({
   default: () => 'anon-test',
 }));
 
-import { getTicketByNumber } from '@/services/ticketService';
+import { getTicketByNumber, sendMessage } from '@/services/ticketService';
 
 describe('ticketService realtime normalization', () => {
   beforeEach(() => {
@@ -172,6 +172,35 @@ describe('ticketService realtime normalization', () => {
       author: 'agent',
       agentName: 'Atención Junín',
       content: 'como no hay mensajes si el vecino envio mensajes! ',
+    });
+  });
+
+  it('routes public PyME replies to the cliente endpoint with anonymous widget access', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      success: true,
+      mensaje_id: 77,
+    });
+
+    await sendMessage(123, 'pyme', 'Hola, quiero hablar con ventas', undefined, undefined, {
+      public: true,
+      pin: '900144',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    const [endpoint, options] = apiFetchMock.mock.calls[0];
+    expect(endpoint).toContain('/api/tickets/chat/pyme/123/responder_cliente');
+    expect(endpoint).toContain('pin=900144');
+    expect(endpoint).toContain('consulta_pin=900144');
+    expect(endpoint).toContain('anon_id=anon-test');
+    expect(options).toMatchObject({
+      method: 'POST',
+      body: { comentario: 'Hola, quiero hablar con ventas' },
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      sendAnonId: true,
+      sendEntityToken: true,
+      pin: '900144',
     });
   });
 });

@@ -419,6 +419,8 @@ const resolvePublicTicketAccess = (pin?: string) => {
         query: params.toString(),
         fetchOptions: {
             skipAuth: true,
+            omitCredentials: true,
+            isWidgetRequest: true,
             sendAnonId: true,
             sendEntityToken: true,
             pin: normalizedPin || undefined,
@@ -1214,7 +1216,7 @@ export const sendMessage = async (
         const baseEndpoint = opts?.public
             ? (tipo === 'municipio'
                 ? ticketApiPath(`/tickets/chat/${ticketId}/responder_ciudadano`)
-                : ticketApiPath(`/tickets/chat/pyme/${ticketId}/responder_ciudadano`))
+                : ticketApiPath(`/tickets/chat/pyme/${ticketId}/responder_cliente`))
             : ticketApiPath(`/tickets/${tipo}/${ticketId}/responder`);
         const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
         const endpoint = publicAccess?.query
