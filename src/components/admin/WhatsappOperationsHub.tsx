@@ -92,6 +92,13 @@ const formatNumber = (value: unknown) => {
   return numeric === null ? "-" : numeric.toLocaleString("es-AR");
 };
 
+const formatPercent = (value: unknown) => {
+  const numeric = asNumber(value);
+  if (numeric === null) return "-";
+  const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+  return `${percent.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+};
+
 const formatKey = (value: string) =>
   value
     .replace(/_/g, " ")
@@ -308,13 +315,23 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
     first(intelligence, ["audio_cache", "audio_response_cache", "audio_note_cache", "voice_cache"]) ||
       first(audioInput, ["cache", "audio_cache", "transcription_cache"]),
   );
-  const accessibility = asRecord(
-    first(intelligence, ["accessibility", "accessibility_policy", "inclusive_access"]) ||
-      first(audioInput, ["accessibility", "accessibility_policy"]),
-  );
+  const accessibility: AnyRecord = {
+    ...asRecord(first(policy, ["accessibility", "accessibility_policy", "inclusive_access"])),
+    ...asRecord(first(audioInput, ["accessibility", "accessibility_policy"])),
+    ...asRecord(first(intelligence, ["accessibility", "accessibility_policy", "inclusive_access"])),
+  };
   const fixedMenuAudioCache = asRecord(first(accessibility, ["fixed_menu_audio_cache", "menu_audio_cache", "fixed_menus"]));
+  const fixedMenuObservability = asRecord(first(fixedMenuAudioCache, ["observability", "audio_cache", "cache"]));
+  const audioCacheSource = Object.keys(audioCache).length > 0 ? audioCache : fixedMenuObservability;
+  const audioCacheMetrics = asRecord(first(audioCacheSource, ["metrics", "counters"]));
+  const audioCacheSummary = asRecord(first(audioCacheSource, ["summary"]));
   const fixedMenuScopes = toTextList(first(fixedMenuAudioCache, ["scope", "menus", "menu_ids"]));
-  const audioCacheTtl = first(audioCache, ["ttl_seconds", "ttl"]);
+  const audioCacheTtl = first(audioCacheSource, ["ttl_seconds", "ttl"]);
+  const audioCacheStatus = readText(first(audioCacheSource, ["status", "cache_status"]));
+  const audioCacheRequests = first(audioCacheSummary, ["requests"]) ?? first(audioCacheMetrics, ["requests"]);
+  const audioCacheHits = first(audioCacheSummary, ["cache_hits", "hits"]) ?? first(audioCacheMetrics, ["cache_hits", "hits"]);
+  const audioCacheFailures = first(audioCacheSummary, ["failures"]) ?? first(audioCacheMetrics, ["generation_failures", "provider_failures", "warmup_failures"]);
+  const audioCacheHitRate = first(audioCacheSummary, ["hit_rate", "hitRate"]) ?? first(audioCacheMetrics, ["hit_rate", "hitRate"]);
 
   const phoneNumber = first(channel, ["number", "phone_number", "sender_id"]) || first(adminState, ["sender_id", "phone_number"]);
   const wabaId =
@@ -344,9 +361,12 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
       asArray(qaPlaybook.scenarios).map((scenario) => first(asRecord(scenario), ["label", "id", "name"])),
     ].flatMap(toTextList),
   );
-  const audioCacheExposed = Object.keys(audioCache).length > 0 || Object.keys(audioInput).length > 0 || Object.keys(voiceCalls).length > 0;
+  const audioCacheExposed =
+    Object.keys(audioCacheSource).length > 0 ||
+    Object.keys(audioInput).length > 0 ||
+    Object.keys(voiceCalls).length > 0;
   const audioCacheReady =
-    boolish(first(audioCache, ["enabled", "ready", "cache_enabled", "transcription_cache_enabled"])) ||
+    boolish(first(audioCacheSource, ["enabled", "ready", "cache_enabled", "transcription_cache_enabled"])) ||
     boolish(first(audioInput, ["cache_enabled", "transcription_cache_enabled", "enabled"])) ||
     boolish(first(voiceCalls, ["enabled"]));
   const accessibilityExposed = Object.keys(accessibility).length > 0;
@@ -391,7 +411,8 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
       label: "Audio cache",
       ok: audioCacheReady,
       detail:
-        first(audioCache, ["status", "cache_status", "ttl_seconds", "ttl"]) ||
+        audioCacheStatus ||
+        first(audioCacheSource, ["ttl_seconds", "ttl"]) ||
         first(audioInput, ["status", "provider", "endpoint"]) ||
         first(voiceCalls, ["status", "provider"]) ||
         "Contrato de audio expuesto.",
@@ -517,9 +538,13 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
 
           <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Audio inclusivo</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-6">
               <Metric label="Cache" value={audioCacheReady ? "Activo" : "Revisar"} tone={audioCacheReady ? "ready" : "warning"} />
               <Metric label="Menus" value={fixedMenuScopes.length || (fixedMenuAudioCache.enabled ? 1 : 0)} tone={fixedMenuAudioCache.enabled ? "ready" : "neutral"} />
+              <Metric label="Requests" value={formatNumber(audioCacheRequests)} />
+              <Metric label="Hits" value={formatNumber(audioCacheHits)} tone={asNumber(audioCacheHits) ? "ready" : "neutral"} />
+              <Metric label="Hit rate" value={formatPercent(audioCacheHitRate)} tone={audioCacheReady ? "ready" : "neutral"} />
+              <Metric label="Fallos" value={formatNumber(audioCacheFailures)} tone={asNumber(audioCacheFailures) ? "warning" : "ready"} />
             </div>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
               Menus fijos con audio cacheado para usuarios con discapacidad visual o motriz, sin regenerar TTS en cada consulta.
@@ -528,6 +553,7 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
               {fixedMenuScopes.slice(0, 5).map((item) => (
                 <StatusPill key={item} tone="ready">{formatKey(item)}</StatusPill>
               ))}
+              {audioCacheStatus ? <StatusPill tone={audioCacheStatus === "degraded" ? "warning" : "ready"}>{formatKey(audioCacheStatus)}</StatusPill> : null}
               {audioCacheTtl ? <StatusPill>TTL {String(audioCacheTtl)}s</StatusPill> : null}
             </div>
           </div>
