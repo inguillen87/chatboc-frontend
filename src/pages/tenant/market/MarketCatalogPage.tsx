@@ -259,7 +259,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
     return `${parts.join(' - ')}.`;
   }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
-  const assistedIntakeDisabled = frontendContract?.show_assisted_intake === false;
+  const emptyState = !isLoading && products.length === 0;
+  const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
+  const forceAssistedIntakeForEmptyCatalog = emptyState && catalogActuallyEmpty;
+  const assistedIntakeDisabled =
+    frontendContract?.show_assisted_intake === false && !forceAssistedIntakeForEmptyCatalog;
   const effectiveAssistedIntake = assistedIntakeDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
   const assistedFirstActive = showAssistedIntake && !isLoading && (
@@ -309,9 +313,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       .finally(() => setIsLoading(false));
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
-  const emptyState = !isLoading && products.length === 0;
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
-  const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const scrollToAssistedUpload = () => {

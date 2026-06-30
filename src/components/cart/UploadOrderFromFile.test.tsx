@@ -285,6 +285,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['foto'], 'nota-manuscrita.jpg', { type: 'image/jpeg' });
 
+    fireEvent.click(screen.getByRole('button', { name: /Nota manuscrita/i }));
     fireEvent.change(fileInput, {
       target: { files: [file] },
     });
@@ -295,7 +296,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect((body.get('archivo') as File).name).toBe('nota-manuscrita.jpg');
-    expect(body.get('document_type')).toBe('order_note');
+    expect(body.get('document_type')).toBe('handwritten_order');
     expect(body.get('tenant')).toBe('junin');
     expect(await screen.findByText('Foto recibida para desmenuzar articulos.')).toBeInTheDocument();
   });

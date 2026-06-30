@@ -130,7 +130,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
   });
 
-  it('hides assisted intake when the backend frontend contract disables it', async () => {
+  it('keeps assisted intake visible for an empty catalog even when the backend contract disables it', async () => {
     fetchMarketCatalogMock.mockResolvedValueOnce({
       products: [],
       promotions: { items: [] },
@@ -157,6 +157,64 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     await waitFor(() => {
       expect(fetchMarketCatalogMock).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText('Carga asistida')).toBeInTheDocument();
+    expect(screen.getByText('Intake IA sin registro')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-first-banner')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
+  });
+
+  it('hides assisted intake when the catalog has products and the backend contract disables it', async () => {
+    fetchMarketCatalogMock.mockResolvedValueOnce({
+      products: [
+        {
+          id: 'prod-1',
+          name: 'Bolsa de cemento',
+          description: 'Cemento x 50kg',
+          descriptionShort: null,
+          price: 12000,
+          priceText: null,
+          currency: 'ARS',
+          modality: 'venta',
+          points: null,
+          imageUrl: null,
+          category: 'Materiales',
+          unit: 'unidad',
+          quantity: 8,
+          sku: 'CEM-50',
+          brand: null,
+          promoInfo: null,
+          publicUrl: '/t/junin/market/prod-1',
+          whatsappShareUrl: null,
+          disponible: true,
+          checkout_type: 'chatboc',
+        },
+      ],
+      promotions: { items: [] },
+      facets: { categories: [{ value: 'Materiales', label: 'Materiales', count: 1 }], promotion_count: 0 },
+      sort_options: [],
+      total: 1,
+      total_unfiltered: 1,
+      assisted_intake: {
+        contract_version: 'marketplace.assisted_intake_entry.v1',
+        title: 'Carga asistida no visible',
+      },
+      frontend_contract: {
+        show_assisted_intake: false,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Bolsa de cemento')).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();

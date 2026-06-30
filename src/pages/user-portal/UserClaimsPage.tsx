@@ -55,6 +55,50 @@ const formatDate = (value?: string) => {
   return format(parsed, "d 'de' MMMM yyyy", { locale: es });
 };
 
+const normalizePublicClaimCode = (value?: unknown) => {
+  const code = String(value ?? '').trim();
+  if (!code) return null;
+  return code.replace(/^(M|S)-/i, '');
+};
+
+const buildPublicClaimPath = (code?: unknown, pin?: unknown) => {
+  const normalizedCode = normalizePublicClaimCode(code);
+  if (!normalizedCode) return null;
+  const params = new URLSearchParams();
+  const normalizedPin = String(pin ?? '').trim();
+  if (normalizedPin) params.set('pin', normalizedPin);
+  const query = params.toString();
+  return `/tracking/claim/${encodeURIComponent(normalizedCode)}${query ? `?${query}` : ''}`;
+};
+
+const normalizeClaimTrackingLink = (
+  endpoint?: string | null,
+  fallbackCode?: unknown,
+  fallbackPin?: unknown,
+) => {
+  const fallback = buildPublicClaimPath(fallbackCode, fallbackPin);
+  const raw = String(endpoint ?? '').trim();
+  if (!raw) return fallback;
+
+  try {
+    const url = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'https://www.chatboc.ar');
+    const path = url.pathname;
+    if (path.startsWith('/tracking/claim/')) {
+      return `${path}${url.search}`;
+    }
+    if (path === '/api/public/tracking/experience') {
+      const kind = url.searchParams.get('kind');
+      const code = url.searchParams.get('code') || fallbackCode;
+      const pin = url.searchParams.get('pin') || fallbackPin;
+      if (!kind || kind === 'claim') return buildPublicClaimPath(code, pin) ?? fallback;
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+};
+
 const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment }) => {
   const [failed, setFailed] = useState(false);
   if (!attachment.url) {
@@ -144,6 +188,12 @@ const PublicClaimCard = ({
   const status = renderClaim.statusLabel || renderClaim.status;
   const hasLocation = Number.isFinite(renderClaim.lat) && Number.isFinite(renderClaim.lng);
   const createdAt = formatDate(renderClaim.createdAt);
+  const renderClaimRecord = renderClaim as WidgetPortalClaim & Record<string, unknown>;
+  const trackingLink = normalizeClaimTrackingLink(
+    renderClaim.detailEndpoint,
+    renderClaim.nroTicket || renderClaim.id,
+    renderClaimRecord.pin || renderClaimRecord.consulta_pin || renderClaimRecord.consultaPin,
+  );
 
   return (
     <Card className="overflow-hidden">
@@ -165,9 +215,9 @@ const PublicClaimCard = ({
                 </p>
               ) : null}
             </div>
-            {renderClaim.detailEndpoint ? (
+            {trackingLink ? (
               <Button variant="ghost" size="sm" asChild>
-                <a href={renderClaim.detailEndpoint} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+                <a href={trackingLink} target="_blank" rel="noreferrer" className="flex items-center gap-1">
                 Ver seguimiento <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
@@ -250,36 +300,44 @@ const PublicClaimCard = ({
   );
 };
 
-const LegacyTicketCard = ({ ticket, currentSlug }: { ticket: Ticket; currentSlug: string | null }) => (
-  <Card className="overflow-hidden">
-    <CardContent className="p-0">
-      <div className="flex flex-col gap-4 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-lg">#{ticket.id}</span>
-            <Badge variant={STATUS_VARIANTS[ticket.status] || 'default'} className="capitalize">
-              {STATUS_MAP[ticket.status] || ticket.status}
-            </Badge>
+const LegacyTicketCard = ({ ticket }: { ticket: Ticket; currentSlug: string | null }) => {
+  const ticketRecord = ticket as Ticket & Record<string, unknown>;
+  const ticketCode = ticketRecord.nro_ticket || ticketRecord.ticket_number || ticketRecord.codigo || ticket.id;
+  const trackingPath =
+    buildPublicClaimPath(ticketCode, ticketRecord.consulta_pin || ticketRecord.pin) ||
+    `/ticket/${encodeURIComponent(String(ticketCode || ticket.id))}`;
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex flex-col gap-4 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-lg">#{ticketCode || ticket.id}</span>
+              <Badge variant={STATUS_VARIANTS[ticket.status] || 'default'} className="capitalize">
+                {STATUS_MAP[ticket.status] || ticket.status}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
+          <Button variant="ghost" size="sm" asChild>
+            <a href={trackingPath} className="flex items-center gap-1">
+              Ver seguimiento <ExternalLink className="h-3 w-3" />
+            </a>
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" asChild>
-          <a href={buildTenantPath(`/chat/${ticket.id}`, currentSlug)} className="flex items-center gap-1">
-            Ver detalles <ExternalLink className="h-3 w-3" />
-          </a>
-        </Button>
-      </div>
-      <div className="p-4">
-        <h3 className="mb-2 text-lg font-medium">{ticket.subject}</h3>
-        {ticket.messages?.length > 0 ? (
-          <div className="line-clamp-2 rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">
-            {ticket.messages[ticket.messages.length - 1].content}
-          </div>
-        ) : null}
-      </div>
-    </CardContent>
-  </Card>
-);
+        <div className="p-4">
+          <h3 className="mb-2 text-lg font-medium">{ticket.subject}</h3>
+          {ticket.messages?.length > 0 ? (
+            <div className="line-clamp-2 rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">
+              {ticket.messages[ticket.messages.length - 1].content}
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const UserClaimsPage = () => {
   const { currentSlug, widgetToken } = useTenant();
