@@ -2,6 +2,7 @@ import React from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { shouldRenderProfileImage } from '@/utils/avatarConsent';
 
 const AVATAR_TONES = [
   'bg-sky-500/15 text-sky-700 ring-sky-500/20 dark:text-sky-200',
@@ -27,6 +28,7 @@ export interface IdentityAvatarProps {
   name?: string | null;
   avatarUrl?: string | null;
   source?: string | null;
+  consented?: boolean | string | number | null;
   size?: IdentityAvatarSize;
   className?: string;
   fallbackClassName?: string;
@@ -58,13 +60,21 @@ export const IdentityAvatar: React.FC<IdentityAvatarProps> = ({
   name,
   avatarUrl,
   source,
+  consented,
   size = 'md',
   className,
   fallbackClassName,
   imageClassName,
 }) => {
   const displayName = String(name || '').trim() || 'Contacto';
-  const imageUrl = String(avatarUrl || '').trim();
+  const candidateImageUrl = String(avatarUrl || '').trim();
+  const imageUrl = shouldRenderProfileImage({
+    avatarUrl: candidateImageUrl,
+    source,
+    consented,
+  })
+    ? candidateImageUrl
+    : '';
   const tone = getIdentityAvatarTone(displayName);
   const sourceLabel = source ? `Avatar ${source}` : imageUrl ? 'Avatar con imagen de perfil' : 'Avatar por iniciales';
 

@@ -398,6 +398,7 @@ export default function Perfil() {
     logo_url: "",
     avatar_url: "",
     avatar_source: "",
+    avatar_consent: false,
   });
   const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
   const derivedTenantSlug = useMemo(() => {
@@ -904,6 +905,7 @@ export default function Perfil() {
         logo_url: data.logo_url || "",
         avatar_url: data.avatar_url || data.picture || "",
         avatar_source: data.avatar_source || "",
+        avatar_consent: Boolean(data.avatar_url || data.picture),
         horarios_ui: horariosUi,
       }));
 
@@ -1315,8 +1317,10 @@ export default function Perfil() {
       longitud: perfil.longitud,
       link_web: perfil.link_web,
       logo_url: perfil.logo_url,
-      avatar_url: perfil.avatar_url,
-      avatar_source: perfil.avatar_url ? "profile_url" : undefined,
+      avatar_url: perfil.avatar_consent ? perfil.avatar_url : "",
+      avatar_source: perfil.avatar_consent && perfil.avatar_url ? "profile_url" : undefined,
+      avatar_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
+      profile_picture_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
       horario_json: JSON.stringify(horariosParaBackend), // Convertir a string JSON
     };
     try {
@@ -2081,19 +2085,33 @@ export default function Perfil() {
                         <div className="grid grid-cols-[auto,1fr] items-center gap-3 rounded-lg border border-input bg-input/40 p-3">
                           <IdentityAvatar
                             name={user?.name || perfil.nombre_empresa || user?.email || "Usuario"}
-                            avatarUrl={perfil.avatar_url}
-                            source={perfil.avatar_url ? "imagen consentida" : "iniciales"}
+                            avatarUrl={perfil.avatar_consent ? perfil.avatar_url : ""}
+                            source={perfil.avatar_consent && perfil.avatar_url ? "imagen consentida" : "iniciales"}
+                            consented={perfil.avatar_consent}
                             size="lg"
                           />
-                          <Input
-                            id="avatar_url"
-                            type="text"
-                            inputMode="url"
-                            placeholder="https://..."
-                            value={perfil.avatar_url}
-                            onChange={handleInputChange}
-                            className="bg-background border-input text-foreground"
-                          />
+                          <div className="space-y-2">
+                            <Input
+                              id="avatar_url"
+                              type="text"
+                              inputMode="url"
+                              placeholder="https://..."
+                              value={perfil.avatar_url}
+                              onChange={handleInputChange}
+                              className="bg-background border-input text-foreground"
+                            />
+                            <label className="flex items-start gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={Boolean(perfil.avatar_consent)}
+                                onCheckedChange={(checked) =>
+                                  setPerfil((prev) => ({ ...prev, avatar_consent: Boolean(checked) }))
+                                }
+                                disabled={!perfil.avatar_url.trim()}
+                                aria-label="Autorizar imagen personal"
+                              />
+                              <span>Autorizar esta imagen para identificarme en CRM, reclamos, pedidos y chats.</span>
+                            </label>
+                          </div>
                         </div>
                       </div>
                     </div>

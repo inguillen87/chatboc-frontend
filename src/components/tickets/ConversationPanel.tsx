@@ -43,6 +43,7 @@ import { ensureAbsoluteUrl } from '@/utils/chatButtons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 type UploadResponse = UploadResponseLike;
 
@@ -549,6 +550,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   const { socket } = useSocket();
   const realtimeOnline = Boolean(socket?.connected);
+  const pollingFailureCountRef = useRef(0);
+  const pollingPausedUntilRef = useRef(0);
 
   useEffect(() => {
     if (!socket || !selectedTicket) return;
@@ -608,14 +611,24 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (socket?.connected) return;
 
     const interval = window.setInterval(async () => {
+      if (Date.now() < pollingPausedUntilRef.current) return;
+
       try {
-        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, { quiet: true });
+        pollingFailureCountRef.current = 0;
+        pollingPausedUntilRef.current = 0;
         setMessages((prev) => {
           const incoming = polledMessages.map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
           return dedupeChatMessages([...prev, ...incoming]);
         });
       } catch (pollError) {
-        console.warn('Fallback polling de conversación falló', pollError);
+        pollingFailureCountRef.current += 1;
+        const backoffMs = Math.min(120000, 15000 * Math.max(1, pollingFailureCountRef.current));
+        pollingPausedUntilRef.current = Date.now() + backoffMs;
+
+        if (pollingFailureCountRef.current === 1 || pollingFailureCountRef.current % 4 === 0) {
+          console.warn('Fallback polling de conversacion pausado temporalmente', pollError);
+        }
       }
     }, 15000);
 
@@ -794,13 +807,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     selectedTicket.nro_ticket || `#${selectedTicket.id}`,
     selectedTicket.name,
   ].filter(Boolean).join(' - ');
-  const conversationAvatarUrl =
-    selectedTicket.avatarUrl ||
-    selectedTicket.avatar_url ||
-    selectedTicket.contact_avatar_url ||
-    selectedTicket.profile_picture_url;
+  const conversationAvatar = resolveConsentedAvatar(
+    selectedTicket as unknown as Record<string, unknown>,
+    selectedTicket.user as unknown as Record<string, unknown> | null | undefined,
+  );
+  const conversationAvatarUrl = conversationAvatar.avatarUrl;
   const conversationAvatarSource =
-    selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen de perfil' : 'iniciales');
+    conversationAvatar.source || selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen consentida' : 'iniciales');
 
   return (
     <motion.div
@@ -828,6 +841,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               name={selectedTicket.display_name || selectedTicket.name || conversationTitle}
               avatarUrl={conversationAvatarUrl}
               source={conversationAvatarSource}
+              consented={conversationAvatar.consented}
               size="md"
             />
             <div className="min-w-0">

@@ -112,4 +112,20 @@ describe('TicketListItem', () => {
       expect(image).toHaveAttribute('alt', 'Marcelo');
     });
   });
+
+  it('falls back to initials when the avatar url has no consented source', () => {
+    const { container } = render(
+      <TicketListItem
+        ticket={{
+          ...baseTicket,
+          avatar_url: 'https://cdn.example.com/marcelo.jpg',
+        }}
+        isSelected={false}
+        onClick={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('MA')).toBeInTheDocument();
+  });
 });

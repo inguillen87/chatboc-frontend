@@ -19,11 +19,9 @@ import { useTenant } from "@/context/TenantContext";
 import { buildTenantAwareUrl } from "@/utils/tenantUrls";
 import openExternalLink from "@/utils/openExternalLink";
 
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
 import { User as UserIcon, ExternalLink } from "lucide-react";
-import { getInitials, cn } from "@/lib/utils";
-import UserAvatarAnimated from "./UserAvatarAnimated";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
 import CatalogShareCard from "./CatalogShareCard";
@@ -31,6 +29,7 @@ import ConfirmationCard from "./ConfirmationCard";
 import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 
 type RawAttachment = {
   url: string;
@@ -383,7 +382,8 @@ const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?:
 
 const UserChatAvatar: React.FC = () => {
   const { user } = useUser();
-  const initials = getInitials(user?.name);
+  const avatarUrl = user?.avatar_url || user?.picture || undefined;
+  const avatarSource = user?.avatar_source || undefined;
 
   return (
     <motion.div
@@ -392,16 +392,15 @@ const UserChatAvatar: React.FC = () => {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      {user?.picture ? (
-        <Avatar className="w-8 h-8 border">
-          <AvatarImage src={user.picture} alt={user.name || "Avatar de usuario"} />
-          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-            {initials ? initials : <UserIcon size={16} />}
-          </AvatarFallback>
-        </Avatar>
-      ) : (
-        <UserAvatarAnimated size={32} blinking smiling />
-      )}
+      <IdentityAvatar
+        name={user?.name || user?.email || "Usuario"}
+        avatarUrl={avatarUrl}
+        source={avatarSource}
+        consented={user?.avatar_consent}
+        size="md"
+        className="border"
+        fallbackClassName="bg-secondary text-secondary-foreground"
+      />
     </motion.div>
   );
 };

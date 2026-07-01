@@ -63,4 +63,15 @@ describe('getTicketMessages', () => {
     expect(collected).toHaveLength(1);
     expect(collected[0]).toMatchObject({ url: 'https://example.com/doc.pdf' });
   });
+
+  it('suppresses console errors when quiet polling is enabled', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = new Error('backend unavailable');
+    vi.mocked(apiFetch).mockRejectedValueOnce(error);
+
+    await expect(getTicketMessages(7, 'municipio', { quiet: true })).rejects.toThrow(error);
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
 });

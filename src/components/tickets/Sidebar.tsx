@@ -60,6 +60,8 @@ const defaultFilters = {
 
 const FILTER_SELECT_CLASS_NAME =
   'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
+const QUICK_FILTER_BUTTON_CLASS_NAME =
+  'h-7 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
 
 const isUnreadQueueTicket = (ticket: any) =>
   Boolean(
@@ -391,6 +393,71 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     setSearchTerm('');
     setFilters(defaultFilters);
   };
+  const quickFilterControls = (
+    <div
+      className="mb-2 grid grid-cols-4 gap-1 rounded-md border border-border/70 bg-muted/50 p-1"
+      role="group"
+      aria-label="Filtros rapidos de reclamos"
+      data-testid={compact ? 'sidebar-compact-primary-filters' : 'sidebar-filter-shortcuts'}
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant={
+          !debouncedSearchTerm && isDefaultFilterSet
+            ? 'secondary'
+            : 'outline'
+        }
+        className={QUICK_FILTER_BUTTON_CLASS_NAME}
+        aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
+        onClick={resetFilters}
+      >
+        Todos
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
+        className={QUICK_FILTER_BUTTON_CLASS_NAME}
+        aria-pressed={filters.unread === 'unread'}
+        onClick={() =>
+          setFilters((prev) => ({ ...prev, unread: 'unread' }))
+        }
+      >
+        No leidos
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
+        className={QUICK_FILTER_BUTTON_CLASS_NAME}
+        aria-pressed={filters.sla === 'risk'}
+        onClick={() =>
+          setFilters((prev) => ({
+            ...prev,
+            sla: prev.sla === 'risk' ? 'all' : 'risk',
+          }))
+        }
+      >
+        Riesgo
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
+        className={QUICK_FILTER_BUTTON_CLASS_NAME}
+        aria-pressed={filters.agent === 'unassigned'}
+        onClick={() =>
+          setFilters((prev) => ({
+            ...prev,
+            agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
+          }))
+        }
+      >
+        Sin resp.
+      </Button>
+    </div>
+  );
 
   const categoryEntries = Object.entries(filteredTicketsByCategory) as [
     string,
@@ -425,7 +492,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         compact && 'shrink-0 bg-background/75 p-0.5',
       )}
       data-testid="sidebar-list-mode-toggle"
-      data-layout={compact ? 'toolbar' : 'stacked'}
+      data-layout={compact ? 'toolbar' : 'inline'}
     >
       <Button
         type="button"
@@ -509,69 +576,26 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </Button>
           ) : null}
         </div>
-        {compact ? (
+        {quickFilterControls}
+        {hasSecondaryFilters ? (
           <div
-            className="mb-2 grid grid-cols-4 gap-1.5"
-            role="group"
-            aria-label="Vistas rapidas de la bandeja"
-            data-testid="sidebar-compact-primary-filters"
+            aria-label="Filtros activos aplicados"
+            data-testid="sidebar-filter-active-chips"
+            className="my-2 flex min-w-0 flex-wrap gap-1.5"
           >
-            <Button
-              type="button"
-              size="sm"
-              variant={
-                !debouncedSearchTerm && isDefaultFilterSet
-                  ? 'secondary'
-                  : 'outline'
-              }
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
-              onClick={resetFilters}
-            >
-              Todos
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.unread === 'unread'}
-              onClick={() =>
-                setFilters((prev) => ({ ...prev, unread: 'unread' }))
-              }
-            >
-              No leidos
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.sla === 'risk'}
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  sla: prev.sla === 'risk' ? 'all' : 'risk',
-                }))
-              }
-            >
-              Riesgo
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.agent === 'unassigned'}
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
-                }))
-              }
-            >
-              Sin resp.
-            </Button>
+            {visibleSecondaryFilterLabels.map((label) => (
+              <span
+                key={label}
+                className="max-w-full truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-semibold leading-none text-primary"
+              >
+                {label}
+              </span>
+            ))}
+            {hiddenSecondaryFilterCount > 0 ? (
+              <span className="rounded-full border border-border bg-muted px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground">
+                +{hiddenSecondaryFilterCount}
+              </span>
+            ) : null}
           </div>
         ) : null}
         <fieldset className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
@@ -795,120 +819,31 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </DropdownMenu>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
+        <div
+          className={cn(
+            'grid items-center gap-1.5',
+            compact
+              ? 'grid-cols-1'
+              : 'grid-cols-[minmax(0,1fr)_auto_auto]',
+          )}
+          data-testid="sidebar-search-controls"
+        >
+          <div className="relative min-w-0" role="search">
             <label className="sr-only" htmlFor={searchInputId}>
               Buscar reclamos por numero, asunto, nombre, DNI o telefono
             </label>
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               id={searchInputId}
-              placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto, nombre, DNI, telefono...'}
+              placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto o vecino...'}
               className={cn('h-8 pl-8', compact ? 'text-xs' : 'text-sm')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          {!compact ? filterPopover : null}
+          {!compact ? listModeToggle : null}
         </div>
-
-        {!compact ? (
-        <div className="flex items-center gap-1.5">
-          <div
-            className="grid min-w-0 flex-1 grid-cols-4 gap-1.5"
-            role="group"
-            aria-label="Vistas rapidas de la bandeja"
-            data-testid="sidebar-primary-filters"
-          >
-            <Button
-              type="button"
-              size="sm"
-              variant={
-                !debouncedSearchTerm && isDefaultFilterSet
-                  ? 'secondary'
-                  : 'outline'
-              }
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
-              onClick={resetFilters}
-            >
-              Todos
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.unread === 'unread'}
-              onClick={() =>
-                setFilters((prev) => ({ ...prev, unread: 'unread' }))
-              }
-            >
-              No leidos
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.sla === 'risk'}
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  sla: prev.sla === 'risk' ? 'all' : 'risk',
-                }))
-              }
-            >
-              Riesgo
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
-              className="h-7 rounded-lg px-2 text-xs"
-              aria-pressed={filters.agent === 'unassigned'}
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
-                }))
-              }
-            >
-              Sin resp.
-            </Button>
-          </div>
-
-          {filterPopover}
-        </div>
-        ) : null}
-        {hasSecondaryFilters && !compact ? (
-          <div
-            aria-label="Filtros activos aplicados"
-            data-testid="sidebar-active-filter-chips"
-            className="-mx-0.5 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {visibleSecondaryFilterLabels.map((label) => (
-              <span
-                key={label}
-                className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-semibold leading-none text-primary"
-              >
-                {label}
-              </span>
-            ))}
-            {hiddenSecondaryFilterCount > 0 ? (
-              <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground">
-                +{hiddenSecondaryFilterCount}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-            >
-              Limpiar
-            </button>
-          </div>
-        ) : null}
-        {!compact ? listModeToggle : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (

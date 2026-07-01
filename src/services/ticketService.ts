@@ -16,6 +16,7 @@ import {
 import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
 import { normalizeTicketLocation } from '@/utils/location';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 const ticketApiPath = (path: string): string => {
     const normalized = path.startsWith('/') ? path : `/${path}`;
@@ -64,21 +65,19 @@ const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     };
 };
 
-const resolveConsentedAvatarUrl = (ticket: Partial<Ticket> & Record<string, any>): string | undefined => {
+const applyConsentedAvatar = <T extends Partial<Ticket> & Record<string, any>>(ticket: T): T => {
     const userRecord =
         ticket.user && typeof ticket.user === 'object'
-            ? (ticket.user as Record<string, any>)
+            ? (ticket.user as unknown as Record<string, unknown>)
             : undefined;
-    const value =
-        ticket.avatarUrl ||
-        ticket.avatar_url ||
-        ticket.contact_avatar_url ||
-        ticket.profile_picture_url ||
-        userRecord?.avatarUrl ||
-        userRecord?.avatar_url ||
-        userRecord?.profile_picture_url;
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || undefined;
+    const resolved = resolveConsentedAvatar(ticket, userRecord);
+
+    return {
+        ...ticket,
+        avatarUrl: resolved.avatarUrl,
+        avatar_source: resolved.source || ticket.avatar_source,
+        avatar_consent: resolved.consented || undefined,
+    };
 };
 
 const parseAdminFlag = (val: any): boolean => {
@@ -463,7 +462,7 @@ export const getTickets = async (
     const tickets = response.tickets || [];
 
     const ticketsWithAvatars = tickets.map(rawTicket => {
-      const ticket = normalizeTicketPayload(rawTicket);
+      const ticket = applyConsentedAvatar(normalizeTicketPayload(rawTicket));
       const collaborationState = normalizeCollaborationState((ticket as any).collaboration_state);
       return {
         ...ticket,
@@ -472,7 +471,6 @@ export const getTickets = async (
           Boolean(ticket.hasUnreadMessages) ||
           Boolean(collaborationState?.has_unread) ||
           Number(collaborationState?.unread_viewer_count || 0) > 0,
-        avatarUrl: resolveConsentedAvatarUrl(ticket),
       };
     });
 
@@ -540,13 +538,12 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
                 console.error(`Error fetching messages for ticket ${id}:`, err);
             }
         }
-        const normalizedResponse = normalizeTicketPayload(response);
+        const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
         return {
             ...normalizedResponse,
             history,
             messages,
             collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
-            avatarUrl: resolveConsentedAvatarUrl(normalizedResponse),
         };
     } catch (error) {
         console.error(`Error fetching ticket ${id}:`, error);
@@ -592,7 +589,7 @@ export const getTicketByNumber = async (
                     console.error(`Error fetching messages for ticket ${response.id}:`, err);
                 }
             }
-            const normalizedResponse = normalizeTicketPayload(response);
+            const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
             return {
                 ...normalizedResponse,
                 history,
@@ -603,7 +600,6 @@ export const getTicketByNumber = async (
                     Boolean((normalizedResponse as any).hasUnreadMessages) ||
                     Boolean(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.has_unread) ||
                     Number(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.unread_viewer_count || 0) > 0,
-                avatarUrl: resolveConsentedAvatarUrl(normalizedResponse),
             };
         } catch (err) {
             const apiErr = err as ApiError;
@@ -947,7 +943,7 @@ type TicketMessagesResult = Message[] & {
 export const getTicketMessages = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean; pin?: string }
+  opts?: { public?: boolean; pin?: string; quiet?: boolean }
 ): Promise<TicketMessagesResult> => {
   try {
     const endpointBase =
@@ -971,7 +967,9 @@ export const getTicketMessages = async (
     legacyCompatible.realtimeState = realtimeState;
     return legacyCompatible;
   } catch (error) {
-    console.error(`Error fetching messages for ticket ${ticketId}:`, error);
+    if (!opts?.quiet) {
+      console.error(`Error fetching messages for ticket ${ticketId}:`, error);
+    }
     throw error;
   }
 };

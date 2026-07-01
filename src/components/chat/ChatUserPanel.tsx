@@ -44,6 +44,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarConsent, setAvatarConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [error, setError] = useState("");
@@ -107,7 +108,9 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             data?.contacto?.telefono ||
             "",
         );
-        setAvatarUrl(data.avatar_url || data.picture || "");
+        const profileAvatarUrl = data.avatar_url || data.picture || "";
+        setAvatarUrl(profileAvatarUrl);
+        setAvatarConsent(Boolean(profileAvatarUrl));
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {
         /* ignore */
@@ -135,6 +138,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     setSaving(true);
     setError("");
     try {
+      const consentedAvatarUrl = avatarConsent ? avatarUrl.trim() : "";
       await apiFetch("/me", {
         method: "PUT",
         body: {
@@ -143,8 +147,10 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           telefono: phone,
           whatsapp: phone,
           celular: phone,
-          avatar_url: avatarUrl.trim(),
-          avatar_source: avatarUrl.trim() ? "profile_url" : undefined,
+          avatar_url: consentedAvatarUrl,
+          avatar_source: consentedAvatarUrl ? "profile_url" : undefined,
+          avatar_consent: Boolean(consentedAvatarUrl),
+          profile_picture_consent: Boolean(consentedAvatarUrl),
           acepta_marketing: marketingOptIn,
         },
         isWidgetRequest: true,
@@ -158,9 +164,10 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           obj.telefono = phone;
           obj.whatsapp = phone;
           obj.celular = phone;
-          obj.avatar_url = avatarUrl.trim();
-          obj.picture = avatarUrl.trim();
-          obj.avatar_source = avatarUrl.trim() ? "profile_url" : undefined;
+          obj.avatar_url = consentedAvatarUrl;
+          obj.picture = consentedAvatarUrl;
+          obj.avatar_source = consentedAvatarUrl ? "profile_url" : undefined;
+          obj.avatar_consent = Boolean(consentedAvatarUrl);
           obj.acepta_marketing = marketingOptIn;
           safeLocalStorage.setItem("user", JSON.stringify(obj));
         } catch {}
@@ -168,7 +175,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
       trackLeadEvent("widget_lead_profile_updated", {
         has_email: Boolean(email),
         has_phone: Boolean(phone),
-        has_avatar: Boolean(avatarUrl.trim()),
+        has_avatar: Boolean(consentedAvatarUrl),
+        avatar_consent: Boolean(consentedAvatarUrl),
         marketing_opt_in: marketingOptIn,
       });
       onClose();
@@ -252,8 +260,9 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             <div className="grid grid-cols-[auto,1fr] items-center gap-3 rounded-lg border p-3 bg-muted/40">
               <IdentityAvatar
                 name={name || email || "Usuario"}
-                avatarUrl={avatarUrl}
-                source={avatarUrl ? "imagen consentida" : "iniciales"}
+                avatarUrl={avatarConsent ? avatarUrl : ""}
+                source={avatarConsent && avatarUrl ? "imagen consentida" : "iniciales"}
+                consented={avatarConsent}
                 size="lg"
               />
               <div className="min-w-0">
@@ -270,6 +279,17 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
                     value={avatarUrl}
                     onChange={e => setAvatarUrl(e.target.value)}
                     disabled={saving}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-md bg-background/70 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    Usar esta imagen en reclamos, pedidos y conversaciones.
+                  </p>
+                  <Switch
+                    checked={avatarConsent}
+                    onCheckedChange={(v) => setAvatarConsent(Boolean(v))}
+                    disabled={saving || !avatarUrl.trim()}
+                    aria-label="Autorizar imagen de perfil"
                   />
                 </div>
               </div>

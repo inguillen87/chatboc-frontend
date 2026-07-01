@@ -20,6 +20,7 @@ interface UserData {
   logo_url?: string;
   avatar_url?: string;
   avatar_source?: string;
+  avatar_consent?: boolean | string | number | null;
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
@@ -230,6 +231,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logo_url: data.logo_url,
         avatar_url: profileAvatarUrl,
         avatar_source: typeof data.avatar_source === 'string' ? data.avatar_source : undefined,
+        avatar_consent: data.avatar_consent ?? data.profile_picture_consent ?? Boolean(profileAvatarUrl),
         picture: profileAvatarUrl,
         tipo_chat: finalTipo,
         rol: data.rol,

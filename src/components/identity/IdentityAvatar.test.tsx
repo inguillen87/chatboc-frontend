@@ -62,6 +62,61 @@ describe('IdentityAvatar', () => {
     });
   });
 
+  it('does not render profile images without a consented source', () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Marcelo Guillen"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="imagen de perfil"
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('MG')).toBeInTheDocument();
+  });
+
+  it('allows a profile image with explicit consent metadata', async () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Marcelo Guillen"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="whatsapp_media_upload"
+        consented
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/avatar.jpg');
+    });
+  });
+
+  it('honors explicit consent denial even for social sources', () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Marcelo Guillen"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="social_login"
+        consented={false}
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('MG')).toBeInTheDocument();
+  });
+
+  it('blocks scraped or unconsented avatar sources', () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Vecino Junin"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="whatsapp_scraped_unconsented"
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('VJ')).toBeInTheDocument();
+  });
+
   it('falls back to initials without inventing a fake photo', () => {
     render(<IdentityAvatar name="Vecino Junin" />);
 

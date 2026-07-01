@@ -56,6 +56,7 @@ import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketSt
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
 import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -381,21 +382,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     () => getPrimaryImageUrl(ticket, attachments),
     [attachments, ticket]
   );
-  const neighborAvatarUrl = React.useMemo(
-    () =>
-      sanitizeMediaUrl(
-        pickFirstString(
-          ticket?.avatarUrl,
-          ticket?.avatar_url,
-          ticket?.contact_avatar_url,
-          ticket?.profile_picture_url,
-          ticket?.user?.avatarUrl,
-        )
-      ),
-    [ticket]
-  );
+  const neighborAvatar = React.useMemo(() => resolveConsentedAvatar(
+    ticket as unknown as Record<string, unknown> | null | undefined,
+    ticket?.user as unknown as Record<string, unknown> | null | undefined,
+  ), [ticket]);
+  const neighborAvatarUrl = sanitizeMediaUrl(neighborAvatar.avatarUrl);
   const neighborAvatarSource =
-    ticket?.avatar_source || (neighborAvatarUrl ? 'imagen de perfil' : 'iniciales');
+    neighborAvatar.source || ticket?.avatar_source || (neighborAvatarUrl ? 'imagen consentida' : 'iniciales');
   const [imageError, setImageError] = React.useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = React.useState(false);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
@@ -856,6 +849,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   name={displayName}
                   avatarUrl={neighborAvatarUrl}
                   source={neighborAvatarSource}
+                  consented={neighborAvatar.consented}
                   size="lg"
                   className="h-14 w-14 flex-shrink-0 text-base"
                 />

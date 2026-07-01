@@ -207,6 +207,25 @@ describe('ticketService realtime normalization', () => {
 
     expect(ticketWithConsentedAvatar.avatarUrl).toBe('https://cdn.example.com/profile/marcelo.jpg');
     expect(ticketWithConsentedAvatar.avatar_source).toBe('social');
+    expect(ticketWithConsentedAvatar.avatar_consent).toBe(true);
+  });
+
+  it('ignores profile image urls without consent metadata', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 503,
+      tipo: 'municipio',
+      nro_ticket: 'M-503',
+      asunto: 'Reclamo',
+      estado: 'nuevo',
+      fecha: '2026-06-06T03:03:47.626Z',
+      profile_picture_url: 'https://cdn.example.com/profile/untrusted.jpg',
+      mensajes: [{ id: 3, mensaje: 'Consulta inicial', es_admin: false, timestamp: '2026-06-06T03:04:47.626Z' }],
+    });
+
+    const ticketWithUntrustedAvatar = await getTicketByNumber('M-503', '900144');
+
+    expect(ticketWithUntrustedAvatar.avatarUrl).toBeUndefined();
+    expect(ticketWithUntrustedAvatar.avatar_consent).toBeUndefined();
   });
 
   it('routes public PyME replies to the cliente endpoint with anonymous widget access', async () => {

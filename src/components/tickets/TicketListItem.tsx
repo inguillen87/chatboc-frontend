@@ -7,6 +7,7 @@ import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketSt
 import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -59,13 +60,12 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
       ? rawSubject
       : descriptionLabel || rawSubject || categoryLabel || 'Sin asunto';
   const displayName = normalizeText(ticket.display_name) || 'Contacto sin nombre';
-  const avatarUrl = normalizeText(
-    ticket.avatarUrl ||
-      ticket.avatar_url ||
-      ticket.contact_avatar_url ||
-      ticket.profile_picture_url,
+  const avatar = resolveConsentedAvatar(
+    ticket as unknown as Record<string, unknown>,
+    ticket.user as unknown as Record<string, unknown> | null | undefined,
   );
-  const avatarSource = normalizeText(ticket.avatar_source) || (avatarUrl ? 'imagen de perfil' : 'iniciales');
+  const avatarUrl = normalizeText(avatar.avatarUrl);
+  const avatarSource = normalizeText(avatar.source || ticket.avatar_source) || (avatarUrl ? 'imagen consentida' : 'iniciales');
   const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
 
   return (
@@ -89,7 +89,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
       )}
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-3">
-          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} size="lg" />
+          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
             <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
               {subject}

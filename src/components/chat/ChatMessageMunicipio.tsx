@@ -15,6 +15,7 @@ import { useUser } from "@/hooks/useUser";
 import { User as UserIcon } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { useDateSettings } from "@/hooks/useDateSettings";
+import { shouldRenderProfileImage } from "@/utils/avatarConsent";
 
 const messageVariants = {
   initial: (isBot: boolean) => ({
@@ -57,6 +58,15 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
 const UserChatAvatar: React.FC = () => {
   const { user } = useUser();
   const initials = getInitials(user?.name);
+  const avatarUrl = user?.avatar_url || user?.picture || undefined;
+  const avatarSource = user?.avatar_source || (avatarUrl ? "imagen consentida" : "iniciales");
+  const safeAvatarUrl = shouldRenderProfileImage({
+    avatarUrl,
+    source: avatarSource,
+    consented: user?.avatar_consent ?? Boolean(avatarUrl),
+  })
+    ? avatarUrl
+    : undefined;
 
   return (
     <motion.div
@@ -67,7 +77,7 @@ const UserChatAvatar: React.FC = () => {
     >
       <Avatar className="w-8 h-8 border">
         <AvatarImage
-          src={user?.avatar_url || user?.picture || undefined}
+          src={safeAvatarUrl}
           alt={user?.name || "Avatar de usuario"}
         />
         <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">

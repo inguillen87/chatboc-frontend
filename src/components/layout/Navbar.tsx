@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -90,6 +90,16 @@ const readLandingNavItems = (navigation: unknown) => {
   return items.length ? items : landingNavItems;
 };
 
+const parseStoredUser = (raw: string | null) => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -103,16 +113,39 @@ const Navbar: React.FC = () => {
   const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
   const isLoggedIn = Boolean(user || (hasValidStoredToken && safeLocalStorage.getItem("user")));
-  const userRole = user?.rol;
-  const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
-  const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
-  const isMunicipal = user?.tipo_chat === "municipio";
-  const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const resolvedLandingNavItems = useMemo(
     () => readLandingNavItems(landingExperience?.navigation),
     [landingExperience],
   );
+  const storedUserRaw = useMemo(
+    () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
+    [isLoggedIn],
+  );
+  const storedUser = useMemo(() => parseStoredUser(storedUserRaw), [storedUserRaw]);
+  const effectiveUser = user ?? storedUser;
+
+  const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
+  const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
+  const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
+  const isMunicipal = effectiveUser?.tipo_chat === "municipio";
+  const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
+  const userDisplayName =
+    String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
+    "Mi cuenta";
+  const userAvatarUrl =
+    typeof effectiveUser?.avatar_url === "string"
+      ? effectiveUser.avatar_url
+      : typeof effectiveUser?.picture === "string"
+        ? effectiveUser.picture
+        : null;
+  const userAvatarSource =
+    typeof effectiveUser?.avatar_source === "string"
+      ? effectiveUser.avatar_source
+      : userAvatarUrl
+        ? "imagen consentida"
+        : "iniciales";
+  const userAvatarConsent = effectiveUser?.avatar_consent ?? Boolean(userAvatarUrl);
 
   const adminLinks = useMemo(() => {
     if (!isAdminLike) {
@@ -192,30 +225,6 @@ const Navbar: React.FC = () => {
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
   }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
-
-  const storedUserRaw = useMemo(
-    () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
-    [isLoggedIn],
-  );
-
-  const userInitials = useMemo(() => {
-    if (!storedUserRaw) return "TU";
-    try {
-      const parsed = JSON.parse(storedUserRaw);
-      const source = parsed?.nombre || parsed?.name || parsed?.email || "";
-      if (!source) return "TU";
-      const letters = source
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((part: string) => part[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase();
-      return letters || "TU";
-    } catch {
-      return "TU";
-    }
-  }, [storedUserRaw]);
 
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");
@@ -320,9 +329,13 @@ const Navbar: React.FC = () => {
                   variant="ghost"
                   className="flex items-center gap-2 rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent"
                 >
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{userInitials}</AvatarFallback>
-                  </Avatar>
+                  <IdentityAvatar
+                    name={userDisplayName}
+                    avatarUrl={userAvatarUrl}
+                    source={userAvatarSource}
+                    consented={userAvatarConsent}
+                    size="sm"
+                  />
                   <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
                 </Button>
               </DropdownMenuTrigger>

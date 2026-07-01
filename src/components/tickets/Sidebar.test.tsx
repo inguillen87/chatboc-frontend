@@ -137,35 +137,23 @@ describe('Tickets Sidebar category density', () => {
       screen.getByRole('button', { name: /ocultar rubros vacios/i }),
     ).toBeInTheDocument();
   });
-  it('keeps secondary filters collapsed in a compact floating panel', async () => {
+  it('keeps search and filter controls compact above the queue', async () => {
     render(<Sidebar />);
 
     await waitFor(() => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
     });
 
-    expect(screen.getByTestId('sidebar-primary-filters')).toBeInTheDocument();
-    expect(
-      screen.getByRole('group', { name: /vistas rapidas de la bandeja/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^todos$/i })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(screen.getByRole('button', { name: /no le/i })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    expect(screen.getByTestId('sidebar-search-controls')).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-shortcuts')).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /filtros secundarios/i }),
     ).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: /sin resp/i })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    expect(screen.queryByRole('button', { name: /^todos$/i })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue('Canal: todos')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
       'aria-pressed',
@@ -180,13 +168,29 @@ describe('Tickets Sidebar category density', () => {
       expect(screen.getByTestId('sidebar-filter-panel')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('sidebar-inline-filters')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-filter-shortcuts')).toBeInTheDocument();
+    expect(
+      screen.getByRole('group', { name: /filtros rapidos de reclamos/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^todos$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: /no le/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByRole('button', { name: /sin resp/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     expect(screen.getByDisplayValue('Canal: todos')).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
   });
 
-  it('shows only secondary filters in the compact filter badge', async () => {
+  it('keeps active filter chips inside the floating filter panel', async () => {
     const ticket = {
       id: 378430,
       tipo: 'municipio',
@@ -224,10 +228,18 @@ describe('Tickets Sidebar category density', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('1');
-    const chips = screen.getByTestId('sidebar-active-filter-chips');
+    expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-filter-panel')).toBeInTheDocument();
+    });
+    const chips = screen.getByTestId('sidebar-filter-active-chips');
     expect(chips).toHaveAccessibleName('Filtros activos aplicados');
     expect(chips).toHaveTextContent('Canal: whatsapp');
-    expect(chips).toHaveTextContent('Limpiar');
+    expect(screen.getByRole('button', { name: /^limpiar$/i })).toBeInTheDocument();
   });
 
   it('hides active filter chips in embedded compact mode so the accordion starts higher', async () => {
@@ -269,6 +281,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar reclamo...')).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
   });
@@ -303,6 +316,12 @@ describe('Tickets Sidebar category density', () => {
 
     await waitFor(() => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /filtros secundarios/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-filter-panel')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^todos$/i }));

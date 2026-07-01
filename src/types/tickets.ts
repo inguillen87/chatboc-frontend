@@ -219,8 +219,12 @@ export interface Ticket {
   avatarUrl?: string;
   avatar_url?: string;
   avatar_source?: string;
+  avatar_consent?: boolean | string | number | null;
+  avatarConsent?: boolean | string | number | null;
+  avatar_is_consented?: boolean | string | number | null;
   contact_avatar_url?: string;
   profile_picture_url?: string;
+  profile_picture_consent?: boolean | string | number | null;
   history?: TicketHistoryEvent[];
 
   categoria_id?: number;

@@ -56,6 +56,7 @@ const UserPortalLayout: React.FC = () => {
   const profileName = user?.name || publicProfile.name || null;
   const userAvatarUrl = user?.avatar_url || user?.picture || undefined;
   const userAvatarSource = user?.avatar_source || (userAvatarUrl ? 'imagen consentida' : 'iniciales');
+  const userAvatarConsent = user?.avatar_consent ?? Boolean(userAvatarUrl);
 
   const themeLabel = useMemo(() => {
     switch (active) {
@@ -163,6 +164,7 @@ const UserPortalLayout: React.FC = () => {
                     name={profileName || user?.email || 'Usuario'}
                     avatarUrl={userAvatarUrl}
                     source={userAvatarSource}
+                    consented={userAvatarConsent}
                     size="md"
                     className="sm:h-9 sm:w-9"
                   />
