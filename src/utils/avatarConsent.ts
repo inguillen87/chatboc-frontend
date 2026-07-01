@@ -15,10 +15,6 @@ const CONSENTED_SOURCE_VALUES = new Set([
   'google',
   'facebook',
   'linkedin',
-  'agent',
-  'agente',
-  'employee',
-  'internal_user',
 ]);
 
 const CONSENTED_SOURCE_PREFIXES = [

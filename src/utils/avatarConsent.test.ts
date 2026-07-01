@@ -54,4 +54,21 @@ describe('avatarConsent', () => {
       ).toBe(false);
     }
   });
+
+  it('does not trust internal agent photos without explicit consent metadata', () => {
+    expect(
+      resolveConsentedAvatar({
+        avatar_url: 'https://cdn.example.com/agents/agente.jpg',
+        avatar_source: 'agente',
+      }).avatarUrl,
+    ).toBeUndefined();
+
+    expect(
+      resolveConsentedAvatar({
+        avatar_url: 'https://cdn.example.com/agents/agente.jpg',
+        avatar_source: 'agente',
+        avatar_consent: true,
+      }).avatarUrl,
+    ).toBe('https://cdn.example.com/agents/agente.jpg');
+  });
 });

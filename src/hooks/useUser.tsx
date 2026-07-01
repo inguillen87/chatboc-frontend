@@ -22,7 +22,15 @@ interface UserData {
   avatar_url?: string;
   avatar_source?: string;
   avatar_consent?: boolean | string | number | null;
+  profile_picture_consent?: boolean | string | number | null;
   picture?: string;
+  identity?: {
+    avatar_url?: string | null;
+    avatar_source?: string | null;
+    avatar_consent?: boolean | string | number | null;
+    profile_picture_consent?: boolean | string | number | null;
+    picture?: string | null;
+  };
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
   rol?: string;
@@ -221,12 +229,25 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? data.avatar_url
           : typeof data.picture === 'string'
             ? data.picture
-            : undefined;
+            : typeof data.identity?.avatar_url === 'string'
+              ? data.identity.avatar_url
+              : typeof data.identity?.picture === 'string'
+                ? data.identity.picture
+                : undefined;
       const resolvedProfileAvatar = resolveConsentedAvatar(data, {
         avatarUrl: profileAvatarUrl,
-        source: typeof data.avatar_source === 'string' ? data.avatar_source : undefined,
-        consented: data.avatar_consent ?? data.profile_picture_consent,
-      });
+        source:
+          typeof data.avatar_source === 'string'
+            ? data.avatar_source
+            : typeof data.identity?.avatar_source === 'string'
+              ? data.identity.avatar_source
+              : undefined,
+        consented:
+          data.avatar_consent ??
+          data.profile_picture_consent ??
+          data.identity?.avatar_consent ??
+          data.identity?.profile_picture_consent,
+      }, data.identity);
       const updated: UserData = {
         id: data.id,
         name: data.name,

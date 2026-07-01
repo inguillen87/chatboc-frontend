@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, Shield, UserCircle } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ImagePlus, Loader2, Shield, Trash2, UserCircle } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
 import { usePortalContent } from '@/hooks/usePortalContent';
@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import IdentityAvatar from '@/components/identity/IdentityAvatar';
+import { deleteProfileAvatar, uploadProfileAvatar } from '@/services/profileAvatarService';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 const readFieldError = (errors: Record<string, string | string[]> | null | undefined, field: string) => {
   const value = errors?.[field];
@@ -16,8 +19,12 @@ const readFieldError = (errors: Record<string, string | string[]> | null | undef
   return typeof value === 'string' ? value : null;
 };
 
+const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_IMAGE_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 const UserAccountPage = () => {
-  const { user } = useUser();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const { user, setUser, refreshUser } = useUser();
   const { currentSlug } = useTenant();
   const {
     publicProfile,
@@ -32,6 +39,9 @@ const UserAccountPage = () => {
     email: publicProfile.email || user?.email || '',
   });
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'verification_required'>('idle');
+  const [avatarStatus, setAvatarStatus] = useState<'idle' | 'uploading' | 'deleting' | 'saved'>('idle');
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -51,6 +61,75 @@ const UserAccountPage = () => {
     null;
   const hasLinkedProfile = Boolean(user || publicProfile.userId || registrationResult?.profile?.user_id);
   const canRegister = publicProfile.canRegister || registrationResult?.reason_code === 'validation_failed';
+  const displayName = form.name || publicProfile.name || user?.name || user?.email || 'Usuario';
+  const resolvedAvatar = useMemo(
+    () => resolveConsentedAvatar(user as Record<string, unknown> | null | undefined),
+    [user],
+  );
+  const hasConsentedAvatar = Boolean(resolvedAvatar.avatarUrl);
+
+  const updateUserAvatar = async (avatarUrl: string, avatarSource: string, avatarConsent: boolean) => {
+    if (user) {
+      setUser({
+        ...user,
+        avatar_url: avatarUrl || undefined,
+        avatar_source: avatarSource || undefined,
+        avatar_consent: avatarConsent,
+        picture: avatarUrl || undefined,
+      });
+    }
+    await refreshUser().catch(() => null);
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setAvatarMessage(null);
+    setAvatarError(null);
+
+    if (!user) {
+      setAvatarError('Inicia sesion para guardar una foto de perfil.');
+      return;
+    }
+    if (!PROFILE_IMAGE_ALLOWED_TYPES.has(file.type)) {
+      setAvatarError('Usa una imagen JPG, PNG o WebP.');
+      return;
+    }
+    if (file.size > PROFILE_IMAGE_MAX_BYTES) {
+      setAvatarError('La imagen no puede superar 5 MB.');
+      return;
+    }
+
+    setAvatarStatus('uploading');
+    try {
+      const result = await uploadProfileAvatar(file, { isWidgetRequest: true });
+      await updateUserAvatar(result.avatarUrl, result.avatarSource, result.avatarConsent);
+      setAvatarMessage('Foto de perfil actualizada.');
+      setAvatarStatus('saved');
+    } catch {
+      setAvatarError('No se pudo subir la foto. Proba con otra imagen.');
+      setAvatarStatus('idle');
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    if (!user || avatarStatus === 'deleting') return;
+
+    setAvatarMessage(null);
+    setAvatarError(null);
+    setAvatarStatus('deleting');
+    try {
+      const result = await deleteProfileAvatar({ isWidgetRequest: true });
+      await updateUserAvatar(result.avatarUrl, result.avatarSource, result.avatarConsent);
+      setAvatarMessage('Foto eliminada. Se usa avatar generativo seguro.');
+      setAvatarStatus('saved');
+    } catch {
+      setAvatarError('No se pudo eliminar la foto.');
+      setAvatarStatus('idle');
+    }
+  };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,6 +170,98 @@ const UserAccountPage = () => {
           </Button>
         ) : null}
       </div>
+
+      <Card className="border border-muted/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Identidad visual
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <IdentityAvatar
+                name={displayName}
+                avatarUrl={resolvedAvatar.avatarUrl}
+                source={resolvedAvatar.source || 'iniciales'}
+                consented={resolvedAvatar.consented}
+                size="lg"
+                className="h-16 w-16 text-lg"
+              />
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">{displayName}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {hasConsentedAvatar
+                    ? `Imagen consentida (${resolvedAvatar.source || 'perfil'}).`
+                    : 'Avatar generativo estable hasta que subas una foto consentida.'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No usamos scraping ni fotos de WhatsApp sin consentimiento.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Input
+                ref={avatarInputRef}
+                id="profile-avatar-upload"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={handleAvatarUpload}
+                disabled={!user || avatarStatus === 'uploading' || avatarStatus === 'deleting'}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!user || avatarStatus === 'uploading' || avatarStatus === 'deleting'}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                {avatarStatus === 'uploading' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="mr-2 h-4 w-4" />
+                )}
+                Subir foto
+              </Button>
+              {hasConsentedAvatar ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleAvatarDelete}
+                  disabled={avatarStatus === 'uploading' || avatarStatus === 'deleting'}
+                >
+                  {avatarStatus === 'deleting' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Eliminar
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {!user ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              <span>Inicia sesion para guardar una foto propia o usar la imagen de tu login social.</span>
+              <Button asChild size="sm" variant="outline">
+                <a href={loginPath}>Iniciar sesion</a>
+              </Button>
+            </div>
+          ) : null}
+          {avatarError ? <p className="text-sm text-destructive">{avatarError}</p> : null}
+          {avatarMessage ? (
+            <div className="flex items-center gap-2 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
+              {avatarMessage}
+            </div>
+          ) : null}
+        </CardContent>
+        <CardFooter className="flex items-start gap-3 text-sm text-muted-foreground">
+          <Shield className="mt-0.5 h-4 w-4 text-primary" />
+          <span>La foto real aparece solo si proviene de upload propio o login social con consentimiento.</span>
+        </CardFooter>
+      </Card>
 
       <Card className="border border-muted/70 shadow-sm">
         <CardHeader>
@@ -170,10 +341,10 @@ const UserAccountPage = () => {
                 </Button>
                 {localError ? <p className="text-sm text-destructive">{localError}</p> : null}
                 {status === 'saved' ? (
-                  <p className="flex items-center gap-2 text-sm text-green-700">
+                  <div className="flex items-center gap-2 text-sm text-green-700">
                     <CheckCircle2 className="h-4 w-4" />
                     Sesion vinculada y portal actualizado.
-                  </p>
+                  </div>
                 ) : null}
                 {status === 'verification_required' ? (
                   <p className="text-sm text-amber-700">Ese email requiere verificacion antes de quedar vinculado.</p>

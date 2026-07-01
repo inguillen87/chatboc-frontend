@@ -35,6 +35,7 @@ export async function uploadProfileAvatar(
 ): Promise<ProfileAvatarResponse> {
   const formData = new FormData();
   formData.append('avatar', file, file.name);
+  formData.append('avatar_consent', 'true');
 
   const payload = await apiFetch<Record<string, any>>('/auth/profile/avatar', {
     method: 'POST',
@@ -43,10 +44,12 @@ export async function uploadProfileAvatar(
     preserveAuthOn401: true,
   });
 
+  const avatarConsent = readBoolean(payload.avatar_consent ?? payload.profile_picture_consent);
+
   return {
     avatarUrl: readString(payload.avatar_url, payload.avatarUrl, payload.picture),
     avatarSource: readString(payload.avatar_source, payload.avatarSource, 'profile_upload'),
-    avatarConsent: readBoolean(payload.avatar_consent ?? payload.profile_picture_consent ?? true),
+    avatarConsent,
     picture: readString(payload.picture),
     upload: payload.upload
       ? {
@@ -56,5 +59,22 @@ export async function uploadProfileAvatar(
           thumbUrl: readString(payload.upload.thumb_url, payload.upload.thumbUrl),
         }
       : undefined,
+  };
+}
+
+export async function deleteProfileAvatar(
+  options: { isWidgetRequest?: boolean } = {},
+): Promise<ProfileAvatarResponse> {
+  const payload = await apiFetch<Record<string, any>>('/auth/profile/avatar', {
+    method: 'DELETE',
+    isWidgetRequest: options.isWidgetRequest,
+    preserveAuthOn401: true,
+  });
+
+  return {
+    avatarUrl: readString(payload.avatar_url, payload.avatarUrl, payload.picture),
+    avatarSource: readString(payload.avatar_source, payload.avatarSource),
+    avatarConsent: readBoolean(payload.avatar_consent ?? payload.profile_picture_consent),
+    picture: readString(payload.picture),
   };
 }
