@@ -119,8 +119,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           source: data.avatar_source,
           consented: data.avatar_consent ?? data.profile_picture_consent,
         });
-        setAvatarUrl(profileAvatarUrl);
-        setAvatarSource(profileAvatar.source || data.avatar_source || "");
+        setAvatarUrl(profileAvatar.avatarUrl || "");
+        setAvatarSource(profileAvatar.source || "");
         setAvatarConsent(profileAvatar.consented);
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {

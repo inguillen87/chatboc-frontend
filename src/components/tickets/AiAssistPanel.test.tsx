@@ -106,6 +106,48 @@ describe('AiAssistPanel', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Asistencia IA del caso')).toBeInTheDocument();
+    expect(screen.getByText('IA temporalmente offline')).toBeInTheDocument();
+    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.queryByText('IA operativa')).not.toBeInTheDocument();
+    expect(screen.queryByText('requiere revision')).not.toBeInTheDocument();
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    consoleWarn.mockRestore();
+  });
+
+  it('keeps the CRM quiet for advisory AI 5xx responses without legacy HTML bodies', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockedGetTicketAiEnrichment.mockRejectedValue(
+      new ApiError('El servidor no pudo responder correctamente.', 502, { error: 'Bad Gateway' }),
+    );
+
+    render(<AiAssistPanel ticket={ticketFixture()} />);
+
+    expect(
+      await screen.findByText(
+        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('IA temporalmente offline')).toBeInTheDocument();
+    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.queryByText('IA operativa')).not.toBeInTheDocument();
+    expect(screen.queryByText('requiere revision')).not.toBeInTheDocument();
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    consoleWarn.mockRestore();
+  });
+
+  it('keeps the CRM quiet for advisory AI network failures', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockedGetTicketAiEnrichment.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    render(<AiAssistPanel ticket={ticketFixture()} />);
+
+    expect(
+      await screen.findByText(
+        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+      ),
+    ).toBeInTheDocument();
     expect(consoleWarn).not.toHaveBeenCalled();
 
     consoleWarn.mockRestore();

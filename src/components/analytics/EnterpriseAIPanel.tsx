@@ -20,6 +20,59 @@ interface DraftItem {
   quantity: number;
 }
 
+const ORDER_DRAFT_MANUAL_REVIEW_MESSAGE = 'Revision manual requerida: no hay borrador editable para descargar.';
+const ORDER_DRAFT_MANUAL_REVIEW_STATES = new Set(['manual_review', 'legacy', 'failed', 'ai_unavailable']);
+
+const normalizeDraftSignal = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+const hasDraftErrorValue = (value: unknown) => {
+  if (Array.isArray(value)) return value.length > 0;
+  return Boolean(value);
+};
+
+const resolveUsableDraftItems = (response: any): DraftItem[] => {
+  if (!Array.isArray(response?.draft_items)) return [];
+
+  return response.draft_items
+    .map((row: any): DraftItem | null => {
+      const rawName =
+        row?.name ?? row?.nombre ?? row?.item ?? row?.descripcion ?? row?.description ?? row?.source_name ?? row?.product_name;
+      const name = String(rawName ?? '').trim();
+      if (!name) return null;
+
+      const quantity = Number(row?.quantity ?? row?.qty ?? 1);
+      return {
+        name,
+        match_status: String(row?.match_status ?? 'unknown'),
+        quantity: Number.isFinite(quantity) ? quantity : 1,
+      };
+    })
+    .filter((item): item is DraftItem => item !== null);
+};
+
+const responseRequiresManualReview = (response: any) => {
+  const crmState = normalizeDraftSignal(response?.crm_state);
+  const status = normalizeDraftSignal(response?.status);
+  const providerStatus = normalizeDraftSignal(response?.provider_status ?? response?.source?.provider_status);
+
+  return (
+    ORDER_DRAFT_MANUAL_REVIEW_STATES.has(crmState) ||
+    ORDER_DRAFT_MANUAL_REVIEW_STATES.has(status) ||
+    providerStatus === 'failed' ||
+    hasDraftErrorValue(response?.row_errors) ||
+    hasDraftErrorValue(response?.error)
+  );
+};
+
+const asManualReviewDraftResponse = (response: any) => ({
+  ...(response ?? {}),
+  crm_state: 'manual_review',
+  status: 'manual_review',
+  matched_count: 0,
+  unmatched_count: 0,
+  draft_items: [],
+});
+
 const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
@@ -35,6 +88,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
     () => resolveDraftCounts(draftItems, draftResponse?.matched_count, draftResponse?.unmatched_count),
     [draftItems, draftResponse],
   );
+  const draftRequiresManualReview = draftResponse?.crm_state === 'manual_review';
 
   const handleLoadRecommendations = async () => {
     if (!tenantId) return;
@@ -82,14 +136,15 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
     setDraftError(null);
     try {
       const response = await enterpriseService.uploadOrderDraftFromDocument(tenantId, file, tenantSlug);
+      const rows = resolveUsableDraftItems(response);
+
+      if (rows.length === 0 || responseRequiresManualReview(response)) {
+        setDraftResponse(asManualReviewDraftResponse(response));
+        setDraftItems([]);
+        return;
+      }
+
       setDraftResponse(response);
-      const rows = Array.isArray(response?.draft_items)
-        ? response.draft_items.map((row: any, idx: number) => ({
-            name: String(row?.name ?? row?.item ?? row?.descripcion ?? `Ítem ${idx + 1}`),
-            match_status: String(row?.match_status ?? 'unknown'),
-            quantity: Number(row?.quantity ?? row?.qty ?? 1),
-          }))
-        : [];
       setDraftItems(rows);
       toast.success('Borrador generado correctamente.');
     } catch (err) {
@@ -186,6 +241,9 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
 
           {draftResponse ? (
             <div className="space-y-2 text-sm">
+              {draftRequiresManualReview ? (
+                <p className="text-sm text-muted-foreground">{ORDER_DRAFT_MANUAL_REVIEW_MESSAGE}</p>
+              ) : null}
               <p>
                 Matched: {resolvedMatchedCount} · Unmatched: {resolvedUnmatchedCount}
               </p>

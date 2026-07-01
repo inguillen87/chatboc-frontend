@@ -17,7 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { enterpriseService, type TicketAiEnrichmentResponse } from '@/services/enterpriseService';
 import {
   getTenantTicketAiEnrichment,
-  isLegacyHtmlGatewayError,
+  isTicketAiEnrichmentUnavailable,
   isTenantTicketV2,
   summarizeTicketFetchError,
 } from '@/services/ticketService';
@@ -258,12 +258,12 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
       setEnrichment(response);
     } catch (err) {
       if (requestSeq.current !== currentRequest) return;
-      const isGatewayUnavailable = isLegacyHtmlGatewayError(err);
-      if (!isGatewayUnavailable) {
+      const isAiUnavailable = isTicketAiEnrichmentUnavailable(err);
+      if (!isAiUnavailable) {
         console.warn('Unable to load ticket AI enrichment', summarizeTicketFetchError(err));
       }
       setError(
-        isGatewayUnavailable
+        isAiUnavailable
           ? AI_ENRICHMENT_UNAVAILABLE_COPY
           : 'No se pudo calcular la asistencia IA para este ticket. El CRM sigue operativo.',
       );
@@ -296,6 +296,15 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   const advisoryOnly = asBoolean(enrichment?.advisory_policy?.advisory_only) || asBoolean(hints.advisory_only);
   const mutatesState = asBoolean(enrichment?.advisory_policy?.mutates_operational_state) || asBoolean(hints.mutates_operational_state);
   const engine = providerModeFromPayload(provider);
+  const hasEnrichment = Boolean(enrichment);
+  const engineBadgeLabel = hasEnrichment
+    ? engine.label
+    : loading
+      ? 'Analizando IA'
+      : 'IA temporalmente offline';
+  const safetyBadgeLabel = hasEnrichment
+    ? (advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision')
+    : 'CRM operativo';
 
   return (
     <Card className="overflow-hidden border-primary/20 bg-background/95 shadow-sm">
@@ -324,16 +333,16 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="gap-1 bg-background/80">
             <Sparkles className="h-3 w-3" />
-            {engine.label}
+            {engineBadgeLabel}
           </Badge>
-          {engine.fallbackReason ? (
+          {hasEnrichment && engine.fallbackReason ? (
             <Badge variant="outline" className="bg-background/80">
               fallback seguro
             </Badge>
           ) : null}
           <Badge variant="outline" className="gap-1 bg-background/80">
             <ShieldCheck className="h-3 w-3" />
-            {advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision'}
+            {safetyBadgeLabel}
           </Badge>
           {enrichment?.contract_version ? (
             <Badge variant="outline" className="bg-background/80">

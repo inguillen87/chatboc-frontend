@@ -309,4 +309,50 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getByText('Chapas para cotizar')).toBeTruthy();
     expect(screen.queryByText('Alternativas de catalogo')).toBeNull();
   });
+
+  it('labels failed assisted extraction as manual review instead of optimistic AI', () => {
+    render(
+      <AssistedRequestPanel
+        order={{
+          ...baseOrder,
+          crm_review_card: {
+            contract_version: 'marketplace.crm_review_card.v1',
+            reference: 'pedido:99',
+            request_kind_label: 'Nota manuscrita',
+            status: 'ai_unavailable',
+            priority: 'normal',
+            recommended_next_step: 'Revisar manualmente el archivo',
+            summary: { detected: 0, matched: 0, unmatched: 0 },
+            source: {
+              channel: 'marketplace',
+              input_type: 'jpg',
+              text_preview: 'Imagen manuscrita con baja legibilidad.',
+              extraction_error: 'provider_unavailable',
+              provider_status: 'failed',
+            },
+            row_errors: ['No se pudo leer la nota'],
+            lines: [],
+          },
+          assisted_request: {
+            contract_version: 'marketplace.assisted_request.v1',
+            mode: 'order_note_upload',
+            crm_state: 'manual_review',
+            source: {
+              channel: 'marketplace',
+              text_preview: 'Imagen manuscrita con baja legibilidad.',
+              extraction_error: 'provider_unavailable',
+              provider_status: 'failed',
+            },
+            match_summary: { detected: 0, matched: 0, unmatched: 0 },
+            row_errors: ['No se pudo leer la nota'],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Lectura manual / IA no disponible')).toBeTruthy();
+    expect(screen.getAllByText('Revision manual').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Lectura manual').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Solicitud asistida por IA' })).toBeNull();
+  });
 });

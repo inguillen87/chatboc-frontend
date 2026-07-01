@@ -160,6 +160,57 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.item.frontend_contract?.render_as).toBe("inbox_360_drawer");
   });
 
+  it("preserves legacy claim action endpoints and payload defaults", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: "municipio:378430",
+        legacy_id: 378430,
+        ticket_id: 378430,
+        source_model: "MunicipioTicket",
+        title: "Arreglo de calle",
+        status: "nuevo",
+        allowed_actions: [
+          {
+            id: "reply",
+            label: "Responder",
+            method: "POST",
+            endpoint: "/api/v2/inbox/omnichannel/actions",
+            requires: ["body"],
+            payload_defaults: {
+              source_model: "MunicipioTicket",
+              legacy_id: 378430,
+              ticket_id: 378430,
+            },
+          },
+          {
+            id: "open_tracking",
+            label: "Ver seguimiento publico",
+            method: "GET",
+            endpoint: "/api/public/tracking/experience?kind=claim&code=378430&pin=900144",
+          },
+        ],
+      },
+    });
+
+    const reply = normalized.item.allowed_actions.find((action) => action.id === "reply");
+    expect(normalized.item.source_model).toBe("MunicipioTicket");
+    expect(normalized.item.legacy_id).toBe("378430");
+    expect(reply).toMatchObject({
+      endpoint: "/api/v2/inbox/omnichannel/actions",
+      payload: {
+        source_model: "MunicipioTicket",
+        legacy_id: 378430,
+      },
+      payload_defaults: {
+        ticket_id: 378430,
+      },
+    });
+    expect(normalized.item.allowed_actions.find((action) => action.id === "open_tracking")?.href).toContain(
+      "/api/public/tracking/experience",
+    );
+  });
+
   it("normalizes real WhatsApp ticket fields for evidence and maps", () => {
     const normalized = normalizeOmnichannelInboxDetailV2({
       contract_version: "inbox.omnichannel.detail.v1",

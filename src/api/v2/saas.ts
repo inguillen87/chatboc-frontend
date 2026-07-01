@@ -13,9 +13,12 @@ export interface SaasAction {
   label: string;
   type?: string;
   href?: string;
+  endpoint?: string;
   method?: string;
   requires?: string[];
   payload?: unknown;
+  payload_defaults?: UnknownRecord;
+  payloadDefaults?: UnknownRecord;
   disabled?: boolean;
   raw?: unknown;
 }
@@ -180,8 +183,11 @@ export interface OmnichannelTimelineEvent {
 
 export interface OmnichannelInboxItem {
   id: string;
+  legacy_id?: string;
   ticket_id?: string;
   nro_ticket?: string;
+  source_model?: string;
+  legacy_kind?: string;
   detail_endpoint?: string;
   conversation_id?: string;
   title: string;
@@ -235,6 +241,7 @@ export interface OmnichannelInboxDetailV2 {
 export interface OmnichannelInboxActionPayload {
   action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
   ticket_id?: string | number;
+  endpoint?: string;
   body?: string;
   message?: string;
   visibility?: string;
@@ -622,14 +629,27 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
   const label =
     asString(getFirst(value, ['label', 'title', 'name', 'action', 'text'])) ??
     id;
+  const method = asString(value.method);
+  const endpoint = asString(value.endpoint);
+  const href =
+    asString(getFirst(value, ['href', 'url', 'path'])) ??
+    (method?.toUpperCase() === 'GET' ? endpoint : undefined);
+  const payloadDefaults = isRecord(value.payload_defaults)
+    ? value.payload_defaults
+    : isRecord(value.payloadDefaults)
+      ? value.payloadDefaults
+      : undefined;
   return {
     id,
     label,
     type: asString(getFirst(value, ['type', 'kind'])),
-    href: asString(getFirst(value, ['href', 'url', 'path'])),
-    method: asString(value.method),
+    href,
+    endpoint,
+    method,
     requires: Array.isArray(value.requires) ? value.requires.map(String).filter(Boolean) : undefined,
-    payload: value.payload,
+    payload: value.payload ?? payloadDefaults,
+    payload_defaults: payloadDefaults,
+    payloadDefaults,
     disabled: asBoolean(value.disabled),
     raw: value,
   };
@@ -1138,8 +1158,11 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
   const normalizedActions = normalizeActions(getFirst(value, ['allowed_actions', 'actions', 'botones']));
   return {
     id,
+    legacy_id: asString(getFirst(value, ['legacy_id', 'legacyId'])),
     ticket_id: ticketId,
     nro_ticket: asString(getFirst(value, ['nro_ticket', 'ticket_number'])),
+    source_model: asString(getFirst(value, ['source_model', 'sourceModel'])),
+    legacy_kind: asString(getFirst(value, ['legacy_kind', 'legacyKind'])),
     detail_endpoint: asString(getFirst(value, ['detail_endpoint', 'detail_url', 'endpoint'])),
     conversation_id: asString(getFirst(value, ['conversation_id', 'conversationId'])),
     title:
@@ -1762,7 +1785,11 @@ export const postOmnichannelInboxActionV2 = async (
     payload.payload && typeof payload.payload === 'object' && !Array.isArray(payload.payload)
       ? payload.payload
       : {};
+  const explicitEndpoint =
+    asString(payload.endpoint) ||
+    asString(nestedPayload.endpoint);
   const payloadWithTicket = {
+    ...nestedPayload,
     ...payload,
     ...(payload.action === 'reply'
       ? {
@@ -1771,12 +1798,16 @@ export const postOmnichannelInboxActionV2 = async (
           visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
         }
       : {}),
-    ticket_id: payload.ticket_id ?? ticketId,
+    ticket_id: payload.ticket_id ?? nestedPayload.ticket_id ?? nestedPayload.legacy_id ?? ticketId,
   };
+  delete (payloadWithTicket as UnknownRecord).endpoint;
+  delete (payloadWithTicket as UnknownRecord).payload;
   let response: unknown;
   try {
     response = await panelApi.post<unknown>(
-      `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
+      explicitEndpoint && explicitEndpoint.startsWith('/')
+        ? explicitEndpoint
+        : `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
       payloadWithTicket,
       { tenantSlug },
     );

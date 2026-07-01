@@ -913,8 +913,8 @@ export default function Perfil() {
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
         logo_url: data.logo_url || "",
-        avatar_url: profileAvatarUrl,
-        avatar_source: profileAvatar.source || data.avatar_source || "",
+        avatar_url: profileAvatar.avatarUrl || "",
+        avatar_source: profileAvatar.source || "",
         avatar_consent: profileAvatar.consented,
         horarios_ui: horariosUi,
       }));

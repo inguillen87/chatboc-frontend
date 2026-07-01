@@ -25,6 +25,47 @@ describe('avatarConsent', () => {
     ).toBe('https://cdn.example.com/profile/google.jpg');
   });
 
+  it('allows internal staff avatars only when profile source and consent are explicit', () => {
+    expect(
+      shouldRenderProfileImage({
+        avatarUrl: 'https://cdn.example.com/profile/operator.webp',
+        source: 'agent_profile',
+        consented: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldRenderProfileImage({
+        avatarUrl: 'https://cdn.example.com/profile/operator.webp',
+        source: 'agent_profile',
+      }),
+    ).toBe(false);
+  });
+
+  it('resolves consented avatars from nested CRM identity contracts', () => {
+    expect(
+      resolveConsentedAvatar({
+        contact: {
+          identity: {
+            avatar_url: 'https://cdn.example.com/profile/contact.webp',
+            avatar_source: 'oauth_google',
+            avatar_consent: true,
+          },
+        },
+      }).avatarUrl,
+    ).toBe('https://cdn.example.com/profile/contact.webp');
+
+    expect(
+      resolveConsentedAvatar({
+        customer_profile: {
+          avatar_url: 'https://cdn.example.com/profile/customer.webp',
+          avatar_source: 'social_login_linkedin',
+          profile_picture_consent: true,
+        },
+      }).source,
+    ).toBe('social_login_linkedin');
+  });
+
   it('requires explicit consent even for upload or social-login sources', () => {
     expect(
       shouldRenderProfileImage({
@@ -69,6 +110,23 @@ describe('avatarConsent', () => {
     expect(resolved.consented).toBe(false);
   });
 
+  it('blocks nested WhatsApp or scraped avatar contracts even with consent', () => {
+    for (const source of ['whatsapp-profile', 'WhatsApp Avatar', 'wa profile', 'profile scrape']) {
+      const resolved = resolveConsentedAvatar({
+        contact: {
+          identity: {
+            avatar_url: 'https://cdn.example.com/profile/unsafe.jpg',
+            avatar_source: source,
+            avatar_consent: true,
+          },
+        },
+      });
+
+      expect(resolved.avatarUrl).toBeUndefined();
+      expect(resolved.consented).toBe(false);
+    }
+  });
+
   it('blocks executable, data and protocol-relative URLs before rendering', () => {
     for (const avatarUrl of ['javascript:alert(1)', 'data:image/svg+xml,<svg />', '//cdn.example.com/avatar.jpg']) {
       expect(isSafeAvatarUrl(avatarUrl)).toBe(false);
@@ -99,6 +157,16 @@ describe('avatarConsent', () => {
         }),
       ).toBe(false);
     }
+  });
+
+  it('does not trust generic contact-profile source as a real customer image', () => {
+    expect(
+      shouldRenderProfileImage({
+        avatarUrl: 'https://cdn.example.com/profile/contact.jpg',
+        source: 'contact_profile',
+        consented: true,
+      }),
+    ).toBe(false);
   });
 
   it('does not trust internal agent photos as customer identity avatars', () => {

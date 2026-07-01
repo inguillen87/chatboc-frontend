@@ -72,6 +72,10 @@ interface CrmOrderDraft {
   recommended_next_step?: string | null;
   summary?: Record<string, unknown> | null;
   lines?: CrmOrderDraftLine[] | null;
+  row_errors?: unknown[] | null;
+  provider_status?: string | null;
+  status?: string | null;
+  state?: string | null;
   source?: Record<string, unknown> | null;
 }
 
@@ -103,6 +107,8 @@ interface AssistedOrderUploadResponse {
     confidence?: string | null;
     fields?: Record<string, unknown> | null;
     missing_fields?: string[] | null;
+    row_errors?: unknown[] | null;
+    provider_status?: string | null;
   } | null;
   items?: unknown[];
   no_encontrados?: unknown[];
@@ -110,6 +116,9 @@ interface AssistedOrderUploadResponse {
   pedido_id?: number | string;
   lead_id?: number | string;
   crm_state?: string;
+  provider_status?: string | null;
+  status?: string | null;
+  state?: string | null;
   customer_message?: string;
   resumen?: string;
   row_errors?: unknown[];
@@ -118,6 +127,8 @@ interface AssistedOrderUploadResponse {
     archivo_nombre?: string | null;
     input_type?: string | null;
     text_preview?: string | null;
+    provider_status?: string | null;
+    row_errors?: unknown[] | null;
   };
   next_actions?: AssistedOrderAction[];
   customer_next_steps?: Array<{
@@ -388,6 +399,22 @@ const CRM_LINE_STATUS_LABELS: Record<string, string> = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
+const MANUAL_REVIEW_STATES = new Set([
+  'manual_review',
+  'human_review',
+  'requires_manual_review',
+  'needs_manual_review',
+]);
+
+const PROVIDER_FAILURE_STATES = new Set([
+  'ai_unavailable',
+  'provider_unavailable',
+  'failed',
+  'failure',
+  'error',
+  'legacy',
+]);
+
 const compactString = (value: unknown): string | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -396,6 +423,23 @@ const compactString = (value: unknown): string | null => {
   }
   return null;
 };
+
+const normalizeStateToken = (value: unknown): string | null =>
+  compactString(value)?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || null;
+
+const hasArrayItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+
+const hasManualReviewState = (...values: unknown[]): boolean =>
+  values.some((value) => {
+    const normalized = normalizeStateToken(value);
+    return Boolean(normalized && MANUAL_REVIEW_STATES.has(normalized));
+  });
+
+const hasProviderFailureState = (...values: unknown[]): boolean =>
+  values.some((value) => {
+    const normalized = normalizeStateToken(value);
+    return Boolean(normalized && PROVIDER_FAILURE_STATES.has(normalized));
+  });
 
 const prettifyToken = (value: unknown, labels: Record<string, string> = {}) => {
   const normalized = compactString(value);
@@ -460,6 +504,54 @@ const getCrmOrderDraft = (response?: AssistedOrderUploadResponse | null): CrmOrd
     return response.crm_handoff.draft_order as CrmOrderDraft;
   }
   return null;
+};
+
+const isAssistedUploadManualReview = (response?: AssistedOrderUploadResponse | null): boolean => {
+  if (!response) return false;
+  const responseRecord = response as Record<string, unknown>;
+  const draft = getCrmOrderDraft(response);
+  const draftRecord = isRecord(draft) ? draft : {};
+  const sourceRecord = (isRecord(response.source) ? response.source : {}) as Record<string, unknown>;
+  const structuredRecord = (isRecord(response.structured_extraction) ? response.structured_extraction : {}) as Record<string, unknown>;
+  const crmHandoffRecord = (isRecord(response.crm_handoff) ? response.crm_handoff : {}) as Record<string, unknown>;
+  const draftSourceRecord = isRecord(draft?.source) ? draft.source : {};
+  const hasUsableDraftLines = Array.isArray(draft?.lines) && draft.lines.length > 0;
+
+  const hasExplicitManualState = hasManualReviewState(
+    response.crm_state,
+    response.status,
+    response.state,
+    draft?.status,
+    draft?.state,
+    crmHandoffRecord.status,
+    crmHandoffRecord.state,
+  );
+  const hasProviderFailure = hasProviderFailureState(
+    response.provider_status,
+    responseRecord.providerStatus,
+    sourceRecord.provider_status,
+    sourceRecord.providerStatus,
+    structuredRecord.provider_status,
+    structuredRecord.providerStatus,
+    draft?.provider_status,
+    draftSourceRecord.provider_status,
+    draftSourceRecord.providerStatus,
+  );
+  const hasRowErrors =
+    hasArrayItems(response.row_errors) ||
+    hasArrayItems(responseRecord.rowErrors) ||
+    hasArrayItems(sourceRecord.row_errors) ||
+    hasArrayItems(structuredRecord.row_errors) ||
+    hasArrayItems(draft?.row_errors) ||
+    hasArrayItems(draftRecord.rowErrors) ||
+    hasArrayItems(draftSourceRecord.row_errors) ||
+    hasArrayItems(crmHandoffRecord.row_errors);
+  const reviewRequestedWithoutDraft =
+    (response.operator_pack?.needs_human_review === true ||
+      response.match_summary?.needs_operator_review === true) &&
+    !hasUsableDraftLines;
+
+  return hasExplicitManualState || hasProviderFailure || hasRowErrors || reviewRequestedWithoutDraft;
 };
 
 const getCrmSuggestedReply = (response?: AssistedOrderUploadResponse | null) => {
@@ -801,6 +893,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       setStatusMessage('Preparando solicitud para que el equipo responda sin perder contexto...');
       setMatchSummary(response?.match_summary ?? null);
       setProcessedResponse(response ?? null);
+      const responseNeedsManualReview = isAssistedUploadManualReview(response);
 
       if (response?.items && typeof onCartUpdated === 'function') {
         onCartUpdated(response.items);
@@ -814,12 +907,20 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       }
 
       setSuccessMessage(
-        response?.customer_message ?? response?.resumen ?? 'Hemos armado un borrador en base a tu archivo.',
+        response?.customer_message ??
+          response?.resumen ??
+          (responseNeedsManualReview
+            ? 'Recibimos la solicitud, pero la lectura automatica no genero un borrador confiable. Queda en revision manual con el archivo o texto original.'
+            : 'Hemos armado un borrador en base a tu archivo.'),
       );
       if (normalizedText) {
         setOrderText('');
       }
-      setStatusMessage('Solicitud procesada: quedo lista para revision, respuesta y seguimiento.');
+      setStatusMessage(
+        responseNeedsManualReview
+          ? 'Solicitud recibida: requiere revision manual antes de responder.'
+          : 'Solicitud procesada: quedo lista para revision, respuesta y seguimiento.',
+      );
     } catch (uploadError) {
       if (uploadError instanceof ApiError) {
         const contentType = String(uploadError.body?.contentType || '').toLowerCase();
@@ -873,6 +974,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const reviewActions = enabledActions.filter((action) => action.type !== 'link');
   const customerNextSteps = processedResponse?.customer_next_steps ?? [];
   const requestId = processedResponse?.pedido_id ?? processedResponse?.lead_id ?? null;
+  const needsManualReview = isAssistedUploadManualReview(processedResponse);
   const trackingAction = enabledActions.find((action) => action.id === 'tracking' || action.tracking_code);
   const whatsappHandoffAction =
     processedResponse?.public_follow_up?.channels?.find((action) => action.id === 'whatsapp_handoff' && action.href) ??
@@ -1287,12 +1389,23 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       )}
 
       {successMessage && (
-        <Alert className="border-green-200 bg-green-50 text-green-900">
-          <ClipboardCheck className="h-4 w-4" />
-          <AlertTitle>Solicitud creada</AlertTitle>
+        <Alert
+          className={cn(
+            needsManualReview
+              ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100'
+              : 'border-green-200 bg-green-50 text-green-900',
+          )}
+        >
+          {needsManualReview ? <FileWarning className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
+          <AlertTitle>{needsManualReview ? 'Solicitud recibida para revision' : 'Solicitud creada'}</AlertTitle>
           <AlertDescription>
             {requestId ? <span className="mb-2 block font-semibold">Referencia #{requestId}</span> : null}
             <span>{successMessage}</span>
+            {needsManualReview ? (
+              <span className="mt-2 block text-xs font-medium">
+                No se genero un borrador editable automatico. El equipo ve la entrada original y la revisa antes de responder.
+              </span>
+            ) : null}
             {matchSummary ? (
               <span className="mt-2 block text-xs">
                 Detectados: {matchSummary.detected ?? 0}. En catalogo: {matchSummary.matched ?? 0}. Para revisar: {matchSummary.unmatched ?? 0}.
@@ -1377,11 +1490,13 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-semibold">
-                <ClipboardList className="h-4 w-4 text-primary" />
-                Borrador que recibe el equipo
+                <ClipboardList className={cn('h-4 w-4', needsManualReview ? 'text-amber-600' : 'text-primary')} />
+                {needsManualReview ? 'Revision manual que recibe el equipo' : 'Borrador que recibe el equipo'}
               </div>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                El panel ve esta lectura inicial junto al archivo original para responder por WhatsApp, email o llamada.
+                {needsManualReview
+                  ? 'El panel conserva la entrada original y las senales de lectura incompleta para que una persona responda sin perder contexto.'
+                  : 'El panel ve esta lectura inicial junto al archivo original para responder por WhatsApp, email o llamada.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1429,7 +1544,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             </div>
           ) : (
             <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-              El equipo recibira el archivo o texto original y separara los items manualmente si la lectura no alcanza.
+              {needsManualReview
+                ? 'No hay lineas confiables para confirmar automaticamente. El equipo revisa el archivo o texto original antes de responder.'
+                : 'El equipo recibira el archivo o texto original y separara los items manualmente si la lectura no alcanza.'}
             </div>
           )}
 
@@ -1490,9 +1607,13 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               <p className="text-sm font-semibold">Proximos pasos</p>
               <p className="text-xs text-muted-foreground">La solicitud ya quedo asociada al panel del espacio.</p>
             </div>
-                  <Badge variant="outline">
-                    {processedResponse.crm_state === 'ready_for_confirmation' ? 'Lista para confirmar' : 'Revision del equipo'}
-                  </Badge>
+            <Badge variant="outline">
+              {needsManualReview
+                ? 'Revision manual'
+                : processedResponse.crm_state === 'ready_for_confirmation'
+                  ? 'Lista para confirmar'
+                  : 'Revision del equipo'}
+            </Badge>
           </div>
           <Separator className="my-3" />
           {customerNextSteps.length ? (

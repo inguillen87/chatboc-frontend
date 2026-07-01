@@ -134,6 +134,7 @@ describe('enterpriseService demo endpoints', () => {
         ticket_type: 'municipio',
       },
       tenantSlug: 'junin',
+      suppressInvalidJsonWarning: true,
     });
   });
 

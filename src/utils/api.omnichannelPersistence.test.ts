@@ -86,4 +86,26 @@ describe('apiFetch omnichannel tenant persistence', () => {
       conversationId: 'payload-conv',
     });
   });
+
+  it('suppresses invalid JSON warnings for optional advisory requests', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response('<html><body>502 Bad Gateway</body></html>', {
+        status: 502,
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      realApiFetch('/admin/tickets/44/ai-enrichment', {
+        method: 'POST',
+        body: { scope: 'municipio' },
+        suppressInvalidJsonWarning: true,
+      }),
+    ).rejects.toMatchObject({ status: 502 });
+
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
 });

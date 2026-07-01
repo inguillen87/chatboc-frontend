@@ -13,6 +13,7 @@ import MessageBubble from "./MessageBubble";
 import { useUser } from "@/hooks/useUser";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
+import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 
 const messageVariants = {
   initial: (isBot: boolean) => ({
@@ -56,8 +57,11 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
 // --- UserAvatar modificado ---
 const UserChatAvatar: React.FC = () => {
   const { user } = useUser(); // Obtener datos del usuario
-  const avatarUrl = user?.avatar_url || user?.picture || undefined;
   const displayName = user?.name || user?.email || "Usuario";
+  const resolvedAvatar = React.useMemo(
+    () => resolveConsentedAvatar(user as Record<string, unknown> | null | undefined),
+    [user],
+  );
 
   return (
     <motion.div
@@ -68,9 +72,9 @@ const UserChatAvatar: React.FC = () => {
     >
       <IdentityAvatar
         name={displayName}
-        avatarUrl={avatarUrl}
-        source={user?.avatar_source}
-        consented={user?.avatar_consent ?? user?.profile_picture_consent}
+        avatarUrl={resolvedAvatar.avatarUrl}
+        source={resolvedAvatar.source}
+        consented={resolvedAvatar.consented}
         size="sm"
         className="h-8 w-8 border shadow-md"
       />

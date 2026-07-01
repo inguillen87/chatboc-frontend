@@ -27,24 +27,28 @@ const summaryNumber = (assistedRequest: AssistedOrderRequest, key: 'matched' | '
 const crmStateLabel = (state?: string | null) => {
   if (state === 'ready_for_confirmation') return 'Listo para confirmar';
   if (state === 'pending_operator_review') return 'Revision requerida';
+  if (state === 'manual_review' || state === 'ai_unavailable' || state === 'failed' || state === 'error') return 'Revision manual';
   return 'Solicitud asistida';
 };
 
 const crmStateClassName = (state?: string | null) => {
   if (state === 'ready_for_confirmation') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
   if (state === 'pending_operator_review') return 'border-amber-300 bg-amber-50 text-amber-800';
+  if (state === 'manual_review' || state === 'ai_unavailable' || state === 'failed' || state === 'error') return 'border-amber-300 bg-amber-50 text-amber-800';
   return 'border-blue-300 bg-blue-50 text-blue-800';
 };
 
 const reviewCardStatusLabel = (status?: string | null) => {
   if (status === 'needs_review') return 'Revision requerida';
   if (status === 'ready_to_reply') return 'Listo para responder';
+  if (status === 'manual_review' || status === 'ai_unavailable' || status === 'failed' || status === 'error') return 'Revision manual';
   return status ? status.replace(/_/g, ' ') : 'Ficha CRM';
 };
 
 const reviewCardStatusClassName = (status?: string | null) => {
   if (status === 'needs_review') return 'border-amber-300 bg-amber-50 text-amber-800';
   if (status === 'ready_to_reply') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+  if (status === 'manual_review' || status === 'ai_unavailable' || status === 'failed' || status === 'error') return 'border-amber-300 bg-amber-50 text-amber-800';
   return 'border-blue-300 bg-blue-50 text-blue-800';
 };
 
@@ -66,6 +70,40 @@ const firstText = (...values: unknown[]) => {
     if (text) return text;
   }
   return null;
+};
+
+const hasArrayItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+
+const hasManualExtractionIssue = (
+  assistedRequest: AssistedOrderRequest,
+  crmReviewCard: Order['crm_review_card'] | null | undefined,
+) => {
+  const requestRecord = assistedRequest as unknown as Record<string, unknown>;
+  const cardRecord = isRecord(crmReviewCard) ? (crmReviewCard as Record<string, unknown>) : {};
+  const requestSource = isRecord(assistedRequest.source) ? assistedRequest.source : {};
+  const cardSource = isRecord(crmReviewCard?.source) ? crmReviewCard?.source : {};
+  return Boolean(
+    assistedRequest.crm_state === 'manual_review' ||
+      assistedRequest.crm_state === 'ai_unavailable' ||
+      assistedRequest.crm_state === 'failed' ||
+      assistedRequest.crm_state === 'error' ||
+      crmReviewCard?.status === 'manual_review' ||
+      crmReviewCard?.status === 'ai_unavailable' ||
+      crmReviewCard?.status === 'failed' ||
+      crmReviewCard?.status === 'error' ||
+      requestRecord.provider_status === 'failed' ||
+      cardRecord.provider_status === 'failed' ||
+      requestSource.provider_status === 'failed' ||
+      cardSource.provider_status === 'failed' ||
+      requestRecord.extraction_error ||
+      cardRecord.extraction_error ||
+      requestSource.extraction_error ||
+      cardSource.extraction_error ||
+      hasArrayItems(requestRecord.row_errors) ||
+      hasArrayItems(cardRecord.row_errors) ||
+      hasArrayItems(assistedRequest.structured_extraction?.row_errors) ||
+      hasArrayItems(isRecord(assistedRequest.crm_order_draft) ? assistedRequest.crm_order_draft.row_errors : undefined),
+  );
 };
 
 const candidateListKeys = ['candidates', 'catalog_candidates', 'suggested_candidates', 'alternatives', 'alternativas'];
@@ -594,6 +632,9 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const draftDetectedCount = draftSummaryNumber(crmOrderDraft, 'detected');
   const draftMatchedCount = draftSummaryNumber(crmOrderDraft, 'matched');
   const draftUnmatchedCount = draftSummaryNumber(crmOrderDraft, 'unmatched');
+  const manualExtractionIssue = hasManualExtractionIssue(assistedRequest, crmReviewCard);
+  const readingLabel = manualExtractionIssue ? 'Lectura manual' : 'Lectura IA';
+  const panelTitle = manualExtractionIssue ? 'Lectura manual / IA no disponible' : 'Solicitud asistida por IA';
   const operatorNextStep = humanizeKey(operatorIntakeSummary?.recommended_next_step);
   const primaryAction =
     firstText(nextActions[0]?.label, nextActions[0]?.title, suggestedTasks[0]?.label) ||
@@ -612,9 +653,11 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const contactName = contactRecord ? firstText(contactRecord.name) : null;
   const contactPhone = contactRecord ? firstText(contactRecord.phone, contactRecord.whatsapp) : null;
   const contactEmail = contactRecord ? firstText(contactRecord.email) : null;
-  const headerSummary = documentProfile?.catalog_matching
-    ? 'Chatboc separo datos, cruzo catalogo y marco lo que requiere revision humana.'
-    : 'Chatboc separo datos, clasifico la solicitud y marco lo que requiere revision humana.';
+  const headerSummary = manualExtractionIssue
+    ? 'El pedido quedo registrado para revision humana. No se confirma automaticamente porque la lectura no fue confiable.'
+    : documentProfile?.catalog_matching
+      ? 'Chatboc separo datos, cruzo catalogo y marco lo que requiere revision humana.'
+      : 'Chatboc separo datos, clasifico la solicitud y marco lo que requiere revision humana.';
   const originalTextLabel = documentProfile?.catalog_matching ? 'Pedido escrito por el cliente' : 'Texto original del solicitante';
   const operatorQueue = firstText(
     operatorPack?.operator_queue_label,
@@ -749,12 +792,24 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <span
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white',
+                manualExtractionIssue ? 'bg-amber-600' : 'bg-blue-600',
+              )}
+            >
               <Sparkles className="h-4 w-4" />
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold text-blue-950 dark:text-blue-100">Solicitud asistida por IA</h3>
+                <h3
+                  className={cn(
+                    'font-semibold',
+                    manualExtractionIssue ? 'text-amber-950 dark:text-amber-100' : 'text-blue-950 dark:text-blue-100',
+                  )}
+                >
+                  {panelTitle}
+                </h3>
                 <Badge variant="outline" className={crmStateClassName(assistedRequest.crm_state)}>
                   {crmStateLabel(assistedRequest.crm_state)}
                 </Badge>
@@ -883,7 +938,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
               </p>
             </div>
             <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lectura IA</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{readingLabel}</p>
               <p className="mt-1 font-semibold">
                 {reviewCardSummaryNumber(crmReviewCard, 'detected')} detectados / {reviewCardSummaryNumber(crmReviewCard, 'matched')} en catalogo
               </p>
@@ -948,7 +1003,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
             </p>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lectura IA</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{readingLabel}</p>
             <p className="mt-1 font-semibold">
               {detectedCount} detectados · {matchedCount} en catalogo · {unmatchedCount} a revisar
             </p>

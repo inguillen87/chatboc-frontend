@@ -91,7 +91,75 @@ const assistedSummaryNumber = (order: Order, key: 'matched' | 'unmatched' | 'det
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 };
 
+const hasArrayItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+
+const assistedRequestRecord = (order: Order): Record<string, any> =>
+  isRecord(order.assisted_request) ? (order.assisted_request as Record<string, any>) : {};
+
+const crmReviewCardRecord = (order: Order): Record<string, any> =>
+  isRecord(order.crm_review_card) ? (order.crm_review_card as Record<string, any>) : {};
+
+const hasAssistedOrderContract = (order: Order): boolean => Boolean(order.assisted_request || order.crm_review_card);
+
+const hasAssistedStructuredLines = (order: Order): boolean => {
+  const request = assistedRequestRecord(order);
+  const card = crmReviewCardRecord(order);
+  return (
+    hasArrayItems(card.lines) ||
+    hasArrayItems(request.lines) ||
+    hasArrayItems(request.crm_order_draft?.lines) ||
+    hasArrayItems(request.crm_handoff?.draft_order?.lines)
+  );
+};
+
+const hasAssistedExtractionIssue = (order: Order): boolean => {
+  const request = assistedRequestRecord(order);
+  const card = crmReviewCardRecord(order);
+  const requestSource = isRecord(request.source) ? request.source : {};
+  const cardSource = isRecord(card.source) ? card.source : {};
+  return Boolean(
+    request.extraction_error ||
+      card.extraction_error ||
+      requestSource.extraction_error ||
+      cardSource.extraction_error ||
+      request.provider_status === 'failed' ||
+      card.provider_status === 'failed' ||
+      requestSource.provider_status === 'failed' ||
+      cardSource.provider_status === 'failed' ||
+      hasArrayItems(request.row_errors) ||
+      hasArrayItems(card.row_errors) ||
+      hasArrayItems(request.structured_extraction?.row_errors) ||
+      hasArrayItems(request.crm_order_draft?.row_errors),
+  );
+};
+
+const isAssistedNeedsReview = (order: Order): boolean => {
+  const request = assistedRequestRecord(order);
+  const card = crmReviewCardRecord(order);
+  const status = firstText(card.status, card.state, request.crm_state, request.status);
+  return Boolean(
+    card.needs_operator_review ||
+      card.status === 'needs_review' ||
+      card.priority === 'high' ||
+      request.operator_pack?.needs_human_review ||
+      request.operator_pack?.priority === 'high' ||
+      assistedSummaryNumber(order, 'unmatched') > 0 ||
+      hasAssistedExtractionIssue(order) ||
+      ['needs_review', 'manual_review', 'pending_operator_review', 'ai_unavailable', 'failed', 'error'].includes(status || ''),
+  );
+};
+
+const isAssistedReady = (order: Order): boolean => {
+  if (!hasAssistedOrderContract(order) || isAssistedNeedsReview(order)) return false;
+  const request = assistedRequestRecord(order);
+  const card = crmReviewCardRecord(order);
+  const explicitReady = card.status === 'ready_to_reply' || request.crm_state === 'ready_for_confirmation';
+  const hasStructure = hasAssistedStructuredLines(order) || assistedSummaryNumber(order, 'detected') > 0 || assistedSummaryNumber(order, 'matched') > 0;
+  return Boolean(explicitReady && hasStructure && assistedSummaryNumber(order, 'unmatched') === 0);
+};
+
 const crmStateLabel = (state?: string | null) => {
+  if (state === 'manual_review' || state === 'ai_unavailable' || state === 'failed' || state === 'error') return 'Revisión manual';
   if (state === 'needs_review') return 'Revisar en CRM';
   if (state === 'ready_to_reply') return 'Listo para responder';
   if (state === 'ready_for_confirmation') return 'Listo para confirmar';
@@ -521,39 +589,20 @@ const PedidosPage = () => {
   };
 
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const assistedOrders = safeOrders.filter((order) => Boolean(order.assisted_request || order.crm_review_card));
-  const assistedNeedsReview = assistedOrders.filter((order) =>
-    order.crm_review_card?.needs_operator_review ||
-    order.crm_review_card?.status === 'needs_review' ||
-    order.crm_review_card?.priority === 'high' ||
-    order.assisted_request?.operator_pack?.needs_human_review ||
-    order.assisted_request?.operator_pack?.priority === 'high' ||
-    assistedSummaryNumber(order, 'unmatched') > 0,
-  );
-  const assistedReady = assistedOrders.filter((order) =>
-    order.crm_review_card?.status === 'ready_to_reply' ||
-    order.assisted_request?.crm_state === 'ready_for_confirmation' ||
-    (Boolean(order.assisted_request || order.crm_review_card) && assistedSummaryNumber(order, 'unmatched') === 0),
-  );
+  const assistedOrders = safeOrders.filter(hasAssistedOrderContract);
+  const assistedNeedsReview = assistedOrders.filter(isAssistedNeedsReview);
+  const assistedReady = assistedOrders.filter(isAssistedReady);
 
   const filteredOrders = safeOrders.filter(o => {
     const normalizedSearch = normalizeSearchText(searchTerm);
     const matchesSearch = !normalizedSearch || buildOrderSearchText(o).includes(normalizedSearch);
     const orderChannel = o.crm_review_card?.source?.channel || o.assisted_request?.source?.channel || (o as any).channel || (o as any).commercial_state?.channel;
     const matchesChannel = channelFilter === 'all' || orderChannel === channelFilter;
-    const assistedRequest = o.assisted_request;
-    const needsReview =
-      assistedRequest?.operator_pack?.needs_human_review ||
-      o.crm_review_card?.needs_operator_review ||
-      o.crm_review_card?.status === 'needs_review' ||
-      o.crm_review_card?.priority === 'high' ||
-      assistedRequest?.operator_pack?.priority === 'high' ||
-      assistedSummaryNumber(o, 'unmatched') > 0;
     const matchesAi =
       aiFilter === 'all' ||
-      (aiFilter === 'assisted' && Boolean(assistedRequest || o.crm_review_card)) ||
-      (aiFilter === 'needs_review' && Boolean(needsReview)) ||
-      (aiFilter === 'ready' && Boolean(assistedRequest || o.crm_review_card) && !needsReview);
+      (aiFilter === 'assisted' && hasAssistedOrderContract(o)) ||
+      (aiFilter === 'needs_review' && isAssistedNeedsReview(o)) ||
+      (aiFilter === 'ready' && isAssistedReady(o));
     return matchesSearch && matchesChannel && matchesAi;
   });
   const selectedShippingInfo = selectedOrder ? getShippingInfo(selectedOrder) : null;
@@ -775,6 +824,8 @@ const PedidosPage = () => {
               const crmReviewCardView = getCrmReviewCard(order);
               const hasCrmReviewCard = Boolean(crmReviewCardRaw || crmReviewCardView);
               const unmatchedCount = assistedSummaryNumber(order, 'unmatched');
+              const needsManualReview = isAssistedNeedsReview(order);
+              const readyForConfirmation = isAssistedReady(order);
               const assistedLabel = crmReviewCardRaw?.request_kind_label || crmReviewCardView?.title || assistedRequest?.request_kind_label || 'Solicitud asistida';
               const assistedIsCatalog = assistedRequest?.document_profile?.catalog_matching !== false;
               const assistedPreview = getAssistedPreview(order);
@@ -823,9 +874,18 @@ const PedidosPage = () => {
                           </Badge>
                         ) : null}
                         {assistedRequest || hasCrmReviewCard ? (
-                          <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                          <Badge
+                            variant="outline"
+                            className={
+                              needsManualReview
+                                ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                                : readyForConfirmation
+                                  ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                                  : 'border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200'
+                            }
+                          >
                             <Sparkles className="mr-1 h-3 w-3" />
-                            IA
+                            {needsManualReview ? 'Revisar' : readyForConfirmation ? 'IA lista' : 'Asistido'}
                           </Badge>
                         ) : null}
                         {hasCrmReviewCard ? (
@@ -840,7 +900,7 @@ const PedidosPage = () => {
                       <div className="mb-3 rounded-md border border-blue-200 bg-background/70 p-2 text-xs dark:border-blue-900">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium text-blue-900 dark:text-blue-100">{assistedLabel}</span>
-                          <span className={unmatchedCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}>
+                          <span className={needsManualReview ? 'text-amber-700 dark:text-amber-300' : readyForConfirmation ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}>
                             {crmStateLabel(crmReviewCardRaw?.status || crmReviewCardView?.statusLabel || assistedRequest?.crm_state)}
                           </span>
                         </div>

@@ -1156,13 +1156,48 @@ export const isLegacyHtmlGatewayError = (error: unknown): boolean => {
   return isLikelyHtmlErrorBody(error.body) || isLikelyHtmlErrorBody(extractErrorBodyText(error));
 };
 
+const isGatewayUnavailableText = (value: string): boolean => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('bad gateway') ||
+    normalized.includes('gateway timeout') ||
+    normalized.includes('service unavailable') ||
+    normalized.includes('failed to fetch') ||
+    normalized.includes('network error') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('load failed') ||
+    normalized.includes('connection refused') ||
+    normalized.includes('temporarily unavailable')
+  );
+};
+
+export const isTicketAiEnrichmentUnavailable = (error: unknown): boolean => {
+  if (isLegacyHtmlGatewayError(error)) return true;
+
+  if (error instanceof ApiError) {
+    if ([500, 502, 503, 504].includes(error.status)) return true;
+    return isGatewayUnavailableText(error.message) || isGatewayUnavailableText(extractErrorBodyText(error));
+  }
+
+  if (error instanceof TypeError) {
+    return isGatewayUnavailableText(error.message);
+  }
+
+  if (error instanceof Error) {
+    return isGatewayUnavailableText(error.message);
+  }
+
+  return isGatewayUnavailableText(String(error ?? ''));
+};
+
 export const summarizeTicketFetchError = (error: unknown): Record<string, unknown> => {
   if (error instanceof ApiError) {
     return {
       name: error.name,
       status: error.status,
       requestId: error.requestId,
-      reason: isLegacyHtmlGatewayError(error) ? 'legacy_html_gateway' : 'api_error',
+      reason: isTicketAiEnrichmentUnavailable(error) ? 'advisory_ai_enrichment_unavailable' : 'api_error',
       message: error.message,
     };
   }
@@ -1346,6 +1381,7 @@ export const getTenantTicketAiEnrichment = async <T = unknown>(
     method: 'POST',
     body: payload,
     tenantSlug: tenantSlug || ticket?.tenant_slug || undefined,
+    suppressInvalidJsonWarning: true,
   });
 };
 

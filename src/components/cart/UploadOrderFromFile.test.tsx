@@ -368,6 +368,37 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(await screen.findByText(/Solicitud procesada: quedo lista/i)).toBeInTheDocument();
   });
 
+  it('labels partial 200 responses as manual review instead of automatic processing', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 106,
+      crm_state: 'manual_review',
+      provider_status: 'failed',
+      row_errors: ['No se pudo leer la nota de pedido'],
+      customer_message: 'Recibimos tu nota, pero necesita revision del equipo.',
+      crm_order_draft: {
+        reference: 'pedido:106',
+        provider_status: 'failed',
+        row_errors: ['No hay lineas confiables'],
+        summary: { detected: 0, matched: 0, unmatched: 0 },
+        lines: [],
+      },
+    });
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: 'foto borrosa con pedido de clavos' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    expect(await screen.findByText('Solicitud recibida para revision')).toBeInTheDocument();
+    expect(screen.getByText(/requiere revision manual antes de responder/i)).toBeInTheDocument();
+    expect(screen.getByText(/No se genero un borrador editable automatico/i)).toBeInTheDocument();
+    expect(screen.getByText('Revision manual que recibe el equipo')).toBeInTheDocument();
+    expect(screen.queryByText(/Solicitud procesada: quedo lista/i)).not.toBeInTheDocument();
+  });
+
   it('submits a handwritten photo as an assisted marketplace file', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',

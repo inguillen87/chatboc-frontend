@@ -597,6 +597,12 @@ interface ApiFetchOptions {
    * Omnichannel conversation identifier (e.g. WhatsApp handoff).
    */
   conversationId?: string | null;
+  /**
+   * Optional/advisory endpoints can receive legacy HTML gateway pages from
+   * hosting layers. When true, apiFetch still throws ApiError but avoids a
+   * duplicate dev-console warning before the caller applies its own fallback.
+   */
+  suppressInvalidJsonWarning?: boolean;
 }
 
 const normalizeHeaderValue = (value: unknown): string | null => {
@@ -1226,7 +1232,7 @@ export async function apiFetch<T>(
         const isProduction =
           (typeof import.meta !== "undefined" && (import.meta as any)?.env?.PROD) ||
           ((globalThis as any)?.process?.env?.NODE_ENV === "production");
-        if (!isProduction) {
+        if (!isProduction && !options.suppressInvalidJsonWarning) {
           console.warn(
             `[apiFetch] Response body for ${method} ${url} is not valid JSON. Returning raw text instead.`,
             parseError,

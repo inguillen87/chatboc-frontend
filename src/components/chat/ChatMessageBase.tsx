@@ -30,6 +30,7 @@ import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
+import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 
 type RawAttachment = {
   url: string;
@@ -382,8 +383,10 @@ const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?:
 
 const UserChatAvatar: React.FC = () => {
   const { user } = useUser();
-  const avatarUrl = user?.avatar_url || user?.picture || undefined;
-  const avatarSource = user?.avatar_source || undefined;
+  const resolvedAvatar = useMemo(
+    () => resolveConsentedAvatar(user as Record<string, unknown> | null | undefined),
+    [user],
+  );
 
   return (
     <motion.div
@@ -394,9 +397,9 @@ const UserChatAvatar: React.FC = () => {
     >
       <IdentityAvatar
         name={user?.name || user?.email || "Usuario"}
-        avatarUrl={avatarUrl}
-        source={avatarSource}
-        consented={user?.avatar_consent}
+        avatarUrl={resolvedAvatar.avatarUrl}
+        source={resolvedAvatar.source}
+        consented={resolvedAvatar.consented}
         size="md"
         className="border"
         fallbackClassName="bg-secondary text-secondary-foreground"

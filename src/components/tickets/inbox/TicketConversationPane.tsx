@@ -171,18 +171,30 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     if (!actionName) return;
     actionMutation.mutate({
       action: actionName,
-      payload: action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
-        ? (action.payload as Record<string, unknown>)
-        : undefined,
+      payload: {
+        ...(action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
+          ? (action.payload as Record<string, unknown>)
+          : {}),
+        ...(action.endpoint ? { endpoint: action.endpoint } : {}),
+      },
     });
   };
 
   const handleReply = () => {
     const message = draft.trim();
     if (!message) return;
+    const replyAction = detailTicket?.allowed_actions?.find((action) => action.id === 'reply');
+    const replyDefaults =
+      replyAction?.payload && typeof replyAction.payload === 'object' && !Array.isArray(replyAction.payload)
+        ? (replyAction.payload as Record<string, unknown>)
+        : {};
     actionMutation.mutate({
       action: 'reply',
-      payload: { message },
+      payload: {
+        ...replyDefaults,
+        ...(replyAction?.endpoint ? { endpoint: replyAction.endpoint } : {}),
+        message,
+      },
     });
   };
 

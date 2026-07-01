@@ -75,4 +75,26 @@ describe('PresenceAvatars', () => {
     expect(container.querySelector('img')).not.toBeInTheDocument();
     expect(container).toHaveTextContent('MG');
   });
+
+  it('renders an internal agent profile image only with explicit consent', async () => {
+    const { container } = render(
+      <PresenceAvatars
+        users={[
+          {
+            id: 'a1',
+            name: 'Operador Junin',
+            type: 'agent',
+            status: 'online',
+            avatarUrl: 'https://cdn.example.com/profile/operator.webp',
+            avatarSource: 'agent_profile',
+            avatarConsent: true,
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/profile/operator.webp');
+    });
+  });
 });

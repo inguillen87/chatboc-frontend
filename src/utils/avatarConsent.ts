@@ -15,6 +15,9 @@ const CONSENTED_SOURCE_VALUES = new Set([
   'google',
   'facebook',
   'linkedin',
+  'agent_profile',
+  'staff_profile',
+  'employee_profile',
 ]);
 
 const CONSENTED_SOURCE_PREFIXES = [
@@ -27,6 +30,9 @@ const CONSENTED_SOURCE_PREFIXES = [
   'google',
   'facebook',
   'linkedin',
+  'agent_profile',
+  'staff_profile',
+  'employee_profile',
 ];
 
 const BLOCKED_SOURCE_KEYWORDS = [
@@ -85,6 +91,22 @@ const AVATAR_SOURCE_KEYS = [
   'picture_source',
   'pictureSource',
   'profile_avatar_source',
+];
+
+const NESTED_AVATAR_RECORD_KEYS = [
+  'identity',
+  'contact_identity',
+  'contactIdentity',
+  'contact',
+  'profile',
+  'user',
+  'customer_profile',
+  'customerProfile',
+  'customer_identity',
+  'customerIdentity',
+  'metadata',
+  'source_metadata',
+  'sourceMetadata',
 ];
 
 type AvatarRecord = Record<string, unknown>;
@@ -170,8 +192,7 @@ export const isConsentedAvatarSource = (source?: string | null): boolean => {
 
   return CONSENTED_SOURCE_PREFIXES.some((prefix) => (
     normalized === prefix ||
-    normalized.startsWith(`${prefix}_`) ||
-    normalized.startsWith(`${prefix}:`)
+    normalized.startsWith(`${prefix}_`)
   ));
 };
 
@@ -215,10 +236,35 @@ const firstExplicitConsent = (record: AvatarRecord | undefined): boolean | undef
   return undefined;
 };
 
+const isAvatarRecord = (value: unknown): value is AvatarRecord =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const collectAvatarRecords = (
+  record: AvatarRecord,
+  output: AvatarRecord[],
+  seen: WeakSet<object>,
+): void => {
+  if (seen.has(record)) return;
+  seen.add(record);
+  output.push(record);
+
+  for (const key of NESTED_AVATAR_RECORD_KEYS) {
+    const nested = record[key];
+    if (isAvatarRecord(nested)) {
+      collectAvatarRecords(nested, output, seen);
+    }
+  }
+};
+
 export const resolveConsentedAvatar = (...records: Array<AvatarRecord | null | undefined>): ResolvedAvatar => {
+  const candidates: AvatarRecord[] = [];
+  const seen = new WeakSet<object>();
   for (const record of records) {
     if (!record) continue;
+    collectAvatarRecords(record, candidates, seen);
+  }
 
+  for (const record of candidates) {
     const avatarUrl = firstString(record, AVATAR_URL_KEYS);
     if (!avatarUrl) continue;
 

@@ -4,6 +4,7 @@ const apiFetchMock = vi.fn();
 
 vi.mock('@/utils/api', () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+  isLikelyHtmlErrorBody: (value: unknown) => String(value ?? '').toLowerCase().includes('<html'),
   ApiError: class ApiError extends Error {
     status?: number;
     data?: unknown;
@@ -19,7 +20,12 @@ vi.mock('@/utils/anonIdGenerator', () => ({
   default: () => 'anon-test',
 }));
 
-import { getTicketByNumber, sendMessage } from '@/services/ticketService';
+import {
+  getTenantTicketAiEnrichment,
+  getTicketByNumber,
+  isTicketAiEnrichmentUnavailable,
+  sendMessage,
+} from '@/services/ticketService';
 
 describe('ticketService realtime normalization', () => {
   beforeEach(() => {
@@ -280,5 +286,31 @@ describe('ticketService realtime normalization', () => {
       sendEntityToken: true,
       pin: '900144',
     });
+  });
+
+  it('requests tenant AI enrichment as an advisory silent fetch', async () => {
+    apiFetchMock.mockResolvedValueOnce({ contract_version: 'ticket.ai_enrichment.v1' });
+
+    await getTenantTicketAiEnrichment(378430, { scope: 'tenant' }, 'junin', {
+      id: 378430,
+      tenant_slug: 'junin',
+      ai_enrichment_endpoint: '/api/v2/tickets/378430/ai-enrichment',
+    } as any);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/tickets/378430/ai-enrichment', {
+      method: 'POST',
+      body: { scope: 'tenant' },
+      tenantSlug: 'junin',
+      suppressInvalidJsonWarning: true,
+    });
+  });
+
+  it('classifies advisory AI enrichment gateway and network failures as unavailable', () => {
+    const gatewayError = new Error('Bad Gateway') as Error & { status?: number };
+    gatewayError.status = 502;
+
+    expect(isTicketAiEnrichmentUnavailable(gatewayError)).toBe(true);
+    expect(isTicketAiEnrichmentUnavailable(new TypeError('Failed to fetch'))).toBe(true);
+    expect(isTicketAiEnrichmentUnavailable(new Error('validation failed'))).toBe(false);
   });
 });

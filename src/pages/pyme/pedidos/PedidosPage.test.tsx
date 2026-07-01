@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/api/client';
@@ -130,6 +130,91 @@ const regularOrder: Order = {
   },
 };
 
+const readyAssistedOrder: Order = {
+  id: 'ready-3',
+  total: 34000,
+  status: 'nuevo',
+  created_at: '2026-06-28T14:00:00.000Z',
+  items: [{ id: 'malbec', name: 'Caja Malbec', price: 17000, quantity: 2 }],
+  crm_review_card: {
+    contract_version: 'marketplace.crm_review_card.v1',
+    reference: 'pedido:ready-3',
+    request_kind_label: 'Pedido asistido',
+    status: 'ready_to_reply',
+    priority: 'normal',
+    needs_operator_review: false,
+    recommended_next_step: 'Confirmar pedido con el cliente',
+    summary: { detected: 1, matched: 1, unmatched: 0 },
+    source: {
+      channel: 'whatsapp',
+      text_preview: 'Cliente pide 2 cajas de malbec.',
+    },
+    lines: [
+      { line_id: 'l1', status: 'catalog_matched', source_name: 'Caja Malbec', quantity: 2 },
+    ],
+  },
+  assisted_request: {
+    contract_version: 'marketplace.assisted_request.v1',
+    mode: 'order_note_upload',
+    crm_state: 'ready_for_confirmation',
+    request_kind_label: 'Pedido asistido',
+    source: {
+      channel: 'whatsapp',
+      text_preview: 'Cliente pide 2 cajas de malbec.',
+    },
+    match_summary: { detected: 1, matched: 1, unmatched: 0 },
+    crm_order_draft: {
+      lines: [
+        { line_id: 'l1', status: 'catalog_matched', source_name: 'Caja Malbec', quantity: 2 },
+      ],
+    },
+  },
+};
+
+const failedAssistedOrder: Order = {
+  id: 'manual-4',
+  total: 0,
+  status: 'nuevo',
+  created_at: '2026-06-28T15:00:00.000Z',
+  items: [],
+  crm_review_card: {
+    contract_version: 'marketplace.crm_review_card.v1',
+    reference: 'pedido:manual-4',
+    request_kind_label: 'Nota manuscrita',
+    status: 'ai_unavailable',
+    priority: 'normal',
+    needs_operator_review: false,
+    recommended_next_step: 'Revisar manualmente el archivo y pedir datos faltantes',
+    summary: { detected: 0, matched: 0, unmatched: 0 },
+    source: {
+      channel: 'marketplace',
+      input_type: 'jpg',
+      text_preview: 'Imagen manuscrita con baja legibilidad.',
+      extraction_error: 'provider_unavailable',
+      provider_status: 'failed',
+    },
+    row_errors: ['No se pudo leer la nota de pedido'],
+    lines: [],
+  },
+  assisted_request: {
+    contract_version: 'marketplace.assisted_request.v1',
+    mode: 'order_note_upload',
+    crm_state: 'manual_review',
+    request_kind_label: 'Nota manuscrita',
+    source: {
+      channel: 'marketplace',
+      text_preview: 'Imagen manuscrita con baja legibilidad.',
+      extraction_error: 'provider_unavailable',
+      provider_status: 'failed',
+    },
+    match_summary: { detected: 0, matched: 0, unmatched: 0 },
+    row_errors: ['No se pudo leer la nota de pedido'],
+    crm_order_draft: {
+      lines: [],
+    },
+  },
+};
+
 describe('PedidosPage', () => {
   beforeEach(() => {
     mockAdminListOrders.mockReset();
@@ -183,5 +268,29 @@ describe('PedidosPage', () => {
     expect(screen.getAllByText('Revision requerida').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Validar stock y responder/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Stock sensible').length).toBeGreaterThan(0);
+  });
+
+  it('does not count partial or failed assisted requests as ready for confirmation', async () => {
+    mockAdminListOrders.mockResolvedValueOnce([readyAssistedOrder, failedAssistedOrder]);
+
+    render(<PedidosPage />);
+
+    expect(await screen.findByLabelText('Abrir pedido ready-3')).toBeTruthy();
+    expect(screen.getByLabelText('Abrir pedido manual-4')).toBeTruthy();
+
+    const readyCard = screen.getByRole('button', { name: 'Filtrar solicitudes IA listas para confirmar' });
+    expect(within(readyCard).getByText('1')).toBeTruthy();
+
+    const reviewCard = screen.getByRole('button', { name: 'Filtrar solicitudes IA para revisar' });
+    expect(within(reviewCard).getByText('1')).toBeTruthy();
+
+    expect(screen.getByText('IA lista')).toBeTruthy();
+    expect(screen.getByText('Revisar')).toBeTruthy();
+    expect(screen.getByText('Revisión manual')).toBeTruthy();
+
+    fireEvent.click(readyCard);
+
+    expect(screen.getByLabelText('Abrir pedido ready-3')).toBeTruthy();
+    expect(screen.queryByLabelText('Abrir pedido manual-4')).toBeNull();
   });
 });

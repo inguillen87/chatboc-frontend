@@ -1464,6 +1464,7 @@ export const enterpriseService = {
           ticket_type: payload.ticket_type,
         },
         tenantSlug,
+        suppressInvalidJsonWarning: true,
       },
     );
   },
