@@ -264,6 +264,8 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.getByRole('button', { name: /filtros secundarios, 1 activo/i })).toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-compact-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-list-mode-toggle')).toHaveAttribute('data-layout', 'toolbar');
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();

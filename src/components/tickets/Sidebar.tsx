@@ -418,6 +418,39 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     });
   const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
   const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
+  const listModeToggle = (
+    <div
+      className={cn(
+        'grid grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/60 p-1',
+        compact && 'shrink-0 bg-background/75 p-0.5',
+      )}
+      data-testid="sidebar-list-mode-toggle"
+      data-layout={compact ? 'toolbar' : 'stacked'}
+    >
+      <Button
+        type="button"
+        variant={listMode === 'queue' ? 'secondary' : 'ghost'}
+        size="sm"
+        className="h-7 gap-1.5 rounded-md px-2 text-xs"
+        aria-pressed={listMode === 'queue'}
+        onClick={() => setListMode('queue')}
+      >
+        <List className="h-3.5 w-3.5" />
+        Cola
+      </Button>
+      <Button
+        type="button"
+        variant={listMode === 'categories' ? 'secondary' : 'ghost'}
+        size="sm"
+        className="h-7 gap-1.5 rounded-md px-2 text-xs"
+        aria-pressed={listMode === 'categories'}
+        onClick={() => setListMode('categories')}
+      >
+        <FolderOpen className="h-3.5 w-3.5" />
+        Rubros
+      </Button>
+    </div>
+  );
   const filterPopover = (
     <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
       <PopoverTrigger asChild>
@@ -710,30 +743,37 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
               {totalBackendTickets.toLocaleString('es-AR')} cargados
             </p>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 px-2">
-                <FileDown className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Exportar</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                Exportar Todos (Excel)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                Exportar Todos (PDF)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  exportToPdf(selectedTicket, selectedTicket?.messages || [])
-                }
-                disabled={!selectedTicket}
-              >
-                Exportar Ticket Actual (PDF)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            data-testid={compact ? 'sidebar-compact-toolbar' : undefined}
+          >
+            {compact ? listModeToggle : null}
+            {compact ? filterPopover : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 px-2">
+                  <FileDown className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                  Exportar Todos (Excel)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                  Exportar Todos (PDF)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                  }
+                  disabled={!selectedTicket}
+                >
+                  Exportar Ticket Actual (PDF)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative min-w-0 flex-1">
@@ -749,7 +789,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {compact ? filterPopover : null}
         </div>
 
         {!compact ? (
@@ -849,33 +888,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </button>
           </div>
         ) : null}
-        <div
-          className="grid grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/60 p-1"
-          data-testid="sidebar-list-mode-toggle"
-        >
-          <Button
-            type="button"
-            variant={listMode === 'queue' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1.5 rounded-md px-2 text-xs"
-            aria-pressed={listMode === 'queue'}
-            onClick={() => setListMode('queue')}
-          >
-            <List className="h-3.5 w-3.5" />
-            Cola
-          </Button>
-          <Button
-            type="button"
-            variant={listMode === 'categories' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1.5 rounded-md px-2 text-xs"
-            aria-pressed={listMode === 'categories'}
-            onClick={() => setListMode('categories')}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            Rubros
-          </Button>
-        </div>
+        {!compact ? listModeToggle : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (
