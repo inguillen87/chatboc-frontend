@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 import { resolveTenantSlug } from '@/utils/api';
@@ -87,6 +88,14 @@ const isRiskTicket = (ticket: Ticket) => {
   );
 };
 
+const resolveTicketQueueLabel = (ticket: Ticket) =>
+  ticket.asunto ||
+  ticket.categoria_principal ||
+  ticket.categoria ||
+  ticket.title ||
+  ticket.description ||
+  'Sin asunto';
+
 const TicketOpsStat = ({
   label,
   value,
@@ -152,6 +161,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     tickets,
     filteredTickets,
     selectedTicket,
+    selectTicket,
     filters,
     setFilters,
     refreshTickets,
@@ -491,6 +501,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       : isDetailsVisible
         ? 'minmax(520px, 1fr) minmax(320px, 400px)'
         : 'minmax(0, 1fr)';
+  const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
+  const isNextPrioritySelected = Boolean(
+    nextPriorityTicket && selectedTicket && String(nextPriorityTicket.id) === String(selectedTicket.id),
+  );
+  const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
 
   return (
     <Card className={panelCardClass}>
@@ -590,6 +605,33 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           </div>
           {embedded ? (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {nextPriorityTicket ? (
+                <div
+                  data-testid="tickets-next-priority-strip"
+                  className="flex min-w-0 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary shadow-sm"
+                >
+                  <span className="hidden font-semibold uppercase tracking-[0.08em] min-[980px]:inline">
+                    Siguiente prioridad
+                  </span>
+                  <span className="max-w-[11rem] truncate font-semibold text-foreground">
+                    #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityLabel}
+                  </span>
+                  <Button
+                    type="button"
+                    variant={isNextPrioritySelected ? 'secondary' : 'default'}
+                    size="sm"
+                    className="h-7 rounded-full px-2 text-xs"
+                    disabled={isNextPrioritySelected}
+                    aria-label={
+                      isNextPrioritySelected ? 'Prioridad en atencion' : 'Atender siguiente prioridad'
+                    }
+                    onClick={() => selectTicket(nextPriorityTicket.id)}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>{isNextPrioritySelected ? 'En foco' : 'Atender'}</span>
+                  </Button>
+                </div>
+              ) : null}
               {loading ? (
                 <Badge variant="secondary" className="rounded-full">
                   Actualizando

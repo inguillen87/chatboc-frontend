@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import NewTicketsPanel from './NewTicketsPanel';
@@ -53,6 +53,7 @@ describe('NewTicketsPanel CRM layout', () => {
       tickets: [],
       filteredTickets: [],
       selectedTicket: null,
+      selectTicket: vi.fn(),
       filters: {},
       setFilters: vi.fn(),
       refreshTickets: vi.fn(),
@@ -75,6 +76,7 @@ describe('NewTicketsPanel CRM layout', () => {
       tickets: [],
       filteredTickets: [],
       selectedTicket: null,
+      selectTicket: vi.fn(),
       filters: {},
       setFilters: vi.fn(),
       refreshTickets: vi.fn(),
@@ -98,6 +100,7 @@ describe('NewTicketsPanel CRM layout', () => {
       tickets: [],
       filteredTickets: [],
       selectedTicket: null,
+      selectTicket: vi.fn(),
       filters: {},
       setFilters: vi.fn(),
       refreshTickets: vi.fn(),
@@ -114,5 +117,46 @@ describe('NewTicketsPanel CRM layout', () => {
       gridTemplateColumns: 'minmax(360px, 420px) minmax(520px, 1fr)',
     });
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
+  });
+
+  it('offers a compact action for the next operational priority in embedded mode', () => {
+    const selectTicket = vi.fn();
+    const selectedTicket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    const priorityTicket = {
+      id: 2,
+      nro_ticket: 'M-2',
+      asunto: 'Luminaria apagada',
+      estado: 'nuevo',
+      fecha: '2026-06-01T09:00:00.000Z',
+      tipo: 'municipio',
+      collaboration_state: { has_unread: true },
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [selectedTicket, priorityTicket],
+      filteredTickets: [selectedTicket, priorityTicket],
+      selectedTicket,
+      selectTicket,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+
+    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveTextContent('M-2');
+    fireEvent.click(screen.getByRole('button', { name: /atender siguiente prioridad/i }));
+
+    expect(selectTicket).toHaveBeenCalledWith(2);
   });
 });

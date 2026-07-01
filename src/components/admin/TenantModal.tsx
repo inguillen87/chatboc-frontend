@@ -89,7 +89,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
       nombre: '',
       slug: '',
       tipo: 'pyme',
-      plan: 'pro',
+      plan: 'full',
       email_admin: '',
     },
   });
@@ -117,7 +117,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                 nombre: '',
                 slug: '',
                 tipo: 'pyme',
-                plan: 'pro',
+                plan: 'full',
                 email_admin: '',
             });
         }

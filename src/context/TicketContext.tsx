@@ -9,6 +9,7 @@ import { apiClient } from '@/api/client';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 
 
 interface TicketInboxFilters {
@@ -629,7 +630,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           const cachedSelected = cachedTickets.find(
             (ticket) => String(ticket.id) === String(cachedInbox.selected_ticket_id),
           );
-          return cachedSelected || cachedTickets[0] || null;
+          return cachedSelected || getNextOperationalTicket(cachedTickets);
         });
       }
     }
@@ -648,6 +649,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (Array.isArray(fetchedTickets)) {
         const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
         const filteredTickets = filterTicketsForUser(normalizedTickets);
+        const nextOperationalTicket = getNextOperationalTicket(filteredTickets);
         const nextPagination = (apiResponse as any)?.pagination || null;
         setTickets(filteredTickets);
         setPagination(nextPagination);
@@ -656,14 +658,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
             const refreshed = filteredTickets.find((ticket) => ticket.id === prev.id);
             if (refreshed) return refreshed;
           }
-          return filteredTickets[0] || null;
+          return nextOperationalTicket;
         });
         writeCachedTicketInbox(cacheKey, {
           tenant_slug: tenantSlug,
           viewer_key: viewerKey,
           tickets: filteredTickets.slice(0, 50),
           pagination: nextPagination,
-          selected_ticket_id: filteredTickets[0]?.id ?? null,
+          selected_ticket_id: nextOperationalTicket?.id ?? null,
         });
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
@@ -718,7 +720,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const filteredTickets = filterTicketsForUser(normalizedTickets);
         setTickets((current) => mergeTicketPages(current, filteredTickets));
         setPagination((apiResponse as any)?.pagination || null);
-        setSelectedTicket((prev) => prev || filteredTickets[0] || null);
+        setSelectedTicket((prev) => prev || getNextOperationalTicket(filteredTickets));
       }
     } catch (err) {
       console.error('Error loading more tickets:', err);
@@ -949,7 +951,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       const visibleTicket = filteredTickets.find((ticket) => ticket.id === current.id);
       if (visibleTicket) return visibleTicket;
       if (loading && filteredTickets.length === 0) return current;
-      return filteredTickets[0] || null;
+      return getNextOperationalTicket(filteredTickets);
     });
   }, [filteredTickets, loading, tickets]);
 

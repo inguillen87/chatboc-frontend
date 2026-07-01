@@ -1,11 +1,43 @@
-export type TenantType = "municipio" | "pyme";
+export type TenantType = "municipio" | "pyme" | "colegio";
+
+export type TenantPlan =
+  | "free"
+  | "pro"
+  | "full"
+  | "enterprise"
+  | "premium"
+  | "municipio_full"
+  | "colegio_full"
+  | "pyme_full"
+  | (string & {});
+
+export interface TenantIntegrationAccess {
+  contract_version?: string;
+  enabled: boolean;
+  status?: "enabled" | "locked" | string;
+  reason_code?: string | null;
+  lock_reason_code?: string | null;
+  required_plan?: string;
+  current_plan?: string;
+  message?: string;
+  frontend_contract?: {
+    render_locked_state?: boolean;
+    hide_embed_copy?: boolean;
+    hide_provider_connect?: boolean;
+    show_readiness_checklist?: boolean;
+    primary_locked_reason?: string | null;
+    [key: string]: unknown;
+  };
+  features?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 
 export interface TenantConfigBundle {
   tenant: {
     slug: string;
     nombre: string;
     tipo: TenantType;
-    plan: string;
+    plan: TenantPlan;
     logo_url?: string;
     color_primario?: string;
     color_secundario?: string;
@@ -101,7 +133,7 @@ export interface CreateTenantPayload {
   slug: string;
   tipo: TenantType;
   template_key: string;
-  plan: string;
+  plan: TenantPlan;
   auto_assign_whatsapp_number?: boolean;
   owner_email?: string;
   owner_password?: string;
@@ -109,6 +141,18 @@ export interface CreateTenantPayload {
 
 export interface CreateTenantResponse {
   slug: string;
-  widget_token: string;
+  plan?: TenantPlan;
+  widget_token: string | null;
   id: number;
+  tenant?: {
+    id: number;
+    slug: string;
+    nombre: string;
+    tipo: TenantType;
+    plan: TenantPlan;
+    owner_email?: string | null;
+    owner_email_generated?: boolean;
+  };
+  whatsapp_onboarding?: Record<string, unknown> | null;
+  integration_access?: TenantIntegrationAccess | null;
 }

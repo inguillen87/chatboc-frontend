@@ -39,6 +39,13 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import {
+  getQueueScore,
+  getQueueTimestamp,
+  isRiskQueueTicket,
+  isUnreadQueueTicket,
+  isUnassignedQueueTicket,
+} from '@/utils/ticketOperationalQueue';
 
 interface SidebarProps {
   className?: string;
@@ -62,61 +69,6 @@ const FILTER_SELECT_CLASS_NAME =
   'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
 const QUICK_FILTER_BUTTON_CLASS_NAME =
   'h-7 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
-
-const isUnreadQueueTicket = (ticket: any) =>
-  Boolean(
-    ticket.hasUnreadMessages ||
-      ticket.collaboration_state?.has_unread ||
-      Number(ticket.collaboration_state?.unread_count || 0) > 0 ||
-      Number(ticket.collaboration_state?.unread_viewer_count || 0) > 0,
-  );
-
-const isRiskQueueTicket = (ticket: any) => {
-  const sla = String(ticket.sla_status || '').toLowerCase();
-  const priority = String(ticket.priority || '').toLowerCase();
-  return (
-    sla.includes('breach') ||
-    sla.includes('venc') ||
-    sla.includes('overdue') ||
-    priority.includes('alta') ||
-    priority.includes('urgent') ||
-    priority.includes('urgente')
-  );
-};
-
-const isUnassignedQueueTicket = (ticket: any) => {
-  const assigned =
-    ticket.assignedAgent?.id ||
-    ticket.assignedAgentId ||
-    ticket.assigned_agent_id ||
-    ticket.assigned_user_id ||
-    ticket.asigned_user_id ||
-    ticket.user?.id;
-  return assigned === undefined || assigned === null || String(assigned).trim() === '';
-};
-
-const getQueueTimestamp = (ticket: any) => {
-  const raw =
-    ticket.updated_at ||
-    ticket.fecha_actualizacion ||
-    ticket.last_message_at ||
-    ticket.ultimo_mensaje_at ||
-    ticket.created_at ||
-    ticket.fecha_creacion ||
-    ticket.fecha;
-  const parsed = raw ? Date.parse(String(raw)) : 0;
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
-
-const getQueueScore = (ticket: any) => {
-  const status = normalizeTicketStatus(ticket.estado);
-  const isResolved = status === 'resuelto' || String(ticket.estado).toLowerCase() === 'cerrado';
-  return (
-    (isUnreadQueueTicket(ticket) ? 100 : 0) +
-    (isRiskQueueTicket(ticket) ? 50 : 0) +
-    (!isResolved ? 10 : 0)
-  );
-};
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact = false }) => {
   const { tenant } = useTenant();

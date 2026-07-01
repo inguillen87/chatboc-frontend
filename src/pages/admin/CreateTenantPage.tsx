@@ -90,6 +90,7 @@ export default function CreateTenantPage() {
                   <SelectContent>
                     <SelectItem value="municipio">Municipio</SelectItem>
                     <SelectItem value="pyme">Pyme</SelectItem>
+                    <SelectItem value="colegio">Colegio</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -106,9 +107,28 @@ export default function CreateTenantPage() {
                     <SelectItem value="municipio_default">Municipio Default</SelectItem>
                     <SelectItem value="municipio_junin_default">Municipio Junín</SelectItem>
                     <SelectItem value="pyme_default">Pyme Default</SelectItem>
+                    <SelectItem value="colegio_default">Colegio Default</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="plan">Plan operativo</Label>
+              <Select
+                value={formData.plan}
+                onValueChange={(val) => handleChange('plan', val)}
+              >
+                <SelectTrigger id="plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="free">Free / sin produccion</SelectItem>
+                  <SelectItem value="pro">Pro</SelectItem>
+                  <SelectItem value="full">Full operativo</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
