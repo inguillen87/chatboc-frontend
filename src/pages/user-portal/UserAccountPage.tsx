@@ -194,10 +194,11 @@ const UserAccountPage = () => {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {hasConsentedAvatar
                     ? `Imagen consentida (${resolvedAvatar.source || 'perfil'}).`
-                    : 'Avatar generativo estable hasta que subas una foto consentida.'}
+                    : 'Avatar generativo estable hasta que subas una foto o uses login social con consentimiento.'}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  No usamos scraping ni fotos de WhatsApp sin consentimiento.
+                  No usamos scraping ni fotos de WhatsApp. La imagen real solo aparece con upload propio,
+                  URL consentida o login social autorizado.
                 </p>
               </div>
             </div>
@@ -259,7 +260,10 @@ const UserAccountPage = () => {
         </CardContent>
         <CardFooter className="flex items-start gap-3 text-sm text-muted-foreground">
           <Shield className="mt-0.5 h-4 w-4 text-primary" />
-          <span>La foto real aparece solo si proviene de upload propio o login social con consentimiento.</span>
+          <span>
+            La foto real aparece solo si proviene de upload propio, URL autorizada o login social con consentimiento.
+            Si no, usamos un avatar generativo sobrio para reclamos, pedidos, encuestas y votaciones.
+          </span>
         </CardFooter>
       </Card>
 

@@ -65,8 +65,11 @@ describe('UserAccountPage identity avatar', () => {
     render(<UserAccountPage />);
 
     expect(screen.getByText('Identidad visual')).toBeInTheDocument();
-    expect(screen.getByText('Avatar generativo estable hasta que subas una foto consentida.')).toBeInTheDocument();
-    expect(screen.getByText('No usamos scraping ni fotos de WhatsApp sin consentimiento.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Avatar generativo estable hasta que subas una foto o uses login social con consentimiento.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/No usamos scraping ni fotos de WhatsApp/i)).toBeInTheDocument();
+    expect(screen.getByText(/reclamos, pedidos, encuestas y votaciones/i)).toBeInTheDocument();
     expect(screen.getByText('MG')).toBeInTheDocument();
   });
 

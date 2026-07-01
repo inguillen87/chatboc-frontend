@@ -298,7 +298,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="text-base">Mis datos</CardTitle>
-          <CardDescription>Actualizá tu perfil para que podamos reconocerte en todos los canales.</CardDescription>
+          <CardDescription>Actualiza tu perfil para reconocerte en reclamos, pedidos, encuestas y conversaciones.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-3" autoComplete="off" spellCheck={false}>
@@ -357,10 +357,17 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
                       {avatarSource === "profile_upload" ? "Upload consentido" : avatarSource}
                     </Badge>
                   ) : null}
+                  <Badge variant="outline" className="text-[10px]">
+                    {avatarConsent && avatarUrl ? "Imagen real autorizada" : "Fallback seguro"}
+                  </Badge>
                 </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  No tomamos fotos de WhatsApp ni usamos scraping. La imagen real solo sale de upload propio,
+                  URL autorizada o login social cuando este disponible.
+                </p>
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-md bg-background/70 px-3 py-2">
                   <p className="text-xs text-muted-foreground">
-                    Usar esta imagen en reclamos, pedidos y conversaciones.
+                    Autorizo usar esta imagen en reclamos, pedidos, encuestas y conversaciones.
                   </p>
                   <Switch
                     checked={avatarConsent}
@@ -386,7 +393,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               <Mail className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="email"
-                placeholder="Correo electrónico"
+                placeholder="Correo electronico"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
@@ -397,7 +404,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               <Phone className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="tel"
-                placeholder="Teléfono (opcional)"
+                placeholder="Telefono (opcional)"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 disabled={saving}
@@ -423,7 +430,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           <CardTitle className="text-base flex items-center gap-2">
             <Ticket className="h-4 w-4" /> Mis tickets
           </CardTitle>
-          <CardDescription>Seguimiento rápido de tus gestiones recientes.</CardDescription>
+          <CardDescription>Seguimiento rapido de tus gestiones recientes.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
@@ -433,13 +440,13 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               onChange={e => setStatusFilter(e.target.value)}
             />
             <Input
-              placeholder="Categoría"
+              placeholder="Categoria"
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
             />
           </div>
           {tickets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aún no tenés tickets abiertos.</p>
+            <p className="text-sm text-muted-foreground">Aun no tenes tickets abiertos.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {tickets.map(t => (

@@ -2175,13 +2175,20 @@ export default function Perfil() {
                                 onChange={handleProfileAvatarUpload}
                                 disabled={avatarUploading}
                               />
-                              {perfil.avatar_source ? (
-                                <Badge variant="secondary" className="text-[10px]">
-                                  {perfil.avatar_source === "profile_upload" ? "Upload consentido" : perfil.avatar_source}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <label className="flex items-start gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                            {perfil.avatar_source ? (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {perfil.avatar_source === "profile_upload" ? "Upload consentido" : perfil.avatar_source}
+                              </Badge>
+                            ) : null}
+                            <Badge variant="outline" className="text-[10px]">
+                              {perfil.avatar_consent && perfil.avatar_url ? "Imagen real autorizada" : "Fallback seguro"}
+                            </Badge>
+                            <p className="text-xs leading-5 text-muted-foreground">
+                              No usamos scraping ni fotos de WhatsApp. La imagen real solo sale de upload propio,
+                              URL autorizada o login social con consentimiento.
+                            </p>
+                          </div>
+                          <label className="flex items-start gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
                               <Checkbox
                                 checked={Boolean(perfil.avatar_consent)}
                                 onCheckedChange={(checked) =>
@@ -2190,7 +2197,7 @@ export default function Perfil() {
                                 disabled={avatarUploading || !perfil.avatar_url.trim()}
                                 aria-label="Autorizar imagen personal"
                               />
-                              <span>Autorizar esta imagen para identificarme en CRM, reclamos, pedidos y chats.</span>
+                              <span>Autorizar esta imagen para identificarme en CRM, reclamos, pedidos, encuestas y chats.</span>
                             </label>
                           </div>
                         </div>
