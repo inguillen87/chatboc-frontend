@@ -41,6 +41,32 @@ describe('UploadOrderFromFile marketplace intake', () => {
       match_summary: { detected: 2, matched: 1, unmatched: 1 },
       source: { text_preview: '2 chapas galvanizadas' },
       crm_state: 'pending_operator_review',
+      crm_order_draft: {
+        contract_version: 'marketplace.crm_order_draft.v1',
+        reference: 'pedido:77',
+        contact_state: 'available',
+        recommended_next_step: 'resolver_items_y_cotizar',
+        summary: { detected: 2, matched: 1, unmatched: 1 },
+        lines: [
+          {
+            source_name: 'Chapas galvanizadas',
+            quantity: 2,
+            unit: 'unidades',
+            status: 'matched',
+            catalog_item_id: 11,
+          },
+          {
+            source_name: 'Clavos punta paris',
+            quantity: 1,
+            unit: 'caja',
+            status: 'needs_review',
+            candidate_count: 2,
+          },
+        ],
+      },
+      operator_pack: {
+        suggested_reply: 'Hola Marcelo, recibimos tu lista y la estamos cotizando.',
+      },
       public_follow_up: {
         contract_version: 'marketplace.assisted_followup.v1',
         tracking: {
@@ -98,6 +124,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
         '/api/pedidos/from-file?origen=marketplace',
         expect.objectContaining({
           method: 'POST',
+          skipAuth: true,
+          omitCredentials: true,
           sendAnonId: true,
           tenantSlug: 'junin',
           suppressPanel401Redirect: true,
@@ -107,6 +135,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
+    expect(body.get('texto_pedido')).toBe('2 chapas galvanizadas');
+    expect(body.get('order_text')).toBe('2 chapas galvanizadas');
     expect(body.get('document_type')).toBe('order_note');
     expect(body.get('tenant')).toBe('junin');
     expect(body.get('tenant_slug')).toBe('junin');
@@ -117,6 +147,11 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     expect(await screen.findByText('Seguimiento publico creado')).toBeInTheDocument();
     expect(screen.getByText('pc-77')).toBeInTheDocument();
+    expect(screen.getByText('Borrador que recibe el equipo')).toBeInTheDocument();
+    expect(screen.getByText('Resolver items y cotizar')).toBeInTheDocument();
+    expect(screen.getByText('Chapas galvanizadas')).toBeInTheDocument();
+    expect(screen.getByText('Clavos punta paris')).toBeInTheDocument();
+    expect(screen.getByText(/Hola Marcelo, recibimos tu lista/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Abrir seguimiento/i })).toHaveAttribute(
       'href',
       'http://localhost:3000/tracking/order/pc-77?tenant_slug=junin',
@@ -374,6 +409,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('notes')).toBe('2 chapas galvanizadas');
+    expect(body.get('pedido_text')).toBeNull();
+    expect(body.get('texto_pedido')).toBeNull();
     expect(body.get('kind')).toBe('order_note');
     expect(body.get('tenant_slug')).toBe('junin');
     expect(body.get('tenant')).toBeNull();

@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ClipboardCheck,
+  ClipboardList,
   Copy,
   FileImage,
   ExternalLink,
@@ -47,6 +48,28 @@ interface AssistedOrderAction {
   enabled?: boolean;
   reference?: string;
   tracking_code?: string;
+}
+
+interface CrmOrderDraftLine {
+  status?: string | null;
+  source_name?: string | null;
+  name?: string | null;
+  normalized_name?: string | null;
+  quantity?: number | string | null;
+  unit?: string | null;
+  catalog_item_id?: number | string | null;
+  candidate_count?: number | string | null;
+  confidence?: string | number | null;
+}
+
+interface CrmOrderDraft {
+  contract_version?: string | null;
+  reference?: string | null;
+  contact_state?: string | null;
+  recommended_next_step?: string | null;
+  summary?: Record<string, unknown> | null;
+  lines?: CrmOrderDraftLine[] | null;
+  source?: Record<string, unknown> | null;
 }
 
 interface AssistedOrderUploadResponse {
@@ -109,6 +132,12 @@ interface AssistedOrderUploadResponse {
     suggested_reply?: string | null;
     needs_human_review?: boolean | null;
   };
+  crm_order_draft?: CrmOrderDraft | null;
+  crm_handoff?: {
+    draft_order?: CrmOrderDraft | null;
+    suggested_reply?: string | null;
+    [key: string]: unknown;
+  } | null;
   match_summary?: {
     matched?: number;
     unmatched?: number;
@@ -170,6 +199,31 @@ const resolveCheckoutOrigin = (endpoint: string, isMarketplace: boolean) => {
   }
 
   return isMarketplace ? 'marketplace' : 'web';
+};
+
+const buildSubmitTextFields = (primaryField: string, endpoint: string) => {
+  const primary = normalizeContractName(primaryField);
+  if (!/\/pedidos\/from-file/i.test(endpoint)) {
+    return primary && !isHeaderContractName(primary) ? [primary] : [];
+  }
+  return Array.from(
+    new Set(
+      [
+        primary,
+        'pedido_text',
+        'texto_pedido',
+        'order_text',
+        'notes_text',
+        'message',
+        'description',
+        'descripcion',
+        'texto',
+        'text',
+      ]
+        .map(normalizeContractName)
+        .filter((fieldName) => fieldName && !isHeaderContractName(fieldName)),
+    ),
+  );
 };
 
 const DEFAULT_MAX_SAFE_FILE_BYTES = 8 * 1024 * 1024;
@@ -304,8 +358,66 @@ const STRUCTURED_FIELD_LABELS: Record<string, string> = {
   resumen: 'Resumen',
 };
 
+const CRM_NEXT_STEP_LABELS: Record<string, string> = {
+  resolver_items_y_cotizar: 'Resolver items y cotizar',
+  confirmar_stock_y_precio: 'Confirmar stock y precio',
+  responder_por_whatsapp: 'Responder por WhatsApp',
+  derivar_a_operador: 'Derivar a operador',
+  crear_reclamo: 'Crear reclamo',
+  validar_documento: 'Validar documento',
+};
+
+const CRM_CONTACT_STATE_LABELS: Record<string, string> = {
+  available: 'Contacto disponible',
+  partial: 'Contacto parcial',
+  missing: 'Falta contacto',
+  unknown: 'Contacto sin validar',
+};
+
+const CRM_LINE_STATUS_LABELS: Record<string, string> = {
+  matched: 'En catalogo',
+  exact_match: 'En catalogo',
+  needs_review: 'Revisar',
+  unmatched: 'Sin match',
+  candidate: 'Candidato',
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const compactString = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const normalized = String(value).trim();
+    return normalized || null;
+  }
+  return null;
+};
+
+const prettifyToken = (value: unknown, labels: Record<string, string> = {}) => {
+  const normalized = compactString(value);
+  if (!normalized) return null;
+  const key = normalized.toLowerCase();
+  if (labels[key]) return labels[key];
+  return key
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const readSummaryNumber = (summary: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!summary) return null;
+  for (const key of keys) {
+    const value = summary[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+};
 
 const formatStructuredValue = (value: unknown): string | null => {
   if (value === null || value === undefined || value === '') return null;
@@ -337,6 +449,35 @@ const structuredFieldEntries = (fields?: Record<string, unknown> | null) =>
         }))
         .filter((entry) => Boolean(entry.value))
     : [];
+
+const getCrmOrderDraft = (response?: AssistedOrderUploadResponse | null): CrmOrderDraft | null => {
+  if (!response) return null;
+  if (isRecord(response.crm_order_draft)) return response.crm_order_draft as CrmOrderDraft;
+  if (isRecord(response.crm_handoff) && isRecord(response.crm_handoff.draft_order)) {
+    return response.crm_handoff.draft_order as CrmOrderDraft;
+  }
+  return null;
+};
+
+const getCrmSuggestedReply = (response?: AssistedOrderUploadResponse | null) => {
+  const fromPack = compactString(response?.operator_pack?.suggested_reply);
+  if (fromPack) return fromPack;
+  if (isRecord(response?.crm_handoff)) return compactString(response.crm_handoff.suggested_reply);
+  return null;
+};
+
+const getCrmLineName = (line: CrmOrderDraftLine) =>
+  compactString(line.source_name) ??
+  compactString(line.name) ??
+  compactString(line.normalized_name) ??
+  'Item detectado';
+
+const getCrmLineQuantity = (line: CrmOrderDraftLine) => {
+  const quantity = compactString(line.quantity);
+  const unit = compactString(line.unit);
+  if (quantity && unit) return `${quantity} ${unit}`;
+  return quantity ?? unit ?? null;
+};
 
 const makeAbsoluteHref = (href?: string | null) => {
   if (!href) return null;
@@ -562,12 +703,15 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     setProgress(10);
 
     try {
+      const endpoint = isMarketplace ? submitEndpoint : '/api/pedidos/from-file';
       const formData = new FormData();
       if (file) {
         formData.append(submitFileField, file, file.name);
       }
       if (normalizedText) {
-        formData.append(submitTextField, normalizedText);
+        buildSubmitTextFields(submitTextField, endpoint).forEach((fieldName) => {
+          formData.append(fieldName, normalizedText);
+        });
       }
       formData.append(submitDocumentTypeField, documentType);
       const contactValues: Record<string, string> = {
@@ -587,7 +731,6 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           .forEach((fieldName) => formData.append(fieldName, effectiveTenantSlug));
       }
 
-      const endpoint = isMarketplace ? submitEndpoint : '/api/pedidos/from-file';
       const submitHeaderNames = Array.from(
         new Map(
           [
@@ -613,6 +756,8 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           method: submitMethod,
           body: formData,
           ...(Object.keys(submitHeaders).length ? { headers: submitHeaders } : {}),
+          skipAuth: isMarketplace,
+          omitCredentials: isMarketplace,
           sendAnonId: true,
           tenantSlug: effectiveTenantSlug ?? undefined,
           suppressPanel401Redirect: true,
@@ -736,6 +881,18 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     : 'El cliente puede consultar el estado y continuar por WhatsApp sin registrarse. El equipo conserva el archivo o texto original y la lectura.';
   const structuredFields = structuredFieldEntries(processedResponse?.structured_extraction?.fields);
   const missingStructuredFields = processedResponse?.structured_extraction?.missing_fields?.filter(Boolean) ?? [];
+  const crmDraft = getCrmOrderDraft(processedResponse);
+  const crmDraftSummary = isRecord(crmDraft?.summary) ? crmDraft.summary : null;
+  const crmDraftLines = Array.isArray(crmDraft?.lines)
+    ? crmDraft.lines.filter(isRecord).slice(0, 6) as CrmOrderDraftLine[]
+    : [];
+  const crmDraftDetected = readSummaryNumber(crmDraftSummary, ['detected', 'total']) ?? matchSummary?.detected ?? 0;
+  const crmDraftMatched = readSummaryNumber(crmDraftSummary, ['matched']) ?? matchSummary?.matched ?? 0;
+  const crmDraftUnmatched = readSummaryNumber(crmDraftSummary, ['unmatched', 'needs_review']) ?? matchSummary?.unmatched ?? 0;
+  const crmDraftReference = compactString(crmDraft?.reference) ?? referenceCode;
+  const crmDraftContactState = prettifyToken(crmDraft?.contact_state, CRM_CONTACT_STATE_LABELS);
+  const crmDraftNextStep = prettifyToken(crmDraft?.recommended_next_step, CRM_NEXT_STEP_LABELS);
+  const crmSuggestedReply = getCrmSuggestedReply(processedResponse);
   const copyFollowUpLink = async () => {
     const value = trackingHref ?? referenceCode;
     if (!value) return;
@@ -1185,6 +1342,76 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               </Button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {processedResponse && crmDraft ? (
+        <div className="rounded-xl border bg-background p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-semibold">
+                <ClipboardList className="h-4 w-4 text-primary" />
+                Borrador que recibe el equipo
+              </div>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                El panel ve esta lectura inicial junto al archivo original para responder por WhatsApp, email o llamada.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {crmDraftReference ? <Badge variant="outline">Ref. {crmDraftReference}</Badge> : null}
+              {crmDraftContactState ? <Badge variant="outline">{crmDraftContactState}</Badge> : null}
+              {crmDraftNextStep ? <Badge variant="secondary">{crmDraftNextStep}</Badge> : null}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {[
+              { label: 'Detectados', value: crmDraftDetected },
+              { label: 'En catalogo', value: crmDraftMatched },
+              { label: 'Para revisar', value: crmDraftUnmatched },
+            ].map((metric) => (
+              <div key={metric.label} className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+                <p className="mt-1 text-lg font-semibold">{metric.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {crmDraftLines.length ? (
+            <div className="mt-4 space-y-2">
+              {crmDraftLines.map((line, index) => {
+                const lineStatus = prettifyToken(line.status, CRM_LINE_STATUS_LABELS);
+                const lineQuantity = getCrmLineQuantity(line);
+                const candidateCount = compactString(line.candidate_count);
+                return (
+                  <div key={`${getCrmLineName(line)}-${index}`} className="rounded-lg border bg-muted/20 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-semibold">{getCrmLineName(line)}</p>
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          {lineQuantity ? <span>Cantidad: {lineQuantity}</span> : null}
+                          {compactString(line.catalog_item_id) ? <span>Producto #{compactString(line.catalog_item_id)}</span> : null}
+                          {candidateCount ? <span>{candidateCount} candidatos</span> : null}
+                        </div>
+                      </div>
+                      {lineStatus ? <Badge variant="outline" className="w-fit shrink-0">{lineStatus}</Badge> : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              El equipo recibira el archivo o texto original y separara los items manualmente si la lectura no alcanza.
+            </div>
+          )}
+
+          {crmSuggestedReply ? (
+            <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Respuesta sugerida</p>
+              <p className="mt-2 break-words text-sm">{crmSuggestedReply}</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
