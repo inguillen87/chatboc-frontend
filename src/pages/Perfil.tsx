@@ -122,6 +122,7 @@ import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
+import { uploadProfileAvatar } from "@/services/profileAvatarService";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -449,6 +450,7 @@ export default function Perfil() {
   const [error, setError] = useState<string | null>(null); // Mensaje de error
   const [profileReady, setProfileReady] = useState(false);
   const [loadingGuardar, setLoadingGuardar] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -1204,7 +1206,16 @@ export default function Perfil() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { // Tipado de 'e'
     const { id, value } = e.target;
-    setPerfil((prev) => ({ ...prev, [id]: value }));
+    setPerfil((prev) => ({
+      ...prev,
+      [id]: value,
+      ...(id === "avatar_url"
+        ? {
+            avatar_source: value.trim() ? "profile_url" : "",
+            avatar_consent: value.trim() ? prev.avatar_consent : false,
+          }
+        : {}),
+    }));
   };
 
   const handleAddressOptionChange = (option: { label: string; value: string } | null) => {
@@ -1301,6 +1312,39 @@ export default function Perfil() {
     setHorariosOpen(true);
   };
 
+  const handleProfileAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Usa una imagen JPG, PNG o WebP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("La imagen no puede superar 5 MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      const uploaded = await uploadProfileAvatar(file);
+      setPerfil((prev) => ({
+        ...prev,
+        avatar_url: uploaded.avatarUrl,
+        avatar_source: uploaded.avatarSource || "profile_upload",
+        avatar_consent: Boolean(uploaded.avatarConsent && uploaded.avatarUrl),
+      }));
+      setMensaje("Imagen personal actualizada correctamente.");
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo subir la imagen personal."));
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const handleGuardar = async (e: FormEvent) => { // Tipado de 'e'
     e.preventDefault();
     setMensaje(null);
@@ -1326,7 +1370,7 @@ export default function Perfil() {
       link_web: perfil.link_web,
       logo_url: perfil.logo_url,
       avatar_url: perfil.avatar_consent ? perfil.avatar_url : "",
-      avatar_source: perfil.avatar_consent && perfil.avatar_url ? "profile_url" : undefined,
+      avatar_source: perfil.avatar_consent && perfil.avatar_url ? perfil.avatar_source || "profile_url" : undefined,
       avatar_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
       profile_picture_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
       horario_json: JSON.stringify(horariosParaBackend), // Convertir a string JSON
@@ -2107,14 +2151,43 @@ export default function Perfil() {
                               value={perfil.avatar_url}
                               onChange={handleInputChange}
                               className="bg-background border-input text-foreground"
+                              disabled={avatarUploading}
                             />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                disabled={avatarUploading}
+                                asChild
+                              >
+                                <label htmlFor="avatar_file_upload">
+                                  <UploadCloud className="h-4 w-4" />
+                                  {avatarUploading ? "Subiendo..." : "Subir imagen"}
+                                </label>
+                              </Button>
+                              <Input
+                                id="avatar_file_upload"
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="sr-only"
+                                onChange={handleProfileAvatarUpload}
+                                disabled={avatarUploading}
+                              />
+                              {perfil.avatar_source ? (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {perfil.avatar_source === "profile_upload" ? "Upload consentido" : perfil.avatar_source}
+                                </Badge>
+                              ) : null}
+                            </div>
                             <label className="flex items-start gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
                               <Checkbox
                                 checked={Boolean(perfil.avatar_consent)}
                                 onCheckedChange={(checked) =>
                                   setPerfil((prev) => ({ ...prev, avatar_consent: Boolean(checked) }))
                                 }
-                                disabled={!perfil.avatar_url.trim()}
+                                disabled={avatarUploading || !perfil.avatar_url.trim()}
                                 aria-label="Autorizar imagen personal"
                               />
                               <span>Autorizar esta imagen para identificarme en CRM, reclamos, pedidos y chats.</span>

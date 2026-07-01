@@ -18,10 +18,12 @@ import {
   Sparkles,
   Store,
   Ticket,
+  UploadCloud,
   User,
 } from "lucide-react";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
+import { uploadProfileAvatar } from "@/services/profileAvatarService";
 
 interface TicketSummary {
   id: number;
@@ -45,7 +47,9 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarSource, setAvatarSource] = useState("");
   const [avatarConsent, setAvatarConsent] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [error, setError] = useState("");
@@ -116,6 +120,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           consented: data.avatar_consent ?? data.profile_picture_consent,
         });
         setAvatarUrl(profileAvatarUrl);
+        setAvatarSource(profileAvatar.source || data.avatar_source || "");
         setAvatarConsent(profileAvatar.consented);
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {
@@ -154,7 +159,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           whatsapp: phone,
           celular: phone,
           avatar_url: consentedAvatarUrl,
-          avatar_source: consentedAvatarUrl ? "profile_url" : undefined,
+          avatar_source: consentedAvatarUrl ? avatarSource || "profile_url" : undefined,
           avatar_consent: Boolean(consentedAvatarUrl),
           profile_picture_consent: Boolean(consentedAvatarUrl),
           acepta_marketing: marketingOptIn,
@@ -172,7 +177,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           obj.celular = phone;
           obj.avatar_url = consentedAvatarUrl;
           obj.picture = consentedAvatarUrl;
-          obj.avatar_source = consentedAvatarUrl ? "profile_url" : undefined;
+          obj.avatar_source = consentedAvatarUrl ? avatarSource || "profile_url" : undefined;
           obj.avatar_consent = Boolean(consentedAvatarUrl);
           obj.acepta_marketing = marketingOptIn;
           safeLocalStorage.setItem("user", JSON.stringify(obj));
@@ -182,6 +187,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         has_email: Boolean(email),
         has_phone: Boolean(phone),
         has_avatar: Boolean(consentedAvatarUrl),
+        avatar_source: consentedAvatarUrl ? avatarSource || "profile_url" : undefined,
         avatar_consent: Boolean(consentedAvatarUrl),
         marketing_opt_in: marketingOptIn,
       });
@@ -190,6 +196,39 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
       setError(getErrorMessage(e, "No se pudo guardar"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Usá una imagen JPG, PNG o WebP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("La imagen no puede superar 5 MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setError("");
+    try {
+      const uploaded = await uploadProfileAvatar(file, { isWidgetRequest: true });
+      setAvatarUrl(uploaded.avatarUrl);
+      setAvatarSource(uploaded.avatarSource || "profile_upload");
+      setAvatarConsent(Boolean(uploaded.avatarConsent && uploaded.avatarUrl));
+      trackLeadEvent("widget_profile_avatar_uploaded", {
+        mimetype: file.type,
+        size: file.size,
+        avatar_source: uploaded.avatarSource || "profile_upload",
+      });
+    } catch (e) {
+      setError(getErrorMessage(e, "No se pudo subir la imagen."));
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -267,7 +306,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               <IdentityAvatar
                 name={name || email || "Usuario"}
                 avatarUrl={avatarConsent ? avatarUrl : ""}
-                source={avatarConsent && avatarUrl ? "imagen consentida" : "iniciales"}
+                source={avatarConsent && avatarUrl ? avatarSource || "imagen consentida" : "iniciales"}
                 consented={avatarConsent}
                 size="lg"
               />
@@ -283,9 +322,41 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
                     inputMode="url"
                     placeholder="https://..."
                     value={avatarUrl}
-                    onChange={e => setAvatarUrl(e.target.value)}
-                    disabled={saving}
+                    onChange={e => {
+                      setAvatarUrl(e.target.value);
+                      setAvatarSource(e.target.value.trim() ? "profile_url" : "");
+                      if (!e.target.value.trim()) setAvatarConsent(false);
+                    }}
+                    disabled={saving || avatarUploading}
                   />
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={saving || avatarUploading}
+                    asChild
+                  >
+                    <label htmlFor="profile-avatar-upload">
+                      <UploadCloud className="h-4 w-4" />
+                      {avatarUploading ? "Subiendo..." : "Subir imagen"}
+                    </label>
+                  </Button>
+                  <Input
+                    id="profile-avatar-upload"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    onChange={handleAvatarFileChange}
+                    disabled={saving || avatarUploading}
+                  />
+                  {avatarSource ? (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {avatarSource === "profile_upload" ? "Upload consentido" : avatarSource}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-md bg-background/70 px-3 py-2">
                   <p className="text-xs text-muted-foreground">
@@ -294,7 +365,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
                   <Switch
                     checked={avatarConsent}
                     onCheckedChange={(v) => setAvatarConsent(Boolean(v))}
-                    disabled={saving || !avatarUrl.trim()}
+                    disabled={saving || avatarUploading || !avatarUrl.trim()}
                     aria-label="Autorizar imagen de perfil"
                   />
                 </div>
