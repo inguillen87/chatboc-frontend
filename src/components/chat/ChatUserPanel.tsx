@@ -3,12 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import {
   ExternalLink,
+  Image as ImageIcon,
   ListChecks,
   Mail,
   Phone,
@@ -18,6 +20,7 @@ import {
   Ticket,
   User,
 } from "lucide-react";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 
 interface TicketSummary {
   id: number;
@@ -40,6 +43,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [error, setError] = useState("");
@@ -103,6 +107,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             data?.contacto?.telefono ||
             "",
         );
+        setAvatarUrl(data.avatar_url || data.picture || "");
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {
         /* ignore */
@@ -138,6 +143,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           telefono: phone,
           whatsapp: phone,
           celular: phone,
+          avatar_url: avatarUrl.trim(),
+          avatar_source: avatarUrl.trim() ? "profile_url" : undefined,
           acepta_marketing: marketingOptIn,
         },
         isWidgetRequest: true,
@@ -151,11 +158,19 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           obj.telefono = phone;
           obj.whatsapp = phone;
           obj.celular = phone;
+          obj.avatar_url = avatarUrl.trim();
+          obj.picture = avatarUrl.trim();
+          obj.avatar_source = avatarUrl.trim() ? "profile_url" : undefined;
           obj.acepta_marketing = marketingOptIn;
           safeLocalStorage.setItem("user", JSON.stringify(obj));
         } catch {}
       }
-      trackLeadEvent("widget_lead_profile_updated", { has_email: Boolean(email), has_phone: Boolean(phone), marketing_opt_in: marketingOptIn });
+      trackLeadEvent("widget_lead_profile_updated", {
+        has_email: Boolean(email),
+        has_phone: Boolean(phone),
+        has_avatar: Boolean(avatarUrl.trim()),
+        marketing_opt_in: marketingOptIn,
+      });
       onClose();
     } catch (e) {
       setError(getErrorMessage(e, "No se pudo guardar"));
@@ -234,6 +249,31 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-3" autoComplete="off" spellCheck={false}>
+            <div className="grid grid-cols-[auto,1fr] items-center gap-3 rounded-lg border p-3 bg-muted/40">
+              <IdentityAvatar
+                name={name || email || "Usuario"}
+                avatarUrl={avatarUrl}
+                source={avatarUrl ? "imagen consentida" : "iniciales"}
+                size="lg"
+              />
+              <div className="min-w-0">
+                <Label className="text-xs font-medium text-muted-foreground" htmlFor="profile-avatar-url">
+                  Imagen de perfil
+                </Label>
+                <div className="mt-1 grid grid-cols-[auto,1fr] items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="profile-avatar-url"
+                    type="text"
+                    inputMode="url"
+                    placeholder="https://..."
+                    value={avatarUrl}
+                    onChange={e => setAvatarUrl(e.target.value)}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-[auto,1fr] items-center gap-2 rounded-lg border p-3 bg-muted/40">
               <User className="h-4 w-4 text-muted-foreground" />
               <Input

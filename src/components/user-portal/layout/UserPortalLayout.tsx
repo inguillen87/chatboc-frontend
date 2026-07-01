@@ -22,6 +22,7 @@ import NotificationCenter from '@/components/user-portal/notifications/Notificat
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
+import IdentityAvatar from '@/components/identity/IdentityAvatar';
 
 
 const UserPortalLayout: React.FC = () => {
@@ -53,6 +54,8 @@ const UserPortalLayout: React.FC = () => {
     'Chatboc';
   const avatarImage = user?.logo_url || tenant?.logo_url || undefined;
   const profileName = user?.name || publicProfile.name || null;
+  const userAvatarUrl = user?.avatar_url || user?.picture || undefined;
+  const userAvatarSource = user?.avatar_source || (userAvatarUrl ? 'imagen consentida' : 'iniciales');
 
   const themeLabel = useMemo(() => {
     switch (active) {
@@ -156,13 +159,13 @@ const UserPortalLayout: React.FC = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-1 sm:px-2 py-1 h-auto rounded-full">
-                  <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                    <AvatarImage src={user?.picture} alt={user?.name} />
-                    <AvatarFallback className="text-sm">
-                      {profileName?.charAt(0).toUpperCase()}
-                      {profileName?.split(' ')[1]?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <IdentityAvatar
+                    name={profileName || user?.email || 'Usuario'}
+                    avatarUrl={userAvatarUrl}
+                    source={userAvatarSource}
+                    size="md"
+                    className="sm:h-9 sm:w-9"
+                  />
                   <span className="hidden md:inline-block text-sm font-medium text-foreground">
                     {profileName}
                   </span>

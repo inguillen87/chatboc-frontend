@@ -24,18 +24,14 @@ const UserAvatarAnimated: React.FC<UserAvatarAnimatedProps> = ({
       animate={talking ? { scaleY: [1, 1.05, 1], y: [0, -1, 0] } : {}}
       transition={talking ? { repeat: Infinity, duration: 0.6, ease: "easeInOut" } : {}}
     >
-      <img
-        src="/favicon/human-avatar.svg"
-        alt="Avatar"
-        style={{ width: size, height: size, display: "block" }}
-        draggable={false}
-      />
       <motion.svg
         width={size}
         height={size}
         viewBox="0 0 64 64"
         style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
       >
+        <circle cx="32" cy="32" r="30" fill="hsl(var(--secondary))" />
+        <circle cx="32" cy="32" r="29" fill="none" stroke="hsl(var(--border))" strokeWidth="2" />
         <motion.ellipse
           cx="23"
           cy="36"

@@ -18,6 +18,8 @@ interface UserData {
   rubro?: string;
   nombre_empresa?: string;
   logo_url?: string;
+  avatar_url?: string;
+  avatar_source?: string;
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
@@ -212,6 +214,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data.tenant_plan ||
         'free';
 
+      const profileAvatarUrl =
+        typeof data.avatar_url === 'string'
+          ? data.avatar_url
+          : typeof data.picture === 'string'
+            ? data.picture
+            : undefined;
       const updated: UserData = {
         id: data.id,
         name: data.name,
@@ -220,7 +228,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,
-        picture: data.picture,
+        avatar_url: profileAvatarUrl,
+        avatar_source: typeof data.avatar_source === 'string' ? data.avatar_source : undefined,
+        picture: profileAvatarUrl,
         tipo_chat: finalTipo,
         rol: data.rol,
         permissions: Array.isArray(data.permissions) ? data.permissions : undefined,

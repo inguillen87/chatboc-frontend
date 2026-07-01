@@ -69,7 +69,7 @@ const UserChatAvatar: React.FC = () => {
     >
       <Avatar className="w-8 h-8 border"> {/* Aplicar tamaño y borde aquí */}
         <AvatarImage
-          src={user?.picture || "/favicon/human-avatar.svg"}
+          src={user?.avatar_url || user?.picture || undefined}
           alt={user?.name || "Avatar de usuario"}
         />
         <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">

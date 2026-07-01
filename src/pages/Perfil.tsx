@@ -99,6 +99,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -395,6 +396,8 @@ export default function Perfil() {
       cerrado: idx === 5 || idx === 6,
     })),
     logo_url: "",
+    avatar_url: "",
+    avatar_source: "",
   });
   const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
   const derivedTenantSlug = useMemo(() => {
@@ -899,6 +902,8 @@ export default function Perfil() {
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
         logo_url: data.logo_url || "",
+        avatar_url: data.avatar_url || data.picture || "",
+        avatar_source: data.avatar_source || "",
         horarios_ui: horariosUi,
       }));
 
@@ -1310,6 +1315,8 @@ export default function Perfil() {
       longitud: perfil.longitud,
       link_web: perfil.link_web,
       logo_url: perfil.logo_url,
+      avatar_url: perfil.avatar_url,
+      avatar_source: perfil.avatar_url ? "profile_url" : undefined,
       horario_json: JSON.stringify(horariosParaBackend), // Convertir a string JSON
     };
     try {
@@ -2063,6 +2070,31 @@ export default function Perfil() {
                           required
                           className="bg-input border-input text-foreground"
                         />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label
+                          htmlFor="avatar_url"
+                          className="text-muted-foreground text-sm mb-1 block"
+                        >
+                          Imagen personal del usuario
+                        </Label>
+                        <div className="grid grid-cols-[auto,1fr] items-center gap-3 rounded-lg border border-input bg-input/40 p-3">
+                          <IdentityAvatar
+                            name={user?.name || perfil.nombre_empresa || user?.email || "Usuario"}
+                            avatarUrl={perfil.avatar_url}
+                            source={perfil.avatar_url ? "imagen consentida" : "iniciales"}
+                            size="lg"
+                          />
+                          <Input
+                            id="avatar_url"
+                            type="text"
+                            inputMode="url"
+                            placeholder="https://..."
+                            value={perfil.avatar_url}
+                            onChange={handleInputChange}
+                            className="bg-background border-input text-foreground"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div>

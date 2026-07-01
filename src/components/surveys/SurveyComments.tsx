@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MessageCircleMore, Send, ThumbsUp, User } from 'lucide-react';
+import { MessageCircleMore, Send, ThumbsUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,6 +15,7 @@ import { getSurveyComments, postSurveyComment } from '@/api/encuestas';
 import { SurveyComment, type SurveyCommentConfig } from '@/types/encuestas';
 import { trackSurveyCommentModeChanged, trackSurveyCommentSubmitted } from '@/utils/surveyAnalytics';
 import { ApiError } from '@/utils/api';
+import IdentityAvatar from '@/components/identity/IdentityAvatar';
 
 export interface SurveyCommentsCopy {
   title?: string;
@@ -564,12 +564,12 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
             ) : (
                 sortedComments.map((comment) => (
                     <div key={comment.id} className="flex gap-3 items-start rounded-xl border border-border/40 bg-background/70 p-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${toDisplayText(comment.nombre_autor) || copyText(copy?.authorFallback, DEFAULT_COMMENTS_COPY.authorFallback)}`}
-                            />
-                            <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
-                        </Avatar>
+                        <IdentityAvatar
+                          name={toDisplayText(comment.nombre_autor) || copyText(copy?.authorFallback, DEFAULT_COMMENTS_COPY.authorFallback)}
+                          source="iniciales locales"
+                          size="sm"
+                          className="h-8 w-8"
+                        />
                         <div className="flex-1 space-y-1">
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-medium leading-none">
