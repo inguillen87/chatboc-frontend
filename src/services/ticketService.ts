@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
 import {
   Ticket,
   Message,
@@ -1139,8 +1139,7 @@ const extractErrorBodyText = (error: unknown): string => {
 export const isLegacyHtmlGatewayError = (error: unknown): boolean => {
   if (!(error instanceof ApiError)) return false;
   if (![500, 502, 503, 504].includes(error.status)) return false;
-  const bodyText = extractErrorBodyText(error).trim().toLowerCase();
-  return bodyText.includes('<!doctype html') || bodyText.includes('<html');
+  return isLikelyHtmlErrorBody(error.body) || isLikelyHtmlErrorBody(extractErrorBodyText(error));
 };
 
 export const summarizeTicketFetchError = (error: unknown): Record<string, unknown> => {

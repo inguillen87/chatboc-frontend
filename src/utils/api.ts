@@ -408,7 +408,62 @@ const emitIdentityContextTelemetry = (
 };
 
 
-const resolveApiErrorMessage = (data: unknown, fallback: string) => {
+const extractErrorTextCandidate = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return '';
+
+  const payload = value as Record<string, unknown>;
+  for (const key of ['raw', 'html', 'text', 'body', 'message', 'mensaje', 'detail', 'error']) {
+    const candidate = payload[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate;
+    if (candidate && typeof candidate === 'object') {
+      const nested = extractErrorTextCandidate(candidate);
+      if (nested) return nested;
+    }
+  }
+  return '';
+};
+
+export const isLikelyHtmlErrorBody = (value: unknown): boolean => {
+  const text = extractErrorTextCandidate(value).trim().toLowerCase();
+  if (!text) return false;
+
+  return (
+    text.includes('<!doctype html') ||
+    text.includes('<html') ||
+    text.includes('<head') ||
+    text.includes('<body') ||
+    text.includes('</html>') ||
+    text.includes('502 bad gateway') ||
+    text.includes('504 gateway timeout') ||
+    text.includes('503 service unavailable') ||
+    text.includes('cloudflare') ||
+    text.includes('nginx')
+  );
+};
+
+const safeServerErrorMessage = (status?: number, fallback = 'No pudimos completar la solicitud. Intentalo de nuevo en unos segundos.') => {
+  if (status && [500, 502, 503, 504].includes(status)) {
+    return 'El servidor no pudo responder correctamente. Intentalo de nuevo en unos segundos.';
+  }
+  return fallback;
+};
+
+const redactApiLogData = (data: unknown, status?: number, contentType?: string) => {
+  if (!isLikelyHtmlErrorBody(data)) return data;
+  return {
+    redacted: true,
+    reason: 'html_error_body',
+    status,
+    contentType,
+  };
+};
+
+const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number) => {
+  if (isLikelyHtmlErrorBody(data)) {
+    return safeServerErrorMessage(status, fallback);
+  }
+
   if (typeof data === 'string') {
     const trimmed = data.trim();
     return trimmed || fallback;
@@ -444,6 +499,9 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
 
     if (typeof directMessage === 'string') {
       const trimmed = directMessage.trim();
+      if (isLikelyHtmlErrorBody(trimmed)) {
+        return safeServerErrorMessage(status, fallback);
+      }
       if (trimmed) return trimmed;
     }
 
@@ -1227,7 +1285,7 @@ export async function apiFetch<T>(
         method,
         url,
         status: response.status,
-        data,
+        data: redactApiLogData(data, response.status, responseContentType),
       });
     }
 
@@ -1272,7 +1330,7 @@ export async function apiFetch<T>(
       }
 
       throw new ApiError(
-        resolveApiErrorMessage(data, "No autorizado"),
+        resolveApiErrorMessage(data, "No autorizado", response.status),
         response.status,
         data,
         responseRequestId,
@@ -1285,7 +1343,7 @@ export async function apiFetch<T>(
 
     if (response.status === 403) {
       throw new ApiError(
-        resolveApiErrorMessage(data, "Acceso prohibido"),
+        resolveApiErrorMessage(data, "Acceso prohibido", response.status),
         response.status,
         data,
         responseRequestId,
@@ -1294,7 +1352,7 @@ export async function apiFetch<T>(
 
     if (!response.ok) {
       throw new ApiError(
-        resolveApiErrorMessage(data, "Error en la respuesta de la API"),
+        resolveApiErrorMessage(data, "Error en la respuesta de la API", response.status),
         response.status,
         data,
         responseRequestId,
@@ -1344,8 +1402,10 @@ export async function apiFetch<T>(
 export function getErrorMessage(error: unknown, fallback = "Ocurrió un error inesperado.") {
   if (error instanceof ApiError) {
     const requestIdMsg = error.requestId ? ` (Req ID: ${error.requestId})` : "";
-    let baseMessage = error.message;
-    const bodyMessage = resolveApiErrorMessage(error.body, "");
+    let baseMessage = isLikelyHtmlErrorBody(error.message)
+      ? safeServerErrorMessage(error.status, fallback)
+      : error.message;
+    const bodyMessage = resolveApiErrorMessage(error.body, "", error.status);
 
     if (bodyMessage) {
       baseMessage = bodyMessage;
@@ -1386,6 +1446,9 @@ export function getErrorMessage(error: unknown, fallback = "Ocurrió un error in
   }
 
   if (error && typeof (error as any).message === "string") {
+    if (isLikelyHtmlErrorBody((error as any).message)) {
+      return fallback;
+    }
     // Para errores que no son de la API pero tienen un mensaje (ej. errores de red)
     return (error as any).message;
   }
