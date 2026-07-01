@@ -200,6 +200,7 @@ describe('ticketService realtime normalization', () => {
       fecha: '2026-06-06T03:03:47.626Z',
       profile_picture_url: 'https://cdn.example.com/profile/marcelo.jpg',
       avatar_source: 'social',
+      avatar_consent: true,
       mensajes: [{ id: 2, mensaje: 'Consulta inicial', es_admin: false, timestamp: '2026-06-06T03:04:47.626Z' }],
     });
 

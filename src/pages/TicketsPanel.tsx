@@ -9,10 +9,9 @@ import { ViewState } from '@/components/app-shell/ViewState';
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useTenant } from '@/context/TenantContext';
 import { TicketProvider } from '@/context/TicketContext';
-import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { hasRequiredRole, type Role } from '@/utils/roles';
+import { hasRequiredRole } from '@/utils/roles';
 import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 import { resolveTenantSlug } from '@/utils/api';
 
@@ -87,15 +86,17 @@ interface TicketsPanelPageProps {
 }
 
 const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanelPageProps) => {
-  useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const { user } = useUser();
   const { capabilities, hasAnyCapability } = useCapabilities();
 
   const hasDeclaredCapabilities = capabilities.length > 0;
+  const isOperationalRole = hasRequiredRole(user?.rol, ['tenant_admin', 'employee', 'superadmin']);
+  const isTenantOwnerLike = hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin']);
+  const hasTicketCapability = hasAnyCapability(TICKET_READ_CAPABILITIES);
   const canReadTickets =
-    !hasDeclaredCapabilities ||
-    hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin']) ||
-    hasAnyCapability(TICKET_READ_CAPABILITIES);
+    hasTicketCapability ||
+    isTenantOwnerLike ||
+    (isOperationalRole && !hasDeclaredCapabilities);
 
   const rootClassName = embedded
     ? 'flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground'

@@ -86,6 +86,9 @@ const providerModeFromPayload = (provider: RecordLike): { label: string; fallbac
   return { label: providerLabel(provider.provider_family) || 'IA operativa', fallbackReason };
 };
 
+const AI_ENRICHMENT_UNAVAILABLE_COPY =
+  'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.';
+
 const normalizeRisk = (risk: string): string => {
   const normalized = risk.toLowerCase().trim();
   if (['critico', 'critical', 'urgente'].includes(normalized)) return 'critico';
@@ -255,10 +258,15 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
       setEnrichment(response);
     } catch (err) {
       if (requestSeq.current !== currentRequest) return;
-      if (!isLegacyHtmlGatewayError(err)) {
+      const isGatewayUnavailable = isLegacyHtmlGatewayError(err);
+      if (!isGatewayUnavailable) {
         console.warn('Unable to load ticket AI enrichment', summarizeTicketFetchError(err));
       }
-      setError('No se pudo calcular la asistencia IA para este ticket.');
+      setError(
+        isGatewayUnavailable
+          ? AI_ENRICHMENT_UNAVAILABLE_COPY
+          : 'No se pudo calcular la asistencia IA para este ticket. El CRM sigue operativo.',
+      );
       setEnrichment(null);
     } finally {
       if (requestSeq.current === currentRequest) {

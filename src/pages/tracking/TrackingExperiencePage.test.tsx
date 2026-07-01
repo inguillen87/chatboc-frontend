@@ -131,6 +131,10 @@ describe("TrackingExperiencePage support contract", () => {
     fetchTrackingExperienceMock.mockResolvedValueOnce(payload);
     sendTrackingSupportMessageMock.mockResolvedValueOnce({
       message: "Mensaje guardado en el reclamo.",
+      crm_writeback: {
+        unread_for_team: true,
+        inbox_increment: true,
+      },
       tracking: {
         ...payload,
         support: {
@@ -177,6 +181,7 @@ describe("TrackingExperiencePage support contract", () => {
       );
     });
     expect(await screen.findByText("hola, puedo hablar con alguien?")).toBeInTheDocument();
+    expect(await screen.findByText(/pendiente en el CRM/i)).toBeInTheDocument();
   });
 
   it("uses the backend live CTA when the tenant service window is open", async () => {

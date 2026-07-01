@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AiAssistPanel from './AiAssistPanel';
 import { enterpriseService } from '@/services/enterpriseService';
 import type { Ticket } from '@/types/tickets';
+import { ApiError } from '@/utils/api';
 
 vi.mock('@/services/enterpriseService', () => ({
   enterpriseService: {
@@ -89,5 +90,24 @@ describe('AiAssistPanel', () => {
         undefined,
       );
     });
+  });
+
+  it('degrades safely when the AI enrichment endpoint is temporarily unavailable', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockedGetTicketAiEnrichment.mockRejectedValue(
+      new ApiError('Bad Gateway', 502, '<html><title>502</title><body>Bad Gateway</body></html>'),
+    );
+
+    render(<AiAssistPanel ticket={ticketFixture()} />);
+
+    expect(
+      await screen.findByText(
+        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Asistencia IA del caso')).toBeInTheDocument();
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    consoleWarn.mockRestore();
   });
 });

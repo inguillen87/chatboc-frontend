@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ClipboardCheck,
@@ -35,6 +35,9 @@ interface UploadOrderFromFileProps {
   variant?: 'inline' | 'marketplace';
   intakeEntry?: MarketAssistedIntakeEntry | null;
   fallbackWhatsappHref?: string | null;
+  suggestedTextDraft?: string | null;
+  suggestedTextDraftKey?: number | null;
+  suggestedDocumentType?: string | null;
   className?: string;
   id?: string;
 }
@@ -522,11 +525,15 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   variant = 'inline',
   intakeEntry,
   fallbackWhatsappHref,
+  suggestedTextDraft,
+  suggestedTextDraftKey,
+  suggestedDocumentType,
   className,
   id,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastSuggestedTextDraftRef = useRef('');
   const { currentSlug } = useTenant();
   const effectiveTenantSlug = tenantSlug ?? currentSlug ?? null;
   const isMarketplace = variant === 'marketplace';
@@ -546,6 +553,25 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const [contactNotes, setContactNotes] = useState('');
   const [orderText, setOrderText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const nextDraft = String(suggestedTextDraft || '').trim();
+    const previousDraft = lastSuggestedTextDraftRef.current;
+    if (!nextDraft) {
+      lastSuggestedTextDraftRef.current = '';
+      return;
+    }
+    setOrderText((current) => {
+      if (current.trim() && current !== previousDraft) return current;
+      lastSuggestedTextDraftRef.current = nextDraft;
+      return nextDraft;
+    });
+  }, [suggestedTextDraft, suggestedTextDraftKey]);
+
+  useEffect(() => {
+    if (!isDocumentType(suggestedDocumentType)) return;
+    setDocumentType((current) => (current === 'order_note' ? suggestedDocumentType : current));
+  }, [suggestedDocumentType]);
 
   const selectedDocumentType = useMemo(
     () => DOCUMENT_TYPES.find((item) => item.value === documentType) ?? DOCUMENT_TYPES[0],
@@ -1068,6 +1094,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               </div>
               <Textarea
                 ref={textAreaRef}
+                data-assisted-textarea="true"
                 value={orderText}
                 onChange={(event) => setOrderText(event.target.value)}
                 placeholder={`Ej: 2 chapas galvanizadas

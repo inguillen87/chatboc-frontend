@@ -213,6 +213,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [promotionOnly, setPromotionOnly] = useState(false);
   const [selectedSort, setSelectedSort] = useState('promo_first');
+  const [assistedDraftRequest, setAssistedDraftRequest] = useState<{ text: string; key: number } | null>(null);
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
@@ -277,6 +278,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const effectiveAssistedIntake = assistedIntakeDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
+  const noResultsSearchTerm = !isLoading && products.length === 0 && !catalogActuallyEmpty
+    ? deferredSearchTerm.trim()
+    : '';
+  const buildNoResultsSearchDraft = (term: string) => [
+    `Busco: ${term}`,
+    'No lo encontre en el catalogo. Quiero que el equipo revise disponibilidad, precio o alternativa y me responda.',
+  ].join('\n');
   const assistedFirstActive = showAssistedIntake && !isLoading && (
     effectiveAssistedIntake?.mode === 'assisted_first' ||
     totalUnfiltered === 0 ||
@@ -327,11 +335,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
-  const scrollToAssistedUpload = () => {
+  const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
       const uploadDropzone = target.querySelector<HTMLElement>('[data-assisted-upload-dropzone="true"]');
-      const firstInteractive = uploadDropzone ?? target.querySelector<HTMLElement>('textarea, input, button');
+      const uploadTextarea = target.querySelector<HTMLElement>('[data-assisted-textarea="true"]');
+      const preferredInteractive = preferredMode === 'text' ? uploadTextarea : uploadDropzone;
+      const firstInteractive = preferredInteractive ?? uploadDropzone ?? target.querySelector<HTMLElement>('textarea, input, button');
       const scrollTarget = firstInteractive ?? target;
       const alignTarget = () => {
         const rect = scrollTarget.getBoundingClientRect();
@@ -348,6 +358,18 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         focusTarget();
       }, 450);
     }
+  };
+  const activateAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
+    const resolvedSearchTerm = noResultsSearchTerm.trim();
+    if (resolvedSearchTerm) {
+      setAssistedDraftRequest((current) => ({
+        text: buildNoResultsSearchDraft(resolvedSearchTerm),
+        key: (current?.key ?? 0) + 1,
+      }));
+      scrollToAssistedUpload('text');
+      return;
+    }
+    scrollToAssistedUpload(preferredMode);
   };
 
   return (
@@ -449,11 +471,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
-                <Button type="button" className="w-full" onClick={scrollToAssistedUpload}>
+                <Button type="button" className="w-full" onClick={() => scrollToAssistedUpload('file')}>
                   <UploadIcon className="mr-2 h-4 w-4" />
                   Subir foto o archivo
                 </Button>
-                <Button type="button" variant="outline" className="w-full" onClick={scrollToAssistedUpload}>
+                <Button type="button" variant="outline" className="w-full" onClick={() => scrollToAssistedUpload('text')}>
                   <FileText className="mr-2 h-4 w-4" />
                   Escribir lista
                 </Button>
@@ -509,7 +531,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   El equipo recibe archivo/texto original, datos ordenados, candidatos de catalogo, datos faltantes y respuesta sugerida.
                 </p>
               </div>
-              <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={scrollToAssistedUpload}>
+              <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => activateAssistedUpload('file')}>
                 <UploadIcon className="mr-2 h-4 w-4" />
                 {assistedPrimaryCta}
               </Button>
@@ -531,7 +553,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <Button
               type="button"
               data-testid="market-assisted-upload-cta"
-              onClick={scrollToAssistedUpload}
+              onClick={() => activateAssistedUpload('file')}
               disabled={!showAssistedIntake}
               className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
             >
@@ -620,6 +642,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           variant="marketplace"
           intakeEntry={effectiveAssistedIntake}
           fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
+          suggestedTextDraft={assistedDraftRequest?.text ?? null}
+          suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
+          suggestedDocumentType={assistedDraftRequest?.text ? 'quote_request' : null}
           onProcessed={(response) => {
             const requestId = response?.pedido_id ?? response?.lead_id;
             toast({
@@ -751,7 +776,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <Search className="mr-2 h-4 w-4" />
               Limpiar filtros
             </Button>
-            <Button type="button" onClick={scrollToAssistedUpload}>
+            <Button type="button" onClick={() => activateAssistedUpload('file')}>
               <UploadIcon className="mr-2 h-4 w-4" />
               {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
             </Button>

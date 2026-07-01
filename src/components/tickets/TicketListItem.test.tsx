@@ -100,6 +100,7 @@ describe('TicketListItem', () => {
           ...baseTicket,
           avatar_url: 'https://cdn.example.com/marcelo.jpg',
           avatar_source: 'social',
+          avatar_consent: true,
         }}
         isSelected={false}
         onClick={vi.fn()}

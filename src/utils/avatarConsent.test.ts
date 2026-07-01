@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isSafeAvatarUrl,
   resolveConsentedAvatar,
   shouldRenderProfileImage,
 } from './avatarConsent';
@@ -11,6 +12,7 @@ describe('avatarConsent', () => {
       shouldRenderProfileImage({
         avatarUrl: 'https://cdn.example.com/profile/avatar.jpg',
         source: 'profile_upload',
+        consented: true,
       }),
     ).toBe(true);
 
@@ -18,8 +20,25 @@ describe('avatarConsent', () => {
       resolveConsentedAvatar({
         profile_picture_url: 'https://cdn.example.com/profile/google.jpg',
         profile_picture_source: 'google',
+        profile_picture_consent: true,
       }).avatarUrl,
     ).toBe('https://cdn.example.com/profile/google.jpg');
+  });
+
+  it('requires explicit consent even for upload or social-login sources', () => {
+    expect(
+      shouldRenderProfileImage({
+        avatarUrl: 'https://cdn.example.com/profile/avatar.jpg',
+        source: 'profile_upload',
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveConsentedAvatar({
+        profile_picture_url: 'https://cdn.example.com/profile/google.jpg',
+        profile_picture_source: 'google',
+      }).avatarUrl,
+    ).toBeUndefined();
   });
 
   it('allows a manual profile URL only when explicit consent is present', () => {
@@ -50,6 +69,26 @@ describe('avatarConsent', () => {
     expect(resolved.consented).toBe(false);
   });
 
+  it('blocks executable, data and protocol-relative URLs before rendering', () => {
+    for (const avatarUrl of ['javascript:alert(1)', 'data:image/svg+xml,<svg />', '//cdn.example.com/avatar.jpg']) {
+      expect(isSafeAvatarUrl(avatarUrl)).toBe(false);
+      expect(
+        shouldRenderProfileImage({
+          avatarUrl,
+          source: 'profile_upload',
+          consented: true,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it('allows HTTPS, localhost development URLs and approved internal upload paths', () => {
+    expect(isSafeAvatarUrl('https://cdn.example.com/profile/avatar.jpg')).toBe(true);
+    expect(isSafeAvatarUrl('http://localhost:5173/uploads/avatar.jpg')).toBe(true);
+    expect(isSafeAvatarUrl('/uploads/profile/avatar.webp')).toBe(true);
+    expect(isSafeAvatarUrl('/not-public/avatar.webp')).toBe(false);
+  });
+
   it('blocks scraped, mock, synthetic or fake avatar sources', () => {
     for (const source of ['whatsapp_scraped', 'mock_avatar', 'synthetic_profile', 'realistic_generated']) {
       expect(
@@ -62,7 +101,7 @@ describe('avatarConsent', () => {
     }
   });
 
-  it('does not trust internal agent photos without explicit consent metadata', () => {
+  it('does not trust internal agent photos as customer identity avatars', () => {
     expect(
       resolveConsentedAvatar({
         avatar_url: 'https://cdn.example.com/agents/agente.jpg',
@@ -76,6 +115,6 @@ describe('avatarConsent', () => {
         avatar_source: 'agente',
         avatar_consent: true,
       }).avatarUrl,
-    ).toBe('https://cdn.example.com/agents/agente.jpg');
+    ).toBeUndefined();
   });
 });

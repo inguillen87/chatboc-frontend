@@ -30,6 +30,18 @@ const assistedOrder: Order = {
     name: 'Marcelo',
     phone: '+5492613168608',
     email: 'marcelo@test.com',
+    avatar_url: 'https://cdn.example.com/profile/marcelo.webp',
+    avatar_source: 'profile_upload',
+    avatar_consent: true,
+    profile_picture_consent: true,
+    avatar_policy: 'consented_upload_or_social_only',
+    identity: {
+      display_name: 'Marcelo',
+      avatar_url: 'https://cdn.example.com/profile/marcelo.webp',
+      avatar_source: 'profile_upload',
+      avatar_consent: true,
+      fallback: 'deterministic_identity_avatar',
+    },
   },
   crm_review_card: {
     contract_version: 'marketplace.crm_review_card.v1',
@@ -143,10 +155,12 @@ describe('PedidosPage', () => {
     });
 
     expect(screen.getByLabelText('Abrir pedido assistida-1')).toBeTruthy();
+    expect(screen.getAllByTitle(/Marcelo - Avatar con imagen consentida/i).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByLabelText('Abrir pedido assistida-1'));
 
     await waitFor(() => expect(screen.getByText('Pedido #assistida-1')).toBeTruthy());
+    expect(screen.getAllByTitle(/Marcelo - Avatar con imagen consentida/i).length).toBeGreaterThan(1);
     expect(screen.getAllByText('Revisar en CRM').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Revisar y confirmar/i })).toBeTruthy();
     expect(screen.queryByText('Av. Principal 1234, Local 5')).toBeNull();

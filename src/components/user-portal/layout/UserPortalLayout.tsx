@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
-import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { isSafeAvatarUrl, resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 
 const UserPortalLayout: React.FC = () => {
@@ -53,8 +53,9 @@ const UserPortalLayout: React.FC = () => {
     commerceSession?.tenant?.slug ||
     effectiveSlug ||
     'Chatboc';
-  const avatarImage = user?.logo_url || tenant?.logo_url || undefined;
-  const profileName = user?.name || publicProfile.name || null;
+  const rawTenantLogoUrl = user?.logo_url || tenant?.logo_url || undefined;
+  const tenantLogoUrl = isSafeAvatarUrl(rawTenantLogoUrl) ? rawTenantLogoUrl : undefined;
+  const profileName = user?.name || publicProfile.name || user?.email || 'Mi cuenta';
   const userAvatar = resolveConsentedAvatar(user as Record<string, unknown> | null | undefined);
 
   const themeLabel = useMemo(() => {
@@ -97,7 +98,7 @@ const UserPortalLayout: React.FC = () => {
             {/* Logo de la Organización */}
             <Link to={homePath} className="flex items-center gap-2">
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                <AvatarImage src={avatarImage} alt={displayName} />
+                {tenantLogoUrl ? <AvatarImage src={tenantLogoUrl} alt={displayName} /> : null}
                 <AvatarFallback>
                   <Building className="h-5 w-5 text-muted-foreground" />
                 </AvatarFallback>
@@ -160,7 +161,7 @@ const UserPortalLayout: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-1 sm:px-2 py-1 h-auto rounded-full">
                   <IdentityAvatar
-                    name={profileName || user?.email || 'Usuario'}
+                    name={profileName}
                     avatarUrl={userAvatar.avatarUrl}
                     source={userAvatar.source || 'iniciales'}
                     consented={userAvatar.consented}

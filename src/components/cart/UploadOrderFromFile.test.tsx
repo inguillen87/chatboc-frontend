@@ -230,6 +230,65 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('document_type')).toBe('quote_request');
   });
 
+  it('submits an explicit assisted search draft as marketplace text', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 94,
+      customer_message: 'Recibimos tu busqueda para revision.',
+    });
+
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        suggestedTextDraft={'Busco: clavos punta paris\nNo lo encontre en el catalogo.'}
+        suggestedTextDraftKey={1}
+        suggestedDocumentType="quote_request"
+      />,
+    );
+
+    const textarea = screen.getByPlaceholderText(/2 chapas galvanizadas/i);
+    expect(textarea).toHaveValue('Busco: clavos punta paris\nNo lo encontre en el catalogo.');
+    expect(screen.getByRole('button', { name: /Cotizacion/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalled();
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('pedido_text')).toBe('Busco: clavos punta paris\nNo lo encontre en el catalogo.');
+    expect(body.get('document_type')).toBe('quote_request');
+  });
+
+  it('does not overwrite manual text when a newer search draft arrives', () => {
+    const { rerender } = render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        suggestedTextDraft="Busco: chapas"
+        suggestedTextDraftKey={1}
+      />,
+    );
+
+    const textarea = screen.getByPlaceholderText(/2 chapas galvanizadas/i);
+    expect(textarea).toHaveValue('Busco: chapas');
+
+    fireEvent.change(textarea, { target: { value: 'Texto manual del cliente' } });
+
+    rerender(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        suggestedTextDraft="Busco: clavos"
+        suggestedTextDraftKey={2}
+      />,
+    );
+
+    expect(textarea).toHaveValue('Texto manual del cliente');
+  });
+
   it('honors marketplace submit headers without leaking header fields into the form payload', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',

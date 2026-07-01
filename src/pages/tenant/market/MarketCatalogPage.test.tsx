@@ -305,5 +305,22 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText(/No hay productos para esos filtros/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Limpiar filtros/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeEnabled();
+
+    const textarea = document.querySelector('[data-assisted-textarea="true"]') as HTMLTextAreaElement;
+    expect(textarea).toBeInTheDocument();
+    expect(textarea.value).toBe('');
+
+    fireEvent.click(screen.getByTestId('market-assisted-upload-cta'));
+
+    await waitFor(() => {
+      expect(textarea.value).toContain('Busco: no existe');
+    });
+    expect(textarea.value).toContain('Busco: no existe');
+    expect(textarea.value).toContain('No lo encontre en el catalogo');
+
+    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    await waitFor(() => {
+      expect(textarea).toHaveFocus();
+    });
   });
 });

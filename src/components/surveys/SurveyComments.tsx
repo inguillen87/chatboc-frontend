@@ -566,7 +566,9 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
                     <div key={comment.id} className="flex gap-3 items-start rounded-xl border border-border/40 bg-background/70 p-3">
                         <IdentityAvatar
                           name={toDisplayText(comment.nombre_autor) || copyText(copy?.authorFallback, DEFAULT_COMMENTS_COPY.authorFallback)}
-                          source="iniciales locales"
+                          avatarUrl={comment.avatar_url || comment.avatarUrl || comment.picture || comment.profile_picture_url}
+                          source={comment.avatar_source || comment.avatarSource || comment.profile_picture_source || 'iniciales locales'}
+                          consented={comment.avatar_consent ?? comment.avatarConsent ?? comment.profile_picture_consent}
                           size="sm"
                           className="h-8 w-8"
                         />

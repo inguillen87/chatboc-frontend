@@ -1,10 +1,22 @@
 export interface CustomerProfile {
   name?: string | null;
+  display_name?: string | null;
   phone?: string | null;
   email?: string | null;
   contact_key?: string | null;
   channel_group?: string | null;
   whatsapp?: string | null;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
+  picture?: string | null;
+  avatar_source?: string | null;
+  avatarSource?: string | null;
+  avatar_consent?: boolean | string | number | null;
+  avatarConsent?: boolean | string | number | null;
+  profile_picture_consent?: boolean | string | number | null;
+  avatar_policy?: string | null;
+  fallback?: string | null;
+  identity?: Record<string, unknown> | null;
 }
 
 export interface CommercialState {
@@ -412,6 +424,7 @@ export interface Order {
   init_point?: string | null;
   tipo?: string | null;
   customer_profile?: CustomerProfile | null;
+  customer_identity?: CustomerProfile | Record<string, unknown> | null;
   commercial_state?: CommercialState | null;
   commercial_stage?: string | null;
   contact?: CustomerProfile | null;

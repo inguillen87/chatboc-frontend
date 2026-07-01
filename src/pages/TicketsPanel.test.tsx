@@ -9,10 +9,6 @@ const trackFrontendEventMock = vi.fn();
 const useUserMock = vi.fn();
 const useCapabilitiesMock = vi.fn();
 
-vi.mock('@/hooks/useRequireRole', () => ({
-  default: vi.fn(),
-}));
-
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'municipio-demo' }),
 }));
@@ -132,6 +128,24 @@ describe('TicketsPanel request_id support surface', () => {
       capabilities: ['analytics.read'],
       hasAllCapabilities: () => false,
       hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
+    });
+
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+
+    expect(await screen.findByTestId('tickets-access-denied')).toBeInTheDocument();
+    expect(screen.queryByText('tickets-panel-body')).not.toBeInTheDocument();
+    expect(getIdentityCoverageMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps non-ticket backoffice roles inside the profile shell instead of redirecting to 403', async () => {
+    useUserMock.mockReturnValue({
+      user: { rol: 'analytics_viewer', tipo_chat: 'municipio' },
+      loading: false,
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
     });
 
     render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);

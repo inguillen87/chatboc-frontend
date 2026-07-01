@@ -18,6 +18,7 @@ import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClass
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { cn } from '@/lib/utils';
+import IdentityAvatar from '@/components/identity/IdentityAvatar';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -56,6 +57,31 @@ const normalizeOrders = (raw: unknown): Order[] => {
   }
 
   return [];
+};
+
+const getOrderCustomerProfile = (order: Order): Record<string, any> => {
+  const raw = order as any;
+  return raw.customer_profile || raw.customer_identity || raw.contact || {};
+};
+
+const getOrderCustomerName = (order: Order): string => {
+  const profile = getOrderCustomerProfile(order);
+  return profile.name || profile.display_name || (order as any).customerName || (order as any).contact_name || 'Cliente Final';
+};
+
+const getOrderCustomerPhone = (order: Order): string | undefined => {
+  const profile = getOrderCustomerProfile(order);
+  return profile.phone || (order as any).customerPhone || undefined;
+};
+
+const getOrderCustomerAvatar = (order: Order) => {
+  const profile = getOrderCustomerProfile(order);
+  const identity = profile.identity || (order as any).customer_identity || {};
+  return {
+    avatarUrl: profile.avatar_url || profile.avatarUrl || profile.picture || identity.avatar_url || identity.avatarUrl || identity.picture,
+    source: profile.avatar_source || profile.avatarSource || identity.avatar_source || identity.avatarSource,
+    consented: profile.avatar_consent ?? profile.avatarConsent ?? profile.profile_picture_consent ?? identity.avatar_consent ?? identity.avatarConsent ?? identity.profile_picture_consent,
+  };
 };
 
 const assistedSummaryNumber = (order: Order, key: 'matched' | 'unmatched' | 'detected') => {
@@ -533,6 +559,13 @@ const PedidosPage = () => {
   const selectedShippingInfo = selectedOrder ? getShippingInfo(selectedOrder) : null;
   const selectedAssistedCrmState = selectedOrder?.crm_review_card?.status || selectedOrder?.assisted_request?.crm_state || null;
   const selectedCrmReviewCard = selectedOrder ? getCrmReviewCard(selectedOrder) : null;
+  const selectedCustomerProfile = selectedOrder ? getOrderCustomerProfile(selectedOrder) : {};
+  const selectedCustomerName = selectedOrder ? getOrderCustomerName(selectedOrder) : 'Consumidor Final';
+  const selectedCustomerAvatar = selectedOrder
+    ? getOrderCustomerAvatar(selectedOrder)
+    : { avatarUrl: undefined, source: undefined, consented: undefined };
+  const selectedCustomerPhone = selectedCustomerProfile.phone || (selectedOrder as any)?.customerPhone || 'Sin teléfono';
+  const selectedCustomerEmail = selectedCustomerProfile.email || (selectedOrder as any)?.customerEmail || 'Sin email';
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -746,6 +779,9 @@ const PedidosPage = () => {
               const assistedIsCatalog = assistedRequest?.document_profile?.catalog_matching !== false;
               const assistedPreview = getAssistedPreview(order);
               const followUpCode = getFollowUpCode(order);
+              const customerName = getOrderCustomerName(order);
+              const customerPhone = getOrderCustomerPhone(order);
+              const customerAvatar = getOrderCustomerAvatar(order);
               const selectOrder = () => {
                 if (window.innerWidth < 768) {
                   navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(order.id))}`, currentSlug));
@@ -826,13 +862,24 @@ const PedidosPage = () => {
                       </div>
                     ) : null}
 
-                    <div className="flex justify-between items-end">
-                        <div>
+                    <div className="flex justify-between items-end gap-3">
+                        <div className="min-w-0">
                             <div className="text-sm text-muted-foreground">
                                 {format(new Date(order.created_at), "d MMM, HH:mm", { locale: es })}
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                                {order.items.length} items • {(order as any).customer_profile?.name || order.customerName || order.contact_name || 'Cliente Final'}
+                            <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                                <IdentityAvatar
+                                  name={customerName}
+                                  avatarUrl={customerAvatar.avatarUrl}
+                                  source={customerAvatar.source}
+                                  consented={customerAvatar.consented}
+                                  size="sm"
+                                  className="h-7 w-7"
+                                />
+                                <span className="min-w-0 truncate">
+                                  {order.items.length} items • {customerName}
+                                  {customerPhone ? ` • ${customerPhone}` : ''}
+                                </span>
                             </div>
                         </div>
                         <div className="font-bold text-lg">
@@ -935,16 +982,27 @@ const PedidosPage = () => {
                       <div className="space-y-1">
                           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
                           <div className="p-3 border rounded-md bg-card">
-                              <p className="font-medium">{(selectedOrder as any).customer_profile?.name || selectedOrder.customerName || selectedOrder.contact_name || 'Consumidor Final'}</p>
-                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customer_profile?.phone || selectedOrder.customerPhone || 'Sin teléfono'}</p>
-                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customer_profile?.email || selectedOrder.customerEmail || 'Sin email'}</p>
-                              {((selectedOrder as any).customer_profile?.contact_key || (selectedOrder as any).customer_profile?.channel_group) ? (
+                              <div className="flex min-w-0 items-start gap-3">
+                                <IdentityAvatar
+                                  name={selectedCustomerName}
+                                  avatarUrl={selectedCustomerAvatar.avatarUrl}
+                                  source={selectedCustomerAvatar.source}
+                                  consented={selectedCustomerAvatar.consented}
+                                  size="lg"
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium">{selectedCustomerName}</p>
+                                  <p className="text-sm text-muted-foreground">{selectedCustomerPhone}</p>
+                                  <p className="text-sm text-muted-foreground">{selectedCustomerEmail}</p>
+                                </div>
+                              </div>
+                              {(selectedCustomerProfile.contact_key || selectedCustomerProfile.channel_group) ? (
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                  {(selectedOrder as any).customer_profile?.contact_key ? (
-                                    <Badge variant="outline">{(selectedOrder as any).customer_profile.contact_key}</Badge>
+                                  {selectedCustomerProfile.contact_key ? (
+                                    <Badge variant="outline">{selectedCustomerProfile.contact_key}</Badge>
                                   ) : null}
-                                  {(selectedOrder as any).customer_profile?.channel_group ? (
-                                    <Badge variant="outline">{normalizeChannelLabel((selectedOrder as any).customer_profile.channel_group)}</Badge>
+                                  {selectedCustomerProfile.channel_group ? (
+                                    <Badge variant="outline">{normalizeChannelLabel(selectedCustomerProfile.channel_group)}</Badge>
                                   ) : null}
                                 </div>
                               ) : null}

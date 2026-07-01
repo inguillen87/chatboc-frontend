@@ -3,6 +3,7 @@ const CONSENTED_SOURCE_VALUES = new Set([
   'consentida',
   'consented',
   'imagen_consentida',
+  'profile_url',
   'profile_upload',
   'profile_picture',
   'user_upload',
@@ -18,6 +19,7 @@ const CONSENTED_SOURCE_VALUES = new Set([
 
 const CONSENTED_SOURCE_PREFIXES = [
   'profile_upload',
+  'profile_url',
   'user_upload',
   'social_login',
   'oauth',
@@ -115,6 +117,32 @@ export const normalizeAvatarUrl = (value: unknown): string | undefined => {
   return trimmed || undefined;
 };
 
+const INTERNAL_AVATAR_PREFIXES = ['/uploads/', '/media/', '/static/', '/avatars/', '/profile/'];
+
+export const isSafeAvatarUrl = (value: unknown): boolean => {
+  const avatarUrl = normalizeAvatarUrl(value);
+  if (!avatarUrl || avatarUrl.length > 512) return false;
+
+  if (avatarUrl.startsWith('/') && !avatarUrl.startsWith('//') && !avatarUrl.includes('\\')) {
+    return INTERNAL_AVATAR_PREFIXES.some((prefix) => avatarUrl.startsWith(prefix));
+  }
+
+  try {
+    const parsed = new URL(avatarUrl);
+    if (parsed.protocol === 'https:' && parsed.hostname) return true;
+    if (
+      parsed.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+};
+
 const readConsentState = (value: unknown): boolean | null => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
@@ -154,6 +182,7 @@ export const shouldRenderProfileImage = ({
 }: AvatarConsentInput): boolean => {
   const normalizedUrl = normalizeAvatarUrl(avatarUrl);
   if (!normalizedUrl) return false;
+  if (!isSafeAvatarUrl(normalizedUrl)) return false;
 
   const normalizedSource = normalizeSourceValue(source);
   if (BLOCKED_SOURCE_KEYWORDS.some((keyword) => normalizedSource.includes(keyword))) {
@@ -162,7 +191,7 @@ export const shouldRenderProfileImage = ({
 
   const explicitConsent = readConsentState(consented);
   if (explicitConsent === false) return false;
-  if (explicitConsent === true) return true;
+  if (explicitConsent !== true) return false;
 
   return isConsentedAvatarSource(source);
 };

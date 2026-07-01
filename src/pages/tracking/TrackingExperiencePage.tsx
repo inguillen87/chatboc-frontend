@@ -271,6 +271,12 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const progress = milestones.length > 1 ? Math.round((currentIndex / (milestones.length - 1)) * 100) : 0;
   const requiresPinForLoad = kind === "claim" && !payload && !pin.trim();
   const requiresPinForSupport = kind === "claim" && support.requiresPin && !pin.trim();
+  const supportPollingMs = useMemo(() => {
+    if (kind !== "claim" || !support.enabled || !support.pollingInterval) return 0;
+    const parsed = Number(support.pollingInterval);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return Math.min(Math.max(parsed, 10_000), 60_000);
+  }, [kind, support.enabled, support.pollingInterval]);
 
   const requestId = readText(payload, ["request_id"]);
   const canShowMap = Boolean(
@@ -321,6 +327,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         code,
       });
       const updatedTracking = isRecord(reply?.tracking) ? reply.tracking : null;
+      const crmWriteback = isRecord(reply?.crm_writeback) ? reply.crm_writeback : null;
       if (updatedTracking) {
         setPayload(updatedTracking as TrackingExperienceResponse);
       }
@@ -331,6 +338,11 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
           ? "Mensaje enviado al canal en vivo del reclamo."
           : "Mensaje guardado en el reclamo para la mesa de entrada."),
       );
+      if (crmWriteback?.unread_for_team || crmWriteback?.inbox_increment) {
+        setSupportNotice(
+          `${readText(reply, ["message"], "Mensaje guardado en el reclamo.")} El equipo lo ve como pendiente en el CRM.`,
+        );
+      }
       if (!updatedTracking) await load();
     } catch (err) {
       setSupportNotice(getErrorMessage(err, "No se pudo enviar el mensaje."));
@@ -344,6 +356,17 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, kind]);
+
+  React.useEffect(() => {
+    if (!payload || !supportPollingMs || !support.endpoint || requiresPinForSupport) return;
+    const timer = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (supportSending) return;
+      void load();
+    }, supportPollingMs);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, supportPollingMs, support.endpoint, requiresPinForSupport, supportSending]);
 
   const visibleTimeline = useMemo(
     () =>

@@ -56,12 +56,13 @@ describe('IdentityAvatar', () => {
     expect(getIdentityAvatarPattern('Marcelo')).not.toEqual(getIdentityAvatarPattern('Ana'));
   });
 
-  it('renders a real avatar image when an url is available', async () => {
+  it('renders a real avatar image when an url has a consented source', async () => {
     const { container } = render(
       <IdentityAvatar
         name="Marcelo Guillen"
         avatarUrl="https://cdn.example.com/avatar.jpg"
         source="social"
+        consented
       />,
     );
 
@@ -85,12 +86,12 @@ describe('IdentityAvatar', () => {
     expect(screen.getByText('MG')).toBeInTheDocument();
   });
 
-  it('allows a profile image with explicit consent metadata', async () => {
+  it('allows an uploaded profile image with explicit consent metadata', async () => {
     const { container } = render(
       <IdentityAvatar
         name="Marcelo Guillen"
         avatarUrl="https://cdn.example.com/avatar.jpg"
-        source="whatsapp_media_upload"
+        source="profile_upload"
         consented
       />,
     );
@@ -133,6 +134,20 @@ describe('IdentityAvatar', () => {
         name="Vecino Junin"
         avatarUrl="https://cdn.example.com/avatar.jpg"
         source="whatsapp_media_upload"
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('VJ')).toBeInTheDocument();
+  });
+
+  it('does not use WhatsApp media labels as profile identity even with consent', () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Vecino Junin"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="whatsapp_media_upload"
+        consented
       />,
     );
 

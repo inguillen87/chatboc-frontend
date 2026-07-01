@@ -88,6 +88,8 @@ describe('Tickets Sidebar category density', () => {
       asunto: 'Arreglo De Calle',
       categoria: 'Arreglo De Calle',
       estado: 'nuevo',
+      priority: 'alta',
+      hasUnreadMessages: true,
     };
 
     useTicketsMock.mockReturnValue({
@@ -155,6 +157,8 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -188,6 +192,26 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('lets operators jump from prioritized queue context into rubros and back', async () => {
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+
+    expect(screen.getByTestId('sidebar-category-summary')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-category-summary')).toHaveTextContent('Vista por rubro');
+    expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^cola$/i }));
+
+    expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
+    expect(screen.queryByText('Arreglo De Calle (1)')).not.toBeInTheDocument();
   });
 
   it('keeps active filter chips inside the floating filter panel', async () => {

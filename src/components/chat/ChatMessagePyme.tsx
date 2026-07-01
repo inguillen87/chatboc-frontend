@@ -10,12 +10,9 @@ import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
 
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
-import { User as UserIcon } from "lucide-react";
-import { getInitials } from "@/lib/utils"; // Importar getInitials
 import { useDateSettings } from "@/hooks/useDateSettings";
-import { shouldRenderProfileImage } from "@/utils/avatarConsent";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 
 const messageVariants = {
   initial: (isBot: boolean) => ({
@@ -59,37 +56,24 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
 // --- UserAvatar modificado ---
 const UserChatAvatar: React.FC = () => {
   const { user } = useUser(); // Obtener datos del usuario
-  const initials = getInitials(user?.name);
   const avatarUrl = user?.avatar_url || user?.picture || undefined;
-  const avatarSource = user?.avatar_source;
-  const safeAvatarUrl = shouldRenderProfileImage({
-    avatarUrl,
-    source: avatarSource,
-    consented: user?.avatar_consent,
-  })
-    ? avatarUrl
-    : undefined;
+  const displayName = user?.name || user?.email || "Usuario";
 
   return (
     <motion.div
-      className="flex-shrink-0 shadow-md" // motion.div envuelve a Avatar para animaciones
+      className="flex-shrink-0"
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <Avatar className="w-8 h-8 border"> {/* Aplicar tamaño y borde aquí */}
-        <AvatarImage
-          src={safeAvatarUrl}
-          alt={user?.name || "Avatar de usuario"}
-        />
-        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-          {initials ? (
-            initials
-          ) : (
-            <UserIcon size={16} /> // Ícono genérico si no hay nombre/iniciales
-          )}
-        </AvatarFallback>
-      </Avatar>
+      <IdentityAvatar
+        name={displayName}
+        avatarUrl={avatarUrl}
+        source={user?.avatar_source}
+        consented={user?.avatar_consent ?? user?.profile_picture_consent}
+        size="sm"
+        className="h-8 w-8 border shadow-md"
+      />
     </motion.div>
   );
 };

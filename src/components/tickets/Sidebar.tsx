@@ -84,6 +84,17 @@ const isRiskQueueTicket = (ticket: any) => {
   );
 };
 
+const isUnassignedQueueTicket = (ticket: any) => {
+  const assigned =
+    ticket.assignedAgent?.id ||
+    ticket.assignedAgentId ||
+    ticket.assigned_agent_id ||
+    ticket.assigned_user_id ||
+    ticket.asigned_user_id ||
+    ticket.user?.id;
+  return assigned === undefined || assigned === null || String(assigned).trim() === '';
+};
+
 const getQueueTimestamp = (ticket: any) => {
   const raw =
     ticket.updated_at ||
@@ -483,6 +494,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
       if (scoreDelta !== 0) return scoreDelta;
       return getQueueTimestamp(right.ticket) - getQueueTimestamp(left.ticket);
     });
+  const queueUnreadCount = queueEntries.filter(({ ticket }) => isUnreadQueueTicket(ticket)).length;
+  const queueRiskCount = queueEntries.filter(({ ticket }) => isRiskQueueTicket(ticket)).length;
+  const queueUnassignedCount = queueEntries.filter(({ ticket }) => isUnassignedQueueTicket(ticket)).length;
   const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
   const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
   const listModeToggle = (
@@ -920,6 +934,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
           <div className={cn(compact ? 'space-y-1.5 px-2 py-1.5' : 'space-y-2 px-2 py-2')} data-testid="sidebar-ticket-queue">
+            <p data-testid="sidebar-queue-summary" className="sr-only">
+              Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
+              {queueUnreadCount.toLocaleString('es-AR')} no leidos;
+              {queueRiskCount.toLocaleString('es-AR')} en riesgo;
+              {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
+            </p>
             {visibleQueueEntries.map(({ ticket, category }) => (
               <div key={`${category}-${ticket.id}`} className="min-w-0">
                 <TicketListItem
@@ -951,6 +971,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         ) : null}
         {listMode === 'categories' ? (
           <>
+            <p data-testid="sidebar-category-summary" className="sr-only">
+              Vista por rubro: {visibleCategoryEntries.length.toLocaleString('es-AR')} rubros visibles; vacios ocultos por defecto.
+            </p>
             <Accordion
               type="multiple"
               className="w-full"

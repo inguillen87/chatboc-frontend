@@ -206,6 +206,17 @@ export interface SurveyComment {
   anon_id?: string | null;
   auth_user_id?: string | null;
   auth_provider?: string | null;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
+  picture?: string | null;
+  profile_picture_url?: string | null;
+  avatar_source?: string | null;
+  avatarSource?: string | null;
+  profile_picture_source?: string | null;
+  avatar_consent?: boolean | string | number | null;
+  avatarConsent?: boolean | string | number | null;
+  profile_picture_consent?: boolean | string | number | null;
+  avatar_policy?: string | null;
   likes?: number;
 }
 
