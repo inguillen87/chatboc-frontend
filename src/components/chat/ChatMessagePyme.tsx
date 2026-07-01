@@ -61,11 +61,11 @@ const UserChatAvatar: React.FC = () => {
   const { user } = useUser(); // Obtener datos del usuario
   const initials = getInitials(user?.name);
   const avatarUrl = user?.avatar_url || user?.picture || undefined;
-  const avatarSource = user?.avatar_source || (avatarUrl ? "imagen consentida" : "iniciales");
+  const avatarSource = user?.avatar_source;
   const safeAvatarUrl = shouldRenderProfileImage({
     avatarUrl,
     source: avatarSource,
-    consented: user?.avatar_consent ?? Boolean(avatarUrl),
+    consented: user?.avatar_consent,
   })
     ? avatarUrl
     : undefined;

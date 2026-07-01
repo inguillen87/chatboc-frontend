@@ -121,6 +121,7 @@ import {
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
+import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -880,6 +881,13 @@ export default function Perfil() {
         safeLocalStorage.setItem("tenantSlug", resolvedProfileTenantSlug);
       }
 
+      const profileAvatarUrl = data.avatar_url || data.picture || "";
+      const profileAvatar = resolveConsentedAvatar(data, {
+        avatarUrl: profileAvatarUrl,
+        source: data.avatar_source,
+        consented: data.avatar_consent ?? data.profile_picture_consent,
+      });
+
       setPerfil((prev) => ({
         ...prev,
         tenant_slug: resolvedProfileTenantSlug || (prev as any).tenant_slug,
@@ -903,9 +911,9 @@ export default function Perfil() {
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
         logo_url: data.logo_url || "",
-        avatar_url: data.avatar_url || data.picture || "",
-        avatar_source: data.avatar_source || "",
-        avatar_consent: Boolean(data.avatar_url || data.picture),
+        avatar_url: profileAvatarUrl,
+        avatar_source: profileAvatar.source || data.avatar_source || "",
+        avatar_consent: profileAvatar.consented,
         horarios_ui: horariosUi,
       }));
 

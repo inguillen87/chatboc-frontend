@@ -21,6 +21,7 @@ import {
   User,
 } from "lucide-react";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
+import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 
 interface TicketSummary {
   id: number;
@@ -109,8 +110,13 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             "",
         );
         const profileAvatarUrl = data.avatar_url || data.picture || "";
+        const profileAvatar = resolveConsentedAvatar(data, {
+          avatarUrl: profileAvatarUrl,
+          source: data.avatar_source,
+          consented: data.avatar_consent ?? data.profile_picture_consent,
+        });
         setAvatarUrl(profileAvatarUrl);
-        setAvatarConsent(Boolean(profileAvatarUrl));
+        setAvatarConsent(profileAvatar.consented);
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {
         /* ignore */

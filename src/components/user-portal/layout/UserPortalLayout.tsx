@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 
 const UserPortalLayout: React.FC = () => {
@@ -54,9 +55,7 @@ const UserPortalLayout: React.FC = () => {
     'Chatboc';
   const avatarImage = user?.logo_url || tenant?.logo_url || undefined;
   const profileName = user?.name || publicProfile.name || null;
-  const userAvatarUrl = user?.avatar_url || user?.picture || undefined;
-  const userAvatarSource = user?.avatar_source || (userAvatarUrl ? 'imagen consentida' : 'iniciales');
-  const userAvatarConsent = user?.avatar_consent ?? Boolean(userAvatarUrl);
+  const userAvatar = resolveConsentedAvatar(user as Record<string, unknown> | null | undefined);
 
   const themeLabel = useMemo(() => {
     switch (active) {
@@ -162,9 +161,9 @@ const UserPortalLayout: React.FC = () => {
                 <Button variant="ghost" className="flex items-center gap-2 px-1 sm:px-2 py-1 h-auto rounded-full">
                   <IdentityAvatar
                     name={profileName || user?.email || 'Usuario'}
-                    avatarUrl={userAvatarUrl}
-                    source={userAvatarSource}
-                    consented={userAvatarConsent}
+                    avatarUrl={userAvatar.avatarUrl}
+                    source={userAvatar.source || 'iniciales'}
+                    consented={userAvatar.consented}
                     size="md"
                     className="sm:h-9 sm:w-9"
                   />

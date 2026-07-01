@@ -8,6 +8,7 @@ import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '
 import { getValidStoredToken } from '@/utils/authTokens';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 interface UserData {
   id?: number;
@@ -221,6 +222,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : typeof data.picture === 'string'
             ? data.picture
             : undefined;
+      const resolvedProfileAvatar = resolveConsentedAvatar(data, {
+        avatarUrl: profileAvatarUrl,
+        source: typeof data.avatar_source === 'string' ? data.avatar_source : undefined,
+        consented: data.avatar_consent ?? data.profile_picture_consent,
+      });
       const updated: UserData = {
         id: data.id,
         name: data.name,
@@ -229,10 +235,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,
-        avatar_url: profileAvatarUrl,
-        avatar_source: typeof data.avatar_source === 'string' ? data.avatar_source : undefined,
-        avatar_consent: data.avatar_consent ?? data.profile_picture_consent ?? Boolean(profileAvatarUrl),
-        picture: profileAvatarUrl,
+        avatar_url: resolvedProfileAvatar.avatarUrl,
+        avatar_source: resolvedProfileAvatar.source,
+        avatar_consent: resolvedProfileAvatar.consented,
+        picture: resolvedProfileAvatar.avatarUrl,
         tipo_chat: finalTipo,
         rol: data.rol,
         permissions: Array.isArray(data.permissions) ? data.permissions : undefined,

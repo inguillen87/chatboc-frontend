@@ -43,6 +43,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
+import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 
 interface AdminNavLink {
@@ -133,19 +134,7 @@ const Navbar: React.FC = () => {
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
-  const userAvatarUrl =
-    typeof effectiveUser?.avatar_url === "string"
-      ? effectiveUser.avatar_url
-      : typeof effectiveUser?.picture === "string"
-        ? effectiveUser.picture
-        : null;
-  const userAvatarSource =
-    typeof effectiveUser?.avatar_source === "string"
-      ? effectiveUser.avatar_source
-      : userAvatarUrl
-        ? "imagen consentida"
-        : "iniciales";
-  const userAvatarConsent = effectiveUser?.avatar_consent ?? Boolean(userAvatarUrl);
+  const userAvatar = resolveConsentedAvatar(effectiveUser as Record<string, unknown> | null | undefined);
 
   const adminLinks = useMemo(() => {
     if (!isAdminLike) {
@@ -331,9 +320,9 @@ const Navbar: React.FC = () => {
                 >
                   <IdentityAvatar
                     name={userDisplayName}
-                    avatarUrl={userAvatarUrl}
-                    source={userAvatarSource}
-                    consented={userAvatarConsent}
+                    avatarUrl={userAvatar.avatarUrl}
+                    source={userAvatar.source || "iniciales"}
+                    consented={userAvatar.consented}
                     size="sm"
                   />
                   <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
