@@ -758,92 +758,143 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         'shrink-0 border-b border-border/70 bg-background/80',
         compact ? 'space-y-1.5 p-2' : 'space-y-2 p-2.5',
       )}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className={cn('truncate font-bold tracking-tight', compact ? 'text-sm' : 'text-lg')}>
-                {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
-              </h1>
-              {compact ? (
-                <span
-                  data-testid="sidebar-compact-summary"
-                  className="shrink-0 rounded-full border border-border/70 bg-muted/70 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground"
-                >
-                  {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
-                </span>
-              ) : null}
+        {compact ? (
+          <div
+            className="flex min-w-0 items-center gap-1.5"
+            data-testid="sidebar-search-controls"
+          >
+            <h1 className="sr-only">
+              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+            </h1>
+            <div className="relative min-w-0 flex-1" role="search">
+              <label className="sr-only" htmlFor={searchInputId}>
+                Buscar reclamos por numero, asunto, nombre, DNI o telefono
+              </label>
+              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id={searchInputId}
+                placeholder="Buscar reclamo..."
+                className="h-8 pl-8 text-xs"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <p
-              data-testid="sidebar-ticket-summary"
-              className={cn('truncate text-muted-foreground', compact ? 'sr-only' : 'text-xs')}
+            <div
+              className="flex shrink-0 items-center gap-1"
+              data-testid="sidebar-compact-toolbar"
             >
+              <span
+                data-testid="sidebar-compact-summary"
+                className="hidden shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground min-[380px]:inline-flex"
+              >
+                {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
+              </span>
+              {listModeToggle}
+              {filterPopover}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 px-0"
+                    title="Exportar"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    <span className="sr-only">Exportar</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                    Exportar Todos (Excel)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                    Exportar Todos (PDF)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                    }
+                    disabled={!selectedTicket}
+                  >
+                    Exportar Ticket Actual (PDF)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p data-testid="sidebar-ticket-summary" className="sr-only">
               {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
               {tickets.length.toLocaleString('es-AR')} de{' '}
               {totalBackendTickets.toLocaleString('es-AR')} cargados
             </p>
           </div>
-          <div
-            className="flex shrink-0 items-center gap-1.5"
-            data-testid={compact ? 'sidebar-compact-toolbar' : undefined}
-          >
-            {compact ? listModeToggle : null}
-            {compact ? filterPopover : null}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn('h-8 px-2', compact && 'w-8 px-0')}
-                  title="Exportar"
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-bold tracking-tight">
+                  {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+                </h1>
+                <p
+                  data-testid="sidebar-ticket-summary"
+                  className="truncate text-xs text-muted-foreground"
                 >
-                  <FileDown className={cn('h-4 w-4', !compact && 'sm:mr-2')} />
-                  <span className={cn('hidden sm:inline', compact && 'sr-only')}>Exportar</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                  Exportar Todos (Excel)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                  Exportar Todos (PDF)
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    exportToPdf(selectedTicket, selectedTicket?.messages || [])
-                  }
-                  disabled={!selectedTicket}
-                >
-                  Exportar Ticket Actual (PDF)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        <div
-          className={cn(
-            'grid items-center gap-1.5',
-            compact
-              ? 'grid-cols-1'
-              : 'grid-cols-[minmax(0,1fr)_auto_auto]',
-          )}
-          data-testid="sidebar-search-controls"
-        >
-          <div className="relative min-w-0" role="search">
-            <label className="sr-only" htmlFor={searchInputId}>
-              Buscar reclamos por numero, asunto, nombre, DNI o telefono
-            </label>
-            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id={searchInputId}
-              placeholder={compact ? 'Buscar reclamo...' : 'Buscar por nro, asunto o vecino...'}
-              className={cn('h-8 pl-8', compact ? 'text-xs' : 'text-sm')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          {!compact ? filterPopover : null}
-          {!compact ? listModeToggle : null}
-        </div>
+                  {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
+                  {tickets.length.toLocaleString('es-AR')} de{' '}
+                  {totalBackendTickets.toLocaleString('es-AR')} cargados
+                </p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2"
+                    title="Exportar"
+                  >
+                    <FileDown className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Exportar</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                    Exportar Todos (Excel)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                    Exportar Todos (PDF)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                    }
+                    disabled={!selectedTicket}
+                  >
+                    Exportar Ticket Actual (PDF)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5"
+              data-testid="sidebar-search-controls"
+            >
+              <div className="relative min-w-0" role="search">
+                <label className="sr-only" htmlFor={searchInputId}>
+                  Buscar reclamos por numero, asunto, nombre, DNI o telefono
+                </label>
+                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id={searchInputId}
+                  placeholder="Buscar por nro, asunto o vecino..."
+                  className="h-8 pl-8 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              {filterPopover}
+              {listModeToggle}
+            </div>
+          </>
+        )}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (
@@ -868,12 +919,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
           </div>
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
-          <div className="space-y-2 px-2 py-2" data-testid="sidebar-ticket-queue">
+          <div className={cn(compact ? 'space-y-1.5 px-2 py-1.5' : 'space-y-2 px-2 py-2')} data-testid="sidebar-ticket-queue">
             {visibleQueueEntries.map(({ ticket, category }) => (
               <div key={`${category}-${ticket.id}`} className="min-w-0">
                 <TicketListItem
                   ticket={ticket}
                   isSelected={selectedTicket?.id === ticket.id}
+                  compact={compact}
                   onClick={() => {
                     selectTicket(ticket.id);
                     onTicketSelected?.();
@@ -907,11 +959,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             >
               {visibleCategoryEntries.map(([category, tickets]) => (
                 <AccordionItem value={category} key={category}>
-                  <AccordionTrigger className="px-3 py-2.5 font-semibold">
+                  <AccordionTrigger className={cn('px-3 font-semibold', compact ? 'py-2 text-sm' : 'py-2.5')}>
                     {category} ({tickets.length})
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2 px-2 pb-2">
+                    <div className={cn(compact ? 'space-y-1.5 px-2 pb-1.5' : 'space-y-2 px-2 pb-2')}>
                       {tickets.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-muted-foreground">
                           Sin casos abiertos en este rubro.
@@ -924,6 +976,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
                               key={ticket.id}
                               ticket={ticket}
                               isSelected={selectedTicket?.id === ticket.id}
+                              compact={compact}
                               onClick={() => {
                                 selectTicket(ticket.id);
                                 onTicketSelected?.();

@@ -13,9 +13,10 @@ interface TicketListItemProps {
   ticket: Ticket;
   isSelected: boolean;
   onClick: () => void;
+  compact?: boolean;
 }
 
-const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick }) => {
+const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick, compact = false }) => {
   const normalizeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     return String(value).trim();
@@ -72,7 +73,8 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
     <button
       type="button"
       className={cn(
-        'relative w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'relative w-full rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        compact ? 'p-2' : 'p-3',
         isSelected
           ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
           : 'border-border/80 bg-background hover:bg-muted/50',
@@ -87,11 +89,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           {unreadBadgeLabel}
         </span>
       )}
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-3">
-          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
+      <div className={cn('flex items-start justify-between gap-2', compact ? 'mb-1.5' : 'mb-2')}>
+        <div className={cn('flex min-w-0 items-start', compact ? 'gap-2' : 'gap-3')}>
+          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size={compact ? 'md' : 'lg'} />
           <div className="min-w-0 space-y-0.5">
-            <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
+            <h4 className={cn('text-sm font-semibold leading-5 text-foreground', compact ? 'line-clamp-1' : 'line-clamp-2')} title={subject}>
               {subject}
             </h4>
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -133,7 +135,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         </div>
       </div>
       {(priorityLabel || slaLabel || assignedLabel) && (
-        <div className="mb-2 flex flex-wrap gap-1.5 pl-[52px]">
+        <div className={cn('flex gap-1.5 overflow-hidden', compact ? 'mb-1.5 pl-10' : 'mb-2 flex-wrap pl-[52px]')}>
           {priorityLabel ? (
             <Badge
               variant="outline"
@@ -167,9 +169,12 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           ) : null}
         </div>
       )}
-      <p className="line-clamp-2 pl-[52px] text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
+      <p className={cn('text-sm leading-5 text-muted-foreground', compact ? 'line-clamp-1 pl-10' : 'line-clamp-2 pl-[52px]')}>{ticket.lastMessage || '...'}</p>
       {nextAction ? (
-        <p className="mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary sm:ml-[52px]">
+        <p className={cn(
+          'rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary',
+          compact ? 'mt-1 line-clamp-1 sm:ml-10' : 'mt-2 line-clamp-2 sm:ml-[52px]',
+        )}>
           {nextAction}
         </p>
       ) : null}

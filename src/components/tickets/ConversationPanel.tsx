@@ -502,7 +502,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }, 12000);
 
       try {
-        const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo);
+        const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo, {
+          ticket: selectedTicket,
+          tenantSlug: selectedTicket.tenant_slug,
+        });
         if (cancelled) return;
         if (Array.isArray(timeline.unified_conversation_stream)) {
           setTimelineItems(timeline.unified_conversation_stream);
@@ -528,7 +531,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
 
       try {
-        const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, {
+          ticket: selectedTicket,
+          tenantSlug: selectedTicket.tenant_slug,
+        });
         if (cancelled) return;
         setMessages(dedupeChatMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
       } catch (error) {
@@ -614,7 +620,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       if (Date.now() < pollingPausedUntilRef.current) return;
 
       try {
-        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, { quiet: true });
+        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, {
+          quiet: true,
+          ticket: selectedTicket,
+          tenantSlug: selectedTicket.tenant_slug,
+        });
         pollingFailureCountRef.current = 0;
         pollingPausedUntilRef.current = 0;
         setMessages((prev) => {

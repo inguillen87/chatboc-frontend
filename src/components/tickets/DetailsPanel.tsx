@@ -637,7 +637,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       }
 
       try {
-        const detailed = await getTicketById(ticket.id.toString());
+        const detailed = await getTicketById(ticket.id.toString(), {
+          ticket,
+          tenantSlug: ticket.tenant_slug,
+        });
         updateTicket(ticket.id, detailed);
         setTimelineHistory(detailed.history || []);
         setTimelineMessages(detailed.messages || []);
@@ -645,7 +648,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         console.error('Error fetching ticket timeline:', error);
         setTimelineHistory([]);
         try {
-          const msgs = await getTicketMessages(ticket.id, ticket.tipo);
+          const msgs = await getTicketMessages(ticket.id, ticket.tipo, {
+            ticket,
+            tenantSlug: ticket.tenant_slug,
+          });
           setTimelineMessages(msgs);
         } catch (msgErr) {
           console.error('Error fetching ticket messages:', msgErr);

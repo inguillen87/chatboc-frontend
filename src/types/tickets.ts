@@ -289,6 +289,12 @@ export interface Ticket {
   actions?: Array<string | Record<string, unknown>> | null;
   next_steps?: Array<string | Record<string, unknown>> | null;
   detail_endpoint?: string | null;
+  messages_endpoint?: string | null;
+  timeline_endpoint?: string | null;
+  ai_enrichment_endpoint?: string | null;
+  source_model?: string | null;
+  ticket_type?: string | null;
+  contract_version?: string | null;
   admin_preview_endpoint?: string | null;
   school_case?: Record<string, unknown> | null;
   realtime_state?: TicketRealtimeState | null;

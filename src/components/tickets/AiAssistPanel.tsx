@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { enterpriseService, type TicketAiEnrichmentResponse } from '@/services/enterpriseService';
+import { getTenantTicketAiEnrichment, isTenantTicketV2 } from '@/services/ticketService';
 import type { Ticket } from '@/types/tickets';
 import { cn } from '@/lib/utils';
 
@@ -203,7 +204,9 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   const ticketRecord = asRecord(ticket);
   const ticketId = asString(ticketRecord.id || ticketRecord.ticket_id);
   const ticketType = asString(ticketRecord.ticket_type || ticketRecord.tipo || ticketRecord.tenant_type).toLowerCase();
-  const scope = ticketType.includes('pym') ? 'pyme' : 'municipio';
+  const isTenantTicket = isTenantTicketV2(ticketRecord as Partial<Ticket> & Record<string, unknown>);
+  const scope = isTenantTicket ? 'tenant' : ticketType.includes('pym') ? 'pyme' : 'municipio';
+  const requestTicketType = isTenantTicket ? 'tenant_ticket' : scope;
   const ticketNumber = asString(
     ticketRecord.nro_ticket ||
     ticketRecord.ticket_number ||
@@ -224,17 +227,25 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
     setError(null);
 
     try {
-      const response = await enterpriseService.getTicketAiEnrichment(
-        ticketId,
-        {
-          scope,
-          comments_limit: 40,
-          nro_ticket: ticketNumber || undefined,
-          ticket_number: ticketNumber || undefined,
-          ticket_type: scope,
-        },
-        tenantSlug,
-      );
+      const payload = {
+        scope,
+        comments_limit: 40,
+        nro_ticket: ticketNumber || undefined,
+        ticket_number: ticketNumber || undefined,
+        ticket_type: requestTicketType,
+      };
+      const response = isTenantTicket
+        ? await getTenantTicketAiEnrichment<TicketAiEnrichmentResponse>(
+            ticketId,
+            payload,
+            tenantSlug,
+            ticketRecord as Partial<Ticket> & Record<string, unknown>,
+          )
+        : await enterpriseService.getTicketAiEnrichment(
+            ticketId,
+            payload,
+            tenantSlug,
+          );
       if (requestSeq.current !== currentRequest) return;
       setEnrichment(response);
     } catch (err) {
@@ -247,7 +258,7 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
         setLoading(false);
       }
     }
-  }, [scope, tenantSlug, ticketId, ticketNumber]);
+  }, [isTenantTicket, requestTicketType, scope, tenantSlug, ticketId, ticketNumber, ticketRecord]);
 
   React.useEffect(() => {
     void loadEnrichment();

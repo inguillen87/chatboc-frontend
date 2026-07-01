@@ -25,6 +25,133 @@ const ticketApiPath = (path: string): string => {
 
 const TICKET_INBOX_INITIAL_PAGE_SIZE = 20;
 
+type TicketEndpointContext = Partial<Ticket> & Record<string, any>;
+
+const readEndpointString = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+};
+
+export const isTenantTicketV2 = (ticket?: TicketEndpointContext | null): boolean => {
+    if (!ticket || typeof ticket !== 'object') return false;
+    const sourceModel = String(ticket.source_model ?? ticket.sourceModel ?? '').toLowerCase();
+    const ticketType = String(ticket.ticket_type ?? ticket.ticketType ?? ticket.kind ?? '').toLowerCase();
+    const contractVersion = String(ticket.contract_version ?? ticket.contractVersion ?? '').toLowerCase();
+    const detailEndpoint = String(ticket.detail_endpoint ?? ticket.detailEndpoint ?? '').toLowerCase();
+    const messagesEndpoint = String(ticket.messages_endpoint ?? ticket.messagesEndpoint ?? '').toLowerCase();
+    const timelineEndpoint = String(ticket.timeline_endpoint ?? ticket.timelineEndpoint ?? '').toLowerCase();
+
+    return (
+        sourceModel === 'tenantticket' ||
+        ticketType.includes('tenant_ticket') ||
+        ticketType.includes('tenantticket') ||
+        contractVersion.startsWith('tickets.v2.') ||
+        detailEndpoint.includes('/api/v2/tickets/') ||
+        messagesEndpoint.includes('/api/v2/tickets/') ||
+        timelineEndpoint.includes('/api/v2/tickets/')
+    );
+};
+
+const resolveTenantTicketV2Endpoint = (
+    ticketId: string | number,
+    ticket?: TicketEndpointContext | null,
+    suffix?: 'messages' | 'timeline' | 'ai-enrichment',
+): string => {
+    const endpointKey =
+        suffix === 'messages'
+            ? 'messages_endpoint'
+            : suffix === 'timeline'
+              ? 'timeline_endpoint'
+              : suffix === 'ai-enrichment'
+                ? 'ai_enrichment_endpoint'
+                : 'detail_endpoint';
+    const camelEndpointKey =
+        suffix === 'messages'
+            ? 'messagesEndpoint'
+            : suffix === 'timeline'
+              ? 'timelineEndpoint'
+              : suffix === 'ai-enrichment'
+                ? 'aiEnrichmentEndpoint'
+                : 'detailEndpoint';
+    const explicit = readEndpointString(ticket?.[endpointKey]) || readEndpointString(ticket?.[camelEndpointKey]);
+    if (explicit && explicit.startsWith('/') && explicit.includes('/api/v2/tickets/')) {
+        return explicit;
+    }
+    const encodedTicketId = encodeURIComponent(String(ticketId));
+    return suffix ? `/api/v2/tickets/${encodedTicketId}/${suffix}` : `/api/v2/tickets/${encodedTicketId}`;
+};
+
+const normalizeV2TicketDetailResponse = (
+    response: any,
+    fallbackTicket?: TicketEndpointContext | null,
+): TicketEndpointContext => {
+    const record = response && typeof response === 'object' && !Array.isArray(response) ? response : {};
+    const candidate =
+        record.ticket && typeof record.ticket === 'object'
+            ? record.ticket
+            : record.item && typeof record.item === 'object'
+              ? record.item
+              : record.data && typeof record.data === 'object'
+                ? record.data
+                : record;
+    const id = candidate.id ?? record.id ?? fallbackTicket?.id;
+    return {
+        ...(fallbackTicket || {}),
+        ...candidate,
+        id,
+        tipo: candidate.tipo ?? fallbackTicket?.tipo ?? (candidate.tenant_type === 'pyme' ? 'pyme' : 'municipio'),
+        nro_ticket:
+            candidate.nro_ticket ??
+            candidate.ticket_number ??
+            candidate.ticketNumber ??
+            record.nro_ticket ??
+            fallbackTicket?.nro_ticket ??
+            (id !== undefined && id !== null ? `#${id}` : ''),
+        asunto:
+            candidate.asunto ??
+            candidate.title ??
+            candidate.categoria ??
+            fallbackTicket?.asunto ??
+            fallbackTicket?.title ??
+            'Ticket',
+        estado: candidate.estado ?? candidate.status ?? fallbackTicket?.estado ?? 'nuevo',
+        fecha: candidate.fecha ?? candidate.created_at ?? candidate.createdAt ?? fallbackTicket?.fecha ?? new Date().toISOString(),
+        source_model: record.source_model ?? candidate.source_model ?? fallbackTicket?.source_model ?? 'TenantTicket',
+        ticket_type: record.ticket_type ?? candidate.ticket_type ?? fallbackTicket?.ticket_type ?? 'tenant_ticket',
+        contract_version: record.contract_version ?? candidate.contract_version ?? fallbackTicket?.contract_version,
+        detail_endpoint:
+            record.detail_endpoint ??
+            candidate.detail_endpoint ??
+            fallbackTicket?.detail_endpoint ??
+            (id !== undefined && id !== null ? resolveTenantTicketV2Endpoint(id) : undefined),
+        messages_endpoint:
+            record.messages_endpoint ??
+            candidate.messages_endpoint ??
+            fallbackTicket?.messages_endpoint ??
+            (id !== undefined && id !== null ? resolveTenantTicketV2Endpoint(id, undefined, 'messages') : undefined),
+        timeline_endpoint:
+            record.timeline_endpoint ??
+            candidate.timeline_endpoint ??
+            fallbackTicket?.timeline_endpoint ??
+            (id !== undefined && id !== null ? resolveTenantTicketV2Endpoint(id, undefined, 'timeline') : undefined),
+        ai_enrichment_endpoint:
+            record.ai_enrichment_endpoint ??
+            candidate.ai_enrichment_endpoint ??
+            fallbackTicket?.ai_enrichment_endpoint ??
+            (id !== undefined && id !== null ? resolveTenantTicketV2Endpoint(id, undefined, 'ai-enrichment') : undefined),
+        realtime_state: candidate.realtime_state ?? record.realtime_state ?? fallbackTicket?.realtime_state,
+        collaboration_state: candidate.collaboration_state ?? record.collaboration_state ?? fallbackTicket?.collaboration_state,
+        history: candidate.history ?? record.history ?? candidate.historial ?? record.historial ?? fallbackTicket?.history,
+        messages:
+            candidate.messages ??
+            candidate.mensajes ??
+            record.messages ??
+            record.mensajes ??
+            fallbackTicket?.messages,
+    };
+};
+
 export interface TicketInboxPagination {
     page: number;
     per_page: number;
@@ -114,16 +241,23 @@ const normalizeTicketMessages = (rawMsgs: any[] | undefined | null): Message[] =
         }
         const normalizedAttachments =
             combinedAttachments.length > 0 ? combinedAttachments : undefined;
+        const actorType = String(
+            m.actor_type ??
+            m.author_type ??
+            m.authorType ??
+            m.actorType ??
+            '',
+        ).toLowerCase();
+        const isAgentMessage =
+            actorType
+                ? ['agent', 'admin', 'municipio', 'pyme', 'operator', 'staff', 'system'].includes(actorType)
+                : parseAdminFlag(m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin);
 
         return {
             id: m.id ?? m.comentario_id ?? m.comment_id ?? idx,
-            author: parseAdminFlag(
-                m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin,
-            )
-                ? 'agent'
-                : 'user',
+            author: isAgentMessage ? 'agent' : 'user',
             agentName: m.nombre_agente || m.agentName || m.autor_nombre || m.author_name,
-            content: m.content || m.texto || m.mensaje || m.comentario || '',
+            content: m.content || m.body || m.texto || m.mensaje || m.comentario || '',
             timestamp:
                 typeof m.timestamp === 'number'
                     ? new Date(m.timestamp).toISOString()
@@ -524,8 +658,46 @@ export const getAssignableAgents = async (
     return [];
 };
 
-export const getTicketById = async (id: string): Promise<Ticket> => {
+export interface TicketDetailOptions {
+    ticket?: TicketEndpointContext | null;
+    tenantSlug?: string | null;
+}
+
+export const getTicketById = async (id: string, opts?: TicketDetailOptions): Promise<Ticket> => {
     try {
+        if (isTenantTicketV2(opts?.ticket)) {
+            const endpoint = resolveTenantTicketV2Endpoint(id, opts?.ticket);
+            const response = await apiFetch<any>(endpoint, {
+                tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
+            });
+            const normalizedRaw = normalizeV2TicketDetailResponse(response, opts?.ticket);
+            const normalizedResponse = applyConsentedAvatar(
+                normalizeTicketPayload(normalizedRaw as Ticket),
+            );
+            let messages = normalizeTicketMessages(getInlineTicketMessageSource(normalizedRaw));
+            if (!messages.length) {
+                try {
+                    messages = (await getTicketMessages(
+                        Number(normalizedResponse.id),
+                        normalizedResponse.tipo,
+                        {
+                            ticket: normalizedResponse,
+                            tenantSlug: opts?.tenantSlug || normalizedResponse.tenant_slug,
+                        },
+                    )).messages;
+                } catch (err) {
+                    console.error(`Error fetching v2 messages for tenant ticket ${id}:`, err);
+                }
+            }
+            return {
+                ...normalizedResponse,
+                history: (normalizedRaw.history || []) as TicketHistoryEvent[],
+                messages,
+                realtime_state: normalizeRealtimeState((normalizedResponse as any).realtime_state),
+                collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
+            };
+        }
+
         const response = await apiFetch<
             Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
         >(ticketApiPath(`/tickets/municipio/${id}`));
@@ -940,12 +1112,34 @@ type TicketMessagesResult = Message[] & {
   realtimeState: TicketRealtimeState | null;
 };
 
+export interface TicketMessagesOptions {
+  public?: boolean;
+  pin?: string;
+  quiet?: boolean;
+  ticket?: TicketEndpointContext | null;
+  tenantSlug?: string | null;
+}
+
 export const getTicketMessages = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean; pin?: string; quiet?: boolean }
+  opts?: TicketMessagesOptions
 ): Promise<TicketMessagesResult> => {
   try {
+    if (isTenantTicketV2(opts?.ticket) && !opts?.public) {
+      const endpoint = resolveTenantTicketV2Endpoint(ticketId, opts?.ticket, 'messages');
+      const response = await apiFetch<{ mensajes?: any[]; messages?: any[]; realtime_state?: any }>(endpoint, {
+        tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
+      });
+      const rawMsgs = response.mensajes || response.messages || [];
+      const realtimeState = normalizeRealtimeState((response as any).realtime_state);
+      const messages = normalizeTicketMessages(rawMsgs);
+      const legacyCompatible = messages as TicketMessagesResult;
+      legacyCompatible.messages = messages;
+      legacyCompatible.realtimeState = realtimeState;
+      return legacyCompatible;
+    }
+
     const endpointBase =
       tipo === 'municipio'
         ? ticketApiPath(`/tickets/chat/${ticketId}/mensajes`)
@@ -977,17 +1171,22 @@ export const getTicketMessages = async (
 export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean; pin?: string }
+  opts?: { public?: boolean; pin?: string; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[]; realtime_state?: TicketRealtimeState | null }> => {
   try {
-    const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/timeline`);
-    const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
+    const useTenantV2 = isTenantTicketV2(opts?.ticket) && !opts?.public;
+    const endpointBase = useTenantV2
+      ? resolveTenantTicketV2Endpoint(ticketId, opts?.ticket, 'timeline')
+      : ticketApiPath(`/tickets/${tipo}/${ticketId}/timeline`);
+    const publicAccess = !useTenantV2 && opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
       ? `${endpointBase}?${publicAccess.query}`
-      : opts?.pin
+      : !useTenantV2 && opts?.pin
       ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
       : endpointBase;
-    const fetchOpts = publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
+    const fetchOpts = useTenantV2
+      ? { tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined }
+      : publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
     const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
     const history: TicketHistoryEvent[] = [];
     const messages: Message[] = [];
@@ -1080,6 +1279,20 @@ export const getTicketTimeline = async (
     console.error(`Error fetching timeline for ticket ${ticketId}:`, error);
     throw error;
   }
+};
+
+export const getTenantTicketAiEnrichment = async <T = unknown>(
+  ticketId: string | number,
+  payload: Record<string, unknown> = {},
+  tenantSlug?: string | null,
+  ticket?: TicketEndpointContext | null,
+): Promise<T> => {
+  const endpoint = resolveTenantTicketV2Endpoint(ticketId, ticket, 'ai-enrichment');
+  return apiFetch<T>(endpoint, {
+    method: 'POST',
+    body: payload,
+    tenantSlug: tenantSlug || ticket?.tenant_slug || undefined,
+  });
 };
 
 export interface LiveChatScheduleStatus {
