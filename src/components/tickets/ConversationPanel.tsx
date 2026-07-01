@@ -947,7 +947,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           <DetailsPanel />
         ) : (
           <>
-            <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+            <ScrollArea className="h-full p-4 pb-8" ref={scrollAreaRef} onScroll={handleScroll}>
               {timelinePartial && (
                 <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
@@ -987,7 +987,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 />
               ) : (
                 <AnimatePresence>
-                    <motion.div className="space-y-4">
+                    <motion.div className="space-y-4 pb-4">
                     {messages.map((msg, index) => (
                       <motion.div
                         key={msg.id || index}

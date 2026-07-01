@@ -3,11 +3,16 @@ export type Role =
   | 'super_admin'
   | 'admin_super'
   | 'tenant_admin'
+  | 'tenant-admin'
   | 'admin'
   | 'admin_pyme'
   | 'admin_municipio'
+  | 'pyme_admin'
+  | 'municipio_admin'
   | 'employee'
   | 'empleado'
+  | 'operator'
+  | 'operador'
   | 'catalog_manager'
   | 'analytics_viewer'
   | 'end_user'
@@ -21,8 +26,8 @@ export type Role =
 
 const ROLE_EQUIVALENCE: Record<string, string[]> = {
   superadmin: ['superadmin', 'super_admin', 'admin_super'],
-  tenant_admin: ['tenant_admin', 'admin', 'admin_pyme', 'admin_municipio'],
-  employee: ['employee', 'agent', 'empleado'],
+  tenant_admin: ['tenant_admin', 'tenant-admin', 'admin', 'admin_pyme', 'admin_municipio', 'pyme_admin', 'municipio_admin'],
+  employee: ['employee', 'agent', 'empleado', 'operator', 'operador'],
   catalog_manager: ['catalog_manager'],
   analytics_viewer: ['analytics_viewer'],
   end_user: ['end_user', 'chat_user', 'user', 'usuario', 'vecino', 'ciudadano'],

@@ -7,14 +7,20 @@ describe('roles helpers', () => {
     expect(normalizeRole('admin')).toBe('tenant_admin');
     expect(normalizeRole('empleado')).toBe('employee');
     expect(normalizeRole('tenant_admin')).toBe('tenant_admin');
+    expect(normalizeRole('tenant-admin')).toBe('tenant_admin');
     expect(normalizeRole('admin_pyme')).toBe('tenant_admin');
+    expect(normalizeRole('municipio_admin')).toBe('tenant_admin');
     expect(normalizeRole('employee')).toBe('employee');
+    expect(normalizeRole('operador')).toBe('employee');
     expect(normalizeRole('chat_user')).toBe('end_user');
   });
 
   it('matches aliases between current role and allowed role list', () => {
     expect(hasRequiredRole('admin', ['tenant_admin'])).toBe(true);
+    expect(hasRequiredRole('tenant-admin', ['tenant_admin'])).toBe(true);
+    expect(hasRequiredRole('municipio_admin', ['tenant_admin'])).toBe(true);
     expect(hasRequiredRole('agent', ['employee'])).toBe(true);
+    expect(hasRequiredRole('operador', ['employee'])).toBe(true);
     expect(hasRequiredRole('super_admin', ['superadmin'])).toBe(true);
     expect(hasRequiredRole('user', ['employee', 'tenant_admin'])).toBe(false);
   });

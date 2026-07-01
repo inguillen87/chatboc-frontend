@@ -431,23 +431,25 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         type="button"
         variant={listMode === 'queue' ? 'secondary' : 'ghost'}
         size="sm"
-        className="h-7 gap-1.5 rounded-md px-2 text-xs"
+        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', compact && 'w-7 px-0')}
         aria-pressed={listMode === 'queue'}
+        title="Ver cola priorizada"
         onClick={() => setListMode('queue')}
       >
         <List className="h-3.5 w-3.5" />
-        Cola
+        <span className={compact ? 'sr-only' : undefined}>Cola</span>
       </Button>
       <Button
         type="button"
         variant={listMode === 'categories' ? 'secondary' : 'ghost'}
         size="sm"
-        className="h-7 gap-1.5 rounded-md px-2 text-xs"
+        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', compact && 'w-7 px-0')}
         aria-pressed={listMode === 'categories'}
+        title="Ver rubros"
         onClick={() => setListMode('categories')}
       >
         <FolderOpen className="h-3.5 w-3.5" />
-        Rubros
+        <span className={compact ? 'sr-only' : undefined}>Rubros</span>
       </Button>
     </div>
   );
@@ -734,10 +736,23 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
       )}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <h1 className={cn('truncate font-bold tracking-tight', compact ? 'text-sm' : 'text-lg')}>
-              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
-            </h1>
-            <p className={cn('truncate text-muted-foreground', compact ? 'text-[11px]' : 'text-xs')}>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className={cn('truncate font-bold tracking-tight', compact ? 'text-sm' : 'text-lg')}>
+                {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+              </h1>
+              {compact ? (
+                <span
+                  data-testid="sidebar-compact-summary"
+                  className="shrink-0 rounded-full border border-border/70 bg-muted/70 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground"
+                >
+                  {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
+                </span>
+              ) : null}
+            </div>
+            <p
+              data-testid="sidebar-ticket-summary"
+              className={cn('truncate text-muted-foreground', compact ? 'sr-only' : 'text-xs')}
+            >
               {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
               {tickets.length.toLocaleString('es-AR')} de{' '}
               {totalBackendTickets.toLocaleString('es-AR')} cargados

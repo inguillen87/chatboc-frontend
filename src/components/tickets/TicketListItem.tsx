@@ -49,7 +49,18 @@ const getInitials = (name: string) => {
       })
     : '—';
 
-  const subject = ticket.categoria || ticket.asunto || 'Sin asunto';
+  const categoryLabel = normalizeText(
+    ticket.categoria || ticket.categoria_principal || ticket.categoria_simple,
+  );
+  const rawSubject = normalizeText(ticket.asunto || ticket.title);
+  const descriptionLabel = normalizeText(ticket.description || ticket.lastMessage);
+  const subjectLooksLikeCategory =
+    Boolean(categoryLabel && rawSubject) &&
+    categoryLabel.toLowerCase() === rawSubject.toLowerCase();
+  const subject =
+    rawSubject && !subjectLooksLikeCategory
+      ? rawSubject
+      : descriptionLabel || rawSubject || categoryLabel || 'Sin asunto';
   const displayName = normalizeText(ticket.display_name) || 'Contacto sin nombre';
   const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
 
@@ -82,9 +93,16 @@ const getInitials = (name: string) => {
             <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
               {subject}
             </h4>
-            <p className="truncate text-xs text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
-              {ticketNumber} - {displayName}
-            </p>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <p className="truncate text-xs text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+                {ticketNumber} - {displayName}
+              </p>
+              {categoryLabel && categoryLabel !== subject ? (
+                <Badge variant="outline" className="max-w-[8rem] truncate px-1.5 py-0 text-[10px] font-semibold">
+                  {categoryLabel}
+                </Badge>
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
