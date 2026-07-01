@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, UserCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 
 interface Agent {
   id: string;
@@ -27,10 +26,7 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
         <Button variant="outline" size="sm" className="h-8 gap-2 px-2.5">
           {currentAssignee ? (
              <>
-               <Avatar className="h-4 w-4">
-                 <AvatarImage src={currentAssignee.avatarUrl} />
-                 <AvatarFallback className="text-[8px]">{currentAssignee.name.substring(0,2).toUpperCase()}</AvatarFallback>
-               </Avatar>
+               <IdentityAvatar name={currentAssignee.name} avatarUrl={currentAssignee.avatarUrl} source="agente" size="xs" />
                <span className="text-xs truncate max-w-[100px]">{currentAssignee.name}</span>
              </>
           ) : (
@@ -71,10 +67,7 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
                   setOpen(false);
                }}
              >
-               <Avatar className="h-6 w-6 mr-2 shrink-0">
-                 <AvatarImage src={agent.avatarUrl} />
-                 <AvatarFallback className="text-[10px]">{agent.name.substring(0,2).toUpperCase()}</AvatarFallback>
-               </Avatar>
+               <IdentityAvatar name={agent.name} avatarUrl={agent.avatarUrl} source="agente" size="sm" className="mr-2" />
                <div className="flex flex-col items-start overflow-hidden">
                  <span className="text-xs font-medium truncate">{agent.name}</span>
                  <span className="text-[10px] text-muted-foreground truncate">{agent.email}</span>

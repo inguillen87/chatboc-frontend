@@ -217,6 +217,10 @@ export interface Ticket {
   has_location?: boolean;
   tiempo_estimado?: string;
   avatarUrl?: string;
+  avatar_url?: string;
+  avatar_source?: string;
+  contact_avatar_url?: string;
+  profile_picture_url?: string;
   history?: TicketHistoryEvent[];
 
   categoria_id?: number;

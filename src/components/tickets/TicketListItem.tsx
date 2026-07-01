@@ -1,13 +1,12 @@
 import React from 'react';
 import { Ticket } from '@/types/tickets';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { FaWhatsapp } from 'react-icons/fa';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, UserRound } from 'lucide-react';
+import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -16,9 +15,6 @@ interface TicketListItemProps {
 }
 
 const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick }) => {
-const getInitials = (name: string) => {
-    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
-  };
   const normalizeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     return String(value).trim();
@@ -37,6 +33,7 @@ const getInitials = (name: string) => {
   const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
   const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
   const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
+  const unreadBadgeLabel = unreadViewers > 0 ? unreadViewers : 1;
 
   const { timezone, locale } = useDateSettings();
   const createdDate = shiftDateByHours(ticket.fecha, -3);
@@ -47,7 +44,7 @@ const getInitials = (name: string) => {
         hour12: false,
         timeZone: timezone,
       })
-    : '—';
+    : '-';
 
   const categoryLabel = normalizeText(
     ticket.categoria || ticket.categoria_principal || ticket.categoria_simple,
@@ -62,6 +59,13 @@ const getInitials = (name: string) => {
       ? rawSubject
       : descriptionLabel || rawSubject || categoryLabel || 'Sin asunto';
   const displayName = normalizeText(ticket.display_name) || 'Contacto sin nombre';
+  const avatarUrl = normalizeText(
+    ticket.avatarUrl ||
+      ticket.avatar_url ||
+      ticket.contact_avatar_url ||
+      ticket.profile_picture_url,
+  );
+  const avatarSource = normalizeText(ticket.avatar_source) || (avatarUrl ? 'imagen de perfil' : 'iniciales');
   const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
 
   return (
@@ -80,15 +84,12 @@ const getInitials = (name: string) => {
     >
       {hasUnread && !isSelected && (
         <span className="absolute top-2 right-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-          {unreadViewers > 0 ? unreadViewers : '•'}
+          {unreadBadgeLabel}
         </span>
       )}
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-3">
-          <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src={ticket.avatarUrl} alt={displayName} />
-            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-          </Avatar>
+          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} size="lg" />
           <div className="min-w-0 space-y-0.5">
             <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
               {subject}

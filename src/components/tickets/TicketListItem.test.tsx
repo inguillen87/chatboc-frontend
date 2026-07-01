@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TicketListItem from './TicketListItem';
 import type { Ticket } from '@/types/tickets';
@@ -10,6 +10,29 @@ vi.mock('@/hooks/useDateSettings', () => ({
     locale: 'es-AR',
   }),
 }));
+
+class LoadedImageMock {
+  private listeners = new Map<string, Array<() => void>>();
+
+  addEventListener(eventName: string, listener: () => void) {
+    const current = this.listeners.get(eventName) || [];
+    this.listeners.set(eventName, [...current, listener]);
+  }
+
+  removeEventListener(eventName: string, listener: () => void) {
+    const current = this.listeners.get(eventName) || [];
+    this.listeners.set(
+      eventName,
+      current.filter((item) => item !== listener),
+    );
+  }
+
+  set src(_value: string) {
+    setTimeout(() => {
+      this.listeners.get('load')?.forEach((listener) => listener());
+    }, 0);
+  }
+}
 
 const baseTicket: Ticket = {
   id: 378430,
@@ -23,6 +46,14 @@ const baseTicket: Ticket = {
 };
 
 describe('TicketListItem', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Image', LoadedImageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('uses the useful issue text as title when subject only repeats the category', () => {
     render(
       <TicketListItem
@@ -60,5 +91,25 @@ describe('TicketListItem', () => {
 
     expect(screen.getByRole('heading', { name: 'Bache frente a escuela' })).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('uses a real avatar url when the contact profile provides one', async () => {
+    const { container } = render(
+      <TicketListItem
+        ticket={{
+          ...baseTicket,
+          avatar_url: 'https://cdn.example.com/marcelo.jpg',
+          avatar_source: 'social',
+        }}
+        isSelected={false}
+        onClick={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      const image = container.querySelector('img');
+      expect(image).toHaveAttribute('src', 'https://cdn.example.com/marcelo.jpg');
+      expect(image).toHaveAttribute('alt', 'Marcelo');
+    });
   });
 });

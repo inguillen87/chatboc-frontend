@@ -1,0 +1,70 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getIdentityAvatarTone, getIdentityInitials, IdentityAvatar } from './IdentityAvatar';
+
+class LoadedImageMock {
+  private listeners = new Map<string, Array<() => void>>();
+
+  addEventListener(eventName: string, listener: () => void) {
+    const current = this.listeners.get(eventName) || [];
+    this.listeners.set(eventName, [...current, listener]);
+  }
+
+  removeEventListener(eventName: string, listener: () => void) {
+    const current = this.listeners.get(eventName) || [];
+    this.listeners.set(
+      eventName,
+      current.filter((item) => item !== listener),
+    );
+  }
+
+  set src(_value: string) {
+    setTimeout(() => {
+      this.listeners.get('load')?.forEach((listener) => listener());
+    }, 0);
+  }
+}
+
+describe('IdentityAvatar', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Image', LoadedImageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('builds stable initials for single and full names', () => {
+    expect(getIdentityInitials('Marcelo')).toBe('MA');
+    expect(getIdentityInitials('Ana Maria Lopez')).toBe('AL');
+    expect(getIdentityInitials('')).toBe('??');
+  });
+
+  it('keeps fallback color stable for the same identity', () => {
+    expect(getIdentityAvatarTone('Marcelo')).toBe(getIdentityAvatarTone('Marcelo'));
+    expect(getIdentityAvatarTone('Marcelo')).not.toEqual('');
+  });
+
+  it('renders a real avatar image when an url is available', async () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Marcelo Guillen"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="social"
+      />,
+    );
+
+    await waitFor(() => {
+      const image = container.querySelector('img');
+      expect(image).toHaveAttribute('src', 'https://cdn.example.com/avatar.jpg');
+      expect(image).toHaveAttribute('alt', 'Marcelo Guillen');
+    });
+  });
+
+  it('falls back to initials without inventing a fake photo', () => {
+    render(<IdentityAvatar name="Vecino Junin" />);
+
+    expect(screen.getByText('VJ')).toBeInTheDocument();
+  });
+});
