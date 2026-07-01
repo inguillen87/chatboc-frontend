@@ -25,9 +25,9 @@ const CAPABILITY_ALIASES: Record<string, string[]> = {
   'market.catalog.write': ['catalog.write', 'catalog.manage', 'inventory.write'],
   'market.orders.read': ['orders.read', 'commerce.orders.read', 'pedidos.read'],
   'market.orders.write': ['orders.write', 'commerce.orders.write', 'pedidos.write'],
-  'tickets.read': ['crm.tickets.read', 'tickets.admin', 'crm.tickets.admin', 'claims.read', 'claims.admin', 'reclamos.read', 'reclamos.admin', 'crm_reclamos'],
-  'tickets.write': ['crm.tickets.write', 'claims.write', 'reclamos.write'],
-  'tickets.assign': ['crm.tickets.assign', 'claims.assign', 'reclamos.assign'],
+  'tickets.read': ['crm.tickets.read', 'tickets.admin', 'crm.tickets.admin', 'claims.read', 'claims.admin', 'reclamos.read', 'reclamos.admin', 'crm_reclamos', 'tickets_read'],
+  'tickets.write': ['crm.tickets.write', 'claims.write', 'reclamos.write', 'tickets_update'],
+  'tickets.assign': ['crm.tickets.assign', 'claims.assign', 'reclamos.assign', 'tickets_assign'],
   'tickets.admin': ['crm.tickets.admin', 'claims.admin', 'reclamos.admin'],
 };
 

@@ -10,6 +10,10 @@ export interface ClerkExternalAccountPayload {
   id?: string | null;
   provider?: string | null;
   strategy?: string | null;
+  image_url?: string | null;
+  profile_image_url?: string | null;
+  avatar_url?: string | null;
+  picture?: string | null;
 }
 
 export interface ClerkUserProfilePayload {
@@ -21,6 +25,10 @@ export interface ClerkUserProfilePayload {
   email_addresses?: ClerkEmailAddressPayload[];
   external_accounts?: ClerkExternalAccountPayload[];
   phone_numbers?: Array<{ id?: string | null; phone_number?: string | null }>;
+  image_url?: string | null;
+  profile_image_url?: string | null;
+  avatar_url?: string | null;
+  picture?: string | null;
 }
 
 export interface ClerkOnboardingPayload {
@@ -54,6 +62,12 @@ export interface ClerkSessionResponse {
     tenantSlug?: string | null;
     email_verified?: boolean;
     telefono?: string | null;
+    avatar_url?: string | null;
+    avatar_source?: string | null;
+    avatar_consent?: boolean | string | number | null;
+    profile_picture_consent?: boolean | string | number | null;
+    picture?: string | null;
+    identity?: Record<string, unknown> | null;
   };
   tenant?: {
     id: number | string;

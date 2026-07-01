@@ -1,16 +1,22 @@
 import React from "react";
 import { motion } from "framer-motion";
-import UserAvatarAnimated from "./UserAvatarAnimated";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
 
 const UserTypingIndicator: React.FC = () => (
   <div className="flex items-end gap-2.5 justify-end">
     <motion.div
-      className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-primary/40 shadow"
+      className="flex-shrink-0 rounded-full border border-primary/40 shadow"
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <UserAvatarAnimated size={20} talking />
+      <IdentityAvatar
+        name="Usuario"
+        source="iniciales"
+        consented={false}
+        size="md"
+        className="border-0 ring-primary/30"
+      />
     </motion.div>
     <motion.div
       className="px-4 py-3 max-w-[320px] shadow-md relative bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl after:content-[''] after:absolute after:bottom-0 after:right-[-8px] after:w-0 after:h-0 after:border-8 after:border-transparent after:border-t-primary after:border-l-primary"

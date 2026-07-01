@@ -4,7 +4,6 @@ import { Message, SendPayload } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-// import UserAvatarAnimated from "./UserAvatarAnimated"; // No se usa directamente
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import MessageBubble from "./MessageBubble";

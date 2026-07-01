@@ -8,6 +8,9 @@ export const TICKET_READ_CAPABILITIES: string[] = [
   'reclamos.read',
   'reclamos.admin',
   'crm_reclamos',
+  'tickets_read',
+  'tickets_update',
+  'tickets_assign',
 ];
 
 export const ORDER_READ_CAPABILITIES: string[] = [

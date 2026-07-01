@@ -101,4 +101,31 @@ describe('CapabilitiesContext', () => {
     expect(payload.capabilities).toEqual(['crm_reclamos', 'tickets.read', 'tickets.admin']);
     expect(payload.hasTicketsRead).toBe(true);
   });
+
+  it('normalizes legacy underscore ticket permissions from old employee scopes', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        permissions: ['tickets_read'],
+        capabilities: ['tickets_update'],
+        scopes: ['tickets_assign'],
+      },
+    });
+
+    render(
+      <CapabilitiesProvider>
+        <CapabilityProbe />
+      </CapabilitiesProvider>,
+    );
+
+    const payload = JSON.parse(screen.getByTestId('capabilities').textContent || '{}');
+    expect(payload.capabilities).toEqual([
+      'tickets_read',
+      'tickets.read',
+      'tickets_update',
+      'tickets.write',
+      'tickets_assign',
+      'tickets.assign',
+    ]);
+    expect(payload.hasTicketsRead).toBe(true);
+  });
 });

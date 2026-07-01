@@ -15,11 +15,15 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import { CLERK_AUTH_ENABLED } from '@/env';
 
-const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
+export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
   id: rawUser?.id ?? null,
   first_name: rawUser?.firstName ?? null,
   last_name: rawUser?.lastName ?? null,
   username: rawUser?.username ?? null,
+  image_url: rawUser?.imageUrl ?? rawUser?.image_url ?? null,
+  profile_image_url: rawUser?.profileImageUrl ?? rawUser?.profile_image_url ?? null,
+  avatar_url: rawUser?.avatarUrl ?? rawUser?.avatar_url ?? null,
+  picture: rawUser?.imageUrl ?? rawUser?.picture ?? null,
   primary_email_address_id: rawUser?.primaryEmailAddressId ?? rawUser?.primaryEmailAddress?.id ?? null,
   email_addresses: Array.isArray(rawUser?.emailAddresses)
     ? rawUser.emailAddresses.map((email: any) => ({
@@ -39,6 +43,10 @@ const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
         id: account?.id ?? null,
         provider: account?.provider ?? account?.strategy ?? null,
         strategy: account?.strategy ?? null,
+        image_url: account?.imageUrl ?? account?.image_url ?? null,
+        profile_image_url: account?.profileImageUrl ?? account?.profile_image_url ?? null,
+        avatar_url: account?.avatarUrl ?? account?.avatar_url ?? null,
+        picture: account?.picture ?? account?.imageUrl ?? null,
       }))
     : [],
 });
