@@ -8,6 +8,7 @@ import { ApiError, resolveTenantSlug } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
+import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 
 interface TicketInboxFilters {
@@ -364,12 +365,15 @@ const normalizeAssignedAgent = (ticket: any): User | undefined => {
     const email = payload.email || payload.email_usuario || payload.emailUsuario;
 
     if (id === undefined && !nombre) return undefined;
+    const resolvedAvatar = resolveConsentedAvatar(payload as Record<string, unknown>);
 
     return {
       id: id ?? nombre ?? email ?? 'agent',
       nombre_usuario: nombre || 'Agente',
       email: email || 'desconocido@chatboc.local',
-      avatarUrl: payload.avatarUrl || payload.avatar_url || payload.avatar,
+      avatarUrl: resolvedAvatar.avatarUrl,
+      avatar_source: resolvedAvatar.source || payload.avatar_source || payload.avatarSource || payload.profile_picture_source,
+      avatar_consent: resolvedAvatar.consented || undefined,
       phone: payload.phone || payload.telefono,
       categoria_ids: payload.categoria_ids,
       categorias: payload.categorias,

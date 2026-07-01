@@ -170,6 +170,40 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
   });
 
+  it('renders received relational upload evidence with image preview and file link', async () => {
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 88,
+      customer_message: 'Recibimos tu foto para revision.',
+      source_attachment: {
+        id: 'att-88',
+        url: 'https://cdn.example.com/uploads/pedido-88.jpg',
+        name: 'pedido-88.jpg',
+        mime_type: 'image/jpeg',
+        thumbnail_url: 'https://cdn.example.com/uploads/pedido-88-thumb.jpg',
+      },
+    });
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: 'foto con pedido manuscrito' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    expect(await screen.findByText('Evidencia adjunta recibida')).toBeInTheDocument();
+    expect(screen.getByText('pedido-88.jpg')).toBeInTheDocument();
+    expect(screen.getByText('ID att-88')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /pedido-88.jpg/i })).toHaveAttribute(
+      'src',
+      'https://cdn.example.com/uploads/pedido-88-thumb.jpg',
+    );
+    expect(screen.getByRole('link', { name: /Abrir archivo/i })).toHaveAttribute(
+      'href',
+      'https://cdn.example.com/uploads/pedido-88.jpg',
+    );
+  });
+
   it('uses backend quick examples to help anonymous users create a request without knowing the catalog', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',

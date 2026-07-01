@@ -354,12 +354,10 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos', {
     element: <TicketsPanel />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
   ...withTenantPrefixes('/:tenant/tickets', {
     element: <TicketsPanel />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
   ...withTenantPrefixes('/:tenant/inbox', {
     element: <TicketInboxPage />,

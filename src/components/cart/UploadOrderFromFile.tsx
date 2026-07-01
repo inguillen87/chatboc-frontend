@@ -79,6 +79,14 @@ interface CrmOrderDraft {
   source?: Record<string, unknown> | null;
 }
 
+type SourceAttachmentView = {
+  url: string | null;
+  name: string | null;
+  id: string | null;
+  mimeType: string | null;
+  thumbnailUrl: string | null;
+};
+
 interface AssistedOrderUploadResponse {
   contract_version?: string;
   mode?: string;
@@ -588,6 +596,106 @@ const makeAbsoluteHref = (href?: string | null) => {
 const openTargetForHref = (href?: string | null) =>
   href && /^(https?:|mailto:|tel:|whatsapp:)/i.test(href) ? '_blank' : '_self';
 
+const normalizeAttachmentRecord = (
+  attachment: Record<string, unknown>,
+  source?: Record<string, unknown> | null,
+): SourceAttachmentView | null => {
+  const url = compactString(
+    attachment.url ??
+      attachment.href ??
+      attachment.archivo_url ??
+      attachment.file_url ??
+      attachment.fileUrl ??
+      attachment.download_url ??
+      attachment.downloadUrl ??
+      attachment.public_url ??
+      attachment.publicUrl ??
+      attachment.secure_url ??
+      attachment.secureUrl ??
+      source?.archivo_url,
+  );
+  const name = compactString(
+    attachment.name ??
+      attachment.filename ??
+      attachment.fileName ??
+      attachment.original_filename ??
+      attachment.originalFilename ??
+      attachment.archivo_nombre ??
+      attachment.title ??
+      attachment.label ??
+      source?.archivo_nombre ??
+      source?.original_filename,
+  );
+  const id = compactString(
+    attachment.id ??
+      attachment.attachment_id ??
+      attachment.attachmentId ??
+      attachment.source_attachment_id ??
+      attachment.sourceAttachmentId ??
+      attachment.upload_id ??
+      attachment.uploadId ??
+      attachment.file_id ??
+      attachment.fileId ??
+      source?.attachment_id ??
+      source?.source_attachment_id,
+  );
+  const mimeType = compactString(
+    attachment.mimeType ??
+      attachment.mime_type ??
+      attachment.content_type ??
+      attachment.contentType ??
+      attachment.type ??
+      source?.mime_type ??
+      source?.mimeType,
+  );
+  const thumbnailUrl = compactString(
+    attachment.thumbnailUrl ??
+      attachment.thumbnail_url ??
+      attachment.thumbUrl ??
+      attachment.thumb_url ??
+      attachment.preview_url ??
+      attachment.previewUrl ??
+      source?.thumbnail_url ??
+      source?.thumbnailUrl,
+  );
+
+  return url || name || id || mimeType || thumbnailUrl ? { url, name, id, mimeType, thumbnailUrl } : null;
+};
+
+const normalizeSourceAttachment = (payload?: unknown): SourceAttachmentView | null => {
+  if (!isRecord(payload)) return null;
+  const source = isRecord(payload.source) ? payload.source : null;
+  const candidateGroups: Array<[Record<string, unknown> | null, string[]]> = [
+    [payload, ['source_attachment', 'sourceAttachment']],
+    [payload, ['attachmentInfo', 'attachment_info']],
+    [source, ['source_attachment', 'sourceAttachment']],
+    [source, ['attachmentInfo', 'attachment_info']],
+  ];
+
+  for (const [record, keys] of candidateGroups) {
+    if (!record) continue;
+    for (const key of keys) {
+      const candidate = record[key];
+      if (isRecord(candidate)) {
+        const normalized = normalizeAttachmentRecord(candidate, source);
+        if (normalized) return normalized;
+      }
+    }
+  }
+
+  return source ? normalizeAttachmentRecord({}, source) : null;
+};
+
+const IMAGE_ATTACHMENT_EXT_RE = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i;
+
+const isImageAttachmentUrl = (url?: string | null) =>
+  Boolean(url && (/^data:image\//i.test(url) || IMAGE_ATTACHMENT_EXT_RE.test(url)));
+
+const isImageAttachment = (attachment: SourceAttachmentView) => {
+  const mimeType = attachment.mimeType?.toLowerCase() ?? '';
+  return mimeType.startsWith('image/') || mimeType === 'image' || isImageAttachmentUrl(attachment.url) || isImageAttachmentUrl(attachment.thumbnailUrl);
+};
+
 const buildWhatsappFollowUpHref = (baseHref: string | null | undefined, requestId: number | string | null) => {
   if (!baseHref) return null;
 
@@ -1021,6 +1129,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const crmDraftContactState = prettifyToken(crmDraft?.contact_state, CRM_CONTACT_STATE_LABELS);
   const crmDraftNextStep = prettifyToken(crmDraft?.recommended_next_step, CRM_NEXT_STEP_LABELS);
   const crmSuggestedReply = getCrmSuggestedReply(processedResponse);
+  const sourceAttachment = normalizeSourceAttachment(processedResponse);
+  const sourceAttachmentIsImage = sourceAttachment ? isImageAttachment(sourceAttachment) : false;
+  const sourceAttachmentPreviewUrl = sourceAttachmentIsImage ? sourceAttachment?.thumbnailUrl ?? sourceAttachment?.url : null;
   const copyFollowUpLink = async () => {
     const value = trackingHref ?? referenceCode;
     if (!value) return;
@@ -1411,12 +1522,6 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 Detectados: {matchSummary.detected ?? 0}. En catalogo: {matchSummary.matched ?? 0}. Para revisar: {matchSummary.unmatched ?? 0}.
               </span>
             ) : null}
-            {processedResponse?.source?.archivo_nombre ? (
-              <span className="mt-2 flex items-center gap-1 text-xs">
-                <FileText className="h-3.5 w-3.5" />
-                {processedResponse.source.archivo_nombre}
-              </span>
-            ) : null}
             {processedResponse?.source?.text_preview ? (
               <span className="mt-2 block rounded-md bg-white/70 p-2 text-xs">
                 Pedido escrito: {processedResponse.source.text_preview}
@@ -1430,6 +1535,45 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           </AlertDescription>
         </Alert>
       )}
+
+      {processedResponse && sourceAttachment ? (
+        <div className="rounded-xl border bg-background p-3 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            {sourceAttachmentPreviewUrl ? (
+              <img
+                src={sourceAttachmentPreviewUrl}
+                alt={sourceAttachment.name ? `Vista previa de ${sourceAttachment.name}` : 'Vista previa de evidencia adjunta'}
+                className="h-24 w-24 shrink-0 rounded-md border bg-muted object-cover"
+              />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
+                <FileText className="h-5 w-5" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 font-semibold">
+                {sourceAttachmentIsImage ? <FileImage className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-primary" />}
+                Evidencia adjunta recibida
+              </div>
+              {sourceAttachment.name ? (
+                <p className="mt-1 break-words text-sm text-muted-foreground">{sourceAttachment.name}</p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {sourceAttachment.id ? <Badge variant="outline">ID {sourceAttachment.id}</Badge> : null}
+                {sourceAttachment.mimeType ? <Badge variant="outline">{sourceAttachment.mimeType}</Badge> : null}
+                {sourceAttachment.url ? (
+                  <Button asChild size="sm" variant="outline">
+                    <a href={sourceAttachment.url} target={openTargetForHref(sourceAttachment.url)} rel="noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Abrir archivo
+                    </a>
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {hasPublicFollowUp ? (
         <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-background to-sky-50 p-4 shadow-sm dark:border-emerald-900 dark:from-emerald-950/30 dark:via-background dark:to-sky-950/20">

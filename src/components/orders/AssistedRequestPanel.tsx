@@ -19,6 +19,14 @@ type AssistedRequestPanelProps = {
   dense?: boolean;
 };
 
+type SourceAttachmentView = {
+  url: string | null;
+  name: string | null;
+  id: string | null;
+  mimeType: string | null;
+  thumbnailUrl: string | null;
+};
+
 const summaryNumber = (assistedRequest: AssistedOrderRequest, key: 'matched' | 'unmatched' | 'detected') => {
   const value = assistedRequest.match_summary?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -458,6 +466,116 @@ const makeAbsoluteHref = (href?: string | null) => {
   }
 };
 
+const normalizeAttachmentRecord = (
+  attachment: Record<string, unknown>,
+  source?: Record<string, unknown> | null,
+): SourceAttachmentView | null => {
+  const url = firstText(
+    attachment.url,
+    attachment.href,
+    attachment.archivo_url,
+    attachment.file_url,
+    attachment.fileUrl,
+    attachment.download_url,
+    attachment.downloadUrl,
+    attachment.public_url,
+    attachment.publicUrl,
+    attachment.secure_url,
+    attachment.secureUrl,
+    source?.archivo_url,
+  );
+  const name = firstText(
+    attachment.name,
+    attachment.filename,
+    attachment.fileName,
+    attachment.original_filename,
+    attachment.originalFilename,
+    attachment.archivo_nombre,
+    attachment.title,
+    attachment.label,
+    source?.archivo_nombre,
+    source?.original_filename,
+  );
+  const id = firstText(
+    attachment.id,
+    attachment.attachment_id,
+    attachment.attachmentId,
+    attachment.source_attachment_id,
+    attachment.sourceAttachmentId,
+    attachment.upload_id,
+    attachment.uploadId,
+    attachment.file_id,
+    attachment.fileId,
+    source?.attachment_id,
+    source?.source_attachment_id,
+  );
+  const mimeType = firstText(
+    attachment.mimeType,
+    attachment.mime_type,
+    attachment.content_type,
+    attachment.contentType,
+    attachment.type,
+    source?.mime_type,
+    source?.mimeType,
+  );
+  const thumbnailUrl = firstText(
+    attachment.thumbnailUrl,
+    attachment.thumbnail_url,
+    attachment.thumbUrl,
+    attachment.thumb_url,
+    attachment.preview_url,
+    attachment.previewUrl,
+    source?.thumbnail_url,
+    source?.thumbnailUrl,
+  );
+
+  return url || name || id || mimeType || thumbnailUrl ? { url, name, id, mimeType, thumbnailUrl } : null;
+};
+
+const normalizeSourceAttachment = (...payloads: unknown[]): SourceAttachmentView | null => {
+  const records = payloads.filter(isRecord);
+  const sourceFor = (record: Record<string, unknown>) => (isRecord(record.source) ? record.source : null);
+  const keyGroups = [
+    ['source_attachment', 'sourceAttachment'],
+    ['attachmentInfo', 'attachment_info'],
+  ];
+
+  for (const keys of keyGroups) {
+    for (const record of records) {
+      const source = sourceFor(record);
+      for (const key of keys) {
+        const candidate = record[key];
+        if (isRecord(candidate)) {
+          const normalized = normalizeAttachmentRecord(candidate, source);
+          if (normalized) return normalized;
+        }
+      }
+    }
+  }
+
+  for (const record of records) {
+    const source = sourceFor(record);
+    if (!source) continue;
+    for (const key of ['source_attachment', 'sourceAttachment', 'attachmentInfo', 'attachment_info']) {
+      const candidate = source[key];
+      if (isRecord(candidate)) {
+        const normalized = normalizeAttachmentRecord(candidate, source);
+        if (normalized) return normalized;
+      }
+    }
+  }
+
+  for (const record of records) {
+    const source = sourceFor(record);
+    if (source) {
+      const normalized = normalizeAttachmentRecord({}, source);
+      if (normalized) return normalized;
+    }
+  }
+
+  return null;
+};
+
 const candidateCopyText = (group: CandidateGroupView, candidate: AssistedCatalogCandidate) =>
   [
     `Item: ${group.itemLabel}`,
@@ -685,13 +803,16 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
     humanizeKey(reviewContext?.primary_missing_field),
     missingFields.length ? humanizeKey(missingFields[0]) : null,
   );
+  const sourceAttachment = normalizeSourceAttachment(crmReviewCard, assistedRequest);
+  const sourceAttachmentName = sourceAttachment?.name ?? null;
+  const sourceAttachmentId = sourceAttachment?.id ?? null;
   const triageSummaryItems = [
     operatorQueue ? { label: 'Cola', value: operatorQueue } : null,
     slaHint ? { label: 'SLA', value: slaHint } : null,
     operatorPriorityReason ? { label: 'Motivo', value: operatorPriorityReason } : null,
     primaryMissingField ? { label: 'Faltante', value: primaryMissingField } : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>;
-  const sourceFileUrl = crmReviewCard?.source?.archivo_url || assistedRequest.source?.archivo_url || null;
+  const sourceFileUrl = sourceAttachment?.url ?? null;
 
   const handleCopyOperatorSummary = async () => {
     try {
@@ -842,6 +963,16 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                     {documentProfile.input_mode === 'file' ? 'Archivo' : 'Texto'}
                   </Badge>
                 ) : null}
+                {sourceAttachmentName ? (
+                  <Badge variant="outline" className="max-w-full bg-background/80">
+                    Archivo: <span className="ml-1 truncate">{sourceAttachmentName}</span>
+                  </Badge>
+                ) : null}
+                {sourceAttachmentId ? (
+                  <Badge variant="outline" className="bg-background/80 font-mono">
+                    ID {sourceAttachmentId}
+                  </Badge>
+                ) : null}
                 {operatorQueue ? (
                   <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-100">
                     {operatorQueue}
@@ -954,7 +1085,12 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
             <div className="rounded-lg border bg-muted/20 p-3 text-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Origen</p>
               <p className="mt-1 truncate font-semibold">{sourceChannel}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{crmReviewCard.source?.input_type || documentLabel}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {sourceAttachmentName || crmReviewCard.source?.input_type || documentLabel}
+              </p>
+              {sourceAttachmentId ? (
+                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">ID {sourceAttachmentId}</p>
+              ) : null}
             </div>
           </div>
 

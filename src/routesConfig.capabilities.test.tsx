@@ -89,6 +89,22 @@ describe('routesConfig route capabilities', () => {
     expect(routeBlock).not.toContain('requiredCapabilities');
   });
 
+  it('keeps tenant ticket aliases mounted in the CRM shell instead of sending missing capabilities to /403', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+
+    for (const tenantTicketPath of ['/:tenant/reclamos', '/:tenant/tickets']) {
+      const pattern = new RegExp(
+        `\\.\\.\\.withTenantPrefixes\\('${tenantTicketPath.replace(/\//g, '\\/')}', \\{[\\s\\S]*?\\}\\),`,
+      );
+      const routeBlock = content.match(pattern)?.[0] ?? '';
+
+      expect(routeBlock).toContain('element: <TicketsPanel />');
+      expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
+      expect(routeBlock).not.toContain('requiredCapabilities');
+    }
+  });
+
   it('links template operations to the canonical WhatsApp onboarding route', () => {
     const templatesPagePath = path.resolve(__dirname, 'pages/GestionPlantillasPage.tsx');
     const content = fs.readFileSync(templatesPagePath, 'utf8');

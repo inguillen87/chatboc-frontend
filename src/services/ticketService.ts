@@ -544,14 +544,15 @@ const normalizeAssignableAgent = (raw: any): AssignableAgent | null => {
     const email = raw.email || raw.email_usuario || raw.emailUsuario;
 
     if (id === undefined && !nombre && !email) return null;
+    const resolvedAvatar = resolveConsentedAvatar(raw as Record<string, unknown>);
 
     return {
         id: id ?? nombre ?? email ?? 'agente',
         nombre_usuario: nombre || 'Agente',
         email: email || 'desconocido@chatboc.local',
-        avatarUrl: raw.avatarUrl || raw.avatar_url || raw.avatar,
-        avatar_source: raw.avatar_source || raw.avatarSource || raw.profile_picture_source,
-        avatar_consent: raw.avatar_consent ?? raw.avatarConsent ?? raw.profile_picture_consent,
+        avatarUrl: resolvedAvatar.avatarUrl,
+        avatar_source: resolvedAvatar.source || raw.avatar_source || raw.avatarSource || raw.profile_picture_source,
+        avatar_consent: resolvedAvatar.consented || undefined,
         phone: raw.phone || raw.telefono,
         categoria_id: raw.categoria_id ?? null,
         categoria_ids: raw.categoria_ids ?? null,

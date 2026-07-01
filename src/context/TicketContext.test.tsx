@@ -101,6 +101,17 @@ const CachedInboxConsumer = () => {
   );
 };
 
+const AssignedAgentAvatarConsumer = () => {
+  const { tickets } = useTickets();
+  return (
+    <div data-testid="assigned-agent-avatars">
+      {tickets
+        .map((ticket) => `${ticket.nro_ticket}:${ticket.assignedAgent?.avatarUrl || 'fallback'}`)
+        .join('|')}
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
@@ -358,6 +369,59 @@ describe('TicketContext unread delta reconciliation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('visible-tickets').textContent).toBe('');
       expect(screen.getByTestId('selected-ticket').textContent).toBe('none');
+    });
+  });
+
+  it('keeps assigned agent avatars behind the same consent contract as public contacts', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-RAW',
+          asunto: 'Alumbrado',
+          estado: 'abierto',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'General',
+          assignedAgent: {
+            id: 5,
+            nombre: 'Operador sin permiso',
+            email: 'raw@junin.gob.ar',
+            avatar_url: 'https://cdn.example.com/profile/raw.webp',
+            avatar_source: 'whatsapp_profile',
+            avatar_consent: true,
+          },
+        },
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-OK',
+          asunto: 'Bache',
+          estado: 'abierto',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'General',
+          assignedAgent: {
+            id: 6,
+            nombre: 'Operador autorizado',
+            email: 'ok@junin.gob.ar',
+            avatar_url: 'https://cdn.example.com/profile/agent.webp',
+            avatar_source: 'agent_profile',
+            avatar_consent: true,
+          },
+        },
+      ],
+    });
+
+    render(
+      <TicketProvider>
+        <AssignedAgentAvatarConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('assigned-agent-avatars').textContent).toBe(
+        'REC-RAW:fallback|REC-OK:https://cdn.example.com/profile/agent.webp',
+      );
     });
   });
 

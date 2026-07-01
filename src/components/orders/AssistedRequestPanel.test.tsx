@@ -310,6 +310,48 @@ describe('AssistedRequestPanel', () => {
     expect(screen.queryByText('Alternativas de catalogo')).toBeNull();
   });
 
+  it('uses relational sourceAttachment url before legacy source file fields in admin actions', () => {
+    render(
+      <AssistedRequestPanel
+        order={{
+          ...baseOrder,
+          crm_review_card: {
+            contract_version: 'marketplace.crm_review_card.v1',
+            reference: 'pedido:77',
+            request_kind_label: 'Nota de pedido',
+            status: 'needs_review',
+            priority: 'normal',
+            recommended_next_step: 'Revisar archivo adjunto',
+            summary: { detected: 1, matched: 0, unmatched: 1 },
+            sourceAttachment: {
+              id: 'upload-rel-77',
+              url: 'https://files.example.com/relational/nota-relacional.pdf',
+              name: 'nota-relacional.pdf',
+              mimeType: 'application/pdf',
+            },
+            source: {
+              channel: 'marketplace',
+              input_type: 'pdf',
+              archivo_url: 'https://files.example.com/legacy/nota-vieja.pdf',
+              archivo_nombre: 'nota-vieja.pdf',
+            },
+            lines: [],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText('nota-relacional.pdf').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('ID upload-rel-77').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('nota-vieja.pdf')).toBeNull();
+
+    const fileLinks = screen.getAllByRole('link', { name: /Ver archivo/i });
+    expect(fileLinks.length).toBeGreaterThanOrEqual(1);
+    fileLinks.forEach((link) => {
+      expect(link.getAttribute('href')).toBe('https://files.example.com/relational/nota-relacional.pdf');
+    });
+  });
+
   it('labels failed assisted extraction as manual review instead of optimistic AI', () => {
     render(
       <AssistedRequestPanel

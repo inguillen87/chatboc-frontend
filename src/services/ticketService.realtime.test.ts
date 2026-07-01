@@ -21,6 +21,7 @@ vi.mock('@/utils/anonIdGenerator', () => ({
 }));
 
 import {
+  getAssignableAgents,
   getTenantTicketAiEnrichment,
   getTicketByNumber,
   isTicketAiEnrichmentUnavailable,
@@ -257,6 +258,37 @@ describe('ticketService realtime normalization', () => {
     expect(ticketWithNestedAvatar.avatarUrl).toBe('https://cdn.example.com/profile/marcelo-consented.jpg');
     expect(ticketWithNestedAvatar.avatar_source).toBe('profile_upload');
     expect(ticketWithNestedAvatar.avatar_consent).toBe(true);
+  });
+
+  it('normalizes assignable agent avatars through the consent policy', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      employees: [
+        {
+          id: 10,
+          nombre: 'Operador sin consentimiento',
+          email: 'sin-consentimiento@junin.gob.ar',
+          avatar_url: 'https://cdn.example.com/profile/raw-agent.webp',
+          avatar_source: 'mock_avatar',
+        },
+        {
+          id: 11,
+          nombre: 'Operador autorizado',
+          email: 'autorizado@junin.gob.ar',
+          avatar_url: 'https://cdn.example.com/profile/agent.webp',
+          avatar_source: 'agent_profile',
+          avatar_consent: true,
+        },
+      ],
+    });
+
+    const agents = await getAssignableAgents('municipio');
+
+    expect(agents).toHaveLength(2);
+    expect(agents[0].avatarUrl).toBeUndefined();
+    expect(agents[0].avatar_consent).toBeUndefined();
+    expect(agents[1].avatarUrl).toBe('https://cdn.example.com/profile/agent.webp');
+    expect(agents[1].avatar_source).toBe('agent_profile');
+    expect(agents[1].avatar_consent).toBe(true);
   });
 
   it('routes public PyME replies to the cliente endpoint with anonymous widget access', async () => {
