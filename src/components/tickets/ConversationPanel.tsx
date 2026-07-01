@@ -170,6 +170,16 @@ const dedupeChatMessages = (items: ChatMessageData[]): ChatMessageData[] => {
   return accepted;
 };
 
+export const shouldShowOperationalTimelineInChat = ({
+  eventCount,
+  isMobile,
+  isDetailsVisible,
+}: {
+  eventCount: number;
+  isMobile: boolean;
+  isDetailsVisible: boolean;
+}) => eventCount > 0 && (isMobile || !isDetailsVisible);
+
 type TicketAttachment = NonNullable<TicketMessage['attachments']>[number];
 
 const normalizeAttachmentFromPayload = (raw: any): TicketAttachment | null => {
@@ -425,6 +435,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }),
     [timelineItems],
   );
+  const showOperationalTimelineInChat = shouldShowOperationalTimelineInChat({
+    eventCount: operationalTimelineItems.length,
+    isMobile,
+    isDetailsVisible,
+  });
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
   const operationalGuidance = useMemo(
     () => (selectedTicket ? deriveTicketOperationalGuidance(selectedTicket) : null),
@@ -1014,8 +1029,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
                 </div>
               )}
-              {operationalTimelineItems.length > 0 && (
-                <div className="mb-4 space-y-2 rounded-lg border border-border/60 bg-background/80 p-3">
+              {showOperationalTimelineInChat && (
+                <div
+                  className="mb-4 space-y-2 rounded-lg border border-border/60 bg-background/80 p-3"
+                  data-testid="ticket-operational-timeline"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad del reclamo</p>
                     <Badge variant="outline" className="text-[11px]">

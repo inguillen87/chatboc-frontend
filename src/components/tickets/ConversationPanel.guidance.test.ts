@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { shouldShowOperationalTimelineInChat } from './ConversationPanel';
 import { buildOperationalReplyDraft } from './ticketOperationalGuidance';
 import type { Ticket } from '@/types/tickets';
 
@@ -44,5 +45,34 @@ describe('buildOperationalReplyDraft', () => {
 
     expect(draft).toMatch(/Registramos tu consulta/i);
     expect(draft).toMatch(/por Arreglo de calle/i);
+  });
+});
+
+describe('shouldShowOperationalTimelineInChat', () => {
+  it('keeps operational activity out of the desktop chat when details are visible', () => {
+    expect(
+      shouldShowOperationalTimelineInChat({
+        eventCount: 3,
+        isMobile: false,
+        isDetailsVisible: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('shows operational activity when the chat is the only visible pane', () => {
+    expect(
+      shouldShowOperationalTimelineInChat({
+        eventCount: 3,
+        isMobile: false,
+        isDetailsVisible: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowOperationalTimelineInChat({
+        eventCount: 3,
+        isMobile: true,
+        isDetailsVisible: true,
+      }),
+    ).toBe(true);
   });
 });

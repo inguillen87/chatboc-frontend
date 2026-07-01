@@ -197,7 +197,19 @@ const applyConsentedAvatar = <T extends Partial<Ticket> & Record<string, any>>(t
         ticket.user && typeof ticket.user === 'object'
             ? (ticket.user as unknown as Record<string, unknown>)
             : undefined;
-    const resolved = resolveConsentedAvatar(ticket, userRecord);
+    const contactRecord =
+        ticket.contact && typeof ticket.contact === 'object'
+            ? (ticket.contact as unknown as Record<string, unknown>)
+            : undefined;
+    const whatsappProfileRecord =
+        ticket.nombre_y_avatar_whatsapp && typeof ticket.nombre_y_avatar_whatsapp === 'object'
+            ? (ticket.nombre_y_avatar_whatsapp as unknown as Record<string, unknown>)
+            : undefined;
+    const personalRecord =
+        ticket.informacion_personal_vecino && typeof ticket.informacion_personal_vecino === 'object'
+            ? (ticket.informacion_personal_vecino as unknown as Record<string, unknown>)
+            : undefined;
+    const resolved = resolveConsentedAvatar(ticket, contactRecord, whatsappProfileRecord, personalRecord, userRecord);
 
     return {
         ...ticket,
@@ -538,6 +550,8 @@ const normalizeAssignableAgent = (raw: any): AssignableAgent | null => {
         nombre_usuario: nombre || 'Agente',
         email: email || 'desconocido@chatboc.local',
         avatarUrl: raw.avatarUrl || raw.avatar_url || raw.avatar,
+        avatar_source: raw.avatar_source || raw.avatarSource || raw.profile_picture_source,
+        avatar_consent: raw.avatar_consent ?? raw.avatarConsent ?? raw.profile_picture_consent,
         phone: raw.phone || raw.telefono,
         categoria_id: raw.categoria_id ?? null,
         categoria_ids: raw.categoria_ids ?? null,

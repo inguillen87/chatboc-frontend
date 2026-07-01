@@ -8,6 +8,8 @@ export interface PresenceUser {
   type: 'user' | 'agent';
   status: 'online' | 'offline' | 'idle';
   avatarUrl?: string;
+  avatarSource?: string;
+  avatarConsent?: boolean | string | number | null;
 }
 
 interface PresenceAvatarsProps {
@@ -29,7 +31,8 @@ export const PresenceAvatars: React.FC<PresenceAvatarsProps> = ({ users }) => {
                 <IdentityAvatar
                   name={user.name}
                   avatarUrl={user.avatarUrl}
-                  source={user.type === 'agent' ? 'agente' : 'contacto'}
+                  source={user.avatarSource || (user.type === 'agent' ? 'agent_profile' : 'contact_profile')}
+                  consented={user.avatarConsent}
                   size="sm"
                   className={`border-2 border-background shadow-sm ${user.type === 'agent' ? 'ring-1 ring-primary' : ''}`}
                 />

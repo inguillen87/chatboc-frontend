@@ -22,6 +22,8 @@ export interface User {
   email: string;
   email_usuario?: string;
   avatarUrl?: string;
+  avatar_source?: string;
+  avatar_consent?: boolean | string | number | null;
   location?: string;
   phone?: string;
   horario?: Horario;
@@ -225,6 +227,13 @@ export interface Ticket {
   contact_avatar_url?: string;
   profile_picture_url?: string;
   profile_picture_consent?: boolean | string | number | null;
+  nombre_y_avatar_whatsapp?: {
+    nombre?: string | null;
+    avatar_url?: string | null;
+    avatar_source?: string | null;
+    avatar_consent?: boolean | string | number | null;
+    avatar_policy?: string | null;
+  } | null;
   history?: TicketHistoryEvent[];
 
   categoria_id?: number;

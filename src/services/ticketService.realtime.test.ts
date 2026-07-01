@@ -228,6 +228,30 @@ describe('ticketService realtime normalization', () => {
     expect(ticketWithUntrustedAvatar.avatar_consent).toBeUndefined();
   });
 
+  it('uses consented avatar metadata from nested contact contracts', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 504,
+      tipo: 'municipio',
+      nro_ticket: 'M-504',
+      asunto: 'Reclamo',
+      estado: 'nuevo',
+      fecha: '2026-06-06T03:03:47.626Z',
+      nombre_y_avatar_whatsapp: {
+        nombre: 'Marcelo',
+        avatar_url: 'https://cdn.example.com/profile/marcelo-consented.jpg',
+        avatar_source: 'profile_upload',
+        avatar_consent: true,
+      },
+      mensajes: [{ id: 4, mensaje: 'Consulta inicial', es_admin: false, timestamp: '2026-06-06T03:04:47.626Z' }],
+    });
+
+    const ticketWithNestedAvatar = await getTicketByNumber('M-504', '900144');
+
+    expect(ticketWithNestedAvatar.avatarUrl).toBe('https://cdn.example.com/profile/marcelo-consented.jpg');
+    expect(ticketWithNestedAvatar.avatar_source).toBe('profile_upload');
+    expect(ticketWithNestedAvatar.avatar_consent).toBe(true);
+  });
+
   it('routes public PyME replies to the cliente endpoint with anonymous widget access', async () => {
     apiFetchMock.mockResolvedValueOnce({
       success: true,

@@ -9,6 +9,8 @@ interface Agent {
   name: string;
   email: string;
   avatarUrl?: string;
+  avatarSource?: string;
+  avatarConsent?: boolean | string | number | null;
 }
 
 interface AssignmentWidgetProps {
@@ -26,7 +28,13 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
         <Button variant="outline" size="sm" className="h-8 gap-2 px-2.5">
           {currentAssignee ? (
              <>
-               <IdentityAvatar name={currentAssignee.name} avatarUrl={currentAssignee.avatarUrl} source="agente" size="xs" />
+               <IdentityAvatar
+                 name={currentAssignee.name}
+                 avatarUrl={currentAssignee.avatarUrl}
+                 source={currentAssignee.avatarSource || "agent_profile"}
+                 consented={currentAssignee.avatarConsent}
+                 size="xs"
+               />
                <span className="text-xs truncate max-w-[100px]">{currentAssignee.name}</span>
              </>
           ) : (
@@ -67,7 +75,14 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
                   setOpen(false);
                }}
              >
-               <IdentityAvatar name={agent.name} avatarUrl={agent.avatarUrl} source="agente" size="sm" className="mr-2" />
+               <IdentityAvatar
+                 name={agent.name}
+                 avatarUrl={agent.avatarUrl}
+                 source={agent.avatarSource || "agent_profile"}
+                 consented={agent.avatarConsent}
+                 size="sm"
+                 className="mr-2"
+               />
                <div className="flex flex-col items-start overflow-hidden">
                  <span className="text-xs font-medium truncate">{agent.name}</span>
                  <span className="text-[10px] text-muted-foreground truncate">{agent.email}</span>

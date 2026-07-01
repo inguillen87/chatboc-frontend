@@ -30,6 +30,13 @@ describe('avatarConsent', () => {
         consented: true,
       }),
     ).toBe(true);
+
+    expect(
+      shouldRenderProfileImage({
+        avatarUrl: 'https://cdn.example.com/profile/manual.jpg',
+        source: 'profile_url',
+      }),
+    ).toBe(false);
   });
 
   it('blocks WhatsApp profile pictures even when a URL is present', () => {

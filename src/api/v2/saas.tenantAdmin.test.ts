@@ -198,6 +198,49 @@ describe("tenant admin v2 contracts", () => {
     });
   });
 
+  it("preserves consented avatar metadata for contacts and live presence", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: "conv-1",
+        title: "Consulta de vecino",
+        status: "nuevo",
+        contact: {
+          name: "Marcelo",
+          avatar_url: "https://cdn.example.com/profile/marcelo.webp",
+          avatar_source: "profile_upload",
+          avatar_consent: true,
+        },
+        presence: [
+          {
+            viewer_id: "viewer-1",
+            viewer_name: "Marcelo",
+            role: "user",
+            state: "active",
+            avatar_url: "https://cdn.example.com/profile/marcelo.webp",
+            avatar_source: "profile_upload",
+            avatar_consent: true,
+          },
+        ],
+      },
+    });
+
+    expect(normalized.item.contact).toMatchObject({
+      avatarUrl: "https://cdn.example.com/profile/marcelo.webp",
+      avatar_source: "profile_upload",
+      avatar_consent: true,
+    });
+    expect(normalized.item.presence[0]).toMatchObject({
+      id: "viewer-1",
+      name: "Marcelo",
+      type: "user",
+      status: "online",
+      avatarUrl: "https://cdn.example.com/profile/marcelo.webp",
+      avatarSource: "profile_upload",
+      avatarConsent: true,
+    });
+  });
+
   it("normalizes production smoke report", () => {
     const normalized = normalizeProductionSmokeV2({
       contract_version: "platform.production_smoke.v1",

@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Mail,
   MapPin,
@@ -462,8 +462,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     dni: normalizePersonalValue(getCitizenDni(ticket)),
   };
   const emailHref = personal.email ? `mailto:${personal.email}` : undefined;
-  const phoneHref = personal.telefono
-    ? `https://wa.me/${personal.telefono.replace(/\D/g, '')}`
+  const phoneDigits = personal.telefono.replace(/\D/g, '');
+  const phoneHref = phoneDigits
+    ? `https://wa.me/${phoneDigits}`
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
 
@@ -841,6 +842,97 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               )}
             </CardContent>
           </Card>
+          <Card className="border-border/70 bg-background/95 shadow-sm" data-testid="ticket-operator-contact-card">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-start gap-3">
+                <IdentityAvatar
+                  name={displayName || personal.telefono || personal.email || `Ticket ${ticket.id}`}
+                  avatarUrl={neighborAvatarUrl}
+                  source={neighborAvatarSource}
+                  consented={neighborAvatar.consented}
+                  size="lg"
+                  className="h-12 w-12 flex-shrink-0 text-sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+                      {displayName || 'Contacto sin nombre'}
+                    </p>
+                    <Badge variant="outline" className="shrink-0 text-[11px]">
+                      Vecino/a
+                    </Badge>
+                  </div>
+                  <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
+                    <p className="truncate">
+                      {personal.telefono || 'Telefono no informado'}
+                    </p>
+                    <p className="truncate">
+                      {personal.direccion || 'Direccion no informada'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {phoneHref ? (
+                  <Button asChild variant="outline" size="sm" className="h-9 gap-2">
+                    <a href={phoneHref} target="_blank" rel="noreferrer">
+                      <span className="flex h-4 w-4 items-center justify-center text-green-500">
+                        <FaWhatsapp />
+                      </span>
+                      WhatsApp
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
+                    <span className="flex h-4 w-4 items-center justify-center text-muted-foreground">
+                      <FaWhatsapp />
+                    </span>
+                    WhatsApp
+                  </Button>
+                )}
+                {emailHref ? (
+                  <Button asChild variant="outline" size="sm" className="h-9 gap-2">
+                    <a href={emailHref}>
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2"
+                  onClick={openGoogleMaps}
+                  disabled={!personal.direccion && !locationTicket?.latitud && !locationTicket?.lat_destino}
+                >
+                  <MapPin className="h-4 w-4" />
+                  Mapa
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 gap-2"
+                  onClick={() => copyToClipboard(
+                    [displayName, personal.telefono, personal.email, personal.direccion]
+                      .filter(Boolean)
+                      .join(' - '),
+                    'Contacto',
+                  )}
+                  disabled={!displayName && !personal.telefono && !personal.email && !personal.direccion}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
           <AiAssistPanel ticket={ticket} />
           <TicketLogisticsSummary
             ticket={locationTicket || ticket}
@@ -848,31 +940,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             historyOverride={timelineHistory}
             onOpenMap={openGoogleMaps}
           />
-          <Card>
-            <CardHeader className="p-4">
-              <div className="flex items-start gap-4">
-                <IdentityAvatar
-                  name={displayName}
-                  avatarUrl={neighborAvatarUrl}
-                  source={neighborAvatarSource}
-                  consented={neighborAvatar.consented}
-                  size="lg"
-                  className="h-14 w-14 flex-shrink-0 text-base"
-                />
-                <div className="min-w-0 flex-1">
-                  <h2
-                    className={cn(
-                      'break-words text-lg font-semibold',
-                      !displayName && 'text-muted-foreground',
-                    )}
-                  >
-                    {displayName || 'No especificado'}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">Vecino/a</p>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
 
           <Accordion
             type="multiple"

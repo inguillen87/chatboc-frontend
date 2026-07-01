@@ -3,7 +3,6 @@ const CONSENTED_SOURCE_VALUES = new Set([
   'consentida',
   'consented',
   'imagen_consentida',
-  'profile_url',
   'profile_upload',
   'profile_picture',
   'user_upload',

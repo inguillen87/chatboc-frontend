@@ -160,6 +160,8 @@ export interface OmnichannelPresenceUser {
   type: 'user' | 'agent';
   status: 'online' | 'offline' | 'idle';
   avatarUrl?: string;
+  avatarSource?: string;
+  avatarConsent?: boolean | string | number | null;
   raw?: unknown;
 }
 
@@ -946,18 +948,31 @@ export const normalizeNotificationDeliveryStatusV2 = (response: unknown): Notifi
   };
 };
 
+const asAvatarConsent = (value: unknown): OmnichannelPresenceUser['avatarConsent'] => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value;
+  if (value === null) return null;
+  return undefined;
+};
+
 const normalizePresence = (value: unknown): OmnichannelPresenceUser[] =>
   asArray(value).map((item, index) => {
     const record = asRecord(item);
     const id = asString(getFirst(record, ['id', 'user_id', 'viewer_id', 'session_id'])) ?? `presence_${index + 1}`;
     const rawType = asString(getFirst(record, ['type', 'role', 'actor_type'])) ?? 'user';
     const rawStatus = asString(getFirst(record, ['status', 'presence_status', 'state'])) ?? 'offline';
+    const avatarConsent = asAvatarConsent(
+      getFirst(record, ['avatarConsent', 'avatar_consent', 'avatar_is_consented', 'profile_picture_consent']),
+    );
     return {
       id,
       name: asString(getFirst(record, ['name', 'label', 'viewer_name', 'viewer_label'])) ?? id,
       type: rawType === 'agent' || rawType === 'employee' || rawType === 'admin' ? 'agent' : 'user',
       status: rawStatus === 'online' || rawStatus === 'active' ? 'online' : rawStatus === 'idle' ? 'idle' : 'offline',
       avatarUrl: asString(getFirst(record, ['avatarUrl', 'avatar_url', 'image_url'])),
+      avatarSource: asString(getFirst(record, ['avatarSource', 'avatar_source', 'profile_picture_source', 'picture_source'])),
+      avatarConsent,
       raw: item,
     };
   });
@@ -1065,10 +1080,22 @@ const normalizeInboxContact = (value: UnknownRecord): UnknownRecord => {
   const phone =
     asString(getFirst(contact, ['phone', 'telefono', 'telefono_vecino', 'telefono_cliente'])) ??
     asString(getFirst(value, ['telefono_vecino', 'telefono', 'phone', 'telefono_cliente', 'customer_phone']));
+  const avatarUrl =
+    asString(getFirst(contact, ['avatarUrl', 'avatar_url', 'contact_avatar_url', 'profile_picture_url', 'picture'])) ??
+    asString(getFirst(value, ['avatarUrl', 'avatar_url', 'contact_avatar_url', 'profile_picture_url', 'picture']));
+  const avatarSource =
+    asString(getFirst(contact, ['avatarSource', 'avatar_source', 'profile_picture_source', 'picture_source'])) ??
+    asString(getFirst(value, ['avatarSource', 'avatar_source', 'profile_picture_source', 'picture_source']));
+  const avatarConsent =
+    getFirst(contact, ['avatarConsent', 'avatar_consent', 'avatar_is_consented', 'profile_picture_consent']) ??
+    getFirst(value, ['avatarConsent', 'avatar_consent', 'avatar_is_consented', 'profile_picture_consent']);
   return {
     ...contact,
     ...(name ? { name, nombre: name, nombre_vecino: name } : {}),
     ...(phone ? { phone, telefono: phone, telefono_vecino: phone } : {}),
+    ...(avatarUrl ? { avatarUrl, avatar_url: avatarUrl } : {}),
+    ...(avatarSource ? { avatarSource, avatar_source: avatarSource } : {}),
+    ...(avatarConsent !== undefined ? { avatarConsent, avatar_consent: avatarConsent } : {}),
   };
 };
 
