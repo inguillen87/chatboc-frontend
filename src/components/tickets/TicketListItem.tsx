@@ -50,6 +50,8 @@ const getInitials = (name: string) => {
     : '—';
 
   const subject = ticket.categoria || ticket.asunto || 'Sin asunto';
+  const displayName = normalizeText(ticket.display_name) || 'Contacto sin nombre';
+  const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
 
   return (
     <button
@@ -70,17 +72,19 @@ const getInitials = (name: string) => {
           {unreadViewers > 0 ? unreadViewers : '•'}
         </span>
       )}
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={ticket.avatarUrl} alt={ticket.display_name} />
-            <AvatarFallback>{getInitials(ticket.display_name || '')}</AvatarFallback>
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarImage src={ticket.avatarUrl} alt={displayName} />
+            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <h4 className="truncate text-sm font-semibold leading-5" title={ticket.display_name}>
-              {ticket.display_name}
+          <div className="min-w-0 space-y-0.5">
+            <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
+              {subject}
             </h4>
-            <p className="max-w-[12rem] truncate text-xs text-muted-foreground">{ticket.nro_ticket}</p>
+            <p className="truncate text-xs text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+              {ticketNumber} - {displayName}
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -109,9 +113,8 @@ const getInitials = (name: string) => {
           })()}
         </div>
       </div>
-      <p className="mb-1.5 ml-[52px] line-clamp-1 text-sm font-semibold leading-5">{subject}</p>
       {(priorityLabel || slaLabel || assignedLabel) && (
-        <div className="mb-2 ml-[52px] flex flex-wrap gap-1.5">
+        <div className="mb-2 flex flex-wrap gap-1.5 pl-[52px]">
           {priorityLabel ? (
             <Badge
               variant="outline"
@@ -145,9 +148,9 @@ const getInitials = (name: string) => {
           ) : null}
         </div>
       )}
-      <p className="ml-[52px] line-clamp-2 text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
+      <p className="line-clamp-2 pl-[52px] text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
       {nextAction ? (
-        <p className="ml-[52px] mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary">
+        <p className="mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary sm:ml-[52px]">
           {nextAction}
         </p>
       ) : null}

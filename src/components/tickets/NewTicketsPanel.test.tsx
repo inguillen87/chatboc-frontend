@@ -111,7 +111,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(400px, 460px) minmax(520px, 1fr)',
+      gridTemplateColumns: 'minmax(360px, 420px) minmax(520px, 1fr)',
     });
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
   });

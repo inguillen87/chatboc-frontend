@@ -789,6 +789,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       toast.error('No se pudo actualizar el estado.');
     }
   };
+  const conversationTitle = selectedTicket.categoria || selectedTicket.asunto || selectedTicket.name || 'Conversacion';
+  const conversationSubtitle = [
+    selectedTicket.nro_ticket || `#${selectedTicket.id}`,
+    selectedTicket.name,
+  ].filter(Boolean).join(' - ');
 
   return (
     <motion.div
@@ -817,7 +822,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-foreground sm:text-base">{selectedTicket.name}</h2>
+              <h2 className="truncate text-sm font-semibold text-foreground sm:text-base" title={conversationTitle}>
+                {conversationTitle}
+              </h2>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground" title={conversationSubtitle}>
+                {conversationSubtitle}
+              </p>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className="capitalize text-xs">
                   {formatTicketStatusLabel(selectedTicket.estado)}
@@ -1002,7 +1012,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-border bg-background/95 p-2.5">
+      <footer className="shrink-0 border-t border-border/80 bg-card/95 p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)]">
         {attachmentPreview && (
           <div className="relative mb-2 flex w-full items-center gap-3 rounded-lg bg-muted p-2">
             {attachmentPreview.previewUrl ? (
@@ -1047,10 +1057,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           </div>
         ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end" data-testid="ticket-composer">
           <Textarea
             placeholder={composerPlaceholder}
-            className="min-h-[44px] max-h-32 flex-1 resize-none pr-3"
+            className="min-h-[52px] max-h-36 flex-1 resize-none rounded-[8px] border-border/80 bg-background pr-3 text-sm leading-5 shadow-sm focus-visible:ring-primary/40"
             rows={1}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -1064,7 +1074,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             maxLength={1000}
             aria-label="Responder ticket"
           />
-          <div className="flex w-full shrink-0 items-center justify-between gap-1 rounded-lg border border-border/70 bg-muted/30 p-1 sm:w-auto sm:justify-end">
+          <div className="flex w-full shrink-0 items-center justify-between gap-1 rounded-[8px] border border-border/70 bg-muted/30 p-1 sm:w-auto sm:justify-end">
             <div className="flex items-center gap-1">
               {selectedTicket && (
                 <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
@@ -1080,7 +1090,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               )}
               <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
             </div>
-            <Button className="h-10 min-w-10 px-3" onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
+            <Button className="h-10 min-w-10 rounded-[8px] px-3" onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
           </div>

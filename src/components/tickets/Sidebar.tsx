@@ -463,7 +463,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
           aria-controls={filterPanelId}
         >
           <SlidersHorizontal className="h-4 w-4 text-primary" />
-          <span className="hidden sm:inline">Filtros</span>
+          <span className={cn('hidden sm:inline', compact && 'sr-only')}>Filtros</span>
           {hasSecondaryFilters ? (
             <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold text-primary">
               {secondaryFilterCount}
@@ -751,9 +751,14 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             {compact ? filterPopover : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 px-2">
-                  <FileDown className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Exportar</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn('h-8 px-2', compact && 'w-8 px-0')}
+                  title="Exportar"
+                >
+                  <FileDown className={cn('h-4 w-4', !compact && 'sm:mr-2')} />
+                  <span className={cn('hidden sm:inline', compact && 'sr-only')}>Exportar</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

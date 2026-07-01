@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
-import { Order } from '@/types/unified';
+import { CrmReviewCard, Order } from '@/types/unified';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
+import { ClipboardList, Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { cn } from '@/lib/utils';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -58,11 +59,15 @@ const normalizeOrders = (raw: unknown): Order[] => {
 };
 
 const assistedSummaryNumber = (order: Order, key: 'matched' | 'unmatched' | 'detected') => {
+  const cardValue = order.crm_review_card?.summary?.[key];
+  if (typeof cardValue === 'number' && Number.isFinite(cardValue)) return cardValue;
   const value = order.assisted_request?.match_summary?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 };
 
 const crmStateLabel = (state?: string | null) => {
+  if (state === 'needs_review') return 'Revisar en CRM';
+  if (state === 'ready_to_reply') return 'Listo para responder';
   if (state === 'ready_for_confirmation') return 'Listo para confirmar';
   if (state === 'pending_operator_review') return 'Revisar en CRM';
   return 'Pedido asistido';
@@ -92,6 +97,16 @@ const firstText = (...values: unknown[]) => {
   return null;
 };
 
+type CrmReviewCardView = {
+  title: string;
+  summary: string | null;
+  statusLabel: string | null;
+  priorityLabel: string | null;
+  nextStep: string | null;
+  reasons: string[];
+  metrics: Array<{ label: string; value: string }>;
+};
+
 const flattenSearchText = (value: unknown): string => {
   const primitive = textValue(value);
   if (primitive) return primitive;
@@ -109,12 +124,116 @@ const normalizeSearchText = (value: unknown) =>
 const getAssistedPreview = (order: Order) => {
   const assistedRequest = order.assisted_request;
   return firstText(
+    order.crm_review_card?.suggested_reply,
+    order.crm_review_card?.source?.text_preview,
     assistedRequest?.customer_message,
     assistedRequest?.source?.text_preview,
     assistedRequest?.structured_extraction?.fields?.resumen,
     assistedRequest?.review_context?.summary,
     order.notes,
   );
+};
+
+const formatCardValue = (value: unknown): string | null => {
+  const primitive = textValue(value)?.trim();
+  if (primitive) return primitive;
+  if (Array.isArray(value)) {
+    return value.map(formatCardValue).filter(Boolean).join(', ') || null;
+  }
+  if (isRecord(value)) {
+    const direct = firstText(value.label, value.text, value.value, value.summary, value.resumen);
+    if (direct) return direct;
+    const parts = Object.entries(value)
+      .map(([key, item]) => {
+        const formatted = formatCardValue(item);
+        return formatted ? `${key.replace(/_/g, ' ')}: ${formatted}` : null;
+      })
+      .filter(Boolean);
+    return parts.slice(0, 4).join(' - ') || null;
+  }
+  return null;
+};
+
+const normalizeReviewReasons = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(formatCardValue)
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 4);
+};
+
+const normalizeReviewMetrics = (value: unknown): Array<{ label: string; value: string }> => {
+  if (Array.isArray(value)) {
+    return value
+      .filter(isRecord)
+      .map((item) => {
+        const label = firstText(item.label, item.title, item.key, item.name);
+        const metricValue = formatCardValue(item.value ?? item.count ?? item.total ?? item.amount);
+        return label && metricValue ? { label, value: metricValue } : null;
+      })
+      .filter((item): item is { label: string; value: string } => Boolean(item))
+      .slice(0, 4);
+  }
+
+  if (!isRecord(value)) return [];
+  return Object.entries(value)
+    .map(([key, item]) => {
+      const formatted = formatCardValue(item);
+      return formatted ? { label: key.replace(/_/g, ' '), value: formatted } : null;
+    })
+    .filter((item): item is { label: string; value: string } => Boolean(item))
+    .slice(0, 4);
+};
+
+const normalizeCrmReviewCard = (value: unknown): CrmReviewCardView | null => {
+  if (!isRecord(value)) return null;
+  const card = value as CrmReviewCard;
+  const title = firstText(card.title, card.label, card.heading, card.name) || 'Resumen CRM';
+  const summary =
+    firstText(card.summary, card.resumen, card.description, card.review_summary, card.text) ||
+    formatCardValue(card.summary) ||
+    formatCardValue(card.resumen);
+  const statusLabel = firstText(card.status_label, card.status, card.state, card.crm_state);
+  const priorityLabel = firstText(card.priority_label, card.priority, card.urgency);
+  const nextStep = firstText(card.recommended_next_step, card.next_step, card.next_action, card.action);
+  const reasons = [
+    ...normalizeReviewReasons(card.review_reasons),
+    ...normalizeReviewReasons(card.reasons),
+    ...normalizeReviewReasons(card.highlights),
+  ].slice(0, 4);
+  const metrics = [
+    ...normalizeReviewMetrics(card.metrics),
+    ...normalizeReviewMetrics(card.kpis),
+    ...normalizeReviewMetrics(card.summary_metrics),
+  ].slice(0, 4);
+
+  if (!summary && !statusLabel && !priorityLabel && !nextStep && reasons.length === 0 && metrics.length === 0) {
+    return null;
+  }
+
+  return { title, summary, statusLabel, priorityLabel, nextStep, reasons, metrics };
+};
+
+const getCrmReviewCard = (order: Order): CrmReviewCardView | null => {
+  const rawOrder = order as unknown as Record<string, unknown>;
+  const assistedRequest = order.assisted_request as (Record<string, unknown> | null | undefined);
+  const metadata = isRecord(order.metadata) ? order.metadata : {};
+  const metadataCrm = isRecord(metadata.crm) ? metadata.crm : {};
+  const operatorPack = isRecord(assistedRequest?.operator_pack) ? assistedRequest.operator_pack : {};
+  const sources = [
+    order.crm_review_card,
+    rawOrder.crm_review_card,
+    assistedRequest?.crm_review_card,
+    operatorPack.crm_review_card,
+    metadata.crm_review_card,
+    metadataCrm.review_card,
+  ];
+
+  for (const source of sources) {
+    const normalized = normalizeCrmReviewCard(source);
+    if (normalized) return normalized;
+  }
+  return null;
 };
 
 const getFollowUpCode = (order: Order) => order.assisted_request?.public_follow_up?.tracking?.code || null;
@@ -137,11 +256,19 @@ const buildOrderSearchText = (order: Order) => {
     profile.contact_key,
     profile.channel_group,
     order.items,
+    order.crm_review_card?.reference,
+    order.crm_review_card?.request_kind_label,
+    order.crm_review_card?.recommended_next_step,
+    order.crm_review_card?.suggested_reply,
+    order.crm_review_card?.source?.text_preview,
+    order.crm_review_card?.lines,
+    order.crm_review_card?.unmatched_items,
     assistedRequest?.request_kind_label,
     assistedRequest?.customer_message,
     assistedRequest?.source?.text_preview,
     assistedRequest?.structured_extraction?.fields,
     assistedRequest?.unmatched_items,
+    getCrmReviewCard(order),
     getFollowUpCode(order),
     order.notes,
   ]);
@@ -207,6 +334,65 @@ const getShippingInfo = (order: Order) => {
     notes,
   };
 };
+
+const CrmReviewCardSummary = ({ card, compact = false }: { card: CrmReviewCardView; compact?: boolean }) => (
+  <div
+    className={cn(
+      'rounded-lg border border-violet-200 bg-violet-50/70 text-violet-950 shadow-sm dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-100',
+      compact ? 'p-2 text-xs' : 'p-4 text-sm',
+    )}
+  >
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <ClipboardList className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+          <p className="font-semibold">{card.title}</p>
+        </div>
+        {card.summary ? (
+          <p className={cn('mt-1 text-violet-900/80 dark:text-violet-100/80', compact ? 'line-clamp-2' : 'leading-6')}>
+            {card.summary}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-1.5">
+        {card.statusLabel ? <Badge variant="outline" className="bg-background/80">{card.statusLabel}</Badge> : null}
+        {card.priorityLabel ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{card.priorityLabel}</Badge> : null}
+      </div>
+    </div>
+    {card.nextStep ? (
+      <p className={cn('mt-2 font-medium', compact && 'line-clamp-1')}>
+        Proximo paso: {card.nextStep}
+      </p>
+    ) : null}
+    {!compact && (card.reasons.length > 0 || card.metrics.length > 0) ? (
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        {card.reasons.length > 0 ? (
+          <div className="rounded-md border border-violet-200/80 bg-background/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivos</p>
+            <ul className="mt-2 space-y-1">
+              {card.reasons.map((reason) => (
+                <li key={reason} className="text-sm">{reason}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {card.metrics.length > 0 ? (
+          <div className="rounded-md border border-violet-200/80 bg-background/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos clave</p>
+            <div className="mt-2 grid gap-1.5">
+              {card.metrics.map((metric) => (
+                <div key={`${metric.label}-${metric.value}`} className="flex justify-between gap-3 text-sm">
+                  <span className="capitalize text-muted-foreground">{metric.label}</span>
+                  <span className="font-semibold">{metric.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    ) : null}
+  </div>
+);
 
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
@@ -309,36 +495,44 @@ const PedidosPage = () => {
   };
 
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const assistedOrders = safeOrders.filter((order) => Boolean(order.assisted_request));
+  const assistedOrders = safeOrders.filter((order) => Boolean(order.assisted_request || order.crm_review_card));
   const assistedNeedsReview = assistedOrders.filter((order) =>
+    order.crm_review_card?.needs_operator_review ||
+    order.crm_review_card?.status === 'needs_review' ||
+    order.crm_review_card?.priority === 'high' ||
     order.assisted_request?.operator_pack?.needs_human_review ||
     order.assisted_request?.operator_pack?.priority === 'high' ||
     assistedSummaryNumber(order, 'unmatched') > 0,
   );
   const assistedReady = assistedOrders.filter((order) =>
+    order.crm_review_card?.status === 'ready_to_reply' ||
     order.assisted_request?.crm_state === 'ready_for_confirmation' ||
-    (Boolean(order.assisted_request) && assistedSummaryNumber(order, 'unmatched') === 0),
+    (Boolean(order.assisted_request || order.crm_review_card) && assistedSummaryNumber(order, 'unmatched') === 0),
   );
 
   const filteredOrders = safeOrders.filter(o => {
     const normalizedSearch = normalizeSearchText(searchTerm);
     const matchesSearch = !normalizedSearch || buildOrderSearchText(o).includes(normalizedSearch);
-    const orderChannel = o.assisted_request?.source?.channel || (o as any).channel || (o as any).commercial_state?.channel;
+    const orderChannel = o.crm_review_card?.source?.channel || o.assisted_request?.source?.channel || (o as any).channel || (o as any).commercial_state?.channel;
     const matchesChannel = channelFilter === 'all' || orderChannel === channelFilter;
     const assistedRequest = o.assisted_request;
     const needsReview =
       assistedRequest?.operator_pack?.needs_human_review ||
+      o.crm_review_card?.needs_operator_review ||
+      o.crm_review_card?.status === 'needs_review' ||
+      o.crm_review_card?.priority === 'high' ||
       assistedRequest?.operator_pack?.priority === 'high' ||
       assistedSummaryNumber(o, 'unmatched') > 0;
     const matchesAi =
       aiFilter === 'all' ||
-      (aiFilter === 'assisted' && Boolean(assistedRequest)) ||
+      (aiFilter === 'assisted' && Boolean(assistedRequest || o.crm_review_card)) ||
       (aiFilter === 'needs_review' && Boolean(needsReview)) ||
-      (aiFilter === 'ready' && Boolean(assistedRequest) && !needsReview);
+      (aiFilter === 'ready' && Boolean(assistedRequest || o.crm_review_card) && !needsReview);
     return matchesSearch && matchesChannel && matchesAi;
   });
   const selectedShippingInfo = selectedOrder ? getShippingInfo(selectedOrder) : null;
-  const selectedAssistedCrmState = selectedOrder?.assisted_request?.crm_state || null;
+  const selectedAssistedCrmState = selectedOrder?.crm_review_card?.status || selectedOrder?.assisted_request?.crm_state || null;
+  const selectedCrmReviewCard = selectedOrder ? getCrmReviewCard(selectedOrder) : null;
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -539,16 +733,17 @@ const PedidosPage = () => {
              </div>
           ) : (
             filteredOrders.map(order => {
-              const orderChannel = order.assisted_request?.source?.channel || (order as any).channel || (order as any).commercial_state?.channel || 'web';
+              const orderChannel = order.crm_review_card?.source?.channel || order.assisted_request?.source?.channel || (order as any).channel || (order as any).commercial_state?.channel || 'web';
               const stageLabel = getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage);
               const ChannelIcon = CHANNEL_ICONS[orderChannel] || Globe;
               const isSelected = selectedOrder?.id === order.id;
               const assistedRequest = order.assisted_request;
               const unmatchedCount = assistedSummaryNumber(order, 'unmatched');
-              const assistedLabel = assistedRequest?.request_kind_label || 'Solicitud asistida';
+              const assistedLabel = crmReviewCard?.request_kind_label || assistedRequest?.request_kind_label || 'Solicitud asistida';
               const assistedIsCatalog = assistedRequest?.document_profile?.catalog_matching !== false;
               const assistedPreview = getAssistedPreview(order);
               const followUpCode = getFollowUpCode(order);
+              const crmReviewCard = getCrmReviewCard(order);
               const selectOrder = () => {
                 if (window.innerWidth < 768) {
                   navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(order.id))}`, currentSlug));
@@ -563,7 +758,7 @@ const PedidosPage = () => {
                   role="button"
                   tabIndex={0}
                   aria-label={`Abrir pedido ${order.id}`}
-                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''} ${assistedRequest ? 'border-blue-400/60 bg-blue-50/35 dark:bg-blue-950/20' : ''}`}
+                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''} ${assistedRequest || crmReviewCard ? 'border-blue-400/60 bg-blue-50/35 dark:bg-blue-950/20' : ''}`}
                   onClick={selectOrder}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -589,31 +784,43 @@ const PedidosPage = () => {
                             {stageLabel}
                           </Badge>
                         ) : null}
-                        {assistedRequest ? (
+                        {assistedRequest || crmReviewCard ? (
                           <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200">
                             <Sparkles className="mr-1 h-3 w-3" />
                             IA
                           </Badge>
                         ) : null}
+                        {crmReviewCard ? (
+                          <Badge variant="outline" className="border-violet-300 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                            CRM
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
 
-                    {assistedRequest ? (
+                    {assistedRequest || crmReviewCard ? (
                       <div className="mb-3 rounded-md border border-blue-200 bg-background/70 p-2 text-xs dark:border-blue-900">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium text-blue-900 dark:text-blue-100">{assistedLabel}</span>
                           <span className={unmatchedCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}>
-                            {crmStateLabel(assistedRequest.crm_state)}
+                            {crmStateLabel(crmReviewCard?.status || assistedRequest?.crm_state)}
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-muted-foreground">
                           {assistedIsCatalog ? <span>{assistedSummaryNumber(order, 'matched')} en catalogo</span> : null}
                           <span>{unmatchedCount} para revisar</span>
+                          {crmReviewCard?.reference ? <span className="font-mono">{crmReviewCard.reference}</span> : null}
                           {followUpCode ? <span className="font-mono">Seg. {followUpCode}</span> : null}
                         </div>
                         {assistedPreview ? (
                           <p className="mt-2 line-clamp-2 text-muted-foreground">{assistedPreview}</p>
                         ) : null}
+                      </div>
+                    ) : null}
+
+                    {crmReviewCard ? (
+                      <div className="mb-3">
+                        <CrmReviewCardSummary card={crmReviewCard} compact />
                       </div>
                     ) : null}
 
@@ -690,7 +897,7 @@ const PedidosPage = () => {
                         Order #{(selectedOrder as any).market_order_id}
                       </Badge>
                     ) : null}
-                    {selectedOrder.assisted_request ? (
+                    {selectedOrder.assisted_request || selectedOrder.crm_review_card ? (
                       <Badge variant="outline" className="gap-1 border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
                         <Sparkles className="h-3.5 w-3.5" />
                         {crmStateLabel(selectedAssistedCrmState)}
@@ -714,6 +921,10 @@ const PedidosPage = () => {
                         )}
                     </div>
                   </div>
+
+                  {selectedCrmReviewCard ? (
+                    <CrmReviewCardSummary card={selectedCrmReviewCard} />
+                  ) : null}
 
                   <AssistedRequestPanel order={selectedOrder} />
 

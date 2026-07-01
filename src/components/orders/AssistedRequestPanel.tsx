@@ -36,6 +36,18 @@ const crmStateClassName = (state?: string | null) => {
   return 'border-blue-300 bg-blue-50 text-blue-800';
 };
 
+const reviewCardStatusLabel = (status?: string | null) => {
+  if (status === 'needs_review') return 'Revision requerida';
+  if (status === 'ready_to_reply') return 'Listo para responder';
+  return status ? status.replace(/_/g, ' ') : 'Ficha CRM';
+};
+
+const reviewCardStatusClassName = (status?: string | null) => {
+  if (status === 'needs_review') return 'border-amber-300 bg-amber-50 text-amber-800';
+  if (status === 'ready_to_reply') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+  return 'border-blue-300 bg-blue-50 text-blue-800';
+};
+
 const actionLabel = (action: Record<string, unknown>) =>
   String(action.label || action.title || action.id || 'Accion recomendada');
 
@@ -241,6 +253,18 @@ const draftSummaryNumber = (draft: CrmOrderDraft | null, key: 'detected' | 'matc
   return lines.filter((line) => line.status !== 'catalog_matched').length;
 };
 
+const reviewCardSummaryNumber = (
+  card: Order['crm_review_card'] | null | undefined,
+  key: 'detected' | 'matched' | 'unmatched',
+) => {
+  const value = card?.summary?.[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const lines = card?.lines || [];
+  if (key === 'detected') return lines.length;
+  if (key === 'matched') return lines.filter((line) => line.status === 'catalog_matched').length;
+  return lines.filter((line) => line.status !== 'catalog_matched').length;
+};
+
 const confidenceLabel = (value: unknown) => {
   const text = valueText(value)?.toLowerCase();
   if (!text) return null;
@@ -367,11 +391,16 @@ const formatSlaHint = (value: unknown) => {
   return null;
 };
 
-const fieldEntriesFrom = (value: unknown) =>
+type StructuredFieldEntry = { key: string; label: string; value: string };
+
+const fieldEntriesFrom = (value: unknown): StructuredFieldEntry[] =>
   isRecord(value)
     ? Object.entries(value)
-        .map(([key, item]) => ({ key, label: humanizeKey(key) || key, value: formatStructuredValue(item) }))
-        .filter((entry) => Boolean(entry.value))
+        .map(([key, item]) => {
+          const formatted = formatStructuredValue(item);
+          return formatted ? { key, label: humanizeKey(key) || key, value: formatted } : null;
+        })
+        .filter((entry): entry is StructuredFieldEntry => Boolean(entry))
     : [];
 
 const candidateReferenceUrl = (candidate: AssistedCatalogCandidate) =>
@@ -487,24 +516,26 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const assistedRequest = order.assisted_request;
   if (!assistedRequest) return null;
 
+  const crmReviewCard = order.crm_review_card || null;
   const operatorPack = assistedRequest.operator_pack || null;
   const operatorIntakeSummary = assistedRequest.operator_intake_summary || null;
-  const contact = assistedRequest.contact || order.contact || order.customer_profile || null;
+  const contact = crmReviewCard?.contact || assistedRequest.contact || order.contact || order.customer_profile || null;
   const contactNotes = assistedRequest.contact?.notes || null;
   const documentLabel =
+    crmReviewCard?.request_kind_label ||
     assistedRequest.request_kind_label ||
     assistedRequest.source?.request_kind_label ||
     (assistedRequest.mode === 'order_note_upload' ? 'archivo de pedido' : 'archivo recibido');
-  const sourceChannel = assistedRequest.source?.channel || order.channel || 'marketplace';
+  const sourceChannel = crmReviewCard?.source?.channel || assistedRequest.source?.channel || order.channel || 'marketplace';
   const rowErrors = assistedRequest.row_errors || [];
   const extractionError = assistedRequest.extraction_error || assistedRequest.source?.extraction_error || null;
-  const textPreview = assistedRequest.source?.text_preview || null;
-  const unmatchedItems = assistedRequest.unmatched_items || [];
+  const textPreview = crmReviewCard?.source?.text_preview || assistedRequest.source?.text_preview || null;
+  const unmatchedItems = crmReviewCard?.unmatched_items?.length ? crmReviewCard.unmatched_items : assistedRequest.unmatched_items || [];
   const catalogCandidateGroups = normalizeCandidateGroups(assistedRequest);
-  const nextActions = (assistedRequest.next_actions || []).filter((action) => action && action.enabled !== false);
-  const suggestedTasks = operatorPack?.suggested_tasks || [];
-  const contactLinks = operatorPack?.contact_links?.filter((link) => link.href) || [];
-  const suggestedReply = operatorPack?.suggested_reply || null;
+  const nextActions = (crmReviewCard?.next_actions || assistedRequest.next_actions || []).filter((action) => action && action.enabled !== false);
+  const suggestedTasks = operatorPack?.suggested_tasks || crmReviewCard?.suggested_tasks || [];
+  const contactLinks = (operatorPack?.contact_links || crmReviewCard?.contact_links || []).filter((link) => link.href);
+  const suggestedReply = operatorPack?.suggested_reply || crmReviewCard?.suggested_reply || null;
   const documentProfile = assistedRequest.document_profile || null;
   const structuredExtraction = assistedRequest.structured_extraction || null;
   const crmHandoff = assistedRequest.crm_handoff || null;
@@ -521,7 +552,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
       crmHandoff?.draft_assisted_order ||
       null;
   const draftFields = fieldEntriesFrom(draftRecord);
-  const customerNextSteps = assistedRequest.customer_next_steps || [];
+  const customerNextSteps = crmReviewCard?.customer_next_steps || assistedRequest.customer_next_steps || [];
   const intakeExperience = assistedRequest.intake_experience || null;
   const intakePipeline = intakeExperience?.pipeline?.slice(0, 4) || [];
   const intakeCapabilities = intakeExperience?.capabilities?.slice(0, 4) || [];
@@ -530,9 +561,9 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const followUpCode = followUpTracking?.code || null;
   const followUpHref = makeAbsoluteHref(followUpTracking?.path || null);
   const followUpChannels = publicFollowUp?.channels?.filter((channel) => channel?.href) || [];
-  const detectedCount = summaryNumber(assistedRequest, 'detected');
-  const matchedCount = summaryNumber(assistedRequest, 'matched');
-  const unmatchedCount = summaryNumber(assistedRequest, 'unmatched');
+  const detectedCount = reviewCardSummaryNumber(crmReviewCard, 'detected') || summaryNumber(assistedRequest, 'detected');
+  const matchedCount = reviewCardSummaryNumber(crmReviewCard, 'matched') || summaryNumber(assistedRequest, 'matched');
+  const unmatchedCount = reviewCardSummaryNumber(crmReviewCard, 'unmatched') || summaryNumber(assistedRequest, 'unmatched');
   const draftLines = crmOrderDraft?.lines || [];
   const draftDetectedCount = draftSummaryNumber(crmOrderDraft, 'detected');
   const draftMatchedCount = draftSummaryNumber(crmOrderDraft, 'matched');
@@ -540,6 +571,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const operatorNextStep = humanizeKey(operatorIntakeSummary?.recommended_next_step);
   const primaryAction =
     firstText(nextActions[0]?.label, nextActions[0]?.title, suggestedTasks[0]?.label) ||
+    humanizeKey(crmReviewCard?.recommended_next_step) ||
     (missingFields.length ? `Completar ${humanizeKey(missingFields[0]) || missingFields[0]}` : null) ||
     operatorNextStep ||
     (suggestedReply ? 'Enviar respuesta sugerida' : 'Revisar solicitud');
@@ -551,6 +583,9 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
         structuredExtraction?.fields?.telefono,
         structuredExtraction?.fields?.email,
       ) || 'Sin contacto';
+  const contactName = contactRecord ? firstText(contactRecord.name) : null;
+  const contactPhone = contactRecord ? firstText(contactRecord.phone, contactRecord.whatsapp) : null;
+  const contactEmail = contactRecord ? firstText(contactRecord.email) : null;
   const headerSummary = documentProfile?.catalog_matching
     ? 'Chatboc separo datos, cruzo catalogo y marco lo que requiere revision humana.'
     : 'Chatboc separo datos, clasifico la solicitud y marco lo que requiere revision humana.';
@@ -587,6 +622,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
     operatorPriorityReason ? { label: 'Motivo', value: operatorPriorityReason } : null,
     primaryMissingField ? { label: 'Faltante', value: primaryMissingField } : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>;
+  const sourceFileUrl = crmReviewCard?.source?.archivo_url || assistedRequest.source?.archivo_url || null;
 
   const handleCopyOperatorSummary = async () => {
     try {
@@ -696,7 +732,7 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                 <Badge variant="outline" className={crmStateClassName(assistedRequest.crm_state)}>
                   {crmStateLabel(assistedRequest.crm_state)}
                 </Badge>
-                {operatorPack?.priority === 'high' ? (
+                {operatorPack?.priority === 'high' || crmReviewCard?.priority === 'high' ? (
                   <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
                     Prioridad alta
                   </Badge>
@@ -764,15 +800,117 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
           ) : null}
         </div>
 
-        {assistedRequest.source?.archivo_url ? (
+        {sourceFileUrl ? (
           <Button asChild size="sm" variant="outline" className="shrink-0">
-            <a href={assistedRequest.source.archivo_url} target="_blank" rel="noopener noreferrer">
+            <a href={sourceFileUrl} target="_blank" rel="noopener noreferrer">
               <FileText className="h-4 w-4" />
               Ver archivo
             </a>
           </Button>
         ) : null}
       </div>
+
+      {crmReviewCard ? (
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-background/95 shadow-sm dark:border-slate-800">
+          <div className="flex flex-col gap-3 border-b bg-slate-50/80 p-3 md:flex-row md:items-start md:justify-between dark:bg-slate-900/50">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-blue-600" />
+                <h4 className="font-semibold">Ficha CRM operativa</h4>
+                {crmReviewCard.reference ? (
+                  <Badge variant="outline" className="bg-background/80 font-mono">
+                    {crmReviewCard.reference}
+                  </Badge>
+                ) : null}
+                <Badge variant="outline" className={reviewCardStatusClassName(crmReviewCard.status)}>
+                  {reviewCardStatusLabel(crmReviewCard.status)}
+                </Badge>
+                {crmReviewCard.priority === 'high' ? (
+                  <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                    Alta prioridad
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Resumen plano para bandeja CRM, respuesta rapida y continuidad por WhatsApp, widget o portal.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {crmReviewCard.contact_links?.slice(0, 2).map((link) =>
+                link.href ? (
+                  <Button key={`${link.type || link.label}-${link.href}`} asChild size="sm" variant="outline">
+                    <a href={link.href} target="_blank" rel="noopener noreferrer">
+                      {link.type === 'email' ? <Mail className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+                      {link.label || 'Contactar'}
+                    </a>
+                  </Button>
+                ) : null,
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 p-3 md:grid-cols-4">
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proximo paso</p>
+              <p className="mt-1 line-clamp-2 font-semibold">
+                {humanizeKey(crmReviewCard.recommended_next_step) || crmReviewCard.recommended_next_step || primaryAction}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lectura IA</p>
+              <p className="mt-1 font-semibold">
+                {reviewCardSummaryNumber(crmReviewCard, 'detected')} detectados / {reviewCardSummaryNumber(crmReviewCard, 'matched')} en catalogo
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {reviewCardSummaryNumber(crmReviewCard, 'unmatched')} para revisar
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</p>
+              <p className="mt-1 truncate font-semibold">{contactSummary}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{crmReviewCard.contact_state || 'capturado por canal'}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Origen</p>
+              <p className="mt-1 truncate font-semibold">{sourceChannel}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{crmReviewCard.source?.input_type || documentLabel}</p>
+            </div>
+          </div>
+
+          {crmReviewCard.lines?.length ? (
+            <div className="grid gap-2 px-3 pb-3 lg:grid-cols-2">
+              {crmReviewCard.lines.slice(0, 4).map((line, index) => {
+                const catalogName = draftLineCatalogName(line);
+                return (
+                  <div key={line.line_id || `${draftLineName(line)}-${index}`} className="rounded-lg border bg-background p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="bg-muted/30 font-mono">
+                        {draftLineQuantity(line)}
+                      </Badge>
+                      <span className="font-semibold">{draftLineName(line)}</span>
+                      <Badge variant="outline" className={draftLineStatusClassName(line.status)}>
+                        {draftLineStatusLabel(line.status)}
+                      </Badge>
+                    </div>
+                    {catalogName ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Match catalogo: <span className="font-medium text-foreground">{catalogName}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {crmReviewCard.suggested_reply ? (
+            <div className="border-t bg-muted/15 p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Respuesta sugerida</p>
+              <p className="mt-1 text-muted-foreground">{crmReviewCard.suggested_reply}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-4 rounded-xl border border-blue-200 bg-background/85 p-3 shadow-sm dark:border-blue-900">
         <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr_0.85fr_0.85fr]">
@@ -822,9 +960,9 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
               Copiar seguimiento
             </Button>
           ) : null}
-          {assistedRequest.source?.archivo_url ? (
+          {sourceFileUrl ? (
             <Button asChild size="sm" variant="outline">
-              <a href={assistedRequest.source.archivo_url} target="_blank" rel="noopener noreferrer">
+              <a href={sourceFileUrl} target="_blank" rel="noopener noreferrer">
                 <FileText className="h-4 w-4" />
                 Ver archivo original
               </a>
@@ -1215,15 +1353,15 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
         <div className="mt-4 grid gap-2 rounded-lg border bg-background/70 p-3 text-sm md:grid-cols-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate">{contact.name || 'Contacto sin nombre'}</span>
+            <span className="truncate">{contactName || 'Contacto sin nombre'}</span>
           </div>
           <div className="flex items-center gap-2">
             <Phone className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate">{contact.phone || contact.whatsapp || 'Sin telefono'}</span>
+            <span className="truncate">{contactPhone || 'Sin telefono'}</span>
           </div>
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate">{contact.email || 'Sin email'}</span>
+            <span className="truncate">{contactEmail || 'Sin email'}</span>
           </div>
           {contactNotes ? (
             <p className="md:col-span-3 text-muted-foreground">Nota: {contactNotes}</p>

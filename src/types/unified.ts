@@ -106,6 +106,60 @@ export interface CrmOrderDraft {
   [key: string]: unknown;
 }
 
+export interface CrmReviewCard {
+  contract_version?: 'marketplace.crm_review_card.v1' | string | null;
+  reference?: string | null;
+  request_kind?: string | null;
+  request_kind_label?: string | null;
+  status?: 'needs_review' | 'ready_to_reply' | string | null;
+  priority?: 'high' | 'normal' | string | null;
+  primary_intent?: string | null;
+  needs_operator_review?: boolean | null;
+  contact_state?: string | null;
+  recommended_next_step?: string | null;
+  summary?: {
+    detected?: number | null;
+    matched?: number | null;
+    unmatched?: number | null;
+    needs_operator_review?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  source?: {
+    channel?: string | null;
+    input_type?: string | null;
+    archivo_url?: string | null;
+    archivo_nombre?: string | null;
+    thumbnail_url?: string | null;
+    text_preview?: string | null;
+    [key: string]: unknown;
+  } | null;
+  contact?: (CustomerProfile & { notes?: string | null }) | Record<string, unknown> | null;
+  lines?: CrmOrderDraftLine[];
+  unmatched_items?: string[];
+  catalog_candidates?: AssistedCatalogCandidateGroup[];
+  suggested_reply?: string | null;
+  suggested_tasks?: Array<{
+    id?: string | null;
+    label?: string | null;
+    description?: string | null;
+    tone?: string | null;
+  }>;
+  contact_links?: Array<{
+    type?: string | null;
+    label?: string | null;
+    href?: string | null;
+  }>;
+  next_actions?: Array<Record<string, unknown>>;
+  customer_next_steps?: Array<{
+    id?: string | null;
+    label?: string | null;
+    description?: string | null;
+    status?: string | null;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
 export interface AssistedOrderRequest {
   contract_version?: string | null;
   mode?: string | null;
@@ -150,6 +204,7 @@ export interface AssistedOrderRequest {
     [key: string]: unknown;
   } | null;
   crm_order_draft?: CrmOrderDraft | null;
+  crm_review_card?: CrmReviewCard | null;
   contact?: (CustomerProfile & { notes?: string | null }) | null;
   source?: {
     channel?: string | null;
@@ -361,6 +416,7 @@ export interface Order {
   commercial_stage?: string | null;
   contact?: CustomerProfile | null;
   assisted_request?: AssistedOrderRequest | null;
+  crm_review_card?: CrmReviewCard | null;
   metadata?: Record<string, unknown> | null;
   totals?: {
     monetary?: number | null;

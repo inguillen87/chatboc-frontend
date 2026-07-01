@@ -714,8 +714,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
           className,
         )}
     >
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border p-4 bg-muted/80 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
-        <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-muted/80 p-3 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
+        <div className="flex min-w-0 items-center gap-2">
           {onClose && (
             <Button
               variant="ghost"
@@ -727,7 +727,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               <X className="h-4 w-4" />
             </Button>
           )}
-          <h3 className="font-semibold text-base md:text-lg">Detalles del Ticket</h3>
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold md:text-lg">Detalle</h3>
+            <p className="truncate text-xs text-muted-foreground">#{ticket.nro_ticket || ticket.id}</p>
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -758,6 +761,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {nextActionLabel}
+                  </p>
+                  <p className="line-clamp-2 text-sm font-medium text-foreground">
+                    {formatCategory(ticket)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

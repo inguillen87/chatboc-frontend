@@ -65,6 +65,15 @@ const regularOrder: Order = {
   status: 'nuevo',
   created_at: '2026-06-28T13:00:00.000Z',
   items: [{ id: 'vino', name: 'Vino malbec', price: 1200, quantity: 1 }],
+  crm_review_card: {
+    title: 'Resumen CRM',
+    description: 'Cliente mayorista pide validar stock antes de confirmar.',
+    status_label: 'Revision comercial',
+    priority_label: 'Alta',
+    recommended_next_step: 'Validar stock y responder por WhatsApp',
+    review_reasons: ['Compra mayorista', 'Stock sensible'],
+    metrics: { items_detectados: 1, canal: 'WhatsApp' },
+  },
 };
 
 describe('PedidosPage', () => {
@@ -100,5 +109,20 @@ describe('PedidosPage', () => {
     expect(screen.getByRole('button', { name: /Revisar y confirmar/i })).toBeTruthy();
     expect(screen.queryByText('Av. Principal 1234, Local 5')).toBeNull();
     expect(screen.getByText(/No hay direccion ni metodo confirmado/)).toBeTruthy();
+  });
+
+  it('renders crm_review_card summaries without requiring assisted_request data', async () => {
+    render(<PedidosPage />);
+
+    expect(await screen.findByLabelText('Abrir pedido regular-2')).toBeTruthy();
+    expect(screen.getAllByText('Resumen CRM').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Cliente mayorista pide validar stock/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Abrir pedido regular-2'));
+
+    await waitFor(() => expect(screen.getByText('Pedido #regular-2')).toBeTruthy());
+    expect(screen.getAllByText('Revision comercial').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Proximo paso: Validar stock/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('Stock sensible')).toBeTruthy();
   });
 });

@@ -91,6 +91,7 @@ const normalizeAdminOrder = (value: unknown): Order => {
     customerEmail: asStringOrUndefined(record.customerEmail ?? record.contact_email),
     totals: isRecord(record.totals) ? (record.totals as Order['totals']) : null,
     assisted_request: isRecord(record.assisted_request) ? (record.assisted_request as Order['assisted_request']) : null,
+    crm_review_card: isRecord(record.crm_review_card) ? (record.crm_review_card as Order['crm_review_card']) : null,
     metadata: isRecord(record.metadata) ? (record.metadata as Record<string, unknown>) : null,
   } as Order;
 };
