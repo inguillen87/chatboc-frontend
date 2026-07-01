@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getTicketMessages } from '../src/services/ticketService';
 import { collectAttachmentsFromTicket } from '../src/components/tickets/DetailsPanel';
 import type { Ticket } from '../src/types/tickets';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 
-vi.mock('@/utils/api', () => ({
-  apiFetch: vi.fn(),
-}));
+vi.mock('@/utils/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/api')>();
+  return {
+    ...actual,
+    apiFetch: vi.fn(),
+  };
+});
 
 describe('getTicketMessages', () => {
   beforeEach(() => {
@@ -70,6 +74,22 @@ describe('getTicketMessages', () => {
     vi.mocked(apiFetch).mockRejectedValueOnce(error);
 
     await expect(getTicketMessages(7, 'municipio', { quiet: true })).rejects.toThrow(error);
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it('suppresses legacy HTML gateway errors even outside quiet mode', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = new ApiError(
+      '<!DOCTYPE html><html><title>502</title></html>',
+      502,
+      '<!DOCTYPE html><html><title>502</title></html>',
+      'req_gateway_502',
+    );
+    vi.mocked(apiFetch).mockRejectedValueOnce(error);
+
+    await expect(getTicketMessages(8, 'municipio')).rejects.toThrow(error);
     expect(consoleSpy).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();

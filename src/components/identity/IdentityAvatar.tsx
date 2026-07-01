@@ -56,6 +56,36 @@ export function getIdentityAvatarTone(seed?: string | null): string {
   return AVATAR_TONES[hash % AVATAR_TONES.length];
 }
 
+export function getIdentityAvatarPattern(seed?: string | null): {
+  dotX: number;
+  dotY: number;
+  ringX: number;
+  ringY: number;
+  ringSize: number;
+  stripeRotation: number;
+} {
+  const normalized = String(seed || 'contacto').trim().toLowerCase();
+  let hash = 2166136261;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+
+  const next = (shift: number, min: number, max: number) => {
+    const value = (hash >>> shift) & 0xff;
+    return min + (value % (max - min + 1));
+  };
+
+  return {
+    dotX: next(0, 16, 78),
+    dotY: next(8, 12, 76),
+    ringX: next(4, -18, 52),
+    ringY: next(12, -20, 48),
+    ringSize: next(16, 56, 92),
+    stripeRotation: next(20, -18, 18),
+  };
+}
+
 export const IdentityAvatar: React.FC<IdentityAvatarProps> = ({
   name,
   avatarUrl,
@@ -76,12 +106,15 @@ export const IdentityAvatar: React.FC<IdentityAvatarProps> = ({
     ? candidateImageUrl
     : '';
   const tone = getIdentityAvatarTone(displayName);
-  const sourceLabel = source ? `Avatar ${source}` : imageUrl ? 'Avatar con imagen de perfil' : 'Avatar por iniciales';
+  const pattern = getIdentityAvatarPattern(displayName);
+  const sourceLabel = imageUrl
+    ? `Avatar con imagen consentida${source ? ` (${source})` : ''}`
+    : 'Avatar generativo por identidad';
 
   return (
     <Avatar
       className={cn(
-        'shrink-0 ring-1 ring-border/70',
+        'shrink-0 overflow-hidden ring-1 ring-border/70',
         SIZE_CLASSES[size],
         className,
       )}
@@ -96,12 +129,39 @@ export const IdentityAvatar: React.FC<IdentityAvatarProps> = ({
       ) : null}
       <AvatarFallback
         className={cn(
-          'font-semibold tracking-normal',
+          'relative isolate overflow-hidden font-semibold tracking-normal',
           tone,
           fallbackClassName,
         )}
       >
-        {getIdentityInitials(displayName)}
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full bg-current/10"
+          style={{
+            left: `${pattern.ringX}%`,
+            top: `${pattern.ringY}%`,
+            width: `${pattern.ringSize}%`,
+            height: `${pattern.ringSize}%`,
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className="absolute h-[160%] w-1.5 bg-current/10"
+          style={{
+            left: '50%',
+            top: '-30%',
+            transform: `translateX(-50%) rotate(${pattern.stripeRotation}deg)`,
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className="absolute h-1.5 w-1.5 rounded-full bg-current/25"
+          style={{
+            left: `${pattern.dotX}%`,
+            top: `${pattern.dotY}%`,
+          }}
+        />
+        <span className="relative z-10">{getIdentityInitials(displayName)}</span>
       </AvatarFallback>
     </Avatar>
   );

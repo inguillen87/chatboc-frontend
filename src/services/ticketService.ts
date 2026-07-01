@@ -681,12 +681,13 @@ export const getTicketById = async (id: string, opts?: TicketDetailOptions): Pro
                         Number(normalizedResponse.id),
                         normalizedResponse.tipo,
                         {
+                            quiet: true,
                             ticket: normalizedResponse,
                             tenantSlug: opts?.tenantSlug || normalizedResponse.tenant_slug,
                         },
                     )).messages;
-                } catch (err) {
-                    console.error(`Error fetching v2 messages for tenant ticket ${id}:`, err);
+                } catch (_err) {
+                    messages = [];
                 }
             }
             return {
@@ -705,9 +706,9 @@ export const getTicketById = async (id: string, opts?: TicketDetailOptions): Pro
         let messages = normalizeTicketMessages(getInlineTicketMessageSource(response));
         if (!messages.length) {
             try {
-                messages = (await getTicketMessages(response.id, response.tipo)).messages;
-            } catch (err) {
-                console.error(`Error fetching messages for ticket ${id}:`, err);
+                messages = (await getTicketMessages(response.id, response.tipo, { quiet: true })).messages;
+            } catch (_err) {
+                messages = [];
             }
         }
         const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
@@ -756,9 +757,10 @@ export const getTicketByNumber = async (
                     messages = (await getTicketMessages(response.id, response.tipo, {
                         public: true,
                         pin,
+                        quiet: true,
                     })).messages;
-                } catch (err) {
-                    console.error(`Error fetching messages for ticket ${response.id}:`, err);
+                } catch (_err) {
+                    messages = [];
                 }
             }
             const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
@@ -1120,6 +1122,43 @@ export interface TicketMessagesOptions {
   tenantSlug?: string | null;
 }
 
+const extractErrorBodyText = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    if (typeof error.body === 'string') return error.body;
+    if (error.body && typeof error.body === 'object') {
+      const record = error.body as Record<string, unknown>;
+      for (const key of ['html', 'text', 'message', 'error', 'detail']) {
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) return value;
+      }
+    }
+  }
+  return error instanceof Error ? error.message : String(error ?? '');
+};
+
+export const isLegacyHtmlGatewayError = (error: unknown): boolean => {
+  if (!(error instanceof ApiError)) return false;
+  if (![500, 502, 503, 504].includes(error.status)) return false;
+  const bodyText = extractErrorBodyText(error).trim().toLowerCase();
+  return bodyText.includes('<!doctype html') || bodyText.includes('<html');
+};
+
+export const summarizeTicketFetchError = (error: unknown): Record<string, unknown> => {
+  if (error instanceof ApiError) {
+    return {
+      name: error.name,
+      status: error.status,
+      requestId: error.requestId,
+      reason: isLegacyHtmlGatewayError(error) ? 'legacy_html_gateway' : 'api_error',
+      message: error.message,
+    };
+  }
+  return {
+    name: error instanceof Error ? error.name : 'Error',
+    message: error instanceof Error ? error.message : String(error ?? 'unknown_error'),
+  };
+};
+
 export const getTicketMessages = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
@@ -1161,7 +1200,7 @@ export const getTicketMessages = async (
     legacyCompatible.realtimeState = realtimeState;
     return legacyCompatible;
   } catch (error) {
-    if (!opts?.quiet) {
+    if (!opts?.quiet && !isLegacyHtmlGatewayError(error)) {
       console.error(`Error fetching messages for ticket ${ticketId}:`, error);
     }
     throw error;
@@ -1171,7 +1210,7 @@ export const getTicketMessages = async (
 export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean; pin?: string; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
+  opts?: { public?: boolean; pin?: string; quiet?: boolean; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[]; realtime_state?: TicketRealtimeState | null }> => {
   try {
     const useTenantV2 = isTenantTicketV2(opts?.ticket) && !opts?.public;
@@ -1276,7 +1315,9 @@ export const getTicketTimeline = async (
       realtime_state: normalizeRealtimeState((response as any).realtime_state),
     };
   } catch (error) {
-    console.error(`Error fetching timeline for ticket ${ticketId}:`, error);
+    if (!opts?.quiet && !isLegacyHtmlGatewayError(error)) {
+      console.error(`Error fetching timeline for ticket ${ticketId}:`, error);
+    }
     throw error;
   }
 };

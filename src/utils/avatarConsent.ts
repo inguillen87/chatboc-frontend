@@ -1,11 +1,12 @@
-const CONSENTED_SOURCE_KEYWORDS = [
+const CONSENTED_SOURCE_VALUES = new Set([
   'consent',
   'consentida',
   'consented',
+  'imagen_consentida',
   'profile_url',
   'profile_upload',
+  'profile_picture',
   'user_upload',
-  'upload',
   'uploaded',
   'social',
   'social_login',
@@ -18,6 +19,17 @@ const CONSENTED_SOURCE_KEYWORDS = [
   'agente',
   'employee',
   'internal_user',
+]);
+
+const CONSENTED_SOURCE_PREFIXES = [
+  'profile_upload',
+  'user_upload',
+  'social_login',
+  'oauth',
+  'clerk',
+  'google',
+  'facebook',
+  'linkedin',
 ];
 
 const BLOCKED_SOURCE_KEYWORDS = [
@@ -93,6 +105,9 @@ const normalizeToken = (value?: string | null): string =>
     .trim()
     .toLowerCase();
 
+const normalizeSourceValue = (value?: string | null): string =>
+  normalizeToken(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
 export const normalizeAvatarUrl = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -115,14 +130,20 @@ const readConsentState = (value: unknown): boolean | null => {
 };
 
 export const isConsentedAvatarSource = (source?: string | null): boolean => {
-  const normalized = normalizeToken(source);
+  const normalized = normalizeSourceValue(source);
   if (!normalized) return false;
 
   if (BLOCKED_SOURCE_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     return false;
   }
 
-  return CONSENTED_SOURCE_KEYWORDS.some((keyword) => normalized.includes(keyword));
+  if (CONSENTED_SOURCE_VALUES.has(normalized)) return true;
+
+  return CONSENTED_SOURCE_PREFIXES.some((prefix) => (
+    normalized === prefix ||
+    normalized.startsWith(`${prefix}_`) ||
+    normalized.startsWith(`${prefix}:`)
+  ));
 };
 
 export const shouldRenderProfileImage = ({
@@ -133,7 +154,7 @@ export const shouldRenderProfileImage = ({
   const normalizedUrl = normalizeAvatarUrl(avatarUrl);
   if (!normalizedUrl) return false;
 
-  const normalizedSource = normalizeToken(source);
+  const normalizedSource = normalizeSourceValue(source);
   if (BLOCKED_SOURCE_KEYWORDS.some((keyword) => normalizedSource.includes(keyword))) {
     return false;
   }

@@ -17,8 +17,10 @@ import { safeOn } from '@/utils/safeOn';
 import {
   getTicketMessages,
   getTicketTimeline,
+  isLegacyHtmlGatewayError,
   requestTicketHistoryEmail,
   sendMessage,
+  summarizeTicketFetchError,
   updateTicketStatus,
   type TicketHistoryDeliveryResult,
   isTicketHistoryDeliveryErrorResult,
@@ -503,6 +505,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       try {
         const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo, {
+          quiet: true,
           ticket: selectedTicket,
           tenantSlug: selectedTicket.tenant_slug,
         });
@@ -518,7 +521,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
       } catch (timelineError) {
         if (cancelled) return;
-        console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
+        if (!isLegacyHtmlGatewayError(timelineError)) {
+          console.warn('Timeline unificado no disponible; usando fallback de mensajes.', {
+            ticketId: selectedTicket.id,
+            ...summarizeTicketFetchError(timelineError),
+          });
+        }
         setTimelineItems([]);
         setTimelinePartial(true);
       }
@@ -532,6 +540,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       try {
         const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, {
+          quiet: true,
           ticket: selectedTicket,
           tenantSlug: selectedTicket.tenant_slug,
         });
@@ -539,7 +548,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         setMessages(dedupeChatMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
       } catch (error) {
         if (cancelled) return;
-        toast.error('No se pudo cargar el historial de mensajes.');
+        if (!isLegacyHtmlGatewayError(error)) {
+          toast.error('No se pudo cargar el historial de mensajes.');
+          console.warn('Historial de mensajes no disponible.', {
+            ticketId: selectedTicket.id,
+            ...summarizeTicketFetchError(error),
+          });
+        }
+        setTimelinePartial(true);
         setMessages([]);
       } finally {
         finishLoading();
@@ -558,6 +574,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const realtimeOnline = Boolean(socket?.connected);
   const pollingFailureCountRef = useRef(0);
   const pollingPausedUntilRef = useRef(0);
+
+  useEffect(() => {
+    pollingFailureCountRef.current = 0;
+    pollingPausedUntilRef.current = 0;
+  }, [selectedTicket?.id]);
 
   useEffect(() => {
     if (!socket || !selectedTicket) return;
@@ -636,8 +657,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         const backoffMs = Math.min(120000, 15000 * Math.max(1, pollingFailureCountRef.current));
         pollingPausedUntilRef.current = Date.now() + backoffMs;
 
-        if (pollingFailureCountRef.current === 1 || pollingFailureCountRef.current % 4 === 0) {
-          console.warn('Fallback polling de conversacion pausado temporalmente', pollError);
+        if (
+          !isLegacyHtmlGatewayError(pollError) &&
+          (pollingFailureCountRef.current === 1 || pollingFailureCountRef.current % 4 === 0)
+        ) {
+          console.warn('Fallback polling de conversacion pausado temporalmente', {
+            ticketId: selectedTicket.id,
+            pausedMs: backoffMs,
+            ...summarizeTicketFetchError(pollError),
+          });
         }
       }
     }, 15000);

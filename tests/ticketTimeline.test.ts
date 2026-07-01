@@ -1,10 +1,14 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { getTicketTimeline } from '../src/services/ticketService';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 
-vi.mock('@/utils/api', () => ({
-  apiFetch: vi.fn(),
-}));
+vi.mock('@/utils/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/api')>();
+  return {
+    ...actual,
+    apiFetch: vi.fn(),
+  };
+});
 
 describe('getTicketTimeline', () => {
   beforeEach(() => {
@@ -124,5 +128,21 @@ describe('getTicketTimeline', () => {
       preview_text: 'Necesito más datos',
       source: 'timeline_comment',
     });
+  });
+
+  it('suppresses legacy HTML gateway errors without dumping the HTML response', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = new ApiError(
+      '<!DOCTYPE html><html><title>502</title></html>',
+      502,
+      '<!DOCTYPE html><html><title>502</title></html>',
+      'req_timeline_502',
+    );
+    vi.mocked(apiFetch).mockRejectedValueOnce(error);
+
+    await expect(getTicketTimeline(400, 'municipio')).rejects.toThrow(error);
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
   });
 });

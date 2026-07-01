@@ -1,7 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getIdentityAvatarTone, getIdentityInitials, IdentityAvatar } from './IdentityAvatar';
+import {
+  getIdentityAvatarPattern,
+  getIdentityAvatarTone,
+  getIdentityInitials,
+  IdentityAvatar,
+} from './IdentityAvatar';
 
 class LoadedImageMock {
   private listeners = new Map<string, Array<() => void>>();
@@ -44,6 +49,11 @@ describe('IdentityAvatar', () => {
   it('keeps fallback color stable for the same identity', () => {
     expect(getIdentityAvatarTone('Marcelo')).toBe(getIdentityAvatarTone('Marcelo'));
     expect(getIdentityAvatarTone('Marcelo')).not.toEqual('');
+  });
+
+  it('keeps generated fallback geometry stable for the same identity', () => {
+    expect(getIdentityAvatarPattern('Marcelo')).toEqual(getIdentityAvatarPattern('Marcelo'));
+    expect(getIdentityAvatarPattern('Marcelo')).not.toEqual(getIdentityAvatarPattern('Ana'));
   });
 
   it('renders a real avatar image when an url is available', async () => {
@@ -117,9 +127,24 @@ describe('IdentityAvatar', () => {
     expect(screen.getByText('VJ')).toBeInTheDocument();
   });
 
+  it('does not trust ambiguous WhatsApp upload labels without explicit consent', () => {
+    const { container } = render(
+      <IdentityAvatar
+        name="Vecino Junin"
+        avatarUrl="https://cdn.example.com/avatar.jpg"
+        source="whatsapp_media_upload"
+      />,
+    );
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('VJ')).toBeInTheDocument();
+  });
+
   it('falls back to initials without inventing a fake photo', () => {
-    render(<IdentityAvatar name="Vecino Junin" />);
+    const { container } = render(<IdentityAvatar name="Vecino Junin" />);
 
     expect(screen.getByText('VJ')).toBeInTheDocument();
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(container.querySelector('[title="Vecino Junin - Avatar generativo por identidad"]')).toBeInTheDocument();
   });
 });

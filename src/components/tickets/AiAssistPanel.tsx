@@ -15,7 +15,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { enterpriseService, type TicketAiEnrichmentResponse } from '@/services/enterpriseService';
-import { getTenantTicketAiEnrichment, isTenantTicketV2 } from '@/services/ticketService';
+import {
+  getTenantTicketAiEnrichment,
+  isLegacyHtmlGatewayError,
+  isTenantTicketV2,
+  summarizeTicketFetchError,
+} from '@/services/ticketService';
 import type { Ticket } from '@/types/tickets';
 import { cn } from '@/lib/utils';
 
@@ -250,7 +255,9 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
       setEnrichment(response);
     } catch (err) {
       if (requestSeq.current !== currentRequest) return;
-      console.error('Unable to load ticket AI enrichment', err);
+      if (!isLegacyHtmlGatewayError(err)) {
+        console.warn('Unable to load ticket AI enrichment', summarizeTicketFetchError(err));
+      }
       setError('No se pudo calcular la asistencia IA para este ticket.');
       setEnrichment(null);
     } finally {
