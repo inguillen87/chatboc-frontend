@@ -17,10 +17,6 @@ import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
 import { normalizeTicketLocation } from '@/utils/location';
 
-const generateRandomAvatar = (seed: string) => {
-    return `https://i.pravatar.cc/150?u=${seed}`;
-}
-
 const ticketApiPath = (path: string): string => {
     const normalized = path.startsWith('/') ? path : `/${path}`;
     return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
@@ -66,6 +62,23 @@ const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
         ...ticket,
         ...location,
     };
+};
+
+const resolveConsentedAvatarUrl = (ticket: Partial<Ticket> & Record<string, any>): string | undefined => {
+    const userRecord =
+        ticket.user && typeof ticket.user === 'object'
+            ? (ticket.user as Record<string, any>)
+            : undefined;
+    const value =
+        ticket.avatarUrl ||
+        ticket.avatar_url ||
+        ticket.contact_avatar_url ||
+        ticket.profile_picture_url ||
+        userRecord?.avatarUrl ||
+        userRecord?.avatar_url ||
+        userRecord?.profile_picture_url;
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    return normalized || undefined;
 };
 
 const parseAdminFlag = (val: any): boolean => {
@@ -459,7 +472,7 @@ export const getTickets = async (
           Boolean(ticket.hasUnreadMessages) ||
           Boolean(collaborationState?.has_unread) ||
           Number(collaborationState?.unread_viewer_count || 0) > 0,
-        avatarUrl: ticket.avatarUrl || generateRandomAvatar(ticket.email || ticket.id.toString()),
+        avatarUrl: resolveConsentedAvatarUrl(ticket),
       };
     });
 
@@ -533,7 +546,7 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
             history,
             messages,
             collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
-            avatarUrl: normalizedResponse.avatarUrl || generateRandomAvatar(normalizedResponse.email || normalizedResponse.id.toString())
+            avatarUrl: resolveConsentedAvatarUrl(normalizedResponse),
         };
     } catch (error) {
         console.error(`Error fetching ticket ${id}:`, error);
@@ -590,9 +603,7 @@ export const getTicketByNumber = async (
                     Boolean((normalizedResponse as any).hasUnreadMessages) ||
                     Boolean(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.has_unread) ||
                     Number(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.unread_viewer_count || 0) > 0,
-                avatarUrl:
-                    normalizedResponse.avatarUrl ||
-                    generateRandomAvatar(normalizedResponse.email || normalizedResponse.id.toString()),
+                avatarUrl: resolveConsentedAvatarUrl(normalizedResponse),
             };
         } catch (err) {
             const apiErr = err as ApiError;

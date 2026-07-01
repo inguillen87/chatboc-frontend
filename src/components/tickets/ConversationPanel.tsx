@@ -27,7 +27,7 @@ import {
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
@@ -778,7 +778,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         .then((result) => {
           notifyDeliveryIssue(
             result,
-            'El estado se actualizó, pero el aviso por correo no se pudo entregar.',
+            'El estado se actualizo, pero el aviso por correo no se pudo entregar.',
           );
         })
         .catch((error) => {
@@ -794,6 +794,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     selectedTicket.nro_ticket || `#${selectedTicket.id}`,
     selectedTicket.name,
   ].filter(Boolean).join(' - ');
+  const conversationAvatarUrl =
+    selectedTicket.avatarUrl ||
+    selectedTicket.avatar_url ||
+    selectedTicket.contact_avatar_url ||
+    selectedTicket.profile_picture_url;
+  const conversationAvatarSource =
+    selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen de perfil' : 'iniciales');
 
   return (
     <motion.div
@@ -817,10 +824,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
               </Button>
             )}
-            <Avatar className="h-9 w-9 shrink-0">
-              <AvatarImage src={selectedTicket.avatarUrl} />
-              <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
-            </Avatar>
+            <IdentityAvatar
+              name={selectedTicket.display_name || selectedTicket.name || conversationTitle}
+              avatarUrl={conversationAvatarUrl}
+              source={conversationAvatarSource}
+              size="md"
+            />
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-foreground sm:text-base" title={conversationTitle}>
                 {conversationTitle}

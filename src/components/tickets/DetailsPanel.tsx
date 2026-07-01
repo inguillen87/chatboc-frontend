@@ -1,6 +1,5 @@
 import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -27,6 +26,7 @@ import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
 import TicketAssignment from './TicketAssignment';
 import AiAssistPanel from './AiAssistPanel';
+import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import {
@@ -386,12 +386,16 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       sanitizeMediaUrl(
         pickFirstString(
           ticket?.avatarUrl,
+          ticket?.avatar_url,
+          ticket?.contact_avatar_url,
+          ticket?.profile_picture_url,
           ticket?.user?.avatarUrl,
-          (ticket as any)?.nombre_y_avatar_whatsapp?.avatar
         )
       ),
     [ticket]
   );
+  const neighborAvatarSource =
+    ticket?.avatar_source || (neighborAvatarUrl ? 'imagen de perfil' : 'iniciales');
   const [imageError, setImageError] = React.useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = React.useState(false);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
@@ -445,10 +449,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setCompletionSent(false);
     setOpenSections([]);
   }, [ticket?.categoria, ticket?.id]);
-
-  const getInitials = (name: string) => {
-    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
-  };
 
   const normalizePersonalValue = (value?: string | number | null) => {
     if (typeof value === 'number') return String(value).trim();
@@ -852,10 +852,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
           <Card>
             <CardHeader className="p-4">
               <div className="flex items-start gap-4">
-                <Avatar className="h-14 w-14 flex-shrink-0">
-                  <AvatarImage src={neighborAvatarUrl || undefined} alt={displayName} />
-                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-                </Avatar>
+                <IdentityAvatar
+                  name={displayName}
+                  avatarUrl={neighborAvatarUrl}
+                  source={neighborAvatarSource}
+                  size="lg"
+                  className="h-14 w-14 flex-shrink-0 text-base"
+                />
                 <div className="min-w-0 flex-1">
                   <h2
                     className={cn(

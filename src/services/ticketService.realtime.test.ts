@@ -175,6 +175,40 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('does not synthesize fake contact avatars when the backend has no profile image', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 501,
+      tipo: 'municipio',
+      nro_ticket: 'M-501',
+      asunto: 'Reclamo',
+      estado: 'nuevo',
+      fecha: '2026-06-06T03:03:47.626Z',
+      email: 'vecino@example.com',
+      mensajes: [{ id: 1, mensaje: 'Consulta inicial', es_admin: false, timestamp: '2026-06-06T03:04:47.626Z' }],
+    });
+
+    const ticketWithoutAvatar = await getTicketByNumber('M-501', '900144');
+
+    expect(ticketWithoutAvatar.avatarUrl).toBeUndefined();
+
+    apiFetchMock.mockResolvedValueOnce({
+      id: 502,
+      tipo: 'municipio',
+      nro_ticket: 'M-502',
+      asunto: 'Reclamo',
+      estado: 'nuevo',
+      fecha: '2026-06-06T03:03:47.626Z',
+      profile_picture_url: 'https://cdn.example.com/profile/marcelo.jpg',
+      avatar_source: 'social',
+      mensajes: [{ id: 2, mensaje: 'Consulta inicial', es_admin: false, timestamp: '2026-06-06T03:04:47.626Z' }],
+    });
+
+    const ticketWithConsentedAvatar = await getTicketByNumber('M-502', '900144');
+
+    expect(ticketWithConsentedAvatar.avatarUrl).toBe('https://cdn.example.com/profile/marcelo.jpg');
+    expect(ticketWithConsentedAvatar.avatar_source).toBe('social');
+  });
+
   it('routes public PyME replies to the cliente endpoint with anonymous widget access', async () => {
     apiFetchMock.mockResolvedValueOnce({
       success: true,
