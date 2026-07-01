@@ -1,8 +1,29 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PremiumTerritoryHeatmap } from './PremiumTerritoryMap';
 import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTypes';
+
+vi.mock('@/components/LazyMapLibreMap', () => ({
+  default: (props: {
+    heatmapData?: unknown[];
+    fitToBounds?: unknown[];
+    provider?: string;
+    mapStyleUrl?: string | null;
+    maptilerKey?: string | null;
+    googleMapsKey?: string | null;
+  }) => (
+    <div
+      data-testid="mock-live-map"
+      data-points={String(props.heatmapData?.length ?? 0)}
+      data-bounds={String(props.fitToBounds?.length ?? 0)}
+      data-provider={props.provider}
+      data-style-url={props.mapStyleUrl ?? ''}
+      data-maptiler-key={props.maptilerKey ?? ''}
+      data-google-key={props.googleMapsKey ?? ''}
+    />
+  ),
+}));
 
 const buildPoints = (count: number): OperationsHeatmapPoint[] =>
   Array.from({ length: count }, (_, index) => ({
@@ -99,9 +120,27 @@ describe('PremiumTerritoryHeatmap', () => {
       },
     } satisfies OperationsHeatmapV1;
 
-    render(<PremiumTerritoryHeatmap points={heatmap.points} heatmap={heatmap} />);
+    render(
+      <PremiumTerritoryHeatmap
+        points={heatmap.points}
+        heatmap={heatmap}
+        mapConfig={{
+          provider: 'maplibre',
+          style_url: 'https://tiles.test/style.json',
+          maptiler_key: 'maptiler-test',
+          google_maps_key: 'google-test',
+        }}
+      />,
+    );
 
-    expect(screen.getByRole('img', { name: 'Inteligencia territorial' })).toBeTruthy();
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(liveMap.getAttribute('data-points')).toBe('12');
+    expect(liveMap.getAttribute('data-bounds')).toBe('12');
+    expect(liveMap.getAttribute('data-provider')).toBe('maplibre');
+    expect(liveMap.getAttribute('data-style-url')).toBe('https://tiles.test/style.json');
+    expect(liveMap.getAttribute('data-maptiler-key')).toBe('maptiler-test');
+    expect(liveMap.getAttribute('data-google-key')).toBe('google-test');
     expect(screen.getAllByText('Cobertura parcial').length).toBeGreaterThan(0);
     expect(screen.getByText('interactive globe heatmap')).toBeTruthy();
     expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
@@ -116,5 +155,12 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('fly to - zoom 13 - 2,5 km')).toBeTruthy();
     expect(screen.getByText('Asignar inspector')).toBeTruthy();
     expect(screen.getByText('Safe by default - solo preparacion operativa')).toBeTruthy();
+  });
+
+  it('keeps the atlas fallback when there are no live coordinates', () => {
+    render(<PremiumTerritoryHeatmap points={[{ id: 'draft-only', weight: 1, categoria: 'reclamos' }]} />);
+
+    expect(screen.queryByTestId('live-territory-map')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Inteligencia territorial' })).toBeTruthy();
   });
 });

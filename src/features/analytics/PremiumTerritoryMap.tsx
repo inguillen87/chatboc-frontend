@@ -22,9 +22,11 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import LazyMapLibreMap from '@/components/LazyMapLibreMap';
 import { cn } from '@/lib/utils';
 
 import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from './analyticsTypes';
+import type { HeatPoint } from '@/services/statsService';
 import {
   aggregateTerritoryHeatmap,
   DEFAULT_TERRITORY_ZONES,
@@ -101,6 +103,32 @@ const readNumber = (...values: unknown[]) => {
     }
   }
   return undefined;
+};
+
+const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
+  const location = asRecord(point.location);
+  const lat = readNumber(point.lat, location?.lat, point.latitude);
+  const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
+  if (lat === undefined || lng === undefined) return null;
+
+  const id = readNumber(point.id, point.ticket_id, point.record_id);
+  return {
+    lat,
+    lng,
+    ...(id !== undefined ? { id } : {}),
+    weight: readNumber(point.weight, point.total, point.count, point.value) ?? 1,
+    total: readNumber(point.total, point.count, point.value),
+    ticket: readString(point.ticket, point.ticket_id, point.record_id),
+    categoria: readString(point.categoria, point.category, point.type, point.layer),
+    canal: readString(point.canal, point.channel),
+    barrio: readString(point.barrio, point.district, point.distrito),
+    estado: readString(point.estado, point.status),
+    severidad: readString(point.severidad, point.severity),
+    fuente: readString(point.fuente, point.source),
+    direccion: readString(point.direccion, point.address, point.label),
+    last_ticket_at: readString(point.last_ticket_at, point.updated_at, point.created_at) ?? null,
+    feature: { raw: point },
+  };
 };
 
 const formatPercent = (value: number | undefined) =>
@@ -236,6 +264,16 @@ export function PremiumTerritoryHeatmap({
     () => (usesDemoData ? getDemoTerritoryHeatmapPoints(demoProfile) : points),
     [demoProfile, points, usesDemoData],
   );
+  const liveMapPoints = useMemo(
+    () => sourcePoints.map(toLiveHeatPoint).filter((point): point is HeatPoint => Boolean(point)),
+    [sourcePoints],
+  );
+  const liveMapBounds = useMemo(
+    () => liveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
+    [liveMapPoints],
+  );
+  const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
+  const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
 
   const aggregate = useMemo(
     () =>
@@ -481,6 +519,22 @@ export function PremiumTerritoryHeatmap({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
           <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
           <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
+          {showLiveMap ? (
+            <div data-testid="live-territory-map" className="relative z-10 h-[450px] w-full overflow-hidden sm:h-[540px]">
+              <LazyMapLibreMap
+                className="h-full min-h-0 w-full rounded-none border-0"
+                heatmapData={liveMapPoints}
+                showHeatmap={showHeatLayer}
+                provider={liveMapProvider}
+                mapStyleUrl={mapConfig?.style_url}
+                maptilerKey={mapConfig?.maptiler_key}
+                googleMapsKey={mapConfig?.google_maps_key}
+                fitToBounds={liveMapBounds}
+                boundsPadding={{ top: 96, right: 48, bottom: 112, left: 48 }}
+                disableClientClustering
+              />
+            </div>
+          ) : (
           <svg
             role="img"
             aria-label={title}
@@ -799,6 +853,7 @@ export function PremiumTerritoryHeatmap({
               </g>
             ) : null}
           </svg>
+          )}
 
           <div className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div className={cn('pointer-events-auto max-w-md rounded-lg border px-3 py-2 shadow-sm backdrop-blur', readinessToneClass[readiness.state])}>
