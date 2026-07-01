@@ -124,8 +124,8 @@ const normalizeSearchText = (value: unknown) =>
 const getAssistedPreview = (order: Order) => {
   const assistedRequest = order.assisted_request;
   return firstText(
-    order.crm_review_card?.suggested_reply,
     order.crm_review_card?.source?.text_preview,
+    order.crm_review_card?.suggested_reply,
     assistedRequest?.customer_message,
     assistedRequest?.source?.text_preview,
     assistedRequest?.structured_extraction?.fields?.resumen,
@@ -738,12 +738,14 @@ const PedidosPage = () => {
               const ChannelIcon = CHANNEL_ICONS[orderChannel] || Globe;
               const isSelected = selectedOrder?.id === order.id;
               const assistedRequest = order.assisted_request;
+              const crmReviewCardRaw = order.crm_review_card;
+              const crmReviewCardView = getCrmReviewCard(order);
+              const hasCrmReviewCard = Boolean(crmReviewCardRaw || crmReviewCardView);
               const unmatchedCount = assistedSummaryNumber(order, 'unmatched');
-              const assistedLabel = crmReviewCard?.request_kind_label || assistedRequest?.request_kind_label || 'Solicitud asistida';
+              const assistedLabel = crmReviewCardRaw?.request_kind_label || crmReviewCardView?.title || assistedRequest?.request_kind_label || 'Solicitud asistida';
               const assistedIsCatalog = assistedRequest?.document_profile?.catalog_matching !== false;
               const assistedPreview = getAssistedPreview(order);
               const followUpCode = getFollowUpCode(order);
-              const crmReviewCard = getCrmReviewCard(order);
               const selectOrder = () => {
                 if (window.innerWidth < 768) {
                   navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(order.id))}`, currentSlug));
@@ -758,7 +760,7 @@ const PedidosPage = () => {
                   role="button"
                   tabIndex={0}
                   aria-label={`Abrir pedido ${order.id}`}
-                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''} ${assistedRequest || crmReviewCard ? 'border-blue-400/60 bg-blue-50/35 dark:bg-blue-950/20' : ''}`}
+                  className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''} ${assistedRequest || hasCrmReviewCard ? 'border-blue-400/60 bg-blue-50/35 dark:bg-blue-950/20' : ''}`}
                   onClick={selectOrder}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -784,13 +786,13 @@ const PedidosPage = () => {
                             {stageLabel}
                           </Badge>
                         ) : null}
-                        {assistedRequest || crmReviewCard ? (
+                        {assistedRequest || hasCrmReviewCard ? (
                           <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200">
                             <Sparkles className="mr-1 h-3 w-3" />
                             IA
                           </Badge>
                         ) : null}
-                        {crmReviewCard ? (
+                        {hasCrmReviewCard ? (
                           <Badge variant="outline" className="border-violet-300 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-200">
                             CRM
                           </Badge>
@@ -798,18 +800,18 @@ const PedidosPage = () => {
                       </div>
                     </div>
 
-                    {assistedRequest || crmReviewCard ? (
+                    {assistedRequest || hasCrmReviewCard ? (
                       <div className="mb-3 rounded-md border border-blue-200 bg-background/70 p-2 text-xs dark:border-blue-900">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium text-blue-900 dark:text-blue-100">{assistedLabel}</span>
                           <span className={unmatchedCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}>
-                            {crmStateLabel(crmReviewCard?.status || assistedRequest?.crm_state)}
+                            {crmStateLabel(crmReviewCardRaw?.status || crmReviewCardView?.statusLabel || assistedRequest?.crm_state)}
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-muted-foreground">
                           {assistedIsCatalog ? <span>{assistedSummaryNumber(order, 'matched')} en catalogo</span> : null}
                           <span>{unmatchedCount} para revisar</span>
-                          {crmReviewCard?.reference ? <span className="font-mono">{crmReviewCard.reference}</span> : null}
+                          {crmReviewCardRaw?.reference ? <span className="font-mono">{crmReviewCardRaw.reference}</span> : null}
                           {followUpCode ? <span className="font-mono">Seg. {followUpCode}</span> : null}
                         </div>
                         {assistedPreview ? (
@@ -818,9 +820,9 @@ const PedidosPage = () => {
                       </div>
                     ) : null}
 
-                    {crmReviewCard ? (
+                    {crmReviewCardView ? (
                       <div className="mb-3">
-                        <CrmReviewCardSummary card={crmReviewCard} compact />
+                        <CrmReviewCardSummary card={crmReviewCardView} compact />
                       </div>
                     ) : null}
 

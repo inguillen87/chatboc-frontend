@@ -31,6 +31,32 @@ const assistedOrder: Order = {
     phone: '+5492613168608',
     email: 'marcelo@test.com',
   },
+  crm_review_card: {
+    contract_version: 'marketplace.crm_review_card.v1',
+    reference: 'pedido:assistida-1',
+    request_kind_label: 'Nota de pedido manuscrita',
+    status: 'needs_review',
+    priority: 'high',
+    needs_operator_review: true,
+    recommended_next_step: 'resolver_faltantes_y_responder',
+    summary: { detected: 3, matched: 1, unmatched: 2 },
+    source: {
+      channel: 'marketplace',
+      input_type: 'jpg',
+      text_preview: 'Foto manuscrita: clavos, chapas y tornillos para cotizar.',
+    },
+    contact: {
+      name: 'Marcelo',
+      phone: '+5492613168608',
+      email: 'marcelo@test.com',
+    },
+    lines: [
+      { line_id: 'l1', status: 'catalog_matched', source_name: 'Clavos', quantity: 2, catalog_match: { name: 'Clavos punta paris' } },
+      { line_id: 'l2', status: 'needs_catalog_resolution', source_name: 'Chapas', quantity: 4 },
+    ],
+    unmatched_items: ['chapas', 'tornillos'],
+    suggested_reply: 'Hola Marcelo, recibimos tu nota y revisamos stock y precio.',
+  },
   assisted_request: {
     contract_version: 'marketplace.assisted_request.v1',
     mode: 'order_note_upload',
@@ -66,13 +92,29 @@ const regularOrder: Order = {
   created_at: '2026-06-28T13:00:00.000Z',
   items: [{ id: 'vino', name: 'Vino malbec', price: 1200, quantity: 1 }],
   crm_review_card: {
-    title: 'Resumen CRM',
-    description: 'Cliente mayorista pide validar stock antes de confirmar.',
-    status_label: 'Revision comercial',
-    priority_label: 'Alta',
+    contract_version: 'marketplace.crm_review_card.v1',
+    reference: 'pedido:regular-2',
+    request_kind_label: 'Resumen CRM',
+    status: 'needs_review',
+    priority: 'high',
+    needs_operator_review: true,
     recommended_next_step: 'Validar stock y responder por WhatsApp',
-    review_reasons: ['Compra mayorista', 'Stock sensible'],
-    metrics: { items_detectados: 1, canal: 'WhatsApp' },
+    summary: { detected: 1, matched: 1, unmatched: 0 },
+    source: {
+      channel: 'whatsapp',
+      text_preview: 'Cliente mayorista pide validar stock antes de confirmar.',
+    },
+    contact: {
+      name: 'Cliente mayorista',
+      phone: '+5492613000000',
+    },
+    lines: [
+      { line_id: 'l1', status: 'catalog_matched', source_name: 'Vino malbec', quantity: 1 },
+    ],
+    suggested_reply: 'Cliente mayorista pide validar stock antes de confirmar.',
+    suggested_tasks: [
+      { id: 'stock', label: 'Stock sensible', description: 'Confirmar disponibilidad antes de responder.', tone: 'warning' },
+    ],
   },
 };
 
@@ -109,6 +151,9 @@ describe('PedidosPage', () => {
     expect(screen.getByRole('button', { name: /Revisar y confirmar/i })).toBeTruthy();
     expect(screen.queryByText('Av. Principal 1234, Local 5')).toBeNull();
     expect(screen.getByText(/No hay direccion ni metodo confirmado/)).toBeTruthy();
+    expect(screen.getByText('Ficha CRM operativa')).toBeTruthy();
+    expect(screen.getAllByText('pedido:assistida-1').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Hola Marcelo, recibimos tu nota/).length).toBeGreaterThan(0);
   });
 
   it('renders crm_review_card summaries without requiring assisted_request data', async () => {
@@ -121,8 +166,8 @@ describe('PedidosPage', () => {
     fireEvent.click(screen.getByLabelText('Abrir pedido regular-2'));
 
     await waitFor(() => expect(screen.getByText('Pedido #regular-2')).toBeTruthy());
-    expect(screen.getAllByText('Revision comercial').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Proximo paso: Validar stock/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('Stock sensible')).toBeTruthy();
+    expect(screen.getAllByText('Revision requerida').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Validar stock y responder/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Stock sensible').length).toBeGreaterThan(0);
   });
 });

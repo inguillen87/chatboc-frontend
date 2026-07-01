@@ -513,10 +513,36 @@ const taskToneClassName = (tone?: string | null) => {
 };
 
 export function AssistedRequestPanel({ order, className, dense = false }: AssistedRequestPanelProps) {
-  const assistedRequest = order.assisted_request;
+  const crmReviewCard = order.crm_review_card || null;
+  const derivedAssistedRequest: AssistedOrderRequest | null = crmReviewCard
+    ? {
+        contract_version: 'marketplace.assisted_request.derived_from_crm_review_card',
+        mode: 'crm_review_card',
+        crm_state: crmReviewCard.status,
+        request_kind: crmReviewCard.request_kind,
+        request_kind_label: crmReviewCard.request_kind_label,
+        contact: crmReviewCard.contact as AssistedOrderRequest['contact'],
+        source: crmReviewCard.source as AssistedOrderRequest['source'],
+        match_summary: crmReviewCard.summary,
+        review_context: { primary_intent: crmReviewCard.primary_intent },
+        next_actions: crmReviewCard.next_actions,
+        customer_next_steps: crmReviewCard.customer_next_steps,
+        detected_items: crmReviewCard.lines,
+        catalog_candidates: crmReviewCard.catalog_candidates,
+        unmatched_items: crmReviewCard.unmatched_items,
+        operator_pack: {
+          priority: crmReviewCard.priority,
+          primary_intent: crmReviewCard.primary_intent,
+          needs_human_review: crmReviewCard.needs_operator_review,
+          suggested_reply: crmReviewCard.suggested_reply,
+          suggested_tasks: crmReviewCard.suggested_tasks,
+          contact_links: crmReviewCard.contact_links,
+        },
+      }
+    : null;
+  const assistedRequest: AssistedOrderRequest | null = order.assisted_request || derivedAssistedRequest;
   if (!assistedRequest) return null;
 
-  const crmReviewCard = order.crm_review_card || null;
   const operatorPack = assistedRequest.operator_pack || null;
   const operatorIntakeSummary = assistedRequest.operator_intake_summary || null;
   const contact = crmReviewCard?.contact || assistedRequest.contact || order.contact || order.customer_profile || null;
