@@ -310,6 +310,12 @@ describe('TicketLookup request_id support surface', () => {
 
     render(<TicketLookup />);
 
+    const routingSummary = await screen.findByTestId('ticket-support-routing');
+    expect(routingSummary).toHaveTextContent('Atencion asociada al ticket');
+    expect(routingSummary).toHaveTextContent('Todo queda asociado al ticket #M-378430');
+    expect(routingSummary).toHaveTextContent('Este reclamo');
+    expect(routingSummary).toHaveTextContent('Chat en CRM');
+
     const openButton = await screen.findByRole('button', {
       name: /abrir chat del reclamo/i,
     });
@@ -385,6 +391,10 @@ describe('TicketLookup request_id support surface', () => {
     const offlineButton = await screen.findByRole('button', {
       name: /dejar mensaje en el reclamo/i,
     });
+    const routingSummary = screen.getByTestId('ticket-support-routing');
+    expect(routingSummary).toHaveTextContent('Todo queda asociado al ticket #M-378431');
+    expect(routingSummary).toHaveTextContent('Mensaje offline en CRM');
+    expect(routingSummary).toHaveTextContent('Lunes a viernes de 09:00 a 13:00');
     fireEvent.click(offlineButton);
 
     expect(await screen.findByText(/atención fuera de horario/i)).toBeInTheDocument();

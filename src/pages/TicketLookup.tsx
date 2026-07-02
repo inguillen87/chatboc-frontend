@@ -1103,6 +1103,23 @@ export default function TicketLookup() {
     : liveChatEnabled
       ? `Horario configurado: ${liveChatScheduleLabel}. Si enviás ahora, queda como mensaje offline del mismo reclamo.`
       : "El municipio todavía no publicó un horario de chat; el mensaje se guarda como comentario público del reclamo.";
+  const supportRoutingSummary = [
+    {
+      label: "Canal",
+      value: "Este reclamo",
+      icon: Hash,
+    },
+    {
+      label: "Registro",
+      value: liveChatAvailable ? "Chat en CRM" : "Mensaje offline en CRM",
+      icon: MessagesSquare,
+    },
+    {
+      label: "Horario",
+      value: liveChatEnabled ? liveChatScheduleLabel : "Comentario publico",
+      icon: Clock,
+    },
+  ];
   const supportPlaceholder = supportMode === "live"
     ? liveChatAvailable
       ? "Escribí tu mensaje para la mesa de atención de este reclamo..."
@@ -2059,6 +2076,31 @@ export default function TicketLookup() {
                         >
                           {liveChatAvailable ? "Abrir chat del reclamo" : "Dejar mensaje en el reclamo"}
                         </Button>
+                      </div>
+                      <div
+                        data-testid="ticket-support-routing"
+                        className="grid gap-2 rounded-2xl border border-white/15 bg-white/10 p-3 text-sm text-white/90"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+                          Atencion asociada al ticket
+                        </p>
+                        <p className="text-xs leading-5 text-slate-200">
+                          Todo queda asociado al ticket #{publicTicketNumber}; el equipo responde desde el CRM municipal.
+                        </p>
+                        <div className="grid gap-1.5">
+                          {supportRoutingSummary.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <div key={item.label} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-slate-950/35 px-3 py-2 ring-1 ring-white/10">
+                                <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                                  <Icon className="h-3.5 w-3.5" />
+                                  {item.label}
+                                </div>
+                                <p className="min-w-0 text-right text-xs font-semibold leading-5 text-white">{item.value}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
