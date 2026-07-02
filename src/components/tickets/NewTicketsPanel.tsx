@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
+import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
@@ -492,20 +493,29 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(300px, 340px) minmax(560px, 1fr) minmax(320px, 380px)'
-      : 'minmax(320px, 360px) minmax(560px, 1fr) minmax(320px, 380px)'
+      ? 'minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 340px)'
+      : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(300px, 340px) minmax(560px, 1fr)'
-        : 'minmax(320px, 370px) minmax(560px, 1fr)'
+        ? 'minmax(260px, 320px) minmax(0, 1fr)'
+        : 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
-        ? 'minmax(560px, 1fr) minmax(320px, 380px)'
+        ? 'minmax(0, 1fr) minmax(300px, 360px)'
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
     nextPriorityTicket && selectedTicket && String(nextPriorityTicket.id) === String(selectedTicket.id),
   );
   const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
+  const selectedTicketReference = selectedTicket?.nro_ticket || selectedTicket?.id || null;
+  const selectedTicketStatus = selectedTicket ? normalizeTicketStatus(selectedTicket.estado).replace(/_/g, ' ') : null;
+  const selectedTicketChannel = selectedTicket?.channel || 'whatsapp';
+  const selectedTicketSla = selectedTicket?.sla_status ? `SLA ${selectedTicket.sla_status}` : null;
+  const selectedTicketHasUnread = selectedTicket ? hasUnreadTicket(selectedTicket) : false;
+  const selectedTicketNextAction =
+    selectedTicket?.recommended_next_action ||
+    (selectedTicketHasUnread ? 'Responder conversacion' : null) ||
+    (nextPriorityTicket ? `Proximo: ${nextPriorityLabel}` : 'Mesa actualizada');
 
   return (
     <Card className={panelCardClass}>
@@ -716,6 +726,58 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </Button>
           </div>
         </div>
+      </div>
+      <div
+        className={cn(
+          'border-b border-border/70 bg-background/65',
+          embedded ? 'px-2 py-2 sm:px-3' : 'px-3 py-2 sm:px-4',
+        )}
+      >
+        <OperationalContinuityBar
+          compact={embedded}
+          testId="tickets-operational-continuity"
+          icon={MessageSquare}
+          tone={riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default'}
+          title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
+          subtitle={
+            selectedTicket
+              ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
+              : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
+          }
+          reference={selectedTicketReference}
+          statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
+          channelLabel={selectedTicket ? selectedTicketChannel : 'WhatsApp / web'}
+          liveLabel={realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime listo'}
+          slaLabel={selectedTicketSla ?? (riskTickets > 0 ? `${riskTickets} en riesgo` : 'SLA estable')}
+          nextActionLabel={selectedTicketNextAction}
+          primaryActionLabel={
+            nextPriorityTicket && !isNextPrioritySelected
+              ? 'Atender prioridad'
+              : selectedTicket
+                ? 'Responder'
+                : 'Actualizar mesa'
+          }
+          onPrimaryAction={() => {
+            if (nextPriorityTicket && !isNextPrioritySelected) {
+              selectTicket(nextPriorityTicket.id);
+              return;
+            }
+            if (!selectedTicket) {
+              void refreshTickets();
+              return;
+            }
+            setDesktopView('chat');
+            if (isMobile) setActiveMobileView('chat');
+          }}
+          secondaryActionLabel="Actualizar"
+          onSecondaryAction={() => void refreshTickets()}
+          metrics={[
+            { label: 'Abiertos', value: openTickets, tone: 'default' },
+            { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
+            { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
+            { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
+          ]}
+        />
       </div>
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col">

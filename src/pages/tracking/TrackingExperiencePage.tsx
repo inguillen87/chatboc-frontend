@@ -28,6 +28,7 @@ import {
   type TrackingKind,
 } from "@/api/trackingExperience";
 import { Button } from "@/components/ui/button";
+import OperationalContinuityBar from "@/components/operations/OperationalContinuityBar";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/utils/api";
 
@@ -460,6 +461,44 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 </div>
               );
             })}
+          </div>
+
+          <div className="border-t border-border/70 bg-background/70 p-4">
+            <OperationalContinuityBar
+              testId="tracking-operational-continuity"
+              icon={kind === "claim" ? MessageCircle : PackageCheck}
+              tone={support.liveAvailable ? "live" : support.enabled ? "warning" : "default"}
+              title={kind === "claim" ? "Seguimiento ciudadano activo" : "Pedido con trazabilidad activa"}
+              subtitle={
+                kind === "claim"
+                  ? "El estado, la mesa de ayuda y el historial quedan vinculados al mismo reclamo publico."
+                  : "El pedido conserva referencia, estado y proxima accion para continuar sin perder contexto."
+              }
+              reference={trackingCodeLabel}
+              statusLabel={status.label}
+              channelLabel={resource.channel || "web"}
+              liveLabel={support.enabled ? (support.liveAvailable ? "Atencion en vivo" : "Mesa offline") : "Seguimiento web"}
+              slaLabel={support.schedule || (resource.updatedAt ? `Actualizado ${resource.updatedAt}` : "Actualizado")}
+              nextActionLabel={
+                kind === "claim" && support.enabled
+                  ? support.liveAvailable
+                    ? "Escribir a mesa de ayuda"
+                    : "Dejar mensaje offline"
+                  : nextMilestone
+                    ? `Siguiente: ${nextMilestone.label}`
+                    : "Consultar estado"
+              }
+              primaryActionLabel={kind === "claim" && support.enabled ? "Ir a mesa de ayuda" : "Actualizar estado"}
+              onPrimaryAction={kind === "claim" && support.enabled ? focusSupportComposer : load}
+              secondaryActionLabel="Copiar codigo"
+              onSecondaryAction={copyTrackingCode}
+              metrics={[
+                { label: "Estado", value: status.label, tone: "default" },
+                { label: "Avance", value: `${progress}%`, tone: progress >= 80 ? "success" : "muted" },
+                { label: "Eventos", value: visibleTimeline.length, tone: "muted" },
+                { label: "Acceso", value: kind === "claim" ? "PIN" : "Link", tone: "success" },
+              ]}
+            />
           </div>
 
           <div

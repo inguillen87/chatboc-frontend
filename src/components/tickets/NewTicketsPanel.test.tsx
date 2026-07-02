@@ -89,8 +89,9 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(320px, 370px) minmax(560px, 1fr)',
+      gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
     });
+    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
   });
 
   it('uses a compact operational header when embedded inside the profile CRM', () => {
@@ -114,8 +115,9 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(300px, 340px) minmax(560px, 1fr)',
+      gridTemplateColumns: 'minmax(260px, 320px) minmax(0, 1fr)',
     });
+    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
   });
 

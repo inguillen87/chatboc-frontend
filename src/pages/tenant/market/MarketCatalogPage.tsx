@@ -5,6 +5,7 @@ import { fetchMarketCatalog } from '@/api/market';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import ProductCard from '@/components/market/ProductCard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -244,7 +245,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
-  const { addItem, isLoading: isCartLoading } = useMarketCart();
+  const { addItem, items: cartItems, totalAmount: cartTotalAmount, isLoading: isCartLoading } = useMarketCart();
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const shareUrl = useMemo(() => {
@@ -346,6 +347,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     (products.length === 0 && effectiveAssistedIntake?.show_on_empty_catalog !== false)
   );
   const showCatalogFilters = !assistedFirstActive || !catalogActuallyEmpty || hasActiveFilters;
+  const cartItemCount = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const cartTotalLabel = typeof cartTotalAmount === 'number' ? moneyFormatter.format(cartTotalAmount) : '-';
 
   useEffect(() => {
     setIsLoading(true);
@@ -521,6 +524,46 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </Button>
         </div>
       </header>
+
+      <OperationalContinuityBar
+        testId="market-operational-continuity"
+        icon={ShoppingBag}
+        tone={cartItemCount > 0 ? 'success' : assistedFirstActive ? 'warning' : 'default'}
+        title="Operacion comercial conectada"
+        subtitle={
+          assistedFirstActive
+            ? 'El cliente puede subir una nota, foto o documento y el equipo recibe una solicitud ordenada en el panel operativo.'
+            : 'Catalogo, promociones, carrito, WhatsApp y seguimiento quedan unidos en el mismo recorrido de compra.'
+        }
+        reference={tenantSlug}
+        statusLabel={isLoading ? 'Actualizando catalogo' : catalogActuallyEmpty ? 'Solicitud abierta' : `${products.length} visibles`}
+        channelLabel="Webview / WhatsApp"
+        liveLabel={shareMessage ? 'WhatsApp listo' : 'Canal web'}
+        slaLabel={publicApi?.analytics?.contract_version ?? 'Analytics operativo'}
+        nextActionLabel={
+          cartItemCount > 0
+            ? 'Revisar carrito y checkout'
+            : assistedFirstActive
+              ? 'Subir pedido o documento'
+              : 'Explorar catalogo'
+        }
+        primaryActionLabel={cartItemCount > 0 ? 'Ver carrito' : assistedPrimaryCta}
+        onPrimaryAction={() => {
+          if (cartItemCount > 0) {
+            window.location.href = buildTenantPath('/cart', tenantSlug);
+            return;
+          }
+          activateAssistedUpload('file');
+        }}
+        secondaryActionLabel="WhatsApp"
+        onSecondaryAction={() => openWhatsappShare('continuity_bar')}
+        metrics={[
+          { label: 'Carrito', value: cartItemCount, tone: cartItemCount > 0 ? 'success' : 'muted' },
+          { label: 'Total', value: cartTotalLabel, tone: cartItemCount > 0 ? 'success' : 'muted' },
+          { label: 'Promos', value: promotionItems.length, tone: promotionItems.length > 0 ? 'live' : 'muted' },
+          { label: 'Loop', value: `${commerceLoopSteps.length} pasos`, tone: 'default' },
+        ]}
+      />
 
       <section
         data-testid="market-primary-actions"
