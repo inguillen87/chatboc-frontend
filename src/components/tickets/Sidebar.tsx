@@ -9,6 +9,7 @@ import {
   List,
   Search,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
@@ -451,6 +452,34 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
   const queueUnassignedCount = queueEntries.filter(({ ticket }) => isUnassignedQueueTicket(ticket)).length;
   const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
   const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
+  const queueCaseCountLabel =
+    queueEntries.length === 1
+      ? '1 caso'
+      : `${queueEntries.length.toLocaleString('es-AR')} casos`;
+  const visibleRubrosCountLabel =
+    visibleCategoryEntries.length === 1
+      ? '1 visible'
+      : `${visibleCategoryEntries.length.toLocaleString('es-AR')} visibles`;
+  const visibleTicketCountLabel =
+    filteredTickets.length === 1
+      ? '1 visible'
+      : `${filteredTickets.length.toLocaleString('es-AR')} visibles`;
+  const listSummaryLabel =
+    listMode === 'queue'
+      ? `Cola priorizada: ${queueCaseCountLabel}`
+      : `Rubros: ${visibleRubrosCountLabel}`;
+  const filterSummaryLabel = hasSecondaryFilters
+    ? secondaryFilterCountLabel
+    : debouncedSearchTerm
+      ? 'Busqueda activa'
+      : 'Sin filtros';
+  const activeFilterSummary = [
+    debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
+    ...secondaryFilterLabels,
+  ].filter(Boolean) as string[];
+  const listSummaryTitle = activeFilterSummary.length
+    ? activeFilterSummary.join(' | ')
+    : 'Sin filtros activos';
   const listModeToggle = (
     <div
       className={cn(
@@ -861,6 +890,36 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
             </div>
           </>
         )}
+      </div>
+      <div
+        className={cn(
+          'flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/70 px-2.5 py-1.5',
+          compact && 'px-2 py-1',
+        )}
+        data-testid="sidebar-list-summary-bar"
+        title={listSummaryTitle}
+      >
+        <p className="min-w-0 truncate text-[11px] leading-5 text-muted-foreground">
+          <span className="font-semibold text-foreground">{listSummaryLabel}</span>
+          <span className="mx-1 text-border">|</span>
+          <span>{filterSummaryLabel}</span>
+          <span className="mx-1 text-border">|</span>
+          <span>{visibleTicketCountLabel}</span>
+        </p>
+        {hasActiveFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-1 rounded-md px-2 text-[11px] font-semibold"
+            aria-label="Limpiar filtros de la vista"
+            title="Limpiar filtros"
+            onClick={resetFilters}
+          >
+            <X className="h-3.5 w-3.5" />
+            <span className={cn(compact && 'sr-only')}>Limpiar</span>
+          </Button>
+        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (

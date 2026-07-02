@@ -8,6 +8,7 @@ import MarketCatalogPage from './MarketCatalogPage';
 const fetchMarketCatalogMock = vi.fn();
 const fetchMarketCartMock = vi.fn();
 const addMarketItemMock = vi.fn();
+const trackFrontendEventMock = vi.fn();
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -23,11 +24,16 @@ vi.mock('@/api/market', () => ({
   addMarketItem: (...args: unknown[]) => addMarketItemMock(...args),
 }));
 
+vi.mock('@/utils/frontendTelemetry', () => ({
+  trackFrontendEvent: (...args: unknown[]) => trackFrontendEventMock(...args),
+}));
+
 describe('MarketCatalogPage assisted marketplace entry', () => {
   beforeEach(() => {
     fetchMarketCatalogMock.mockReset();
     fetchMarketCartMock.mockReset();
     addMarketItemMock.mockReset();
+    trackFrontendEventMock.mockReset();
     fetchMarketCartMock.mockResolvedValue({ items: [], totalAmount: 0, totalPoints: 0 });
     fetchMarketCatalogMock.mockResolvedValue({
       products: [],
@@ -66,11 +72,50 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       frontend_contract: {
         show_assisted_intake: true,
       },
+      public_api: {
+        contract_version: 'marketplace.public_api.v1',
+        analytics: {
+          contract_version: 'marketplace.public_analytics_loop.v1',
+          write_mode: 'frontend_signal_plus_server_reconciliation',
+          client_signal_channel: 'dataLayer',
+          recommended_events: ['catalog_viewed', 'assisted_upload_started'],
+          funnel: [
+            { stage: 'catalog', event: 'catalog_viewed', label: 'Catalogo visto' },
+            { stage: 'assist', event: 'assisted_upload_submitted', label: 'Pedido asistido' },
+            { stage: 'cart', event: 'cart_started', label: 'Carrito iniciado' },
+            { stage: 'checkout', event: 'checkout_session_created', label: 'Checkout creado' },
+            { stage: 'order', event: 'order_created', label: 'Pedido generado' },
+            { stage: 'tracking', event: 'order_tracking_opened', label: 'Seguimiento abierto' },
+          ],
+        },
+      },
       publicCartUrl: 'https://chatboc.ar/t/junin/cart',
       whatsappShareUrl: 'https://wa.me/?text=Catalogo',
     });
     Element.prototype.scrollIntoView = vi.fn();
     window.scrollTo = vi.fn();
+  });
+
+  it('shows the WhatsApp commerce loop even while the catalog request is still pending', () => {
+    fetchMarketCatalogMock.mockReturnValueOnce(new Promise(() => undefined));
+    fetchMarketCartMock.mockReturnValueOnce(new Promise(() => undefined));
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
+    expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
+    expect(screen.getByText('Catalogo visto')).toBeInTheDocument();
+    expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
+    expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
+    expect(screen.getByText('Checkout creado')).toBeInTheDocument();
+    expect(screen.getByText('Pedido generado')).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento abierto')).toBeInTheDocument();
   });
 
   it('keeps assisted order upload visible and reachable when the public catalog has no products', async () => {
@@ -86,6 +131,17 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     });
 
+    expect(trackFrontendEventMock).toHaveBeenCalledWith(
+      'catalog_viewed',
+      expect.objectContaining({
+        tenant_slug: 'junin',
+        screen_name: 'marketplace_public_catalog',
+        product_count: 0,
+        public_api_contract: 'marketplace.public_api.v1',
+        analytics_contract: 'marketplace.public_analytics_loop.v1',
+      }),
+    );
+
     expect(screen.getByText('Sin registro')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto, lista o documento/i)).toBeInTheDocument();
@@ -96,6 +152,14 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Texto de WhatsApp')).toBeInTheDocument();
     expect(screen.getByText('Documento o reclamo')).toBeInTheDocument();
     expect(screen.getByText('Seguimiento seguro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
+    expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
+    expect(screen.getByText('Catalogo visto')).toBeInTheDocument();
+    expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
+    expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
+    expect(screen.getByText('Checkout creado')).toBeInTheDocument();
+    expect(screen.getByText('Pedido generado')).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento abierto')).toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
     expect(screen.getByText(/Subi boletas, certificados, pedidos o notas/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Boleta municipal/i })).toBeInTheDocument();
@@ -120,6 +184,15 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Subir foto o archivo/i }));
 
+    expect(trackFrontendEventMock).toHaveBeenCalledWith(
+      'assisted_upload_started',
+      expect.objectContaining({
+        tenant_slug: 'junin',
+        preferred_mode: 'file',
+        source: 'upload_file_cta',
+        analytics_contract: 'marketplace.public_analytics_loop.v1',
+      }),
+    );
     expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
     await waitFor(() => {
       expect(screen.getByTestId('assisted-upload-dropzone')).toHaveFocus();

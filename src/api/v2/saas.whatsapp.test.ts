@@ -155,6 +155,29 @@ describe("normalizeWhatsappExperienceV2", () => {
           requires_server_to_server_confirmation: true,
         },
       },
+      flow_runtime: {
+        contract_version: "whatsapp.flow_runtime.v1",
+        runtime_policy: {
+          pause_conversation_while_webview_open: true,
+          no_sensitive_data_in_chat: true,
+        },
+        public_endpoints: {
+          checkout: "/api/checkout/crear-preferencia",
+          claim_messages: "/api/public/tracking/claims/{ticket_id}/messages",
+        },
+        summary: {
+          flows_total: 14,
+          ready_flows: 6,
+          families: { claims: 2, commerce: 2, surveys: 1 },
+        },
+        flows: [
+          {
+            id: "order_checkout",
+            family: "commerce",
+            actions: [{ id: "public_checkout", endpoint: "/api/checkout/crear-preferencia" }],
+          },
+        ],
+      },
       qa_playbook: {
         contract_version: "whatsapp.qa_playbook.v1",
         scenario_count: 5,
@@ -217,6 +240,10 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.webview_blueprint.flows as any)[0].executable_contract.backend_actions).toContain(
       "create_signed_webview_session",
     );
+    expect((normalized.flow_runtime as any).contract_version).toBe("whatsapp.flow_runtime.v1");
+    expect((normalized.flow_runtime as any).runtime_policy.pause_conversation_while_webview_open).toBe(true);
+    expect((normalized.flow_runtime as any).public_endpoints.checkout).toBe("/api/checkout/crear-preferencia");
+    expect((normalized.flow_runtime as any).flows[0].actions[0].id).toBe("public_checkout");
     expect((normalized.finance_transactional as any).contract_version).toBe("finance.transactional_whatsapp.v1");
     expect((normalized.finance_transactional as any).summary.journeys).toBe(6);
     expect((normalized.finance_transactional as any).journeys[0].id).toBe("digital_account_opening");

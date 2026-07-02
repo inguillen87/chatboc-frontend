@@ -460,7 +460,9 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
+  { path: '/tracking/claim', element: <TrackingExperiencePage kind="claim" /> },
   { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
+  { path: '/tracking/order', element: <TrackingExperiencePage kind="order" /> },
   { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
   { path: '/t/chat/:ticketId', element: <TwilioTicketTemplateRedirect /> },
   { path: '/catalogo/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/market" />, allowGuest: true },

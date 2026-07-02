@@ -27,6 +27,7 @@ import {
   runTenantOpsQaCheckV2,
   type OmnichannelInboxItem,
   type ProductionSmokeE2EFlow,
+  type ProductionSmokeE2EReadiness,
   type TenantAdminExperienceV2,
   type TenantOpsQaExecutionV2,
   type TenantOpsQaPlaybookV2,
@@ -305,6 +306,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
   const selectedLeadTicket = useMemo(() => readLeadTicket(selectedLead), [selectedLead]);
   const selectedLeadTicketId = selectedLeadTicket?.ticket_id || selectedLeadTicket?.id;
   const readinessChecks = isRecord(readiness.checks) ? readiness.checks : {};
+  const e2eFlowReadiness = bundle?.e2e_flow_readiness ?? opsQa?.e2e_flow_readiness;
   const freshnessSummary = isRecord(freshness.summary) ? freshness.summary : {};
   const canRenderHeatmap = first(freshnessSummary, ["can_render_heatmap", "heatmap_enabled"]);
   const freshnessStatus = String(freshness.status || first(freshness, ["state", "reason_code"]) || "ready");
@@ -386,6 +388,8 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
         runningCheckId={runningOpsQaCheck}
         onRunCheck={runOpsQaCheck}
       />
+
+      <ConversationalFlowReadinessPanel readiness={e2eFlowReadiness} />
 
       <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Card className="h-fit border-border/60">
@@ -1064,6 +1068,110 @@ const FlowListPreview = ({ title, items }: { title: string; items: string[] }) =
         ))}
       </ul>
     </div>
+  );
+};
+
+const readEvidenceHighlights = (flow: ProductionSmokeE2EFlow): string[] => {
+  const evidence = flow.evidence ?? {};
+  const entries = Object.entries(evidence)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "" && typeof value !== "object")
+    .slice(0, 3);
+  return entries.map(([key, value]) => `${key.replace(/_/g, " ")}: ${String(value)}`);
+};
+
+const flowFamilyLabel = (flow: ProductionSmokeE2EFlow) => {
+  const id = `${flow.id} ${flow.surface || ""}`.toLowerCase();
+  if (id.includes("claim") || id.includes("municipio") || id.includes("gobierno")) return "Reclamos";
+  if (id.includes("catalog") || id.includes("checkout") || id.includes("order") || id.includes("pyme")) return "Marketplace";
+  if (id.includes("survey") || id.includes("vote") || id.includes("encuesta")) return "Encuestas";
+  if (id.includes("finance")) return "Finance";
+  if (id.includes("analytics") || id.includes("heatmap") || id.includes("map")) return "Mapas";
+  if (id.includes("school") || id.includes("colegio")) return "Colegios";
+  return "Omnicanal";
+};
+
+export const ConversationalFlowReadinessPanel = ({
+  readiness,
+}: {
+  readiness?: ProductionSmokeE2EReadiness | null;
+}) => {
+  const flows = readiness?.flows ?? [];
+  if (!flows.length) return null;
+
+  const summary = readiness?.summary ?? {};
+  const ready = asNumber(first(summary, ["ready", "ready_flows"])) ?? flows.filter((flow) => flow.ready).length;
+  const total = asNumber(first(summary, ["total", "flows_total"])) ?? flows.length;
+  const webviews = asNumber(first(summary, ["webview_flows", "webviews"])) ?? null;
+  const needsAttention = Math.max(0, total - ready);
+
+  return (
+    <section className="rounded-[28px] border border-border/60 bg-background/90 p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Layers3 className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-black tracking-tight">Webviews y flujos conversacionales</h2>
+              <p className="text-sm text-muted-foreground">
+                Reclamos, pedidos, encuestas, pagos, mapas y soporte conectados a WhatsApp, widget y CRM.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatePill value={`${ready}/${total} listos`} tone={ready === total ? "ready" : "warning"} />
+          <StatePill value={`${needsAttention} por cerrar`} tone={needsAttention ? "warning" : "ready"} />
+          {webviews !== null ? <StatePill value={`${webviews} webviews`} tone={webviews ? "ready" : "warning"} /> : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-4">
+        <MetricCard label="Listos" value={formatNumber(ready)} icon={CheckCircle2} />
+        <MetricCard label="Pendientes" value={formatNumber(needsAttention)} icon={AlertTriangle} />
+        <MetricCard label="Meta Flow" value={formatNumber(first(summary, ["meta_flow_ready"]))} icon={Layers3} />
+        <MetricCard label="QA" value={formatNumber(first(summary, ["qa_scenarios"]))} icon={ShieldCheck} />
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {flows.slice(0, 8).map((flow) => {
+          const evidence = readEvidenceHighlights(flow);
+          return (
+            <article key={flow.id} className="rounded-[8px] border border-border/60 bg-muted/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatePill value={flowFamilyLabel(flow)} />
+                    <StatePill value={flow.status || (flow.ready ? "ready" : "needs_attention")} tone={qaTone(flow.status, flow.ready)} />
+                  </div>
+                  <h3 className="mt-2 text-sm font-black text-foreground">{flow.label}</h3>
+                  <p className="mt-1 break-all text-xs text-muted-foreground">
+                    {readFlowEntry(flow)}
+                  </p>
+                </div>
+                {flow.meta_flow_ready !== null && flow.meta_flow_ready !== undefined ? (
+                  <StatePill value={flow.meta_flow_ready ? "Flow listo" : "Flow pendiente"} tone={flow.meta_flow_ready ? "ready" : "warning"} />
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <ContractLine label="Entrada" value={readFlowEntry(flow)} />
+                <ContractLine label="Proxima accion" value={flow.next_action || "validar flujo"} />
+              </div>
+
+              {evidence.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {evidence.map((item) => (
+                    <StatePill key={`${flow.id}-${item}`} value={item} />
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 };
 

@@ -124,6 +124,7 @@ describe("TrackingExperiencePage support contract", () => {
   beforeEach(() => {
     fetchTrackingExperienceMock.mockReset();
     sendTrackingSupportMessageMock.mockReset();
+    HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it("keeps offline helpdesk messages inside the public claim tracking contract", async () => {
@@ -156,6 +157,9 @@ describe("TrackingExperiencePage support contract", () => {
     const { container } = renderTrackingPage();
 
     expect(await screen.findByText("Mesa de ayuda offline")).toBeInTheDocument();
+    expect(screen.getByTestId("tracking-delivery-rail")).toBeInTheDocument();
+    expect(screen.getByText("Estado tipo delivery")).toBeInTheDocument();
+    expect(screen.getByText(/Siguiente:/i)).toHaveTextContent("Validando");
     expect(screen.getByText("Sin salir del seguimiento")).toBeInTheDocument();
     expect(screen.getByText("Cola offline activa")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i })).toBeInTheDocument();
@@ -164,6 +168,11 @@ describe("TrackingExperiencePage support contract", () => {
         (link.getAttribute("href") || "").includes("/chat/"),
       ),
     ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /Escribir mensaje/i }));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/mensaje offline/i)).toHaveFocus();
+    });
 
     fireEvent.change(screen.getByPlaceholderText(/mensaje offline/i), {
       target: { value: "hola, puedo hablar con alguien?" },
@@ -192,5 +201,37 @@ describe("TrackingExperiencePage support contract", () => {
     expect(await screen.findByText("Atencion en vivo disponible")).toBeInTheDocument();
     expect(screen.getByText("Atencion inmediata")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Chatear con un agente/i })).toBeInTheDocument();
+  });
+
+  it("keeps a legacy claim support fallback when the tracking payload has no support contract yet", async () => {
+    const payload = makeClaimPayload("offline");
+    const { support: _support, ...legacyPayload } = payload;
+    fetchTrackingExperienceMock.mockResolvedValueOnce(legacyPayload);
+    sendTrackingSupportMessageMock.mockResolvedValueOnce({
+      message: "Mensaje guardado en el reclamo.",
+    });
+
+    renderTrackingPage();
+
+    expect(await screen.findByText("Mesa de ayuda del reclamo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Escribir mensaje/i }));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/mensaje offline/i)).toHaveFocus();
+    });
+    fireEvent.change(screen.getByPlaceholderText(/mensaje offline/i), {
+      target: { value: "sumo informacion" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i }));
+
+    await waitFor(() => {
+      expect(sendTrackingSupportMessageMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: "/tracking/api/send-claim-message",
+          pin: "654321",
+          message: "sumo informacion",
+          code: "M-123456",
+        }),
+      );
+    });
   });
 });

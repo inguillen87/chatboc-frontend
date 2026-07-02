@@ -1067,6 +1067,120 @@ const toneForQaStatus = (status: unknown): "ready" | "warning" | "danger" | "neu
   return "neutral";
 };
 
+const FlowRuntimePanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+  const runtime = asRecord(experience.flow_runtime);
+  if (!Object.keys(runtime).length) return null;
+
+  const summary = asRecord(runtime.summary);
+  const families = asRecord(summary.families);
+  const policy = asRecord(runtime.runtime_policy);
+  const endpoints = asRecord(runtime.public_endpoints);
+  const flows = asArray(runtime.flows).map(asRecord);
+
+  return (
+    <Card className="border-border/60">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Route className="h-4 w-4 text-primary" />
+              Runtime de webviews transaccionales
+            </CardTitle>
+            <CardDescription>
+              WhatsApp, widget y CRM comparten ejecucion, callback, fallback y writeback operativo.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill tone={boolish(runtime.enabled) ? "ready" : "warning"}>
+              {boolish(runtime.enabled) ? "Canal productivo" : "Setup pendiente"}
+            </StatusPill>
+            {runtime.contract_version ? <StatusPill>{String(runtime.contract_version)}</StatusPill> : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Flows" value={formatNumber(summary.flows_total)} tone="ready" />
+          <Metric label="Listos" value={formatNumber(summary.ready_flows)} tone="ready" />
+          <Metric
+            label="Adaptadores"
+            value={formatNumber(summary.contract_ready_adapters)}
+            tone={asNumber(summary.contract_ready_adapters) ? "warning" : "neutral"}
+          />
+          <Metric
+            label="Pendientes"
+            value={formatNumber(summary.adapter_pending)}
+            tone={asNumber(summary.adapter_pending) ? "warning" : "ready"}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(families).map(([family, count]) => (
+            <StatusPill key={family} tone={family === "claims" || family === "commerce" ? "ready" : "neutral"}>
+              {formatKey(family)}: {formatNumber(count)}
+            </StatusPill>
+          ))}
+          {boolish(policy.pause_conversation_while_webview_open) ? (
+            <StatusPill tone="ready">pausa y resume chat</StatusPill>
+          ) : null}
+          {boolish(policy.no_sensitive_data_in_chat) ? <StatusPill tone="ready">sin datos sensibles en chat</StatusPill> : null}
+        </div>
+
+        {Object.keys(endpoints).length ? (
+          <div className="grid gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3 lg:grid-cols-2">
+            {Object.entries(endpoints).slice(0, 6).map(([label, endpoint]) => (
+              <EndpointLine key={label} label={formatKey(label)} value={String(endpoint || "")} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          {flows.slice(0, 6).map((flow, index) => {
+            const actions = asArray(flow.actions).map(asRecord);
+            return (
+              <div key={`${flow.id || "flow"}-${index}`} className="rounded-2xl border border-border/60 bg-background/85 p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <StatusPill tone={boolish(flow.ready) ? "ready" : toneForQaStatus(flow.status)}>
+                    {boolish(flow.ready) ? "ready" : formatKey(String(flow.status || "pending"))}
+                  </StatusPill>
+                  {flow.family ? <StatusPill>{formatKey(String(flow.family))}</StatusPill> : null}
+                  {flow.surface ? <StatusPill>{formatKey(String(flow.surface))}</StatusPill> : null}
+                </div>
+                <p className="text-sm font-semibold text-foreground">{String(flow.label || flow.id || "Flow")}</p>
+                {flow.url_template ? (
+                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{String(flow.url_template)}</p>
+                ) : null}
+                <div className="mt-3 grid gap-2">
+                  {actions.slice(0, 3).map((action, actionIndex) => (
+                    <div
+                      key={`${action.id || "action"}-${actionIndex}`}
+                      className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                          {String(action.label || action.id || "accion")}
+                        </p>
+                        <StatusPill tone={String(action.implementation_status || "").includes("pending") ? "warning" : "ready"}>
+                          {formatKey(String(action.implementation_status || "ready"))}
+                        </StatusPill>
+                      </div>
+                      {action.endpoint || action.endpoint_template ? (
+                        <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                          {String(action.endpoint || action.endpoint_template)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const TemplateBlueprintPanel = ({
   experience,
   tenantSlug,
@@ -2000,6 +2114,7 @@ export default function WhatsappOperationsHub({
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
       <TemplateBlueprintPanel experience={experience} tenantSlug={tenantSlug} />
+      <FlowRuntimePanel experience={experience} />
       <TrackingContract experience={experience} tenantSlug={tenantSlug} />
     </section>
   );

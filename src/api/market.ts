@@ -9,6 +9,7 @@ import {
   MarketProduct,
   MarketPublicApiContract,
   MarketPublicApiEndpoint,
+  MarketPublicFlowExecutionPolicy,
   AddToCartPayload,
   CheckoutStartResponse,
   CheckoutStartPayload,
@@ -326,6 +327,32 @@ const normalizePublicApiEndpoint = (value: unknown): MarketPublicApiEndpoint | n
   };
 };
 
+const normalizePublicFlowExecutionPolicy = (value: unknown): MarketPublicFlowExecutionPolicy | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
+    id_strategy: asStringOrNull(getFirst(record, ['id_strategy', 'idStrategy'])),
+    callback_endpoint_template: asStringOrNull(
+      getFirst(record, ['callback_endpoint_template', 'callbackEndpointTemplate']),
+    ),
+    resume_policy: asStringOrNull(getFirst(record, ['resume_policy', 'resumePolicy'])),
+  };
+};
+
+const normalizePublicApiFlowRuntime = (value: unknown): MarketPublicApiContract['flow_runtime'] => {
+  const record = asRecordOrNull(value);
+  const endpoint = normalizePublicApiEndpoint(record);
+  if (!record || !endpoint) return null;
+  return {
+    ...endpoint,
+    actions_endpoint: asStringOrNull(getFirst(record, ['actions_endpoint', 'actionsEndpoint'])),
+    contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
+    execution_policy: normalizePublicFlowExecutionPolicy(getFirst(record, ['execution_policy', 'executionPolicy'])),
+  };
+};
+
 const normalizePublicApiCart = (value: unknown): MarketPublicApiContract['cart'] => {
   const record = asRecordOrNull(value);
   if (!record) return null;
@@ -361,6 +388,28 @@ const normalizePublicApiTracking = (value: unknown): Record<string, string | nul
   }, {});
 };
 
+const normalizePublicApiAnalytics = (value: unknown): MarketPublicApiContract['analytics'] => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
+    event_endpoint: asStringOrNull(getFirst(record, ['event_endpoint', 'eventEndpoint'])),
+    runtime_callback_endpoint_template: asStringOrNull(
+      getFirst(record, ['runtime_callback_endpoint_template', 'runtimeCallbackEndpointTemplate']),
+    ),
+    public_client_can_write_events_directly: asBooleanOrNull(
+      getFirst(record, ['public_client_can_write_events_directly', 'publicClientCanWriteEventsDirectly']),
+    ),
+    write_mode: asStringOrNull(getFirst(record, ['write_mode', 'writeMode'])),
+    client_signal_channel: asStringOrNull(getFirst(record, ['client_signal_channel', 'clientSignalChannel'])),
+    tenant_slug: asStringOrNull(getFirst(record, ['tenant_slug', 'tenantSlug'])),
+    recommended_events: asArrayOfStringsOrNull(getFirst(record, ['recommended_events', 'recommendedEvents'])),
+    funnel: Array.isArray(record.funnel) ? (record.funnel as Array<Record<string, unknown>>) : null,
+    privacy: asRecordOrNull(record.privacy),
+  };
+};
+
 const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | null => {
   const record = asRecordOrNull(value);
   if (!record) return null;
@@ -374,7 +423,9 @@ const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | n
     cart: normalizePublicApiCart(record.cart),
     checkout: normalizePublicApiCheckout(record.checkout),
     assisted_upload: normalizePublicApiEndpoint(getFirst(record, ['assisted_upload', 'assistedUpload'])),
+    flow_runtime: normalizePublicApiFlowRuntime(getFirst(record, ['flow_runtime', 'flowRuntime'])),
     tracking: normalizePublicApiTracking(record.tracking),
+    analytics: normalizePublicApiAnalytics(record.analytics),
   };
 };
 

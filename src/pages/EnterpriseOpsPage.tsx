@@ -130,7 +130,7 @@ const EnterpriseOpsPage = () => {
     {
       key: 'inbox-omnichannel',
       title: 'Conversaciones',
-      to: currentSlug ? `/t/${encodeURIComponent(currentSlug)}/inbox` : TICKET_DESK_PATH,
+      to: TICKET_DESK_PATH,
       icon: Inbox,
       note: 'Conversaciones, reclamos, ubicaciones y acciones en continuidad.',
       query: inboxQuery,

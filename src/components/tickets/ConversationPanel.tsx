@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
@@ -46,6 +45,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { restoreComposerDraftAfterSendFailure } from './conversationDraftRecovery';
 
 type UploadResponse = UploadResponseLike;
 
@@ -689,8 +689,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [selectedTicket, socket?.connected]);
 
   const scrollToBottom = useCallback(() => {
-    if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+    const node = scrollAreaRef.current;
+    if (node) {
+      if (typeof node.scrollTo === 'function') {
+        node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+      } else {
+        node.scrollTop = node.scrollHeight;
+      }
     }
   }, []);
 
@@ -722,16 +727,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     setIsSending(true);
 
+    const draftMessage = message;
+    const draftAttachmentPreview = attachmentPreview;
     let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
 
-    if (attachmentPreview) {
+    if (draftAttachmentPreview) {
       // Create local preview attachment data for optimistic update
       // We don't have the real URL yet, but we have the blob URL from the preview
       attachmentData = {
-        name: attachmentPreview.file.name,
-        url: attachmentPreview.previewUrl, // Use blob URL for immediate display
-        mimeType: attachmentPreview.file.type,
-        size: attachmentPreview.file.size,
+        name: draftAttachmentPreview.file.name,
+        url: draftAttachmentPreview.previewUrl, // Use blob URL for immediate display
+        mimeType: draftAttachmentPreview.file.type,
+        size: draftAttachmentPreview.file.size,
         isUploading: true, // Optional: UI could show a spinner on the image
       };
     }
@@ -753,7 +760,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         selectedTicket.id,
         selectedTicket.tipo,
         text,
-        attachmentPreview ? [attachmentPreview.file] : undefined, // Send raw file
+        draftAttachmentPreview ? [draftAttachmentPreview.file] : undefined, // Send raw file
         payload?.action
           ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
           : undefined,
@@ -796,6 +803,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     } catch (error) {
       toast.error("No se pudo enviar el mensaje.");
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
+      restoreComposerDraftAfterSendFailure({
+        payload,
+        draftMessage,
+        draftAttachmentPreview,
+        setMessage,
+        setAttachmentPreview,
+      });
     } finally {
       setIsSending(false);
     }
@@ -1023,7 +1037,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           <DetailsPanel />
         ) : (
           <>
-            <ScrollArea className="h-full p-4 pb-8" ref={scrollAreaRef} onScroll={handleScroll}>
+            <div className="h-full overflow-y-auto p-4 pb-8" ref={scrollAreaRef} onScroll={handleScroll}>
               {timelinePartial && (
                 <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
@@ -1085,7 +1099,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                     </motion.div>
                 </AnimatePresence>
               )}
-            </ScrollArea>
+            </div>
             {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
           </>
         )}

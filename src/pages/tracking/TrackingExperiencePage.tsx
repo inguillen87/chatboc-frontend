@@ -137,8 +137,10 @@ const normalizeResource = (payload: TrackingExperienceResponse | null, code: str
   };
 };
 
-const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
+const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: TrackingKind) => {
   const support = isRecord(payload?.support) ? payload.support : null;
+  const hasSupportContract = Boolean(support);
+  const fallbackClaimSupport = Boolean(payload && kind === "claim" && !hasSupportContract);
   const liveChat = isRecord(support?.live_chat) ? support.live_chat : {};
   const availability = isRecord(support?.availability) ? support.availability : {};
   const ticket = isRecord(support?.ticket) ? support.ticket : {};
@@ -178,13 +180,19 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
   );
 
   return {
-    enabled: support?.enabled !== false && Boolean(support),
+    enabled: support?.enabled !== false && (hasSupportContract || fallbackClaimSupport),
     mode: normalizedMode,
-    label: readText(availability, ["label"], "Mesa de ayuda"),
-    description: readText(availability, ["description"], "Deja un mensaje asociado a este seguimiento."),
+    label: readText(availability, ["label"], fallbackClaimSupport ? "Mesa de ayuda del reclamo" : "Mesa de ayuda"),
+    description: readText(
+      availability,
+      ["description"],
+      fallbackClaimSupport
+        ? "Deja un mensaje asociado a este reclamo. El equipo lo vera en el CRM."
+        : "Deja un mensaje asociado a este seguimiento.",
+    ),
     liveAvailable,
     acceptsMessages: serviceWindow.accepts_messages !== false,
-    offlineQueue: Boolean(serviceWindow.offline_queue_enabled),
+    offlineQueue: fallbackClaimSupport || Boolean(serviceWindow.offline_queue_enabled),
     stayInsideTracking: webviewPolicy.stay_inside_tracking !== false,
     adminSurfaceLabel: readText(adminSurface, ["label"], "Inbox de reclamos"),
     nextAction: readText(serviceWindow, ["next_action"], primaryCtaAction),
@@ -200,7 +208,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
         ? `${readText(liveChat, ["start_time"])} a ${readText(liveChat, ["end_time"])}`
         : ""
     ),
-    endpoint: readText(endpoints, ["send_message"]),
+    endpoint: readText(endpoints, ["send_message"], fallbackClaimSupport ? "/tracking/api/send-claim-message" : ""),
     ticketId: readText(ticket, ["id"]),
     requiresPin: ticket.requires_pin !== false,
     messages,
@@ -257,17 +265,20 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSending, setSupportSending] = useState(false);
   const [supportNotice, setSupportNotice] = useState<string | null>(null);
+  const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const mapSectionRef = React.useRef<HTMLDivElement | null>(null);
 
   const status = normalizeStatus(payload);
   const resource = normalizeResource(payload, code);
   const milestones = normalizeMilestones(payload, kind);
   const timeline = normalizeTimeline(payload);
   const mapState = normalizeMapLocations(payload);
-  const support = normalizeSupport(payload);
+  const support = normalizeSupport(payload, kind);
   const currentIndex = Math.max(
     0,
     milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase()),
   );
+  const nextMilestone = milestones[Math.min(currentIndex + 1, Math.max(milestones.length - 1, 0))] ?? null;
   const progress = milestones.length > 1 ? Math.round((currentIndex / (milestones.length - 1)) * 100) : 0;
   const requiresPinForLoad = kind === "claim" && !payload && !pin.trim();
   const requiresPinForSupport = kind === "claim" && support.requiresPin && !pin.trim();
@@ -283,6 +294,25 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     mapState.canRender &&
       (mapState.origin || mapState.destination || mapState.current),
   );
+  const trackingCodeLabel = resource.code || code || "-";
+  const focusSupportComposer = () => {
+    const target = supportComposerRef.current;
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => target.focus({ preventScroll: true }), 250);
+  };
+  const focusMap = () => {
+    mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const copyTrackingCode = async () => {
+    if (!trackingCodeLabel || trackingCodeLabel === "-" || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(trackingCodeLabel);
+      setSupportNotice(`Codigo ${trackingCodeLabel} copiado.`);
+    } catch {
+      setSupportNotice(`No se pudo copiar el codigo. Referencia: ${trackingCodeLabel}`);
+    }
+  };
 
   const load = async () => {
     if (!code) return;
@@ -431,6 +461,84 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
               );
             })}
           </div>
+
+          <div
+            data-testid="tracking-delivery-rail"
+            className="border-t border-border/70 bg-muted/20 p-4"
+          >
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                    Estado tipo delivery
+                  </span>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Actual: <span className="capitalize text-foreground">{status.label}</span>
+                  </span>
+                  {nextMilestone ? (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      Siguiente: <span className="capitalize text-foreground">{nextMilestone.label}</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {milestones.slice(0, 6).map((item, index) => {
+                    const done = index <= currentIndex;
+                    const active = index === currentIndex;
+                    return (
+                      <div
+                        key={`${item.key}-rail`}
+                        className={`min-w-0 rounded-[12px] border px-3 py-2 ${
+                          active
+                            ? "border-primary/35 bg-primary/10 text-primary"
+                            : done
+                              ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700"
+                              : "border-border/70 bg-background/70 text-muted-foreground"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                              done ? "bg-current/10" : "bg-muted"
+                            }`}
+                          >
+                            {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+                          </span>
+                          <span className="truncate text-xs font-bold capitalize">{item.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3 lg:w-[420px]">
+                <Button type="button" variant="outline" className="h-10 rounded-[8px]" onClick={copyTrackingCode}>
+                  <Clipboard className="mr-2 h-4 w-4" />
+                  Copiar codigo
+                </Button>
+                {kind === "claim" && support.enabled ? (
+                  <Button type="button" className="h-10 rounded-[8px]" onClick={focusSupportComposer}>
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Escribir mensaje
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-[8px]"
+                  onClick={focusMap}
+                  disabled={!canShowMap}
+                >
+                  <MapPinned className="mr-2 h-4 w-4" />
+                  Ver mapa
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {error ? (
@@ -444,7 +552,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
 
         <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="space-y-5">
-            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
+            <div ref={mapSectionRef} className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-muted-foreground">Estado actual</p>
@@ -691,6 +799,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
 
                 <div className="mt-5 rounded-[16px] border border-border/70 bg-background/80 p-3">
                   <textarea
+                    ref={supportComposerRef}
                     value={supportMessage}
                     onChange={(event) => setSupportMessage(event.target.value)}
                     placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja tu mensaje offline para este reclamo..."}

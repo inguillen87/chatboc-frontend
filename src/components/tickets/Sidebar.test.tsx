@@ -147,6 +147,10 @@ describe('Tickets Sidebar category density', () => {
     });
 
     expect(screen.getByTestId('sidebar-search-controls')).toBeInTheDocument();
+    const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
+    expect(summaryBar).toHaveTextContent('Cola priorizada: 1 caso');
+    expect(summaryBar).toHaveTextContent('Sin filtros');
+    expect(summaryBar).toHaveTextContent('1 visible');
     expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-shortcuts')).not.toBeInTheDocument();
     expect(
@@ -203,6 +207,7 @@ describe('Tickets Sidebar category density', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
 
+    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveTextContent('Rubros: 1 visible');
     expect(screen.getByTestId('sidebar-category-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-category-summary')).toHaveTextContent('Vista por rubro');
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
@@ -252,6 +257,9 @@ describe('Tickets Sidebar category density', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('1');
+    const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
+    expect(summaryBar).toHaveTextContent('1 activo');
+    expect(summaryBar).toHaveAttribute('title', 'Canal: whatsapp');
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
 
@@ -264,6 +272,9 @@ describe('Tickets Sidebar category density', () => {
     expect(chips).toHaveAccessibleName('Filtros activos aplicados');
     expect(chips).toHaveTextContent('Canal: whatsapp');
     expect(screen.getByRole('button', { name: /^limpiar$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /limpiar filtros de la vista/i }));
+    expect(setFiltersMock).toHaveBeenCalledWith(defaultFilters);
   });
 
   it('hides active filter chips in embedded compact mode so the accordion starts higher', async () => {
@@ -302,6 +313,8 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-compact-toolbar')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-list-mode-toggle')).toHaveAttribute('data-layout', 'toolbar');
+    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveTextContent('1 activo');
+    expect(screen.getByRole('button', { name: /limpiar filtros de la vista/i })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByTestId('sidebar-active-filter-chips')).not.toBeInTheDocument();

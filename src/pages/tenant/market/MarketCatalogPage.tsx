@@ -13,7 +13,8 @@ import { toast } from '@/components/ui/use-toast';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { ClipboardList, Copy, FileText, MessageCircle, Percent, QrCode, Search, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { ArrowRight, CheckCircle2, ClipboardList, Copy, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -102,6 +103,15 @@ const EMPTY_FLOW_STEPS = [
   },
 ];
 
+const DEFAULT_COMMERCE_LOOP_STEPS = [
+  { stage: 'catalog', event: 'catalog_viewed', label: 'Catalogo visto' },
+  { stage: 'assist', event: 'assisted_upload_submitted', label: 'Pedido asistido' },
+  { stage: 'cart', event: 'cart_started', label: 'Carrito iniciado' },
+  { stage: 'checkout', event: 'checkout_session_created', label: 'Checkout creado' },
+  { stage: 'order', event: 'order_created', label: 'Pedido generado' },
+  { stage: 'tracking', event: 'order_tracking_opened', label: 'Seguimiento abierto' },
+];
+
 const ASSISTED_ENTRY_PROMISES = [
   'Foto de papel, boleta, certificado o comprobante',
   'Pedido escrito, lista de materiales o texto de WhatsApp',
@@ -116,6 +126,22 @@ const publicMarketplaceText = (value: unknown) =>
     .replace(/\bIA\b/g, 'lectura')
     .replace(/\s+/g, ' ')
     .trim();
+
+const commerceLoopDescription = (stageOrEvent: string) => {
+  const normalized = stageOrEvent.toLowerCase();
+  if (normalized.includes('catalog')) return 'El cliente ve disponibilidad y promociones.';
+  if (normalized.includes('assist') || normalized.includes('upload')) return 'Puede subir foto, texto o documento si no encuentra el producto.';
+  if (normalized.includes('cart')) return 'Carrito persistente por sesion anonima o usuario.';
+  if (normalized.includes('checkout')) return 'Checkout seguro con pagos habilitados por tenant.';
+  if (normalized.includes('order')) return 'Pedido o solicitud queda en el panel operativo.';
+  if (normalized.includes('tracking')) return 'Seguimiento publico para continuar sin perder contexto.';
+  return 'Paso operativo registrado para que el equipo pueda responder.';
+};
+
+const commerceLoopEventLabel = (eventName: string) =>
+  eventName
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
@@ -204,6 +230,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [sortOptions, setSortOptions] = useState<MarketCatalogResponse['sort_options']>(null);
   const [assistedIntake, setAssistedIntake] = useState<MarketAssistedIntakeEntry | null>(null);
   const [frontendContract, setFrontendContract] = useState<MarketCatalogResponse['frontend_contract'] | null>(null);
+  const [publicApi, setPublicApi] = useState<MarketCatalogResponse['public_api'] | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [totalUnfiltered, setTotalUnfiltered] = useState<number | null>(null);
   const [heroSubtitle, setHeroSubtitle] = useState<string | null>(null);
@@ -240,6 +267,34 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     () => promotions?.items?.filter((item) => item && promotionTitle(item)) ?? [],
     [promotions],
   );
+  const commerceLoopSteps = useMemo(() => {
+    const funnel = publicApi?.analytics?.funnel;
+    const source = Array.isArray(funnel) && funnel.length
+      ? funnel
+      : publicApi?.analytics?.recommended_events?.length
+        ? publicApi.analytics.recommended_events
+            .filter((eventName) => DEFAULT_COMMERCE_LOOP_STEPS.some((step) => step.event === eventName))
+            .map((eventName) => DEFAULT_COMMERCE_LOOP_STEPS.find((step) => step.event === eventName)!)
+        : DEFAULT_COMMERCE_LOOP_STEPS;
+    return source
+      .map((rawStep, index) => {
+        const record = rawStep as Record<string, unknown>;
+        const stage = publicMarketplaceText(record.stage);
+        const eventName = publicMarketplaceText(record.event);
+        const label =
+          publicMarketplaceText(record.label) ||
+          commerceLoopEventLabel(eventName || stage || `Paso ${index + 1}`);
+        const id = stage || eventName || `step-${index}`;
+        return {
+          id,
+          label,
+          eventName,
+          description: publicMarketplaceText(record.description) || commerceLoopDescription(`${stage} ${eventName}`),
+        };
+      })
+      .filter((step) => step.label)
+      .slice(0, 6);
+  }, [publicApi?.analytics?.funnel, publicApi?.analytics?.recommended_events]);
   const categoryOptions = useMemo(() => {
     const fromBackend = facets?.categories ?? [];
     if (fromBackend.length) return fromBackend;
@@ -309,12 +364,24 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setSortOptions(response?.sort_options ?? null);
         setAssistedIntake(response?.assisted_intake ?? null);
         setFrontendContract(response?.frontend_contract ?? null);
+        setPublicApi(response?.public_api ?? null);
         setTotal(response?.total ?? availableProducts.length);
         setTotalUnfiltered(response?.total_unfiltered ?? null);
         setHeroSubtitle(response?.heroSubtitle ?? null);
         setShareMeta({
           publicCartUrl: response?.publicCartUrl ?? null,
           whatsappShareUrl: response?.whatsappShareUrl ?? null,
+        });
+        trackFrontendEvent('catalog_viewed', {
+          tenant_slug: tenantSlug,
+          screen_name: 'marketplace_public_catalog',
+          channel: 'web_marketplace',
+          product_count: availableProducts.length,
+          total_unfiltered: response?.total_unfiltered ?? availableProducts.length,
+          assisted_intake_mode: response?.assisted_intake?.mode ?? null,
+          public_api_contract: response?.public_api?.contract_version ?? null,
+          analytics_contract: response?.public_api?.analytics?.contract_version ?? null,
+          client_signal_channel: response?.public_api?.analytics?.client_signal_channel ?? 'dataLayer',
         });
       })
       .catch((err) => {
@@ -324,6 +391,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setSortOptions(null);
         setAssistedIntake(null);
         setFrontendContract(null);
+        setPublicApi(null);
         setTotal(null);
         setTotalUnfiltered(null);
         setHeroSubtitle(null);
@@ -335,6 +403,25 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
+  const trackMarketplaceCta = (eventName: string, source: string, extra: Record<string, unknown> = {}) => {
+    trackFrontendEvent(eventName, {
+      tenant_slug: tenantSlug,
+      screen_name: 'marketplace_public_catalog',
+      channel: 'web_marketplace',
+      source,
+      public_api_contract: publicApi?.contract_version ?? null,
+      analytics_contract: publicApi?.analytics?.contract_version ?? null,
+      ...extra,
+    });
+  };
+  const openWhatsappShare = (source: string) => {
+    if (!shareMessage) return;
+    trackMarketplaceCta('whatsapp_cta_clicked', source);
+    const whatsappUrl = shareMessage.startsWith('https://wa.me')
+      ? shareMessage
+      : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
   const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
@@ -360,6 +447,12 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     }
   };
   const activateAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
+    trackMarketplaceCta('assisted_upload_started', preferredMode === 'text' ? 'write_list_cta' : 'upload_file_cta', {
+      preferred_mode: preferredMode,
+      assisted_intake_mode: effectiveAssistedIntake?.mode ?? null,
+      catalog_empty: catalogActuallyEmpty,
+      filtered_empty: Boolean(noResultsSearchTerm.trim()),
+    });
     const resolvedSearchTerm = noResultsSearchTerm.trim();
     if (resolvedSearchTerm) {
       setAssistedDraftRequest((current) => ({
@@ -409,13 +502,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (!shareMessage) return;
-              const whatsappUrl = shareMessage.startsWith('https://wa.me')
-                ? shareMessage
-                : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
-              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-            }}
+            onClick={() => openWhatsappShare('desktop_share_button')}
             disabled={!shareMessage}
           >
             <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
@@ -471,11 +558,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
-                <Button type="button" className="w-full" onClick={() => scrollToAssistedUpload('file')}>
+                <Button type="button" className="w-full" onClick={() => activateAssistedUpload('file')}>
                   <UploadIcon className="mr-2 h-4 w-4" />
                   Subir foto o archivo
                 </Button>
-                <Button type="button" variant="outline" className="w-full" onClick={() => scrollToAssistedUpload('text')}>
+                <Button type="button" variant="outline" className="w-full" onClick={() => activateAssistedUpload('text')}>
                   <FileText className="mr-2 h-4 w-4" />
                   Escribir lista
                 </Button>
@@ -601,13 +688,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              if (!shareMessage) return;
-              const whatsappUrl = shareMessage.startsWith('https://wa.me')
-                ? shareMessage
-                : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
-              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-            }}
+            onClick={() => openWhatsappShare('mobile_share_button')}
             disabled={!shareMessage}
             className="w-full"
           >
@@ -634,6 +715,47 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </Button>
         </div>
       </section>
+
+      {commerceLoopSteps.length ? (
+        <section
+          data-testid="market-commerce-loop"
+          className="overflow-hidden rounded-lg border bg-card shadow-sm"
+          aria-label="Seguimiento operativo del pedido"
+        >
+          <div className="flex flex-col gap-3 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+                <span>Pedido trazable de punta a punta</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Catalogo, pedido asistido, carrito, checkout y seguimiento quedan conectados al panel.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit border-primary/25 bg-primary/5 text-primary">
+              {publicApi?.analytics?.write_mode === 'frontend_signal_plus_server_reconciliation'
+                ? 'Frontend + servidor'
+                : publicApi?.analytics?.contract_version ?? 'Loop operativo'}
+            </Badge>
+          </div>
+          <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {commerceLoopSteps.map((step, index) => (
+              <div key={`${step.id}-${index}`} className="relative min-w-0 border-b p-4 last:border-b-0 sm:border-r lg:border-b-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  {index < commerceLoopSteps.length - 1 ? (
+                    <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground xl:block" />
+                  ) : null}
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{step.label}</p>
+                <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {showAssistedIntake ? (
         <UploadOrderFromFile

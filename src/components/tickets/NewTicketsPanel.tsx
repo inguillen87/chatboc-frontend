@@ -492,14 +492,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(360px, 420px) minmax(520px, 1fr) minmax(340px, 400px)'
-      : 'minmax(330px, 370px) minmax(520px, 1fr) minmax(320px, 380px)'
+      ? 'minmax(300px, 340px) minmax(560px, 1fr) minmax(320px, 380px)'
+      : 'minmax(320px, 360px) minmax(560px, 1fr) minmax(320px, 380px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(360px, 420px) minmax(520px, 1fr)'
-        : 'minmax(340px, 390px) minmax(520px, 1fr)'
+        ? 'minmax(300px, 340px) minmax(560px, 1fr)'
+        : 'minmax(320px, 370px) minmax(560px, 1fr)'
       : isDetailsVisible
-        ? 'minmax(520px, 1fr) minmax(320px, 400px)'
+        ? 'minmax(560px, 1fr) minmax(320px, 380px)'
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
@@ -520,7 +520,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           className={cn(
             'flex gap-2',
             embedded
-              ? 'flex-row items-center justify-between'
+              ? 'flex-col min-[920px]:flex-row min-[920px]:items-center min-[920px]:justify-between'
               : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
           )}
         >
@@ -604,16 +604,16 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             />
           </div>
           {embedded ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 min-[920px]:w-auto min-[920px]:justify-end">
               {nextPriorityTicket ? (
                 <div
                   data-testid="tickets-next-priority-strip"
-                  className="flex min-w-0 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary shadow-sm"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary shadow-sm min-[920px]:flex-none"
                 >
                   <span className="hidden font-semibold uppercase tracking-[0.08em] min-[980px]:inline">
                     Siguiente prioridad
                   </span>
-                  <span className="max-w-[11rem] truncate font-semibold text-foreground">
+                  <span className="max-w-[10rem] truncate font-semibold text-foreground min-[920px]:max-w-[11rem]">
                     #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityLabel}
                   </span>
                   <Button

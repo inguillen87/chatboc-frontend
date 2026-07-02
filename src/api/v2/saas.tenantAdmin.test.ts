@@ -5,9 +5,57 @@ import {
   normalizeEmployeeRoutingV2,
   normalizeOmnichannelInboxDetailV2,
   normalizeProductionSmokeV2,
+  normalizeTenantAdminExperienceV2,
 } from "./saas";
 
 describe("tenant admin v2 contracts", () => {
+  it("normalizes E2E webview readiness from tenant admin experience", () => {
+    const normalized = normalizeTenantAdminExperienceV2({
+      contract_version: "tenant.admin_experience.v1",
+      tenant: { slug: "junin" },
+      profile: { display_name: "Junin" },
+      modules: [{ id: "widget_whatsapp", label: "Widget/WhatsApp/Voz" }],
+      operations: {},
+      lead_capture: {},
+      surveys_votings: {},
+      marketplace: {},
+      whatsapp: {},
+      education: {},
+      health: {},
+      e2e_flow_readiness: {
+        contract_version: "platform.e2e_flow_readiness.v1",
+        status: "needs_attention",
+        summary: { total: 2, ready: 1, webview_flows: 4 },
+        flows: [
+          {
+            id: "pyme_catalog_order_checkout",
+            label: "Pyme: catalogo, carrito, pedido y checkout",
+            ready: false,
+            status: "needs_attention",
+            endpoint: "/api/v2/catalog/quality",
+            frontend_entry: "/t/junin/market",
+            meta_flow_ready: false,
+            evidence: { products: 0 },
+            manual_test_steps: ["Abrir marketplace"],
+            acceptance_criteria: ["El pedido llega al CRM"],
+            automation: { safe_by_default: true },
+          },
+        ],
+        frontend_contract: { render_as: "e2e_flow_readiness_grid" },
+      },
+      frontend_contract: { render_as: "tenant_admin_operating_system" },
+    });
+
+    expect(normalized.e2e_flow_readiness?.contract_version).toBe("platform.e2e_flow_readiness.v1");
+    expect(normalized.e2e_flow_readiness?.summary.webview_flows).toBe(4);
+    expect(normalized.e2e_flow_readiness?.flows[0]).toMatchObject({
+      id: "pyme_catalog_order_checkout",
+      frontend_entry: "/t/junin/market",
+      meta_flow_ready: false,
+      manual_test_steps: ["Abrir marketplace"],
+    });
+  });
+
   it("normalizes catalog quality queues and import hints", () => {
     const normalized = normalizeCatalogQualityV2({
       contract_version: "catalog.quality.v1",

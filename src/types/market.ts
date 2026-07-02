@@ -448,6 +448,28 @@ export interface MarketPublicApiEndpoint {
   [key: string]: unknown;
 }
 
+export interface MarketPublicAnalyticsContract {
+  contract_version?: string | null;
+  event_endpoint?: string | null;
+  runtime_callback_endpoint_template?: string | null;
+  public_client_can_write_events_directly?: boolean | null;
+  write_mode?: string | null;
+  client_signal_channel?: string | null;
+  tenant_slug?: string | null;
+  recommended_events?: string[] | null;
+  funnel?: Array<Record<string, unknown>> | null;
+  privacy?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface MarketPublicFlowExecutionPolicy {
+  contract_version?: string | null;
+  id_strategy?: string | null;
+  callback_endpoint_template?: string | null;
+  resume_policy?: string | null;
+  [key: string]: unknown;
+}
+
 export interface MarketPublicApiContract {
   contract_version?: string | null;
   anonymous?: boolean | null;
@@ -471,7 +493,13 @@ export interface MarketPublicApiContract {
     [key: string]: unknown;
   } | null;
   assisted_upload?: MarketPublicApiEndpoint | null;
+  flow_runtime?: (MarketPublicApiEndpoint & {
+    actions_endpoint?: string | null;
+    contract_version?: string | null;
+    execution_policy?: MarketPublicFlowExecutionPolicy | null;
+  }) | null;
   tracking?: Record<string, string | null> | null;
+  analytics?: MarketPublicAnalyticsContract | null;
   [key: string]: unknown;
 }
 

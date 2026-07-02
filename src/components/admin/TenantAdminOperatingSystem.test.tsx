@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { OpsQaCommandCenter, TransactionsModulePanel } from "./TenantAdminOperatingSystem";
+import {
+  ConversationalFlowReadinessPanel,
+  OpsQaCommandCenter,
+  TransactionsModulePanel,
+} from "./TenantAdminOperatingSystem";
 
 const financeExperience = {
   commerce: {
@@ -198,6 +202,73 @@ describe("OpsQaCommandCenter", () => {
     expect(screen.getByText("El ticket aparece en CRM")).toBeInTheDocument();
     expect(screen.getByText("tenant_ops_qa")).toBeInTheDocument();
     expect(screen.getByText("Meta Flow listo")).toBeInTheDocument();
+  });
+});
+
+describe("ConversationalFlowReadinessPanel", () => {
+  it("renders transactional WhatsApp and webview readiness outside the QA playbook", () => {
+    render(
+      <ConversationalFlowReadinessPanel
+        readiness={{
+          contract_version: "platform.e2e_flow_readiness.v1",
+          status: "needs_attention",
+          summary: {
+            total: 2,
+            ready: 1,
+            needs_attention: 1,
+            meta_flow_ready: 1,
+            qa_scenarios: 2,
+            webview_flows: 4,
+          },
+          flows: [
+            {
+              id: "gov_claim_text_to_tracking",
+              label: "Municipio: reclamo por WhatsApp hasta seguimiento publico",
+              surface: "municipios_gobiernos",
+              ready: true,
+              status: "ready",
+              endpoint: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+              frontend_entry: "/perfil?tab=tickets",
+              qa_scenario_id: "gov_claim_text_to_tracking",
+              meta_flow_ready: true,
+              evidence: { tickets_recent: 3, open_tickets: 1 },
+              manual_test_steps: [],
+              acceptance_criteria: [],
+              automation: { safe_by_default: true },
+              next_action: "run_whatsapp_claim_text_to_tracking_and_open_public_status",
+              raw: {},
+            },
+            {
+              id: "pyme_catalog_order_checkout",
+              label: "Pyme: catalogo, carrito, pedido y checkout",
+              surface: "pymes_empresas",
+              ready: false,
+              status: "needs_attention",
+              endpoint: "/api/v2/catalog/quality",
+              frontend_entry: "/t/junin/market",
+              qa_scenario_id: "pyme_catalog_order_checkout",
+              meta_flow_ready: false,
+              evidence: { products: 0, checkout_ready: false },
+              manual_test_steps: [],
+              acceptance_criteria: [],
+              automation: { safe_by_default: true },
+              next_action: "run_catalog_order_checkout_smoke_with_demo_tenant",
+              raw: {},
+            },
+          ],
+          frontend_contract: { render_as: "e2e_flow_readiness_grid" },
+          raw: {},
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Webviews y flujos conversacionales")).toBeInTheDocument();
+    expect(screen.getByText("1/2 listos")).toBeInTheDocument();
+    expect(screen.getByText("4 webviews")).toBeInTheDocument();
+    expect(screen.getByText("Municipio: reclamo por WhatsApp hasta seguimiento publico")).toBeInTheDocument();
+    expect(screen.getByText("Pyme: catalogo, carrito, pedido y checkout")).toBeInTheDocument();
+    expect(screen.getByText("tickets recent: 3")).toBeInTheDocument();
+    expect(screen.getByText("Flow pendiente")).toBeInTheDocument();
   });
 });
 

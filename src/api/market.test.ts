@@ -546,8 +546,32 @@ describe('market api continuity normalization', () => {
           method: 'POST',
           endpoint: '/api/pedidos/from-file?origen=marketplace',
         },
+        flow_runtime: {
+          method: 'GET',
+          endpoint: '/api/public/flows/runtime?tenant=junin&channel=whatsapp',
+          actions_endpoint: '/api/public/flows/actions?tenant=junin',
+          contract_version: 'public.whatsapp.flow_runtime.v1',
+          guest_safe: true,
+          execution_policy: {
+            contract_version: 'public.flow_runtime.execution_policy.v1',
+            id_strategy: 'client_supplied_or_server_deterministic_from_idempotency_key',
+            callback_endpoint_template: '/api/public/flows/{execution_id}/callback',
+            resume_policy: 'resume_conversation_on_callback_or_timeout',
+          },
+        },
         tracking: {
           order_path_template: '/tracking/order/{code}?tenant_slug=junin',
+        },
+        analytics: {
+          contract_version: 'marketplace.public_analytics_loop.v1',
+          event_endpoint: '/api/analytics/event',
+          runtime_callback_endpoint_template: '/api/public/flows/{execution_id}/callback',
+          public_client_can_write_events_directly: false,
+          write_mode: 'frontend_signal_plus_server_reconciliation',
+          client_signal_channel: 'dataLayer',
+          recommended_events: ['catalog_viewed', 'checkout_session_created', 'order_tracking_opened'],
+          funnel: [{ stage: 'catalog', event: 'catalog_viewed' }],
+          privacy: { card_data_in_chat_allowed: false },
         },
       },
     });
@@ -576,8 +600,27 @@ describe('market api continuity normalization', () => {
       assisted_upload: {
         endpoint: '/api/pedidos/from-file?origen=marketplace',
       },
+      flow_runtime: {
+        endpoint: '/api/public/flows/runtime?tenant=junin&channel=whatsapp',
+        actions_endpoint: '/api/public/flows/actions?tenant=junin',
+        contract_version: 'public.whatsapp.flow_runtime.v1',
+        guest_safe: true,
+        execution_policy: {
+          contract_version: 'public.flow_runtime.execution_policy.v1',
+          id_strategy: 'client_supplied_or_server_deterministic_from_idempotency_key',
+          callback_endpoint_template: '/api/public/flows/{execution_id}/callback',
+          resume_policy: 'resume_conversation_on_callback_or_timeout',
+        },
+      },
       tracking: {
         order_path_template: '/tracking/order/{code}?tenant_slug=junin',
+      },
+      analytics: {
+        contract_version: 'marketplace.public_analytics_loop.v1',
+        event_endpoint: '/api/analytics/event',
+        public_client_can_write_events_directly: false,
+        client_signal_channel: 'dataLayer',
+        recommended_events: ['catalog_viewed', 'checkout_session_created', 'order_tracking_opened'],
       },
     });
     expect(catalog.assisted_intake?.submit).toMatchObject({

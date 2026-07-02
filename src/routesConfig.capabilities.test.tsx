@@ -47,6 +47,7 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain("path: '/catalogo/:slug'");
     expect(content).toContain("path: '/checkout/:slug'");
     expect(content).toContain("path: '/finanzas/:tenantSlug/:flow/:operationCode'");
+    expect(content).toContain("path: '/tracking/claim'");
     expect(content).toContain("to={`/tracking/claim/${suffix}`}");
     expect(content).toContain("to={`/t/${encodeURIComponent(slug)}${suffix}${location.search || ''}`}");
   });
@@ -103,6 +104,15 @@ describe('routesConfig route capabilities', () => {
       expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
       expect(routeBlock).not.toContain('requiredCapabilities');
     }
+  });
+
+  it('keeps enterprise conversation navigation on the canonical ticket desk', () => {
+    const enterpriseOpsPath = path.resolve(__dirname, 'pages/EnterpriseOpsPage.tsx');
+    const content = fs.readFileSync(enterpriseOpsPath, 'utf8');
+    const moduleBlock = content.match(/key:\s*'inbox-omnichannel'[\s\S]*?query:\s*inboxQuery,/)?.[0] ?? '';
+
+    expect(moduleBlock).toContain('to: TICKET_DESK_PATH');
+    expect(moduleBlock).not.toContain('/inbox');
   });
 
   it('links template operations to the canonical WhatsApp onboarding route', () => {

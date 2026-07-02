@@ -262,6 +262,7 @@ export interface TenantAdminExperienceV2 {
   whatsapp: UnknownRecord;
   whatsapp_experience?: WhatsappExperienceV2 | null;
   education: UnknownRecord;
+  e2e_flow_readiness?: ProductionSmokeE2EReadiness;
   frontend_contract: UnknownRecord;
   raw: unknown;
 }
@@ -331,6 +332,7 @@ export interface WhatsappExperienceV2 {
   commerce: UnknownRecord;
   template_blueprint: UnknownRecord;
   webview_blueprint: UnknownRecord;
+  flow_runtime: UnknownRecord;
   finance_transactional: UnknownRecord;
   qa_playbook: UnknownRecord;
   message_ux_policy: UnknownRecord;
@@ -1314,6 +1316,7 @@ export const normalizeTenantAdminExperienceV2 = (response: unknown): TenantAdmin
     whatsapp,
     whatsapp_experience: normalizedWhatsapp,
     education: asRecord(record.education),
+    e2e_flow_readiness: normalizeProductionSmokeE2EReadiness(record.e2e_flow_readiness),
     frontend_contract: asRecord(record.frontend_contract),
     raw: response,
   };
@@ -1447,6 +1450,7 @@ export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperi
     commerce: asRecord(record.commerce),
     template_blueprint: asRecord(record.template_blueprint),
     webview_blueprint: asRecord(record.webview_blueprint),
+    flow_runtime: asRecord(record.flow_runtime),
     finance_transactional: asRecord(record.finance_transactional),
     qa_playbook: asRecord(record.qa_playbook),
     message_ux_policy: asRecord(record.message_ux_policy),
