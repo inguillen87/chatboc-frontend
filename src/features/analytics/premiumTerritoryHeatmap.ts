@@ -321,6 +321,7 @@ export const resolveTerritoryLayerDescriptors = (heatmap?: OperationsHeatmapV1):
 
   appendLayerItems(candidates, heatmap?.map_experience?.layer_groups, 'backend');
   appendLayerItems(candidates, heatmap?.render_contract?.layers, 'backend');
+  appendLayerItems(candidates, record?.map_layers, 'backend');
   appendLayerItems(candidates, isRecord(legend) ? legend.layers ?? legend.layer_groups : undefined, 'backend');
   appendLayerItems(candidates, record?.ai_layers, 'backend');
   appendLayerItems(candidates, heatmap?.ai_status?.map_layer_hints, 'backend');

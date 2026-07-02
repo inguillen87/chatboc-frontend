@@ -250,6 +250,18 @@ export interface OperationsHeatmapLayerStyleContract {
   [key: string]: unknown;
 }
 
+export interface OperationsHeatmapMapLayersContract {
+  contract_version?: string;
+  provider?: Record<string, unknown>;
+  viewport?: Record<string, unknown>;
+  category_heatmap?: Record<string, unknown>;
+  intensity?: Record<string, unknown>;
+  hotspots?: Record<string, unknown>;
+  visual_system?: Record<string, unknown>;
+  operator_metrics?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface OperationsHeatmapAILayers {
   contract_version?: string;
   status?: string;
@@ -355,6 +367,7 @@ export interface OperationsHeatmapV1 {
     [key: string]: unknown;
   };
   legend?: Record<string, unknown>;
+  map_layers?: OperationsHeatmapMapLayersContract;
   ai_layers?: OperationsHeatmapAILayers;
   ai_status?: OperationsHeatmapAIStatus;
   map_narrative?: OperationsHeatmapNarrative;

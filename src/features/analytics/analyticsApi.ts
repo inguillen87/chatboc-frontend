@@ -738,6 +738,7 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),
+    map_layers: pickRecord(record.map_layers) as OperationsHeatmapV1['map_layers'],
     ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
     ai_status: normalizeHeatmapAiStatus(record.ai_status),
     map_narrative: normalizeHeatmapNarrative(record.map_narrative ?? record.narrative),

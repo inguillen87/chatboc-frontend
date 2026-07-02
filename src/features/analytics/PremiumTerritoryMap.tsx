@@ -259,10 +259,41 @@ export function PremiumTerritoryHeatmap({
   const [focusMode, setFocusMode] = useState<MapFocusMode>('territory');
   const [layerSelection, setLayerSelection] = useState<string[] | null>(null);
 
-  const usesDemoData = allowDemoFallback && points.length === 0;
+  const backendCellPoints = useMemo<OperationsHeatmapPoint[]>(
+    () =>
+      (heatmap?.cells ?? [])
+        .map<OperationsHeatmapPoint | null>((cell, index) => {
+          const record = asRecord(cell);
+          if (!record) return null;
+          const lat = readNumber(record.centroid_lat, record.lat, record.latitude);
+          const lng = readNumber(record.centroid_lon, record.lng, record.lon, record.longitude);
+          if (lat === undefined || lng === undefined) return null;
+          const risk = asRecord(record.risk);
+          const id =
+            readString(record.cell_id, record.id) ??
+            (readNumber(record.id) !== undefined ? String(readNumber(record.id)) : undefined) ??
+            `cell-${index}`;
+          return {
+            id,
+            lat,
+            lng,
+            weight: readNumber(record.count, record.weight, record.total) ?? 1,
+            total: readNumber(record.count, record.total),
+            categoria: readString(record.dominant_category, record.categoria, record.category),
+            estado: readString(risk?.level, record.estado, record.status),
+            severidad: readString(risk?.label, risk?.level, record.severidad, record.severity),
+            fuente: 'heatmap_cell',
+            cell_id: record.cell_id,
+          };
+        })
+        .filter((point): point is OperationsHeatmapPoint => Boolean(point)),
+    [heatmap?.cells],
+  );
+  const usesBackendCellPoints = points.length === 0 && backendCellPoints.length > 0;
+  const usesDemoData = allowDemoFallback && points.length === 0 && !usesBackendCellPoints;
   const sourcePoints = useMemo(
-    () => (usesDemoData ? getDemoTerritoryHeatmapPoints(demoProfile) : points),
-    [demoProfile, points, usesDemoData],
+    () => (usesDemoData ? getDemoTerritoryHeatmapPoints(demoProfile) : usesBackendCellPoints ? backendCellPoints : points),
+    [backendCellPoints, demoProfile, points, usesBackendCellPoints, usesDemoData],
   );
   const liveMapPoints = useMemo(
     () => sourcePoints.map(toLiveHeatPoint).filter((point): point is HeatPoint => Boolean(point)),
@@ -366,6 +397,28 @@ export function PremiumTerritoryHeatmap({
   const aiStatusLabel = humanizeContractValue(readString(aiStatus?.status, heatmap?.ai_layers?.status), 'sin estado IA');
   const aiModeLabel = humanizeContractValue(readString(aiStatus?.mode, heatmap?.ai_layers?.mode), 'capas operativas');
   const aiHintLabels = (aiStatus?.map_layer_hints ?? []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
+  const mapLayers = asRecord(heatmap?.map_layers);
+  const mapLayerHotspots = asRecord(mapLayers?.hotspots);
+  const mapLayerFocus = asRecord(mapLayerHotspots?.focus);
+  const mapLayerFocusRisk = asRecord(mapLayerFocus?.risk);
+  const mapLayerIntensity = asRecord(mapLayers?.intensity);
+  const mapLayerVisualSystem = asRecord(mapLayers?.visual_system);
+  const mapLayerAnimations = asRecord(mapLayerVisualSystem?.animations);
+  const mapLayerOperatorMetrics = asRecord(mapLayers?.operator_metrics);
+  const backendTotalCases = readNumber(mapLayerOperatorMetrics?.total_cases, mapLayerIntensity?.total_cases);
+  const backendVisibleLayers = readNumber(mapLayerOperatorMetrics?.visible_layers, mapLayerIntensity?.total_items);
+  const backendCriticalHotspots = readNumber(mapLayerOperatorMetrics?.critical_hotspots);
+  const backendTopCategory = readString(mapLayerOperatorMetrics?.top_category, mapLayerFocus?.category);
+  const backendFocusCount = readNumber(mapLayerFocus?.count);
+  const backendFocusRiskLabel = humanizeContractValue(
+    readString(mapLayerFocusRisk?.label, mapLayerFocusRisk?.level),
+    'sin severidad',
+  );
+  const backendRenderer = humanizeContractValue(readString(mapLayerVisualSystem?.renderer), 'mapa operativo');
+  const backendRadarEnabled = mapLayerAnimations?.radar_sweep === true;
+  const hasBackendMapContract = Boolean(
+    mapLayers?.contract_version || backendTopCategory || backendTotalCases !== undefined || backendVisibleLayers !== undefined,
+  );
   const hotspotActionSummaries = uniqueActionSummaries([
     ...(heatmap?.hotspot_actions?.actions ?? []),
     ...(heatmap?.hotspot_actions?.playbook ?? []),
@@ -379,7 +432,8 @@ export function PremiumTerritoryHeatmap({
       viewportPresets.length ||
       hotspotActionSummaries.length ||
       aiStatus ||
-      heatmap?.ai_layers,
+      heatmap?.ai_layers ||
+      hasBackendMapContract,
   );
   const showHeatLayer = layerIsEnabled(enabledLayerIds, ['heat', 'hotspot', 'base']) || !displayLayers.length;
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
@@ -399,9 +453,14 @@ export function PremiumTerritoryHeatmap({
   const decisionActionDetail = decisionAction?.detail ?? decisionZone.recommendation;
   const commandSignals = [
     {
-      label: 'Zona foco',
-      value: decisionZone.zone.label,
-      detail: decisionZone.suppressed ? 'muestra insuficiente' : `${formatNumber(decisionZone.total)} eventos`,
+      label: backendTopCategory ? 'Foco backend' : 'Zona foco',
+      value: backendTopCategory ? humanizeContractValue(backendTopCategory, backendTopCategory) : decisionZone.zone.label,
+      detail:
+        backendFocusCount !== undefined
+          ? `${formatNumber(backendFocusCount)} casos - ${backendFocusRiskLabel}`
+          : decisionZone.suppressed
+            ? 'muestra insuficiente'
+            : `${formatNumber(decisionZone.total)} eventos`,
       icon: MapPin,
     },
     {
@@ -412,8 +471,11 @@ export function PremiumTerritoryHeatmap({
     },
     {
       label: 'Capas activas',
-      value: `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
-      detail: aiModeLabel,
+      value:
+        backendVisibleLayers !== undefined
+          ? formatNumber(backendVisibleLayers)
+          : `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
+      detail: hasBackendMapContract ? backendRenderer : aiModeLabel,
       icon: Layers,
     },
     {
@@ -436,7 +498,11 @@ export function PremiumTerritoryHeatmap({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
-              {usesDemoData ? 'modo demo local' : heatmap?.contract_version ?? 'operations.heatmap.v1'}
+              {usesDemoData
+                ? 'modo demo local'
+                : usesBackendCellPoints
+                  ? 'heatmap backend'
+                  : heatmap?.contract_version ?? 'operations.heatmap.v1'}
             </Badge>
             <Badge variant="outline" className="gap-1 capitalize">
               <Globe2 className="h-3.5 w-3.5" />
@@ -1048,6 +1114,47 @@ export function PremiumTerritoryHeatmap({
               </div>
             ) : null}
           </div>
+
+          {hasBackendMapContract ? (
+            <div data-testid="backend-map-contract-card" className="rounded-xl border border-cyan-500/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.08),hsl(var(--background)),rgba(124,58,237,0.07))] p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mapa operativo</p>
+                  <h4 className="mt-1 truncate text-lg font-semibold">{backendRenderer}</h4>
+                </div>
+                <Badge variant="outline" className="shrink-0 gap-1">
+                  <Radar className="h-3.5 w-3.5" />
+                  {backendRadarEnabled ? 'radar activo' : 'capa estatica'}
+                </Badge>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border bg-background/65 p-3">
+                  <p className="text-xs text-muted-foreground">Casos</p>
+                  <p className="mt-1 text-lg font-semibold">{formatNumber(backendTotalCases)}</p>
+                </div>
+                <div className="rounded-lg border bg-background/65 p-3">
+                  <p className="text-xs text-muted-foreground">Hotspots criticos</p>
+                  <p className="mt-1 text-lg font-semibold">{formatNumber(backendCriticalHotspots, '0')}</p>
+                </div>
+              </div>
+              {backendTopCategory ? (
+                <div className="mt-3 rounded-lg border bg-background/65 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Foco principal</p>
+                      <p className="mt-1 truncate text-sm font-medium">{humanizeContractValue(backendTopCategory, backendTopCategory)}</p>
+                    </div>
+                    <Badge variant="secondary" className="shrink-0 capitalize">
+                      {backendFocusRiskLabel}
+                    </Badge>
+                  </div>
+                  {backendFocusCount !== undefined ? (
+                    <p className="mt-2 text-xs text-muted-foreground">{formatNumber(backendFocusCount)} casos agrupados en el foco operativo.</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold">

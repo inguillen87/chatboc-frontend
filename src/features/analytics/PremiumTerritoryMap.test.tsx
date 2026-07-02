@@ -118,6 +118,27 @@ describe('PremiumTerritoryHeatmap', () => {
         contract_version: 'huggingface.map_ai_layers.v1',
         layers: [{ key: 'priority_forecast', label: 'Prioridad IA', count: 2 }],
       },
+      map_layers: {
+        contract_version: 'analytics.geo_layers.v1',
+        intensity: { total_cases: 44, total_items: 6 },
+        hotspots: {
+          focus: {
+            category: 'reclamos',
+            count: 22,
+            risk: { level: 'critical', label: 'Critico' },
+          },
+        },
+        visual_system: {
+          renderer: 'webgl_heatmap',
+          animations: { radar_sweep: true, pulse_hotspots: true },
+        },
+        operator_metrics: {
+          total_cases: 44,
+          visible_layers: 6,
+          top_category: 'reclamos',
+          critical_hotspots: 1,
+        },
+      },
     } satisfies OperationsHeatmapV1;
 
     render(
@@ -149,10 +170,15 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(decisionRadar).toBeTruthy();
     expect(screen.getByText('Radar de decision')).toBeTruthy();
     expect(decisionRadar.textContent).toContain('Abrir cola operativa');
-    expect(screen.getByText('Zona foco')).toBeTruthy();
+    expect(screen.getByText('Foco backend')).toBeTruthy();
     expect(screen.getByText('Capas activas')).toBeTruthy();
     expect(screen.getByText('Datos pendientes')).toBeTruthy();
     expect(decisionRadar.textContent).toContain('queued');
+    expect(screen.getByTestId('backend-map-contract-card')).toBeTruthy();
+    expect(screen.getAllByText('webgl heatmap').length).toBeGreaterThan(0);
+    expect(screen.getByText('radar activo')).toBeTruthy();
+    expect(screen.getByText('Hotspots criticos')).toBeTruthy();
+    expect(screen.getByText('22 casos agrupados en el foco operativo.')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Capas visibles' })).toBeTruthy();
     expect(screen.getByText('Brief operativo IA')).toBeTruthy();
     expect(screen.getByText('Zona centro requiere seguimiento')).toBeTruthy();
@@ -170,5 +196,55 @@ describe('PremiumTerritoryHeatmap', () => {
 
     expect(screen.queryByTestId('live-territory-map')).toBeNull();
     expect(screen.getByRole('img', { name: 'Inteligencia territorial' })).toBeTruthy();
+  });
+
+  it('renders backend heatmap cells as live map points when raw points are absent', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [
+        {
+          cell_id: 'cell-centro',
+          centroid_lat: -34.61,
+          centroid_lon: -60.91,
+          count: 9,
+          dominant_category: 'alumbrado',
+          risk: { level: 'critical', label: 'Critico' },
+        },
+      ],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      map_layers: {
+        contract_version: 'analytics.geo_layers.v1',
+        intensity: { total_cases: 9, total_items: 1 },
+        hotspots: {
+          focus: {
+            category: 'alumbrado',
+            count: 9,
+            risk: { level: 'critical', label: 'Critico' },
+          },
+        },
+        visual_system: {
+          renderer: 'webgl_heatmap',
+          animations: { radar_sweep: true },
+        },
+        operator_metrics: {
+          total_cases: 9,
+          visible_layers: 1,
+          top_category: 'alumbrado',
+          critical_hotspots: 1,
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} allowDemoFallback />);
+
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    expect(liveMap.getAttribute('data-points')).toBe('1');
+    expect(screen.getByText('heatmap backend')).toBeTruthy();
+    expect(screen.getAllByText('alumbrado').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
   });
 });
