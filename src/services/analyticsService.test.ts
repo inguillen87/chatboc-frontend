@@ -147,13 +147,30 @@ describe('analyticsService.getHub', () => {
           genero: 'femenino',
           rango_edad: '25-34',
           source: 'tickets',
+          actions: [
+            { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/91' },
+            {
+              id: 'update_location',
+              label: 'Actualizar ubicacion',
+              method: 'PATCH',
+              endpoint: '/api/v2/tickets/91',
+              requires: ['location.lat', 'location.lng'],
+              body_template: { location: { lat: 'number', lng: 'number' } },
+            },
+          ],
         },
         {
           direccion: 'Calle sin coordenadas',
           categoria: 'seguridad',
         },
       ],
-      cells: [{ key: 'cell-1', count: 3 }],
+      cells: [
+        {
+          key: 'cell-1',
+          count: 3,
+          actions: [{ id: 'open_cell', label: 'Abrir celda', action_type: 'client_filter', target: { type: 'cell', cell_id: 'cell-1' } }],
+        },
+      ],
       hotspots: [{ key: 'hot-1', weight: 8 }],
       category_layers: [{ key: 'seguridad', label: 'Seguridad', count: 3 }],
       segments: {
@@ -166,7 +183,22 @@ describe('analyticsService.getHub', () => {
         coverage_pct: 50,
       },
       geocoding: {
-        candidates: [{ ticket_id: 99, direccion: 'Calle sin coordenadas' }],
+        candidates: [
+          {
+            ticket_id: 99,
+            direccion: 'Calle sin coordenadas',
+            actions: [
+              { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/99' },
+              {
+                id: 'update_location',
+                label: 'Actualizar ubicacion',
+                method: 'PATCH',
+                endpoint: '/api/v2/tickets/99',
+                body_template: { location: { lat: 'number', lng: 'number', address: 'string' } },
+              },
+            ],
+          },
+        ],
       },
     });
 
@@ -196,13 +228,41 @@ describe('analyticsService.getHub', () => {
         rango_edad: '25-34',
         source: 'tickets',
         fuente: 'tickets',
+        actions: [
+          { id: 'open_record', label: 'Abrir ticket', title: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/91' },
+          {
+            id: 'update_location',
+            label: 'Actualizar ubicacion',
+            title: 'Actualizar ubicacion',
+            method: 'PATCH',
+            endpoint: '/api/v2/tickets/91',
+            requires: ['location.lat', 'location.lng'],
+            body_template: { location: { lat: 'number', lng: 'number' } },
+          },
+        ],
       },
     ]);
-    expect(heatmap.cells?.[0]).toMatchObject({ key: 'cell-1', count: 3 });
+    expect(heatmap.cells?.[0]).toMatchObject({
+      key: 'cell-1',
+      count: 3,
+      actions: [{ id: 'open_cell', label: 'Abrir celda', action_type: 'client_filter' }],
+    });
     expect(heatmap.hotspots?.[0]).toMatchObject({ key: 'hot-1', weight: 8 });
     expect(heatmap.category_layers?.[0]).toMatchObject({ key: 'seguridad' });
     expect(heatmap.location_quality?.coverage_pct).toBe(50);
-    expect(heatmap.geocoding?.candidates?.[0]).toMatchObject({ ticket_id: 99 });
+    expect(heatmap.geocoding?.candidates?.[0]).toMatchObject({
+      ticket_id: 99,
+      actions: [
+        { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/99' },
+        {
+          id: 'update_location',
+          label: 'Actualizar ubicacion',
+          method: 'PATCH',
+          endpoint: '/api/v2/tickets/99',
+          body_template: { location: { lat: 'number', lng: 'number', address: 'string' } },
+        },
+      ],
+    });
   });
 
   it('builds operations PDF export URL with tenant slug and segment filters', () => {

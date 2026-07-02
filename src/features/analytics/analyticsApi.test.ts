@@ -167,6 +167,17 @@ describe('operations heatmap v2 contract', () => {
             categoria: 'limpieza',
             origen: 'ticket',
             reason_code: 'address_without_coordinates',
+            actions: [
+              { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/42' },
+              {
+                id: 'update_location',
+                label: 'Actualizar ubicacion',
+                method: 'PATCH',
+                endpoint: '/api/v2/tickets/42',
+                requires: ['location.lat', 'location.lng'],
+                body_template: { location: { lat: 'number', lng: 'number', address: 'string' } },
+              },
+            ],
           },
         ],
         recommended_action: {
@@ -196,6 +207,17 @@ describe('operations heatmap v2 contract', () => {
           source: 'tickets',
           barrio: 'Centro',
           estado: 'nuevo',
+          actions: [
+            { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },
+            {
+              id: 'update_location',
+              label: 'Actualizar ubicacion',
+              method: 'PATCH',
+              endpoint: '/api/v2/tickets/10',
+              requires: ['location.lat', null, 'location.lng'],
+              body_template: { location: { lat: 'number', lng: 'number' } },
+            },
+          ],
         },
       ],
     });
@@ -238,6 +260,16 @@ describe('operations heatmap v2 contract', () => {
       source: 'tickets',
       barrio: 'Centro',
       estado: 'nuevo',
+      actions: [
+        { title: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },
+        {
+          title: 'Actualizar ubicacion',
+          method: 'PATCH',
+          endpoint: '/api/v2/tickets/10',
+          requires: ['location.lat', 'location.lng'],
+          body_template: { location: { lat: 'number', lng: 'number' } },
+        },
+      ],
     });
     expect(response.render_contract).toMatchObject({
       state: 'ready',
@@ -358,6 +390,16 @@ describe('operations heatmap v2 contract', () => {
       address: 'Av. San Martin 123, Junin',
       category: 'limpieza',
       source: 'ticket',
+      actions: [
+        { title: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/42' },
+        {
+          title: 'Actualizar ubicacion',
+          method: 'PATCH',
+          endpoint: '/api/v2/tickets/42',
+          requires: ['location.lat', 'location.lng'],
+          body_template: { location: { lat: 'number', lng: 'number', address: 'string' } },
+        },
+      ],
     });
   });
 

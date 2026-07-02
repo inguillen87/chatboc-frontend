@@ -235,8 +235,13 @@ const normalizeActions = (value: unknown): OperationsActionItem[] =>
     frontend_path: asString(item.frontend_path),
     route: asString(item.route),
     method: asString(item.method),
+    action_type: asString(item.action_type),
+    target: pickRecord(item.target),
     ui_hint: asString(item.ui_hint),
     payload_template: pickRecord(item.payload_template),
+    body_template: pickRecord(item.body_template),
+    requires: normalizeStringList(item.requires),
+    writes_enabled: asBoolean(item.writes_enabled),
   }));
 
 const normalizeActionObject = (value: unknown): OperationsActionItem | undefined => {
@@ -253,10 +258,21 @@ const normalizeActionObject = (value: unknown): OperationsActionItem | undefined
     frontend_path: asString(value.frontend_path),
     route: asString(value.route),
     method: asString(value.method),
+    action_type: asString(value.action_type),
+    target: pickRecord(value.target),
     ui_hint: asString(value.ui_hint),
     payload_template: pickRecord(value.payload_template),
+    body_template: pickRecord(value.body_template),
+    requires: normalizeStringList(value.requires),
+    writes_enabled: asBoolean(value.writes_enabled),
   };
 };
+
+const normalizeBucketItemsWithActions = (value: unknown): OperationsBucketItem[] =>
+  normalizeBucketItems(value).map((item) => {
+    const actions = normalizeActions(item.actions);
+    return actions.length ? { ...item, actions } : item;
+  });
 
 const normalizeFrontendContract = (value: unknown): OperationsFrontendContract | undefined => {
   if (!isRecord(value)) return undefined;
@@ -359,6 +375,7 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
   const lat = asNumber(value.lat ?? value.latitude);
   const lng = asNumber(value.lng ?? value.lon ?? value.longitude);
   if (lat === undefined || lng === undefined) return null;
+  const actions = normalizeActions(value.actions);
 
   return {
     ...value,
@@ -387,6 +404,7 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
     estado: asString(value.estado ?? value.status),
     severity: asString(value.severity ?? value.severidad),
     severidad: asString(value.severidad ?? value.severity),
+    actions: actions.length ? actions : undefined,
   };
 };
 
@@ -533,6 +551,7 @@ const normalizeHeatmapGeocoding = (value: unknown): OperationsHeatmapV1['geocodi
   const candidates = Array.isArray(value.candidates)
     ? value.candidates.reduce<GeocodingCandidate[]>((acc, candidate) => {
         if (!isRecord(candidate)) return acc;
+        const actions = normalizeActions(candidate.actions);
         acc.push({
           ...candidate,
           record_id:
@@ -548,6 +567,7 @@ const normalizeHeatmapGeocoding = (value: unknown): OperationsHeatmapV1['geocodi
           category: asString(candidate.category ?? candidate.categoria),
           source: asString(candidate.source ?? candidate.origen),
           reason_code: asString(candidate.reason_code),
+          actions: actions.length ? actions : undefined,
         });
         return acc;
       }, [])
@@ -731,9 +751,9 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     summary: pickRecord(record.summary),
     bounds: pickRecord(record.bounds),
     points: normalizeHeatmapPoints(record.points),
-    cells: normalizeBucketItems(record.cells),
-    hotspots: normalizeBucketItems(record.hotspots),
-    category_layers: normalizeBucketItems(record.category_layers),
+    cells: normalizeBucketItemsWithActions(record.cells),
+    hotspots: normalizeBucketItemsWithActions(record.hotspots),
+    category_layers: normalizeBucketItemsWithActions(record.category_layers),
     demographics: normalizeHeatmapDemographics(record.demographics),
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),

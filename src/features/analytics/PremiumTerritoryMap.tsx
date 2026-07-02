@@ -54,6 +54,10 @@ type MapFocusMode = 'territory' | 'quality' | 'telemetry';
 type BackendActionSummary = {
   label: string;
   detail?: string;
+  priority?: string;
+  uiHint?: string;
+  actionType?: string;
+  writesEnabled?: boolean;
 };
 
 type PremiumTerritoryHeatmapProps = {
@@ -178,13 +182,24 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
   const record = asRecord(action);
   if (!record) return undefined;
   const label = readString(record.title, record.label, record.name);
+  const contextLabel = readString(record.context_label, record.contextLabel);
   const method = readString(record.method);
   const endpoint = readString(record.endpoint, record.endpoint_template);
-  const detail = [method, endpoint].filter(Boolean).join(' ');
+  const target = asRecord(record.target);
+  const targetType = readString(target?.type, target?.kind);
+  const numericTargetId = readNumber(target?.record_id, target?.ticket_id, target?.lat, target?.lng);
+  const targetId = readString(target?.cell_id, target?.record_id, target?.ticket_id) ?? (numericTargetId !== undefined ? String(numericTargetId) : undefined);
+  const targetLabel = targetType || targetId ? [targetType, targetId].filter(Boolean).join(' ') : undefined;
+  const endpointDetail = [method, endpoint].filter(Boolean).join(' ') || undefined;
+  const detail = contextLabel ?? endpointDetail ?? targetLabel;
   if (!label && !detail) return undefined;
   return {
     label: label ?? 'Accion disponible',
     detail: detail || readString(record.description, record.reason_code),
+    priority: readString(record.priority),
+    uiHint: readString(record.ui_hint),
+    actionType: readString(record.action_type),
+    writesEnabled: record.writes_enabled === true,
   };
 };
 
@@ -199,6 +214,12 @@ const uniqueActionSummaries = (actions: unknown[]) => {
     acc.push(summary);
     return acc;
   }, []);
+};
+
+const actionWithContext = (action: unknown, contextLabel: string | undefined) => {
+  const record = asRecord(action);
+  if (!record || !contextLabel) return action;
+  return { ...record, context_label: contextLabel };
 };
 
 const layerIsEnabled = (enabledLayerIds: string[], fragments: string[]) =>
@@ -425,12 +446,37 @@ export function PremiumTerritoryHeatmap({
     ...(heatmap?.hotspot_playbook ?? []),
     ...(heatmap?.operator_playbook ?? []),
   ]).slice(0, 4);
+  const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
+    const contextLabel = readString(candidate.address, candidate.label, candidate.category);
+    return (candidate.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+  });
+  const pointActions = sourcePoints.flatMap((point) => {
+    const contextLabel = readString(point.label, point.categoria, point.category, point.barrio, point.distrito);
+    return (point.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+  });
+  const cellActions = (heatmap?.cells ?? []).flatMap((cell) => {
+    const contextLabel = readString(cell.label, cell.title, cell.key, cell.id);
+    return (cell.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+  });
+  const operationalActionSummaries = uniqueActionSummaries([
+    heatmap?.map_narrative?.primary_cta,
+    ...(heatmap?.hotspot_actions?.actions ?? []),
+    ...(heatmap?.hotspot_actions?.playbook ?? []),
+    ...(heatmap?.hotspot_playbook ?? []),
+    ...(heatmap?.operator_playbook ?? []),
+    ...(heatmap?.geocoding?.guidance?.recommended_actions ?? []),
+    heatmap?.geocoding?.recommended_action,
+    ...(heatmap?.ai_layers?.recommendations ?? []),
+    ...geocodingCandidateActions,
+    ...pointActions,
+    ...cellActions,
+  ]).slice(0, 6);
   const hasOperationalBrief = Boolean(
     narrativeTitle ||
       narrativeBody ||
       narrativeAction ||
       viewportPresets.length ||
-      hotspotActionSummaries.length ||
+      operationalActionSummaries.length ||
       aiStatus ||
       heatmap?.ai_layers ||
       hasBackendMapContract,
@@ -442,7 +488,7 @@ export function PremiumTerritoryHeatmap({
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
   const visiblePointCount = readiness.visiblePoints ?? aggregate.totalRecords;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
-  const decisionAction = narrativeAction ?? hotspotActionSummaries[0] ?? activeAction;
+  const decisionAction = narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction;
   const decisionActionLabel =
     decisionAction?.label ??
     (readiness.pendingGeocode > 0
@@ -1230,25 +1276,42 @@ export function PremiumTerritoryHeatmap({
                   </div>
                 ) : null}
 
-                {narrativeAction || hotspotActionSummaries.length ? (
-                  <div className="rounded-lg border bg-background/65 p-3">
+                {operationalActionSummaries.length ? (
+                  <div data-testid="heatmap-action-loop" className="rounded-lg border bg-background/65 p-3">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       <ListChecks className="h-3.5 w-3.5" />
-                      Acciones seguras
+                      Proximas acciones
                     </div>
                     <div className="mt-2 space-y-2">
-                      {[narrativeAction, ...hotspotActionSummaries]
-                        .filter(Boolean)
-                        .slice(0, 4)
+                      {operationalActionSummaries
+                        .slice(0, 5)
                         .map((action) => (
                           <div
-                            key={`${action?.label}-${action?.detail ?? ''}`}
+                            key={`${action.label}-${action.detail ?? action.uiHint ?? ''}`}
+                            data-testid="heatmap-action-item"
                             className="rounded-md border border-border/60 bg-muted/25 px-2.5 py-2"
                           >
-                            <p className="text-sm font-medium">{action?.label}</p>
-                            {action?.detail ? (
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="min-w-0 text-sm font-medium">{action.label}</p>
+                              {action.priority || action.actionType ? (
+                                <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                                  {humanizeContractValue(action.priority ?? action.actionType, 'accion')}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {action.detail ? (
                               <p className="mt-0.5 truncate text-xs text-muted-foreground">{action.detail}</p>
                             ) : null}
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {action.uiHint ? (
+                                <Badge variant="secondary" className="text-[10px] capitalize">
+                                  {humanizeContractValue(action.uiHint, action.uiHint)}
+                                </Badge>
+                              ) : null}
+                              <Badge variant={action.writesEnabled ? 'outline' : 'secondary'} className="text-[10px]">
+                                {action.writesEnabled ? 'requiere confirmacion' : 'preparacion segura'}
+                              </Badge>
+                            </div>
                           </div>
                         ))}
                     </div>

@@ -301,6 +301,7 @@ export interface AnalyticsHeatmapPoint {
   distrito?: string;
   source?: string;
   fuente?: string;
+  actions?: Array<Record<string, unknown>>;
   metadata?: Record<string, unknown>;
 }
 
@@ -318,6 +319,7 @@ export interface AnalyticsHeatmapCell {
   breakdown?: Record<string, number>;
   categoria?: string;
   category?: string;
+  actions?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 
@@ -374,6 +376,7 @@ export interface AnalyticsHeatmapCandidate {
   category?: string;
   status?: string;
   estado?: string;
+  actions?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 
@@ -697,6 +700,40 @@ const pickString = (...values: unknown[]): string | undefined => {
   return undefined;
 };
 
+const normalizeHeatmapActions = (value: unknown): Array<Record<string, unknown>> | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const actions = value.reduce<Array<Record<string, unknown>>>((acc, action) => {
+    if (!isRecord(action)) return acc;
+    const normalized: Record<string, unknown> = { ...action };
+    const id = pickString(action.id, action.key);
+    const title = pickString(action.title, action.label, action.name);
+    const label = pickString(action.label, action.title, action.name);
+    const method = pickString(action.method);
+    const endpoint = pickString(action.endpoint, action.endpoint_template);
+    const actionType = pickString(action.action_type, action.type);
+    const uiHint = pickString(action.ui_hint);
+
+    if (id) normalized.id = id;
+    if (title) normalized.title = title;
+    if (label) normalized.label = label;
+    if (method) normalized.method = method;
+    if (endpoint) normalized.endpoint = endpoint;
+    if (actionType) normalized.action_type = actionType;
+    if (uiHint) normalized.ui_hint = uiHint;
+    if (isRecord(action.target)) normalized.target = action.target;
+    if (isRecord(action.payload_template)) normalized.payload_template = action.payload_template;
+    if (isRecord(action.body_template)) normalized.body_template = action.body_template;
+    if (Array.isArray(action.requires)) {
+      const requires = action.requires.map((item) => pickString(item)).filter((item): item is string => Boolean(item));
+      if (requires.length) normalized.requires = requires;
+    }
+    acc.push(normalized);
+    return acc;
+  }, []);
+
+  return actions.length ? actions : undefined;
+};
+
 const normalizeHeatPoint = (
   point: unknown,
   categoryFallback?: string,
@@ -721,8 +758,10 @@ const normalizeHeatPoint = (
   const barrioRaw = pickString(point.barrio, point.neighborhood, contact.barrio, contact.neighborhood, metadata.barrio, metadata.neighborhood);
   const distritoRaw = pickString(point.distrito, point.district, point.zone, point.zona, metadata.distrito, metadata.district, metadata.zone);
   const sourceRaw = pickString(point.source, point.fuente, point.origin, ticket.source, metadata.source, metadata.fuente);
+  const actions = normalizeHeatmapActions(point.actions);
 
   return {
+    ...(typeof point.id === 'string' || typeof point.id === 'number' ? { id: point.id } : {}),
     lat: coordinates.lat,
     lng: coordinates.lng,
     ...(weight !== undefined ? { weight } : {}),
@@ -736,6 +775,7 @@ const normalizeHeatPoint = (
     ...(barrioRaw ? { barrio: barrioRaw } : {}),
     ...(distritoRaw ? { distrito: distritoRaw } : {}),
     ...(sourceRaw ? { source: sourceRaw, fuente: sourceRaw } : {}),
+    ...(actions ? { actions } : {}),
   };
 };
 
@@ -990,6 +1030,16 @@ export const analyticsService = {
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
     const normalizeList = <T extends Record<string, unknown>>(value: unknown): T[] =>
       Array.isArray(value) ? value.filter(isRecord).map((item) => item as T) : [];
+    const normalizeCellList = (value: unknown): AnalyticsHeatmapCell[] =>
+      normalizeList<AnalyticsHeatmapCell>(value).map((cell) => {
+        const actions = normalizeHeatmapActions(cell.actions);
+        return actions ? { ...cell, actions } : cell;
+      });
+    const normalizeGeocodingCandidates = (value: unknown): AnalyticsHeatmapCandidate[] =>
+      normalizeList<AnalyticsHeatmapCandidate>(value).map((candidate) => {
+        const actions = normalizeHeatmapActions(candidate.actions);
+        return actions ? { ...candidate, actions } : candidate;
+      });
 
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
@@ -1016,16 +1066,16 @@ export const analyticsService = {
         raw?.geocoding && typeof raw.geocoding === 'object'
           ? {
               ...raw.geocoding,
-              candidates: normalizeList<AnalyticsHeatmapCandidate>((raw.geocoding as Record<string, unknown>).candidates),
+              candidates: normalizeGeocodingCandidates((raw.geocoding as Record<string, unknown>).candidates),
             }
           : undefined;
       return {
         ...(contractVersion ? { contract_version: contractVersion } : {}),
         ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
-        cells: normalizeList<AnalyticsHeatmapCell>(raw?.cells),
-        hotspots: normalizeList<AnalyticsHeatmapCell>(raw?.hotspots),
-        category_layers: normalizeList<AnalyticsHeatmapCell>(raw?.category_layers),
+        cells: normalizeCellList(raw?.cells),
+        hotspots: normalizeCellList(raw?.hotspots),
+        category_layers: normalizeCellList(raw?.category_layers),
         ...(raw?.location_quality && typeof raw.location_quality === 'object' ? { location_quality: raw.location_quality } : {}),
         ...(geocoding ? { geocoding } : {}),
         ...(mapLayers ? { map_layers: mapLayers } : {}),

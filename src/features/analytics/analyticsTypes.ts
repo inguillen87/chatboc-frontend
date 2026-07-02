@@ -28,6 +28,7 @@ export interface OperationsBucketItem {
   reason_code?: string;
   ui_hint?: string;
   priority?: string;
+  actions?: OperationsActionItem[];
   [key: string]: unknown;
 }
 
@@ -54,11 +55,18 @@ export interface OperationsActionItem {
   frontend_path?: string;
   route?: string;
   method?: string;
+  action_type?: string;
+  target?: Record<string, unknown>;
   template_id?: string;
   payload_template?: Record<string, unknown>;
+  body_template?: Record<string, unknown>;
+  requires?: string[];
   ui_hint?: string;
+  writes_enabled?: boolean;
   [key: string]: unknown;
 }
+
+export type OperationsHeatmapAction = OperationsActionItem;
 
 export interface OperationsAlert {
   id?: string;
@@ -174,6 +182,7 @@ export interface OperationsHeatmapPoint {
   estado?: string;
   severity?: string;
   severidad?: string;
+  actions?: OperationsHeatmapAction[];
   [key: string]: unknown;
 }
 
@@ -399,6 +408,7 @@ export interface OperationsHeatmapV1 {
       category?: string;
       source?: string;
       reason_code?: string;
+      actions?: OperationsHeatmapAction[];
       [key: string]: unknown;
     }>;
     recommended_action?: OperationsActionItem;

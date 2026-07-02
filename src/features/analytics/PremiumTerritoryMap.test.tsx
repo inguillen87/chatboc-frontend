@@ -41,7 +41,23 @@ describe('PremiumTerritoryHeatmap', () => {
   it('renders contract-driven layers, quality state and geocoding action', () => {
     const heatmap = {
       contract_version: 'operations.heatmap.v1',
-      points: buildPoints(12),
+      points: buildPoints(12).map((point, index) =>
+        index === 0
+          ? {
+              ...point,
+              label: 'Ticket centro',
+              actions: [
+                {
+                  id: 'open_record',
+                  label: 'Abrir ticket caliente',
+                  method: 'GET',
+                  endpoint: '/api/v2/tickets/11',
+                  ui_hint: 'open_ticket',
+                },
+              ],
+            }
+          : point,
+      ),
       cells: [],
       hotspots: [],
       facets: [],
@@ -72,6 +88,17 @@ describe('PremiumTerritoryHeatmap', () => {
             address: 'Av. Siempre Viva 123',
             category: 'reclamos',
             source: 'tickets',
+            actions: [
+              {
+                id: 'update_location',
+                label: 'Actualizar ubicacion',
+                method: 'PATCH',
+                endpoint: '/api/v2/tickets/11',
+                priority: 'high',
+                ui_hint: 'open_geocoding_queue',
+                body_template: { location: { lat: 'number', lng: 'number' } },
+              },
+            ],
           },
         ],
       },
@@ -187,7 +214,12 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('municipal risk detection').length).toBeGreaterThan(0);
     expect(screen.getByText('Centro operativo')).toBeTruthy();
     expect(screen.getByText('fly to - zoom 13 - 2,5 km')).toBeTruthy();
+    expect(screen.getByTestId('heatmap-action-loop')).toBeTruthy();
+    expect(screen.getAllByTestId('heatmap-action-item').length).toBeGreaterThanOrEqual(4);
     expect(screen.getByText('Asignar inspector')).toBeTruthy();
+    expect(screen.getByText('Actualizar ubicacion')).toBeTruthy();
+    expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
+    expect(screen.getAllByText('preparacion segura').length).toBeGreaterThan(0);
     expect(screen.getByText('Safe by default - solo preparacion operativa')).toBeTruthy();
   });
 
