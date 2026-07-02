@@ -38,6 +38,9 @@ const safeNumber = (value: unknown): number => {
 const safeMetadataItems = (items: unknown): HeatmapMetadataItem[] =>
   Array.isArray(items) ? (items as HeatmapMetadataItem[]) : [];
 
+const formatCompactNumber = (value: number) =>
+  new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+
 export function MapWidget({
   title,
   description,
@@ -119,6 +122,19 @@ export function MapWidget({
   const responseMinutes = serviceLevels.responseMinutes ?? {};
   const resolutionMinutes = serviceLevels.resolutionMinutes ?? {};
   const hasDataset = dataset.length > 0;
+  const cellCount = heatmap?.cells?.length ?? 0;
+  const pointCount = points?.points?.length ?? 0;
+  const visibleCount = dataset.length;
+  const coverage = safeNumber(metadataTotals.coverage);
+  const totalWeight = safeNumber(metadataIntensity.totalWeight);
+  const averageWeight = safeNumber(metadataIntensity.averageWeight);
+  const primaryHotspot = hotspots[0];
+  const primaryHotspotLabel =
+    primaryHotspot?.label ??
+    primaryHotspot?.cellId ??
+    primaryHotspot?.id ??
+    Object.keys(primaryHotspot?.breakdown ?? {})[0] ??
+    'Sin foco';
 
   const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
@@ -193,6 +209,39 @@ export function MapWidget({
             <AlertDescription>{providerWarning}</AlertDescription>
           </Alert>
         ) : null}
+        <div
+          className="grid gap-3 rounded-lg border border-border/70 bg-slate-950 p-3 text-slate-100 shadow-sm md:grid-cols-4"
+          data-testid="analytics-map-command-strip"
+        >
+          <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Señal visible</p>
+            <p className="mt-2 text-xl font-semibold text-white">{formatCompactNumber(visibleCount)}</p>
+            <p className="text-[11px] text-slate-400">
+              {mode === 'heatmap' ? `${cellCount} celdas de calor` : `${pointCount} puntos reales`}
+            </p>
+          </div>
+          <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Cobertura geo</p>
+            <p className="mt-2 text-xl font-semibold text-white">{coverage ? formatPercent(coverage) : 'Sin datos'}</p>
+            <p className="text-[11px] text-slate-400">
+              {safeNumber(metadataTotals.geocoded).toLocaleString('es-AR')} geocodificados
+            </p>
+          </div>
+          <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Intensidad</p>
+            <p className="mt-2 text-xl font-semibold text-white">
+              {totalWeight ? totalWeight.toFixed(1) : averageWeight.toFixed(1)}
+            </p>
+            <p className="text-[11px] text-slate-400">peso territorial ponderado</p>
+          </div>
+          <div className="rounded-md border border-cyan-300/20 bg-cyan-300/[0.08] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-100/80">Hotspot principal</p>
+            <p className="mt-2 truncate text-lg font-semibold text-white">{String(primaryHotspotLabel)}</p>
+            <p className="text-[11px] text-cyan-100/70">
+              {primaryHotspot ? `${safeNumber(primaryHotspot.count).toLocaleString('es-AR')} eventos` : 'esperando actividad'}
+            </p>
+          </div>
+        </div>
         {loading ? (
           <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
             Cargando mapa...

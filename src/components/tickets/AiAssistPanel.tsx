@@ -4,7 +4,9 @@ import {
   Bot,
   BrainCircuit,
   CheckCircle2,
+  Copy,
   Loader2,
+  MessageSquarePlus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -23,6 +25,7 @@ import {
 } from '@/services/ticketService';
 import type { Ticket } from '@/types/tickets';
 import { cn } from '@/lib/utils';
+import { dispatchTicketAiDraft } from './aiDraftEvents';
 
 type RecordLike = Record<string, unknown>;
 
@@ -203,10 +206,49 @@ const buildSignalRows = (payload: TicketAiEnrichmentResponse | null) => {
   return rows.filter((row) => row.value);
 };
 
+const extractOperatorBrief = (payload: TicketAiEnrichmentResponse | null): RecordLike => {
+  const provider = asRecord(payload?.huggingface);
+  const hints = extractHints(payload);
+  const candidates = [
+    asRecord(payload?.operator_brief),
+    asRecord(provider.operator_brief),
+    asRecord(hints.operator_brief),
+  ];
+
+  return candidates.find((record) => (
+    asString(record.summary) ||
+    asString(record.recommended_first_reply) ||
+    asString(record.routing_hint) ||
+    asArray(record.checklist).length > 0
+  )) || {};
+};
+
+type OperatorChecklistItem = { id: string; label: string; priority: string; done: boolean };
+
+const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
+  asArray(source)
+    .map((item, index) => {
+      const record = asRecord(item);
+      const label = typeof item === 'string'
+        ? item.trim()
+        : asString(record.label || record.title || record.name || record.id);
+      if (!label) return null;
+      return {
+        id: asString(record.id || record.key) || `operator-check-${index}`,
+        label,
+        priority: asString(record.priority || record.severity),
+        done: asBoolean(record.done || record.completed),
+      };
+    })
+    .filter((item): item is OperatorChecklistItem => Boolean(item))
+);
+
 export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   const [enrichment, setEnrichment] = React.useState<TicketAiEnrichmentResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [replyCopied, setReplyCopied] = React.useState(false);
+  const [replyLoaded, setReplyLoaded] = React.useState(false);
   const requestSeq = React.useRef(0);
 
   const ticketRecord = asRecord(ticket);
@@ -287,6 +329,16 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
     [enrichment, hints.recommended_actions],
   );
   const signalRows = React.useMemo(() => buildSignalRows(enrichment), [enrichment]);
+  const operatorBrief = React.useMemo(() => extractOperatorBrief(enrichment), [enrichment]);
+  const operatorChecklist = React.useMemo(() => normalizeChecklist(operatorBrief.checklist), [operatorBrief]);
+  const operatorSummary = asString(operatorBrief.summary);
+  const operatorReply = asString(operatorBrief.recommended_first_reply);
+  const operatorRouting = asString(operatorBrief.routing_hint);
+  const operatorTone = asString(operatorBrief.response_tone);
+  const operatorNotes = React.useMemo(
+    () => asArray(operatorBrief.confidence_notes).map(asString).filter(Boolean).slice(0, 2),
+    [operatorBrief],
+  );
   const tags = React.useMemo(
     () => asArray(hints.tags).map(humanizeToken).filter(Boolean).slice(0, 8),
     [hints.tags],
@@ -305,6 +357,31 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   const safetyBadgeLabel = hasEnrichment
     ? (advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision')
     : 'CRM operativo';
+
+  React.useEffect(() => {
+    setReplyCopied(false);
+    setReplyLoaded(false);
+  }, [operatorReply, ticketId]);
+
+  const useOperatorReply = React.useCallback(() => {
+    if (!operatorReply || !ticketId) return;
+    dispatchTicketAiDraft({
+      ticketId,
+      draft: operatorReply,
+      source: 'operator_brief',
+    });
+    setReplyLoaded(true);
+  }, [operatorReply, ticketId]);
+
+  const copyOperatorReply = React.useCallback(async () => {
+    if (!operatorReply) return;
+    try {
+      await navigator.clipboard?.writeText(operatorReply);
+      setReplyCopied(true);
+    } catch {
+      setReplyCopied(false);
+    }
+  }, [operatorReply]);
 
   return (
     <Card className="overflow-hidden border-primary/20 bg-background/95 shadow-sm">
@@ -390,6 +467,87 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
                 </div>
               </div>
             </div>
+
+            {operatorSummary || operatorReply || operatorRouting || operatorChecklist.length ? (
+              <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-primary">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Guia para responder
+                </div>
+                {operatorSummary ? (
+                  <p className="text-sm font-medium leading-snug text-foreground">{operatorSummary}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {operatorRouting ? (
+                    <Badge variant="outline" className="bg-background/80">
+                      Ruta: {humanizeToken(operatorRouting)}
+                    </Badge>
+                  ) : null}
+                  {operatorTone ? (
+                    <Badge variant="outline" className="bg-background/80">
+                      Tono: {humanizeToken(operatorTone)}
+                    </Badge>
+                  ) : null}
+                </div>
+                {operatorReply ? (
+                  <div className="rounded-lg border border-border/60 bg-background/85 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Borrador sugerido</p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">{operatorReply}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 rounded-[8px] px-3 text-xs font-semibold"
+                        onClick={useOperatorReply}
+                        disabled={!ticketId}
+                      >
+                        <MessageSquarePlus className="mr-1.5 h-3.5 w-3.5" />
+                        {replyLoaded ? 'Borrador cargado' : 'Usar borrador'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-[8px] px-3 text-xs font-semibold"
+                        onClick={copyOperatorReply}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" />
+                        {replyCopied ? 'Copiado' : 'Copiar'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {operatorChecklist.length ? (
+                  <div className="space-y-2">
+                    {operatorChecklist.slice(0, 5).map((item) => (
+                      <div key={item.id} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2
+                          className={cn(
+                            'mt-0.5 h-4 w-4 shrink-0',
+                            item.done ? 'text-emerald-500' : 'text-primary',
+                          )}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="leading-snug">{item.label}</p>
+                          {item.priority ? (
+                            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Prioridad {humanizeToken(item.priority)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {operatorNotes.length ? (
+                  <div className="space-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+                    {operatorNotes.map((note) => (
+                      <p key={note}>{note}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {signalRows.length ? (
               <div className="grid gap-2 sm:grid-cols-2">

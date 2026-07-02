@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AiAssistPanel from './AiAssistPanel';
 import { enterpriseService } from '@/services/enterpriseService';
 import type { Ticket } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
+import { TICKET_AI_DRAFT_EVENT_NAME } from './aiDraftEvents';
 
 vi.mock('@/services/enterpriseService', () => ({
   enterpriseService: {
@@ -67,6 +68,17 @@ describe('AiAssistPanel', () => {
         advisory_only: true,
         mutates_operational_state: false,
       },
+      operator_brief: {
+        summary: 'Caso de luminaria con prioridad urgente.',
+        response_tone: 'prioritario_empatico',
+        routing_hint: 'servicios_publicos_luminaria',
+        recommended_first_reply: 'Hola, recibimos tu reclamo y lo revisamos con el area correspondiente.',
+        checklist: [
+          { id: 'send_acknowledgement', label: 'Responder acuse claro al vecino', priority: 'high' },
+          { id: 'validate_location', label: 'Validar direccion exacta', priority: 'high' },
+        ],
+        confidence_notes: ['Guia advisory-only: no cambia estado ni asigna responsables automaticamente.'],
+      },
       state_mutation: { applied: false },
       persisted: false,
       secret_values_exposed: false,
@@ -80,6 +92,12 @@ describe('AiAssistPanel', () => {
     expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
     expect(screen.getByText('validar ubicacion')).toBeInTheDocument();
     expect(screen.getByText('revisar evidencia')).toBeInTheDocument();
+    expect(screen.getByText('Guia para responder')).toBeInTheDocument();
+    expect(screen.getByText('Caso de luminaria con prioridad urgente.')).toBeInTheDocument();
+    expect(screen.getByText('Ruta: servicios publicos luminaria')).toBeInTheDocument();
+    expect(screen.getByText('Borrador sugerido')).toBeInTheDocument();
+    expect(screen.getByText('Responder acuse claro al vecino')).toBeInTheDocument();
+    expect(screen.getByText('Validar direccion exacta')).toBeInTheDocument();
     expect(screen.getByText('Revisar reclamo con operador')).toBeInTheDocument();
     expect(screen.getByText('Estado sin cambios: confirmado')).toBeInTheDocument();
 
@@ -90,6 +108,43 @@ describe('AiAssistPanel', () => {
         undefined,
       );
     });
+  });
+
+  it('emits a ticket-scoped AI draft event when the operator uses the suggested reply', async () => {
+    mockedGetTicketAiEnrichment.mockResolvedValue({
+      contract_version: 'ticket.ai_enrichment.v1',
+      advisory_policy: { advisory_only: true, mutates_operational_state: false },
+      source: { text_chars: 64, comments_count: 0 },
+      huggingface: { provider_family: 'huggingface' },
+      crm_hints: { risk_level: 'medio', advisory_only: true, mutates_operational_state: false },
+      operator_brief: {
+        summary: 'Caso de luminaria con prioridad media.',
+        recommended_first_reply: 'Hola, recibimos tu reclamo y lo derivamos al area correspondiente.',
+      },
+      state_mutation: { applied: false },
+      persisted: false,
+      secret_values_exposed: false,
+    });
+    const received: unknown[] = [];
+    const handler = (event: Event) => received.push((event as CustomEvent).detail);
+    window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
+
+    try {
+      render(<AiAssistPanel ticket={ticketFixture()} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: /usar borrador/i }));
+
+      expect(received).toEqual([
+        {
+          ticketId: '44',
+          draft: 'Hola, recibimos tu reclamo y lo derivamos al area correspondiente.',
+          source: 'operator_brief',
+        },
+      ]);
+      expect(screen.getByText('Borrador cargado')).toBeInTheDocument();
+    } finally {
+      window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
+    }
   });
 
   it('degrades safely when the AI enrichment endpoint is temporarily unavailable', async () => {

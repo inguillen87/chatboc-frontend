@@ -594,6 +594,24 @@ export interface TicketAiCrmHints {
   [key: string]: unknown;
 }
 
+export interface TicketAiOperatorChecklistItem {
+  id?: string;
+  label?: string;
+  priority?: string;
+  done?: boolean;
+  [key: string]: unknown;
+}
+
+export interface TicketAiOperatorBrief {
+  summary?: string;
+  response_tone?: string;
+  routing_hint?: string;
+  recommended_first_reply?: string;
+  checklist?: TicketAiOperatorChecklistItem[];
+  confidence_notes?: string[];
+  [key: string]: unknown;
+}
+
 export interface TicketAiEnrichmentResponse {
   contract_version?: string;
   generated_at?: string;
@@ -605,6 +623,7 @@ export interface TicketAiEnrichmentResponse {
   source?: Record<string, unknown>;
   huggingface?: Record<string, unknown>;
   crm_hints?: TicketAiCrmHints;
+  operator_brief?: TicketAiOperatorBrief;
   state_mutation?: Record<string, unknown>;
   persisted?: boolean;
   secret_values_exposed?: boolean;

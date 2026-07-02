@@ -477,6 +477,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
+  const showVisibleSummaryBar = !compact || hasActiveFilters;
   const listSummaryTitle = activeFilterSummary.length
     ? activeFilterSummary.join(' | ')
     : 'Sin filtros activos';
@@ -895,16 +896,36 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
         className={cn(
           'flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/70 px-2.5 py-1.5',
           compact && 'px-2 py-1',
+          !showVisibleSummaryBar && 'sr-only',
         )}
         data-testid="sidebar-list-summary-bar"
         title={listSummaryTitle}
       >
-        <p className="min-w-0 truncate text-[11px] leading-5 text-muted-foreground">
-          <span className="font-semibold text-foreground">{listSummaryLabel}</span>
-          <span className="mx-1 text-border">|</span>
-          <span>{filterSummaryLabel}</span>
-          <span className="mx-1 text-border">|</span>
-          <span>{visibleTicketCountLabel}</span>
+        <p
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-muted-foreground"
+          aria-label={`${listSummaryLabel}. ${filterSummaryLabel}. ${visibleTicketCountLabel}.`}
+        >
+          <span
+            className={cn(
+              'max-w-[48%] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary',
+              compact && 'sr-only',
+            )}
+          >
+            {listSummaryLabel}
+          </span>
+          <span
+            className={cn(
+              'max-w-[32%] truncate rounded-full border px-2 py-0.5 font-semibold',
+              hasActiveFilters
+                ? 'border-amber-300/60 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+                : 'border-border/70 bg-muted/60 text-muted-foreground',
+            )}
+          >
+            {filterSummaryLabel}
+          </span>
+          <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-semibold text-muted-foreground">
+            {visibleTicketCountLabel}
+          </span>
         </p>
         {hasActiveFilters ? (
           <Button

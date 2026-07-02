@@ -46,6 +46,7 @@ import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticket
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { restoreComposerDraftAfterSendFailure } from './conversationDraftRecovery';
+import { isTicketAiDraftEvent, TICKET_AI_DRAFT_EVENT_NAME } from './aiDraftEvents';
 
 type UploadResponse = UploadResponseLike;
 
@@ -589,6 +590,35 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const realtimeOnline = Boolean(socket?.connected);
   const pollingFailureCountRef = useRef(0);
   const pollingPausedUntilRef = useRef(0);
+  const messageRef = useRef(message);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    messageRef.current = message;
+  }, [message]);
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+
+    const handleAiDraft = (event: Event) => {
+      if (!isTicketAiDraftEvent(event)) return;
+      if (String(event.detail.ticketId) !== String(selectedTicket.id)) return;
+
+      if (messageRef.current.trim()) {
+        toast.info('El composer ya tiene texto. No sobreescribi el borrador actual.');
+        return;
+      }
+
+      const draft = event.detail.draft.trim();
+      setMessage(draft);
+      messageRef.current = draft;
+      window.requestAnimationFrame(() => composerRef.current?.focus());
+      toast.success('Borrador IA cargado en la conversacion.');
+    };
+
+    window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
+    return () => window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
+  }, [selectedTicket?.id]);
 
   useEffect(() => {
     pollingFailureCountRef.current = 0;
@@ -1152,6 +1182,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end" data-testid="ticket-composer">
           <Textarea
+            ref={composerRef}
             placeholder={composerPlaceholder}
             className="min-h-[52px] max-h-36 flex-1 resize-none rounded-[8px] border-border/80 bg-background pr-3 text-sm leading-5 shadow-sm focus-visible:ring-primary/40"
             rows={1}

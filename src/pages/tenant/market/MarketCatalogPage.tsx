@@ -119,6 +119,24 @@ const ASSISTED_ENTRY_PROMISES = [
   'Reclamo, tramite o consulta con seguimiento publico',
 ];
 
+const ASSISTED_TEAM_HANDOFFS = [
+  {
+    title: 'Pedido desmenuzado',
+    description: 'Articulos, cantidades, tramite o reclamo separados para que el equipo no vuelva a interpretar la nota.',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Datos faltantes',
+    description: 'Direccion, contacto, stock, precio o documentacion pendiente quedan marcados como proximo paso.',
+    icon: FileText,
+  },
+  {
+    title: 'Respuesta lista',
+    description: 'Borrador y seguimiento publico para continuar por WhatsApp, mail, llamada o panel.',
+    icon: MessageCircle,
+  },
+];
+
 const publicMarketplaceText = (value: unknown) =>
   String(value ?? '')
     .replace(/\bOCR\s*\+\s*IA\b/gi, 'Lectura del documento')
@@ -597,7 +615,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   Subi una foto, lista o documento. El equipo te responde con seguimiento.
                 </h3>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Sirve para notas manuscritas, boletas, certificados, reclamos, pedidos de ferreteria, supermercado, bebidas o mensajes copiados de WhatsApp.
+                  No hace falta navegar producto por producto: sirve para notas manuscritas, boletas, certificados, reclamos, pedidos de ferreteria, supermercado, bebidas o mensajes copiados de WhatsApp.
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
@@ -636,6 +654,23 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   Referencia publica para consultar estado o continuar por WhatsApp.
                 </p>
               </div>
+            </div>
+            <div
+              data-testid="market-assisted-team-handoff"
+              className="mt-3 grid gap-2 rounded-lg border border-background/70 bg-background/80 p-2 sm:grid-cols-3"
+            >
+              {ASSISTED_TEAM_HANDOFFS.map((handoff) => {
+                const Icon = handoff.icon;
+                return (
+                  <div key={handoff.title} className="min-w-0 rounded-md border bg-muted/30 px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <Icon className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="truncate">{handoff.title}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{handoff.description}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : showAssistedIntake ? (

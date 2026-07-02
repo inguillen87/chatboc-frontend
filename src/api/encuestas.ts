@@ -199,6 +199,34 @@ const serializeUnknown = (value: unknown) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
+const toFiniteNumberOrUndefined = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toTrimmedStringOrUndefined = (value: unknown) => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+};
+
+const firstDefined = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    if (record[key] !== undefined && record[key] !== null) return record[key];
+  }
+  return undefined;
+};
+
+const arrayFromUnknown = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (isRecord(value)) return Object.values(value);
+  return [];
+};
+
 const unwrapSurveyEnvelope = <T>(payload: unknown): T => {
   if (!isRecord(payload)) {
     return payload as T;
@@ -571,6 +599,127 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
 };
 
 
+const normalizeLiveOption = (
+  value: unknown,
+  index: number,
+): NonNullable<NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number]['opciones']>[number] | null => {
+  if (!isRecord(value)) {
+    const label = toTrimmedStringOrUndefined(value);
+    return label ? { id: index, label, value: label, votos: 0, porcentaje: 0 } : null;
+  }
+
+  const label =
+    toTrimmedStringOrUndefined(firstDefined(value, ['label', 'texto', 'opcion', 'title', 'name', 'value'])) ??
+    `Opcion ${index + 1}`;
+  return {
+    id: firstDefined(value, ['id', 'option_id', 'key']) as string | number | undefined,
+    label,
+    texto: toTrimmedStringOrUndefined(firstDefined(value, ['texto', 'label', 'opcion', 'title', 'name'])),
+    value: toTrimmedStringOrUndefined(firstDefined(value, ['value', 'key', 'id', 'label', 'texto'])),
+    votos: toFiniteNumberOrUndefined(firstDefined(value, ['votos', 'votes', 'count', 'total', 'respuestas'])) ?? 0,
+    porcentaje: toFiniteNumberOrUndefined(firstDefined(value, ['porcentaje', 'percentage', 'percent', 'pct'])) ?? 0,
+  };
+};
+
+const normalizeLiveQuestion = (
+  value: unknown,
+  index: number,
+): NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number] | null => {
+  if (!isRecord(value)) return null;
+  const rawOptions = firstDefined(value, ['opciones', 'options', 'choices', 'resultados', 'results']);
+  const opciones = arrayFromUnknown(rawOptions)
+    .map(normalizeLiveOption)
+    .filter((option): option is NonNullable<NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number]['opciones']>[number] =>
+      Boolean(option),
+    );
+  const totalVotes =
+    toFiniteNumberOrUndefined(firstDefined(value, ['total_votos', 'total_votes', 'votos', 'votes', 'respuestas', 'total'])) ??
+    opciones.reduce((sum, option) => sum + (option.votos ?? 0), 0);
+
+  return {
+    id: firstDefined(value, ['id', 'pregunta_id', 'question_id', 'key']) as string | number | undefined,
+    tipo: toTrimmedStringOrUndefined(firstDefined(value, ['tipo', 'type'])),
+    texto: toTrimmedStringOrUndefined(firstDefined(value, ['texto', 'titulo', 'title', 'pregunta', 'label'])),
+    titulo: toTrimmedStringOrUndefined(firstDefined(value, ['titulo', 'title', 'texto', 'pregunta', 'label'])) ?? `Pregunta ${index + 1}`,
+    total_votos: totalVotes,
+    opciones,
+  };
+};
+
+const normalizeHeatmapPoint = (value: unknown) => {
+  if (!isRecord(value)) return null;
+  const lat = toFiniteNumberOrUndefined(firstDefined(value, ['lat', 'latitude', 'centroid_lat']));
+  const lng = toFiniteNumberOrUndefined(firstDefined(value, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']));
+  return {
+    ...value,
+    ...(lat !== undefined ? { lat } : {}),
+    ...(lng !== undefined ? { lng } : {}),
+    value: toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1,
+  };
+};
+
+const normalizeHeatmapCell = (value: unknown) => {
+  if (!isRecord(value)) return null;
+  const lat = toFiniteNumberOrUndefined(firstDefined(value, ['lat', 'latitude', 'centroid_lat']));
+  const lng = toFiniteNumberOrUndefined(firstDefined(value, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']));
+  return {
+    ...value,
+    ...(lat !== undefined ? { lat } : {}),
+    ...(lng !== undefined ? { lng } : {}),
+    value: toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1,
+  };
+};
+
+export const normalizePublicSurveyLiveResults = (payload: unknown): SurveyLivePublicResultsPayload => {
+  if (!isRecord(payload)) {
+    return {
+      contract_version: 'surveys.live_results.v2',
+      total_respuestas: 0,
+      preguntas: [],
+      timeline_minute: [],
+    };
+  }
+
+  const rawQuestions = firstDefined(payload, ['preguntas', 'questions', 'resultados', 'results']);
+  const preguntas = arrayFromUnknown(rawQuestions)
+    .map(normalizeLiveQuestion)
+    .filter((question): question is NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number] => Boolean(question));
+
+  const rawTimeline = firstDefined(payload, ['timeline_minute', 'timeline', 'series', 'timeseries']);
+  const timeline_minute = arrayFromUnknown(rawTimeline).map((item) => {
+    if (!isRecord(item)) return item as NonNullable<SurveyLivePublicResultsPayload['timeline_minute']>[number];
+    return {
+      ...item,
+      respuestas: toFiniteNumberOrUndefined(firstDefined(item, ['respuestas', 'value', 'total', 'count'])),
+      total: toFiniteNumberOrUndefined(firstDefined(item, ['total', 'respuestas', 'value', 'count'])),
+    };
+  });
+
+  const heatmapRecord = isRecord(payload.heatmap) ? payload.heatmap : {};
+  const rawHeatmapPoints = firstDefined(heatmapRecord, ['points', 'puntos', 'geo_points', 'heatmap_points']) ?? firstDefined(payload, ['heatmap_points', 'geo_points']);
+  const rawHeatmapCells = firstDefined(heatmapRecord, ['cells', 'celdas', 'heatmap_cells']) ?? firstDefined(payload, ['heatmap_cells', 'cells']);
+  const heatmap = {
+    ...heatmapRecord,
+    points: arrayFromUnknown(rawHeatmapPoints).map(normalizeHeatmapPoint).filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapPoint>> => Boolean(item)),
+    cells: arrayFromUnknown(rawHeatmapCells).map(normalizeHeatmapCell).filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapCell>> => Boolean(item)),
+    metadata: isRecord(heatmapRecord.metadata)
+      ? heatmapRecord.metadata
+      : isRecord(payload.heatmap_metadata)
+        ? payload.heatmap_metadata
+        : undefined,
+  };
+
+  return {
+    ...payload,
+    total_respuestas:
+      toFiniteNumberOrUndefined(firstDefined(payload, ['total_respuestas', 'total_responses', 'responses', 'total'])) ??
+      preguntas.reduce((sum, question) => sum + (question.total_votos ?? 0), 0),
+    preguntas,
+    timeline_minute,
+    heatmap,
+  };
+};
+
 export const getPublicSurveyLiveResults = (
   slug: string,
   tenantSlug?: string,
@@ -597,7 +746,7 @@ export const getPublicSurveyLiveResults = (
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
     omitTenant: true,
-  });
+  }).then(normalizePublicSurveyLiveResults);
 
 type PublicSurveyResponseAck = {
   ok: boolean;

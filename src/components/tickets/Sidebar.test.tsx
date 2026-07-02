@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Sidebar from './Sidebar';
@@ -313,7 +313,10 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-primary-filters')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-compact-toolbar')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-list-mode-toggle')).toHaveAttribute('data-layout', 'toolbar');
-    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveTextContent('1 activo');
+    const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
+    expect(summaryBar).not.toHaveClass('sr-only');
+    expect(summaryBar).toHaveTextContent('1 activo');
+    expect(within(summaryBar).getByText(/Cola priorizada/i)).toHaveClass('sr-only');
     expect(screen.getByRole('button', { name: /limpiar filtros de la vista/i })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
@@ -321,6 +324,20 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar reclamo...')).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('keeps the passive compact summary out of the visual flow when no filters are active', async () => {
+    render(<Sidebar compact />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(screen.getByTestId('sidebar-search-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /limpiar filtros de la vista/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-shortcuts')).not.toBeInTheDocument();
   });
 
   it('uses Todos as a true reset and exposes unassigned as an operational shortcut', async () => {

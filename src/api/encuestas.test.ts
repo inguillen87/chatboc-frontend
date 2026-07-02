@@ -23,6 +23,7 @@ import {
   getPublicSurveyLiveResults,
   getSurveyComments,
   listPublicSurveys,
+  normalizePublicSurveyLiveResults,
   postPublicResponse,
   postSurveyComment,
 } from '@/api/encuestas';
@@ -343,6 +344,44 @@ describe('public survey tenant query contract', () => {
       '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=0&tenant_slug=junin',
       expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
     );
+  });
+});
+
+describe('normalizePublicSurveyLiveResults', () => {
+  it('normalizes mixed backend live-results shapes for webviews and public dashboards', () => {
+    const normalized = normalizePublicSurveyLiveResults({
+      contract_version: 'surveys.live_results.v2',
+      total_responses: '21',
+      preguntas: {
+        q1: {
+          titulo: 'Prioridad del barrio',
+          opciones: {
+            a: { texto: 'Luminaria', votos: '12', porcentaje: '57.1' },
+            b: { label: 'Arbolado', count: 9, pct: 42.9 },
+          },
+        },
+      },
+      timeline: [{ timestamp: '2026-07-02T12:00:00Z', count: '4' }],
+      heatmap: {
+        points: [{ latitude: '-33.079', lon: '-68.47', respuestas: '7', barrio: 'Centro' }],
+        cells: [{ centroid_lat: '-33.08', centroid_lon: '-68.472', count: '11', barrio: 'Centro' }],
+      },
+    });
+
+    expect(normalized.total_respuestas).toBe(21);
+    expect(normalized.preguntas).toHaveLength(1);
+    expect(normalized.preguntas?.[0]).toMatchObject({
+      titulo: 'Prioridad del barrio',
+      total_votos: 21,
+    });
+    expect(normalized.preguntas?.[0]?.opciones?.[0]).toMatchObject({
+      texto: 'Luminaria',
+      votos: 12,
+      porcentaje: 57.1,
+    });
+    expect(normalized.timeline_minute?.[0]).toMatchObject({ respuestas: 4, total: 4 });
+    expect(normalized.heatmap?.points?.[0]).toMatchObject({ lat: -33.079, lng: -68.47, value: 7 });
+    expect(normalized.heatmap?.cells?.[0]).toMatchObject({ lat: -33.08, lng: -68.472, value: 11 });
   });
 });
 
