@@ -235,7 +235,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     ),
     queueLabel: readText(
       operatorQueue,
-      ["customer_visible_label", "label"],
+      ["customer_visible_label", "customerVisibleLabel"],
       hasPendingCustomerMessage
         ? "Tu mensaje quedo pendiente para el equipo"
         : "El equipo esta al dia con este reclamo",
