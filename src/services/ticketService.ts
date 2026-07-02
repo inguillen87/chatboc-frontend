@@ -856,6 +856,59 @@ export const isTicketHistoryDeliveryErrorResult = (
     result: TicketHistoryDeliveryResult,
 ): result is TicketHistoryDeliveryErrorResult => result.status === 'delivery_error';
 
+export type TicketReplyDeliveryStatus = {
+    contract_version: string;
+    mode: 'real_message' | 'timeline_only' | 'internal_event' | string;
+    channel: string;
+    status: string;
+    reason: string;
+    external_dispatch: boolean;
+    socket_emitted: boolean;
+    timeline_updated: boolean;
+    reply_status: string;
+    admin_surface?: string;
+    operator_message?: string;
+    delivery_results: {
+        email: boolean;
+        sms: boolean;
+        whatsapp: boolean;
+        socket: boolean;
+    };
+};
+
+export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryStatus | null => {
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+
+    const payload = raw as Record<string, any>;
+    const rawResults = payload.delivery_results && typeof payload.delivery_results === 'object'
+        ? payload.delivery_results as Record<string, any>
+        : {};
+
+    const socketDelivered = Boolean(payload.socket_emitted || rawResults.socket);
+
+    return {
+        contract_version: String(payload.contract_version || 'tickets.agent_reply_delivery.v1'),
+        mode: String(payload.mode || 'timeline_only') as TicketReplyDeliveryStatus['mode'],
+        channel: String(payload.channel || 'crm'),
+        status: String(payload.status || 'saved_to_crm'),
+        reason: String(payload.reason || 'unknown'),
+        external_dispatch: Boolean(payload.external_dispatch),
+        socket_emitted: socketDelivered,
+        timeline_updated: Boolean(payload.timeline_updated),
+        reply_status: String(payload.reply_status || 'saved_to_timeline'),
+        admin_surface: payload.admin_surface ? String(payload.admin_surface) : undefined,
+        operator_message: payload.operator_message ? String(payload.operator_message) : undefined,
+        delivery_results: {
+            email: Boolean(rawResults.email),
+            sms: Boolean(rawResults.sms),
+            whatsapp: Boolean(rawResults.whatsapp),
+            socket: socketDelivered,
+        },
+    };
+};
+
 export const formatTicketHistoryDeliveryErrorMessage = (
     result: TicketHistoryDeliveryErrorResult,
     contextMessage?: string,

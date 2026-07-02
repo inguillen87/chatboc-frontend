@@ -25,6 +25,7 @@ import {
   getTenantTicketAiEnrichment,
   getTicketByNumber,
   isTicketAiEnrichmentUnavailable,
+  normalizeTicketReplyDelivery,
   sendMessage,
 } from '@/services/ticketService';
 
@@ -317,6 +318,41 @@ describe('ticketService realtime normalization', () => {
       sendAnonId: true,
       sendEntityToken: true,
       pin: '900144',
+    });
+  });
+
+  it('normalizes admin reply delivery evidence for the visible CRM composer', () => {
+    const delivery = normalizeTicketReplyDelivery({
+      contract_version: 'tickets.agent_reply_delivery.v1',
+      mode: 'real_message',
+      channel: 'whatsapp',
+      status: 'sent',
+      reason: 'external_dispatch_confirmed',
+      external_dispatch: true,
+      socket_emitted: true,
+      timeline_updated: true,
+      reply_status: 'sent_to_contact',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: true,
+        socket: true,
+      },
+    });
+
+    expect(delivery).toMatchObject({
+      mode: 'real_message',
+      channel: 'whatsapp',
+      status: 'sent',
+      external_dispatch: true,
+      socket_emitted: true,
+      reply_status: 'sent_to_contact',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: true,
+        socket: true,
+      },
     });
   });
 

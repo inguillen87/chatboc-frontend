@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
@@ -21,7 +21,9 @@ import {
   sendMessage,
   summarizeTicketFetchError,
   updateTicketStatus,
+  normalizeTicketReplyDelivery,
   type TicketHistoryDeliveryResult,
+  type TicketReplyDeliveryStatus,
   isTicketHistoryDeliveryErrorResult,
   formatTicketHistoryDeliveryErrorMessage,
 } from '@/services/ticketService';
@@ -32,6 +34,7 @@ import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
+import { cn } from '@/lib/utils';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import {
   coalesceNumber,
@@ -101,6 +104,50 @@ const formatRelativeTime = (input?: Date | null) => {
   } catch {
     return timestamp.toLocaleString('es-AR');
   }
+};
+
+export const formatReplyDeliveryChannel = (channel: string) => {
+  const normalized = channel.trim().toLowerCase();
+  if (normalized === 'whatsapp') return 'WhatsApp';
+  if (normalized === 'sms') return 'SMS';
+  if (normalized === 'email') return 'Email';
+  if (normalized === 'live_socket' || normalized === 'socket') return 'Chat en vivo';
+  return 'CRM';
+};
+
+export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
+  const channel = formatReplyDeliveryChannel(delivery.channel);
+  const failed = delivery.reason.includes('failed') || delivery.status.includes('error');
+
+  if (delivery.external_dispatch) {
+    return {
+      tone: 'success' as const,
+      title: 'Mensaje enviado',
+      detail: `Canal confirmado: ${channel}. Tambien quedo registrado en el CRM.`,
+    };
+  }
+
+  if (delivery.socket_emitted) {
+    return {
+      tone: 'success' as const,
+      title: 'Entregado en chat en vivo',
+      detail: 'El mensaje fue emitido por socket y quedo registrado en el reclamo.',
+    };
+  }
+
+  if (failed) {
+    return {
+      tone: 'warning' as const,
+      title: 'Guardado, entrega sin confirmar',
+      detail: delivery.operator_message || 'El mensaje quedo en CRM, pero no se confirmo el canal externo.',
+    };
+  }
+
+  return {
+    tone: 'muted' as const,
+    title: 'Guardado en CRM',
+    detail: delivery.operator_message || 'No se confirmo WhatsApp ni chat en vivo para esta accion.',
+  };
 };
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
@@ -360,6 +407,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
   const [timelinePartial, setTimelinePartial] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [lastReplyDelivery, setLastReplyDelivery] = useState<TicketReplyDeliveryStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
@@ -756,6 +804,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (!selectedTicket || !user) return;
 
     setIsSending(true);
+    setLastReplyDelivery(null);
 
     const draftMessage = message;
     const draftAttachmentPreview = attachmentPreview;
@@ -795,6 +844,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
           : undefined,
       );
+      setLastReplyDelivery(normalizeTicketReplyDelivery((response as any)?.delivery));
       const responseMessages = extractResponseTicketMessages(response)
         .map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket));
       setMessages((prev) => {
@@ -911,6 +961,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const conversationAvatarUrl = conversationAvatar.avatarUrl;
   const conversationAvatarSource =
     conversationAvatar.source || selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen consentida' : 'iniciales');
+  const replyDeliveryView = lastReplyDelivery ? getReplyDeliveryView(lastReplyDelivery) : null;
 
   return (
     <motion.div
@@ -1177,6 +1228,43 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               >
                 Usar sugerencia
               </Button>
+            </div>
+          </div>
+        ) : null}
+        {lastReplyDelivery && replyDeliveryView ? (
+          <div
+            data-testid="ticket-reply-delivery-status"
+            role="status"
+            aria-live="polite"
+            className={cn(
+              'mb-2 rounded-lg border p-2.5',
+              replyDeliveryView.tone === 'success'
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                : replyDeliveryView.tone === 'warning'
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                  : 'border-border/70 bg-muted/40 text-muted-foreground',
+            )}
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              {replyDeliveryView.tone === 'success' ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide">{replyDeliveryView.title}</p>
+                  <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">
+                    {formatReplyDeliveryChannel(lastReplyDelivery.channel)}
+                  </Badge>
+                  {lastReplyDelivery.socket_emitted ? (
+                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                      socket activo
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs leading-5">{replyDeliveryView.detail}</p>
+              </div>
             </div>
           </div>
         ) : null}
