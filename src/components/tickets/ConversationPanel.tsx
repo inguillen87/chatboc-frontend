@@ -150,6 +150,78 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
   };
 };
 
+export const getComposerChannelView = ({
+  channel,
+  realtimeOnline,
+  hasSocketRoom,
+  lastReplyDelivery,
+}: {
+  channel?: string | null;
+  realtimeOnline: boolean;
+  hasSocketRoom: boolean;
+  lastReplyDelivery?: TicketReplyDeliveryStatus | null;
+}) => {
+  const normalized = (channel || '').trim().toLowerCase();
+  const lastDeliveryFailed = Boolean(
+    lastReplyDelivery &&
+      (lastReplyDelivery.reason.includes('failed') || lastReplyDelivery.status.includes('error')),
+  );
+
+  if (lastDeliveryFailed) {
+    return {
+      tone: 'warning' as const,
+      label: 'Entrega externa a revisar',
+      detail: 'El ultimo mensaje quedo guardado, pero el canal externo no confirmo entrega.',
+    };
+  }
+
+  if (normalized === 'whatsapp') {
+    return {
+      tone: 'success' as const,
+      label: 'Salida WhatsApp',
+      detail: 'La respuesta intenta salir por WhatsApp y queda auditada en el CRM.',
+    };
+  }
+
+  if (['web', 'widget', 'web_demo_widget', 'live_socket', 'socket'].includes(normalized)) {
+    if (realtimeOnline && hasSocketRoom) {
+      return {
+        tone: 'success' as const,
+        label: 'Chat en vivo conectado',
+        detail: 'La respuesta entra al canal socket del reclamo y queda en historial.',
+      };
+    }
+
+    return {
+      tone: 'warning' as const,
+      label: 'Modo offline del reclamo',
+      detail: 'No hay socket activo; el mensaje se guarda para seguimiento y recontacto.',
+    };
+  }
+
+  if (normalized === 'email') {
+    return {
+      tone: 'muted' as const,
+      label: 'Respuesta por email',
+      detail: 'Usa el contacto asociado y conserva la conversacion en la ficha.',
+    };
+  }
+
+  if (normalized === 'phone') {
+    return {
+      tone: 'muted' as const,
+      label: 'Registro de llamada',
+      detail: 'Deja constancia operativa para que el equipo no pierda contexto.',
+    };
+  }
+
+  return {
+    tone: 'muted' as const,
+    label: 'Registro CRM',
+    detail: 'No hay canal externo confirmado; la respuesta queda como actividad del ticket.',
+  };
+};
+
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
   return {
@@ -962,6 +1034,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const conversationAvatarSource =
     conversationAvatar.source || selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen consentida' : 'iniciales');
   const replyDeliveryView = lastReplyDelivery ? getReplyDeliveryView(lastReplyDelivery) : null;
+  const hasLiveSocketRoom = typeof selectedTicket.socket_room === 'string' && selectedTicket.socket_room.trim().length > 0;
+  const composerChannelView = getComposerChannelView({
+    channel: activeChannel,
+    realtimeOnline,
+    hasSocketRoom: hasLiveSocketRoom,
+    lastReplyDelivery,
+  });
 
   return (
     <motion.div
@@ -1187,6 +1266,34 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       </div>
 
       <footer className="shrink-0 border-t border-border/80 bg-card/95 p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)]">
+        <div
+          data-testid="ticket-composer-channel-status"
+          className={cn(
+            'mb-2 flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between',
+            composerChannelView.tone === 'success'
+              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+              : composerChannelView.tone === 'warning'
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'border-border/70 bg-muted/40 text-muted-foreground',
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {composerChannelView.tone === 'warning' ? (
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+            ) : (
+              <MessageCircle className="h-4 w-4 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold uppercase tracking-wide">{composerChannelView.label}</p>
+              <p className="mt-0.5 truncate leading-5 sm:max-w-[44rem]" title={composerChannelView.detail}>
+                {composerChannelView.detail}
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="w-fit shrink-0 rounded-full px-2 text-[11px]">
+            {formatReplyDeliveryChannel(activeChannel)}
+          </Badge>
+        </div>
         {attachmentPreview && (
           <div className="relative mb-2 flex w-full items-center gap-3 rounded-lg bg-muted p-2">
             {attachmentPreview.previewUrl ? (

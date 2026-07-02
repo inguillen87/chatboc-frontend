@@ -86,15 +86,15 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain('const TicketDeskRedirect');
     expect(routeBlock).toContain("path: '/tickets'");
     expect(routeBlock).toContain('element: <TicketDeskRedirect />');
-    expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
+    expect(routeBlock).not.toContain('roles:');
     expect(routeBlock).not.toContain('requiredCapabilities');
   });
 
-  it('keeps tenant ticket aliases mounted in the CRM shell instead of sending missing capabilities to /403', () => {
+  it('keeps tenant ticket aliases and inbox mounted in the CRM shell instead of sending missing capabilities to /403', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
 
-    for (const tenantTicketPath of ['/:tenant/reclamos', '/:tenant/tickets']) {
+    for (const tenantTicketPath of ['/:tenant/reclamos', '/:tenant/tickets', '/:tenant/inbox']) {
       const pattern = new RegExp(
         `\\.\\.\\.withTenantPrefixes\\('${tenantTicketPath.replace(/\//g, '\\/')}', \\{[\\s\\S]*?\\}\\),`,
       );

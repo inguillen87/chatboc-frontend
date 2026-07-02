@@ -26,7 +26,6 @@ const Terms = React.lazy(() => import('@/pages/legal/Terms'));
 const Cookies = React.lazy(() => import('@/pages/legal/Cookies'));
 const DataDeletion = React.lazy(() => import('@/pages/legal/DataDeletion'));
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
-import { TicketInboxPage } from '@/components/tickets/inbox';
 const PedidosPage = React.lazy(() => import('@/pages/pyme/pedidos/PedidosPage'));
 const IntegracionesPage = React.lazy(() => import('@/pages/pyme/integraciones/IntegracionesPage'));
 const UsuariosPage = React.lazy(() => import('@/pages/UsuariosPage'));
@@ -360,9 +359,8 @@ const routes: RouteConfig[] = [
     roles: ['tenant_admin', 'employee', 'superadmin'],
   }),
   ...withTenantPrefixes('/:tenant/inbox', {
-    element: <TicketInboxPage />,
+    element: <TicketsPanel />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
   ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
@@ -542,7 +540,6 @@ const routes: RouteConfig[] = [
   {
     path: '/tickets',
     element: <TicketDeskRedirect />,
-    roles: ['tenant_admin', 'employee', 'superadmin'],
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {

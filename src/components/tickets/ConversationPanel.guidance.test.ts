@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatReplyDeliveryChannel,
+  getComposerChannelView,
   getReplyDeliveryView,
   shouldShowOperationalTimelineInChat,
 } from './ConversationPanel';
@@ -82,6 +83,75 @@ describe('shouldShowOperationalTimelineInChat', () => {
 });
 
 describe('reply delivery evidence', () => {
+  it('previews whether the composer will use WhatsApp, live socket or offline CRM', () => {
+    expect(
+      getComposerChannelView({
+        channel: 'whatsapp',
+        realtimeOnline: false,
+        hasSocketRoom: false,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        tone: 'success',
+        label: 'Salida WhatsApp',
+      }),
+    );
+
+    expect(
+      getComposerChannelView({
+        channel: 'web_demo_widget',
+        realtimeOnline: true,
+        hasSocketRoom: true,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        tone: 'success',
+        label: 'Chat en vivo conectado',
+      }),
+    );
+
+    expect(
+      getComposerChannelView({
+        channel: 'web_demo_widget',
+        realtimeOnline: false,
+        hasSocketRoom: true,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        tone: 'warning',
+        label: 'Modo offline del reclamo',
+      }),
+    );
+  });
+
+  it('prioritizes failed delivery evidence over the nominal channel', () => {
+    const view = getComposerChannelView({
+      channel: 'whatsapp',
+      realtimeOnline: true,
+      hasSocketRoom: true,
+      lastReplyDelivery: {
+        contract_version: 'tickets.agent_reply_delivery.v1',
+        mode: 'timeline_only',
+        channel: 'crm',
+        status: 'error',
+        reason: 'notification_dispatch_failed',
+        external_dispatch: false,
+        socket_emitted: false,
+        timeline_updated: true,
+        reply_status: 'saved_to_timeline',
+        delivery_results: {
+          email: false,
+          sms: false,
+          whatsapp: false,
+          socket: false,
+        },
+      },
+    });
+
+    expect(view.tone).toBe('warning');
+    expect(view.label).toBe('Entrega externa a revisar');
+  });
+
   it('labels confirmed WhatsApp delivery as an external message', () => {
     const view = getReplyDeliveryView({
       contract_version: 'tickets.agent_reply_delivery.v1',
