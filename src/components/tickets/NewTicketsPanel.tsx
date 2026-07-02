@@ -493,11 +493,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 340px)'
+      ? 'minmax(300px, 360px) minmax(0, 1fr) minmax(280px, 340px)'
       : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(260px, 320px) minmax(0, 1fr)'
+        ? 'minmax(300px, 360px) minmax(0, 1fr)'
         : 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
         ? 'minmax(0, 1fr) minmax(300px, 360px)'
@@ -735,14 +735,19 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       >
         <OperationalContinuityBar
           compact={embedded}
+          className={embedded ? 'rounded-[8px] border-primary/10 bg-background/45 p-2 shadow-none' : undefined}
           testId="tickets-operational-continuity"
           icon={MessageSquare}
           tone={riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default'}
           title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
           subtitle={
-            selectedTicket
-              ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
-              : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
+            embedded
+              ? selectedTicket
+                ? 'Chat y detalle conectados para responder sin perder contexto.'
+                : 'Cola priorizada y conversacion listas para operar.'
+              : selectedTicket
+                ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
+                : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
           }
           reference={selectedTicketReference}
           statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
@@ -771,12 +776,16 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           }}
           secondaryActionLabel="Actualizar"
           onSecondaryAction={() => void refreshTickets()}
-          metrics={[
-            { label: 'Abiertos', value: openTickets, tone: 'default' },
-            { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
-            { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
-            { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
-          ]}
+          metrics={
+            embedded
+              ? []
+              : [
+                  { label: 'Abiertos', value: openTickets, tone: 'default' },
+                  { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
+                  { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
+                  { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
+                ]
+          }
         />
       </div>
       {isMobile ? (

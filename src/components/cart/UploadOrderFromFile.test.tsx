@@ -134,6 +134,13 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    const options = apiFetchMock.mock.calls[0][1];
+    expect(options.headers).toEqual(
+      expect.objectContaining({
+        'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:order_note:text:/),
+      }),
+    );
+    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
     expect(body.get('texto_pedido')).toBe('2 chapas galvanizadas');
     expect(body.get('order_text')).toBe('2 chapas galvanizadas');
@@ -360,6 +367,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
           headers: {
             'X-Tenant': 'junin',
             'X-Checkout-Origin': 'marketplace',
+            'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:order_note:text:/),
           },
         }),
       );
@@ -367,9 +375,41 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
+    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
     expect(body.get('X-Tenant')).toBeNull();
     expect(body.get('tenant')).toBeNull();
     expect(body.get('tenant_slug')).toBeNull();
+  });
+
+  it('keeps the same idempotency key when the same marketplace request is retried after a network error', async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new TypeError('network failed'))
+      .mockResolvedValueOnce({
+        contract_version: 'marketplace.assisted_request.v1',
+        pedido_id: 107,
+        customer_message: 'Solicitud marketplace recibida despues del reintento.',
+      });
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    expect(await screen.findByText(/No pudimos procesar el archivo/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const firstHeaders = apiFetchMock.mock.calls[0][1].headers as Record<string, string>;
+    const secondHeaders = apiFetchMock.mock.calls[1][1].headers as Record<string, string>;
+    expect(firstHeaders['Idempotency-Key']).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
+    expect(secondHeaders['Idempotency-Key']).toBe(firstHeaders['Idempotency-Key']);
+    expect((apiFetchMock.mock.calls[1][1].body as FormData).get('idempotency_key')).toBe(firstHeaders['Idempotency-Key']);
   });
 
   it('explains AI processing state while the marketplace request is in flight', async () => {
@@ -454,6 +494,9 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    const headers = apiFetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers['Idempotency-Key']).toEqual(expect.stringMatching(/^assisted_intake:junin:handwritten_order:file:/));
+    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:handwritten_order:file:/));
     expect((body.get('archivo') as File).name).toBe('nota-manuscrita.jpg');
     expect(body.get('document_type')).toBe('handwritten_order');
     expect(body.get('tenant')).toBe('junin');

@@ -248,6 +248,30 @@ export interface OmnichannelInboxActionPayload {
   payload?: UnknownRecord;
 }
 
+export interface OmnichannelActionDelivery {
+  contract_version?: string;
+  mode?: string;
+  channel?: string;
+  status?: string;
+  reason?: string;
+  external_dispatch?: boolean;
+  timeline_updated?: boolean;
+  reply_status?: string;
+  admin_surface?: string;
+  source_model?: string;
+  operator_message?: string;
+  raw?: unknown;
+}
+
+export interface OmnichannelInboxActionV2 {
+  contract_version?: string;
+  request_id?: string;
+  action?: string;
+  delivery?: OmnichannelActionDelivery;
+  ticket: OmnichannelInboxItem;
+  raw: unknown;
+}
+
 export interface TenantAdminExperienceV2 {
   contract_version?: string;
   request_id?: string;
@@ -1233,6 +1257,51 @@ export const normalizeOmnichannelInboxDetailV2 = (response: unknown): Omnichanne
   };
 };
 
+const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDelivery | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    contract_version: asString(value.contract_version),
+    mode: asString(value.mode),
+    channel: asString(value.channel),
+    status: asString(value.status),
+    reason: asString(value.reason),
+    external_dispatch: asBoolean(value.external_dispatch),
+    timeline_updated: asBoolean(value.timeline_updated),
+    reply_status: asString(value.reply_status),
+    admin_surface: asString(value.admin_surface),
+    source_model: asString(value.source_model),
+    operator_message: asString(value.operator_message),
+    raw: value,
+  };
+};
+
+export const normalizeOmnichannelInboxActionV2 = (
+  response: unknown,
+  fallbackTicketId = 'ticket',
+): OmnichannelInboxActionV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const candidate =
+    getFirst(record, ['ticket', 'item', 'conversation', 'data']) ??
+    source;
+  const normalized =
+    normalizeOmnichannelInboxItemV2(candidate) ??
+    normalizeOmnichannelInboxItemV2({ ...record, id: fallbackTicketId });
+
+  if (!normalized) {
+    throw new ApiError('Respuesta invalida del endpoint de accion omnicanal.', 502, response);
+  }
+
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    action: asString(record.action),
+    delivery: normalizeOmnichannelActionDelivery(record.delivery),
+    ticket: normalized,
+    raw: response,
+  };
+};
+
 export const getEmployeeCoverageV2 = async (tenantSlug?: string | null) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
@@ -1823,18 +1892,5 @@ export const postOmnichannelInboxActionV2 = async (
       { tenantSlug },
     );
   }
-  const source = getSource(response);
-  const record = asRecord(source);
-  const candidate =
-    getFirst(record, ['ticket', 'item', 'conversation', 'data']) ??
-    source;
-  const normalized =
-    normalizeOmnichannelInboxItemV2(candidate) ??
-    normalizeOmnichannelInboxItemV2({ ...record, id: ticketId });
-
-  if (!normalized) {
-    throw new ApiError('Respuesta invalida del endpoint de accion omnicanal.', 502, response);
-  }
-
-  return normalized;
+  return normalizeOmnichannelInboxActionV2(response, ticketId);
 };

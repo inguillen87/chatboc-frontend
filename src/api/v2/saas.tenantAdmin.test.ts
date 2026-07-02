@@ -3,6 +3,7 @@ import {
   normalizeCatalogQualityV2,
   normalizeEmployeeCoverageV2,
   normalizeEmployeeRoutingV2,
+  normalizeOmnichannelInboxActionV2,
   normalizeOmnichannelInboxDetailV2,
   normalizeProductionSmokeV2,
   normalizeTenantAdminExperienceV2,
@@ -257,6 +258,45 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.item.allowed_actions.find((action) => action.id === "open_tracking")?.href).toContain(
       "/api/public/tracking/experience",
     );
+  });
+
+  it("normalizes inbox action delivery so the CRM composer can distinguish real sends from timeline notes", () => {
+    const normalized = normalizeOmnichannelInboxActionV2({
+      contract_version: "inbox.omnichannel.action.v1",
+      request_id: "reply-1",
+      action: "reply",
+      delivery: {
+        contract_version: "inbox.action_delivery.v1",
+        mode: "timeline_only",
+        channel: "whatsapp",
+        status: "saved_to_crm",
+        reason: "external_dispatch_not_configured_for_omnichannel_action",
+        external_dispatch: false,
+        timeline_updated: true,
+        reply_status: "saved_to_timeline",
+        admin_surface: "tenant_claims_inbox",
+        operator_message: "Guardado en el CRM. No se envio por WhatsApp.",
+      },
+      ticket: {
+        id: "municipio:378430",
+        ticket_id: 378430,
+        source_model: "MunicipioTicket",
+        title: "Arreglo de calle",
+        status: "en_proceso",
+      },
+    });
+
+    expect(normalized.contract_version).toBe("inbox.omnichannel.action.v1");
+    expect(normalized.ticket.id).toBe("municipio:378430");
+    expect(normalized.delivery).toMatchObject({
+      contract_version: "inbox.action_delivery.v1",
+      mode: "timeline_only",
+      channel: "whatsapp",
+      status: "saved_to_crm",
+      external_dispatch: false,
+      timeline_updated: true,
+      reply_status: "saved_to_timeline",
+    });
   });
 
   it("normalizes real WhatsApp ticket fields for evidence and maps", () => {

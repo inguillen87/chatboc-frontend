@@ -92,6 +92,8 @@ interface AssistedOrderUploadResponse {
   mode?: string;
   request_kind?: string;
   request_kind_label?: string;
+  idempotency_key?: string | null;
+  idempotent_replay?: boolean | null;
   intake_experience?: MarketAssistedIntakeEntry & {
     capabilities?: Array<{
       id?: string | null;
@@ -222,6 +224,37 @@ const resolveCheckoutOrigin = (endpoint: string, isMarketplace: boolean) => {
 
   return isMarketplace ? 'marketplace' : 'web';
 };
+
+const normalizeIdempotencyPart = (value: string | null | undefined, fallback: string) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || fallback;
+};
+
+const createAssistedIntakeIdempotencyKey = (
+  tenantSlug: string | null | undefined,
+  documentType: string,
+  inputMode: 'file' | 'text',
+) => {
+  const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  const randomPart =
+    typeof cryptoApi?.randomUUID === 'function'
+      ? cryptoApi.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  return [
+    'assisted_intake',
+    normalizeIdempotencyPart(tenantSlug, 'global'),
+    normalizeIdempotencyPart(documentType, 'document'),
+    inputMode,
+    randomPart,
+  ].join(':');
+};
+
+const shouldUseAssistedIntakeIdempotency = (endpoint: string) => /\/pedidos\/from-file/i.test(endpoint);
 
 const buildSubmitTextFields = (primaryField: string, endpoint: string) => {
   const primary = normalizeContractName(primaryField);
@@ -734,6 +767,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastSuggestedTextDraftRef = useRef('');
+  const assistedIntakeIdempotencyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const { currentSlug } = useTenant();
   const effectiveTenantSlug = tenantSlug ?? currentSlug ?? null;
   const isMarketplace = variant === 'marketplace';
@@ -930,6 +964,30 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
 
     try {
       const endpoint = isMarketplace ? submitEndpoint : '/api/pedidos/from-file';
+      const inputMode = file ? 'file' : 'text';
+      const idempotencyFingerprint = JSON.stringify([
+        endpoint,
+        effectiveTenantSlug ?? 'global',
+        documentType,
+        inputMode,
+        file ? `${file.name}:${file.size}:${file.type}:${file.lastModified}` : normalizedText,
+        contactName.trim(),
+        contactPhone.trim(),
+        contactEmail.trim(),
+        contactNotes.trim(),
+      ]);
+      let idempotencyKey: string | null = null;
+      if (shouldUseAssistedIntakeIdempotency(endpoint)) {
+        const cached = assistedIntakeIdempotencyRef.current;
+        if (!cached || cached.fingerprint !== idempotencyFingerprint) {
+          assistedIntakeIdempotencyRef.current = {
+            fingerprint: idempotencyFingerprint,
+            key: createAssistedIntakeIdempotencyKey(effectiveTenantSlug, documentType, inputMode),
+          };
+        }
+        idempotencyKey = assistedIntakeIdempotencyRef.current.key;
+      }
+
       const formData = new FormData();
       if (file) {
         formData.append(submitFileField, file, file.name);
@@ -956,6 +1014,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           .filter((fieldName) => fieldName && !isHeaderContractName(fieldName))
           .forEach((fieldName) => formData.append(fieldName, effectiveTenantSlug));
       }
+      if (idempotencyKey) {
+        formData.append('idempotency_key', idempotencyKey);
+      }
 
       const submitHeaderNames = Array.from(
         new Map(
@@ -973,9 +1034,17 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           headers[headerName] = effectiveTenantSlug;
         } else if (/^x-checkout-origin$/i.test(headerName)) {
           headers[headerName] = resolveCheckoutOrigin(endpoint, isMarketplace);
+        } else if (/^(?:x-)?idempotency-key$/i.test(headerName) && idempotencyKey) {
+          headers[headerName] = idempotencyKey;
         }
         return headers;
       }, {});
+      if (
+        idempotencyKey &&
+        !Object.keys(submitHeaders).some((headerName) => /^(?:x-)?idempotency-key$/i.test(headerName))
+      ) {
+        submitHeaders['Idempotency-Key'] = idempotencyKey;
+      }
       const response = await apiFetch<AssistedOrderUploadResponse>(
         endpoint,
         {
@@ -1029,6 +1098,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           ? 'Solicitud recibida: requiere revision manual antes de responder.'
           : 'Solicitud procesada: quedo lista para revision, respuesta y seguimiento.',
       );
+      assistedIntakeIdempotencyRef.current = null;
     } catch (uploadError) {
       if (uploadError instanceof ApiError) {
         const contentType = String(uploadError.body?.contentType || '').toLowerCase();

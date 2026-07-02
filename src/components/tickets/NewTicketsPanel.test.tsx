@@ -115,9 +115,11 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(260px, 320px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(300px, 360px) minmax(0, 1fr)',
     });
     expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
+    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Cola priorizada');
+    expect(screen.getByTestId('tickets-operational-continuity')).not.toHaveTextContent('Resueltos');
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
   });
 

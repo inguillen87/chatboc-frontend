@@ -5,6 +5,7 @@ import { Clock3, ExternalLink, Image as ImageIcon, MapPin, Paperclip, Send, Shie
 import {
   getOmnichannelInboxDetailV2,
   postOmnichannelInboxActionV2,
+  type OmnichannelActionDelivery,
   type OmnichannelInboxItem,
   type SaasAction,
 } from '@/api/v2/saas';
@@ -75,6 +76,26 @@ const isImageAttachment = (attachment: Record<string, unknown>) => {
 const normalizeChannelLabel = (value?: string | null) =>
   value?.trim().toLowerCase() === 'whatsapp' ? 'WhatsApp' : value?.trim() || null;
 
+const deliveryTone = (delivery?: OmnichannelActionDelivery | null) => {
+  if (delivery?.mode === 'real_message' || delivery?.external_dispatch) return 'sent';
+  if (delivery?.mode === 'timeline_only') return 'crm';
+  return 'internal';
+};
+
+const deliveryTitle = (delivery?: OmnichannelActionDelivery | null) => {
+  const tone = deliveryTone(delivery);
+  if (tone === 'sent') return 'Mensaje enviado';
+  if (tone === 'crm') return 'Guardado en CRM';
+  return 'Accion aplicada';
+};
+
+const deliveryDescription = (delivery?: OmnichannelActionDelivery | null, fallback?: string | null) =>
+  delivery?.operator_message ||
+  fallback ||
+  (deliveryTone(delivery) === 'crm'
+    ? 'La respuesta quedo registrada en el timeline operativo.'
+    : 'El inbox fue actualizado.');
+
 function SafeInboxImage({ src, alt }: { src?: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
   const cleanSrc = src?.trim();
@@ -98,6 +119,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
 }) => {
   const [draft, setDraft] = useState('');
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [lastDelivery, setLastDelivery] = useState<OmnichannelActionDelivery | null>(null);
   const detailQuery = useQuery({
     queryKey: ['inbox-omnichannel-v2-detail', tenantSlug, ticketId, ticket?.detail_endpoint],
     queryFn: () => getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint),
@@ -112,7 +134,10 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       if (!ticketId) throw new Error('Falta el ticket seleccionado.');
       return postOmnichannelInboxActionV2(ticketId, { action, payload }, tenantSlug);
     },
-    onSuccess: (updatedTicket) => {
+    onSuccess: (result) => {
+      const updatedTicket = result.ticket;
+      const delivery = result.delivery ?? null;
+      setLastDelivery(delivery);
       if (updatedTicket.id === ticketId) {
         setDraft('');
         setDraftSavedAt(null);
@@ -125,8 +150,11 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         }
       }
       toast({
-        title: 'Accion aplicada',
-        description: updatedTicket.status ? `Estado actual: ${updatedTicket.status}.` : 'El inbox fue actualizado.',
+        title: deliveryTitle(delivery),
+        description: deliveryDescription(
+          delivery,
+          updatedTicket.status ? `Estado actual: ${updatedTicket.status}.` : null,
+        ),
       });
       onActionComplete?.();
     },
@@ -389,6 +417,21 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
                 </Button>
               );
             })}
+          </div>
+        ) : null}
+
+        {lastDelivery ? (
+          <div
+            data-testid="omnichannel-delivery-status"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border bg-muted/20 px-3 py-2 text-xs"
+          >
+            <div className="min-w-0">
+              <div className="font-semibold text-foreground">{deliveryTitle(lastDelivery)}</div>
+              <div className="mt-0.5 text-muted-foreground">{deliveryDescription(lastDelivery)}</div>
+            </div>
+            <Badge variant={deliveryTone(lastDelivery) === 'sent' ? 'default' : 'secondary'}>
+              {lastDelivery.channel || 'crm'} · {lastDelivery.reply_status || lastDelivery.status || 'registrado'}
+            </Badge>
           </div>
         ) : null}
 
