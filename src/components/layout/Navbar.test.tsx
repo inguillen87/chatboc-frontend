@@ -64,6 +64,32 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('keeps the tickets shortcut for tenant admins even while backend capabilities are partial', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'admin_municipio',
+        tipo_chat: 'municipio',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Tickets$/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets',
+    );
+  });
+
   it('does not expose Tickets to backoffice profiles without ticket role or capability', () => {
     useUserMock.mockReturnValue({
       user: {

@@ -53,6 +53,37 @@ interface AssistedOrderAction {
   tracking_code?: string;
 }
 
+interface AssistedOperatorTask {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+  tone?: string | null;
+}
+
+interface AssistedOperatorContactLink {
+  type?: string | null;
+  label?: string | null;
+  href?: string | null;
+}
+
+interface AssistedOperatorSlaHint {
+  label?: string | null;
+  minutes?: number | string | null;
+  severity?: string | null;
+}
+
+interface AssistedOperatorSummary {
+  objective?: string | null;
+  target_module?: string | null;
+  recommended_next_step?: string | null;
+  priority?: string | null;
+  priority_reason_label?: string | null;
+  sla_hint?: AssistedOperatorSlaHint | null;
+  operator_queue?: string | null;
+  operator_queue_label?: string | null;
+  contact_state?: string | null;
+}
+
 interface CrmOrderDraftLine {
   status?: string | null;
   source_name?: string | null;
@@ -151,11 +182,25 @@ interface AssistedOrderUploadResponse {
     primary_intent?: string | null;
     review_reasons?: string[];
     recommended_channels?: string[];
+    priority?: string | null;
+    priority_reason_label?: string | null;
+    operator_queue?: string | null;
+    operator_queue_label?: string | null;
+    sla_hint?: AssistedOperatorSlaHint | null;
   };
   operator_pack?: {
     suggested_reply?: string | null;
     needs_human_review?: boolean | null;
+    priority?: string | null;
+    priority_reason_label?: string | null;
+    operator_queue?: string | null;
+    operator_queue_label?: string | null;
+    recommended_next_step?: string | null;
+    sla_hint?: AssistedOperatorSlaHint | null;
+    contact_links?: AssistedOperatorContactLink[] | null;
+    suggested_tasks?: AssistedOperatorTask[] | null;
   };
+  operator_intake_summary?: AssistedOperatorSummary | null;
   crm_order_draft?: CrmOrderDraft | null;
   crm_handoff?: {
     draft_order?: CrmOrderDraft | null;
@@ -437,6 +482,35 @@ const CRM_LINE_STATUS_LABELS: Record<string, string> = {
   candidate: 'Candidato',
 };
 
+const OPERATOR_PRIORITY_LABELS: Record<string, string> = {
+  high: 'Alta',
+  normal: 'Normal',
+  low: 'Baja',
+};
+
+const OPERATOR_NEXT_STEP_LABELS: Record<string, string> = {
+  pedir_contacto_y_responder: 'Pedir contacto y responder',
+  resolver_faltantes_y_responder: 'Resolver faltantes y responder',
+  revisar_documento_y_responder: 'Revisar documento y responder',
+  confirmar_stock_precio_y_responder: 'Confirmar stock, precio y responder',
+  derivar_area_y_responder: 'Derivar area y responder',
+};
+
+const OPERATOR_QUEUE_LABELS: Record<string, string> = {
+  commerce_assisted_orders: 'Pedidos asistidos',
+  municipal_claims: 'Reclamos municipales',
+  document_requests: 'Documentos y tramites',
+};
+
+const OPERATOR_CHANNEL_LABELS: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+  phone: 'Telefono',
+  crm: 'Panel',
+  web: 'Web',
+  widget: 'Chat web',
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -600,6 +674,43 @@ const getCrmSuggestedReply = (response?: AssistedOrderUploadResponse | null) => 
   if (fromPack) return fromPack;
   if (isRecord(response?.crm_handoff)) return compactString(response.crm_handoff.suggested_reply);
   return null;
+};
+
+const publicOperatorText = (value: unknown) => publicFacingText(value);
+
+const getOperatorTasks = (tasks?: AssistedOperatorTask[] | null) =>
+  Array.isArray(tasks)
+    ? tasks
+        .map((task) => ({
+          id: compactString(task.id) ?? publicOperatorText(task.label),
+          label: publicOperatorText(task.label),
+          description: publicOperatorText(task.description),
+          tone: compactString(task.tone),
+        }))
+        .filter((task) => task.label)
+        .slice(0, 4)
+    : [];
+
+const getOperatorChannels = (
+  contactLinks?: AssistedOperatorContactLink[] | null,
+  recommendedChannels?: string[] | null,
+) => {
+  const fromLinks = Array.isArray(contactLinks)
+    ? contactLinks.map((link) => compactString(link.type) ?? compactString(link.label))
+    : [];
+  const source = fromLinks.length ? fromLinks : (recommendedChannels ?? []);
+  const seen = new Set<string>();
+  return source
+    .map((channel) => compactString(channel))
+    .filter((channel): channel is string => Boolean(channel))
+    .map((channel) => {
+      const key = channel.toLowerCase();
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return OPERATOR_CHANNEL_LABELS[key] ?? prettifyToken(channel) ?? channel;
+    })
+    .filter((channel): channel is string => Boolean(channel))
+    .slice(0, 4);
 };
 
 const getCrmLineName = (line: CrmOrderDraftLine) =>
@@ -1199,6 +1310,48 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const crmDraftContactState = prettifyToken(crmDraft?.contact_state, CRM_CONTACT_STATE_LABELS);
   const crmDraftNextStep = prettifyToken(crmDraft?.recommended_next_step, CRM_NEXT_STEP_LABELS);
   const crmSuggestedReply = getCrmSuggestedReply(processedResponse);
+  const operatorPack = processedResponse?.operator_pack ?? null;
+  const operatorSummary = processedResponse?.operator_intake_summary ?? null;
+  const operatorPriorityLabel = prettifyToken(
+    operatorSummary?.priority ?? operatorPack?.priority ?? processedResponse?.review_context?.priority,
+    OPERATOR_PRIORITY_LABELS,
+  );
+  const operatorQueueLabel =
+    publicOperatorText(
+      operatorSummary?.operator_queue_label ??
+        operatorPack?.operator_queue_label ??
+        processedResponse?.review_context?.operator_queue_label,
+    ) ||
+    prettifyToken(
+      operatorSummary?.operator_queue ?? operatorPack?.operator_queue ?? processedResponse?.review_context?.operator_queue,
+      OPERATOR_QUEUE_LABELS,
+    );
+  const operatorNextStepLabel = prettifyToken(
+    operatorSummary?.recommended_next_step ?? operatorPack?.recommended_next_step ?? crmDraft?.recommended_next_step,
+    { ...CRM_NEXT_STEP_LABELS, ...OPERATOR_NEXT_STEP_LABELS },
+  );
+  const operatorSlaLabel = compactString(
+    operatorSummary?.sla_hint?.label ?? operatorPack?.sla_hint?.label ?? processedResponse?.review_context?.sla_hint?.label,
+  );
+  const operatorReasonLabel = publicOperatorText(
+    operatorSummary?.priority_reason_label ??
+      operatorPack?.priority_reason_label ??
+      processedResponse?.review_context?.priority_reason_label,
+  );
+  const operatorObjective = publicOperatorText(operatorSummary?.objective ?? processedResponse?.document_profile?.operator_goal);
+  const operatorTasks = getOperatorTasks(operatorPack?.suggested_tasks);
+  const operatorChannels = getOperatorChannels(operatorPack?.contact_links, processedResponse?.review_context?.recommended_channels);
+  const hasOperatorHandoff = Boolean(
+    processedResponse &&
+      (operatorPriorityLabel ||
+        operatorQueueLabel ||
+        operatorNextStepLabel ||
+        operatorSlaLabel ||
+        operatorReasonLabel ||
+        operatorObjective ||
+        operatorTasks.length ||
+        operatorChannels.length),
+  );
   const sourceAttachment = normalizeSourceAttachment(processedResponse);
   const sourceAttachmentIsImage = sourceAttachment ? isImageAttachment(sourceAttachment) : false;
   const sourceAttachmentPreviewUrl = sourceAttachmentIsImage ? sourceAttachment?.thumbnailUrl ?? sourceAttachment?.url : null;
@@ -1696,6 +1849,77 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               </Button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {hasOperatorHandoff ? (
+        <div className="rounded-xl border bg-background p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-semibold">
+                <ClipboardList className="h-4 w-4 text-primary" />
+                Que hace el equipo ahora
+              </div>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                La solicitud queda ordenada con prioridad, canal y tareas sugeridas para responder sin volver a interpretar el archivo o mensaje original.
+              </p>
+              {operatorObjective ? (
+                <p className="mt-2 rounded-lg border bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                  {operatorObjective}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {operatorPriorityLabel ? <Badge variant="outline">Prioridad {operatorPriorityLabel}</Badge> : null}
+              {operatorQueueLabel ? <Badge variant="outline">{operatorQueueLabel}</Badge> : null}
+              {operatorSlaLabel ? <Badge variant="secondary">SLA {operatorSlaLabel}</Badge> : null}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {operatorNextStepLabel ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proximo paso</p>
+                <p className="mt-1 text-sm font-semibold">{operatorNextStepLabel}</p>
+              </div>
+            ) : null}
+            {operatorReasonLabel ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo</p>
+                <p className="mt-1 text-sm font-semibold">{operatorReasonLabel}</p>
+              </div>
+            ) : null}
+            {operatorChannels.length ? (
+              <div className="rounded-lg border bg-muted/20 p-3 sm:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Canales de respuesta</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {operatorChannels.map((channel) => (
+                    <Badge key={channel} variant="outline" className="bg-background">
+                      {channel}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {operatorTasks.length ? (
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {operatorTasks.map((task) => (
+                <div key={task.id ?? task.label} className="rounded-lg border bg-muted/20 p-3">
+                  <div className="flex items-start gap-2">
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold">{task.label}</p>
+                      {task.description ? (
+                        <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{task.description}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

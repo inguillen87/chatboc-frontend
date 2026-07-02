@@ -65,7 +65,25 @@ describe('UploadOrderFromFile marketplace intake', () => {
         ],
       },
       operator_pack: {
+        priority: 'normal',
+        operator_queue_label: 'Pedidos asistidos',
+        priority_reason_label: 'Contacto disponible',
+        contact_links: [{ type: 'whatsapp', label: 'Responder por WhatsApp' }],
+        suggested_tasks: [
+          {
+            id: 'confirm_stock_price',
+            label: 'Confirmar stock y precio',
+            description: 'Validar disponibilidad, promocion vigente y condiciones antes de responder.',
+          },
+        ],
         suggested_reply: 'Hola Marcelo, recibimos tu lista y la estamos cotizando.',
+      },
+      operator_intake_summary: {
+        objective: 'Confirmar stock, precio, alternativas y convertir la nota en pedido o cotizacion.',
+        priority: 'normal',
+        operator_queue_label: 'Pedidos asistidos',
+        recommended_next_step: 'confirmar_stock_precio_y_responder',
+        sla_hint: { label: '2 h', minutes: 120 },
       },
       public_follow_up: {
         contract_version: 'marketplace.assisted_followup.v1',
@@ -154,6 +172,14 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     expect(await screen.findByText('Seguimiento publico creado')).toBeInTheDocument();
     expect(screen.getByText('pc-77')).toBeInTheDocument();
+    expect(screen.getByText('Que hace el equipo ahora')).toBeInTheDocument();
+    expect(screen.getByText('Prioridad Normal')).toBeInTheDocument();
+    expect(screen.getAllByText('Pedidos asistidos').length).toBeGreaterThan(0);
+    expect(screen.getByText('SLA 2 h')).toBeInTheDocument();
+    expect(screen.getByText('Confirmar stock, precio y responder')).toBeInTheDocument();
+    expect(screen.getAllByText('Contacto disponible').length).toBeGreaterThan(0);
+    expect(screen.getByText('WhatsApp')).toBeInTheDocument();
+    expect(screen.getByText('Confirmar stock y precio')).toBeInTheDocument();
     expect(screen.getByText('Borrador que recibe el equipo')).toBeInTheDocument();
     expect(screen.getByText('Resolver items y cotizar')).toBeInTheDocument();
     expect(screen.getByText('Chapas galvanizadas')).toBeInTheDocument();
