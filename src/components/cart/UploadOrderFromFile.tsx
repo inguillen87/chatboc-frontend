@@ -38,6 +38,7 @@ interface UploadOrderFromFileProps {
   suggestedTextDraft?: string | null;
   suggestedTextDraftKey?: number | null;
   suggestedDocumentType?: string | null;
+  compactMarketplaceHeader?: boolean;
   className?: string;
   id?: string;
 }
@@ -872,6 +873,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   suggestedTextDraft,
   suggestedTextDraftKey,
   suggestedDocumentType,
+  compactMarketplaceHeader = false,
   className,
   id,
 }) => {
@@ -1369,7 +1371,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
 
   return (
     <div id={id} className={cn('space-y-4', isMarketplace && 'rounded-lg border bg-card p-3 shadow-sm sm:p-4', className)}>
-      {isMarketplace ? (
+      {isMarketplace && !compactMarketplaceHeader ? (
         <div className="overflow-hidden rounded-lg border bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
           <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
             <div className="space-y-3">
@@ -1468,6 +1470,17 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               ))}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {isMarketplace && compactMarketplaceHeader ? (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Carga asistida</Badge>
+            <Badge variant="outline">Sin registro previo</Badge>
+          </div>
+          <h2 className="mt-2 text-base font-semibold tracking-normal sm:text-lg">{publicIntakeTitle}</h2>
+          <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{publicIntakeSummary}</p>
         </div>
       ) : null}
 

@@ -165,19 +165,20 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Pedido generado')).toBeInTheDocument();
     expect(screen.getByText('Seguimiento abierto')).toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId('assisted-upload-dropzone').compareDocumentPosition(screen.getByTestId('market-primary-actions')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('assisted-upload-dropzone').compareDocumentPosition(screen.getByTestId('market-commerce-loop')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText(/Subi boletas, certificados, pedidos o notas/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Boleta municipal/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir foto o papel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Escribir pedido/i })).toBeInTheDocument();
-    expect(screen.getByText('Foto, PDF o texto')).toBeInTheDocument();
-    expect(screen.getByText('Datos ordenados')).toBeInTheDocument();
-    expect(screen.getAllByText('Equipo responde').length).toBeGreaterThan(0);
-    expect(screen.getByText('Seguimiento publico')).toBeInTheDocument();
-    expect(screen.getByText('El equipo recibe')).toBeInTheDocument();
-    expect(screen.getByText('Archivo o texto original')).toBeInTheDocument();
-    expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
+    expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Boleta \/ impuesto/i })).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento seguro')).toBeInTheDocument();
     expect(screen.getByText('Nota manuscrita')).toBeInTheDocument();
-    expect(screen.getByText('Boleta / impuesto')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Escribir lista/i })).toBeInTheDocument();
     expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
@@ -330,11 +331,11 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     expect(screen.getByText('Sin registro')).toBeInTheDocument();
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ferreteria/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Reclamo$/i })).toBeInTheDocument();
-    expect(screen.getByText('Carga publica')).toBeInTheDocument();
-    expect(screen.getByText('Equipo responde')).toBeInTheDocument();
-    expect(screen.getByText('Link publico de seguimiento')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
+    expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nota manuscrita/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Reclamo vecinal/i })).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento seguro')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
   });
 

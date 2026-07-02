@@ -364,6 +364,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     totalUnfiltered === 0 ||
     (products.length === 0 && effectiveAssistedIntake?.show_on_empty_catalog !== false)
   );
+  const prioritizeAssistedUpload = showAssistedIntake && !isLoading && (assistedFirstActive || emptyState);
   const showCatalogFilters = !assistedFirstActive || !catalogActuallyEmpty || hasActiveFilters;
   const cartItemCount = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
   const cartTotalLabel = typeof cartTotalAmount === 'number' ? moneyFormatter.format(cartTotalAmount) : '-';
@@ -582,6 +583,29 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           { label: 'Loop', value: `${commerceLoopSteps.length} pasos`, tone: 'default' },
         ]}
       />
+
+      {prioritizeAssistedUpload ? (
+        <UploadOrderFromFile
+          id={ASSISTED_UPLOAD_ANCHOR_ID}
+          tenantSlug={tenantSlug}
+          variant="marketplace"
+          compactMarketplaceHeader
+          intakeEntry={effectiveAssistedIntake}
+          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
+          suggestedTextDraft={assistedDraftRequest?.text ?? null}
+          suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
+          suggestedDocumentType={assistedDraftRequest?.text ? 'quote_request' : null}
+          onProcessed={(response) => {
+            const requestId = response?.pedido_id ?? response?.lead_id;
+            toast({
+              title: 'Solicitud recibida',
+              description: requestId
+                ? `Solicitud #${requestId}. El equipo puede revisarla desde el panel.`
+                : 'El equipo puede revisarla desde el panel.',
+            });
+          }}
+        />
+      ) : null}
 
       <section
         data-testid="market-primary-actions"
@@ -835,7 +859,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </section>
       ) : null}
 
-      {showAssistedIntake ? (
+      {showAssistedIntake && !prioritizeAssistedUpload ? (
         <UploadOrderFromFile
           id={ASSISTED_UPLOAD_ANCHOR_ID}
           tenantSlug={tenantSlug}
