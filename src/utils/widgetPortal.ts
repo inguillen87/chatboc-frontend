@@ -32,6 +32,7 @@ export interface WidgetPortalTimelineEvent {
 export interface WidgetPortalClaim {
   id: string;
   nroTicket?: string;
+  pin?: string;
   title?: string;
   status?: string;
   statusLabel?: string;
@@ -262,6 +263,7 @@ export const normalizeWidgetClaims = (history?: WidgetCommerceHistory | null): W
       return {
         id,
         nroTicket,
+        pin: readString(entry.pin, entry.consulta_pin, entry.consultaPin, entry.public_pin),
         title,
         status: readString(entry.status, entry.estado),
         statusLabel: readString(entry.status_label, entry.estado_label, entry.estado),
@@ -319,6 +321,7 @@ export const mergeWidgetClaimDetail = (
   return {
     ...base,
     nroTicket: readDefined(detail.nroTicket) ?? base.nroTicket,
+    pin: readDefined(detail.pin) ?? base.pin,
     title: readDefined(detail.title) ?? base.title,
     status: readDefined(detail.status) ?? base.status,
     statusLabel: readDefined(detail.statusLabel) ?? base.statusLabel,

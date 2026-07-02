@@ -60,6 +60,30 @@ describe('widgetPortal public contract normalizers', () => {
     expect(claims[0].timeline).toEqual([]);
   });
 
+  it('preserves secure claim pins and legacy action endpoints for portal tracking links', () => {
+    const claims = normalizeWidgetClaims({
+      claims: {
+        items: [
+          {
+            id: 42,
+            nro_ticket: 'M-378430',
+            consulta_pin: '900144',
+            comment_endpoint: '/chat',
+            photo_endpoint: '/api/public/tracking/claims/42/messages',
+          },
+        ],
+      },
+    });
+
+    expect(claims).toHaveLength(1);
+    expect(claims[0]).toMatchObject({
+      nroTicket: 'M-378430',
+      pin: '900144',
+      commentEndpoint: '/chat',
+      photoEndpoint: '/api/public/tracking/claims/42/messages',
+    });
+  });
+
   it('normalizes pyme orders from detalles without parsing message text', () => {
     const orders = normalizeWidgetOrders({
       orders: {

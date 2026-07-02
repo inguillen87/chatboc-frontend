@@ -11,6 +11,25 @@ interface Props {
   allowGuestPaths?: string[];
 }
 
+const isStandalonePortalShell = () => {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location.pathname.toLowerCase();
+  return pathname === '/portal/' || pathname.endsWith('/portal/index.html');
+};
+
+const PortalShellRedirect = ({ to }: { to: string }) => {
+  useEffect(() => {
+    window.location.assign(to);
+  }, [to]);
+
+  return (
+    <div className="flex items-center justify-center min-h-[50vh] text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+      Abriendo panel...
+    </div>
+  );
+};
+
 const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
   const { user, refreshUser, loading } = useUser();
   const location = useLocation();
@@ -60,6 +79,10 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
   }
 
   if (isBackofficeRole(user.rol)) {
+    if (isStandalonePortalShell()) {
+      return <PortalShellRedirect to="/perfil" />;
+    }
+
     return (
       <Navigate
         to="/perfil"

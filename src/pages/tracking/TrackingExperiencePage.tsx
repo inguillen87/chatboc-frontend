@@ -774,7 +774,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
             </div>
 
             {kind === "claim" && support.enabled ? (
-              <div className="rounded-[20px] border border-border/70 bg-card/95 p-5 shadow-sm">
+              <div id="mesa-ayuda" className="rounded-[20px] border border-border/70 bg-card/95 p-5 shadow-sm">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">

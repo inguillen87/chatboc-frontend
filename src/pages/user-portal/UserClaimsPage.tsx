@@ -99,6 +99,11 @@ const normalizeClaimTrackingLink = (
   return fallback;
 };
 
+const withClaimSupportHash = (path?: string | null) => {
+  if (!path) return null;
+  return path.includes('#') ? path : `${path}#mesa-ayuda`;
+};
+
 const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment }) => {
   const [failed, setFailed] = useState(false);
   if (!attachment.url) {
@@ -189,10 +194,18 @@ const PublicClaimCard = ({
   const hasLocation = Number.isFinite(renderClaim.lat) && Number.isFinite(renderClaim.lng);
   const createdAt = formatDate(renderClaim.createdAt);
   const renderClaimRecord = renderClaim as WidgetPortalClaim & Record<string, unknown>;
+  const claimPin = renderClaim.pin || renderClaimRecord.pin || renderClaimRecord.consulta_pin || renderClaimRecord.consultaPin;
+  const claimCode = renderClaim.nroTicket || renderClaim.id;
   const trackingLink = normalizeClaimTrackingLink(
     renderClaim.detailEndpoint,
-    renderClaim.nroTicket || renderClaim.id,
-    renderClaimRecord.pin || renderClaimRecord.consulta_pin || renderClaimRecord.consultaPin,
+    claimCode,
+    claimPin,
+  );
+  const commentLink = withClaimSupportHash(
+    normalizeClaimTrackingLink(renderClaim.commentEndpoint, claimCode, claimPin) || trackingLink,
+  );
+  const photoLink = withClaimSupportHash(
+    normalizeClaimTrackingLink(renderClaim.photoEndpoint, claimCode, claimPin) || trackingLink,
   );
 
   return (
@@ -280,16 +293,16 @@ const PublicClaimCard = ({
             </div>
           ) : null}
 
-          {(renderClaim.commentEndpoint || renderClaim.photoEndpoint) ? (
+          {(commentLink || photoLink) ? (
             <div className="flex flex-wrap gap-2 border-t pt-4">
-              {renderClaim.commentEndpoint ? (
+              {commentLink ? (
                 <Button size="sm" variant="outline" asChild>
-                  <a href={renderClaim.commentEndpoint} target="_blank" rel="noreferrer">Agregar comentario</a>
+                  <a href={commentLink}>Agregar comentario</a>
                 </Button>
               ) : null}
-              {renderClaim.photoEndpoint ? (
+              {photoLink ? (
                 <Button size="sm" variant="outline" asChild>
-                  <a href={renderClaim.photoEndpoint} target="_blank" rel="noreferrer">Agregar foto</a>
+                  <a href={photoLink}>Agregar foto</a>
                 </Button>
               ) : null}
             </div>
