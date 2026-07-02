@@ -129,4 +129,22 @@ describe('TicketListItem', () => {
     expect(container.querySelector('img')).not.toBeInTheDocument();
     expect(screen.getByText('MA')).toBeInTheDocument();
   });
+
+  it('keeps suggested actions accessible but out of the compact visual row', () => {
+    const { container } = render(
+      <TicketListItem
+        ticket={{
+          ...baseTicket,
+          lastMessage: 'Vecino envio nuevos datos',
+          recommended_next_action: 'Responder desde la mesa operativa',
+        }}
+        isSelected={false}
+        onClick={vi.fn()}
+        compact
+      />,
+    );
+
+    expect(screen.getByText(/accion sugerida: responder desde la mesa operativa/i)).toHaveClass('sr-only');
+    expect(container.querySelector('.bg-primary\\/5')).not.toBeInTheDocument();
+  });
 });

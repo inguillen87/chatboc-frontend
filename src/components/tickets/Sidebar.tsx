@@ -978,7 +978,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
           </div>
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
-          <div className={cn(compact ? 'space-y-1.5 px-2 py-1.5' : 'space-y-2 px-2 py-2')} data-testid="sidebar-ticket-queue">
+          <div className={cn(compact ? 'space-y-1.5 px-2 py-1.5' : 'space-y-1.5 px-2 py-2')} data-testid="sidebar-ticket-queue">
             <p data-testid="sidebar-queue-summary" className="sr-only">
               Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
               {queueUnreadCount.toLocaleString('es-AR')} no leidos;
@@ -990,7 +990,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
                 <TicketListItem
                   ticket={ticket}
                   isSelected={selectedTicket?.id === ticket.id}
-                  compact={compact}
+                  compact
                   onClick={() => {
                     selectTicket(ticket.id);
                     onTicketSelected?.();

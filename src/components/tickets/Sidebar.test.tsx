@@ -44,11 +44,18 @@ vi.mock('./TicketListItem', () => ({
   default: ({
     ticket,
     onClick,
+    compact,
   }: {
-    ticket: { asunto?: string; nro_ticket?: string };
+    ticket: { id?: number | string; asunto?: string; nro_ticket?: string };
     onClick: () => void;
+    compact?: boolean;
   }) => (
-    <button type="button" onClick={onClick}>
+    <button
+      type="button"
+      data-testid={`ticket-row-${ticket.id || ticket.nro_ticket || ticket.asunto}`}
+      data-compact={compact ? 'true' : 'false'}
+      onClick={onClick}
+    >
       {ticket.asunto || ticket.nro_ticket}
     </button>
   ),
@@ -161,6 +168,10 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-active-chips')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
+      'data-compact',
+      'true',
+    );
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
@@ -211,11 +222,20 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-category-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-category-summary')).toHaveTextContent('Vista por rubro');
     expect(screen.getByText('Arreglo De Calle (1)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /arreglo de calle \(1\)/i }));
+    expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
+      'data-compact',
+      'false',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /^cola$/i }));
 
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
+    expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
+      'data-compact',
+      'true',
+    );
     expect(screen.queryByText('Arreglo De Calle (1)')).not.toBeInTheDocument();
   });
 

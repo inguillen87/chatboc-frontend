@@ -68,13 +68,116 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   const avatarUrl = normalizeText(avatar.avatarUrl);
   const avatarSource = normalizeText(avatar.source || ticket.avatar_source) || (avatarUrl ? 'imagen consentida' : 'iniciales');
   const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
+  const normalizedStatus = normalizeTicketStatus(ticket.estado);
+  const statusLabel = formatTicketStatusLabel(ticket.estado);
+  const statusClass = cn(
+    'text-xs capitalize px-1.5 py-0.5',
+    normalizedStatus === 'nuevo' && 'bg-blue-500/80 text-white border-transparent',
+    normalizedStatus === 'en_proceso' && 'bg-yellow-500/80 text-white border-transparent',
+    normalizedStatus === 'resuelto' && 'bg-emerald-500/80 text-white border-transparent',
+    !normalizedStatus && 'bg-muted-foreground/20 text-muted-foreground border-transparent',
+  );
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className={cn(
+          'relative w-full rounded-lg border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          isSelected
+            ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
+            : 'border-border/80 bg-background hover:bg-muted/50',
+          hasUnread && !isSelected && 'border-primary/50',
+        )}
+        onClick={onClick}
+        aria-pressed={isSelected}
+        aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
+      >
+        {hasUnread && !isSelected && (
+          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+            {unreadBadgeLabel}
+          </span>
+        )}
+        <div className="flex min-w-0 items-start gap-2">
+          <IdentityAvatar
+            name={displayName}
+            avatarUrl={avatarUrl}
+            source={avatarSource}
+            consented={avatar.consented}
+            size="sm"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className="line-clamp-1 text-sm font-semibold leading-5 text-foreground" title={subject}>
+                  {subject}
+                </h4>
+                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+                  {ticketNumber} - {displayName}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className="text-[11px] leading-4 text-muted-foreground">{formattedTime}</span>
+                <Badge variant="outline" className={statusClass}>
+                  {statusLabel}
+                </Badge>
+              </div>
+            </div>
+            {(categoryLabel || priorityLabel || slaLabel || assignedLabel) && (
+              <div className="mt-1 flex min-w-0 items-center gap-1 overflow-hidden">
+                {categoryLabel && categoryLabel !== subject ? (
+                  <Badge variant="outline" className="max-w-[7rem] shrink truncate px-1.5 py-0 text-[10px] font-semibold">
+                    {categoryLabel}
+                  </Badge>
+                ) : null}
+                {priorityLabel ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'shrink-0 gap-1 px-1.5 py-0 text-[10px]',
+                      (priorityTone.includes('alta') || priorityTone.includes('urgent')) &&
+                        'border-amber-400/70 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+                    )}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    {priorityLabel}
+                  </Badge>
+                ) : null}
+                {slaLabel ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'shrink-0 px-1.5 py-0 text-[10px]',
+                      (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
+                        'border-red-400/70 bg-red-500/10 text-red-700 dark:text-red-200',
+                    )}
+                  >
+                    SLA: {slaLabel}
+                  </Badge>
+                ) : null}
+                {assignedLabel ? (
+                  <Badge variant="secondary" className="min-w-0 shrink truncate px-1.5 py-0 text-[10px]">
+                    {assignedLabel}
+                  </Badge>
+                ) : null}
+              </div>
+            )}
+            <p className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground">
+              {ticket.lastMessage || '...'}
+            </p>
+            {nextAction ? <span className="sr-only">Accion sugerida: {nextAction}</span> : null}
+          </div>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <button
       type="button"
       className={cn(
         'relative w-full rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        compact ? 'p-2' : 'p-3',
+        'p-3',
         isSelected
           ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
           : 'border-border/80 bg-background hover:bg-muted/50',
@@ -89,11 +192,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           {unreadBadgeLabel}
         </span>
       )}
-      <div className={cn('flex items-start justify-between gap-2', compact ? 'mb-1.5' : 'mb-2')}>
-        <div className={cn('flex min-w-0 items-start', compact ? 'gap-2' : 'gap-3')}>
-          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size={compact ? 'md' : 'lg'} />
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
-            <h4 className={cn('text-sm font-semibold leading-5 text-foreground', compact ? 'line-clamp-1' : 'line-clamp-2')} title={subject}>
+            <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
               {subject}
             </h4>
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -115,27 +218,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
               {activeViewers} viendo
             </Badge>
           ) : null}
-          {(() => {
-            const normalizedStatus = normalizeTicketStatus(ticket.estado);
-            const statusLabel = formatTicketStatusLabel(ticket.estado);
-            const statusClass = cn(
-              'text-xs capitalize px-1.5 py-0.5', // smaller padding
-              normalizedStatus === 'nuevo' && 'bg-blue-500/80 text-white border-transparent',
-              normalizedStatus === 'en_proceso' && 'bg-yellow-500/80 text-white border-transparent',
-              normalizedStatus === 'resuelto' && 'bg-emerald-500/80 text-white border-transparent',
-              !normalizedStatus && 'bg-muted-foreground/20 text-muted-foreground border-transparent'
-            );
-
-            return (
-              <Badge variant="outline" className={statusClass}>
-                {statusLabel}
-              </Badge>
-            );
-          })()}
+          <Badge variant="outline" className={statusClass}>
+            {statusLabel}
+          </Badge>
         </div>
       </div>
       {(priorityLabel || slaLabel || assignedLabel) && (
-        <div className={cn('flex gap-1.5 overflow-hidden', compact ? 'mb-1.5 pl-10' : 'mb-2 flex-wrap pl-[52px]')}>
+        <div className="mb-2 flex flex-wrap gap-1.5 overflow-hidden pl-[52px]">
           {priorityLabel ? (
             <Badge
               variant="outline"
@@ -169,12 +258,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           ) : null}
         </div>
       )}
-      <p className={cn('text-sm leading-5 text-muted-foreground', compact ? 'line-clamp-1 pl-10' : 'line-clamp-2 pl-[52px]')}>{ticket.lastMessage || '...'}</p>
+      <p className="line-clamp-2 pl-[52px] text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
       {nextAction ? (
-        <p className={cn(
-          'rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary',
-          compact ? 'mt-1 line-clamp-1 sm:ml-10' : 'mt-2 line-clamp-2 sm:ml-[52px]',
-        )}>
+        <p className="mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary sm:ml-[52px]">
           {nextAction}
         </p>
       ) : null}

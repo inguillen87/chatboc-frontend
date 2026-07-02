@@ -163,4 +163,35 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(selectTicket).toHaveBeenCalledWith(2);
   });
+
+  it('does not hide channel, area or agent filters from the operational summary', () => {
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      filters: {
+        channel: 'whatsapp',
+        status: 'all',
+        area: 'obras',
+        agent: 'unassigned',
+        priority: 'all',
+        sla: 'all',
+        unread: 'all',
+      },
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.queryByText(/sin filtros activos/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Canal: whatsapp')).toBeInTheDocument();
+    expect(screen.getByText('Area: obras')).toBeInTheDocument();
+    expect(screen.getByText('Agente: unassigned')).toBeInTheDocument();
+  });
 });

@@ -483,11 +483,17 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
   const unreadFilter = filters.unread ?? 'all';
   const statusFilter = filters.status ?? 'all';
+  const channelFilter = filters.channel ?? 'all';
+  const areaFilter = filters.area ?? 'all';
+  const agentFilter = filters.agent ?? 'all';
   const slaFilter = filters.sla ?? 'all';
   const priorityFilter = filters.priority ?? 'all';
   const operationalFilterBadges = [
+    channelFilter !== 'all' ? `Canal: ${channelFilter}` : null,
     unreadFilter !== 'all' ? `Lectura: ${unreadFilter}` : null,
     statusFilter !== 'all' ? `Estado: ${statusFilter}` : null,
+    areaFilter !== 'all' ? `Area: ${areaFilter}` : null,
+    agentFilter !== 'all' ? `Agente: ${agentFilter}` : null,
     slaFilter !== 'all' ? `SLA: ${slaFilter}` : null,
     priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
   ].filter(Boolean) as string[];
