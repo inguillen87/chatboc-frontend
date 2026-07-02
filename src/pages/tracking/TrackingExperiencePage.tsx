@@ -150,6 +150,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
   const serviceWindow = isRecord(support?.service_window) ? support.service_window : {};
   const webviewPolicy = isRecord(support?.webview_policy) ? support.webview_policy : {};
   const adminSurface = isRecord(support?.admin_response_surface) ? support.admin_response_surface : {};
+  const operatorQueue = isRecord(support?.operator_queue) ? support.operator_queue : {};
   const polling = isRecord(support?.polling) ? support.polling : {};
   const cta = isRecord(support?.cta) ? support.cta : {};
   const primaryCta = isRecord(cta.primary) ? cta.primary : {};
@@ -179,6 +180,17 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     ["action"],
     liveAvailable ? "socket_live_message" : "queue_ticket_comment",
   );
+  const pendingCustomerMessagesRaw = Number(
+    first(operatorQueue, ["pending_customer_messages", "pendingCustomerMessages", "unread_count"]) ?? 0,
+  );
+  const pendingCustomerMessages = Number.isFinite(pendingCustomerMessagesRaw)
+    ? Math.max(0, Math.round(pendingCustomerMessagesRaw))
+    : 0;
+  const hasPendingCustomerMessage = Boolean(
+    first(operatorQueue, ["has_pending_customer_message", "hasPendingCustomerMessage"]) ??
+      pendingCustomerMessages > 0,
+  );
+  const slaTargetMinutesRaw = Number(first(operatorQueue, ["sla_target_minutes", "slaTargetMinutes"]) ?? 0);
 
   return {
     enabled: support?.enabled !== false && (hasSupportContract || fallbackClaimSupport),
@@ -212,6 +224,31 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     endpoint: readText(endpoints, ["send_message"], fallbackClaimSupport ? "/tracking/api/send-claim-message" : ""),
     ticketId: readText(ticket, ["id"]),
     requiresPin: ticket.requires_pin !== false,
+    queueState: readText(
+      operatorQueue,
+      ["state", "status"],
+      hasPendingCustomerMessage
+        ? liveAvailable
+          ? "live_agent_attention_needed"
+          : "offline_waiting_admin_response"
+        : "up_to_date",
+    ),
+    queueLabel: readText(
+      operatorQueue,
+      ["customer_visible_label", "label"],
+      hasPendingCustomerMessage
+        ? "Tu mensaje quedo pendiente para el equipo"
+        : "El equipo esta al dia con este reclamo",
+    ),
+    pendingCustomerMessages,
+    hasPendingCustomerMessage,
+    pendingSince: readText(operatorQueue, ["pending_since", "pendingSince"]),
+    slaTargetMinutes: Number.isFinite(slaTargetMinutesRaw) && slaTargetMinutesRaw > 0 ? Math.round(slaTargetMinutesRaw) : null,
+    nextTeamActionLabel: readText(
+      operatorQueue,
+      ["next_team_action_label", "nextTeamActionLabel"],
+      hasPendingCustomerMessage ? "Responder desde la bandeja de reclamos" : "Sin respuesta pendiente",
+    ),
     messages,
   };
 };
@@ -807,6 +844,52 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       El equipo responde desde el CRM del municipio, asociado a este ticket.
                     </p>
+                  </div>
+                </div>
+
+                <div
+                  data-testid="tracking-helpdesk-queue"
+                  className={`mt-5 rounded-[16px] border p-4 ${
+                    support.hasPendingCustomerMessage
+                      ? "border-amber-500/30 bg-amber-500/10"
+                      : "border-emerald-500/25 bg-emerald-500/10"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${
+                            support.hasPendingCustomerMessage
+                              ? "bg-amber-500/15 text-amber-700"
+                              : "bg-emerald-500/15 text-emerald-700"
+                          }`}
+                        >
+                          {support.hasPendingCustomerMessage ? (
+                            <Clock3 className="h-4 w-4" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-foreground">{support.queueLabel}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            {support.nextTeamActionLabel}
+                            {support.slaTargetMinutes ? ` - SLA objetivo ${support.slaTargetMinutes} min` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs font-semibold">
+                      <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                        Pendientes: {support.pendingCustomerMessages}
+                      </span>
+                      {support.pendingSince ? (
+                        <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                          Desde {support.pendingSince}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 

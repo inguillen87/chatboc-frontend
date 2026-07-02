@@ -95,6 +95,20 @@ const makeClaimPayload = (mode: "live" | "offline" = "offline") => {
       admin_response_surface: {
         label: "Bandeja de reclamos",
       },
+      operator_queue: {
+        contract_version: "claim.helpdesk_queue.v1",
+        state: "up_to_date",
+        has_pending_customer_message: false,
+        pending_customer_messages: 0,
+        latest_customer_message: null,
+        pending_since: null,
+        sla_target_minutes: live ? 30 : 240,
+        next_team_action: "monitor_ticket",
+        next_team_action_label: "Sin respuesta pendiente",
+        customer_visible_label: "El equipo esta al dia con este reclamo",
+        unread_on_customer_message: true,
+        requires_admin_response: false,
+      },
       cta: {
         primary: {
           label: live ? "Chatear con un agente" : "Dejar mensaje para el equipo",
@@ -140,6 +154,17 @@ describe("TrackingExperiencePage support contract", () => {
         ...payload,
         support: {
           ...payload.support,
+          operator_queue: {
+            ...payload.support.operator_queue,
+            state: "offline_waiting_admin_response",
+            has_pending_customer_message: true,
+            pending_customer_messages: 1,
+            pending_since: "6 de junio, 00:05",
+            next_team_action: "reply_from_admin_inbox",
+            next_team_action_label: "Responder desde la bandeja de reclamos",
+            customer_visible_label: "Tu mensaje quedo pendiente para el equipo",
+            requires_admin_response: true,
+          },
           conversation: {
             messages: [
               {
@@ -162,6 +187,8 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.getByText(/Siguiente:/i)).toHaveTextContent("Validando");
     expect(screen.getByText("Sin salir del seguimiento")).toBeInTheDocument();
     expect(screen.getByText("Cola offline activa")).toBeInTheDocument();
+    expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("El equipo esta al dia con este reclamo");
+    expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Pendientes: 0");
     expect(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i })).toBeInTheDocument();
     expect(
       Array.from(container.querySelectorAll("a")).some((link) =>
@@ -191,6 +218,9 @@ describe("TrackingExperiencePage support contract", () => {
     });
     expect(await screen.findByText("hola, puedo hablar con alguien?")).toBeInTheDocument();
     expect(await screen.findByText(/pendiente en el CRM/i)).toBeInTheDocument();
+    expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Tu mensaje quedo pendiente para el equipo");
+    expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Pendientes: 1");
+    expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Responder desde la bandeja de reclamos");
   });
 
   it("uses the backend live CTA when the tenant service window is open", async () => {

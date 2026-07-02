@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { shouldShowOperationalTimelineInChat } from './ConversationPanel';
+import {
+  formatReplyDeliveryChannel,
+  getReplyDeliveryView,
+  shouldShowOperationalTimelineInChat,
+} from './ConversationPanel';
 import { buildOperationalReplyDraft } from './ticketOperationalGuidance';
 import type { Ticket } from '@/types/tickets';
 
@@ -74,5 +78,101 @@ describe('shouldShowOperationalTimelineInChat', () => {
         isDetailsVisible: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('reply delivery evidence', () => {
+  it('labels confirmed WhatsApp delivery as an external message', () => {
+    const view = getReplyDeliveryView({
+      contract_version: 'tickets.agent_reply_delivery.v1',
+      mode: 'real_message',
+      channel: 'whatsapp',
+      status: 'sent',
+      reason: 'external_dispatch_confirmed',
+      external_dispatch: true,
+      socket_emitted: true,
+      timeline_updated: true,
+      reply_status: 'sent_to_contact',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: true,
+        socket: true,
+      },
+    });
+
+    expect(formatReplyDeliveryChannel('whatsapp')).toBe('WhatsApp');
+    expect(view.tone).toBe('success');
+    expect(view.title).toBe('Mensaje enviado');
+    expect(view.detail).toContain('WhatsApp');
+  });
+
+  it('distinguishes live chat socket delivery from timeline-only CRM saves', () => {
+    const liveView = getReplyDeliveryView({
+      contract_version: 'tickets.agent_reply_delivery.v1',
+      mode: 'real_message',
+      channel: 'live_socket',
+      status: 'sent',
+      reason: 'socket_dispatch_confirmed',
+      external_dispatch: false,
+      socket_emitted: true,
+      timeline_updated: true,
+      reply_status: 'sent_to_live_chat',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: false,
+        socket: true,
+      },
+    });
+
+    const crmView = getReplyDeliveryView({
+      contract_version: 'tickets.agent_reply_delivery.v1',
+      mode: 'timeline_only',
+      channel: 'crm',
+      status: 'saved_to_crm',
+      reason: 'external_dispatch_no_channel_confirmed',
+      external_dispatch: false,
+      socket_emitted: false,
+      timeline_updated: true,
+      reply_status: 'saved_to_timeline',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: false,
+        socket: false,
+      },
+      operator_message: 'Guardado en CRM sin canal externo confirmado.',
+    });
+
+    expect(liveView.title).toBe('Entregado en chat en vivo');
+    expect(liveView.tone).toBe('success');
+    expect(crmView.title).toBe('Guardado en CRM');
+    expect(crmView.tone).toBe('muted');
+  });
+
+  it('warns operators when delivery failed after saving the CRM timeline', () => {
+    const view = getReplyDeliveryView({
+      contract_version: 'tickets.agent_reply_delivery.v1',
+      mode: 'timeline_only',
+      channel: 'crm',
+      status: 'saved_to_crm',
+      reason: 'notification_dispatch_failed',
+      external_dispatch: false,
+      socket_emitted: false,
+      timeline_updated: true,
+      reply_status: 'saved_to_timeline',
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: false,
+        socket: false,
+      },
+      operator_message: 'El mensaje quedo guardado, pero fallo la entrega externa.',
+    });
+
+    expect(view.tone).toBe('warning');
+    expect(view.title).toBe('Guardado, entrega sin confirmar');
+    expect(view.detail).toContain('fallo la entrega externa');
   });
 });
