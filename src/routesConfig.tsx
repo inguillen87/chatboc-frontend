@@ -326,7 +326,7 @@ const routes: RouteConfig[] = [
   // --- SPECIFIC ROUTES FIRST (Priority) ---
 
   // Cart & Checkout (Tenant) - Must be before generic tenant home
-  ...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage /> }),
+  ...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage />, allowGuest: true }),
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
@@ -339,9 +339,9 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/encuestas', { element: <PublicSurveysIndex /> }),
 
   // Market specific
-  ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage /> }),
-  ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage /> }),
-  ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage /> }),
+  ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage />, allowGuest: true }),
   ...withTenantPrefixes('/:tenant/market/blueprint', { element: <MarketplaceBlueprintPage /> }),
 
   // Tenant Portal Sections

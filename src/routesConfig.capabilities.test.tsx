@@ -56,8 +56,23 @@ describe('routesConfig route capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
 
-    expect(content).toContain("...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage /> })");
+    expect(content).toContain("...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage />, allowGuest: true })");
     expect(content).not.toContain("...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> })");
+  });
+
+  it('keeps tenant marketplace webviews public for WhatsApp, QR and anonymous assisted intake', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const publicWebviewRoutes = ['/:tenant/cart', '/:tenant/market', '/:tenant/product/:slug', '/:tenant/checkout'];
+
+    for (const routePath of publicWebviewRoutes) {
+      const escapedRoute = routePath.replace(/\//g, '\\/');
+      const routeBlock = content.match(new RegExp(`\\.\\.\\.withTenantPrefixes\\('${escapedRoute}', \\{[\\s\\S]*?\\}\\),`))?.[0] ?? '';
+
+      expect(routeBlock).toContain('allowGuest: true');
+      expect(routeBlock).not.toContain('roles:');
+      expect(routeBlock).not.toContain('requiredCapabilities');
+    }
   });
 
   it('keeps marketplace cart sharing on canonical tenant URLs', () => {
