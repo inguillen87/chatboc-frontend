@@ -477,7 +477,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
-  const showVisibleSummaryBar = !compact || hasActiveFilters;
+  const showVisibleSummaryBar = !compact;
   const listSummaryTitle = activeFilterSummary.length
     ? activeFilterSummary.join(' | ')
     : 'Sin filtros activos';
@@ -787,6 +787,19 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
               </span>
               {listModeToggle}
               {filterPopover}
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 shrink-0 px-0"
+                  aria-label="Limpiar filtros activos"
+                  title="Limpiar filtros"
+                  onClick={resetFilters}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
