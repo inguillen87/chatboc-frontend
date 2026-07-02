@@ -58,6 +58,7 @@ type BackendActionSummary = {
   uiHint?: string;
   actionType?: string;
   writesEnabled?: boolean;
+  href?: string;
 };
 
 type PremiumTerritoryHeatmapProps = {
@@ -178,6 +179,50 @@ const readinessCopy = (
   return labelFor(labels, 'premium_map_quality_empty', 'Faltan coordenadas para construir inteligencia territorial confiable.');
 };
 
+const extractTicketIdFromEndpoint = (value: string | undefined) => {
+  if (!value) return undefined;
+  const match = value.match(/\/tickets\/([^/?#]+)/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+};
+
+const readStringOrNumber = (...values: unknown[]) => {
+  const text = readString(...values);
+  if (text) return text;
+  const numeric = readNumber(...values);
+  return numeric !== undefined ? String(numeric) : undefined;
+};
+
+const buildTicketDeskHref = (record: Record<string, unknown>) => {
+  const frontendPath = readString(record.frontend_path, record.route, record.href);
+  if (frontendPath?.startsWith('/')) return frontendPath;
+
+  const endpoint = readString(record.endpoint, record.endpoint_template);
+  const target = asRecord(record.target);
+  const params = new URLSearchParams();
+  params.set('tab', 'tickets');
+
+  const uiHint = readString(record.ui_hint);
+  const actionType = readString(record.action_type);
+  const ticketId =
+    readStringOrNumber(record.ticket_id, record.record_id, target?.ticket_id, target?.record_id) ??
+    extractTicketIdFromEndpoint(endpoint);
+  const category = readString(record.categoria, record.category, target?.categoria, target?.category);
+  const status = readString(record.estado, record.status, target?.estado, target?.status);
+  const channel = readString(record.canal, record.channel, target?.canal, target?.channel);
+  const cellId = readString(record.cell_id, target?.cell_id);
+
+  if (uiHint) params.set('focus', uiHint);
+  else if (actionType) params.set('focus', actionType);
+  if (ticketId) params.set('ticket_id', ticketId);
+  if (category) params.set('categoria', category);
+  if (status) params.set('estado', status);
+  if (channel) params.set('canal', channel);
+  if (cellId) params.set('heatmap_cell', cellId);
+  if (uiHint === 'open_geocoding_queue') params.set('sla', 'risk');
+
+  return params.toString() === 'tab=tickets' ? undefined : `/perfil?${params.toString()}`;
+};
+
 const summarizeBackendAction = (action: unknown): BackendActionSummary | undefined => {
   const record = asRecord(action);
   if (!record) return undefined;
@@ -200,6 +245,7 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
     uiHint: readString(record.ui_hint),
     actionType: readString(record.action_type),
     writesEnabled: record.writes_enabled === true,
+    href: buildTicketDeskHref(record),
   };
 };
 
@@ -1311,6 +1357,14 @@ export function PremiumTerritoryHeatmap({
                               <Badge variant={action.writesEnabled ? 'outline' : 'secondary'} className="text-[10px]">
                                 {action.writesEnabled ? 'requiere confirmacion' : 'preparacion segura'}
                               </Badge>
+                              {action.href ? (
+                                <a
+                                  href={action.href}
+                                  className="inline-flex rounded-full border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                >
+                                  Abrir en CRM
+                                </a>
+                              ) : null}
                             </div>
                           </div>
                         ))}

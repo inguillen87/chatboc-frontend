@@ -930,7 +930,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           return false;
         }
       }
-      if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
+      if (filters.area !== 'all' && normalizeFilterValue(resolveAreaLabel(ticket)) !== normalizeFilterValue(filters.area)) return false;
       if (filters.agent !== 'all') {
         const agentId = resolveAgentFilterId(ticket);
         if (filters.agent === 'unassigned') {

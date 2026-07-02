@@ -220,6 +220,11 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Actualizar ubicacion')).toBeTruthy();
     expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
     expect(screen.getAllByText('preparacion segura').length).toBeGreaterThan(0);
+    const crmLinks = screen.getAllByRole('link', { name: /abrir en crm/i });
+    expect(crmLinks.length).toBeGreaterThan(0);
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('/perfil?tab=tickets'))).toBe(true);
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('ticket_id=11'))).toBe(true);
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('focus=open_geocoding_queue'))).toBe(true);
     expect(screen.getByText('Safe by default - solo preparacion operativa')).toBeTruthy();
   });
 

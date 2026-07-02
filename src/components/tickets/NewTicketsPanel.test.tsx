@@ -1,10 +1,18 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import NewTicketsPanel from './NewTicketsPanel';
 
+const searchParamsState = vi.hoisted(() => ({
+  value: new URLSearchParams(),
+}));
+
 const useTicketsMock = vi.fn();
+
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [searchParamsState.value],
+}));
 
 vi.mock('@/context/TicketContext', () => ({
   useTickets: () => useTicketsMock(),
@@ -46,6 +54,7 @@ vi.mock('@/components/ui/sonner', () => ({
 
 describe('NewTicketsPanel CRM layout', () => {
   beforeEach(() => {
+    searchParamsState.value = new URLSearchParams();
     useTicketsMock.mockReset();
     useTicketsMock.mockReturnValue({
       loading: true,
@@ -193,5 +202,81 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByText('Canal: whatsapp')).toBeInTheDocument();
     expect(screen.getByText('Area: obras')).toBeInTheDocument();
     expect(screen.getByText('Agente: unassigned')).toBeInTheDocument();
+  });
+
+  it('opens CRM desk from heatmap query links with filters and selected ticket', async () => {
+    const setFilters = vi.fn();
+    const selectTicket = vi.fn();
+    searchParamsState.value = new URLSearchParams(
+      'tab=tickets&focus=open_geocoding_queue&ticket_id=378430&categoria=Arreglo_De_Calle&canal=whatsapp',
+    );
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [
+        {
+          id: 378430,
+          nro_ticket: 'M-378430',
+          asunto: 'Arreglo de calle',
+          categoria: 'Arreglo De Calle',
+          estado: 'nuevo',
+          fecha: '2026-06-01T10:00:00.000Z',
+          tipo: 'municipio',
+          channel: 'whatsapp',
+        },
+      ],
+      filteredTickets: [
+        {
+          id: 378430,
+          nro_ticket: 'M-378430',
+          asunto: 'Arreglo de calle',
+          categoria: 'Arreglo De Calle',
+          estado: 'nuevo',
+          fecha: '2026-06-01T10:00:00.000Z',
+          tipo: 'municipio',
+          channel: 'whatsapp',
+        },
+      ],
+      selectedTicket: null,
+      selectTicket,
+      filters: {
+        channel: 'all',
+        status: 'all',
+        area: 'all',
+        agent: 'all',
+        priority: 'all',
+        sla: 'all',
+        unread: 'all',
+      },
+      setFilters,
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    await waitFor(() => {
+      expect(setFilters).toHaveBeenCalledWith(expect.any(Function));
+      expect(selectTicket).toHaveBeenCalledWith(378430);
+    });
+
+    const filterUpdater = setFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
+    expect(
+      filterUpdater({
+        channel: 'all',
+        status: 'all',
+        area: 'all',
+        agent: 'all',
+        priority: 'all',
+        sla: 'all',
+        unread: 'all',
+      }),
+    ).toMatchObject({
+      channel: 'whatsapp',
+      area: 'Arreglo_De_Calle',
+      sla: 'risk',
+    });
+    expect(screen.getByTestId('tickets-deeplink-focus')).toHaveTextContent('open geocoding queue');
   });
 });

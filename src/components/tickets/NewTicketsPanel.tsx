@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
@@ -41,6 +42,47 @@ const getDirectionBetweenViews = (
   }
 
   return (toIndex > fromIndex ? 1 : -1) as MobileTransitionDirection;
+};
+
+const normalizeQueryValue = (value: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed || null;
+};
+
+const normalizeTicketQueryNumber = (value: string | null): number | null => {
+  const normalized = normalizeQueryValue(value);
+  if (!normalized) return null;
+  const parsed = Number(normalized.replace(/^#/, '').replace(/^M-/i, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatDeskDeepLinkFocus = (value: string | null) =>
+  value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : null;
+
+const readTicketDeskQuery = (searchParams: URLSearchParams) => {
+  const focus = normalizeQueryValue(searchParams.get('focus') ?? searchParams.get('ui_hint') ?? searchParams.get('source'));
+  const ticketId = normalizeTicketQueryNumber(
+    searchParams.get('ticket_id') ??
+      searchParams.get('ticketId') ??
+      searchParams.get('record_id') ??
+      searchParams.get('recordId') ??
+      searchParams.get('id'),
+  );
+
+  return {
+    key: searchParams.toString(),
+    focus,
+    ticketId,
+    filters: {
+      channel: normalizeQueryValue(searchParams.get('canal') ?? searchParams.get('channel')),
+      status: normalizeQueryValue(searchParams.get('estado') ?? searchParams.get('status')),
+      area: normalizeQueryValue(searchParams.get('area') ?? searchParams.get('categoria') ?? searchParams.get('category')),
+      agent: normalizeQueryValue(searchParams.get('agent') ?? searchParams.get('assignee') ?? searchParams.get('assigned_agent')),
+      priority: normalizeQueryValue(searchParams.get('priority') ?? searchParams.get('prioridad')),
+      sla: normalizeQueryValue(searchParams.get('sla') ?? searchParams.get('sla_status')),
+      unread: normalizeQueryValue(searchParams.get('unread') ?? searchParams.get('no_leidos')),
+    },
+  };
 };
 
 const mobileViewVariants = {
@@ -156,6 +198,7 @@ interface NewTicketsPanelProps {
 
 const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) => {
   const isMobile = useIsMobile();
+  const [searchParams] = useSearchParams();
   const {
     loading,
     error,
@@ -199,8 +242,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     () => !isMobile && (typeof window === 'undefined' || window.innerWidth >= 1440),
   );
   const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
+  const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
 
   const lastMobileTicketId = React.useRef<string | number | null>(null);
+  const appliedDeskQueryKeyRef = React.useRef<string>('');
+  const selectedDeskQueryTicketRef = React.useRef<string>('');
 
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
@@ -326,6 +372,56 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     },
     [applyQuickFilter],
   );
+
+  const ticketDeskQuery = React.useMemo(() => readTicketDeskQuery(searchParams), [searchParams]);
+
+  React.useEffect(() => {
+    if (!ticketDeskQuery.key || appliedDeskQueryKeyRef.current === ticketDeskQuery.key) return;
+
+    const nextFilters = Object.entries(ticketDeskQuery.filters).reduce<Partial<typeof filters>>((acc, [key, value]) => {
+      if (typeof value !== 'string' || !value) return acc;
+      if (key === 'unread') {
+        acc.unread = ['true', '1', 'yes', 'si'].includes(value.toLowerCase()) ? 'unread' : value;
+        return acc;
+      }
+      acc[key as keyof typeof filters] = value;
+      return acc;
+    }, {});
+
+    if (ticketDeskQuery.focus === 'open_geocoding_queue' && !nextFilters.sla) {
+      nextFilters.sla = 'risk';
+    }
+
+    if (Object.keys(nextFilters).length > 0) {
+      setFilters((current) => {
+        const changed = Object.entries(nextFilters).some(([key, value]) => current[key as keyof typeof current] !== value);
+        return changed ? { ...current, ...nextFilters } : current;
+      });
+    }
+
+    setDeepLinkFocus(ticketDeskQuery.focus);
+    appliedDeskQueryKeyRef.current = ticketDeskQuery.key;
+  }, [setFilters, ticketDeskQuery, filters]);
+
+  React.useEffect(() => {
+    if (!ticketDeskQuery.ticketId || !tickets.length) return;
+    const querySelectionKey = `${ticketDeskQuery.key}:${ticketDeskQuery.ticketId}`;
+    if (selectedDeskQueryTicketRef.current === querySelectionKey) return;
+
+    const matchedTicket = tickets.find((ticket) => {
+      const candidateIds = [ticket.id, ticket.nro_ticket, ticket.ticket_id].filter((value) => value !== undefined && value !== null);
+      return candidateIds.some((value) => {
+        const normalized = normalizeTicketQueryNumber(String(value));
+        return normalized === ticketDeskQuery.ticketId;
+      });
+    });
+
+    if (!matchedTicket) return;
+    selectTicket(matchedTicket.id);
+    selectedDeskQueryTicketRef.current = querySelectionKey;
+    if (isMobile) setActiveMobileView('chat');
+    else setDesktopView('chat');
+  }, [isMobile, selectTicket, setActiveMobileView, ticketDeskQuery, tickets]);
 
   const resetOperationalFilters = React.useCallback(() => {
     setFilters((current) => ({
@@ -551,6 +647,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {selectedTicket ? (
                 <Badge variant="secondary" className="rounded-full">
                   #{selectedTicket.nro_ticket || selectedTicket.id}
+                </Badge>
+              ) : null}
+              {deepLinkFocus ? (
+                <Badge data-testid="tickets-deeplink-focus" variant="secondary" className="rounded-full capitalize">
+                  Desde {formatDeskDeepLinkFocus(deepLinkFocus)}
                 </Badge>
               ) : null}
             </div>
