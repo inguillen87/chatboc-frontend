@@ -387,6 +387,42 @@ export function PremiumTerritoryHeatmap({
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
   const visiblePointCount = readiness.visiblePoints ?? aggregate.totalRecords;
+  const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
+  const decisionAction = narrativeAction ?? hotspotActionSummaries[0] ?? activeAction;
+  const decisionActionLabel =
+    decisionAction?.label ??
+    (readiness.pendingGeocode > 0
+      ? 'Resolver geocoding pendiente'
+      : readiness.state === 'ready'
+        ? 'Monitorear territorio'
+        : 'Completar datos territoriales');
+  const decisionActionDetail = decisionAction?.detail ?? decisionZone.recommendation;
+  const commandSignals = [
+    {
+      label: 'Zona foco',
+      value: decisionZone.zone.label,
+      detail: decisionZone.suppressed ? 'muestra insuficiente' : `${formatNumber(decisionZone.total)} eventos`,
+      icon: MapPin,
+    },
+    {
+      label: 'Cobertura',
+      value: formatPercent(readiness.coveragePercent),
+      detail: readiness.label,
+      icon: Gauge,
+    },
+    {
+      label: 'Capas activas',
+      value: `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
+      detail: aiModeLabel,
+      icon: Layers,
+    },
+    {
+      label: 'Datos pendientes',
+      value: formatNumber(readiness.pendingGeocode, '0'),
+      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola visible',
+      icon: DatabaseZap,
+    },
+  ];
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
     { id: 'territory', label: labelFor(labels, 'premium_map_mode_territory', 'Territorio'), icon: Globe2 },
     { id: 'quality', label: labelFor(labels, 'premium_map_mode_quality', 'Calidad'), icon: Gauge },
@@ -464,6 +500,42 @@ export function PremiumTerritoryHeatmap({
           ))}
         </div>
       ) : null}
+
+      <div
+        data-testid="territory-decision-radar"
+        className="overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
+      >
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
+          <div className="border-b border-border/70 p-4 lg:border-b-0 lg:border-r">
+            <div className="flex items-start gap-3">
+              <span className="relative mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
+                <Radar className="h-5 w-5" />
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-teal-400 shadow-[0_0_0_4px_rgba(45,212,191,0.18)]" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decision</p>
+                <h4 className="mt-1 text-base font-semibold leading-snug">{decisionActionLabel}</h4>
+                <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{decisionActionDetail}</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid min-w-0 grid-cols-2 divide-x divide-y divide-border/60 sm:grid-cols-4 sm:divide-y-0">
+            {commandSignals.map((signal) => {
+              const Icon = signal.icon;
+              return (
+                <div key={signal.label} className="min-w-0 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate">{signal.label}</span>
+                  </div>
+                  <p className="mt-2 truncate text-lg font-semibold">{signal.value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{signal.detail}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de lectura del mapa">

@@ -416,4 +416,19 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('El backend marco el heatmap como no renderizable para este periodo.')).toBeTruthy();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
   });
+
+  it('keeps an actionable territorial error state when the heatmap API fails', async () => {
+    mocks.getOperationsHeatmapV2.mockRejectedValue(new Error('El servidor no pudo responder correctamente.'));
+
+    renderPanel();
+
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    expect(screen.getByText('mapa en recuperacion')).toBeTruthy();
+    expect(screen.getByText('Mapa temporalmente no disponible')).toBeTruthy();
+    expect(screen.getByText('El servidor no pudo responder correctamente.')).toBeTruthy();
+    expect(screen.getByText('Esperando heatmap operativo')).toBeTruthy();
+    expect(screen.getByText('No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Reintentar mapa/i })).toBeTruthy();
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+  });
 });

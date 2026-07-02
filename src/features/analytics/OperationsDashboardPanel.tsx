@@ -1717,18 +1717,72 @@ function OperationsHeatmapPanel({
   }
 
   if (error && !heatmap) {
+    const errorMessage = getErrorMessage(error, 'No se pudo cargar el mapa operativo.');
     return (
-      <ViewState
-        status="partial"
-        title="Mapa no disponible"
-        description={getErrorMessage(error, 'No se pudo cargar el mapa operativo.')}
-        action={
-          <Button type="button" variant="outline" onClick={refetch}>
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </Button>
-        }
-      />
+      <Card className="overflow-hidden border-amber-500/25">
+        <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),rgba(59,130,246,0.06))]">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <MapPin className="h-5 w-5" />
+                  Centro territorial
+                </CardTitle>
+                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200">
+                  mapa en recuperacion
+                </Badge>
+              </div>
+              <CardDescription className="mt-1">
+                No ocultamos el problema: el mapa no respondio, pero el operador conserva el diagnostico y puede reintentar sin perder el panel.
+              </CardDescription>
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={refetch}>
+              <RefreshCw className="h-4 w-4" />
+              Reintentar mapa
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-500/30 bg-background/80 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Mapa temporalmente no disponible</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{errorMessage}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <DatabaseZap className="h-3.5 w-3.5 text-primary" />
+                Contrato
+              </div>
+              <p className="mt-2 text-sm font-medium">Esperando heatmap operativo</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Dashboard, KPIs y acciones siguen visibles mientras se recupera la capa geo.</p>
+            </div>
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <Route className="h-3.5 w-3.5 text-primary" />
+                Geocoding
+              </div>
+              <p className="mt-2 text-sm font-medium">Sin cambios automaticos</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.</p>
+            </div>
+            <div className="rounded-xl border bg-background p-3 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <Radio className="h-3.5 w-3.5 text-primary" />
+                Operacion
+              </div>
+              <p className="mt-2 text-sm font-medium">Reintento manual disponible</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">El equipo puede refrescar sin abandonar reclamos, encuestas ni acciones recomendadas.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
