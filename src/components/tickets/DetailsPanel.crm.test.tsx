@@ -105,6 +105,11 @@ describe('DetailsPanel CRM contact priority', () => {
     expect(contactCard).toHaveTextContent('Marcelo');
     expect(contactCard).toHaveTextContent('+54 9 261 316 8608');
     expect(contactCard).toHaveTextContent('Don Bosco 55, Junin');
+    const profileSummary = screen.getByTestId('crm-contact-profile-summary');
+    expect(profileSummary).toHaveTextContent('Perfil CRM');
+    expect(profileSummary).toHaveTextContent('86% completo');
+    expect(profileSummary).toHaveTextContent('Avatar seguro por identidad');
+    expect(profileSummary).toHaveTextContent('WhatsApp');
     expect(screen.getByRole('link', { name: /whatsapp/i })).toHaveAttribute(
       'href',
       'https://wa.me/5492613168608',

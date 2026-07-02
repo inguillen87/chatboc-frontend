@@ -448,6 +448,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     if (typeof value === 'string') return value.trim();
     return '';
   };
+  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
   const personal = {
     nombre:
       normalizePersonalValue(ticket?.informacion_personal_vecino?.nombre) ||
@@ -467,6 +468,25 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     ? `https://wa.me/${phoneDigits}`
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
+  const contactRoleLabel = ticket.tipo === 'pyme' ? 'Cliente' : 'Vecino/a';
+  const hasAddress = Boolean(personal.direccion || locationTicket?.latitud || locationTicket?.lat_destino);
+  const hasConsentAvatar = Boolean(neighborAvatarUrl && neighborAvatar.consented);
+  const contactProfileSignals = [
+    { id: 'name', label: 'Nombre', ready: Boolean(displayName) },
+    { id: 'phone', label: 'Telefono', ready: Boolean(personal.telefono) },
+    { id: 'email', label: 'Email', ready: Boolean(personal.email) },
+    { id: 'address', label: 'Ubicacion', ready: hasAddress },
+    { id: 'dni', label: 'DNI', ready: Boolean(personal.dni) },
+    { id: 'avatar', label: 'Avatar', ready: hasConsentAvatar },
+    { id: 'channel', label: 'Canal', ready: Boolean(channelLabel) },
+  ];
+  const completedProfileSignals = contactProfileSignals.filter((signal) => signal.ready).length;
+  const contactCompleteness = Math.round((completedProfileSignals / contactProfileSignals.length) * 100);
+  const contactProfileTone =
+    contactCompleteness >= 85 ? 'Perfil operativo completo' :
+    contactCompleteness >= 60 ? 'Perfil util para seguimiento' :
+    'Perfil incompleto';
+  const avatarPolicyLabel = hasConsentAvatar ? 'Imagen real autorizada' : 'Avatar seguro por identidad';
 
   React.useEffect(() => {
     setImageError(false);
@@ -674,7 +694,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   };
 
   const formatDate = (dateString?: string) => fmtARWithOffset(dateString ?? '', -3);
-  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
   const operationalActions = React.useMemo(
     () => normalizeOperationalActions(ticket.allowed_actions, ticket.actions, ticket.next_steps),
     [ticket.allowed_actions, ticket.actions, ticket.next_steps],
@@ -859,7 +878,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       {displayName || 'Contacto sin nombre'}
                     </p>
                     <Badge variant="outline" className="shrink-0 text-[11px]">
-                      Vecino/a
+                      {contactRoleLabel}
+                    </Badge>
+                    <Badge variant={contactCompleteness >= 85 ? 'secondary' : 'outline'} className="shrink-0 text-[11px]">
+                      {contactProfileTone}
                     </Badge>
                   </div>
                   <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
@@ -870,6 +892,50 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       {personal.direccion || 'Direccion no informada'}
                     </p>
                   </div>
+                </div>
+              </div>
+              <div
+                className="rounded-xl border border-border/60 bg-muted/20 p-3"
+                data-testid="crm-contact-profile-summary"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Perfil CRM
+                    </p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">
+                      {avatarPolicyLabel} · {channelLabel}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">
+                    {contactCompleteness}% completo
+                  </Badge>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${contactCompleteness}%` }}
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
+                  {contactProfileSignals.map((signal) => (
+                    <span
+                      key={signal.id}
+                      className={cn(
+                        'inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-1',
+                        signal.ready
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'border-border/70 bg-background/70 text-muted-foreground',
+                      )}
+                    >
+                      {signal.ready ? (
+                        <CheckCircle2 className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                      )}
+                      <span className="truncate">{signal.label}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
