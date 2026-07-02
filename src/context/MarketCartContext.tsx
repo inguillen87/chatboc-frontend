@@ -34,7 +34,7 @@ interface MarketCartContextValue {
   checkoutPreview: MarketCheckoutPreview | null;
   mercadopagoReady: boolean | null;
   refreshCart: () => Promise<void>;
-  addItem: (productId: string, quantity?: number) => Promise<void>;
+  addItem: (productId: string, quantity?: number) => Promise<boolean>;
 }
 
 const MarketCartContext = createContext<MarketCartContextValue | undefined>(undefined);
@@ -153,7 +153,7 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
 
   const addItem = useCallback(
     async (productId: string, quantity = 1) => {
-      if (!tenantSlug) return;
+      if (!tenantSlug) return false;
       setIsLoading(true);
       setError(null);
       try {
@@ -173,8 +173,10 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
         setCheckoutOptions(response?.checkout_options ?? null);
         setCheckoutPreview(response?.checkout_preview ?? null);
         setMercadopagoReady(response?.mercadopago_ready ?? null);
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
+        return false;
       } finally {
         setIsLoading(false);
       }
