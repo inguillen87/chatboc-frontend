@@ -777,17 +777,41 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   const record = raw as Record<string, unknown>;
   const coords = extractCoordinates(record);
   if (coords.lat === undefined || coords.lng === undefined) return null;
+  const id = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.id);
   const categoria = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.categoria);
+  const direccion = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.direccion);
+  const distrito = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.distrito);
+  const barrio = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.barrio);
+  const tipoTicket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.tipoTicket);
   const estado = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.estado);
   const ticket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ticket);
+  const severidad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.severidad);
+  const canal = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.canal);
+  const fuente = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.fuente);
+  const ciudad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ciudad);
+  const provincia = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.provincia);
+  const pais = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.pais);
+  const lastTicketAt = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.lastTicketAt);
   const weight = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.weight);
   const total = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.total);
   return {
     lat: coords.lat,
     lng: coords.lng,
+    id: id ?? undefined,
     categoria: categoria ?? undefined,
+    direccion: direccion ?? undefined,
+    distrito: distrito ?? undefined,
+    barrio: barrio ?? undefined,
+    tipo_ticket: tipoTicket ?? undefined,
     estado: estado ?? undefined,
     ticket: ticket ?? undefined,
+    severidad: severidad ?? undefined,
+    canal: canal ?? undefined,
+    fuente: fuente ?? undefined,
+    ciudad: ciudad ?? undefined,
+    provincia: provincia ?? undefined,
+    pais: pais ?? undefined,
+    last_ticket_at: lastTicketAt ?? undefined,
     weight: weight ?? undefined,
     total: total ?? undefined,
   };

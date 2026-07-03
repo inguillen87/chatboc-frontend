@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { ApiError, apiFetch } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
@@ -15,13 +14,23 @@ import {
   TicketStatsResponse,
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { mergeAndSortStrings } from '@/utils/collections';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
-import { Activity, AlertCircle, Flame, Layers, MapPin } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  Flame,
+  Layers,
+  LocateFixed,
+  MapPin,
+  Radio,
+  RefreshCw,
+  SlidersHorizontal,
+  Target,
+} from 'lucide-react';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -95,6 +104,208 @@ const buildWeightedBreakdown = (
     .map(([label, value]) => ({ label, ...value }))
     .sort((a, b) => b.weight - a.weight);
 };
+
+type TelemetryNode = {
+  id: string;
+  x: number;
+  y: number;
+  weight: number;
+  label: string;
+};
+
+type HotZoneSummary = {
+  label: string;
+  count: number;
+  weight: number;
+};
+
+const TELEMETRY_WIDTH = 760;
+const TELEMETRY_HEIGHT = 430;
+
+const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const buildTelemetryNodes = (points: HeatPoint[]): TelemetryNode[] => {
+  const numericPoints = points
+    .map((point, index) => ({
+      point,
+      index,
+      lat: Number(point.lat),
+      lng: Number(point.lng),
+      weight: getPointWeight(point),
+    }))
+    .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng))
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 18);
+
+  if (!numericPoints.length) return [];
+
+  const lats = numericPoints.map((item) => item.lat);
+  const lngs = numericPoints.map((item) => item.lng);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const latSpan = Math.max(0.0001, maxLat - minLat);
+  const lngSpan = Math.max(0.0001, maxLng - minLng);
+
+  return numericPoints.map(({ point, index, lat, lng, weight }) => {
+    const x = 72 + ((lng - minLng) / lngSpan) * (TELEMETRY_WIDTH - 144);
+    const y = 64 + (1 - (lat - minLat) / latSpan) * (TELEMETRY_HEIGHT - 128);
+    return {
+      id: String(point.id ?? point.ticket ?? point.cellId ?? point.clusterId ?? index),
+      x: clampNumber(x, 48, TELEMETRY_WIDTH - 48),
+      y: clampNumber(y, 44, TELEMETRY_HEIGHT - 44),
+      weight,
+      label: formatMapLabel(point.barrio || point.distrito || point.categoria || point.ticket || point.cellId),
+    };
+  });
+};
+
+const buildTelemetryRoute = (nodes: TelemetryNode[]) => {
+  const routeNodes = nodes.slice(0, 5);
+  if (routeNodes.length < 2) return '';
+  const [first, ...rest] = routeNodes;
+  return rest.reduce((path, node, index) => {
+    const previous = routeNodes[index];
+    const controlX = (previous.x + node.x) / 2;
+    const controlY = Math.min(previous.y, node.y) - 46 - index * 10;
+    return `${path} Q ${controlX.toFixed(1)} ${controlY.toFixed(1)} ${node.x.toFixed(1)} ${node.y.toFixed(1)}`;
+  }, `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`);
+};
+
+function IncidentsTelemetryOverlay({
+  points,
+  hotZones,
+  totalWeight,
+  showHeatmap,
+  isLoading,
+}: {
+  points: HeatPoint[];
+  hotZones: HotZoneSummary[];
+  totalWeight: number;
+  showHeatmap: boolean;
+  isLoading: boolean;
+}) {
+  const reactId = useId().replace(/:/g, '');
+  const gridId = `${reactId}-grid`;
+  const heatGradientId = `${reactId}-heat`;
+  const routeGradientId = `${reactId}-route`;
+  const nodes = useMemo(() => buildTelemetryNodes(points), [points]);
+  const routePath = useMemo(() => buildTelemetryRoute(nodes), [nodes]);
+  const focusNode = nodes[0];
+  const statusLabel = isLoading
+    ? 'Sincronizando telemetria territorial'
+    : nodes.length
+      ? `${nodes.length} nodos activos`
+      : 'Esperando coordenadas';
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 z-[6] overflow-hidden"
+      data-testid="incidents-telemetry-overlay"
+      aria-hidden="true"
+    >
+      <svg
+        className="h-full w-full"
+        viewBox={`0 0 ${TELEMETRY_WIDTH} ${TELEMETRY_HEIGHT}`}
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <pattern id={gridId} width="38" height="38" patternUnits="userSpaceOnUse">
+            <path d="M 38 0 L 0 0 0 38" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+          </pattern>
+          <radialGradient id={heatGradientId} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(251,191,36,0.54)" />
+            <stop offset="48%" stopColor="rgba(14,165,233,0.22)" />
+            <stop offset="100%" stopColor="rgba(15,23,42,0)" />
+          </radialGradient>
+          <linearGradient id={routeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="52%" stopColor="#a78bfa" />
+            <stop offset="100%" stopColor="#fbbf24" />
+          </linearGradient>
+        </defs>
+
+        <rect width="100%" height="100%" fill={`url(#${gridId})`} opacity="0.75" />
+        <rect width="100%" height="100%" fill="rgba(2,6,23,0.14)" />
+
+        {focusNode ? (
+          <g transform={`translate(${focusNode.x} ${focusNode.y})`}>
+            <circle r="118" fill={`url(#${heatGradientId})`} opacity={showHeatmap ? 0.62 : 0.28} />
+            <circle r="42" fill="none" stroke="rgba(34,211,238,0.42)" strokeWidth="1.4">
+              <animate attributeName="r" values="42;92;42" dur="5s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.72;0.08;0.72" dur="5s" repeatCount="indefinite" />
+            </circle>
+            <g opacity="0.62">
+              <line x1="-96" x2="96" y1="0" y2="0" stroke="rgba(125,211,252,0.55)" strokeWidth="1" />
+              <line x1="0" x2="0" y1="-96" y2="96" stroke="rgba(125,211,252,0.55)" strokeWidth="1" />
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0"
+                to="360"
+                dur="13s"
+                repeatCount="indefinite"
+              />
+            </g>
+          </g>
+        ) : null}
+
+        {routePath ? (
+          <g>
+            <path
+              id={`${reactId}-path`}
+              d={routePath}
+              fill="none"
+              stroke={`url(#${routeGradientId})`}
+              strokeDasharray="8 10"
+              strokeLinecap="round"
+              strokeWidth="3"
+              opacity="0.78"
+            />
+            <circle r="5" fill="#f8fafc" stroke="#22d3ee" strokeWidth="2">
+              <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
+                <mpath href={`#${reactId}-path`} />
+              </animateMotion>
+            </circle>
+          </g>
+        ) : null}
+
+        {nodes.map((node, index) => {
+          const radius = clampNumber(7 + node.weight * 0.8, 8, 26);
+          return (
+            <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
+              <circle r={radius + 10} fill="#f59e0b" opacity="0.08">
+                <animate attributeName="r" values={`${radius + 8};${radius + 26};${radius + 8}`} dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.24;0.04;0.24" dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
+              </circle>
+              <circle r={radius} fill={index === 0 ? '#fbbf24' : '#38bdf8'} opacity="0.9" />
+              <circle r={Math.max(3, radius / 2.8)} fill="#020617" opacity="0.72" />
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="absolute right-3 top-3 hidden w-[180px] rounded-xl border border-white/15 bg-slate-950/82 p-2.5 text-white shadow-2xl backdrop-blur md:block">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan-100/80">
+          <Radio className="h-4 w-4" />
+          Comando territorial
+        </div>
+        <p className="mt-1.5 text-sm font-semibold leading-tight">{statusLabel}</p>
+        <div className="mt-2 grid gap-1.5 text-[11px]">
+          <div className="rounded-lg border border-white/10 bg-white/[0.06] p-2">
+            <span className="block text-white/55">Peso total</span>
+            <strong>{formatNumber(totalWeight)}</strong>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.06] p-2">
+            <span className="block text-white/55">Top zona</span>
+            <strong className="block truncate">{formatMapLabel(hotZones[0]?.label)}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
@@ -510,14 +721,13 @@ export default function IncidentsMap() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Mercator Mapas y Analitica
+            Inteligencia territorial CRM
           </p>
           <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
-            Mapa operativo de incidentes
+            Mapa vivo de reclamos y calor operativo
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Vista de calor, zonas agregadas y actividad real para priorizar reclamos por territorio,
-            categoria y estado.
+            Priorizacion por zona, categoria, estado y actividad reciente con telemetria visual sobre el mapa real.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -549,32 +759,34 @@ export default function IncidentsMap() {
         ))}
       </div>
 
-      <Accordion type="single" collapsible className="w-full rounded-xl border border-border bg-card px-4 shadow-sm" defaultValue='filters'>
-        <AccordionItem value="filters" className="border-0">
-          <AccordionTrigger className="text-sm font-semibold hover:no-underline">
-            Filtros y capas
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 items-end">
-              <div className="flex items-center space-x-2 pt-5">
-                <input
-                  type="checkbox"
-                  id="heatmapToggle"
-                  checked={showHeatmap}
-                  onChange={() => setShowHeatmap((v) => !v)}
-                  className="h-5 w-5 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"
-                />
-                <label htmlFor="heatmapToggle" className="text-sm font-medium text-muted-foreground cursor-pointer">
-                  Mostrar Mapa de Calor
-                </label>
-              </div>
-              <div className="pt-5">
-                <Label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Motor de mapa
-                </Label>
-                <p className="mb-1 text-xs text-muted-foreground">MapLibre GL (WebGL)</p>
-                <MapProviderToggle value={provider} onChange={setProvider} />
-              </div>
+      <section
+        className="rounded-2xl border border-border/70 bg-card/95 p-3 shadow-sm"
+        data-testid="incidents-filter-command"
+      >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros operativos
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowHeatmap((value) => !value)}
+              className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition ${
+                showHeatmap
+                  ? 'border-amber-300/50 bg-amber-400/15 text-amber-700 dark:text-amber-100'
+                  : 'border-border bg-background text-muted-foreground'
+              }`}
+            >
+              <Flame className="h-4 w-4" />
+              {showHeatmap ? 'Calor activo' : 'Solo puntos'}
+            </button>
+            <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
+              <span>Motor</span>
+              <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[160px_1fr_1fr_auto_auto] xl:min-w-[720px]">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Rango rápido</label>
                 <select
@@ -588,6 +800,37 @@ export default function IncidentsMap() {
                   <option value="custom">Personalizado</option>
                 </select>
               </div>
+            <Button
+              onClick={() => {
+                void fetchData(true);
+              }}
+              disabled={isLoading}
+              className="h-10 gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              {isLoading ? 'Actualizando' : 'Actualizar'}
+            </Button>
+            <Button onClick={handleLocate} disabled={isLoading} variant="outline" className="h-10 gap-2">
+              <LocateFixed className="h-4 w-4" />
+              Mi zona
+            </Button>
+          </div>
+        </div>
+
+        <details className="group mt-3 rounded-xl border border-dashed border-border/70 bg-muted/25">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-foreground">
+            <span className="inline-flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              Filtros avanzados y segmentacion
+            </span>
+            <span className="text-xs font-medium text-muted-foreground group-open:hidden">
+              Categoria, estado, ubicacion, edad y genero
+            </span>
+            <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
+              Ocultar filtros avanzados
+            </span>
+          </summary>
+          <div className="grid grid-cols-1 gap-3 border-t border-border/60 p-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label htmlFor="startDate" className="block text-sm font-medium text-muted-foreground mb-1">
                   Fecha Inicio
@@ -729,7 +972,7 @@ export default function IncidentsMap() {
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
-              <div className="sm:col-span-full mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="hidden">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Button
                     onClick={() => {
@@ -751,9 +994,8 @@ export default function IncidentsMap() {
                 </div>
               </div>
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+        </details>
+      </section>
 
       {error && (
         <Alert variant="default" className="border-destructive/30 bg-destructive/10 text-destructive">
@@ -763,10 +1005,10 @@ export default function IncidentsMap() {
         </Alert>
       )}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="relative min-h-[520px] overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-xl">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="relative min-h-[560px] overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-xl">
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:44px_44px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,rgba(239,68,68,0.22),transparent_26%),radial-gradient(circle_at_68%_58%,rgba(245,158,11,0.2),transparent_24%),radial-gradient(circle_at_52%_76%,rgba(14,165,233,0.16),transparent_22%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(59,130,246,0.18),transparent_34%),linear-gradient(45deg,transparent_35%,rgba(245,158,11,0.12),transparent_62%)]" />
         <MapLibreMap
           provider={provider}
           center={center ? [center.lng, center.lat] : undefined}
@@ -774,12 +1016,19 @@ export default function IncidentsMap() {
           adminLocation={adminCoords}
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
-          className="h-[520px] sm:h-[620px] rounded-2xl"
+          className="h-[560px] rounded-2xl sm:h-[680px]"
           fitToBounds={heatmapBounds.length === 2 ? heatmapBounds : undefined}
           onProviderUnavailable={handleProviderUnavailable}
           disableClientClustering={disableClustering}
         />
-        <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 grid gap-2 md:left-4 md:right-auto md:w-[420px]">
+        <IncidentsTelemetryOverlay
+          points={heatmapData}
+          hotZones={mapInsights.hotZones}
+          totalWeight={mapInsights.totalWeight}
+          showHeatmap={showHeatmap}
+          isLoading={isLoading}
+        />
+        <div className="pointer-events-none absolute left-3 right-3 top-3 z-20 grid gap-2 md:left-4 md:right-auto md:w-[420px]">
           <div className="rounded-xl border border-white/15 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -810,7 +1059,7 @@ export default function IncidentsMap() {
             </div>
           </div>
         </div>
-        <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div className="rounded-xl bg-background/90 px-3 py-2 text-xs text-foreground shadow-lg backdrop-blur">
             {legendText}
           </div>
