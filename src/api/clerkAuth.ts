@@ -90,9 +90,38 @@ export interface ClerkSessionResponse {
   message?: string;
 }
 
+export interface ClerkFrontendConfigResponse {
+  contract_version: 'auth.clerk.v1';
+  enabled?: boolean;
+  provider?: 'clerk' | string;
+  session_sync_endpoint?: string;
+  onboarding_endpoint?: string;
+  webhook_endpoint?: string;
+  publishable_key?: string | null;
+  publishable_key_configured?: boolean;
+  issuer_configured?: boolean;
+  jwks_configured?: boolean;
+  webhook_configured?: boolean;
+  ready_for_session_sync?: boolean;
+  configuration_warnings?: Array<{ code?: string; message?: string }>;
+  social_providers?: string[];
+}
+
 const clerkHeaders = (token: string) => ({
   Authorization: `Bearer ${token}`,
 });
+
+export const fetchClerkFrontendConfig = () =>
+  apiFetch<ClerkFrontendConfigResponse>('/auth/clerk/config', {
+    method: 'GET',
+    skipAuth: true,
+    suppressPanel401Redirect: true,
+    omitTenant: true,
+    omitCredentials: true,
+    omitChatSessionId: true,
+    omitEntityToken: true,
+    suppressInvalidJsonWarning: true,
+  });
 
 export const syncClerkSession = (token: string, user: ClerkUserProfilePayload) =>
   apiFetch<ClerkSessionResponse>('/auth/clerk/session', {

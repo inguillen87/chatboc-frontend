@@ -10,10 +10,10 @@ import {
   type ClerkUserProfilePayload,
 } from '@/api/clerkAuth';
 import ClerkTenantOnboardingDialog from '@/components/auth/ClerkTenantOnboardingDialog';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { useUser } from '@/hooks/useUser';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
-import { CLERK_AUTH_ENABLED } from '@/env';
 
 export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
   id: rawUser?.id ?? null,
@@ -79,6 +79,7 @@ const isAuthEntryPath = (pathname: string) =>
   pathname === '/register/';
 
 const ClerkAuthBridge: React.FC = () => {
+  const clerkRuntime = useClerkRuntime();
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user: clerkUser } = useClerkUser();
   const { refreshUser } = useUser();
@@ -91,7 +92,7 @@ const ClerkAuthBridge: React.FC = () => {
   const syncKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!CLERK_AUTH_ENABLED || !isLoaded || !isSignedIn || !clerkUser) return;
+    if (!clerkRuntime.enabled || !isLoaded || !isSignedIn || !clerkUser) return;
 
     const syncKey = `${clerkUser.id}:${(clerkUser as any)?.updatedAt?.getTime?.() ?? ''}`;
     if (syncKeyRef.current === syncKey) return;
@@ -125,9 +126,9 @@ const ClerkAuthBridge: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [clerkUser, getToken, isLoaded, isSignedIn, location.pathname, navigate, refreshUser]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, location.pathname, navigate, refreshUser]);
 
-  if (!CLERK_AUTH_ENABLED || !isLoaded || !isSignedIn) return null;
+  if (!clerkRuntime.enabled || !isLoaded || !isSignedIn) return null;
 
   const defaultTenantName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ').trim();
 

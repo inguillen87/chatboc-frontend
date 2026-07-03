@@ -29,6 +29,12 @@ import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
 import ClerkAuthBridge from '@/components/auth/ClerkAuthBridge';
+import { fetchClerkFrontendConfig } from '@/api/clerkAuth';
+import {
+  ClerkRuntimeProvider,
+  DEFAULT_CLERK_RUNTIME,
+  type ClerkRuntimeValue,
+} from '@/components/auth/ClerkRuntimeContext';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
@@ -46,6 +52,58 @@ const RouteLoadingFallback = () => (
     Cargando modulo...
   </div>
 );
+
+const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
+  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() => ({
+    ...DEFAULT_CLERK_RUNTIME,
+    loading: !CLERK_AUTH_ENABLED,
+  }));
+
+  React.useEffect(() => {
+    if (CLERK_AUTH_ENABLED) {
+      setRuntime({
+        ...DEFAULT_CLERK_RUNTIME,
+        enabled: true,
+        loading: false,
+        publishableKey: CLERK_PUBLISHABLE_KEY,
+        source: 'env',
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const loadConfig = async () => {
+      try {
+        const config = await fetchClerkFrontendConfig();
+        if (cancelled) return;
+        const publishableKey =
+          typeof config.publishable_key === 'string' ? config.publishable_key.trim() : '';
+        setRuntime({
+          enabled: Boolean(config.enabled && publishableKey),
+          loading: false,
+          publishableKey,
+          source: config.enabled && publishableKey ? 'backend' : 'disabled',
+          socialProviders: Array.isArray(config.social_providers) && config.social_providers.length
+            ? config.social_providers
+            : DEFAULT_CLERK_RUNTIME.socialProviders,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[Clerk] No se pudo cargar la configuracion publica del backend', error);
+          setRuntime({ ...DEFAULT_CLERK_RUNTIME, enabled: false, loading: false, source: 'disabled' });
+        }
+      }
+    };
+
+    loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return runtime;
+};
+
 function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -195,6 +253,7 @@ function AppRoutes() {
 }
 
 const App = () => {
+  const clerkRuntime = useResolvedClerkRuntime();
   const appTree = (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -211,7 +270,7 @@ const App = () => {
                 <TenantProvider>
                   <CapabilitiesProvider>
                     <RealtimeAlertsProvider>
-                      {CLERK_AUTH_ENABLED && <ClerkAuthBridge />}
+                      {clerkRuntime.enabled && <ClerkAuthBridge />}
                       <AppShellStatusBar />
                       <AppAccessibility />
                       <AppRoutes />
@@ -227,11 +286,17 @@ const App = () => {
     </QueryClientProvider>
   );
 
-  const appWithClerk = CLERK_AUTH_ENABLED ? (
-    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
-      {appTree}
-    </ClerkProvider>
-  ) : appTree;
+  const appWithRuntime = (
+    <ClerkRuntimeProvider value={clerkRuntime}>
+      {clerkRuntime.enabled ? (
+        <ClerkProvider publishableKey={clerkRuntime.publishableKey}>
+          {appTree}
+        </ClerkProvider>
+      ) : appTree}
+    </ClerkRuntimeProvider>
+  );
+
+  const appWithClerk = appWithRuntime;
 
   if (!GOOGLE_CLIENT_ID) {
     return appWithClerk;

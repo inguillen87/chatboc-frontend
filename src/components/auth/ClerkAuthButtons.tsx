@@ -3,7 +3,7 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from '@cl
 import { Facebook, Linkedin, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { CLERK_AUTH_ENABLED } from '@/env';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { cn } from '@/lib/utils';
 
 interface ClerkAuthButtonsProps {
@@ -12,7 +12,9 @@ interface ClerkAuthButtonsProps {
 }
 
 const ClerkAuthButtons: React.FC<ClerkAuthButtonsProps> = ({ mode = 'login', className }) => {
-  if (!CLERK_AUTH_ENABLED) return null;
+  const clerkRuntime = useClerkRuntime();
+
+  if (!clerkRuntime.enabled) return null;
 
   return (
     <div className={cn('space-y-3', className)}>
