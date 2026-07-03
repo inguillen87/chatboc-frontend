@@ -108,4 +108,50 @@ describe('apiFetch omnichannel tenant persistence', () => {
 
     expect(consoleWarn).not.toHaveBeenCalled();
   });
+
+  it('skips frontend HTML shells for API requests and retries the next backend candidate', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('<html><body>Vite preview shell</body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('<html><body>Vite preview shell without /api</body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            contract_version: 'operations.heatmap.v1',
+            points: [{ lat: -34.58, lng: -60.94, weight: 2 }],
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ) as unknown as typeof fetch;
+
+    const payload = await realApiFetch<{
+      contract_version: string;
+      points: Array<{ lat: number; lng: number; weight: number }>;
+    }>('/api/v2/analytics/operations/heatmap', {
+      method: 'GET',
+      skipAuth: true,
+      omitCredentials: true,
+      tenantSlug: 'junin',
+    });
+
+    expect(payload.contract_version).toBe('operations.heatmap.v1');
+    expect(payload.points[0]).toMatchObject({ lat: -34.58, lng: -60.94, weight: 2 });
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('/api/v2/analytics/operations/heatmap');
+    expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][0]).toContain('/v2/analytics/operations/heatmap');
+    expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[2][0]).toContain('/api/v2/analytics/operations/heatmap');
+  });
 });

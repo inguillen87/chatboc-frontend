@@ -974,6 +974,10 @@ export async function apiFetch<T>(
         ? headers["accept"]
         : "";
   const acceptPreference = acceptPreferenceRaw.toLowerCase();
+  const expectsJsonResponse =
+    !acceptPreference ||
+    acceptPreference.includes("json") ||
+    acceptPreference.includes("*/*");
 
   const isForm = body instanceof FormData;
   if (!isForm && body) headers["Content-Type"] = "application/json";
@@ -1128,8 +1132,24 @@ export async function apiFetch<T>(
         const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const candidateContentType =
+          candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
+        const looksLikeFrontendHtmlShell =
+          candidateResponse.ok &&
+          expectsJsonResponse &&
+          candidateContentType.includes("text/html");
         const shouldTryNextCandidate = isRetryableStatus && hasMoreCandidateUrls;
         const shouldTryNextBase = isRetryableStatus && !hasMoreCandidateUrls && hasMoreBases;
+
+        if (
+          looksLikeFrontendHtmlShell &&
+          (hasMoreCandidateUrls || hasMoreBases)
+        ) {
+          if (hasMoreCandidateUrls) {
+            continue;
+          }
+          break;
+        }
 
         if (isMissingProxy || shouldTryNextCandidate) {
           continue;
@@ -1218,10 +1238,6 @@ export async function apiFetch<T>(
     let parsedAsJson = false;
     const responseContentType =
       response.headers.get("content-type")?.toLowerCase() ?? "";
-    const expectsJsonResponse =
-      !acceptPreference ||
-      acceptPreference.includes("json") ||
-      acceptPreference.includes("*/*");
 
     if (trimmedText) {
       try {

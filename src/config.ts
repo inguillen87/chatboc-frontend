@@ -185,18 +185,21 @@ export const BASE_API_URL = sanitizeBaseUrl(
 
 // Prefer explicit backend URLs over the frontend origin to avoid fetching
 // public routes that return HTML (and break JSON parsing) when the same-origin
-// proxy is not available. The order below tries the proxy first, then the
-// configured backend, and only after that the current origin.
+// proxy is not available. Local builds still keep the current origin as a
+// dev-proxy candidate, then fall back to the canonical backend if that origin is
+// only serving the frontend shell.
 const API_BASE_CANDIDATE_ORDER = isLocalBrowserOrigin(CURRENT_ORIGIN)
   ? [
       SAME_ORIGIN_PROXY_BASE,
-      CURRENT_ORIGIN,
       RESOLVED_BACKEND_URL,
+      CURRENT_ORIGIN,
+      PUBLIC_BACKEND_URL,
       FALLBACK_BACKEND_URL,
     ]
   : [
       SAME_ORIGIN_PROXY_BASE,
       RESOLVED_BACKEND_URL,
+      PUBLIC_BACKEND_URL,
       CURRENT_ORIGIN,
       FALLBACK_BACKEND_URL,
     ];
