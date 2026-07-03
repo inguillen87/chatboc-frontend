@@ -579,6 +579,16 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
 
+      <OperationsCommandCockpit
+        data={data}
+        heatmap={heatmapQuery.data}
+        freshness={freshness}
+        aiOpsQueue={aiOpsQueue}
+        canRenderHeatmap={canRenderHeatmap}
+        actionsCount={actions.length}
+        alertsCount={alerts.length}
+      />
+
       <div className="grid gap-3 lg:grid-cols-3">
         {focusCards.map((card) => {
           const Icon = card.icon;
@@ -651,6 +661,152 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   );
 }
 
+function OperationsCommandCockpit({
+  data,
+  heatmap,
+  freshness,
+  aiOpsQueue,
+  canRenderHeatmap,
+  actionsCount,
+  alertsCount,
+}: {
+  data: OperationsDashboardV1;
+  heatmap?: OperationsHeatmapV1;
+  freshness?: OperationsFreshnessV1;
+  aiOpsQueue?: OperationsAIOpsQueueV1;
+  canRenderHeatmap?: boolean;
+  actionsCount: number;
+  alertsCount: number;
+}) {
+  const ticketsSummary = data.tickets?.summary ?? {};
+  const surveysSummary = data.surveys?.summary ?? {};
+  const openTickets = readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
+  const overdueTickets = readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos);
+  const surveyResponses = readNumber(data.summary.survey_responses, surveysSummary.responses, surveysSummary.respuestas);
+  const liveVotes = readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes);
+  const heatmapSummary = heatmap?.summary ?? {};
+  const coverageRaw = readNumber(
+    heatmap?.quality?.coverage_percent,
+    heatmapSummary.coverage_percent,
+    heatmapSummary.coordinate_coverage_pct,
+    heatmap?.quality?.coverage_rate,
+  );
+  const coveragePercent = coverageRaw !== undefined && coverageRaw <= 1 ? coverageRaw * 100 : coverageRaw;
+  const mapPoints = readNumber(heatmap?.quality?.visible_points, heatmapSummary.points, heatmap?.points.length);
+  const pendingGeocode = readNumber(heatmap?.quality?.pending_geocode, heatmapSummary.pending_geocode, heatmap?.geocoding?.candidate_count);
+  const aiSummary = aiOpsQueue?.summary ?? {};
+  const aiTotal = readNumber(aiSummary.total) ?? aiOpsQueue?.items?.length ?? 0;
+  const aiHigh = readNumber(aiSummary.high) ?? 0;
+  const dataStatus = freshness?.status ? statusLabel(freshness.status) : 'datos operativos';
+  const canMapRender = canRenderHeatmap !== false;
+
+  const cards = [
+    {
+      key: 'tickets',
+      eyebrow: 'Resolucion',
+      title: 'Reclamos abiertos',
+      value: formatNumber(openTickets),
+      detail: overdueTickets ? `${formatNumber(overdueTickets)} vencidos o en riesgo` : 'Bandeja operativa sin vencidos publicados',
+      icon: Ticket,
+      tone: overdueTickets ? 'warning' : 'success',
+      href: '/perfil?tab=tickets',
+      action: 'Abrir bandeja de reclamos',
+    },
+    {
+      key: 'heatmap',
+      eyebrow: 'Territorio',
+      title: 'Mapa de calor',
+      value: coveragePercent !== undefined ? `${formatNumber(coveragePercent, '%')}` : formatNumber(mapPoints),
+      detail: canMapRender
+        ? `${formatNumber(mapPoints)} puntos visibles · ${formatNumber(pendingGeocode)} por geocodificar`
+        : 'Backend marco el mapa como no renderizable',
+      icon: MapPin,
+      tone: canMapRender ? 'default' : 'warning',
+      href: '#operations-heatmap',
+      action: 'Ver mapa de calor',
+    },
+    {
+      key: 'ai',
+      eyebrow: 'IA operativa',
+      title: aiOpsQueue?.agent_display_name || 'Cola IA',
+      value: formatNumber(aiTotal),
+      detail: aiHigh ? `${formatNumber(aiHigh)} prioridad alta · solo lectura` : 'Priorizacion sin mutar estados',
+      icon: Sparkles,
+      tone: aiHigh ? 'warning' : 'success',
+      href: '#operations-ai-queue',
+      action: 'Revisar cola IA',
+    },
+    {
+      key: 'surveys',
+      eyebrow: 'Participacion',
+      title: 'Encuestas y votos',
+      value: formatNumber(surveyResponses),
+      detail: liveVotes ? `${formatNumber(liveVotes)} votaciones en vivo` : 'Sin votaciones live publicadas',
+      icon: Activity,
+      tone: liveVotes ? 'default' : 'neutral',
+      href: '/perfil?tab=analytics&focus=surveys',
+      action: 'Ver encuestas',
+    },
+  ] as const;
+
+  return (
+    <div
+      data-testid="operations-command-cockpit"
+      className="overflow-hidden rounded-2xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--card)),hsl(var(--primary)/0.08))] shadow-sm"
+    >
+      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cabina de mando</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-tight">Vista ejecutiva para operar ahora</h3>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Reclamos, mapa, IA y participacion unidos en una sola lectura. Cada bloque abre el modulo donde se resuelve.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={freshness?.status ? statusVariant(freshness.status) : 'outline'}>{dataStatus}</Badge>
+          {actionsCount ? <Badge variant="secondary">{formatNumber(actionsCount)} acciones</Badge> : null}
+          {alertsCount ? <Badge variant="destructive">{formatNumber(alertsCount)} alertas</Badge> : null}
+        </div>
+      </div>
+      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          const toneClass =
+            card.tone === 'warning'
+              ? 'text-amber-600 bg-amber-500/10 border-amber-500/25 dark:text-amber-300'
+              : card.tone === 'success'
+                ? 'text-emerald-600 bg-emerald-500/10 border-emerald-500/25 dark:text-emerald-300'
+                : card.tone === 'neutral'
+                  ? 'text-muted-foreground bg-muted/50 border-border'
+                  : 'text-primary bg-primary/10 border-primary/20';
+          return (
+            <div key={card.key} className="border-t border-border/60 p-4 md:[&:nth-child(2n)]:border-l xl:border-l xl:first:border-l-0 xl:border-t-0">
+              <div className="flex items-start justify-between gap-3">
+                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                {card.href.startsWith('#') ? (
+                  <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                    {card.action}
+                  </a>
+                ) : (
+                  <Link to={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                    {card.action}
+                  </Link>
+                )}
+              </div>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{card.eyebrow}</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{card.title}</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight">{card.value}</p>
+              <p className="mt-1 min-h-[2.25rem] text-sm leading-5 text-muted-foreground">{card.detail}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const aiOpsSourceLabel = (source?: string) => {
   const normalized = (source || '').toLowerCase();
   if (normalized === 'ticket') return 'Reclamo';
@@ -686,7 +842,7 @@ function AIOpsQueuePanel({
   const advisoryOnly = policy.advisory_only !== false && policy.mutates_operational_state !== true;
 
   return (
-    <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-primary/5">
+    <Card id="operations-ai-queue" data-testid="operations-ai-queue" className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-primary/5">
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -1787,7 +1943,7 @@ function OperationsHeatmapPanel({
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden">
       <CardHeader className="border-b bg-muted/20">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">

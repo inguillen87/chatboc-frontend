@@ -309,9 +309,18 @@ describe('OperationsDashboardPanel territory UX', () => {
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {
     renderPanel();
 
+    expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
+    expect(screen.getByText('Cabina de mando')).toBeTruthy();
+    expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
+    expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
+    expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
+    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
+    expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
+    expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
     expect(screen.getByText('Mapa operativo confiable')).toBeTruthy();
-    expect(screen.getByText('75%')).toBeTruthy();
+    expect(screen.getAllByText('75%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Cola de geocodificacion')).toBeTruthy();
     expect(screen.getByText('1 pendiente')).toBeTruthy();
     expect(screen.getByText('Av. San Martin 123, Junin')).toBeTruthy();
@@ -337,7 +346,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     expect(await screen.findByText('Cola IA operativa')).toBeTruthy();
-    expect(screen.getByText('Valeria IA-Analytics')).toBeTruthy();
+    expect(screen.getAllByText('Valeria IA-Analytics').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('3 items')).toBeTruthy();
     expect(screen.getByText('1 alta')).toBeTruthy();
     expect(screen.getByText('solo lectura')).toBeTruthy();
