@@ -2201,6 +2201,56 @@ function OperationsHeatmapPanel({
       badgeVariant: realtimeReady ? 'default' : 'outline',
     },
   ];
+  const mainHotspot = heatmap?.hotspots?.[0] ?? heatmap?.cells?.[0];
+  const mainHotspotLabel = mainHotspot
+    ? itemLabel(mainHotspot)
+    : activeFilterSummaries[0]?.optionLabel ?? categoryLayerItems[0]?.label ?? 'Sin foco definido';
+  const mainHotspotValue = mainHotspot ? itemValue(mainHotspot) : filteredPoints.length;
+  const mainSegment =
+    activeFilterSummaries[0]?.optionLabel ??
+    segmentBreakdowns[0]?.items?.[0]?.label ??
+    categoryLayerItems[0]?.label ??
+    aiIntentLabel;
+  const mainAction = aiRecommendedActions[0];
+  const mainActionTitle =
+    asString(mainAction?.title) ??
+    asString(mainAction?.label) ??
+    asString(geocoding?.recommended_action?.title) ??
+    asString(geocoding?.recommended_action?.label) ??
+    (pendingGeocode ? 'Validar ubicaciones pendientes' : 'Monitorear operaciones');
+  const mainActionDetail =
+    asString(mainAction?.description) ??
+    (pendingGeocode
+      ? `${formatNumber(pendingGeocode)} direcciones para mejorar el mapa`
+      : aiSummary.requires_human_attention
+        ? 'requiere revision humana'
+        : 'sin bloqueo critico publicado');
+  const territorialDecisionCards = [
+    {
+      key: 'territory_priority',
+      label: 'Prioridad territorial',
+      value: mainHotspotLabel,
+      detail:
+        mainHotspotValue !== undefined
+          ? `${formatNumber(mainHotspotValue)} eventos o peso operativo`
+          : `${formatNumber(filteredPoints.length)} puntos visibles`,
+      icon: MapPin,
+    },
+    {
+      key: 'territory_ai',
+      label: 'Lectura IA',
+      value: aiRiskLabel,
+      detail: `${aiIntentLabel} - ${aiSentimentLabel}`,
+      icon: Brain,
+    },
+    {
+      key: 'territory_action',
+      label: 'Que hacer ahora',
+      value: mainActionTitle,
+      detail: mainActionDetail,
+      icon: CheckCircle2,
+    },
+  ];
   const geocodingCandidates = (geocoding?.candidates ?? []).slice(0, 4);
   const geocodingStatus = asString(geocoding?.status);
   const geocodingAction = geocoding?.recommended_action;
@@ -2373,6 +2423,40 @@ function OperationsHeatmapPanel({
               </div>
             );
           })}
+        </div>
+
+        <div
+          data-testid="territorial-decision-brief"
+          className="overflow-hidden rounded-xl border border-primary/20 bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--primary)/0.08),hsl(var(--background)))] shadow-sm"
+        >
+          <div className="flex flex-col gap-2 border-b bg-background/55 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Mesa territorial inteligente</p>
+              <h3 className="mt-1 text-lg font-semibold tracking-tight">Donde actuar, por que y con que prioridad</h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Resume calor territorial, senales IA, geocodificacion y filtros para que el equipo no tenga que interpretar el mapa desde cero.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">{mainSegment}</Badge>
+              {coveragePercent !== undefined ? <Badge variant="outline">GPS {formatNumber(coveragePercent, '%')}</Badge> : null}
+            </div>
+          </div>
+          <div className="grid divide-y divide-border/70 md:grid-cols-3 md:divide-x md:divide-y-0">
+            {territorialDecisionCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div key={card.key} className="min-w-0 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate">{card.label}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-base font-semibold leading-snug">{card.value}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{card.detail}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {hasAiCockpit ? (

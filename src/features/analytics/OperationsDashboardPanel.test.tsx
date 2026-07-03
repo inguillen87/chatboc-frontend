@@ -434,6 +434,15 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    const decisionBrief = screen.getByTestId('territorial-decision-brief');
+    expect(decisionBrief).toHaveTextContent('Mesa territorial inteligente');
+    expect(decisionBrief).toHaveTextContent('Donde actuar, por que y con que prioridad');
+    expect(decisionBrief).toHaveTextContent('Prioridad territorial');
+    expect(decisionBrief).toHaveTextContent('Lectura IA');
+    expect(decisionBrief).toHaveTextContent('Que hacer ahora');
+    expect(decisionBrief).toHaveTextContent('Alumbrado');
+    expect(decisionBrief).toHaveTextContent('High');
+    expect(decisionBrief).toHaveTextContent('Revisar conversaciones con riesgo');
     const aiCockpit = screen.getByTestId('territorial-ai-cockpit');
     expect(aiCockpit).toBeTruthy();
     expect(aiCockpit.textContent).toContain('IA territorial');

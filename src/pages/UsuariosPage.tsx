@@ -230,6 +230,97 @@ const temperatureMeta = (value?: string | null) => {
   return { label: "Frio", className: "border-slate-500/40 bg-slate-500/10 text-slate-200" };
 };
 
+export const getCrmProfileScore = (usuario: Pick<
+  Usuario,
+  | "nombre"
+  | "email"
+  | "telefono"
+  | "marketing"
+  | "resumen"
+  | "motivo"
+  | "lastIntent"
+  | "interactionCount"
+  | "lastSeen"
+  | "avatarUrl"
+  | "avatarSource"
+  | "avatarConsent"
+>): number => {
+  const realName = Boolean(usuario.nombre && !["Sin nombre", "Contacto WhatsApp", "Contacto sin identificar"].includes(usuario.nombre));
+  const realEmail = Boolean(normalizeEmail(usuario.email));
+  const hasPhone = Boolean(usuario.telefono);
+  const hasContext = Boolean(usuario.resumen || usuario.motivo || usuario.lastIntent);
+  const hasHistory = Number(usuario.interactionCount ?? 0) > 0;
+  const hasRecentContact = Boolean(usuario.lastSeen);
+  const hasConsentedAvatar = shouldRenderProfileImage({
+    avatarUrl: usuario.avatarUrl,
+    source: usuario.avatarSource,
+    consented: usuario.avatarConsent,
+  });
+
+  const score =
+    (realName ? 15 : 0) +
+    (hasPhone ? 22 : 0) +
+    (realEmail ? 16 : 0) +
+    (hasConsentedAvatar ? 10 : 0) +
+    (usuario.marketing ? 10 : 0) +
+    (hasContext ? 17 : 0) +
+    (hasHistory ? 6 : 0) +
+    (hasRecentContact ? 4 : 0);
+
+  return Math.max(0, Math.min(100, score));
+};
+
+export const crmProfileTone = (score: number) => {
+  if (score >= 75) {
+    return {
+      label: "Perfil completo",
+      className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
+      barClassName: "bg-emerald-500",
+    };
+  }
+  if (score >= 50) {
+    return {
+      label: "Perfil accionable",
+      className: "border-sky-500/40 bg-sky-500/10 text-sky-100",
+      barClassName: "bg-sky-500",
+    };
+  }
+  return {
+    label: "Perfil incompleto",
+    className: "border-amber-500/40 bg-amber-500/10 text-amber-100",
+    barClassName: "bg-amber-500",
+  };
+};
+
+export const resolveCrmNextAction = (usuario: Pick<
+  Usuario,
+  | "telefono"
+  | "email"
+  | "marketing"
+  | "leadTemperature"
+  | "resumen"
+  | "motivo"
+  | "lastIntent"
+  | "avatarUrl"
+  | "avatarSource"
+  | "avatarConsent"
+>): string => {
+  const hasPhone = Boolean(usuario.telefono);
+  const realEmail = Boolean(normalizeEmail(usuario.email));
+  const hasConsentedAvatar = shouldRenderProfileImage({
+    avatarUrl: usuario.avatarUrl,
+    source: usuario.avatarSource,
+    consented: usuario.avatarConsent,
+  });
+
+  if (!hasPhone && !realEmail) return "Pedir dato de contacto";
+  if ((usuario.leadTemperature || "").toLowerCase() === "hot") return "Priorizar respuesta comercial";
+  if (!usuario.resumen && !usuario.motivo && !usuario.lastIntent) return "Completar contexto con IA";
+  if (!hasConsentedAvatar) return "Invitar a completar perfil";
+  if (!usuario.marketing) return "Solicitar opt-in";
+  return "Listo para seguimiento";
+};
+
 const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   const telefono =
     pickFirstString(phoneCandidates, raw) ||
@@ -717,6 +808,43 @@ export default function UsuariosPage() {
   const contactCoverage = usuarios.length ? Math.round((phoneCount / usuarios.length) * 100) : 0;
   const whatsappCount = usuarios.filter((u) => humanizeChannel(u.canal) === 'WhatsApp' || Boolean(u.telefono)).length;
   const pendingEmailCount = Math.max(usuarios.length - emailCount, 0);
+  const crmScoreAverage = React.useMemo(
+    () =>
+      usuarios.length
+        ? Math.round(usuarios.reduce((total, usuario) => total + getCrmProfileScore(usuario), 0) / usuarios.length)
+        : 0,
+    [usuarios],
+  );
+  const crmCompleteProfiles = React.useMemo(
+    () => usuarios.filter((usuario) => getCrmProfileScore(usuario) >= 75).length,
+    [usuarios],
+  );
+  const consentedAvatarCount = React.useMemo(
+    () =>
+      usuarios.filter((usuario) =>
+        shouldRenderProfileImage({
+          avatarUrl: usuario.avatarUrl,
+          source: usuario.avatarSource,
+          consented: usuario.avatarConsent,
+        }),
+      ).length,
+    [usuarios],
+  );
+  const contactsMissingPrimaryChannel = React.useMemo(
+    () => usuarios.filter((usuario) => !usuario.telefono && !hasRealEmail(usuario)).length,
+    [usuarios],
+  );
+  const nextActionStats = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    usuarios.forEach((usuario) => {
+      const action = resolveCrmNextAction(usuario);
+      counts.set(action, (counts.get(action) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([label, total]) => ({ label, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 4);
+  }, [usuarios]);
 
   const copyToClipboard = async (value?: string | null, label = 'Dato') => {
     if (!value) return;
@@ -842,6 +970,67 @@ export default function UsuariosPage() {
           ))}
         </div>
       )}
+      <section
+        data-testid="crm-profile-intelligence"
+        className="overflow-hidden rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--primary)/0.08),hsl(var(--card)))] shadow-sm"
+      >
+        <div className="flex flex-col gap-3 border-b border-border/70 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Perfil 360 CRM</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">Identidad, consentimiento y proxima accion</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              El CRM prioriza contactos reales, fotos consentidas, canales disponibles y contexto IA sin usar scraping ni imagenes inventadas.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">{crmScoreAverage}% score medio</Badge>
+            <Badge variant="outline">{crmCompleteProfiles} perfiles completos</Badge>
+            <Badge variant="outline">{consentedAvatarCount} imagenes consentidas</Badge>
+          </div>
+        </div>
+        <div className="grid divide-y divide-border/70 lg:grid-cols-[1fr_1fr_1.2fr] lg:divide-x lg:divide-y-0">
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Calidad de datos
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-background">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${crmScoreAverage}%` }} />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {contactsMissingPrimaryChannel} contactos sin telefono ni email real necesitan enriquecimiento antes de campanas.
+            </p>
+          </div>
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <UserRound className="h-4 w-4 text-primary" />
+              Identidad segura
+            </div>
+            <p className="mt-2 text-2xl font-bold">{consentedAvatarCount.toLocaleString('es-AR')}</p>
+            <p className="text-sm text-muted-foreground">
+              Fotos reales solo con login social, carga propia o fuente autorizada; el resto usa avatar deterministico.
+            </p>
+          </div>
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Target className="h-4 w-4 text-primary" />
+              Cola de proxima accion
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {nextActionStats.length ? (
+                nextActionStats.map((item) => (
+                  <Badge key={item.label} variant="secondary" className="gap-2">
+                    <span className="font-semibold text-foreground">{item.total}</span>
+                    {item.label}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Sin contactos para priorizar todavia.</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
       <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-sm md:flex-row md:items-center md:justify-between">
         <div className="relative w-full md:max-w-md">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -1182,6 +1371,9 @@ export default function UsuariosPage() {
                 const realEmail = hasRealEmail(u);
                 const waUrl = whatsappUrl(u.telefono);
                 const temp = temperatureMeta(u.leadTemperature);
+                const crmScore = getCrmProfileScore(u);
+                const crmTone = crmProfileTone(crmScore);
+                const nextAction = resolveCrmNextAction(u);
                 const reason = u.motivo || humanizeIntent(u.lastIntent);
                 const summary =
                   u.resumen ||
@@ -1232,6 +1424,9 @@ export default function UsuariosPage() {
                               <UserRound className="h-3 w-3" />
                               {hasVisibleAvatar ? "Imagen consentida" : "Avatar seguro"}
                             </Badge>
+                            <Badge variant="outline" className={crmTone.className}>
+                              CRM {crmScore}%
+                            </Badge>
                           </div>
                           {u.profileExcerpt && (
                             <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
@@ -1272,6 +1467,21 @@ export default function UsuariosPage() {
                           {temp.label}
                           {u.leadScore ? ` ${u.leadScore}` : ""}
                         </Badge>
+                      </div>
+                      <div className="rounded-lg border border-border/70 bg-background/70 p-2">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="font-semibold text-muted-foreground">{crmTone.label}</span>
+                          <span className="font-mono font-semibold">{crmScore}%</span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className={`h-full rounded-full ${crmTone.barClassName}`} style={{ width: `${crmScore}%` }} />
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary" className="gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            {nextAction}
+                          </Badge>
+                        </div>
                       </div>
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Motivo</p>
