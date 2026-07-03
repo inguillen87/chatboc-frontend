@@ -38,6 +38,8 @@ describe('SurveyLiveHeatmapPreview', () => {
 
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-radar')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-telemetry-route')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-focus-lock')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('Zonas activas');
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('Centro');
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('San Martin');
@@ -45,6 +47,12 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Fallback local seguro');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('encuesta o votacion');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusion por WhatsApp');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Radar de decision');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Zona caliente');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Centro');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Canal dominante');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('whatsapp');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Proxima accion');
     expect(screen.getByText(/Senal:/)).toHaveTextContent('21');
   });
 
@@ -53,8 +61,27 @@ describe('SurveyLiveHeatmapPreview', () => {
 
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
     expect(screen.queryByTestId('survey-live-heatmap-radar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('survey-live-heatmap-telemetry-route')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('survey-live-heatmap-focus-lock')).not.toBeInTheDocument();
     expect(screen.queryByTestId('survey-live-heatmap-operational-summary')).not.toBeInTheDocument();
     expect(screen.getByText('Sin actividad territorial')).toBeInTheDocument();
     expect(screen.getByText('Ajusta filtros o espera nuevas respuestas en vivo.')).toBeInTheDocument();
+  });
+
+  it('keeps the decision radar available without an AI provider payload', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          points: [{ lat: -33.079, lon: -68.47, respuestas: 5, barrio: 'La Colonia', canal: 'widget' }],
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-focus-lock')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('La Colonia');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('widget');
+    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Monitorear evolucion');
+    expect(screen.queryByText('Senales IA')).not.toBeInTheDocument();
   });
 });

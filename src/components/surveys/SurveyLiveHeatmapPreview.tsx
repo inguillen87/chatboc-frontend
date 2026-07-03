@@ -40,6 +40,13 @@ const VIEWBOX_WIDTH = 640;
 const VIEWBOX_HEIGHT = 320;
 const CELL_COLUMNS = 8;
 const CELL_ROWS = 4;
+const TELEMETRY_PARTICLES = [
+  { cx: 88, cy: 82, r: 1.8, delay: '0s', color: '#67e8f9' },
+  { cx: 148, cy: 236, r: 1.5, delay: '-1.4s', color: '#34d399' },
+  { cx: 248, cy: 72, r: 1.7, delay: '-2.8s', color: '#facc15' },
+  { cx: 392, cy: 254, r: 1.6, delay: '-3.6s', color: '#60a5fa' },
+  { cx: 528, cy: 102, r: 1.9, delay: '-4.6s', color: '#a78bfa' },
+];
 
 const toFiniteNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
@@ -176,6 +183,12 @@ const normalizePriorityTone = (value: unknown) => {
   return 'text-amber-100 border-amber-200/20 bg-amber-300/10';
 };
 
+const buildTelemetryPath = (from: HeatmapDatum, to: HeatmapDatum) => {
+  const controlX = (from.x + to.x) / 2;
+  const controlY = Math.min(from.y, to.y) - 74;
+  return `M${from.x} ${from.y} Q${controlX} ${controlY} ${to.x} ${to.y}`;
+};
+
 export function SurveyLiveHeatmapPreview({
   heatmap,
   aiSignal,
@@ -202,6 +215,18 @@ export function SurveyLiveHeatmapPreview({
   const maxValue = Math.max(1, ...points.map((point) => point.value), ...cells.map((cell) => cell.value));
   const hasData = points.length > 0 || cells.length > 0;
   const totalSignal = allData.reduce((sum, item) => sum + item.value, 0);
+  const focusDatum = useMemo(
+    () => [...allData].sort((a, b) => b.value - a.value)[0],
+    [allData],
+  );
+  const originDatum = useMemo(
+    () =>
+      [...points, ...cells]
+        .filter((item) => item.id !== focusDatum?.id)
+        .sort((a, b) => b.value - a.value)[0],
+    [cells, focusDatum?.id, points],
+  );
+  const telemetryPath = focusDatum && originDatum ? buildTelemetryPath(originDatum, focusDatum) : null;
   const aiSummary = aiSignal?.summary ?? {};
   const hfStatus = aiSignal?.hf_status ?? {};
   const aiRecommendations = useMemo(() => {
@@ -221,6 +246,15 @@ export function SurveyLiveHeatmapPreview({
   const dominantIntent = asDisplayText(aiSummary.dominant_intent_label ?? aiSummary.dominant_intent, 'consulta general');
   const riskLevel = asDisplayText(aiSummary.risk_level ?? aiSummary.risk_signal, 'normal');
   const humanAttention = aiSummary.requires_human_attention === true;
+  const mainActionLabel = asDisplayText(aiRecommendations[0]?.label, 'Monitorear evolucion');
+  const focusLabel = focusDatum?.label || topZones[0]?.label || 'Actividad geolocalizada';
+  const dominantChannel = topChannels[0]?.label || focusDatum?.channel || 'sin canal';
+  const intelligenceGridClass =
+    hasAiSignal && hasData
+      ? 'lg:grid-cols-[0.85fr_1fr_1fr]'
+      : hasAiSignal
+        ? 'lg:grid-cols-[0.9fr_1.1fr]'
+        : 'lg:grid-cols-1';
 
   return (
     <section
@@ -284,6 +318,21 @@ export function SurveyLiveHeatmapPreview({
           <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#020617" />
           <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${gridId})`} />
           <circle cx="320" cy="160" r="150" fill={`url(#${radarGradientId})`} opacity="0.78" />
+          {hasData
+            ? TELEMETRY_PARTICLES.map((particle, index) => (
+                <circle key={`${particle.cx}-${particle.cy}`} cx={particle.cx} cy={particle.cy} r={particle.r} fill={particle.color} opacity="0.22">
+                  <animate attributeName="opacity" values="0.08;0.65;0.08" dur={`${3.6 + index * 0.35}s`} begin={particle.delay} repeatCount="indefinite" />
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0 0; 10 -8; -8 7; 0 0"
+                    dur={`${8 + index * 0.55}s`}
+                    begin={particle.delay}
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              ))
+            : null}
           {hasData ? (
             <g data-testid="survey-live-heatmap-radar" transform="translate(320 160)">
               <path d="M0 0 L144 -16 A145 145 0 0 1 144 16 Z" fill="rgba(34, 211, 238, 0.18)">
@@ -306,6 +355,24 @@ export function SurveyLiveHeatmapPreview({
             <circle r="4" fill="#67e8f9" opacity="0.95">
               <animateMotion dur="6.5s" repeatCount="indefinite" path="M58 244 C150 104 262 258 346 116 C424 12 506 92 584 56" />
             </circle>
+          ) : null}
+          {telemetryPath ? (
+            <g data-testid="survey-live-heatmap-telemetry-route">
+              <path
+                d={telemetryPath}
+                fill="none"
+                stroke={`url(#${routeGradientId})`}
+                strokeDasharray="5 10"
+                strokeLinecap="round"
+                strokeWidth="2.5"
+                opacity="0.82"
+              >
+                <animate attributeName="stroke-dashoffset" from="0" to="-90" dur="4.5s" repeatCount="indefinite" />
+              </path>
+              <circle r="5" fill="#facc15" opacity="0.95">
+                <animateMotion dur="4.5s" repeatCount="indefinite" path={telemetryPath} />
+              </circle>
+            </g>
           ) : null}
 
           {cells.map((cell) => {
@@ -356,6 +423,23 @@ export function SurveyLiveHeatmapPreview({
             );
           })}
 
+          {focusDatum ? (
+            <g
+              data-testid="survey-live-heatmap-focus-lock"
+              transform={`translate(${focusDatum.x} ${focusDatum.y})`}
+            >
+              <circle r="34" fill="none" stroke="#facc15" strokeWidth="1.2" opacity="0.76">
+                <animate attributeName="r" values="22;46;22" dur="4.8s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.2;0.78;0.2" dur="4.8s" repeatCount="indefinite" />
+              </circle>
+              <circle r="50" fill="none" stroke="#67e8f9" strokeWidth="1" strokeDasharray="4 9" opacity="0.42">
+                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="12s" repeatCount="indefinite" />
+              </circle>
+              <path d="M-54 0 H-24 M24 0 H54 M0 -54 V-24 M0 24 V54" stroke="#e0f2fe" strokeWidth="1.4" strokeLinecap="round" opacity="0.76" />
+              <circle r="7" fill="#020617" stroke="#facc15" strokeWidth="2" />
+            </g>
+          ) : null}
+
           {!hasData ? (
             <g>
               <rect x="142" y="116" width="356" height="86" rx="22" fill="rgba(15, 23, 42, 0.82)" stroke="rgba(148, 163, 184, 0.28)" />
@@ -381,53 +465,79 @@ export function SurveyLiveHeatmapPreview({
         </div>
       </div>
 
-      {hasAiSignal ? (
+      {hasAiSignal || hasData ? (
         <div
-          className="grid gap-3 border-t border-white/10 bg-slate-950/90 p-4 text-xs text-slate-200 lg:grid-cols-[0.9fr_1.1fr]"
+          className={`grid gap-3 border-t border-white/10 bg-slate-950/90 p-4 text-xs text-slate-200 ${intelligenceGridClass}`}
           data-testid="survey-live-heatmap-ai-signal"
         >
-          <div className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.06] p-3">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-100">
-              <BrainCircuit className="h-3.5 w-3.5" aria-hidden="true" />
-              Senales IA
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-              <div>
-                <p className="text-slate-400">Modo</p>
-                <p className="font-semibold text-white">{aiModeLabel}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">Intencion dominante</p>
-                <p className="font-semibold text-white">{dominantIntent}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">Riesgo operativo</p>
-                <p className={humanAttention ? 'font-semibold text-rose-100' : 'font-semibold text-emerald-100'}>
-                  {riskLevel}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
-            {aiRecommendations.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {aiRecommendations.map((action, index) => (
-                  <div
-                    key={`${asDisplayText(action.id, 'action')}-${index}`}
-                    className={`rounded-xl border px-3 py-2 ${normalizePriorityTone(action.priority)}`}
-                  >
-                    <p className="font-medium text-white">{asDisplayText(action.label, 'Revisar senal IA')}</p>
-                    <p className="mt-1 text-[11px] opacity-80">
-                      {asDisplayText(action.ui_hint, 'open_ai_summary')}
+          {hasAiSignal ? (
+            <>
+              <div className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.06] p-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-100">
+                  <BrainCircuit className="h-3.5 w-3.5" aria-hidden="true" />
+                  Senales IA
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                  <div>
+                    <p className="text-slate-400">Modo</p>
+                    <p className="font-semibold text-white">{aiModeLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Intencion dominante</p>
+                    <p className="font-semibold text-white">{dominantIntent}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Riesgo operativo</p>
+                    <p className={humanAttention ? 'font-semibold text-rose-100' : 'font-semibold text-emerald-100'}>
+                      {riskLevel}
                     </p>
                   </div>
-                ))}
+                </div>
               </div>
-            ) : (
-              <p className="mt-2 text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
-            )}
-          </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
+                {aiRecommendations.length ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {aiRecommendations.map((action, index) => (
+                      <div
+                        key={`${asDisplayText(action.id, 'action')}-${index}`}
+                        className={`rounded-xl border px-3 py-2 ${normalizePriorityTone(action.priority)}`}
+                      >
+                        <p className="font-medium text-white">{asDisplayText(action.label, 'Revisar senal IA')}</p>
+                        <p className="mt-1 text-[11px] opacity-80">
+                          {asDisplayText(action.ui_hint, 'open_ai_summary')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
+                )}
+              </div>
+            </>
+          ) : null}
+          {hasData ? (
+            <div
+              className="rounded-2xl border border-emerald-200/15 bg-emerald-400/[0.055] p-3"
+              data-testid="survey-live-heatmap-decision-radar"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100">Radar de decision</p>
+              <div className="mt-3 grid gap-2">
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
+                  <p className="text-slate-400">Zona caliente</p>
+                  <p className="truncate font-semibold text-white">{focusLabel}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
+                  <p className="text-slate-400">Canal dominante</p>
+                  <p className="truncate font-semibold text-white">{dominantChannel}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
+                  <p className="text-slate-400">Proxima accion</p>
+                  <p className="font-semibold text-white">{mainActionLabel}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
