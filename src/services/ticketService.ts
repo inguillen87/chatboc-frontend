@@ -164,6 +164,10 @@ export interface TicketInboxPagination {
 export interface GetTicketsOptions {
     page?: number;
     perPage?: number;
+    q?: string;
+    status?: string;
+    category?: string;
+    categoryId?: string | number;
 }
 
 const normalizeTicketPagination = (
@@ -601,6 +605,16 @@ export const getTickets = async (
         per_page: String(perPage),
         include: 'compact',
       });
+      const appendFilterParam = (key: string, value?: string | number | null) => {
+        if (value === undefined || value === null) return;
+        const normalized = String(value).trim();
+        if (!normalized || normalized === 'all' || normalized === 'todos') return;
+        params.set(key, normalized);
+      };
+      appendFilterParam('q', options.q);
+      appendFilterParam('estado', options.status);
+      appendFilterParam('categoria', options.category);
+      appendFilterParam('categoria_id', options.categoryId);
       const response = await apiFetch<{ tickets: Ticket[]; pagination?: TicketInboxPagination; summary?: Record<string, unknown> }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,
@@ -714,19 +728,26 @@ export const getTicketById = async (id: string, opts?: TicketDetailOptions): Pro
             };
         }
 
+        const legacyType = opts?.ticket?.tipo === 'pyme' ? 'pyme' : 'municipio';
         const response = await apiFetch<
             Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
-        >(ticketApiPath(`/tickets/municipio/${id}`));
+        >(ticketApiPath(`/tickets/${legacyType}/${id}`), {
+            tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
+        });
+        const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
         const history = (response as any).history || response.historial || [];
         let messages = normalizeTicketMessages(getInlineTicketMessageSource(response));
         if (!messages.length) {
             try {
-                messages = (await getTicketMessages(response.id, response.tipo, { quiet: true })).messages;
+                messages = (await getTicketMessages(response.id, response.tipo, {
+                    quiet: true,
+                    ticket: normalizedResponse,
+                    tenantSlug: opts?.tenantSlug || normalizedResponse.tenant_slug,
+                })).messages;
             } catch (_err) {
                 messages = [];
             }
         }
-        const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
         return {
             ...normalizedResponse,
             history,
@@ -1564,7 +1585,11 @@ export const sendMessage = async (
                     action: { buttons: buttons },
                 },
             };
-            body = interactiveMessage;
+            body = {
+                comentario,
+                interactive: interactiveMessage.interactive,
+                buttons,
+            };
         }
         // Si es solo texto, usamos FormData para evitar problemas con el backend
         // en contexto autenticado mantenemos multipart por compatibilidad.

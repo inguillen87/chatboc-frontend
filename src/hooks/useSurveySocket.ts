@@ -8,12 +8,30 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface UseSurveySocketOptions {
   slug: string;
+  tenantSlug?: string | null;
+  rooms?: string[];
   enabled?: boolean;
   onUpdate?: (data: SurveyLiveResults | SurveyLivePublicResultsPayload) => void;
   onComment?: (comment: SurveyComment) => void;
 }
 
-export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: UseSurveySocketOptions) {
+const resolveSurveyRooms = (slug: string, tenantSlug?: string | null, rooms?: string[]) => {
+  const explicitRooms = (rooms || [])
+    .map((room) => (typeof room === 'string' ? room.trim() : ''))
+    .filter(Boolean);
+  if (explicitRooms.length > 0) {
+    return Array.from(new Set(explicitRooms));
+  }
+  const normalizedSlug = slug.trim();
+  if (!normalizedSlug) return [];
+  const legacyRoom = `encuesta_${normalizedSlug}`;
+  const normalizedTenant = tenantSlug?.trim();
+  return normalizedTenant
+    ? [`encuesta:${normalizedTenant}:${normalizedSlug}`, legacyRoom]
+    : [legacyRoom];
+};
+
+export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUpdate, onComment }: UseSurveySocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const onUpdateRef = useRef(onUpdate);
   const onCommentRef = useRef(onComment);
@@ -25,6 +43,9 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
 
   useEffect(() => {
     if (!enabled || !slug) return;
+
+    const surveyRooms = resolveSurveyRooms(slug, tenantSlug, rooms);
+    if (surveyRooms.length === 0) return;
 
     const socketUrl = getSocketUrl();
     const resolveTransportHintKey = (tenant?: string | null) => `chatboc_socket_transport_hint:${tenant || 'default'}`;
@@ -68,17 +89,19 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
     assertEventSource(socket, 'survey-socket');
 
     const handleConnect = () => {
-      console.log(`[SurveySocket] Connected. Joining room: encuesta_${slug}`);
+      console.log(`[SurveySocket] Connected. Joining rooms: ${surveyRooms.join(', ')}`);
       void enterpriseService.trackEvent({
         event: 'analytics_socket_connected',
         payload: {
-          tenant_slug: slug,
+          tenant_slug: tenantSlug || slug,
           route: '/e/:slug',
           build_version: import.meta.env.VITE_APP_VERSION || 'dev',
           error_code: null,
         },
-      }, slug).catch(() => undefined);
-      socket.emit('join', { room: `encuesta_${slug}` });
+      }, tenantSlug || slug).catch(() => undefined);
+      surveyRooms.forEach((room) => {
+        socket.emit('join', { room });
+      });
     };
 
     const handleDisconnect = () => undefined;
@@ -119,7 +142,7 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
         socket.disconnect();
       }
     };
-  }, [slug, enabled]);
+  }, [enabled, rooms, slug, tenantSlug]);
 
   return socketRef.current;
 }

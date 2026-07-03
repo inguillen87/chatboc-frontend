@@ -21,6 +21,7 @@ import {
   sendMessage,
   summarizeTicketFetchError,
   updateTicketStatus,
+  updateTicketReadState,
   normalizeTicketReplyDelivery,
   type TicketHistoryDeliveryResult,
   type TicketReplyDeliveryStatus,
@@ -710,6 +711,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const realtimeOnline = Boolean(socket?.connected);
   const pollingFailureCountRef = useRef(0);
   const pollingPausedUntilRef = useRef(0);
+  const lastReadStateSyncRef = useRef<string | null>(null);
   const messageRef = useRef(message);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -743,7 +745,50 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   useEffect(() => {
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
+    lastReadStateSyncRef.current = null;
   }, [selectedTicket?.id]);
+
+  useEffect(() => {
+    if (!selectedTicket || messages.length === 0) return;
+
+    const latestMessageId = [...messages]
+      .map((item) => item.id)
+      .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
+      .filter((id) => {
+        const value = String(id);
+        if (!value || value.startsWith('sent-') || value.startsWith('temp-')) return false;
+        if (typeof id === 'number' && id > 1_000_000_000_000) return false;
+        return true;
+      })
+      .at(-1);
+
+    if (latestMessageId === undefined) return;
+
+    const syncKey = `${selectedTicket.tipo}:${selectedTicket.id}:${latestMessageId}`;
+    if (lastReadStateSyncRef.current === syncKey) return;
+    lastReadStateSyncRef.current = syncKey;
+
+    updateTicketReadState(selectedTicket.id, selectedTicket.tipo, latestMessageId)
+      .then((state) => {
+        updateTicket(selectedTicket.id, {
+          hasUnreadMessages: false,
+          realtime_state: state || selectedTicket.realtime_state,
+          collaboration_state: {
+            ...(selectedTicket.collaboration_state || {}),
+            has_unread: false,
+            unread_viewer_count: 0,
+          },
+        } as Partial<Ticket>);
+      })
+      .catch((error) => {
+        if (!isLegacyHtmlGatewayError(error)) {
+          console.warn('No se pudo sincronizar lectura del ticket.', {
+            ticketId: selectedTicket.id,
+            ...summarizeTicketFetchError(error),
+          });
+        }
+      });
+  }, [messages, selectedTicket, updateTicket]);
 
   useEffect(() => {
     if (!socket || !selectedTicket) return;

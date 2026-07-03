@@ -26,6 +26,7 @@ interface ClerkTenantOnboardingDialogProps {
   onOpenChange: (open: boolean) => void;
   userProfile?: ClerkUserProfilePayload;
   defaultTenantName?: string;
+  required?: boolean;
   loading?: boolean;
   error?: string | null;
   onSubmit: (payload: ClerkOnboardingPayload) => Promise<void> | void;
@@ -46,6 +47,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   onOpenChange,
   userProfile,
   defaultTenantName,
+  required = false,
   loading,
   error,
   onSubmit,
@@ -73,9 +75,19 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
     });
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (required && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl border-slate-200 bg-white text-slate-950 shadow-2xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-2xl border-slate-200 bg-white text-slate-950 shadow-2xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50"
+        showCloseButton={!required}
+        onEscapeKeyDown={required ? (event) => event.preventDefault() : undefined}
+        onPointerDownOutside={required ? (event) => event.preventDefault() : undefined}
+      >
         <DialogHeader>
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
             <Building2 className="h-6 w-6" />

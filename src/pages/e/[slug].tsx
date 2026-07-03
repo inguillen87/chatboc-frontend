@@ -196,6 +196,27 @@ const PublicSurveyPage = () => {
       ? socketLiveDashboard
       : polledLiveDashboard;
   }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
+  const surveySocketRooms = useMemo(() => {
+    const realtime = survey?.realtime as Record<string, unknown> | undefined;
+    const explicitRooms = Array.isArray(realtime?.rooms)
+      ? realtime.rooms.filter((room): room is string => typeof room === 'string' && room.trim().length > 0)
+      : [];
+    const contractRooms = [
+      typeof realtime?.primary_room === 'string' ? realtime.primary_room : null,
+      typeof realtime?.room === 'string' ? realtime.room : null,
+      typeof realtime?.legacy_room === 'string' ? realtime.legacy_room : null,
+      ...explicitRooms,
+    ].filter((room): room is string => Boolean(room && room.trim()));
+
+    if (contractRooms.length > 0) {
+      return Array.from(new Set(contractRooms));
+    }
+
+    if (!liveSlug) return [];
+    return tenantSlug
+      ? [`encuesta:${tenantSlug}:${liveSlug}`, `encuesta_${liveSlug}`]
+      : [`encuesta_${liveSlug}`];
+  }, [liveSlug, survey?.realtime, tenantSlug]);
 
   useEffect(() => {
     safeSessionStorage.setItem(LIVE_FILTERS_STORAGE_KEY, JSON.stringify(liveRequestParams));
@@ -289,6 +310,8 @@ const PublicSurveyPage = () => {
   // Handle Socket.IO connection
   useSurveySocket({
       slug: liveSlug || '',
+      tenantSlug,
+      rooms: surveySocketRooms,
       enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
           const legacyResults = toLegacyLiveResults(data);

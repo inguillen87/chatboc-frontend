@@ -23,6 +23,8 @@ vi.mock('@/utils/anonIdGenerator', () => ({
 import {
   getAssignableAgents,
   getTenantTicketAiEnrichment,
+  getTickets,
+  getTicketById,
   getTicketByNumber,
   isTicketAiEnrichmentUnavailable,
   normalizeTicketReplyDelivery,
@@ -318,6 +320,106 @@ describe('ticketService realtime normalization', () => {
       sendAnonId: true,
       sendEntityToken: true,
       pin: '900144',
+    });
+  });
+
+  it('uses the PyME legacy detail endpoint when the selected ticket is PyME', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 88,
+      tipo: 'pyme',
+      nro_ticket: 'P-88',
+      asunto: 'Pedido mayorista',
+      estado: 'nuevo',
+      fecha: '2026-07-03T12:00:00.000Z',
+      mensajes: [{ id: 9, mensaje: 'Necesito presupuesto', es_admin: false }],
+    });
+
+    const ticket = await getTicketById('88', {
+      ticket: {
+        id: 88,
+        tipo: 'pyme',
+        tenant_slug: 'bodega',
+      } as any,
+      tenantSlug: 'bodega',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/pyme/88', {
+      tenantSlug: 'bodega',
+    });
+    expect(ticket.tipo).toBe('pyme');
+    expect(ticket.messages?.[0]).toMatchObject({
+      id: 9,
+      content: 'Necesito presupuesto',
+    });
+  });
+
+  it('sends authenticated quick replies with comentario for the backend responder contract', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      success: true,
+      mensaje_id: 90,
+    });
+
+    await sendMessage(
+      321,
+      'municipio',
+      'Te dejo opciones para avanzar',
+      undefined,
+      [{ type: 'reply', reply: { id: 'confirmar', title: 'Confirmar' } }],
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    const [endpoint, options] = apiFetchMock.mock.calls[0];
+    expect(endpoint).toBe('/api/tickets/municipio/321/responder');
+    expect(options).toMatchObject({
+      method: 'POST',
+      body: {
+        comentario: 'Te dejo opciones para avanzar',
+        buttons: [{ type: 'reply', reply: { id: 'confirmar', title: 'Confirmar' } }],
+        interactive: {
+          type: 'button',
+          body: { text: 'Te dejo opciones para avanzar' },
+          action: {
+            buttons: [{ type: 'reply', reply: { id: 'confirmar', title: 'Confirmar' } }],
+          },
+        },
+      },
+    });
+  });
+
+  it('passes inbox filters as backend query parameters', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [],
+      pagination: {
+        page: 1,
+        per_page: 25,
+        total_items: 0,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+    });
+
+    await getTickets('junin', {
+      page: 1,
+      perPage: 25,
+      q: 'Don Bosco',
+      status: 'cerrado',
+      category: 'Arreglo de calle',
+    });
+
+    const [endpoint, options] = apiFetchMock.mock.calls[0];
+    expect(endpoint).toContain('/api/tickets?');
+    expect(endpoint).toContain('page=1');
+    expect(endpoint).toContain('per_page=25');
+    expect(endpoint).toContain('include=compact');
+    expect(endpoint).toContain('q=Don+Bosco');
+    expect(endpoint).toContain('estado=cerrado');
+    expect(endpoint).toContain('categoria=Arreglo+de+calle');
+    expect(options).toMatchObject({
+      tenantSlug: 'junin',
+      omitTenant: false,
+      suppressPanel401Redirect: true,
     });
   });
 

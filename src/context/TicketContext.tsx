@@ -48,6 +48,17 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   unread: 'all',
 };
 
+const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
+  const serverFilters: { status?: string; category?: string } = {};
+  if (filters.status !== 'all') {
+    serverFilters.status = filters.status;
+  }
+  if (filters.area !== 'all') {
+    serverFilters.category = filters.area;
+  }
+  return serverFilters;
+};
+
 const TICKET_FETCH_TIMEOUT_MS = 45000;
 const TICKET_INBOX_CACHE_VERSION = 1;
 const TICKET_INBOX_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -489,6 +500,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       ),
     [currentSlug, tenantSlugOverride, userTenantSlug],
   );
+  const serverTicketFilters = React.useMemo(
+    () => resolveServerTicketFilters(filters),
+    [filters.area, filters.status],
+  );
+  const serverTicketFiltersActive = Boolean(serverTicketFilters.status || serverTicketFilters.category);
 
   const bumpRealtimeActivity = useCallback((label: string) => {
     setRealtimeActivity((current) => ({
@@ -603,6 +619,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const fetchTickets = useCallback(async () => {
     const tenantSlug = activeTenantSlug;
     const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
+    const useCache = !serverTicketFiltersActive;
 
     if (!tenantSlug) {
       setError(null);
@@ -617,7 +634,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     const cachedInbox = readCachedTicketInbox(cacheKey);
     let cacheWasApplied = false;
 
-    if (cachedInbox?.tickets?.length) {
+    if (useCache && cachedInbox?.tickets?.length) {
       const cachedTickets = filterTicketsForUser(
         cachedInbox.tickets.map(normalizeTicketForInbox),
       );
@@ -640,7 +657,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     try {
       const apiResponse = await withTimeout(
-        getTickets(tenantSlug, { page: 1 }),
+        getTickets(tenantSlug, { page: 1, ...serverTicketFilters }),
         TICKET_FETCH_TIMEOUT_MS,
         'La bandeja de reclamos tardo demasiado en responder.',
       );
@@ -701,7 +718,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } finally {
       setLoading(false);
     }
-  }, [activeTenantSlug, filterTicketsForUser, userAccessProfile]);
+  }, [activeTenantSlug, filterTicketsForUser, serverTicketFilters, serverTicketFiltersActive, userAccessProfile]);
 
   const loadMoreTickets = useCallback(async () => {
     if (!activeTenantSlug || loadingMoreTickets || !pagination?.has_next) return;
@@ -710,7 +727,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setLoadingMoreTickets(true);
     try {
       const apiResponse = await withTimeout(
-        getTickets(activeTenantSlug, { page: nextPage, perPage: pagination.per_page || undefined }),
+        getTickets(activeTenantSlug, {
+          page: nextPage,
+          perPage: pagination.per_page || undefined,
+          ...serverTicketFilters,
+        }),
         TICKET_FETCH_TIMEOUT_MS,
         'La bandeja de reclamos tardo demasiado en cargar mas resultados.',
       );
@@ -728,7 +749,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     } finally {
       setLoadingMoreTickets(false);
     }
-  }, [activeTenantSlug, filterTicketsForUser, loadingMoreTickets, pagination]);
+  }, [activeTenantSlug, filterTicketsForUser, loadingMoreTickets, pagination, serverTicketFilters]);
 
   useEffect(() => {
     fetchTickets();

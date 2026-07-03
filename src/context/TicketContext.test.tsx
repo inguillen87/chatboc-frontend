@@ -356,20 +356,38 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-1,REC-2');
     });
 
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-2',
+          asunto: 'Bache',
+          estado: 'cerrado',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'General',
+        },
+      ],
+    });
+
     fireEvent.click(screen.getByRole('button', { name: /filtrar cerrados/i }));
 
     await waitFor(() => {
+      expect(getTicketsMock).toHaveBeenLastCalledWith('demo', { page: 1, status: 'cerrado' });
       expect(screen.getByTestId('active-status-filter').textContent).toBe('cerrado');
       expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-2');
       expect(screen.getByTestId('selected-ticket').textContent).toBe('REC-2');
     });
 
+    const callsAfterBackendStatusFilter = getTicketsMock.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: /dejar sin resultados/i }));
 
     await waitFor(() => {
       expect(screen.getByTestId('visible-tickets').textContent).toBe('');
       expect(screen.getByTestId('selected-ticket').textContent).toBe('none');
     });
+    expect(getTicketsMock).toHaveBeenCalledTimes(callsAfterBackendStatusFilter);
   });
 
   it('keeps assigned agent avatars behind the same consent contract as public contacts', async () => {

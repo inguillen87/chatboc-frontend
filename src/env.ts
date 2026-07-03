@@ -1,6 +1,3 @@
-const FALLBACK_GOOGLE_CLIENT_ID =
-  '32341370449-g1757v5k948nrreul5ueonqf00c43m8o.apps.googleusercontent.com';
-
 const readRuntimeEnv = (key: string): string | null => {
   if (typeof window === 'undefined') return null;
   const runtimeEnv = (window as any).__ENV || (window as any).ENV || {};
@@ -8,19 +5,17 @@ const readRuntimeEnv = (key: string): string | null => {
   return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
 };
 
-const resolveGoogleClientId = (): { value: string; fromFallback: boolean } => {
+const resolveGoogleClientId = (): string => {
   const envValue = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  if (envValue.trim()) return { value: envValue.trim(), fromFallback: false };
+  if (envValue.trim()) return envValue.trim();
 
   const runtimeValue = readRuntimeEnv('VITE_GOOGLE_CLIENT_ID');
-  if (runtimeValue) return { value: runtimeValue, fromFallback: false };
+  if (runtimeValue) return runtimeValue;
 
-  return { value: FALLBACK_GOOGLE_CLIENT_ID, fromFallback: true };
+  return '';
 };
 
-const { value: resolvedGoogleClientId } = resolveGoogleClientId();
-
-export const GOOGLE_CLIENT_ID = resolvedGoogleClientId;
+export const GOOGLE_CLIENT_ID = resolveGoogleClientId();
 
 export const CLERK_PUBLISHABLE_KEY =
   (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '').trim() ||
