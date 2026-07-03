@@ -203,6 +203,52 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
   });
 
+  it('submits crm operator uploads with authenticated credentials instead of anonymous marketplace mode', async () => {
+    const onProcessed = vi.fn();
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 88,
+      customer_message: 'Solicitud creada en CRM.',
+      match_summary: { detected: 1, matched: 0, unmatched: 1 },
+      crm_state: 'pending_operator_review',
+      source: { text_preview: '2 bolsas de cemento' },
+    });
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="crm" onProcessed={onProcessed} />);
+
+    expect(screen.getByText('Operador autenticado')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Nombre'), {
+      target: { value: 'Mostrador' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 bolsas de cemento' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/pedidos/from-file?origen=crm_admin',
+        expect.objectContaining({
+          method: 'POST',
+          skipAuth: false,
+          omitCredentials: false,
+          sendAnonId: false,
+          tenantSlug: 'junin',
+          suppressPanel401Redirect: false,
+        }),
+      );
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('pedido_text')).toBe('2 bolsas de cemento');
+    expect(body.get('document_type')).toBe('order_note');
+    expect(body.get('tenant')).toBe('junin');
+    expect(body.get('tenant_slug')).toBe('junin');
+    expect(body.get('contact_name')).toBe('Mostrador');
+    expect(onProcessed).toHaveBeenCalledWith(expect.objectContaining({ pedido_id: 88 }));
+  });
+
   it('renders received relational upload evidence with image preview and file link', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',

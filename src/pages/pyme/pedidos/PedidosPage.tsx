@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
+import { ClipboardList, Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
+import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { cn } from '@/lib/utils';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
@@ -500,6 +501,7 @@ const PedidosPage = () => {
 
   // Manual Order State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isAssistedUploadOpen, setIsAssistedUploadOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
 
@@ -588,6 +590,13 @@ const PedidosPage = () => {
     }
   };
 
+  const handleAssistedUploadProcessed = () => {
+    toast.success('Solicitud IA creada en el CRM');
+    setAiFilter('assisted');
+    setIsAssistedUploadOpen(false);
+    loadOrders();
+  };
+
   const safeOrders = Array.isArray(orders) ? orders : [];
   const assistedOrders = safeOrders.filter(hasAssistedOrderContract);
   const assistedNeedsReview = assistedOrders.filter(isAssistedNeedsReview);
@@ -625,6 +634,27 @@ const PedidosPage = () => {
         </div>
 
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
+            <Dialog open={isAssistedUploadOpen} onOpenChange={setIsAssistedUploadOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="secondary" className="gap-2">
+                        <Upload className="h-4 w-4" /> Cargar nota con IA
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-5xl">
+                    <DialogHeader>
+                        <DialogTitle>Cargar solicitud asistida</DialogTitle>
+                        <DialogDescription>
+                            Subi una foto, boleta, manuscrito o lista pegada para que Chatboc la transforme en caso CRM antes de responder.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <UploadOrderFromFile
+                      tenantSlug={currentSlug}
+                      variant="crm"
+                      onProcessed={handleAssistedUploadProcessed}
+                    />
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                 <DialogTrigger asChild>
                     <Button>

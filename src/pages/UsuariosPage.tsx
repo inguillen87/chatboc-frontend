@@ -15,6 +15,8 @@ import { getTenant } from "@/utils/tenant";
 import { useUser } from "@/hooks/useUser";
 import { useSocket } from "@/context/SocketContext";
 import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle, Clock3, Copy, ExternalLink, Flame, History, ListChecks, Mail, MessageSquare, Phone, RefreshCw, Search, Send, ShieldCheck, Tags, Target, UserRound, Users } from "lucide-react";
+import IdentityAvatar from "@/components/identity/IdentityAvatar";
+import { shouldRenderProfileImage } from "@/utils/avatarConsent";
 
 type RawUsuario = Record<string, any>;
 
@@ -45,6 +47,9 @@ interface Usuario {
   suggestedActions?: string[];
   interactionCount?: number | null;
   lastMessageExcerpt?: string | null;
+  avatarUrl?: string | null;
+  avatarSource?: string | null;
+  avatarConsent?: boolean | string | number | null;
 }
 
 interface CampaignResult {
@@ -225,13 +230,6 @@ const temperatureMeta = (value?: string | null) => {
   return { label: "Frio", className: "border-slate-500/40 bg-slate-500/10 text-slate-200" };
 };
 
-const getInitials = (name: string): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const first = words[0]?.[0] || "C";
-  const second = words.length > 1 ? words[1]?.[0] : "";
-  return `${first}${second}`.toUpperCase();
-};
-
 const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   const telefono =
     pickFirstString(phoneCandidates, raw) ||
@@ -269,6 +267,19 @@ const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   const lastIntent = normalizeString(raw.last_intent || raw.lastIntent || raw.intent);
   const suggestedActions = normalizeStringArray(raw.suggested_actions || raw.suggestedActions);
   const contactId = normalizeString(raw.contact_id || raw.contactId);
+  const profile = raw.profile || raw.customer_profile || raw.contact_profile || raw.identity || {};
+  const avatarUrl =
+    normalizeString(raw.avatar_url || raw.profile_picture_url || raw.picture) ||
+    normalizeString(profile.avatar_url || profile.profile_picture_url || profile.picture);
+  const avatarSource =
+    normalizeString(raw.avatar_source || raw.profile_picture_source || raw.picture_source) ||
+    normalizeString(profile.avatar_source || profile.profile_picture_source || profile.source);
+  const avatarConsent =
+    raw.avatar_consent ??
+    raw.profile_picture_consent ??
+    profile.avatar_consent ??
+    profile.profile_picture_consent ??
+    false;
 
   return {
     id: raw.id ?? raw.user_id ?? index,
@@ -304,6 +315,9 @@ const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     suggestedActions,
     interactionCount: raw.interaction_count ?? raw.interactionCount ?? null,
     lastMessageExcerpt: normalizeString(raw.last_message_excerpt || raw.lastMessageExcerpt),
+    avatarUrl,
+    avatarSource,
+    avatarConsent,
   };
 };
 
@@ -1175,6 +1189,11 @@ export default function UsuariosPage() {
                   u.profileExcerpt ||
                   "Sin resumen todavia. Se completa automaticamente con la proxima conversacion.";
                 const primaryAction = u.suggestedActions?.[0];
+                const hasVisibleAvatar = shouldRenderProfileImage({
+                  avatarUrl: u.avatarUrl,
+                  source: u.avatarSource,
+                  consented: u.avatarConsent,
+                });
 
                 return (
                   <article
@@ -1191,9 +1210,13 @@ export default function UsuariosPage() {
 
                     <div className="min-w-0 space-y-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                          {u.nombre ? getInitials(u.nombre) : <UserRound className="h-5 w-5" />}
-                        </div>
+                        <IdentityAvatar
+                          name={u.nombre || u.email || u.telefono || "Contacto"}
+                          avatarUrl={u.avatarUrl}
+                          source={u.avatarSource}
+                          consented={u.avatarConsent}
+                          size="lg"
+                        />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="break-words text-base font-semibold leading-tight">{u.nombre}</h3>
@@ -1204,6 +1227,10 @@ export default function UsuariosPage() {
                             <Badge variant="secondary" className="gap-1">
                               <ShieldCheck className="h-3 w-3" />
                               {source}
+                            </Badge>
+                            <Badge variant="outline" className="gap-1">
+                              <UserRound className="h-3 w-3" />
+                              {hasVisibleAvatar ? "Imagen consentida" : "Avatar seguro"}
                             </Badge>
                           </div>
                           {u.profileExcerpt && (

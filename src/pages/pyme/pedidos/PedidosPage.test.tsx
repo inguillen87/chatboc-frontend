@@ -293,4 +293,17 @@ describe('PedidosPage', () => {
     expect(screen.getByLabelText('Abrir pedido ready-3')).toBeTruthy();
     expect(screen.queryByLabelText('Abrir pedido manual-4')).toBeNull();
   });
+
+  it('opens an authenticated assisted upload workspace for operator intake', async () => {
+    render(<PedidosPage />);
+
+    expect(await screen.findByLabelText('Abrir pedido assistida-1')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Cargar nota con IA/i }));
+
+    expect(screen.getByText('Cargar solicitud asistida')).toBeTruthy();
+    expect(screen.getByText(/la transforme en caso CRM/i)).toBeTruthy();
+    expect(screen.getByText('Operador autenticado')).toBeTruthy();
+    expect(screen.getByTestId('assisted-upload-dropzone')).toBeTruthy();
+  });
 });

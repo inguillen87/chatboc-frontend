@@ -32,7 +32,7 @@ interface UploadOrderFromFileProps {
   onCartUpdated?: (items: unknown) => void;
   onProcessed?: (response: AssistedOrderUploadResponse) => void;
   tenantSlug?: string | null;
-  variant?: 'inline' | 'marketplace';
+  variant?: 'inline' | 'marketplace' | 'crm';
   intakeEntry?: MarketAssistedIntakeEntry | null;
   fallbackWhatsappHref?: string | null;
   suggestedTextDraft?: string | null;
@@ -884,6 +884,8 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const { currentSlug } = useTenant();
   const effectiveTenantSlug = tenantSlug ?? currentSlug ?? null;
   const isMarketplace = variant === 'marketplace';
+  const isCrm = variant === 'crm';
+  const isAssistedSurface = isMarketplace || isCrm;
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
@@ -1076,7 +1078,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     setProgress(10);
 
     try {
-      const endpoint = isMarketplace ? submitEndpoint : '/api/pedidos/from-file';
+      const endpoint = isMarketplace ? submitEndpoint : isCrm ? '/api/pedidos/from-file?origen=crm_admin' : '/api/pedidos/from-file';
       const inputMode = file ? 'file' : 'text';
       const idempotencyFingerprint = JSON.stringify([
         endpoint,
@@ -1166,9 +1168,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           ...(Object.keys(submitHeaders).length ? { headers: submitHeaders } : {}),
           skipAuth: isMarketplace,
           omitCredentials: isMarketplace,
-          sendAnonId: true,
+          sendAnonId: !isCrm,
           tenantSlug: effectiveTenantSlug ?? undefined,
-          suppressPanel401Redirect: true,
+          suppressPanel401Redirect: isMarketplace,
           onResponse: (res) => {
             const total = Number(res.headers.get('Content-Length'));
             if (Number.isFinite(total) && total > 0) {
@@ -1370,7 +1372,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   };
 
   return (
-    <div id={id} className={cn('space-y-4', isMarketplace && 'rounded-lg border bg-card p-3 shadow-sm sm:p-4', className)}>
+    <div id={id} className={cn('space-y-4', isAssistedSurface && 'rounded-lg border bg-card p-3 shadow-sm sm:p-4', className)}>
       {isMarketplace && !compactMarketplaceHeader ? (
         <div className="overflow-hidden rounded-lg border bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
           <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
@@ -1484,7 +1486,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         </div>
       ) : null}
 
-      {isMarketplace ? (
+      {isAssistedSurface ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             {!canSubmitToServer ? (
@@ -1538,7 +1540,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                   </p>
                 </div>
                 <Badge variant="outline" className="w-fit">
-                  Sin login
+                  {isCrm ? 'Operador autenticado' : 'Sin login'}
                 </Badge>
               </div>
               <Textarea
@@ -1669,14 +1671,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           accept={submitAccept}
           onChange={handleFileChange}
           disabled={submitDisabled}
-          className={cn(isMarketplace ? 'sr-only' : 'max-w-xs')}
+          className={cn(isAssistedSurface ? 'sr-only' : 'max-w-xs')}
           style={
-            isMarketplace
+            isAssistedSurface
               ? { position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }
               : undefined
           }
         />
-        {!isMarketplace ? (
+        {!isAssistedSurface ? (
           <Button
             type="button"
             variant="secondary"
@@ -1687,9 +1689,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             Subir nota de pedido
           </Button>
         ) : null}
-        {isMarketplace ? (
+        {isAssistedSurface ? (
           <p className="text-xs text-muted-foreground">
-            El equipo ve el archivo o texto original, los datos detectados y las acciones siguientes desde su panel.
+            {isCrm
+              ? 'El caso queda en el CRM con archivo o texto original, datos detectados y acciones recomendadas.'
+              : 'El equipo ve el archivo o texto original, los datos detectados y las acciones siguientes desde su panel.'}
           </p>
         ) : null}
       </div>

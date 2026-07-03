@@ -135,6 +135,28 @@ export function MapWidget({
     primaryHotspot?.id ??
     Object.keys(primaryHotspot?.breakdown ?? {})[0] ??
     'Sin foco';
+  const totalTickets = safeNumber(metadataTotals.tickets) || safeNumber(metadataTotals.geocoded) + safeNumber(metadataTotals.missing);
+  const missingGeo = safeNumber(metadataTotals.missing);
+  const geoCoverageTone = coverage >= 85 ? 'Alta' : coverage >= 60 ? 'Media' : coverage > 0 ? 'Baja' : 'Sin datos';
+  const geoCoverageClass =
+    coverage >= 85
+      ? 'border-emerald-300/40 bg-emerald-400/10 text-emerald-50'
+      : coverage >= 60
+        ? 'border-amber-300/40 bg-amber-400/10 text-amber-50'
+        : 'border-rose-300/40 bg-rose-400/10 text-rose-50';
+  const responseP90 = safeNumber(responseMinutes.p90);
+  const resolutionP90 = safeNumber(resolutionMinutes.p90);
+  const topCategory = safeMetadataItems(metadata?.categories ?? metadata?.byCategory)[0];
+  const topStatus = safeMetadataItems(metadata?.status ?? metadata?.byStatus)[0];
+  const topSeverity = safeMetadataItems(metadata?.severity)[0];
+  const actionSignals = [
+    topCategory ? `${topCategory.label}: ${safeNumber(topCategory.count).toLocaleString('es-AR')}` : null,
+    topSeverity ? `${topSeverity.label}: ${safeNumber(topSeverity.percentage).toFixed(1)}%` : null,
+    topStatus ? `${topStatus.label}: ${safeNumber(topStatus.count).toLocaleString('es-AR')}` : null,
+  ].filter(Boolean);
+  const focusNarrative = primaryHotspot
+    ? `${String(primaryHotspotLabel)} concentra ${safeNumber(primaryHotspot.count).toLocaleString('es-AR')} eventos.`
+    : 'Sin hotspot dominante en este periodo.';
 
   const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
@@ -210,7 +232,7 @@ export function MapWidget({
           </Alert>
         ) : null}
         <div
-          className="grid gap-3 rounded-lg border border-border/70 bg-slate-950 p-3 text-slate-100 shadow-sm md:grid-cols-4"
+          className="grid gap-3 overflow-hidden rounded-lg border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.22),transparent_28%),linear-gradient(135deg,#07111f,#101827_52%,#171717)] p-3 text-slate-100 shadow-sm md:grid-cols-4"
           data-testid="analytics-map-command-strip"
         >
           <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
@@ -242,6 +264,52 @@ export function MapWidget({
             </p>
           </div>
         </div>
+        <div
+          className="grid gap-3 rounded-lg border border-border/70 bg-background/80 p-3 shadow-sm lg:grid-cols-[1.2fr_1fr_1fr]"
+          data-testid="analytics-map-intelligence-strip"
+        >
+          <div className="rounded-md border bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Lectura ejecutiva</p>
+              <Badge variant="outline" className="bg-background/70">Radar territorial</Badge>
+            </div>
+            <p className="mt-2 text-sm font-medium text-foreground">{focusNarrative}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {totalTickets ? `${totalTickets.toLocaleString('es-AR')} casos evaluados` : 'Sin total operativo informado'}
+              {missingGeo ? ` · ${missingGeo.toLocaleString('es-AR')} sin ubicacion confiable` : ''}
+            </p>
+          </div>
+          <div className={`rounded-md border p-3 ${geoCoverageClass}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Confianza geografica</p>
+            <p className="mt-2 text-xl font-semibold">{geoCoverageTone}</p>
+            <p className="text-xs opacity-80">{coverage ? `${formatPercent(coverage)} de cobertura` : 'Todavia no hay coordenadas suficientes'}</p>
+          </div>
+          <div className="rounded-md border bg-background p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">SLA operativo</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <p className="text-muted-foreground">Respuesta p90</p>
+                <p className="font-mono text-base font-semibold">{responseP90 ? responseP90.toFixed(0) : '—'} min</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Resolucion p90</p>
+                <p className="font-mono text-base font-semibold">{resolutionP90 ? resolutionP90.toFixed(0) : '—'} min</p>
+              </div>
+            </div>
+          </div>
+          {actionSignals.length ? (
+            <div className="rounded-md border bg-background p-3 lg:col-span-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Señales para priorizar</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {actionSignals.map((signal) => (
+                  <Badge key={String(signal)} variant="secondary" className="max-w-full truncate">
+                    {signal}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
         {loading ? (
           <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
             Cargando mapa...
@@ -249,14 +317,20 @@ export function MapWidget({
         ) : !hasDataset ? (
           <AnalyticsEmptyState message="No hay puntos georreferenciados para este periodo." className="h-80" />
         ) : (
-          <MapLibreMap
-            className="h-80 w-full rounded-md"
-            heatmapData={dataset}
-            showHeatmap={mode === 'heatmap'}
-            onBoundingBoxChange={handleBbox}
-            provider={provider}
-            onProviderUnavailable={handleProviderUnavailable}
-          />
+          <div className="relative overflow-hidden rounded-md border border-border/70">
+            <MapLibreMap
+              className="h-80 w-full"
+              heatmapData={dataset}
+              showHeatmap={mode === 'heatmap'}
+              onBoundingBoxChange={handleBbox}
+              provider={provider}
+              onProviderUnavailable={handleProviderUnavailable}
+            />
+            <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/15 bg-slate-950/82 px-3 py-2 text-xs text-white shadow-lg backdrop-blur">
+              <p className="font-semibold">Radar territorial</p>
+              <p className="text-white/70">{mode === 'heatmap' ? 'Intensidad por zona' : 'Puntos reales'}</p>
+            </div>
+          </div>
         )}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span>Hotspots:</span>

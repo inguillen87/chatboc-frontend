@@ -110,7 +110,14 @@ describe('MapWidget', () => {
     expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('90.00%');
     expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('18 geocodificados');
     expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('Centro');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Lectura ejecutiva');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Centro concentra 12 eventos');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Confianza geografica');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Alta');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Respuesta p90');
+    expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('30 min');
     expect(screen.getByTestId('mock-map')).toHaveAttribute('data-mode', 'heatmap');
+    expect(screen.getAllByText('Radar territorial').length).toBeGreaterThan(0);
     expect(screen.getByText('Categorías principales')).toBeInTheDocument();
   });
 
