@@ -5,6 +5,7 @@ import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import NewTicketsPanel from '@/components/tickets/NewTicketsPanel';
 import { apiClient } from '@/api/client';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useTenant } from '@/context/TenantContext';
@@ -68,12 +69,15 @@ const TicketsIdentityCoverageAlert = ({ tenantSlugOverride }: { tenantSlugOverri
   };
 
   return (
-    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <p className="font-medium">{message}</p>
-        <p className="font-mono text-xs">request_id: {requestId}</p>
+    <div className="mb-1 flex flex-col gap-2 rounded-lg border border-border/70 bg-card/80 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Badge variant="outline" className="shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+          Identidad parcial
+        </Badge>
+        <p className="min-w-0 truncate">{message}</p>
+        <p className="font-mono text-[11px] text-muted-foreground/80">request_id: {requestId}</p>
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={handleCopy}>
         Copiar request_id
       </Button>
     </div>

@@ -25,33 +25,120 @@ import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { useUser } from '@/hooks/useUser';
 
 
 const resolveDefaultScope = (tenantType?: string | null) => {
-  if (tenantType === 'pyme') return 'pyme';
-  if (tenantType === 'municipio' || tenantType === 'municipal') return 'municipio';
-
   try {
     const rawUser = safeLocalStorage.getItem('user');
-    if (!rawUser) return 'municipio';
-    const user = JSON.parse(rawUser);
-    if (user?.tipo_chat === 'pyme') return 'pyme';
-    if (user?.tipo_chat === 'municipio') return 'municipio';
+    if (rawUser) {
+      const user = JSON.parse(rawUser);
+      if (user?.tipo_chat === 'pyme') return 'pyme';
+      if (user?.tipo_chat === 'municipio') return 'municipio';
+    }
   } catch {
     return 'municipio';
   }
 
+  if (tenantType === 'pyme') return 'pyme';
+  if (tenantType === 'municipio' || tenantType === 'municipal') return 'municipio';
+
   return 'municipio';
 };
 
-const resolveRequestedScope = (value?: string | null) => {
+const resolveStoredPanelScope = () => {
+  try {
+    const rawUser = safeLocalStorage.getItem('user');
+    if (!rawUser) return null;
+    const user = JSON.parse(rawUser);
+    if (user?.tipo_chat === 'pyme') return 'pyme';
+    if (user?.tipo_chat === 'municipio') return 'municipio';
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const normalizeScopeCandidate = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'municipio' || normalized === 'municipal') return 'municipio';
   if (normalized === 'pyme' || normalized === 'empresa' || normalized === 'ventas') return 'pyme';
   return null;
 };
 
+const resolveRequestedScope = (value?: string | null) => {
+  return normalizeScopeCandidate(value);
+};
+
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
+
+const normalizeAnalyticsRouteValue = (value?: string | null) =>
+  String(value || '').trim().toLowerCase();
+
+const resolveRequestedAnalyticsTab = (searchParams: URLSearchParams): AnalyticsTab | null => {
+  const candidates = [
+    normalizeAnalyticsRouteValue(searchParams.get('focus')),
+    normalizeAnalyticsRouteValue(searchParams.get('section')),
+    normalizeAnalyticsRouteValue(searchParams.get('view')),
+  ].filter(Boolean);
+
+  if (candidates.some((value) => ['operations', 'operaciones', 'heatmap', 'heatmaps', 'mapas', 'maps', 'territorio', 'territory', 'geocoding', 'geocodificacion', 'surveys', 'encuestas', 'votaciones'].includes(value))) {
+    return 'operations';
+  }
+
+  if (candidates.some((value) => ['geo', 'geografia', 'geografia_operativa'].includes(value))) {
+    return 'geo';
+  }
+
+  if (candidates.some((value) => ['realtime', 'tiempo_real', 'live', 'hub'].includes(value))) {
+    return 'realtime';
+  }
+
+  if (candidates.some((value) => ['municipio', 'municipal', 'gobierno'].includes(value))) {
+    return 'municipio';
+  }
+
+  if (candidates.some((value) => ['pyme', 'ventas', 'sales', 'empresa'].includes(value))) {
+    return 'pyme';
+  }
+
+  if (candidates.some((value) => ['overview', 'general', 'estado'].includes(value))) {
+    return 'overview';
+  }
+
+  return null;
+};
+
+const resolveInitialAnalyticsTab = (searchParams: URLSearchParams, isEmbeddedInProfile: boolean): AnalyticsTab =>
+  resolveRequestedAnalyticsTab(searchParams) || (isEmbeddedInProfile ? 'operations' : 'overview');
+
+const ANALYTICS_HUB_TIMEOUT_MS = 3500;
+const ANALYTICS_SUMMARY_TIMEOUT_MS = 5500;
+
+const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
+  kpis: {
+    total_interactions: 0,
+    active_users: 0,
+    avg_response_time_s: 0,
+  },
+  top_categories: [],
+  volume_by_day: [],
+  heatmap_points: [],
+  insights: [],
+};
+
+const withAnalyticsTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 
 const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
@@ -100,7 +187,13 @@ const AnalyticsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentSlug, tenant } = useTenant();
+  const { user } = useUser();
   const isEmbeddedInProfile = location.pathname === '/perfil';
+  const storedPanelScope = resolveStoredPanelScope();
+  const liveUserScope = normalizeScopeCandidate(user?.tipo_chat);
+  const panelUserScope = isEmbeddedInProfile
+    ? storedPanelScope || liveUserScope
+    : liveUserScope || storedPanelScope;
 
   const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
 
@@ -131,7 +224,8 @@ const AnalyticsPage = () => {
   const [realtimeHub, setRealtimeHub] = useState<RealtimeHubResponse | null>(null);
   const [loadingRealtimeHub, setLoadingRealtimeHub] = useState(false);
   const [autoRefreshRealtimeHub, setAutoRefreshRealtimeHub] = useState(true);
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
+  const requestedAnalyticsTab = useMemo(() => resolveRequestedAnalyticsTab(searchParams), [searchParams]);
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>(() => resolveInitialAnalyticsTab(searchParams, isEmbeddedInProfile));
 
   const hubEncuestasPath = useMemo(() => {
     const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
@@ -157,23 +251,38 @@ const AnalyticsPage = () => {
       .filter(Boolean) as AnalyticsTab[];
 
     if (!tabsFromHub.length) {
-      return ['overview', 'operations', 'municipio', 'pyme', 'geo', 'realtime'] as AnalyticsTab[];
+      return ['overview', 'operations', 'municipio', 'pyme', 'realtime'] as AnalyticsTab[];
     }
 
     const withOperations = tabsFromHub.includes('operations')
       ? tabsFromHub
       : [...tabsFromHub.slice(0, 1), 'operations', ...tabsFromHub.slice(1)];
 
-    return withOperations.includes('realtime')
+    const withRealtime = withOperations.includes('realtime')
       ? withOperations
       : [...withOperations, 'realtime'];
+
+    return withRealtime.includes('operations')
+      ? withRealtime.filter((tab) => tab !== 'geo')
+      : withRealtime;
   }, [hubSections]);
 
   useEffect(() => {
     if (!visibleTabs.includes(activeTab)) {
-      setActiveTab(visibleTabs[0] || 'overview');
+      const preferredTab = requestedAnalyticsTab && visibleTabs.includes(requestedAnalyticsTab)
+        ? requestedAnalyticsTab
+        : visibleTabs.includes('operations')
+          ? 'operations'
+          : visibleTabs[0] || 'overview';
+      setActiveTab(preferredTab);
     }
-  }, [activeTab, visibleTabs]);
+  }, [activeTab, requestedAnalyticsTab, visibleTabs]);
+
+  useEffect(() => {
+    if (requestedAnalyticsTab && visibleTabs.includes(requestedAnalyticsTab) && activeTab !== requestedAnalyticsTab) {
+      setActiveTab(requestedAnalyticsTab);
+    }
+  }, [activeTab, requestedAnalyticsTab, visibleTabs]);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
@@ -203,10 +312,15 @@ const AnalyticsPage = () => {
   useEffect(() => {
     const requestedScope = resolveRequestedScope(searchParams.get('scope'));
     setScope((prevScope) => {
-      const nextScope = requestedScope || resolveDefaultScope(tenant?.tipo ?? null);
+      const lockedProfileScope = isEmbeddedInProfile ? panelUserScope : null;
+      const nextScope =
+        lockedProfileScope ||
+        requestedScope ||
+        panelUserScope ||
+        resolveDefaultScope(tenant?.tipo ?? null);
       return prevScope === nextScope ? prevScope : nextScope;
     });
-  }, [searchParams, tenant?.tipo]);
+  }, [isEmbeddedInProfile, panelUserScope, searchParams, tenant?.tipo]);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -237,18 +351,30 @@ const AnalyticsPage = () => {
       };
       let result: AnalyticsSummary;
 
-      const hub = await analyticsService.getHub(requestPayload).catch(() => null);
+      const hub = await withAnalyticsTimeout(
+        analyticsService.getHub(requestPayload).catch(() => null),
+        ANALYTICS_HUB_TIMEOUT_MS,
+        'analytics_hub_timeout',
+      ).catch(() => null);
       const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
       setHubNavigation(primaryNavigation);
       setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
 
       try {
-        result = await analyticsService.getSummary(requestPayload, hub);
+        result = await withAnalyticsTimeout(
+          analyticsService.getSummary(requestPayload, hub),
+          ANALYTICS_SUMMARY_TIMEOUT_MS,
+          'analytics_summary_timeout',
+        );
       } catch (err: any) {
         const shouldTryAlternateScope =
           err instanceof ApiError &&
           err.status === 400 &&
-          (scope === 'municipio' || scope === 'pyme');
+          (scope === 'municipio' || scope === 'pyme') &&
+          !resolveRequestedScope(searchParams.get('scope')) &&
+          !panelUserScope &&
+          tenant?.tipo !== 'municipio' &&
+          tenant?.tipo !== 'municipal';
 
         if (!shouldTryAlternateScope) {
           throw err;
@@ -271,6 +397,11 @@ const AnalyticsPage = () => {
       }
     } catch (err: any) {
       console.error(err);
+      if (err instanceof Error && err.message === 'analytics_summary_timeout') {
+        setData(EMPTY_ANALYTICS_SUMMARY);
+        setError(null);
+        return;
+      }
       const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
@@ -444,10 +575,79 @@ const AnalyticsPage = () => {
     }
   };
 
+  const filterControls = (
+    <>
+      <Select value={timeRange} onValueChange={setTimeRange}>
+        <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectValue placeholder="Periodo" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="24h">Ultimas 24 horas</SelectItem>
+          <SelectItem value="7d">Ultimos 7 dias</SelectItem>
+          <SelectItem value="30d">Ultimos 30 dias</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={scope} onValueChange={setScope}>
+        <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectValue placeholder="Scope" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="municipio">Municipio</SelectItem>
+          <SelectItem value="pyme">Pyme</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input
+        value={channelFilter}
+        onChange={(e) => setChannelFilter(e.target.value)}
+        placeholder="Canal"
+        className="w-full sm:w-[150px]"
+      />
+      <Input
+        value={categoryFilter}
+        onChange={(e) => setCategoryFilter(e.target.value)}
+        placeholder="Categoria"
+        className="w-full sm:w-[150px]"
+      />
+      <Input
+        value={zoneFilter}
+        onChange={(e) => setZoneFilter(e.target.value)}
+        placeholder="Zona"
+        className="w-full sm:w-[150px]"
+      />
+      <Input
+        value={genderFilter}
+        onChange={(e) => setGenderFilter(e.target.value)}
+        placeholder="Genero"
+        className="w-full sm:w-[150px]"
+      />
+      <Input
+        value={ageRangeFilter}
+        onChange={(e) => setAgeRangeFilter(e.target.value)}
+        placeholder="Rango edad"
+        className="w-full sm:w-[150px]"
+      />
+      <Input
+        value={sourceFilter}
+        onChange={(e) => setSourceFilter(e.target.value)}
+        placeholder="Fuente"
+        className="w-full sm:w-[150px]"
+      />
+      <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
+      <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
+      <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
+        {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
+      </Button>
+    </>
+  );
+
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/60 p-8 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-4 text-sm font-semibold text-foreground">Preparando analítica operativa</p>
+        <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
+          Cargando métricas, mapas de calor, encuestas y actividad del CRM. Si el backend tarda, mostramos una consola usable en lugar de dejarte esperando.
+        </p>
       </div>
     );
   }
@@ -464,6 +664,7 @@ const AnalyticsPage = () => {
 
   return (
     <div className={`space-y-6 ${isEmbeddedInProfile ? 'p-0 bg-transparent min-h-0' : 'p-3 sm:p-6 bg-gray-50 dark:bg-slate-950 min-h-screen'}`}>
+      {!isEmbeddedInProfile ? (
       <section className="overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl space-y-3">
@@ -474,7 +675,7 @@ const AnalyticsPage = () => {
             <div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Reportes entendibles para decidir</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
-                Primero estado, prioridades y mapas. La analitica avanzada queda para investigar segmentos, generar
+                Primero estado, prioridades y mapas. La analítica avanzada queda para investigar segmentos, generar
                 resumen IA y exportar PDF/CSV.
               </p>
             </div>
@@ -487,7 +688,7 @@ const AnalyticsPage = () => {
                 <BarChart3 className="h-4 w-4" />
                 Operaciones
               </Button>
-              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('geo')}>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
                 <MapPinned className="h-4 w-4" />
                 Mapas de calor
               </Button>
@@ -502,13 +703,38 @@ const AnalyticsPage = () => {
             </div>
           </div>
           <div className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground xl:max-w-sm">
-            <p className="font-semibold text-foreground">Como leer esta seccion</p>
-            <p><strong className="text-foreground">Estadisticas:</strong> tablero simple para administracion diaria.</p>
-            <p><strong className="text-foreground">Analitica IA:</strong> investigacion, segmentos, mapas, resumen ejecutivo y exportaciones.</p>
+            <p className="font-semibold text-foreground">Cómo leer esta sección</p>
+            <p><strong className="text-foreground">Estadísticas:</strong> tablero simple para administración diaria.</p>
+            <p><strong className="text-foreground">Analítica IA:</strong> investigación, segmentos, mapas, resumen ejecutivo y exportaciones.</p>
           </div>
         </div>
       </section>
+      ) : (
+        <section className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Analitica operativa</p>
+              <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas y metricas en vivo</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('operations')}>
+                <BarChart3 className="mr-1.5 h-4 w-4" />
+                Operaciones
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
+                <MapPinned className="mr-1.5 h-4 w-4" />
+                Mapas
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate(hubEncuestasPath)}>
+                <Vote className="mr-1.5 h-4 w-4" />
+                Encuestas
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
+      {!isEmbeddedInProfile ? (
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
           <div>
@@ -565,7 +791,7 @@ const AnalyticsPage = () => {
           <Input
             value={genderFilter}
             onChange={(e) => setGenderFilter(e.target.value)}
-            placeholder="Genero"
+            placeholder="Género"
             className="w-full sm:w-[150px]"
           />
           <Input
@@ -587,6 +813,14 @@ const AnalyticsPage = () => {
           </Button>
         </div>
       </div>
+      ) : (
+        <details className="rounded-xl border border-border/70 bg-background/80 px-3 py-2 shadow-sm">
+          <summary className="cursor-pointer text-sm font-semibold text-foreground">Filtros, exportaciones y resumen IA</summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:flex xl:flex-wrap">
+            {filterControls}
+          </div>
+        </details>
+      )}
 
 
       {summaryError ? <p className="text-sm text-destructive">{summaryError}</p> : null}
@@ -596,7 +830,7 @@ const AnalyticsPage = () => {
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="font-semibold">Resumen ejecutivo</h2>
-              <p className="text-xs text-muted-foreground">Generado con politica de IA operativa para analitica.</p>
+              <p className="text-xs text-muted-foreground">Generado con política de IA operativa para analítica.</p>
             </div>
             <ModelPolicyBadges policy={executiveModelPolicy} />
           </div>
@@ -605,6 +839,7 @@ const AnalyticsPage = () => {
       ) : null}
 
 
+      {!isEmbeddedInProfile ? (
       <details className="rounded-lg border bg-card p-4">
         <summary className="cursor-pointer font-semibold">Diccionario de KPIs</summary>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -619,6 +854,7 @@ const AnalyticsPage = () => {
           ))}
         </div>
       </details>
+      ) : null}
 
       <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">

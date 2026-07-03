@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   OperationsAIOpsQueueV1,
+  OperationsAIProviderStatusV1,
   OperationsActionCenterV1,
   OperationsDashboardV1,
   OperationsFreshnessV1,
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getOperationsActionCenterV2: vi.fn(),
   getOperationsAIBriefV2: vi.fn(),
   getOperationsAIOpsQueueV2: vi.fn(),
+  getOperationsAIProviderStatusV2: vi.fn(),
   getOperationsFreshnessV2: vi.fn(),
   getPublicMapConfigV1: vi.fn(),
 }));
@@ -51,6 +53,7 @@ vi.mock('./analyticsApi', () => ({
   getOperationsActionCenterV2: mocks.getOperationsActionCenterV2,
   getOperationsAIBriefV2: mocks.getOperationsAIBriefV2,
   getOperationsAIOpsQueueV2: mocks.getOperationsAIOpsQueueV2,
+  getOperationsAIProviderStatusV2: mocks.getOperationsAIProviderStatusV2,
   getOperationsFreshnessV2: mocks.getOperationsFreshnessV2,
   getPublicMapConfigV1: mocks.getPublicMapConfigV1,
 }));
@@ -335,6 +338,54 @@ const aiOpsQueueFixture = (): OperationsAIOpsQueueV1 => ({
   ],
 });
 
+const aiProviderStatusFixture = (): OperationsAIProviderStatusV1 => ({
+  contract_version: 'ai.provider_status_public.v1',
+  generated_at: '2026-06-27T12:00:00Z',
+  secret_values_exposed: false,
+  llm_provider_order: ['gemini', 'openai', 'huggingface'],
+  readiness: {
+    chat_ready: true,
+    specialized_ai_ready: false,
+    status: 'warning',
+    warnings: ['huggingface_quota_or_payment_required'],
+  },
+  providers: {
+    gemini: {
+      provider: 'gemini',
+      configured: true,
+      provider_order_enabled: true,
+      chat_model: 'gemini-2.5-flash',
+    },
+    openai: {
+      provider: 'openai',
+      configured: true,
+      chat_default: true,
+    },
+    huggingface: {
+      provider: 'huggingface',
+      configured: true,
+      enabled: true,
+      runtime_status: 'degraded',
+      quota_depleted: true,
+      fallback_behavior: 'deterministic_local_fallback',
+      last_failure: {
+        reason_code: 'huggingface_quota_or_payment_required',
+        task: 'zero_shot',
+        error_type: 'RuntimeError',
+      },
+    },
+  },
+  model_policy: {
+    task_type: 'analytics',
+    primary_provider: 'gemini',
+    selected_provider: 'fallback',
+  },
+  frontend_contract: {
+    render_as: 'operations_ai_provider_status',
+    advisory_only: true,
+  },
+});
+
 const mapConfigFixture = (): PublicMapConfigV1 => ({
   provider: 'maplibre',
   available_providers: ['maplibre'],
@@ -365,6 +416,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
     mocks.getOperationsAIBriefV2.mockResolvedValue(null);
     mocks.getOperationsAIOpsQueueV2.mockResolvedValue(aiOpsQueueFixture());
+    mocks.getOperationsAIProviderStatusV2.mockResolvedValue(aiProviderStatusFixture());
     mocks.getOperationsFreshnessV2.mockResolvedValue(freshnessFixture());
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
   });
@@ -395,7 +447,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(aiCockpit.textContent).toContain('Pulsos de riesgo IA');
     expect(screen.getByText('Mapa operativo confiable')).toBeTruthy();
     expect(screen.getAllByText('75%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Cola de geocodificacion')).toBeTruthy();
+    expect(screen.getByText('Cola de geocodificación')).toBeTruthy();
     expect(screen.getByText('1 pendiente')).toBeTruthy();
     expect(screen.getByText('Av. San Martin 123, Junin')).toBeTruthy();
     expect(screen.getByText('Geocodificar direcciones pendientes')).toBeTruthy();
@@ -403,17 +455,18 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByRole('button', { name: /Ai risk riesgo y prioridad IA/i }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('premium-territory-heatmap').textContent).toContain('premium map 2 puntos');
 
-    fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'alumbrado' } });
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
 
     await waitFor(() => {
       expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantSlug: 'junin',
+          include_ai: 0,
           categoria: 'alumbrado',
         }),
       );
     });
-    expect(await screen.findByRole('button', { name: /Quitar filtro Categoria Alumbrado/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
   });
 
   it('keeps the territorial section visible when the dedicated heatmap endpoint fails', async () => {
@@ -429,6 +482,21 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
   });
 
+  it('keeps the cockpit, map and AI queue usable when the main dashboard summary times out', async () => {
+    mocks.getOperationsDashboardV2.mockRejectedValue(new Error('operations_dashboard_timeout'));
+
+    renderPanel();
+
+    expect(await screen.findByTestId('operations-dashboard-degraded')).toBeTruthy();
+    expect(screen.getByText('Tablero en continuidad operativa')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Refrescar resumen/i })).toBeTruthy();
+    expect(screen.getByTestId('operations-command-cockpit')).toBeTruthy();
+    expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
+    expect(screen.getByText('Centro territorial')).toBeTruthy();
+    expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
+    expect(screen.getByText('continuidad activa')).toBeTruthy();
+  });
+
   it('renders the AI operations queue for tickets, assisted orders and surveys', async () => {
     renderPanel();
 
@@ -436,7 +504,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getAllByText('Valeria IA-Analytics').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('3 items')).toBeTruthy();
     expect(screen.getByText('1 alta')).toBeTruthy();
-    expect(screen.getByText('solo lectura')).toBeTruthy();
+    expect(screen.getAllByText('solo lectura').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Reclamo requiere revision humana')).toBeTruthy();
     expect(screen.getByText('Pedido asistido requiere revision')).toBeTruthy();
     expect(screen.getByText('Encuesta o votacion en monitoreo')).toBeTruthy();
@@ -453,6 +521,41 @@ describe('OperationsDashboardPanel territory UX', () => {
         }),
       );
     });
+  });
+
+  it('renders tenant scoped AI provider status without exposing internals', async () => {
+    renderPanel();
+
+    const panel = await screen.findByTestId('operations-ai-provider-status');
+    expect(panel.textContent).toContain('IA operacional');
+    expect(panel.textContent).toContain('Gemini');
+    expect(panel.textContent).toContain('Hugging Face');
+    expect(panel.textContent).toContain('chat listo');
+    expect(panel.textContent).toContain('IA especializada degradada');
+    expect(panel.textContent).toContain('solo lectura');
+    expect(panel.textContent).toContain('Fallback local seguro');
+    expect(panel.textContent).toContain('deterministic local fallback');
+    expect(panel.textContent).toContain('huggingface quota or payment required');
+    expect(panel.textContent).not.toContain('sk-');
+    expect(panel.textContent).not.toContain('hf_');
+    await waitFor(() => {
+      expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'junin',
+        }),
+      );
+    });
+  });
+
+  it('keeps provider status as a recoverable card when the endpoint fails', async () => {
+    mocks.getOperationsAIProviderStatusV2.mockRejectedValue(new Error('operations_ai_provider_status_timeout'));
+
+    renderPanel();
+
+    const panel = await screen.findByTestId('operations-ai-provider-status');
+    expect(panel.textContent).toContain('Estado IA no disponible');
+    expect(panel.textContent).toContain('fallback seguro');
+    expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
   });
 
   it('keeps a professional map empty state visible when coordinates are not renderable', async () => {
@@ -483,7 +586,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     expect(await screen.findByText('Mapa sin puntos operativos')).toBeTruthy();
-    expect(screen.getByText('4 direcciones pendientes de geocodificacion antes de mejorar la cobertura.')).toBeTruthy();
+    expect(screen.getByText('4 direcciones pendientes de geocodificación antes de mejorar la cobertura.')).toBeTruthy();
     expect(screen.getByText('4 pendientes')).toBeTruthy();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
   });
@@ -509,7 +612,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     expect(await screen.findByText('Mapa sin puntos operativos')).toBeTruthy();
-    expect(screen.getByText('El backend marco el heatmap como no renderizable para este periodo.')).toBeTruthy();
+    expect(screen.getByText('El backend marcó el heatmap como no renderizable para este periodo.')).toBeTruthy();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
   });
 

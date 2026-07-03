@@ -500,6 +500,56 @@ export interface OperationsAIOpsQueueV1 {
   frontend_contract?: OperationsFrontendContract;
 }
 
+export interface OperationsAIProviderSafeFailure {
+  reason_code?: string;
+  task?: string;
+  error_type?: string;
+  [key: string]: unknown;
+}
+
+export interface OperationsAIProviderStatusItem {
+  provider?: string;
+  configured?: boolean;
+  enabled?: boolean;
+  installed?: boolean;
+  install_extras_enabled?: boolean;
+  chat_default?: boolean;
+  provider_order_enabled?: boolean;
+  runtime_status?: string;
+  quota_depleted?: boolean;
+  fallback_behavior?: string;
+  mode?: string;
+  chat_model?: string;
+  zero_shot_enabled?: boolean;
+  zero_shot_model?: string;
+  embeddings_enabled?: boolean;
+  embedding_model?: string;
+  vision_enabled?: boolean;
+  recommended_uses?: string[];
+  required_env?: string[];
+  optional_env?: string[];
+  last_failure?: OperationsAIProviderSafeFailure;
+  [key: string]: unknown;
+}
+
+export interface OperationsAIProviderStatusV1 {
+  contract_version?: string;
+  request_id?: string;
+  generated_at?: string;
+  secret_values_exposed?: boolean;
+  llm_provider_order: string[];
+  readiness?: {
+    chat_ready?: boolean;
+    specialized_ai_ready?: boolean;
+    status?: string;
+    warnings?: string[];
+    [key: string]: unknown;
+  };
+  providers: Record<string, OperationsAIProviderStatusItem>;
+  model_policy?: Record<string, unknown>;
+  frontend_contract?: OperationsFrontendContract;
+}
+
 export interface OperationsAIBriefV1 {
   contract_version?: string;
   request_id?: string;

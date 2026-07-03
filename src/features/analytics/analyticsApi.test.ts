@@ -13,6 +13,7 @@ vi.mock('@/api/v2/client', () => ({
 import {
   getOperationsDashboardV2,
   getOperationsHeatmapV2,
+  getOperationsAIProviderStatusV2,
   getOperationsAIBriefV2,
   getPublicMapConfigV1,
 } from './analyticsApi';
@@ -264,6 +265,7 @@ describe('operations heatmap v2 contract', () => {
       canal: 'whatsapp',
       barrio: 'Centro',
       estado: 'nuevo',
+      include_ai: 0,
     });
 
     const [url, options] = mocks.panelGet.mock.calls[0];
@@ -277,6 +279,7 @@ describe('operations heatmap v2 contract', () => {
     expect(url).toContain('canal=whatsapp');
     expect(url).toContain('barrio=Centro');
     expect(url).toContain('estado=nuevo');
+    expect(url).toContain('include_ai=0');
     expect(options).toMatchObject({ tenantSlug: 'junin' });
 
     expect(response.points).toHaveLength(1);
@@ -556,6 +559,84 @@ describe('operations heatmap v2 contract', () => {
       title: 'Asignar cuadrilla de luminaria',
       priority: 'high',
     });
+  });
+
+  it('normalizes tenant scoped AI provider status without secret values', async () => {
+    mocks.panelGet.mockResolvedValue({
+      contract_version: 'ai.provider_status_public.v1',
+      generated_at: '2026-06-27T12:00:00Z',
+      secret_values_exposed: 'false',
+      llm_provider_order: ['gemini', 'openai', null, 'huggingface'],
+      readiness: {
+        chat_ready: 'true',
+        specialized_ai_ready: 'false',
+        status: 'warning',
+        warnings: ['huggingface_quota_or_payment_required', null],
+      },
+      providers: {
+        gemini: {
+          configured: 'true',
+          provider_order_enabled: 'true',
+          chat_model: 'gemini-2.5-flash',
+        },
+        huggingface: {
+          configured: 'true',
+          enabled: 'true',
+          runtime_status: 'degraded',
+          quota_depleted: 'true',
+          fallback_behavior: 'deterministic_local_fallback',
+          required_env: ['HUGGINGFACE_API_TOKEN', null],
+          last_failure: {
+            reason_code: 'huggingface_quota_or_payment_required',
+            task: 'zero_shot',
+            message: 'raw message should stay out of normalized failure',
+          },
+        },
+      },
+      frontend_contract: {
+        render_as: 'operations_ai_provider_status',
+        advisory_only: true,
+      },
+    });
+
+    const response = await getOperationsAIProviderStatusV2({ tenantSlug: 'junin' });
+
+    const [url, options] = mocks.panelGet.mock.calls[0];
+    expect(url).toContain('/api/v2/analytics/operations/ai-provider-status');
+    expect(options).toMatchObject({ tenantSlug: 'junin' });
+    expect(response).toMatchObject({
+      contract_version: 'ai.provider_status_public.v1',
+      secret_values_exposed: false,
+      llm_provider_order: ['gemini', 'openai', 'huggingface'],
+      readiness: {
+        chat_ready: true,
+        specialized_ai_ready: false,
+        status: 'warning',
+        warnings: ['huggingface_quota_or_payment_required'],
+      },
+      providers: {
+        gemini: {
+          provider: 'gemini',
+          configured: true,
+          provider_order_enabled: true,
+          chat_model: 'gemini-2.5-flash',
+        },
+        huggingface: {
+          provider: 'huggingface',
+          configured: true,
+          enabled: true,
+          runtime_status: 'degraded',
+          quota_depleted: true,
+          fallback_behavior: 'deterministic_local_fallback',
+          required_env: ['HUGGINGFACE_API_TOKEN'],
+          last_failure: {
+            reason_code: 'huggingface_quota_or_payment_required',
+            task: 'zero_shot',
+          },
+        },
+      },
+    });
+    expect(response.providers.huggingface.last_failure).not.toHaveProperty('message');
   });
 
   it('keeps the AI brief when it is embedded in the operations dashboard contract', async () => {

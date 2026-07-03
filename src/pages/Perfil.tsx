@@ -168,6 +168,37 @@ const slugify = (value?: string | number | null) => {
   return normalized || null;
 };
 
+const titleCaseFromSlug = (value?: string | number | null) => {
+  const slug = slugify(value);
+  if (!slug) return "";
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const resolvePanelDisplayName = (user: any, tenantSlug?: string | null) => {
+  const direct =
+    user?.nombre_empresa ||
+    user?.empresa ||
+    user?.tenant?.nombre ||
+    user?.tenant?.name ||
+    user?.tenant?.display_name ||
+    user?.name;
+
+  if (typeof direct === "string" && direct.trim()) {
+    return direct.trim();
+  }
+
+  const fallbackName = titleCaseFromSlug(tenantSlug || user?.tenant_slug || user?.tenantSlug);
+  if (fallbackName && user?.tipo_chat === "municipio") {
+    return `Municipalidad de ${fallbackName}`;
+  }
+
+  return fallbackName;
+};
+
 const humanizeDocumentSource = (value?: string | null): string => {
   if (!value) return 'documento';
   const normalized = value.toLowerCase();
@@ -495,6 +526,31 @@ export default function Perfil() {
     if (persistedTenantSlug) {
       safeLocalStorage.setItem("tenantSlug", persistedTenantSlug);
     }
+
+    const userRecord = user as any;
+    const seededName = resolvePanelDisplayName(userRecord, persistedTenantSlug);
+    const seededRubro =
+      userRecord?.tipo_chat === "municipio"
+        ? "municipio"
+        : typeof userRecord?.rubro === "string"
+          ? userRecord.rubro.toLowerCase()
+          : "";
+
+    setPerfil((prev) => ({
+      ...prev,
+      tenant_slug: persistedTenantSlug || (prev as any).tenant_slug,
+      slug: persistedTenantSlug || (prev as any).slug,
+      nombre_empresa: prev.nombre_empresa || seededName || "",
+      telefono: prev.telefono || userRecord?.telefono || "",
+      plan: prev.plan === "gratis" ? (userRecord?.plan || prev.plan) : prev.plan,
+      rubro: prev.rubro || seededRubro,
+      logo_url: prev.logo_url || userRecord?.logo_url || "",
+      avatar_url: prev.avatar_url || userRecord?.avatar_url || userRecord?.picture || "",
+      avatar_source: prev.avatar_source || userRecord?.avatar_source || "",
+      avatar_consent:
+        prev.avatar_consent ||
+        Boolean(userRecord?.avatar_consent ?? userRecord?.profile_picture_consent ?? false),
+    }));
 
     setProfileReady(true);
   }, [profileReady, user]);
@@ -1845,6 +1901,7 @@ export default function Perfil() {
     ? backendControlCards.slice(4)
     : secondaryControlCards;
   const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
+  const isWorkspaceProfileTab = activeProfileTab === "tickets" || activeProfileTab === "analytics";
 
   if (!profileReady) {
     return (
@@ -1867,13 +1924,15 @@ export default function Perfil() {
         "flex flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         activeProfileTab === "tickets"
           ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
+          : activeProfileTab === "analytics"
+            ? "min-h-screen px-1 py-1 sm:px-2 md:px-3"
           : "min-h-screen px-2 py-4 sm:px-4 md:px-6 lg:px-8",
       )}
     >
       <div
         className={cn(
           "mx-auto w-full shrink-0",
-          activeProfileTab === "tickets"
+          isWorkspaceProfileTab
             ? "mb-1 max-w-[min(2200px,calc(100vw-0.5rem))] px-1 pt-1"
             : "mb-5 max-w-7xl px-2 pt-16 sm:pt-0",
         )}
@@ -1882,7 +1941,7 @@ export default function Perfil() {
           variant="outline"
           className={cn(
             "float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10",
-            activeProfileTab === "tickets" && "hidden",
+            isWorkspaceProfileTab && "hidden",
           )}
           onClick={() => {
             safeLocalStorage.clear();
@@ -1891,11 +1950,13 @@ export default function Perfil() {
         >
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
-        {activeProfileTab === "tickets" ? (
+        {isWorkspaceProfileTab ? (
           <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:px-3">
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
-                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Consola tickets</p>
+                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                  {activeProfileTab === "tickets" ? "Consola tickets" : "Consola analitica"}
+                </p>
                 <span className="hidden h-3 w-px bg-border sm:block" />
                 <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
                   {perfil.nombre_empresa || "Panel de Empresa"}
@@ -2008,6 +2069,8 @@ export default function Perfil() {
           "mx-auto w-full",
           activeProfileTab === "tickets"
             ? "flex min-h-0 flex-1 flex-col max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
+            : activeProfileTab === "analytics"
+              ? "max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
             : "max-w-7xl",
         )}
       >
@@ -2016,6 +2079,8 @@ export default function Perfil() {
             "sticky z-30 border-y border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border",
             activeProfileTab === "tickets"
               ? "top-0 -mx-1 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              : activeProfileTab === "analytics"
+                ? "top-0 -mx-1 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               : "top-0 -mx-2 px-2 py-2",
           )}
         >

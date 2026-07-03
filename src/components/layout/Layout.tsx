@@ -9,9 +9,10 @@ const Layout = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const isEmbed = searchParams.get('mode') === 'embed';
-  const isTicketsWorkspace =
+  const profileTab = searchParams.get('tab');
+  const isProfileBackofficeWorkspace =
     location.pathname.replace(/\/+$/, '') === '/perfil' &&
-    searchParams.get('tab') === 'tickets';
+    ['tickets', 'analytics'].includes(profileTab || '');
 
   // Public navigation should land immediately at the top of the new screen.
   useLayoutEffect(() => {
@@ -36,14 +37,14 @@ const Layout = () => {
         id="main-content"
         tabIndex={-1}
         className={
-          isTicketsWorkspace
+          isProfileBackofficeWorkspace
             ? 'flex-1 w-full pt-14'
             : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >
         <Outlet />
       </main>
-      {!isTicketsWorkspace ? (
+      {!isProfileBackofficeWorkspace ? (
         <>
           <ScrollToTopButton />
           <Footer />

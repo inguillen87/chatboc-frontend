@@ -4,6 +4,8 @@ import type {
   OperationsAIOpsQueueItem,
   OperationsAIOpsQueueV1,
   OperationsAIBriefV1,
+  OperationsAIProviderStatusItem,
+  OperationsAIProviderStatusV1,
   OperationsActionCenterV1,
   OperationsActionItem,
   OperationsAlert,
@@ -86,6 +88,8 @@ const buildQuery = (params?: {
   source?: string | null;
   bbox?: string | null;
   limit?: number | null;
+  include_ai?: boolean | number | string | null;
+  ai?: boolean | number | string | null;
 }) => {
   if (!params) return '';
   const query = new URLSearchParams();
@@ -122,6 +126,8 @@ const buildQuery = (params?: {
   append('source', params.source);
   append('bbox', params.bbox);
   append('limit', params.limit);
+  append('include_ai', params.include_ai);
+  append('ai', params.ai);
 
   const serialized = query.toString();
   return serialized ? `?${serialized}` : '';
@@ -912,6 +918,68 @@ const normalizeAIOpsQueue = (response: unknown): OperationsAIOpsQueueV1 => {
   };
 };
 
+const normalizeAIProviderStatusItem = (value: unknown, key: string): OperationsAIProviderStatusItem => {
+  const record = pickRecord(value) ?? {};
+  const failure = pickRecord(record.last_failure);
+  return {
+    ...record,
+    provider: asString(record.provider) ?? key,
+    configured: asBoolean(record.configured),
+    enabled: asBoolean(record.enabled),
+    installed: asBoolean(record.installed),
+    install_extras_enabled: asBoolean(record.install_extras_enabled),
+    chat_default: asBoolean(record.chat_default),
+    provider_order_enabled: asBoolean(record.provider_order_enabled),
+    runtime_status: asString(record.runtime_status),
+    quota_depleted: asBoolean(record.quota_depleted),
+    fallback_behavior: asString(record.fallback_behavior),
+    mode: asString(record.mode),
+    chat_model: asString(record.chat_model),
+    zero_shot_enabled: asBoolean(record.zero_shot_enabled),
+    zero_shot_model: asString(record.zero_shot_model),
+    embeddings_enabled: asBoolean(record.embeddings_enabled),
+    embedding_model: asString(record.embedding_model),
+    vision_enabled: asBoolean(record.vision_enabled),
+    recommended_uses: normalizeStringList(record.recommended_uses),
+    required_env: normalizeStringList(record.required_env),
+    optional_env: normalizeStringList(record.optional_env),
+    last_failure: failure
+      ? {
+          reason_code: asString(failure.reason_code),
+          task: asString(failure.task),
+          error_type: asString(failure.error_type),
+        }
+      : undefined,
+  };
+};
+
+const normalizeAIProviderStatus = (response: unknown): OperationsAIProviderStatusV1 => {
+  const record = pickRecord(response) ?? {};
+  const providerRecord = pickRecord(record.providers) ?? {};
+  const readiness = pickRecord(record.readiness) ?? {};
+  const providers = Object.fromEntries(
+    Object.entries(providerRecord).map(([key, value]) => [key, normalizeAIProviderStatusItem(value, key)]),
+  );
+
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    generated_at: asString(record.generated_at),
+    secret_values_exposed: asBoolean(record.secret_values_exposed),
+    llm_provider_order: normalizeStringList(record.llm_provider_order) ?? [],
+    readiness: {
+      ...readiness,
+      chat_ready: asBoolean(readiness.chat_ready),
+      specialized_ai_ready: asBoolean(readiness.specialized_ai_ready),
+      status: asString(readiness.status),
+      warnings: normalizeStringList(readiness.warnings) ?? [],
+    },
+    providers,
+    model_policy: pickRecord(record.model_policy),
+    frontend_contract: normalizeFrontendContract(record.frontend_contract),
+  };
+};
+
 const normalizeFreshnessSource = (value: unknown, index: number): OperationsFreshnessSource | null => {
   if (!isRecord(value)) return null;
   return {
@@ -1028,6 +1096,8 @@ export const getOperationsHeatmapV2 = async (params?: {
   source?: string | null;
   bbox?: string | null;
   limit?: number | null;
+  include_ai?: boolean | number | string | null;
+  ai?: boolean | number | string | null;
 }) => {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/heatmap${query}`, {
@@ -1088,6 +1158,21 @@ export const getOperationsAIOpsQueueV2 = async (params?: {
     tenantSlug: params?.tenantSlug,
   });
   return normalizeAIOpsQueue(response);
+};
+
+export const getOperationsAIProviderStatusV2 = async (params?: {
+  tenantSlug?: string | null;
+  tenant_id?: number | string | null;
+  from?: string | null;
+  to?: string | null;
+  range?: string | null;
+  scope?: string | null;
+}) => {
+  const query = buildQuery(params);
+  const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-provider-status${query}`, {
+    tenantSlug: params?.tenantSlug,
+  });
+  return normalizeAIProviderStatus(response);
 };
 
 export const getOperationsFreshnessV2 = async (params?: {

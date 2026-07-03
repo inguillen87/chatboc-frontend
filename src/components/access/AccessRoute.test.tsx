@@ -319,6 +319,44 @@ describe('AccessRoute', () => {
     expect(screen.getByText('tickets-persisted-user-ok')).toBeInTheDocument();
   });
 
+  it('renders with persisted user data even while refreshUser is still loading', () => {
+    useUserMock.mockReturnValue({ user: null, loading: true });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+    safeLocalStorageGetItemMock.mockImplementation((key: string) => {
+      if (key === 'authToken') return 'stored-token';
+      if (key === 'user') {
+        return JSON.stringify({
+          rol: 'admin',
+          tenant_slug: 'junin',
+          tipo_chat: 'municipio',
+        });
+      }
+      return null;
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/analytics/operations']}>
+        <Routes>
+          <Route
+            path="/t/:tenant/analytics/operations"
+            element={
+              <AccessRoute roles={['tenant_admin', 'employee', 'superadmin', 'analytics_viewer']}>
+                <div>analytics-operation-ready</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('analytics-operation-ready')).toBeInTheDocument();
+  });
+
   it('does not block tenant admins from operational modules when fine-grained capabilities are incomplete', () => {
     useUserMock.mockReturnValue({ user: { rol: 'admin_municipio' }, loading: false });
     useCapabilitiesMock.mockReturnValue({

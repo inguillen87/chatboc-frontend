@@ -9,6 +9,7 @@ const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
 const VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK = import.meta.env.VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK;
 const VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK = import.meta.env.VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK;
+const VITE_USE_LOCAL_API_PROXY = import.meta.env.VITE_USE_LOCAL_API_PROXY;
 
 const sanitizeBaseUrl = (value?: string) => {
   if (typeof value !== 'string') return '';
@@ -102,6 +103,13 @@ const isLocalBrowserOrigin = (origin: string): boolean => {
   }
 };
 
+const LOCAL_DEV_PROXY_BASE =
+  IS_DEV &&
+  isLocalBrowserOrigin(CURRENT_ORIGIN) &&
+  parseBooleanFlag(VITE_USE_LOCAL_API_PROXY) === true
+    ? '/api'
+    : '';
+
 const inferSameOriginProxy = (): string | null => {
   const locationRef = getGlobalLocation();
   if (!locationRef?.href) return null;
@@ -176,26 +184,32 @@ export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || '
 export const PUBLIC_BACKEND_URL = sanitizeBaseUrl(RESOLVED_BACKEND_URL || CANONICAL_BACKEND_URL);
 
 export const BASE_API_URL = sanitizeBaseUrl(
-  SAME_ORIGIN_PROXY_BASE ||
-    CURRENT_ORIGIN ||
-    RESOLVED_BACKEND_URL ||
-    FALLBACK_BACKEND_URL ||
-    CURRENT_ORIGIN
+  isLocalBrowserOrigin(CURRENT_ORIGIN)
+    ? RESOLVED_BACKEND_URL || PUBLIC_BACKEND_URL || LOCAL_DEV_PROXY_BASE
+    : SAME_ORIGIN_PROXY_BASE ||
+        RESOLVED_BACKEND_URL ||
+        PUBLIC_BACKEND_URL ||
+        FALLBACK_BACKEND_URL ||
+        CURRENT_ORIGIN
 );
 
-// Prefer explicit backend URLs over the frontend origin to avoid fetching
-// public routes that return HTML (and break JSON parsing) when the same-origin
-// proxy is not available. Local builds still keep the current origin as a
-// dev-proxy candidate, then fall back to the canonical backend if that origin is
-// only serving the frontend shell.
+// Prefer real API routes over the frontend origin to avoid fetching the SPA
+// shell as HTML when a preview/static server does not expose a dev proxy.
+// In Vite dev, "/api" is the stable proxy target; in local preview builds the
+// explicit/canonical backend must win before trying the frontend origin.
 const API_BASE_CANDIDATE_ORDER = isLocalBrowserOrigin(CURRENT_ORIGIN)
-  ? [
-      SAME_ORIGIN_PROXY_BASE,
-      RESOLVED_BACKEND_URL,
-      CURRENT_ORIGIN,
-      PUBLIC_BACKEND_URL,
-      FALLBACK_BACKEND_URL,
-    ]
+  ? IS_DEV
+    ? [
+        RESOLVED_BACKEND_URL,
+        PUBLIC_BACKEND_URL,
+        SAME_ORIGIN_PROXY_BASE,
+        LOCAL_DEV_PROXY_BASE,
+      ]
+    : [
+        RESOLVED_BACKEND_URL,
+        PUBLIC_BACKEND_URL,
+        SAME_ORIGIN_PROXY_BASE,
+      ]
   : [
       SAME_ORIGIN_PROXY_BASE,
       RESOLVED_BACKEND_URL,

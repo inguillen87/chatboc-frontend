@@ -27,6 +27,7 @@ import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
+import { persistPanelLoginSession } from "@/utils/panelLoginSession";
 
 
 const isDevEnvironment = () => {
@@ -64,7 +65,7 @@ interface LoginResponse {
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refreshUser } = useUser();
+  const { refreshUser, setUser } = useUser();
   const { timezone, locale, updateSettings } = useDateSettings();
   const { currentSlug } = useTenant();
   const [email, setEmail] = useState("");
@@ -461,31 +462,17 @@ const Login = () => {
         body: payload,
       });
 
-      safeLocalStorage.setItem("authToken", data.token);
       const responseTenantSlug = data.user?.tenant_slug;
-      if (responseTenantSlug) {
-        safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
-      }
-
       const responseRole = data.user?.rol;
       const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
-      const storedUserRaw = safeLocalStorage.getItem("user");
-      if (storedUserRaw) {
-        try {
-          const storedUser = JSON.parse(storedUserRaw);
-          safeLocalStorage.setItem(
-            "user",
-            JSON.stringify({
-              ...storedUser,
-              rol: responseRole || storedUser?.rol,
-              tenant_slug: resolvedTenantSlug || storedUser?.tenant_slug,
-              tenantSlug: resolvedTenantSlug || storedUser?.tenantSlug,
-            }),
-          );
-        } catch {
-          safeLocalStorage.removeItem("user");
-        }
-      }
+      persistPanelLoginSession({
+        token: data.token,
+        user: data.user,
+        entityToken: data.entityToken,
+        tipoChat: data.tipo_chat,
+        tenantSlugHint: resolvedTenantSlug,
+        setUser: setUser as any,
+      });
 
       if (safeNextPath) {
         navigate(safeNextPath);
@@ -521,17 +508,16 @@ const Login = () => {
     setIsPasskeyLoading(true);
     try {
       const result = await loginPasskey();
-      if (result?.token) {
-        safeLocalStorage.setItem("authToken", result.token);
-      }
-      if (result?.entityToken) {
-        safeLocalStorage.setItem("entityToken", result.entityToken);
-      }
       const responseTenantSlug = (result as any)?.tenantSlug || (result as any)?.tenant_slug;
-      if (responseTenantSlug) {
-        safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
-      }
       const resultRole = (result as any)?.user?.rol;
+      persistPanelLoginSession({
+        token: result?.token,
+        user: (result as any)?.user,
+        entityToken: result?.entityToken,
+        tipoChat: (result as any)?.tipo_chat,
+        tenantSlugHint: responseTenantSlug,
+        setUser: setUser as any,
+      });
       const isSuperAdmin = resultRole === "super_admin" || resultRole === "superadmin";
       const isAdmin = isSuperAdmin || resultRole === "admin" || resultRole === "empleado";
 

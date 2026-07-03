@@ -50,7 +50,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     return () => window.clearTimeout(timer);
   }, [effectiveUser, hasToken]);
 
-  if (loading || (hasToken && !effectiveUser && profileSyncGrace)) {
+  if ((loading && !effectiveUser) || (hasToken && !effectiveUser && profileSyncGrace)) {
     return <ViewState status="loading" title="Validando acceso" />;
   }
 

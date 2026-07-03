@@ -51,6 +51,19 @@ describe('Layout ticket workspace shell', () => {
     expect(main).not.toHaveClass('max-w-7xl');
   });
 
+  it('removes public footer chrome from the embedded analytics CRM workspace', () => {
+    renderLayout('/perfil?tab=analytics');
+
+    expect(screen.getByText('profile outlet')).toBeInTheDocument();
+    expect(screen.getByTestId('navbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('pt-14');
+    expect(main).not.toHaveClass('max-w-7xl');
+  });
+
   it('keeps the normal marketing shell outside the ticket workspace', () => {
     renderLayout('/perfil');
 

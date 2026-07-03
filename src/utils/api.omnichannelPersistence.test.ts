@@ -119,12 +119,6 @@ describe('apiFetch omnichannel tenant persistence', () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response('<html><body>Vite preview shell without /api</body></html>', {
-          status: 200,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        }),
-      )
-      .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             contract_version: 'operations.heatmap.v1',
@@ -149,9 +143,8 @@ describe('apiFetch omnichannel tenant persistence', () => {
 
     expect(payload.contract_version).toBe('operations.heatmap.v1');
     expect(payload.points[0]).toMatchObject({ lat: -34.58, lng: -60.94, weight: 2 });
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
     expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('/api/v2/analytics/operations/heatmap');
     expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][0]).toContain('/v2/analytics/operations/heatmap');
-    expect((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[2][0]).toContain('/api/v2/analytics/operations/heatmap');
   });
 });

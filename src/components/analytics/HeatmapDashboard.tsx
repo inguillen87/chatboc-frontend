@@ -216,10 +216,10 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
   const segmentGroups = useMemo(() => {
     const order: Array<{ key: string; label: string }> = [
       { key: 'categoria', label: 'Categorías' },
-      { key: 'category', label: 'Categorias' },
+      { key: 'category', label: 'Categorías' },
       { key: 'sexo', label: 'Sexo' },
-      { key: 'genero', label: 'Genero' },
-      { key: 'gender', label: 'Genero' },
+      { key: 'genero', label: 'Género' },
+      { key: 'gender', label: 'Género' },
       { key: 'rango_edad', label: 'Rango edad' },
       { key: 'age_range', label: 'Rango edad' },
       { key: 'barrio', label: 'Barrio' },
@@ -406,7 +406,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
             {legend ? (
               <div className="rounded-md border p-2 text-xs">
                 <p className="text-muted-foreground">
-                  {uiLabels.legend || legend.mode || 'legend'} · {legend.min_weight ?? 0} — {legend.max_weight ?? 0}
+                  {uiLabels.legend || legend.mode || 'Leyenda'} · {legend.min_weight ?? 0} - {legend.max_weight ?? 0}
                 </p>
               </div>
             ) : null}

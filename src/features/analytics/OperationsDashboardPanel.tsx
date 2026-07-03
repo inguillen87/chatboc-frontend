@@ -35,6 +35,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   getOperationsAIBriefV2,
   getOperationsAIOpsQueueV2,
+  getOperationsAIProviderStatusV2,
   getOperationsActionCenterV2,
   getOperationsDashboardV2,
   getOperationsFreshnessV2,
@@ -47,6 +48,8 @@ import type {
   OperationsAIOpsQueueV1,
   OperationsActionItem,
   OperationsAIBriefV1,
+  OperationsAIProviderStatusItem,
+  OperationsAIProviderStatusV1,
   OperationsAlert,
   OperationsBucketItem,
   OperationsDashboardV1,
@@ -58,6 +61,25 @@ import type {
 } from './analyticsTypes';
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const OPERATIONS_QUERY_TIMEOUT_MS = 9_000;
+const OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS = 7_000;
+
+const withOperationsTimeout = async <T,>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs = OPERATIONS_QUERY_TIMEOUT_MS,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -157,16 +179,27 @@ const statusVariant = (status?: string): 'default' | 'secondary' | 'destructive'
 
 const statusLabel = (status?: string) => {
   const normalized = (status || '').toLowerCase();
-  if (normalized === 'fresh' || normalized === 'ready') return 'al dia';
-  if (normalized === 'degraded' || normalized === 'stale') return 'requiere revision';
+  if (normalized === 'fresh' || normalized === 'ready') return 'al día';
+  if (normalized === 'degraded' || normalized === 'stale') return 'requiere revisión';
   if (normalized === 'empty') return 'sin actividad';
   if (normalized === 'error') return 'con error';
   return status || 'sin estado';
 };
 
+const operationsDashboardErrorMessage = (error: unknown): string => {
+  const message = getErrorMessage(error, 'El resumen ejecutivo tardo mas de lo esperado.');
+  if (/operations_dashboard_timeout|timeout|timed out/i.test(message)) {
+    return 'El resumen ejecutivo tardo mas de lo esperado';
+  }
+  if (/html|json|proxy|aplicacion web|frontend/i.test(message)) {
+    return 'El backend operativo no entrego datos completos en este intento';
+  }
+  return message;
+};
+
 const priorityLabel = (priority?: string) => {
   const normalized = (priority || '').toLowerCase();
-  if (normalized === 'critical') return 'critico';
+  if (normalized === 'critical') return 'crítico';
   if (normalized === 'high') return 'alta';
   if (normalized === 'medium' || normalized === 'warning') return 'media';
   if (normalized === 'low') return 'baja';
@@ -222,7 +255,7 @@ const HEATMAP_FILTERS: HeatmapFilterConfig[] = [
     key: 'categoria',
     queryParam: 'categoria',
     labelKey: 'filter_categoria',
-    fallbackLabel: 'Categoria',
+    fallbackLabel: 'Categoría',
     pointFields: ['categoria', 'category'],
   },
   {
@@ -236,7 +269,7 @@ const HEATMAP_FILTERS: HeatmapFilterConfig[] = [
     key: 'genero',
     queryParam: 'genero',
     labelKey: 'filter_genero',
-    fallbackLabel: 'Genero',
+    fallbackLabel: 'Género',
     pointFields: ['genero', 'gender', 'sexo'],
   },
   {
@@ -355,7 +388,7 @@ const describeHeatmapLayer = (layer: string) => {
     return 'actividad conversacional';
   }
   if (normalized.includes('survey') || normalized.includes('encuesta') || normalized.includes('vote')) {
-    return 'participacion y voto';
+    return 'participación y voto';
   }
   if (normalized.includes('geo') || normalized.includes('base') || normalized.includes('heat')) {
     return 'base territorial';
@@ -386,6 +419,24 @@ const DEFAULT_HEATMAP_FILTERS: HeatmapFilterState = {
   scope: 'historical',
 };
 
+const OPERATIONS_DASHBOARD_FALLBACK: OperationsDashboardV1 = {
+  contract_version: 'operations.dashboard.v1',
+  summary: {},
+  trends: { items: [] },
+  tickets: { summary: {} },
+  surveys: { summary: {} },
+  chats: { summary: {} },
+  live_chat: { summary: {}, items: [] },
+  employees: { summary: {}, items: [], coverage: { uncovered_categories: [], uncovered_channels: [] } },
+  maps: { heatmap: { hotspots: [], points: [] } },
+  alerts: [],
+  next_best_actions: [],
+  frontend_contract: {
+    render_as: 'degraded_operations_dashboard',
+    empty_state_behavior: 'keep_operational_modules_visible',
+  },
+};
+
 const HEATMAP_PERIOD_KEYS = new Set<HeatmapQueryKey>(['range', 'scope', 'days']);
 
 const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): HeatmapFilterState => {
@@ -408,46 +459,83 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
 
   const dashboardQuery = useQuery({
     queryKey: ['v2-operations-dashboard', tenantSlug],
-    queryFn: () => getOperationsDashboardV2({ tenantSlug }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsDashboardV2({ tenantSlug }),
+      'operations_dashboard_timeout',
+    ),
     retry: 0,
     staleTime: 30_000,
   });
 
   const heatmapQuery = useQuery({
     queryKey: ['v2-operations-heatmap', tenantSlug, activeHeatmapFilters],
-    queryFn: () => getOperationsHeatmapV2({ tenantSlug, ...activeHeatmapFilters }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters }),
+      'operations_heatmap_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 30_000,
   });
 
   const mapConfigQuery = useQuery({
     queryKey: ['public-map-config-v1', tenantSlug],
-    queryFn: () => getPublicMapConfigV1({ tenantSlug }),
+    queryFn: () => withOperationsTimeout(
+      getPublicMapConfigV1({ tenantSlug }),
+      'public_map_config_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 10 * 60_000,
   });
 
   const actionCenterQuery = useQuery({
     queryKey: ['v2-operations-action-center', tenantSlug],
-    queryFn: () => getOperationsActionCenterV2({ tenantSlug }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsActionCenterV2({ tenantSlug }),
+      'operations_action_center_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 30_000,
   });
   const aiBriefQuery = useQuery({
     queryKey: ['v2-operations-ai-brief', tenantSlug],
-    queryFn: () => getOperationsAIBriefV2({ tenantSlug }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsAIBriefV2({ tenantSlug }),
+      'operations_ai_brief_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 30_000,
   });
   const aiOpsQueueQuery = useQuery({
     queryKey: ['v2-operations-ai-ops-queue', tenantSlug],
-    queryFn: () => getOperationsAIOpsQueueV2({ tenantSlug, limit: 12 }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12 }),
+      'operations_ai_ops_queue_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 30_000,
   });
+  const aiProviderStatusQuery = useQuery({
+    queryKey: ['v2-operations-ai-provider-status', tenantSlug],
+    queryFn: () => withOperationsTimeout(
+      getOperationsAIProviderStatusV2({ tenantSlug }),
+      'operations_ai_provider_status_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
+    retry: 0,
+    staleTime: 60_000,
+  });
   const freshnessQuery = useQuery({
     queryKey: ['v2-operations-freshness', tenantSlug],
-    queryFn: () => getOperationsFreshnessV2({ tenantSlug }),
+    queryFn: () => withOperationsTimeout(
+      getOperationsFreshnessV2({ tenantSlug }),
+      'operations_freshness_timeout',
+      OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+    ),
     retry: 0,
     staleTime: 30_000,
   });
@@ -456,6 +544,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const refetchActionCenter = actionCenterQuery.refetch;
   const refetchAIBrief = aiBriefQuery.refetch;
   const refetchAIOpsQueue = aiOpsQueueQuery.refetch;
+  const refetchAIProviderStatus = aiProviderStatusQuery.refetch;
   const refetchFreshness = freshnessQuery.refetch;
 
   const refreshSeconds = getRefreshSeconds(
@@ -463,6 +552,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     actionCenterQuery.data?.frontend_contract?.primary_refresh_seconds,
     aiBriefQuery.data?.frontend_contract?.primary_refresh_seconds,
     aiOpsQueueQuery.data?.frontend_contract?.primary_refresh_seconds,
+    aiProviderStatusQuery.data?.frontend_contract?.primary_refresh_seconds,
     freshnessQuery.data?.frontend_contract?.primary_refresh_seconds,
   );
 
@@ -474,16 +564,23 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       void refetchActionCenter();
       void refetchAIBrief();
       void refetchAIOpsQueue();
+      void refetchAIProviderStatus();
       void refetchFreshness();
     }, refreshSeconds * 1000);
 
     return () => window.clearInterval(timer);
-  }, [refetchAIBrief, refetchAIOpsQueue, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
+  }, [refetchAIBrief, refetchAIOpsQueue, refetchAIProviderStatus, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
 
-  const data = dashboardQuery.data;
+  const dashboardData = dashboardQuery.data;
+  const dashboardFallbackActive = dashboardQuery.isError && !dashboardData;
+  const dashboardErrorMessage = dashboardFallbackActive
+    ? operationsDashboardErrorMessage(dashboardQuery.error)
+    : undefined;
+  const data = dashboardData ?? OPERATIONS_DASHBOARD_FALLBACK;
   const actionCenter = actionCenterQuery.data;
   const aiBrief = aiBriefQuery.data ?? (data?.ai_brief as OperationsAIBriefV1 | undefined);
   const aiOpsQueue = aiOpsQueueQuery.data;
+  const aiProviderStatus = aiProviderStatusQuery.data;
   const freshness = freshnessQuery.data;
   const alerts = useMemo(
     () => mergeByIdentity([...(data?.alerts ?? []), ...(actionCenter?.alerts ?? [])]),
@@ -503,14 +600,16 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const focusCards: OperationsFocusCard[] = [
     {
       id: 'health',
-      title: freshness?.status ? statusLabel(freshness.status) : 'datos cargados',
-      description: 'Estado general de las fuentes que alimentan el tablero.',
+      title: dashboardFallbackActive ? 'continuidad activa' : freshness?.status ? statusLabel(freshness.status) : 'datos cargados',
+      description: dashboardFallbackActive
+        ? 'El tablero mantiene mapa, IA, acciones y reclamos disponibles mientras se refresca el resumen.'
+        : 'Estado general de las fuentes que alimentan el tablero.',
       icon: Gauge,
-      tone: freshness?.status === 'fresh' || freshness?.status === 'ready' ? 'success' : 'default',
+      tone: dashboardFallbackActive ? 'warning' : freshness?.status === 'fresh' || freshness?.status === 'ready' ? 'success' : 'default',
     },
     {
       id: 'actions',
-      title: actions.length ? `${actions.length} acciones sugeridas` : 'sin acciones criticas',
+      title: actions.length ? `${actions.length} acciones sugeridas` : 'sin acciones críticas',
       description: actions.length ? 'Revisar primero el centro de acciones.' : 'No hay acciones urgentes publicadas.',
       icon: CheckCircle2,
       tone: actions.length ? 'warning' : 'success',
@@ -524,7 +623,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     },
   ];
 
-  if (dashboardQuery.isLoading && !data) {
+  if (dashboardQuery.isLoading && !dashboardData) {
     return <ViewState status="loading" description="Cargando actividad operativa." className={className} />;
   }
 
@@ -532,7 +631,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     return (
       <ViewState
         status="partial"
-        title="Estadisticas no disponibles"
+        title="Estadísticas no disponibles"
         description={getErrorMessage(dashboardQuery.error, 'No se pudo cargar la actividad operativa.')}
         action={
           <Button type="button" variant="outline" onClick={() => void dashboardQuery.refetch()}>
@@ -546,7 +645,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   }
 
   if (!data) {
-    return <ViewState status="empty" description="Todavia no hay datos operativos para mostrar." className={className} />;
+    return <ViewState status="empty" description="Todavía no hay datos operativos para mostrar." className={className} />;
   }
 
   return (
@@ -562,8 +661,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {refreshSeconds ? <Badge variant="outline">Actualizacion cada {refreshSeconds}s</Badge> : null}
-          {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || aiBriefQuery.isFetching || aiOpsQueueQuery.isFetching || freshnessQuery.isFetching ? (
+          {refreshSeconds ? <Badge variant="outline">Actualización cada {refreshSeconds}s</Badge> : null}
+          {dashboardFallbackActive ? <Badge variant="secondary">Continuidad operativa</Badge> : null}
+          {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || aiBriefQuery.isFetching || aiOpsQueueQuery.isFetching || aiProviderStatusQuery.isFetching || freshnessQuery.isFetching ? (
             <Badge variant="secondary">Actualizando</Badge>
           ) : null}
           {freshness?.status ? <Badge variant={statusVariant(freshness.status)}>{statusLabel(freshness.status)}</Badge> : null}
@@ -577,6 +677,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
               void refetchActionCenter();
               void refetchAIBrief();
               void refetchAIOpsQueue();
+              void refetchAIProviderStatus();
               void refetchFreshness();
             }}
           >
@@ -588,6 +689,26 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
 
       {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
+      {dashboardFallbackActive ? (
+        <div
+          data-testid="operations-dashboard-degraded"
+          className="flex flex-col gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 shadow-sm dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="min-w-0">
+              <p className="font-semibold">Tablero en continuidad operativa</p>
+              <p className="mt-1 text-amber-900/80 dark:text-amber-100/80">
+                {dashboardErrorMessage}. Mantenemos accesibles mapa de calor, cola IA, acciones y reclamos para no cortar la operacion.
+              </p>
+            </div>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void dashboardQuery.refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            Refrescar resumen
+          </Button>
+        </div>
+      ) : null}
 
       <OperationsCommandCockpit
         data={data}
@@ -656,6 +777,12 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             loading={aiOpsQueueQuery.isLoading}
             error={aiOpsQueueQuery.error}
             refetch={() => void refetchAIOpsQueue()}
+          />
+          <AIProviderStatusPanel
+            status={aiProviderStatus}
+            loading={aiProviderStatusQuery.isLoading}
+            error={aiProviderStatusQuery.error}
+            refetch={() => void refetchAIProviderStatus()}
           />
           <ActionCenterPanel
             items={actions}
@@ -740,7 +867,7 @@ function OperationsCommandCockpit({
       value: coveragePercent !== undefined ? `${formatNumber(coveragePercent, '%')}` : formatNumber(mapPoints),
       detail: canMapRender
         ? `${formatNumber(mapPoints)} puntos visibles · ${formatNumber(pendingGeocode)} por geocodificar`
-        : 'Backend marco el mapa como no renderizable',
+        : 'Backend marcó el mapa como no renderizable',
       icon: MapPin,
       tone: canMapRender ? 'default' : 'warning',
       href: '#operations-heatmap',
@@ -780,7 +907,7 @@ function OperationsCommandCockpit({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cabina de mando</p>
           <h3 className="mt-1 text-xl font-semibold tracking-tight">Vista ejecutiva para operar ahora</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Reclamos, mapa, IA y participacion unidos en una sola lectura. Cada bloque abre el modulo donde se resuelve.
+            Reclamos, mapa, IA y participación unidos en una sola lectura. Cada bloque abre el módulo donde se resuelve.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -833,7 +960,7 @@ const aiOpsSourceLabel = (source?: string) => {
   if (normalized === 'ticket') return 'Reclamo';
   if (normalized === 'order') return 'Pedido';
   if (normalized === 'survey') return 'Encuesta';
-  return source || 'Operacion';
+  return source || 'Operación';
 };
 
 const aiOpsReasonLabel = (reason: string) =>
@@ -841,6 +968,160 @@ const aiOpsReasonLabel = (reason: string) =>
     .replace(/_/g, ' ')
     .replace(/\bsla\b/i, 'SLA')
     .replace(/\bia\b/i, 'IA');
+
+const providerLabel = (provider?: string) => {
+  const normalized = (provider || '').toLowerCase();
+  if (normalized === 'openai') return 'OpenAI';
+  if (normalized === 'gemini') return 'Gemini';
+  if (normalized === 'huggingface') return 'Hugging Face';
+  if (normalized === 'ollama') return 'Ollama';
+  if (normalized === 'cohere') return 'Cohere';
+  if (normalized === 'docling') return 'Docling';
+  return provider || 'Proveedor';
+};
+
+const providerRuntimeLabel = (provider: OperationsAIProviderStatusItem) => {
+  if (provider.runtime_status) return provider.runtime_status.replace(/_/g, ' ');
+  if (provider.configured || provider.installed || provider.enabled) return 'listo';
+  return 'sin configurar';
+};
+
+function AIProviderStatusPanel({
+  status,
+  loading,
+  error,
+  refetch,
+}: {
+  status?: OperationsAIProviderStatusV1;
+  loading?: boolean;
+  error?: unknown;
+  refetch: () => void;
+}) {
+  const readiness = status?.readiness;
+  const providerEntries = Object.entries(status?.providers ?? {});
+  const orderedProviderEntries = [
+    ...(status?.llm_provider_order ?? [])
+      .map((key) => providerEntries.find(([providerKey]) => providerKey === key))
+      .filter((entry): entry is [string, OperationsAIProviderStatusItem] => Boolean(entry)),
+    ...providerEntries.filter(([key]) => !(status?.llm_provider_order ?? []).includes(key)),
+  ];
+  const configuredProviders = providerEntries.filter(([, provider]) => provider.configured || provider.enabled || provider.installed).length;
+  const advisoryOnly = asBoolean(status?.frontend_contract?.advisory_only) !== false;
+  const warnings = readiness?.warnings ?? [];
+  const selectedProvider = asString(status?.model_policy?.selected_provider);
+  const primaryProvider = asString(status?.model_policy?.primary_provider);
+  const fallbackProvider = providerEntries.find(([, provider]) => provider.fallback_behavior)?.[1];
+  const statusText = readiness?.status || (error ? 'error' : loading ? 'loading' : 'unknown');
+
+  return (
+    <Card
+      id="operations-ai-provider-status"
+      data-testid="operations-ai-provider-status"
+      className="overflow-hidden border-cyan-500/20 bg-gradient-to-br from-card via-card to-cyan-500/5"
+    >
+      <CardHeader className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Brain className="h-4 w-4 text-cyan-500" />
+              IA operacional
+            </CardTitle>
+            <CardDescription>
+              Estado seguro de proveedores para analytics, mapas, reclamos y automatizacion.
+            </CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} className="h-8 shrink-0">
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={statusVariant(statusText)}>
+            {error ? 'Estado IA no disponible' : statusText.replace(/_/g, ' ')}
+          </Badge>
+          <Badge variant={readiness?.chat_ready ? 'default' : 'outline'}>
+            {readiness?.chat_ready ? 'chat listo' : 'chat sin proveedor'}
+          </Badge>
+          <Badge variant={readiness?.specialized_ai_ready ? 'default' : 'outline'}>
+            {readiness?.specialized_ai_ready ? 'IA especializada lista' : 'IA especializada degradada'}
+          </Badge>
+          {advisoryOnly ? <Badge variant="secondary">solo lectura</Badge> : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {error ? (
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
+            No pudimos leer el estado de proveedores. El tablero sigue operando con datos y fallback seguro.
+          </div>
+        ) : null}
+
+        {!status && !error ? (
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+            {loading ? 'Verificando proveedores IA...' : 'Sin estado IA publicado todavia.'}
+          </div>
+        ) : null}
+
+        {status ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Proveedor</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{providerLabel(primaryProvider || selectedProvider || status.llm_provider_order[0])}</p>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modo</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{providerLabel(selectedProvider) || statusText}</p>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configurados</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{configuredProviders} proveedores</p>
+              </div>
+            </div>
+
+            {fallbackProvider?.fallback_behavior ? (
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+                Fallback local seguro: {String(fallbackProvider.fallback_behavior).replace(/_/g, ' ')}.
+              </div>
+            ) : null}
+
+            {warnings.length ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Atencion operativa</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {warnings.slice(0, 4).map((warning) => (
+                    <span key={warning} className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {aiOpsReasonLabel(warning)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-2">
+              {orderedProviderEntries.slice(0, 6).map(([key, provider]) => (
+                <div key={key} className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-background/70 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{providerLabel(key)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{providerRuntimeLabel(provider)}</p>
+                    {provider.last_failure?.reason_code ? (
+                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                        {aiOpsReasonLabel(provider.last_failure.reason_code)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                    {provider.configured || provider.enabled || provider.installed ? <Badge variant="default">activo</Badge> : <Badge variant="outline">pendiente</Badge>}
+                    {provider.quota_depleted ? <Badge variant="destructive">cuota</Badge> : null}
+                    {provider.provider_order_enabled ? <Badge variant="secondary">orden</Badge> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 function AIOpsQueuePanel({
   queue,
@@ -899,14 +1180,14 @@ function AIOpsQueuePanel({
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
             <p className="text-sm font-semibold text-foreground">Listo para activar por flag</p>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              El backend ya publica el contrato; cuando se habilite, esta bandeja muestra prioridades reales sin cambiar estados automaticamente.
+              El backend ya publica el contrato; cuando se habilite, esta bandeja muestra prioridades reales sin cambiar estados automáticamente.
             </p>
           </div>
         ) : null}
 
         {enabled && !items.length && !error ? (
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-            <p className="text-sm font-semibold text-foreground">Sin trabajo critico sugerido</p>
+            <p className="text-sm font-semibold text-foreground">Sin trabajo crítico sugerido</p>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
               No hay pedidos, reclamos o encuestas que requieran intervencion prioritaria en este periodo.
             </p>
@@ -940,7 +1221,7 @@ function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
             <Badge variant={priorityVariant(item.priority)}>{priorityLabel(item.priority)}</Badge>
           </div>
           <p className="mt-2 text-sm font-semibold leading-5 text-foreground">
-            {item.title || 'Operacion requiere revision'}
+            {item.title || 'Operación requiere revisión'}
           </p>
         </div>
         {actionLabel && uiHref ? (
@@ -1065,7 +1346,7 @@ function FreshnessBanner({ freshness }: { freshness: OperationsFreshnessV1 }) {
               {freshness.status ? <Badge variant={statusVariant(freshness.status)}>{statusLabel(freshness.status)}</Badge> : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span>{formatNumber(summary.fresh_sources)} fuentes al dia</span>
+              <span>{formatNumber(summary.fresh_sources)} fuentes al día</span>
               <span>{formatNumber(summary.stale_sources)} por revisar</span>
               <span>{formatNumber(summary.empty_sources)} sin actividad</span>
               {latestAt ? <span>ultimo dato {latestAt}</span> : null}
@@ -1172,7 +1453,7 @@ function KpiGrid({
         Ver indicadores detallados
       </summary>
       <p className="mt-1 text-sm text-muted-foreground">
-        Metricas completas para revision. El resumen superior indica las prioridades principales.
+        Métricas completas para revisión. El resumen superior indica las prioridades principales.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => {
@@ -1299,7 +1580,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
               Control de votaciones en vivo
             </CardTitle>
             <CardDescription>
-              Participacion, resultados, canales y cobertura geografica para decisiones en tiempo real.
+              Participación, resultados, canales y cobertura geográfica para decisiones en tiempo real.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1362,7 +1643,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
                     ) : null}
                     {adminUrl ? (
                       <Button asChild size="sm">
-                        <a href={adminUrl}>Analitica</a>
+                        <a href={adminUrl}>Analítica</a>
                       </Button>
                     ) : null}
                   </div>
@@ -1376,7 +1657,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
 
         {channels.length || actions.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
-            {channels.length ? <MiniList title="Canales de participacion" items={channels} /> : null}
+            {channels.length ? <MiniList title="Canales de participación" items={channels} /> : null}
             {actions.length ? (
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-sm font-medium">Acciones operativas</p>
@@ -1427,7 +1708,7 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
               <CardDescription>
                 {data.live_chat?.active_viewers !== undefined
                   ? `${formatNumber(data.live_chat.active_viewers)} personas activas`
-                  : 'Conversaciones y participacion del periodo'}
+                  : 'Conversaciones y participación del periodo'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1461,7 +1742,7 @@ function EmployeePanel({ data }: { data: OperationsDashboardV1 }) {
       <CardHeader>
         <CardTitle className="text-lg">{resolveLabel(data, 'employees', 'Cobertura del equipo')}</CardTitle>
         <CardDescription>
-          {coverageRate !== undefined ? `${formatNumber(coverageRate, '%')} de cobertura` : 'Categorias y canales cubiertos por el equipo'}
+          {coverageRate !== undefined ? `${formatNumber(coverageRate, '%')} de cobertura` : 'Categorías y canales cubiertos por el equipo'}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-3">
@@ -1471,7 +1752,7 @@ function EmployeePanel({ data }: { data: OperationsDashboardV1 }) {
           ))}
         </div>
         <div className="space-y-3">
-          <MiniList title={resolveLabel(data, 'uncovered_categories', 'Categorias sin cubrir')} items={uncoveredCategories} />
+          <MiniList title={resolveLabel(data, 'uncovered_categories', 'Categorías sin cubrir')} items={uncoveredCategories} />
           <MiniList title={resolveLabel(data, 'uncovered_channels', 'Canales sin cubrir')} items={uncoveredChannels} />
         </div>
       </CardContent>
@@ -1684,12 +1965,12 @@ function OperationsHeatmapPanel({
     return [
       {
         key: 'known_gender_points',
-        label: uiLabels.known_gender_points || 'Genero conocido',
+        label: uiLabels.known_gender_points || 'Género conocido',
         value: readNumber(heatmap?.demographics?.known_gender_points) ?? readNumber(summary.points_with_gender),
       },
       {
         key: 'unknown_gender_points',
-        label: uiLabels.unknown_gender_points || 'Genero sin dato',
+        label: uiLabels.unknown_gender_points || 'Género sin dato',
         value: readNumber(heatmap?.demographics?.unknown_gender_points) ?? readNumber(summary.unknown_gender_points),
       },
       {
@@ -1709,7 +1990,7 @@ function OperationsHeatmapPanel({
     const groups = [
       {
         key: 'gender',
-        label: uiLabels.demographic_gender || 'Genero',
+        label: uiLabels.demographic_gender || 'Género',
         items: heatmap?.demographics?.gender ?? [],
       },
       {
@@ -1761,7 +2042,7 @@ function OperationsHeatmapPanel({
     aiStatus?.provider_family ?? aiInsights?.provider_family ?? aiLayers?.provider_family,
     'IA operativa',
   );
-  const aiMode = humanizeHeatmapToken(aiStatus?.mode ?? aiInsights?.mode ?? aiLayers?.mode, 'analisis operativo');
+  const aiMode = humanizeHeatmapToken(aiStatus?.mode ?? aiInsights?.mode ?? aiLayers?.mode, 'análisis operativo');
   const aiState = aiStatus?.status ?? aiLayers?.status ?? aiInsights?.mode;
   const aiStateLabel = humanizeHeatmapToken(aiState, 'sin estado IA');
   const aiUsedHf = aiStatus?.used_hf ?? asBoolean(hfStatus.used);
@@ -1791,12 +2072,12 @@ function OperationsHeatmapPanel({
       key: 'provider',
       label: 'Proveedor IA',
       value: aiProvider,
-      detail: aiUsedHf ? 'clasificacion HF activa' : aiConfigured ? 'token listo, fallback disponible' : 'fallback local seguro',
+      detail: aiUsedHf ? 'clasificación HF activa' : aiConfigured ? 'token listo, fallback disponible' : 'fallback local seguro',
       icon: Brain,
     },
     {
       key: 'intent',
-      label: 'Intencion dominante',
+      label: 'Intención dominante',
       value: aiIntentLabel,
       detail: aiSentimentLabel,
       icon: Sparkles,
@@ -1805,7 +2086,7 @@ function OperationsHeatmapPanel({
       key: 'risk',
       label: 'Riesgo detectado',
       value: aiRiskLabel,
-      detail: aiSummary.requires_human_attention ? 'requiere revision humana' : 'sin alerta critica',
+      detail: aiSummary.requires_human_attention ? 'requiere revisión humana' : 'sin alerta crítica',
       icon: AlertTriangle,
     },
     {
@@ -1912,7 +2193,7 @@ function OperationsHeatmapPanel({
     },
     {
       key: 'realtime',
-      label: uiLabels.realtime || 'Actualizacion en vivo',
+      label: uiLabels.realtime || 'Actualización en vivo',
       value: realtime?.poll_seconds ? `${formatNumber(realtime.poll_seconds)}s` : '--',
       detail: realtimeDetail,
       icon: Radio,
@@ -1950,10 +2231,10 @@ function OperationsHeatmapPanel({
   const usesDemoFallback = allowDemoFallback && !filteredPoints.length;
   const isEmpty = isFreshnessBlocked || renderState === 'empty' || (!filteredPoints.length && !allowDemoFallback);
   const emptyDescription = isFreshnessBlocked
-    ? 'El backend marco el heatmap como no renderizable para este periodo.'
+    ? 'El backend marcó el heatmap como no renderizable para este periodo.'
     : pendingGeocode
-      ? `${formatNumber(pendingGeocode)} direcciones pendientes de geocodificacion antes de mejorar la cobertura.`
-      : 'Todavia no hay coordenadas para las capas y filtros activos.';
+      ? `${formatNumber(pendingGeocode)} direcciones pendientes de geocodificación antes de mejorar la cobertura.`
+      : 'Todavía no hay coordenadas para las capas y filtros activos.';
   const tenantVertical = asString(heatmap?.tenant?.vertical ?? heatmap?.tenant?.tipo ?? heatmap?.tenant?.sector);
   const demoProfile =
     tenantVertical === 'educacion' || tenantVertical === 'colegio'
@@ -1989,7 +2270,7 @@ function OperationsHeatmapPanel({
                 </Badge>
               </div>
               <CardDescription className="mt-1">
-                No ocultamos el problema: el mapa no respondio, pero el operador conserva el diagnostico y puede reintentar sin perder el panel.
+                No ocultamos el problema: el mapa no respondió, pero el operador conserva el diagnóstico y puede reintentar sin perder el panel.
               </CardDescription>
             </div>
             <Button type="button" size="sm" variant="outline" onClick={refetch}>
@@ -2025,13 +2306,13 @@ function OperationsHeatmapPanel({
                 <Route className="h-3.5 w-3.5 text-primary" />
                 Geocoding
               </div>
-              <p className="mt-2 text-sm font-medium">Sin cambios automaticos</p>
+              <p className="mt-2 text-sm font-medium">Sin cambios automáticos</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.</p>
             </div>
             <div className="rounded-xl border bg-background p-3 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 <Radio className="h-3.5 w-3.5 text-primary" />
-                Operacion
+                Operación
               </div>
               <p className="mt-2 text-sm font-medium">Reintento manual disponible</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">El equipo puede refrescar sin abandonar reclamos, encuestas ni acciones recomendadas.</p>
@@ -2056,7 +2337,7 @@ function OperationsHeatmapPanel({
               {usesDemoFallback ? <Badge variant="outline">demo local</Badge> : null}
             </div>
             <CardDescription className="mt-1">
-              Mapa operativo con calor territorial, capas IA, cobertura GPS y calidad de geocodificacion.
+              Mapa operativo con calor territorial, capas IA, cobertura GPS y calidad de geocodificación.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -2114,9 +2395,9 @@ function OperationsHeatmapPanel({
                     <Badge variant={aiUsedHf ? 'default' : 'secondary'}>{aiUsedHf ? 'Hugging Face activo' : 'fallback local'}</Badge>
                     {aiAdvisoryOnly ? <Badge variant="outline">solo recomendaciones</Badge> : null}
                   </div>
-                  <h3 className="mt-1 text-lg font-semibold leading-tight">Lectura automatica de reclamos, encuestas y WhatsApp</h3>
+                  <h3 className="mt-1 text-lg font-semibold leading-tight">Lectura automática de reclamos, encuestas y WhatsApp</h3>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                    El CRM cruza intencion, riesgo, participacion y actividad conversacional para priorizar sin exponer claves ni cambiar estados automaticamente.
+                    El CRM cruza intención, riesgo, participación y actividad conversacional para priorizar sin exponer claves ni cambiar estados automáticamente.
                   </p>
                 </div>
               </div>
@@ -2158,7 +2439,7 @@ function OperationsHeatmapPanel({
                 ) : null}
                 {aiRecommendedActions.length ? (
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente accion IA</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente acción IA</p>
                     <div className="mt-2 grid gap-2 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                       {aiRecommendedActions.map((action, index) => (
                         <ActionItemRow key={action.id || action.reason_code || action.title || index} item={action} />
@@ -2180,7 +2461,7 @@ function OperationsHeatmapPanel({
                   {isEmpty
                     ? 'Sin puntos renderizables para las capas activas.'
                     : usesDemoFallback
-                      ? 'Vista demo local: el tenant real todavia no publico puntos geograficos renderizables.'
+                      ? 'Vista demo local: el tenant real todavía no publicó puntos geográficos renderizables.'
                       : `${formatNumber(filteredPoints.length)} puntos tras filtros y capas activas.`}
                 </p>
               </div>
@@ -2211,7 +2492,7 @@ function OperationsHeatmapPanel({
               <>
                 {usesDemoFallback ? (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
-                    Esta visualizacion usa datos demo solo en desarrollo. En un tenant real, Chatboc debe mostrar cobertura, pendientes de geocodificacion o el motivo de ausencia de puntos, no inventar geografia.
+                    Esta visualización usa datos demo solo en desarrollo. En un tenant real, Chatboc debe mostrar cobertura, pendientes de geocodificación o el motivo de ausencia de puntos, no inventar geografía.
                   </div>
                 ) : null}
                 <PremiumTerritoryHeatmap
@@ -2264,7 +2545,7 @@ function OperationsHeatmapPanel({
                     <p className="text-sm font-semibold">{uiLabels.map_stack || 'Capas y motor'}</p>
                     <p className="text-xs text-muted-foreground">
                       {uiLabels.map_stack_description ||
-                        'Activa calor territorial, riesgo IA, WhatsApp, encuestas y geocodificacion.'}
+                        'Activa calor territorial, riesgo IA, WhatsApp, encuestas y geocodificación.'}
                     </p>
                   </div>
                 </div>
@@ -2370,7 +2651,7 @@ function OperationsHeatmapPanel({
                 <ViewState
                   status="empty"
                   title="Sin capas publicadas"
-                  description="El backend aun no publico contrato de capas para este mapa."
+                  description="El backend aún no publicó contrato de capas para este mapa."
                   className="mt-3 min-h-[130px]"
                 />
               )}
@@ -2426,10 +2707,10 @@ function OperationsHeatmapPanel({
                   }}
                   className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="historical">{uiLabels.period_historical || 'Historico completo'}</option>
-                  <option value="365">{uiLabels.period_365 || 'Ultimos 365 dias'}</option>
-                  <option value="90">{uiLabels.period_90 || 'Ultimos 90 dias'}</option>
-                  <option value="30">{uiLabels.period_30 || 'Ultimos 30 dias'}</option>
+                  <option value="historical">{uiLabels.period_historical || 'Histórico completo'}</option>
+                  <option value="365">{uiLabels.period_365 || 'Últimos 365 días'}</option>
+                  <option value="90">{uiLabels.period_90 || 'Últimos 90 días'}</option>
+                  <option value="30">{uiLabels.period_30 || 'Últimos 30 días'}</option>
                 </select>
               </label>
 
@@ -2510,7 +2791,7 @@ function OperationsHeatmapPanel({
                     <DatabaseZap className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{uiLabels.geocoding_queue || 'Cola de geocodificacion'}</p>
+                    <p className="text-sm font-semibold">{uiLabels.geocoding_queue || 'Cola de geocodificación'}</p>
                     <p className="text-lg font-semibold">{candidateCountLabel}</p>
                   </div>
                 </div>
@@ -2518,10 +2799,10 @@ function OperationsHeatmapPanel({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {geocodingCandidates.length
-                  ? 'Direcciones con texto util pero sin coordenadas. Resolverlas mejora mapa, SLA y asignacion de equipo.'
+                  ? 'Direcciones con texto útil pero sin coordenadas. Resolverlas mejora mapa, SLA y asignación de equipo.'
                   : geocoding
                     ? 'No hay direcciones pendientes para los filtros actuales.'
-                    : 'El backend aun no publico cola de geocodificacion para este mapa.'}
+                    : 'El backend aún no publicó cola de geocodificación para este mapa.'}
               </p>
 
               {geocodingCandidates.length ? (
@@ -2531,7 +2812,7 @@ function OperationsHeatmapPanel({
                     return (
                       <div key={key} className="rounded-lg border bg-muted/20 p-3">
                         <p className="line-clamp-1 text-sm font-medium">
-                          {candidate.address || candidate.label || 'Direccion pendiente'}
+                          {candidate.address || candidate.label || 'Dirección pendiente'}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
                           {candidate.category ? <Badge variant="outline">{candidate.category}</Badge> : null}
@@ -2550,7 +2831,7 @@ function OperationsHeatmapPanel({
                     <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">
-                        {geocodingActionTitle || 'Accion de geocodificacion disponible'}
+                        {geocodingActionTitle || 'Acción de geocodificación disponible'}
                       </p>
                       {geocodingActionEndpoint ? (
                         <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
@@ -2705,7 +2986,7 @@ function BreakdownRow({ item }: { item: OperationsBucketItem }) {
 }
 
 function ActionItemRow({ item }: { item: OperationsActionItem }) {
-  const title = asString(item.title) ?? asString(item.label) ?? 'Accion recomendada';
+  const title = asString(item.title) ?? asString(item.label) ?? 'Acción recomendada';
   const description = asString(item.description);
   const impact = asString(item.impact);
 

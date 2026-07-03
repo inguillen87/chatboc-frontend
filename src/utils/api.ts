@@ -1141,13 +1141,19 @@ export async function apiFetch<T>(
         const shouldTryNextCandidate = isRetryableStatus && hasMoreCandidateUrls;
         const shouldTryNextBase = isRetryableStatus && !hasMoreCandidateUrls && hasMoreBases;
 
-        if (
-          looksLikeFrontendHtmlShell &&
-          (hasMoreCandidateUrls || hasMoreBases)
-        ) {
+        if (looksLikeFrontendHtmlShell) {
           if (hasMoreCandidateUrls) {
             continue;
           }
+          if (hasMoreBases) {
+            break;
+          }
+          lastError = new ApiError(
+            'La ruta de API devolvio la aplicacion web en lugar de datos JSON. Revisa el proxy o la URL del backend.',
+            502,
+            { contentType: candidateContentType, url: candidateUrl },
+          );
+          response = null;
           break;
         }
 

@@ -13,11 +13,17 @@ interface SocketContextType {
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
+const fallbackSocketContext: SocketContextType = { socket: null, isConnected: false };
+let warnedMissingSocketProvider = false;
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
   if (context === undefined) {
-    throw new Error('useSocket must be used within a SocketProvider');
+    if (import.meta.env.DEV && !warnedMissingSocketProvider) {
+      warnedMissingSocketProvider = true;
+      console.warn('useSocket was called outside SocketProvider; realtime socket disabled for this render.');
+    }
+    return fallbackSocketContext;
   }
   return context;
 };
