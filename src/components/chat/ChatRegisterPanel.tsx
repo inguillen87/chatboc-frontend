@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
+import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -131,7 +132,10 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
             "Registrarme y continuar"
           )}
         </Button>
-        <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+        <div className="space-y-2 pt-1">
+          <ClerkAuthButtons mode="register" />
+          <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+        </div>
       </form>
       <div className="text-center text-sm">
         ¿Ya tenés cuenta?{' '}

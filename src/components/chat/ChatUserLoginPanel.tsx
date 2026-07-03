@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
+import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -221,7 +222,10 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
         <Button type="submit" className="w-full mt-2" disabled={loading}>
           {loading ? "Ingresando..." : "Ingresar"}
         </Button>
-        <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+        <div className="space-y-2 pt-1">
+          <ClerkAuthButtons mode="login" />
+          <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+        </div>
       </form>
       <div className="text-center text-sm">
         ¿No tenés cuenta?{' '}

@@ -545,6 +545,33 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(screen.queryByText(/Solicitud procesada: quedo lista/i)).not.toBeInTheDocument();
   });
 
+  it('rejects unsupported marketplace file formats before uploading to the backend', async () => {
+    const { container } = render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        intakeEntry={{
+          contract_version: 'marketplace.assisted_intake_entry.v1',
+          submit: {
+            endpoint: '/api/pedidos/from-file?origen=marketplace',
+            method: 'POST',
+            accepted_extensions: ['.jpg', '.pdf'],
+            accepted_mime_types: ['image/jpeg', 'application/pdf'],
+          },
+        }}
+      />,
+    );
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['contenido'], 'pedido.exe', { type: 'application/x-msdownload' });
+
+    fireEvent.change(fileInput, {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByText(/Formato no aceptado/i)).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it('submits a handwritten photo as an assisted marketplace file', async () => {
     apiFetchMock.mockResolvedValue({
       contract_version: 'marketplace.assisted_request.v1',

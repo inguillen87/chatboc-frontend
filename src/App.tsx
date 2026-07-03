@@ -56,41 +56,56 @@ const RouteLoadingFallback = () => (
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() => ({
     ...DEFAULT_CLERK_RUNTIME,
-    loading: !CLERK_AUTH_ENABLED,
+    enabled: CLERK_AUTH_ENABLED,
+    loading: true,
+    publishableKey: CLERK_PUBLISHABLE_KEY,
+    source: CLERK_AUTH_ENABLED ? 'env' : 'disabled',
   }));
 
   React.useEffect(() => {
-    if (CLERK_AUTH_ENABLED) {
-      setRuntime({
-        ...DEFAULT_CLERK_RUNTIME,
-        enabled: true,
-        loading: false,
-        publishableKey: CLERK_PUBLISHABLE_KEY,
-        source: 'env',
-      });
-      return;
-    }
-
     let cancelled = false;
     const loadConfig = async () => {
       try {
         const config = await fetchClerkFrontendConfig();
         if (cancelled) return;
         const publishableKey =
-          typeof config.publishable_key === 'string' ? config.publishable_key.trim() : '';
+          (typeof config.publishable_key === 'string' ? config.publishable_key.trim() : '') ||
+          CLERK_PUBLISHABLE_KEY;
+        const enabled = Boolean(config.enabled && publishableKey && config.ready_for_session_sync);
         setRuntime({
-          enabled: Boolean(config.enabled && publishableKey),
+          enabled,
           loading: false,
           publishableKey,
-          source: config.enabled && publishableKey ? 'backend' : 'disabled',
+          source: enabled ? 'backend' : 'disabled',
           socialProviders: Array.isArray(config.social_providers) && config.social_providers.length
             ? config.social_providers
             : DEFAULT_CLERK_RUNTIME.socialProviders,
+          oauthCallbackPath:
+            typeof config.oauth_callback_path === 'string' && config.oauth_callback_path.trim()
+              ? config.oauth_callback_path.trim()
+              : DEFAULT_CLERK_RUNTIME.oauthCallbackPath,
+          readyForSessionSync: Boolean(config.ready_for_session_sync),
+          configurationWarnings: Array.isArray(config.configuration_warnings)
+            ? config.configuration_warnings
+            : [],
         });
       } catch (error) {
         if (!cancelled) {
           console.warn('[Clerk] No se pudo cargar la configuracion publica del backend', error);
-          setRuntime({ ...DEFAULT_CLERK_RUNTIME, enabled: false, loading: false, source: 'disabled' });
+          setRuntime({
+            ...DEFAULT_CLERK_RUNTIME,
+            enabled: CLERK_AUTH_ENABLED,
+            loading: false,
+            publishableKey: CLERK_PUBLISHABLE_KEY,
+            source: CLERK_AUTH_ENABLED ? 'env' : 'disabled',
+            readyForSessionSync: CLERK_AUTH_ENABLED,
+            configurationWarnings: [
+              {
+                code: 'backend_config_unavailable',
+                message: 'No se pudo validar el contrato publico de Clerk con el backend.',
+              },
+            ],
+          });
         }
       }
     };
@@ -135,7 +150,7 @@ function AppRoutes() {
        console.warn("Failed to initialize anon session", e);
     }
   }, []);
-  const layoutExcludedPaths = ['/iframe'];
+  const layoutExcludedPaths = ['/iframe', '/sso-callback', '/auth/sso-callback'];
   const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
   const portalRoutes = routes.filter(({ userPortal }) => userPortal);
   const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
@@ -149,6 +164,8 @@ function AppRoutes() {
     "/demo-catalogs",
     "/login",
     "/register",
+    "/sso-callback",
+    "/auth/sso-callback",
     "/user/login",
     "/user/register",
     "/cuenta",

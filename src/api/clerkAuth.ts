@@ -97,6 +97,7 @@ export interface ClerkFrontendConfigResponse {
   session_sync_endpoint?: string;
   onboarding_endpoint?: string;
   webhook_endpoint?: string;
+  oauth_callback_path?: string;
   publishable_key?: string | null;
   publishable_key_configured?: boolean;
   issuer_configured?: boolean;

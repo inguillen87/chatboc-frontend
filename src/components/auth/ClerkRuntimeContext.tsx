@@ -10,6 +10,9 @@ export interface ClerkRuntimeValue {
   publishableKey: string;
   source: ClerkRuntimeSource;
   socialProviders: string[];
+  oauthCallbackPath?: string;
+  readyForSessionSync?: boolean;
+  configurationWarnings?: Array<{ code?: string; message?: string }>;
 }
 
 export const DEFAULT_CLERK_RUNTIME: ClerkRuntimeValue = {
@@ -18,6 +21,9 @@ export const DEFAULT_CLERK_RUNTIME: ClerkRuntimeValue = {
   publishableKey: CLERK_PUBLISHABLE_KEY,
   source: CLERK_PUBLISHABLE_KEY ? 'env' : 'disabled',
   socialProviders: ['google', 'facebook', 'linkedin'],
+  oauthCallbackPath: '/sso-callback',
+  readyForSessionSync: Boolean(CLERK_PUBLISHABLE_KEY),
+  configurationWarnings: [],
 };
 
 const ClerkRuntimeContext = React.createContext<ClerkRuntimeValue>(DEFAULT_CLERK_RUNTIME);

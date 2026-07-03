@@ -27,6 +27,12 @@ type MobileTransitionDirection = -1 | 0 | 1;
 
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
 const TICKET_LOADING_GRACE_MS = 42000;
+const DESKTOP_DETAIL_MIN_WIDTH = 1536;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1600;
+
+const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
+  typeof window === 'undefined' ||
+  window.innerWidth >= (embedded ? EMBEDDED_DETAIL_MIN_WIDTH : DESKTOP_DETAIL_MIN_WIDTH);
 
 const getDirectionBetweenViews = (
   from: MobileView,
@@ -148,6 +154,7 @@ const TicketOpsStat = ({
   tone,
   icon: Icon,
   onClick,
+  compact = false,
 }: {
   label: string;
   value: number;
@@ -155,6 +162,7 @@ const TicketOpsStat = ({
   tone: 'blue' | 'amber' | 'emerald' | 'violet';
   icon: React.ElementType;
   onClick?: () => void;
+  compact?: boolean;
 }) => {
   const toneClass = {
     blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
@@ -170,23 +178,24 @@ const TicketOpsStat = ({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'inline-flex min-w-0 shrink-0 items-center gap-2 rounded-full border border-border/70 bg-background/75 px-2.5 py-1.5 text-left shadow-sm',
+        'inline-flex min-w-0 shrink-0 items-center rounded-full border border-border/70 bg-background/75 text-left shadow-sm',
+        compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-2.5 py-1.5',
         onClick && 'transition hover:border-primary/50 hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
       )}
     >
-      <span className={cn('inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border', toneClass)}>
-        <Icon className="h-3.5 w-3.5" />
+      <span className={cn('inline-flex shrink-0 items-center justify-center rounded-full border', compact ? 'h-6 w-6' : 'h-7 w-7', toneClass)}>
+        <Icon className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="text-sm font-bold tabular-nums tracking-tight text-foreground">
+          <span className={cn('font-bold tabular-nums tracking-tight text-foreground', compact ? 'text-[13px]' : 'text-sm')}>
             {value.toLocaleString('es-AR')}
           </span>
           <span className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {label}
           </span>
         </span>
-        <span className="block max-w-[9.5rem] truncate text-[11px] leading-4 text-muted-foreground">
+        <span className={cn('max-w-[9.5rem] truncate text-[11px] leading-4 text-muted-foreground', compact ? 'hidden min-[1120px]:block' : 'block')}>
           {helper}
         </span>
       </span>
@@ -241,7 +250,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   // Desktop-specific state
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(
-    () => !isMobile && (typeof window === 'undefined' || window.innerWidth >= 1440),
+    () => !isMobile && shouldShowDesktopDetailsByDefault(embedded),
   );
   const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
   const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
@@ -262,8 +271,8 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     }
 
     setIsSidebarVisible(true);
-    setIsDetailsVisible(typeof window === 'undefined' || window.innerWidth >= 1440);
-  }, [isMobile]);
+    setIsDetailsVisible(shouldShowDesktopDetailsByDefault(embedded));
+  }, [embedded, isMobile]);
 
   React.useEffect(() => {
     if (!loading) {
@@ -620,6 +629,19 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     selectedTicket?.recommended_next_action ||
     (selectedTicketHasUnread ? 'Responder conversacion' : null) ||
     (nextPriorityTicket ? `Proximo: ${nextPriorityLabel}` : 'Mesa actualizada');
+  const continuityTone = riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default';
+  const handlePrimaryOperationalAction = () => {
+    if (nextPriorityTicket && !isNextPrioritySelected) {
+      selectTicket(nextPriorityTicket.id);
+      return;
+    }
+    if (!selectedTicket) {
+      void refreshTickets();
+      return;
+    }
+    setDesktopView('chat');
+    if (isMobile) setActiveMobileView('chat');
+  };
 
   return (
     <Card className={panelCardClass}>
@@ -683,10 +705,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           </div>
           <div
             data-testid="ticket-ops-stat-strip"
-            hidden={embedded}
             className={cn(
-              'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 min-[1080px]:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-              embedded && 'hidden',
+              'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              embedded ? 'w-full min-[920px]:w-auto min-[920px]:justify-end' : 'min-[1080px]:justify-end',
             )}
           >
             <TicketOpsStat
@@ -696,6 +717,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               tone="blue"
               icon={Clock}
               onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
+              compact={embedded}
             />
             <TicketOpsStat
               label="Riesgo"
@@ -704,6 +726,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               tone="amber"
               icon={AlertTriangle}
               onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
+              compact={embedded}
             />
             <TicketOpsStat
               label="No leídos"
@@ -712,6 +735,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               tone="violet"
               icon={Radio}
               onClick={() => applyQuickFilter({ unread: 'unread' })}
+              compact={embedded}
             />
             <TicketOpsStat
               label="Resueltos"
@@ -720,6 +744,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               tone="emerald"
               icon={CheckCircle2}
               onClick={() => applyQuickFilter({ status: 'resuelto' })}
+              compact={embedded}
             />
           </div>
           {embedded ? (
@@ -765,6 +790,28 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 panelTestId="tickets-header-filter-panel"
                 className="h-8 rounded-full"
               />
+              {operationalFilterBadges.length > 0 ? (
+                <div
+                  data-testid="tickets-embedded-active-filters"
+                  className="flex min-w-0 flex-wrap items-center gap-1"
+                  title={operationalFilterBadges.join(' | ')}
+                >
+                  <Badge variant="secondary" className="rounded-full text-[11px]">
+                    {operationalFilterBadges.length === 1
+                      ? '1 filtro'
+                      : `${operationalFilterBadges.length} filtros`}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-full px-2 text-xs"
+                    onClick={resetOperationalFilters}
+                  >
+                    Limpiar
+                  </Button>
+                </div>
+              ) : null}
               <Button
                 type="button"
                 variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
@@ -782,17 +829,21 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </div>
           ) : null}
         </div>
-        <div
-          hidden={embedded}
-          className={cn(
-            'mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between',
-            embedded && 'hidden',
-          )}
-        >
+        {!embedded ? (
+          <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <TicketFilterPopover
+              compact
+              align="start"
+              side="bottom"
+              onReset={resetOperationalFilters}
+              triggerTestId="tickets-desk-filter-button"
+              panelTestId="tickets-desk-filter-panel"
+              className="h-8 rounded-full"
+            />
             <Badge variant="outline" className="gap-1 rounded-full">
               <Filter className="h-3 w-3" />
-              Filtros
+              Activos
             </Badge>
             {operationalFilterBadges.length > 0 ? (
               operationalFilterBadges.map((label) => (
@@ -844,68 +895,45 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </Button>
           </div>
         </div>
+        ) : null}
       </div>
-      <div
-        className={cn(
-          'border-b border-border/70 bg-background/65',
-          embedded ? 'px-2 py-2 sm:px-3' : 'px-3 py-2 sm:px-4',
-        )}
-      >
-        <OperationalContinuityBar
-          compact={embedded}
-          className={embedded ? 'rounded-[8px] border-primary/10 bg-background/45 p-1.5 shadow-none' : undefined}
-          testId="tickets-operational-continuity"
-          icon={MessageSquare}
-          tone={riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default'}
-          title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
-          subtitle={
-            embedded
-              ? selectedTicket
-                ? 'Chat y detalle conectados para responder sin perder contexto.'
-                : 'Cola priorizada y conversacion listas para operar.'
-              : selectedTicket
+      {!embedded ? (
+        <div className="border-b border-border/70 bg-background/65 px-3 py-2 sm:px-4">
+          <OperationalContinuityBar
+            testId="tickets-operational-continuity"
+            icon={MessageSquare}
+            tone={continuityTone}
+            title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
+            subtitle={
+              selectedTicket
                 ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
                 : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
-          }
-          reference={selectedTicketReference}
-          statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
-          channelLabel={selectedTicket ? selectedTicketChannel : 'WhatsApp / web'}
-          liveLabel={realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime listo'}
-          slaLabel={selectedTicketSla ?? (riskTickets > 0 ? `${riskTickets} en riesgo` : 'SLA estable')}
-          nextActionLabel={selectedTicketNextAction}
-          primaryActionLabel={
-            nextPriorityTicket && !isNextPrioritySelected
-              ? 'Atender prioridad'
-              : selectedTicket
-                ? 'Responder'
-                : 'Actualizar mesa'
-          }
-          onPrimaryAction={() => {
-            if (nextPriorityTicket && !isNextPrioritySelected) {
-              selectTicket(nextPriorityTicket.id);
-              return;
             }
-            if (!selectedTicket) {
-              void refreshTickets();
-              return;
+            reference={selectedTicketReference}
+            statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
+            channelLabel={selectedTicket ? selectedTicketChannel : 'WhatsApp / web'}
+            liveLabel={realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime listo'}
+            slaLabel={selectedTicketSla ?? (riskTickets > 0 ? `${riskTickets} en riesgo` : 'SLA estable')}
+            nextActionLabel={selectedTicketNextAction}
+            primaryActionLabel={
+              nextPriorityTicket && !isNextPrioritySelected
+                ? 'Atender prioridad'
+                : selectedTicket
+                  ? 'Responder'
+                  : 'Actualizar mesa'
             }
-            setDesktopView('chat');
-            if (isMobile) setActiveMobileView('chat');
-          }}
-          secondaryActionLabel="Actualizar"
-          onSecondaryAction={() => void refreshTickets()}
-          metrics={
-            embedded
-              ? []
-              : [
-                  { label: 'Abiertos', value: openTickets, tone: 'default' },
-                  { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
-                  { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
-                  { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
-                ]
-          }
-        />
-      </div>
+            onPrimaryAction={handlePrimaryOperationalAction}
+            secondaryActionLabel="Actualizar"
+            onSecondaryAction={() => void refreshTickets()}
+            metrics={[
+              { label: 'Abiertos', value: openTickets, tone: 'default' },
+              { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
+              { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
+              { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
+            ]}
+          />
+        </div>
+      ) : null}
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col">
           <div className="border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
@@ -1015,7 +1043,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70">
               <Sidebar
                 compact={embedded}
-                showFilterControl={!embedded}
+                showFilterControl={isMobile && !embedded}
                 className="h-full w-full shrink-0"
               />
             </div>

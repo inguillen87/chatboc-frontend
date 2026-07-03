@@ -332,24 +332,24 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         { id: 'price_asc', label: 'Menor precio' },
         { id: 'price_desc', label: 'Mayor precio' },
       ];
+  const assistedIntakeExplicitlyDisabled = frontendContract?.show_assisted_intake === false;
   const catalogStatusLine = useMemo(() => {
     if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
     const visibleCount = total ?? products.length;
     const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
     if (visibleCount === 0 && publishedCount === 0) {
-      return 'Subi una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
+      return assistedIntakeExplicitlyDisabled
+        ? 'Catalogo sin productos publicados por ahora. Usa los canales de contacto del tenant para continuar.'
+        : 'Subi una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
     if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
     if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
     return `${parts.join(' - ')}.`;
-  }, [facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
+  }, [assistedIntakeExplicitlyDisabled, facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
   const emptyState = !isLoading && products.length === 0;
   const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
-  const forceAssistedIntakeForEmptyCatalog = emptyState && catalogActuallyEmpty;
-  const assistedIntakeDisabled =
-    frontendContract?.show_assisted_intake === false && !forceAssistedIntakeForEmptyCatalog;
-  const effectiveAssistedIntake = assistedIntakeDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
+  const effectiveAssistedIntake = assistedIntakeExplicitlyDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
   const noResultsSearchTerm = !isLoading && products.length === 0 && !catalogActuallyEmpty
@@ -739,16 +739,17 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 className="w-full min-w-0 pl-9"
               />
             </div>
-            <Button
-              type="button"
-              data-testid="market-assisted-upload-cta"
-              onClick={() => activateAssistedUpload('file')}
-              disabled={!showAssistedIntake}
-              className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
-            >
-              <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
-              Subir pedido/foto/texto
-            </Button>
+            {showAssistedIntake ? (
+              <Button
+                type="button"
+                data-testid="market-assisted-upload-cta"
+                onClick={() => activateAssistedUpload('file')}
+                className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
+              >
+                <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
+                Subir pedido/foto/texto
+              </Button>
+            ) : null}
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Categoria" />
@@ -959,33 +960,43 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         <div data-testid="market-empty-state" className="rounded-lg border border-dashed bg-card p-4 shadow-sm sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
             <div className="max-w-2xl">
-              <Badge variant="secondary" className="mb-3">Compra asistida activa</Badge>
+              <Badge variant="secondary" className="mb-3">
+                {showAssistedIntake ? 'Compra asistida activa' : 'Catalogo pendiente'}
+              </Badge>
               <h3 className="text-xl font-semibold">
                 {hasActiveFilters && !catalogActuallyEmpty
                   ? 'No hay productos para esos filtros, pero podes cargar el pedido igual.'
-                  : publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) || 'Catalogo sin productos visibles, pedido asistido disponible.'}
+                  : showAssistedIntake
+                    ? publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) || 'Catalogo sin productos visibles, pedido asistido disponible.'
+                    : 'No hay productos disponibles en este catalogo.'}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 {hasActiveFilters && !catalogActuallyEmpty
                   ? 'Limpia filtros para volver al catalogo o subi una nota/foto: Chatboc la transforma en pedido, reclamo o consulta para que el equipo responda.'
-                  : publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
-                    'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite y genera seguimiento publico.'}
+                  : showAssistedIntake
+                    ? publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
+                      'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite y genera seguimiento publico.'
+                    : 'El tenant todavia no publico productos ni habilito carga asistida para visitantes. Usa los canales disponibles para pedir informacion.'}
               </p>
-              <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                {EMPTY_FLOW_STEPS.map((step) => (
-                  <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
-                    <p className="break-words font-semibold text-foreground">{step.label}</p>
-                    <p className="mt-1 break-words text-xs leading-5">{step.description}</p>
-                  </div>
-                ))}
+              {showAssistedIntake ? (
+                <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                  {EMPTY_FLOW_STEPS.map((step) => (
+                    <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
+                      <p className="break-words font-semibold text-foreground">{step.label}</p>
+                      <p className="mt-1 break-words text-xs leading-5">{step.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {showAssistedIntake ? (
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="font-semibold">Camino recomendado</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia y contacto comercial.
+                </p>
               </div>
-            </div>
-            <div className="rounded-lg border bg-muted/30 p-4">
-              <p className="font-semibold">Camino recomendado</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia y contacto comercial.
-              </p>
-            </div>
+            ) : null}
           </div>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <Button
@@ -1000,10 +1011,12 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <Search className="mr-2 h-4 w-4" />
               Limpiar filtros
             </Button>
-            <Button type="button" onClick={() => activateAssistedUpload('file')}>
-              <UploadIcon className="mr-2 h-4 w-4" />
-              {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
-            </Button>
+            {showAssistedIntake ? (
+              <Button type="button" onClick={() => activateAssistedUpload('file')}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
+              </Button>
+            ) : null}
             {shareMeta?.whatsappShareUrl ? (
               <Button asChild variant="outline">
                 <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">

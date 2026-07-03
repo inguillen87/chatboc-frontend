@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { broadcastAuthTokenToHost } from '@/utils/postMessage';
 import { GOOGLE_CLIENT_ID } from '@/env';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 
 interface LoginResponse {
   id: number;
@@ -22,15 +23,22 @@ interface LoginResponse {
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onLoggedIn?: (role?: string) => void;
+  hideWhenClerkEnabled?: boolean;
 }
 
 const GoogleLoginButton: React.FC<Props> = ({
   onLoggedIn,
+  hideWhenClerkEnabled = true,
   className,
   ...props
 }) => {
   const { refreshUser } = useUser();
   const navigate = useNavigate();
+  const clerkRuntime = useClerkRuntime();
+
+  if (hideWhenClerkEnabled && clerkRuntime.enabled) {
+    return null;
+  }
 
   if (!GOOGLE_CLIENT_ID) {
     console.warn('[GoogleLoginButton] VITE_GOOGLE_CLIENT_ID is missing. Google login is disabled.');

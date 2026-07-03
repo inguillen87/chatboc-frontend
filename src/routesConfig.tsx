@@ -9,6 +9,7 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
+const ClerkSsoCallbackPage = React.lazy(() => import('@/pages/ClerkSsoCallbackPage'));
 const Demo = React.lazy(() => import('@/pages/Demo'));
 const DemoCatalogDownloadPage = React.lazy(() => import('@/pages/DemoCatalogDownloadPage'));
 const Perfil = React.lazy(() => import('@/pages/Perfil'));
@@ -482,6 +483,8 @@ const routes: RouteConfig[] = [
   { path: '/admin', element: <Navigate to="/perfil" replace /> },
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
+  { path: '/sso-callback', element: <ClerkSsoCallbackPage /> },
+  { path: '/auth/sso-callback', element: <ClerkSsoCallbackPage /> },
   { path: '/user/login', element: <UserLogin /> },
   ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
   { path: '/user/register', element: <UserRegister /> },

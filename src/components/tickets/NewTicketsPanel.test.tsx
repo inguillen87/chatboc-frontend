@@ -106,7 +106,8 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel />);
 
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'true');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
+    expect(screen.getByTestId('tickets-desk-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
@@ -135,14 +136,114 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).not.toHaveClass('hidden');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Abiertos');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Riesgo');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('No');
+    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Resueltos');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr)',
     });
-    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
-    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Cola priorizada');
-    expect(screen.getByTestId('tickets-operational-continuity')).not.toHaveTextContent('Resueltos');
+    expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
+  });
+
+  it('keeps embedded active filters collapsed in the header without showing the heavy sidebar filters', () => {
+    const resetFilters = vi.fn();
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      filters: {
+        channel: 'whatsapp',
+        status: 'all',
+        area: 'obras',
+        agent: 'unassigned',
+        priority: 'all',
+        sla: 'risk',
+        unread: 'all',
+      },
+      setFilters: resetFilters,
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
+    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('4 filtros');
+    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
+      'title',
+      'Canal: whatsapp | Area: obras | Agente: unassigned | SLA: risk',
+    );
+    expect(screen.queryByText('Canal: whatsapp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Area: obras')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /limpiar/i }));
+    expect(resetFilters).toHaveBeenCalledWith(expect.any(Function));
+    const resetUpdater = resetFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
+    expect(resetUpdater({
+      channel: 'whatsapp',
+      status: 'all',
+      area: 'obras',
+      agent: 'unassigned',
+      priority: 'all',
+      sla: 'risk',
+      unread: 'all',
+    })).toEqual({
+      channel: 'all',
+      status: 'all',
+      area: 'all',
+      agent: 'all',
+      priority: 'all',
+      sla: 'all',
+      unread: 'all',
+    });
+  });
+
+  it('opens the details column by default only on wide embedded desks', () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1500 });
+      const narrow = render(<NewTicketsPanel embedded />);
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr)',
+      });
+      narrow.unmount();
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1650 });
+      render(<NewTicketsPanel embedded />);
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr) minmax(280px, 340px)',
+      });
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
   });
 
   it('offers a compact action for the next operational priority in embedded mode', () => {

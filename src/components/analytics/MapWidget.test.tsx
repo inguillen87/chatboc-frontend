@@ -5,8 +5,10 @@ import { MapWidget } from './MapWidget';
 import type { HeatmapResponse, PointsResponse } from '@/services/analyticsService';
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
-  default: ({ showHeatmap, heatmapData }: { showHeatmap?: boolean; heatmapData?: unknown[] }) => (
+  default: ({ showHeatmap, heatmapData }: { showHeatmap?: boolean; heatmapData?: Array<Record<string, unknown>> }) => (
     <div data-testid="mock-map" data-mode={showHeatmap ? 'heatmap' : 'points'}>
+      <span data-testid="mock-map-first-lat">{String(heatmapData?.[0]?.lat ?? '')}</span>
+      <span data-testid="mock-map-first-lng">{String(heatmapData?.[0]?.lng ?? '')}</span>
       mapa operativo {heatmapData?.length ?? 0}
     </div>
   ),
@@ -93,6 +95,31 @@ const pointsFixture = (): PointsResponse => ({
   ],
 });
 
+const operationsHeatmapFixture = (): HeatmapResponse => ({
+  contract_version: 'operations.heatmap.v1',
+  points: [],
+  cells: [
+    {
+      cellId: 'junin-centro',
+      label: 'Junin Centro',
+      lat: -33.086,
+      lng: -68.471,
+      count: 8,
+      weight: 6.2,
+      breakdown: { reclamos: 8 },
+    },
+  ],
+  hotspots: [],
+  metadata: {
+    totals: {
+      geocoded: 8,
+      missing: 0,
+      coverage: 100,
+      tickets: 8,
+    },
+  },
+});
+
 describe('MapWidget', () => {
   it('renders the operational command strip and the map with heatmap data', () => {
     render(
@@ -119,6 +146,21 @@ describe('MapWidget', () => {
     expect(screen.getByTestId('mock-map')).toHaveAttribute('data-mode', 'heatmap');
     expect(screen.getAllByText('Radar territorial').length).toBeGreaterThan(0);
     expect(screen.getByText('Categorías principales')).toBeInTheDocument();
+  });
+
+  it('renders operations heatmap v1 cells that use lat/lng coordinates', () => {
+    render(
+      <MapWidget
+        title="Mapa territorial"
+        heatmap={operationsHeatmapFixture()}
+        exportName="mapa"
+      />,
+    );
+
+    expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('1 celdas de calor');
+    expect(screen.getByTestId('mock-map')).toHaveTextContent('mapa operativo 1');
+    expect(screen.getByTestId('mock-map-first-lat')).toHaveTextContent('-33.086');
+    expect(screen.getByTestId('mock-map-first-lng')).toHaveTextContent('-68.471');
   });
 
   it('switches to real points mode without losing the command strip', () => {

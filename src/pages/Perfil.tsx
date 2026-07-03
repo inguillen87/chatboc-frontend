@@ -3061,7 +3061,8 @@ export default function Perfil() {
         </TabsContent>
         <TabsContent
           value="tickets"
-          className="mt-1 flex min-h-0 flex-1 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
+          data-testid="profile-ticket-workspace"
+          className="mt-1 flex h-full min-h-0 flex-1 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>

@@ -35,6 +35,21 @@ const safeNumber = (value: unknown): number => {
   return 0;
 };
 
+const safeCoordinate = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const resolveCellCoordinates = (cell: Record<string, unknown>) => {
+  const lat = safeCoordinate(cell.lat ?? cell.centroid_lat);
+  const lng = safeCoordinate(cell.lng ?? cell.lon ?? cell.centroid_lon);
+  return lat === null || lng === null ? null : { lat, lng };
+};
+
 const safeMetadataItems = (items: unknown): HeatmapMetadataItem[] =>
   Array.isArray(items) ? (items as HeatmapMetadataItem[]) : [];
 
@@ -81,23 +96,33 @@ export function MapWidget({
 
   const dataset = useMemo(() => {
     if (!heatmap) return [];
-    const base = (heatmap.cells ?? []).map((cell) => ({
-      id: cell.cellId,
-      lat: cell.centroid_lat,
-      lng: cell.centroid_lon,
-      weight: cell.weight ?? cell.count,
-      categoria: Object.keys(cell.breakdown ?? {})[0] ?? 'general',
-      estado: 'aggregated',
-    }));
+    const base = (heatmap.cells ?? []).flatMap((cell) => {
+      const coordinates = resolveCellCoordinates(cell);
+      if (!coordinates) return [];
+
+      return {
+        id: cell.cellId ?? cell.id ?? cell.key,
+        ...coordinates,
+        weight: cell.weight ?? cell.count,
+        categoria: Object.keys(cell.breakdown ?? {})[0] ?? cell.categoria ?? cell.category ?? 'general',
+        estado: 'aggregated',
+      };
+    });
     if (mode === 'puntos' && points?.points?.length) {
-      return points.points.map((point) => ({
-        id: point.cellId,
-        lat: point.lat,
-        lng: point.lon,
-        weight: 1,
-        categoria: point.categoria,
-        estado: point.estado,
-      }));
+      return points.points.flatMap((point) => {
+        const lat = safeCoordinate(point.lat);
+        const lng = safeCoordinate(point.lon);
+        if (lat === null || lng === null) return [];
+
+        return {
+          id: point.cellId,
+          lat,
+          lng,
+          weight: 1,
+          categoria: point.categoria,
+          estado: point.estado,
+        };
+      });
     }
     return base;
   }, [heatmap, points, mode]);
@@ -108,8 +133,8 @@ export function MapWidget({
       cell: cell.cellId,
       total: cell.count,
       weight: cell.weight,
-      lat: cell.centroid_lat,
-      lon: cell.centroid_lon,
+      lat: resolveCellCoordinates(cell)?.lat,
+      lon: resolveCellCoordinates(cell)?.lng,
       ...cell.breakdown,
     }));
   }, [heatmap]);

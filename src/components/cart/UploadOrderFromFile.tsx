@@ -328,6 +328,55 @@ const buildSubmitTextFields = (primaryField: string, endpoint: string) => {
 };
 
 const DEFAULT_MAX_SAFE_FILE_BYTES = 8 * 1024 * 1024;
+const DEFAULT_ACCEPTED_FILE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.csv', '.xls', '.xlsx', '.doc', '.docx', '.txt'];
+
+type AssistedSubmitContract = NonNullable<MarketAssistedIntakeEntry['submit']>;
+
+const normalizeAcceptedExtension = (extension: string | null | undefined) => {
+  const normalized = String(extension ?? '').trim().toLowerCase();
+  if (!normalized) return null;
+  return normalized.startsWith('.') ? normalized : `.${normalized}`;
+};
+
+const normalizeAcceptedMimeType = (mimeType: string | null | undefined) => {
+  const normalized = String(mimeType ?? '').trim().toLowerCase();
+  return normalized || null;
+};
+
+const buildAcceptedFileSpec = (submitContract: AssistedSubmitContract | null) => {
+  const contractMimeTypes =
+    submitContract?.accepted_mime_types?.map(normalizeAcceptedMimeType).filter((value): value is string => Boolean(value)) ?? [];
+  const contractExtensions =
+    submitContract?.accepted_extensions?.map(normalizeAcceptedExtension).filter((value): value is string => Boolean(value)) ?? [];
+  const hasExplicitAccept = contractMimeTypes.length > 0 || contractExtensions.length > 0;
+  const extensions = hasExplicitAccept ? contractExtensions : DEFAULT_ACCEPTED_FILE_EXTENSIONS;
+  const values = [...contractMimeTypes, ...extensions];
+  return {
+    values,
+    mimeTypes: contractMimeTypes,
+    extensions,
+  };
+};
+
+const acceptedMimeMatches = (fileType: string, acceptedMimeType: string) => {
+  if (!fileType) return false;
+  if (acceptedMimeType.endsWith('/*')) {
+    return fileType.startsWith(acceptedMimeType.slice(0, -1));
+  }
+  return fileType === acceptedMimeType;
+};
+
+const fileMatchesAcceptedSpec = (
+  file: File,
+  acceptedSpec: ReturnType<typeof buildAcceptedFileSpec>,
+) => {
+  const lowerName = file.name.toLowerCase();
+  const fileType = normalizeAcceptedMimeType(file.type) ?? '';
+  return (
+    acceptedSpec.extensions.some((extension) => lowerName.endsWith(extension)) ||
+    acceptedSpec.mimeTypes.some((mimeType) => acceptedMimeMatches(fileType, mimeType))
+  );
+};
 
 const DEFAULT_MARKETPLACE_PIPELINE = [
   {
@@ -970,21 +1019,16 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     typeof submitContract?.max_text_chars === 'number' && submitContract.max_text_chars > 0
       ? submitContract.max_text_chars
       : 12000;
-  const submitAccept = useMemo(() => {
-    const mimeTypes = submitContract?.accepted_mime_types?.filter(Boolean) ?? [];
-    const extensions = (submitContract?.accepted_extensions?.filter(Boolean) ?? []).map((extension) =>
-      extension.startsWith('.') ? extension : `.${extension}`,
-    );
-    const values = [...mimeTypes, ...extensions];
-    return values.length
-      ? values.join(',')
-      : '.pdf,.jpg,.jpeg,.png,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt';
-  }, [submitContract?.accepted_extensions, submitContract?.accepted_mime_types]);
+  const submitAcceptedFileSpec = useMemo(
+    () => buildAcceptedFileSpec(submitContract),
+    [submitContract?.accepted_extensions, submitContract?.accepted_mime_types],
+  );
+  const submitAccept = submitAcceptedFileSpec.values.join(',');
   const submitAcceptedLabel = useMemo(() => {
-    const extensionLabels = (submitContract?.accepted_extensions?.filter(Boolean) ?? [])
+    const extensionLabels = submitAcceptedFileSpec.extensions
       .map((extension) => extension.replace(/^\./, '').trim().toUpperCase())
       .filter(Boolean);
-    const mimeLabels = (submitContract?.accepted_mime_types?.filter(Boolean) ?? [])
+    const mimeLabels = submitAcceptedFileSpec.mimeTypes
       .map((mimeType) => {
         const normalized = mimeType.toLowerCase();
         if (normalized.includes('jpeg')) return 'JPG';
@@ -1010,7 +1054,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       return aIndex - bIndex;
     });
     return sorted.length ? sorted.join(', ') : 'PDF, JPG, PNG, WEBP, CSV, Excel, Word o TXT';
-  }, [submitContract?.accepted_extensions, submitContract?.accepted_mime_types]);
+  }, [submitAcceptedFileSpec]);
   const submitMaxFileMbLabel = Math.max(1, Math.floor(submitMaxFileBytes / (1024 * 1024)));
   const marketplacePipeline = (
     intakeExperience?.pipeline?.length ? intakeExperience.pipeline.slice(0, 4) : DEFAULT_MARKETPLACE_PIPELINE
@@ -1052,6 +1096,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     }
     if (!canSubmitToServer) {
       setError('Este marketplace todavia no habilito la carga asistida desde el backend.');
+      return;
+    }
+    if (file && !fileMatchesAcceptedSpec(file, submitAcceptedFileSpec)) {
+      setError(`Formato no aceptado. Usa ${submitAcceptedLabel}.`);
       return;
     }
     if (file && file.size > submitMaxFileBytes) {

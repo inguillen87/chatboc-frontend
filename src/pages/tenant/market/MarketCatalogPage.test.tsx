@@ -208,7 +208,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
   });
 
-  it('keeps assisted intake visible for an empty catalog even when the backend contract disables it', async () => {
+  it('keeps a neutral empty catalog state when the backend contract disables assisted intake', async () => {
     fetchMarketCatalogMock.mockResolvedValueOnce({
       products: [],
       promotions: { items: [] },
@@ -237,10 +237,13 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(fetchMarketCatalogMock).toHaveBeenCalled();
     });
 
-    expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Sin registro')).toBeInTheDocument();
-    expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
+    expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('Catalogo pendiente')).toBeInTheDocument();
+    expect(screen.getByText('No hay productos disponibles en este catalogo.')).toBeInTheDocument();
+    expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin registro')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('market-assisted-command')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Subir foto o archivo/i })).not.toBeInTheDocument();
   });
 
   it('hides assisted intake when the catalog has products and the backend contract disables it', async () => {
@@ -298,7 +301,8 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
     expect(screen.queryByText('Intake IA sin registro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subir pedido\/foto\/texto/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Subir pedido\/foto\/texto/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('market-assisted-upload-cta')).not.toBeInTheDocument();
   });
 
   it('keeps a local assisted intake fallback when the catalog contract omits it', async () => {
