@@ -11,22 +11,13 @@ import { toast } from '@/components/ui/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
+import { isAbsoluteUrl, resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { TenantSwitcher } from './TenantSwitcher';
 
 interface TenantShellProps {
   children: ReactNode;
 }
-
-const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
-
-const resolveNavigationTarget = (item: TenantPublicNavigationItem, basePath: string) => {
-  const itemRoute = item.route || item.href || (typeof item.path === 'string' ? item.path : null);
-  if (!itemRoute) return basePath;
-  if (isAbsoluteUrl(itemRoute)) return itemRoute;
-  if (itemRoute.startsWith('/')) return itemRoute;
-  return `${basePath}/${itemRoute.replace(/^\/+/, '')}`;
-};
 
 const sanitizePublicMessage = (message?: string | null) => {
   if (!message) return 'No pudimos cargar este espacio en este momento.';
@@ -177,7 +168,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
           const enabled = item.enabled !== false;
-          const to = resolveNavigationTarget(item, basePath);
+          const to = resolveTenantPublicNavigationTarget(item, basePath);
           const label = item.label;
 
           if (!enabled) {

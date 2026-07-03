@@ -566,7 +566,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const panelCardClass = cn(
     'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
     embedded ? 'rounded-none border-x-0 border-b-0 bg-transparent shadow-none' : 'rounded-lg shadow-2xl',
-    isMobile && 'h-[calc(100dvh-8rem)]',
+    isMobile && !embedded && 'h-[calc(100dvh-8rem)]',
   );
 
   const localOpenTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
@@ -597,11 +597,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(340px, 430px) minmax(0, 1fr) minmax(290px, 350px)'
+      ? 'minmax(300px, 380px) minmax(0, 1fr) minmax(280px, 340px)'
       : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(340px, 430px) minmax(0, 1fr)'
+        ? 'minmax(300px, 380px) minmax(0, 1fr)'
         : 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
         ? 'minmax(0, 1fr) minmax(300px, 360px)'
@@ -853,7 +853,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       >
         <OperationalContinuityBar
           compact={embedded}
-          className={embedded ? 'rounded-[8px] border-primary/10 bg-background/45 p-2 shadow-none' : undefined}
+          className={embedded ? 'rounded-[8px] border-primary/10 bg-background/45 p-1.5 shadow-none' : undefined}
           testId="tickets-operational-continuity"
           icon={MessageSquare}
           tone={riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default'}

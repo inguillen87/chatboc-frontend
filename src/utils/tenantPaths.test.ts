@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildTenantPath, buildTenantApiPath } from './tenantPaths';
+import {
+  buildTenantPath,
+  buildTenantApiPath,
+  resolveTenantPublicNavigationTarget,
+} from './tenantPaths';
 
 describe('buildTenantPath', () => {
   it('should prepend tenant slug to clean path', () => {
@@ -43,5 +47,47 @@ describe('buildTenantApiPath', () => {
 
   it('should return generic api path if no slug', () => {
     expect(buildTenantApiPath('/productos', null)).toBe('/api/productos');
+  });
+});
+
+describe('resolveTenantPublicNavigationTarget', () => {
+  it('keeps public tenant routes inside the tenant space', () => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'surveys', label: 'Encuestas', route: 'encuestas' },
+        '/t/junin',
+      ),
+    ).toBe('/t/junin/encuestas');
+  });
+
+  it('maps protected ticket desk aliases to the public claim intake', () => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'tickets', label: 'Tickets', route: 'tickets' },
+        '/t/junin',
+      ),
+    ).toBe('/t/junin/reclamos/nuevo');
+
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'inbox', label: 'Inbox', route: '/t/junin/tickets' },
+        '/t/junin',
+      ),
+    ).toBe('/t/junin/reclamos/nuevo');
+  });
+
+  it('uses the public fallback when no navigation item is available', () => {
+    expect(resolveTenantPublicNavigationTarget(null, '/t/junin', 'reclamos/nuevo')).toBe(
+      '/t/junin/reclamos/nuevo',
+    );
+  });
+
+  it('preserves external links', () => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'web', label: 'Web', href: 'https://junin.gob.ar' },
+        '/t/junin',
+      ),
+    ).toBe('https://junin.gob.ar');
   });
 });

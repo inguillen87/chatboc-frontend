@@ -1,5 +1,6 @@
 import { APP_TARGET } from '@/config';
 import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
+import type { TenantPublicNavigationItem } from '@/types/tenant';
 
 // Re-export constants for backward compatibility if any file still imports from here
 export { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS };
@@ -115,7 +116,65 @@ const applySlugPlaceholder = (template: string, tenantSlug?: string | null) => {
   return trimmed;
 };
 
-const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+export const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
+
+export const isPrivateTenantBackofficeRoute = (value?: string | null) => {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+/, '');
+  const pathOnly = normalized.split(/[?#]/)[0].replace(/\/+$/, '');
+
+  return (
+    pathOnly === 'tickets' ||
+    pathOnly === 'reclamos' ||
+    pathOnly === 'inbox' ||
+    pathOnly.startsWith('tickets/') ||
+    pathOnly.startsWith('reclamos/') ||
+    pathOnly.startsWith('inbox/')
+  );
+};
+
+const stripBasePathFromTenantRoute = (route: string, basePath: string) => {
+  const trimmedRoute = route.trim();
+  const normalizedBase = basePath.replace(/\/+$/, '');
+  if (!normalizedBase) return trimmedRoute.replace(/^\/+/, '');
+
+  const normalizedRouteLower = trimmedRoute.toLowerCase();
+  const normalizedBaseLower = normalizedBase.toLowerCase();
+  if (
+    normalizedRouteLower === normalizedBaseLower ||
+    normalizedRouteLower.startsWith(`${normalizedBaseLower}/`) ||
+    normalizedRouteLower.startsWith(`${normalizedBaseLower}?`)
+  ) {
+    return trimmedRoute.slice(normalizedBase.length).replace(/^\/+/, '');
+  }
+
+  return trimmedRoute.replace(/^\/+/, '');
+};
+
+export const resolveTenantPublicNavigationTarget = (
+  item: Pick<TenantPublicNavigationItem, 'route' | 'href'> & { path?: unknown } | null | undefined,
+  basePath: string,
+  fallbackSuffix?: string | null,
+) => {
+  const itemRoute =
+    item?.route ||
+    item?.href ||
+    (typeof item?.path === 'string' ? item.path : null) ||
+    fallbackSuffix ||
+    '';
+  if (!itemRoute) return basePath;
+  if (isAbsoluteUrl(itemRoute)) return itemRoute;
+
+  const routeForPrivacyCheck = stripBasePathFromTenantRoute(itemRoute, basePath);
+  if (isPrivateTenantBackofficeRoute(routeForPrivacyCheck)) {
+    return `${basePath.replace(/\/+$/, '')}/reclamos/nuevo`;
+  }
+
+  if (itemRoute.startsWith('/')) return itemRoute;
+  return `${basePath.replace(/\/+$/, '')}/${itemRoute.replace(/^\/+/, '')}`;
+};
 
 const toAbsoluteUrl = (raw: string, baseUrl?: string | null) => {
   const candidateBase = baseUrl?.trim();

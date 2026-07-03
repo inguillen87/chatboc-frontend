@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/context/TenantContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/utils/api';
+import { isAbsoluteUrl, resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type { TenantEventItem, TenantNewsItem, TenantPublicNavigationItem } from '@/types/tenant';
 
 const normalizeText = (value: unknown) =>
@@ -50,19 +51,13 @@ const findNavItem = (items: TenantPublicNavigationItem[], tokens: string[]) => {
 const hasEndpoint = (item?: TenantPublicNavigationItem | null) =>
   typeof item?.endpoint === 'string' && item.endpoint.trim().length > 0;
 
-const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
-
 const resolveNavTarget = (
   item: TenantPublicNavigationItem | null | undefined,
   basePath: string | null,
   fallbackSuffix: string,
 ) => {
   if (!basePath) return null;
-  const route = item?.route || item?.href || fallbackSuffix;
-  if (!route) return basePath;
-  if (isAbsoluteUrl(route)) return route;
-  if (route.startsWith('/')) return route;
-  return `${basePath}/${route.replace(/^\/+/, '')}`;
+  return resolveTenantPublicNavigationTarget(item, basePath, fallbackSuffix);
 };
 
 const formatDate = (value?: string | null) => {
