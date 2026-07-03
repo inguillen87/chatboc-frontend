@@ -11,10 +11,38 @@ interface ClerkAuthButtonsProps {
   className?: string;
 }
 
+const SOCIAL_PROVIDER_LABELS: Record<string, string> = {
+  google: 'Google',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+};
+
+const SOCIAL_PROVIDER_ORDER = ['google', 'facebook', 'linkedin'];
+
+const socialProviderLabel = (providers: string[]) => {
+  const normalized = Array.from(
+    new Set(
+      providers
+        .map((provider) => provider.trim().toLowerCase().replace(/^oauth_/, '').replace(/_oidc$/, ''))
+        .filter(Boolean),
+    ),
+  );
+  const sorted = [
+    ...SOCIAL_PROVIDER_ORDER.filter((provider) => normalized.includes(provider)),
+    ...normalized.filter((provider) => !SOCIAL_PROVIDER_ORDER.includes(provider)),
+  ];
+  const labels = sorted.map((provider) => SOCIAL_PROVIDER_LABELS[provider] || provider);
+
+  if (labels.length === 0) return 'Email seguro';
+  if (labels.length === 1) return `${labels[0]} o email`;
+  return `${labels.join(', ')} o email`;
+};
+
 const ClerkAuthButtons: React.FC<ClerkAuthButtonsProps> = ({ mode = 'login', className }) => {
   const clerkRuntime = useClerkRuntime();
 
   if (!clerkRuntime.enabled) return null;
+  const providerLabel = socialProviderLabel(clerkRuntime.socialProviders);
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -30,7 +58,7 @@ const ClerkAuthButtons: React.FC<ClerkAuthButtonsProps> = ({ mode = 'login', cla
             <Button type="button" className="h-11 w-full justify-center gap-2">
               <Facebook className="h-4 w-4" />
               <Linkedin className="h-4 w-4" />
-              Facebook, LinkedIn o email
+              {providerLabel}
             </Button>
           </SignUpButton>
         </div>

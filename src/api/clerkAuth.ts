@@ -105,6 +105,11 @@ export interface ClerkFrontendConfigResponse {
   ready_for_session_sync?: boolean;
   configuration_warnings?: Array<{ code?: string; message?: string }>;
   social_providers?: string[];
+  superadmin_policy?: {
+    mode?: 'email_allowlist' | string;
+    default_owner_guardrail?: boolean;
+    allowlist_env_configured?: boolean;
+  };
 }
 
 const clerkHeaders = (token: string) => ({
