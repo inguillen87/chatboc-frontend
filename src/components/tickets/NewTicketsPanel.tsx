@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import TicketFilterPopover from './TicketFilterPopover';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
 import { Toaster } from '@/components/ui/sonner';
@@ -596,11 +597,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(320px, 390px) minmax(0, 1fr) minmax(290px, 350px)'
+      ? 'minmax(340px, 430px) minmax(0, 1fr) minmax(290px, 350px)'
       : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(320px, 400px) minmax(0, 1fr)'
+        ? 'minmax(340px, 430px) minmax(0, 1fr)'
         : 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
         ? 'minmax(0, 1fr) minmax(300px, 360px)'
@@ -755,6 +756,15 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   Actualizando
                 </Badge>
               ) : null}
+              <TicketFilterPopover
+                compact
+                align="end"
+                side="bottom"
+                onReset={resetOperationalFilters}
+                triggerTestId="tickets-header-filter-button"
+                panelTestId="tickets-header-filter-panel"
+                className="h-8 rounded-full"
+              />
               <Button
                 type="button"
                 variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
@@ -950,6 +960,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 >
                   <Sidebar
                     compact={embedded}
+                    showFilterControl={!embedded}
                     className="h-full min-h-0 w-full min-w-full"
                     onTicketSelected={handleMobileTicketSelection}
                   />
@@ -1002,7 +1013,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         >
           {isSidebarVisible && (
             <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70">
-              <Sidebar compact={embedded} className="h-full w-full shrink-0" />
+              <Sidebar
+                compact={embedded}
+                showFilterControl={!embedded}
+                className="h-full w-full shrink-0"
+              />
             </div>
           )}
 

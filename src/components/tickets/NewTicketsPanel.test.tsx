@@ -33,8 +33,18 @@ vi.mock('@/services/backofficeService', () => ({
 }));
 
 vi.mock('./Sidebar', () => ({
-  default: ({ className }: { className?: string }) => (
-    <aside className={className} data-testid="tickets-sidebar">
+  default: ({
+    className,
+    showFilterControl = true,
+  }: {
+    className?: string;
+    showFilterControl?: boolean;
+  }) => (
+    <aside
+      className={className}
+      data-show-filter-control={showFilterControl ? 'true' : 'false'}
+      data-testid="tickets-sidebar"
+    >
       Reclamos
     </aside>
   ),
@@ -96,6 +106,7 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel />);
 
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'true');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
@@ -122,9 +133,11 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-embedded-ops-header')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
+    expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('hidden');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(320px, 400px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(340px, 430px) minmax(0, 1fr)',
     });
     expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
     expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Cola priorizada');

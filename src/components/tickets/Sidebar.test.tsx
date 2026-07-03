@@ -344,6 +344,44 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
   });
 
+  it('can delegate filter controls to the parent header in compact CRM embeds', async () => {
+    const ticket = {
+      id: 378430,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo De Calle',
+      categoria: 'Arreglo De Calle',
+      estado: 'nuevo',
+    };
+
+    useTicketsMock.mockReturnValue({
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      ticketsByCategory: {
+        'Arreglo De Calle': [ticket],
+      },
+      selectedTicket: null,
+      selectTicket: selectTicketMock,
+      filters: { ...defaultFilters, channel: 'whatsapp' },
+      setFilters: setFiltersMock,
+      filterOptions: {
+        ...defaultFilterOptions,
+        channels: ['whatsapp'],
+      },
+    });
+
+    render(<Sidebar compact showFilterControl={false} />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /limpiar filtros activos/i })).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+  });
+
   it('keeps the passive compact summary out of the visual flow when no filters are active', async () => {
     render(<Sidebar compact />);
 

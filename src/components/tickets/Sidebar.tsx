@@ -3,12 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  ChevronDown,
   FileDown,
   FolderOpen,
   List,
   Search,
-  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -19,6 +17,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
+import TicketFilterPopover from './TicketFilterPopover';
 import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
 import { apiClient } from '@/api/client';
@@ -33,11 +32,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import {
@@ -52,6 +46,7 @@ interface SidebarProps {
   className?: string;
   onTicketSelected?: () => void;
   compact?: boolean;
+  showFilterControl?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -66,12 +61,12 @@ const defaultFilters = {
   unread: 'all',
 };
 
-const FILTER_SELECT_CLASS_NAME =
-  'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
-const QUICK_FILTER_BUTTON_CLASS_NAME =
-  'h-7 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
-
-const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  className,
+  onTicketSelected,
+  compact = false,
+  showFilterControl = true,
+}) => {
   const { tenant } = useTenant();
   const {
     tickets,
@@ -97,14 +92,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
     [],
   );
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
-  const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
   const [listMode, setListMode] = React.useState<'queue' | 'categories'>('queue');
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
     QUEUE_ITEMS_PER_PAGE,
   );
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
   const searchInputId = React.useId();
-  const filterPanelId = React.useId();
 
   React.useEffect(() => {
     if (compact) {
@@ -337,91 +330,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
       ? '1 activo'
       : `${secondaryFilterCount} activos`;
   const hasActiveFilters = Boolean(debouncedSearchTerm) || hasSecondaryFilters;
-  const isDefaultFilterSet = React.useMemo(
-    () =>
-      Object.entries(defaultFilters).every(
-        ([key, value]) => filters[key as keyof typeof defaultFilters] === value,
-      ),
-    [filters],
-  );
-  const secondaryFilterButtonLabel = hasSecondaryFilters
-    ? `Filtros secundarios, ${secondaryFilterCountLabel}`
-    : 'Filtros secundarios';
-  const visibleSecondaryFilterLabels = secondaryFilterLabels.slice(0, 3);
-  const hiddenSecondaryFilterCount = Math.max(
-    0,
-    secondaryFilterLabels.length - visibleSecondaryFilterLabels.length,
-  );
 
   const resetFilters = () => {
     setSearchTerm('');
     setFilters(defaultFilters);
   };
-  const quickFilterControls = (
-    <div
-      className="mb-2 grid grid-cols-4 gap-1 rounded-md border border-border/70 bg-muted/50 p-1"
-      role="group"
-      aria-label="Filtros rapidos de reclamos"
-      data-testid={compact ? 'sidebar-compact-primary-filters' : 'sidebar-filter-shortcuts'}
-    >
-      <Button
-        type="button"
-        size="sm"
-        variant={
-          !debouncedSearchTerm && isDefaultFilterSet
-            ? 'secondary'
-            : 'outline'
-        }
-        className={QUICK_FILTER_BUTTON_CLASS_NAME}
-        aria-pressed={!debouncedSearchTerm && isDefaultFilterSet}
-        onClick={resetFilters}
-      >
-        Todos
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={filters.unread === 'unread' ? 'secondary' : 'outline'}
-        className={QUICK_FILTER_BUTTON_CLASS_NAME}
-        aria-pressed={filters.unread === 'unread'}
-        onClick={() =>
-          setFilters((prev) => ({ ...prev, unread: 'unread' }))
-        }
-      >
-        No leidos
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={filters.sla === 'risk' ? 'secondary' : 'outline'}
-        className={QUICK_FILTER_BUTTON_CLASS_NAME}
-        aria-pressed={filters.sla === 'risk'}
-        onClick={() =>
-          setFilters((prev) => ({
-            ...prev,
-            sla: prev.sla === 'risk' ? 'all' : 'risk',
-          }))
-        }
-      >
-        Riesgo
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={filters.agent === 'unassigned' ? 'secondary' : 'outline'}
-        className={QUICK_FILTER_BUTTON_CLASS_NAME}
-        aria-pressed={filters.agent === 'unassigned'}
-        onClick={() =>
-          setFilters((prev) => ({
-            ...prev,
-            agent: prev.agent === 'unassigned' ? 'all' : 'unassigned',
-          }))
-        }
-      >
-        Sin resp.
-      </Button>
-    </div>
-  );
 
   const categoryEntries = Object.entries(filteredTicketsByCategory) as [
     string,
@@ -516,232 +429,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
       </Button>
     </div>
   );
-  const filterPopover = (
-    <Popover open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
-          className="h-7 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold"
-          aria-label={secondaryFilterButtonLabel}
-          aria-expanded={advancedFiltersOpen}
-          aria-controls={filterPanelId}
-        >
-          <SlidersHorizontal className="h-4 w-4 text-primary" />
-          <span className={cn('hidden sm:inline', compact && 'sr-only')}>Filtros</span>
-          {hasSecondaryFilters ? (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold text-primary">
-              {secondaryFilterCount}
-            </span>
-          ) : null}
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 shrink-0 transition-transform',
-              advancedFiltersOpen && 'rotate-180',
-            )}
-          />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        id={filterPanelId}
-        data-testid="sidebar-filter-panel"
-        aria-label="Filtros secundarios de reclamos"
-        align={compact ? 'end' : 'start'}
-        side={compact ? 'bottom' : 'right'}
-        sideOffset={8}
-        className="w-[min(23rem,calc(100vw-2rem))] rounded-[8px] border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur"
-      >
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold text-foreground">Filtros secundarios</p>
-            <p className="text-[11px] text-muted-foreground">
-              {hasSecondaryFilters
-                ? secondaryFilterCountLabel
-                : 'Sin filtros secundarios'}
-            </p>
-          </div>
-          {hasActiveFilters ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 shrink-0 px-2 text-xs"
-              onClick={resetFilters}
-            >
-              Limpiar
-            </Button>
-          ) : null}
-        </div>
-        {quickFilterControls}
-        {hasSecondaryFilters ? (
-          <div
-            aria-label="Filtros activos aplicados"
-            data-testid="sidebar-filter-active-chips"
-            className="my-2 flex min-w-0 flex-wrap gap-1.5"
-          >
-            {visibleSecondaryFilterLabels.map((label) => (
-              <span
-                key={label}
-                className="max-w-full truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-semibold leading-none text-primary"
-              >
-                {label}
-              </span>
-            ))}
-            {hiddenSecondaryFilterCount > 0 ? (
-              <span className="rounded-full border border-border bg-muted px-2 py-1 text-[11px] font-semibold leading-none text-muted-foreground">
-                +{hiddenSecondaryFilterCount}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-        <fieldset className="grid max-h-[min(66vh,25rem)] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
-          <legend className="sr-only">Filtros secundarios de reclamos</legend>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-channel`}>
-              Filtrar por canal
-            </label>
-            <select
-              id={`${filterPanelId}-channel`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.channel}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, channel: e.target.value }))
-              }
-            >
-              <option value="all">Canal: todos</option>
-              {filterOptions.channels.map((channel) => (
-                <option key={channel} value={channel}>
-                  {channel}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-status`}>
-              Filtrar por estado
-            </label>
-            <select
-              id={`${filterPanelId}-status`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.status}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, status: e.target.value }))
-              }
-            >
-              <option value="all">Estado: todos</option>
-              {filterOptions.statuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-area`}>
-              Filtrar por area
-            </label>
-            <select
-              id={`${filterPanelId}-area`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.area}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, area: e.target.value }))
-              }
-            >
-              <option value="all">Area: todas</option>
-              {filterOptions.areas.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-agent`}>
-              Filtrar por agente
-            </label>
-            <select
-              id={`${filterPanelId}-agent`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.agent}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, agent: e.target.value }))
-              }
-            >
-              <option value="all">Agente: todos</option>
-              {filterOptions.agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0 sm:col-span-2">
-            <label className="sr-only" htmlFor={`${filterPanelId}-priority`}>
-              Filtrar por prioridad
-            </label>
-            <select
-              id={`${filterPanelId}-priority`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.priority}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, priority: e.target.value }))
-              }
-            >
-              <option value="all">Prioridad: todas</option>
-              {filterOptions.priorities.map((priority) => (
-                <option key={priority} value={priority}>
-                  {priority}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-sla`}>
-              Filtrar por SLA
-            </label>
-            <select
-              id={`${filterPanelId}-sla`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.sla}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, sla: e.target.value }))
-              }
-            >
-              <option value="all">SLA: todos</option>
-              <option value="risk">SLA: riesgo</option>
-              {filterOptions.slaStatuses
-                .filter((slaStatus) => slaStatus !== 'risk')
-                .map((slaStatus) => (
-                  <option key={slaStatus} value={slaStatus}>
-                    {slaStatus}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label className="sr-only" htmlFor={`${filterPanelId}-unread`}>
-              Filtrar por lectura
-            </label>
-            <select
-              id={`${filterPanelId}-unread`}
-              className={FILTER_SELECT_CLASS_NAME}
-              value={filters.unread}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, unread: e.target.value }))
-              }
-            >
-              {filterOptions.unreadModes.map((mode) => (
-                <option key={mode.value} value={mode.value}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </fieldset>
-      </PopoverContent>
-    </Popover>
-  );
+  const filterControl = showFilterControl ? (
+    <TicketFilterPopover
+      compact={compact}
+      hasSearchTerm={Boolean(debouncedSearchTerm)}
+      onReset={resetFilters}
+    />
+  ) : null;
 
   return (
     <aside
@@ -786,7 +480,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
                 {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
               </span>
               {listModeToggle}
-              {filterPopover}
+              {filterControl}
               {hasActiveFilters ? (
                 <Button
                   type="button"
@@ -899,7 +593,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected, compact 
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              {filterPopover}
+              {filterControl}
               {listModeToggle}
             </div>
           </>
