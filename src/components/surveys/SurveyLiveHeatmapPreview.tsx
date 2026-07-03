@@ -1,5 +1,5 @@
 import { useId, useMemo } from 'react';
-import { Activity, Layers3, MapPin, Radio } from 'lucide-react';
+import { Activity, BrainCircuit, Layers3, MapPin, Radio } from 'lucide-react';
 
 import type { SurveyLiveHeatmap } from '@/types/encuestas';
 
@@ -20,6 +20,15 @@ type HeatmapSummaryItem = {
 
 interface SurveyLiveHeatmapPreviewProps {
   heatmap?: SurveyLiveHeatmap | null;
+  aiSignal?: {
+    provider_family?: string;
+    mode?: string;
+    hf_status?: Record<string, unknown>;
+    summary?: Record<string, unknown>;
+    recommended_actions?: Array<Record<string, unknown>>;
+    frontend_contract?: Record<string, unknown>;
+  } | null;
+  operatorRecommendations?: Array<Record<string, unknown>> | null;
   title?: string;
   subtitle?: string;
   pointsLabel?: string;
@@ -153,8 +162,24 @@ const summarizeBy = (items: HeatmapDatum[], picker: (item: HeatmapDatum) => stri
     .slice(0, 4);
 };
 
+const asDisplayText = (value: unknown, fallback = '-') => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return value ? 'si' : 'no';
+  return fallback;
+};
+
+const normalizePriorityTone = (value: unknown) => {
+  const priority = asDisplayText(value, 'medium').toLowerCase();
+  if (priority === 'high' || priority === 'critical' || priority === 'alta') return 'text-rose-200 border-rose-300/25 bg-rose-400/10';
+  if (priority === 'low' || priority === 'baja') return 'text-slate-300 border-white/10 bg-white/[0.04]';
+  return 'text-amber-100 border-amber-200/20 bg-amber-300/10';
+};
+
 export function SurveyLiveHeatmapPreview({
   heatmap,
+  aiSignal,
+  operatorRecommendations,
   title = 'Mapa de calor ciudadano',
   subtitle = 'Actividad geolocalizada de respuestas en vivo',
   pointsLabel = 'Puntos',
@@ -177,6 +202,25 @@ export function SurveyLiveHeatmapPreview({
   const maxValue = Math.max(1, ...points.map((point) => point.value), ...cells.map((cell) => cell.value));
   const hasData = points.length > 0 || cells.length > 0;
   const totalSignal = allData.reduce((sum, item) => sum + item.value, 0);
+  const aiSummary = aiSignal?.summary ?? {};
+  const hfStatus = aiSignal?.hf_status ?? {};
+  const aiRecommendations = useMemo(() => {
+    const source = operatorRecommendations?.length ? operatorRecommendations : aiSignal?.recommended_actions;
+    return (source ?? [])
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+      .slice(0, 4);
+  }, [aiSignal?.recommended_actions, operatorRecommendations]);
+  const hasAiSignal = Boolean(aiSignal || aiRecommendations.length);
+  const hfConfigured = hfStatus.configured === true;
+  const hfUsed = hfStatus.used === true;
+  const aiModeLabel = hfUsed
+    ? 'Hugging Face activo'
+    : hfConfigured
+      ? 'HF listo con fallback'
+      : 'Fallback local seguro';
+  const dominantIntent = asDisplayText(aiSummary.dominant_intent_label ?? aiSummary.dominant_intent, 'consulta general');
+  const riskLevel = asDisplayText(aiSummary.risk_level ?? aiSummary.risk_signal, 'normal');
+  const humanAttention = aiSummary.requires_human_attention === true;
 
   return (
     <section
@@ -336,6 +380,56 @@ export function SurveyLiveHeatmapPreview({
           </span>
         </div>
       </div>
+
+      {hasAiSignal ? (
+        <div
+          className="grid gap-3 border-t border-white/10 bg-slate-950/90 p-4 text-xs text-slate-200 lg:grid-cols-[0.9fr_1.1fr]"
+          data-testid="survey-live-heatmap-ai-signal"
+        >
+          <div className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.06] p-3">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-100">
+              <BrainCircuit className="h-3.5 w-3.5" aria-hidden="true" />
+              Senales IA
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+              <div>
+                <p className="text-slate-400">Modo</p>
+                <p className="font-semibold text-white">{aiModeLabel}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Intencion dominante</p>
+                <p className="font-semibold text-white">{dominantIntent}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Riesgo operativo</p>
+                <p className={humanAttention ? 'font-semibold text-rose-100' : 'font-semibold text-emerald-100'}>
+                  {riskLevel}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
+            {aiRecommendations.length ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {aiRecommendations.map((action, index) => (
+                  <div
+                    key={`${asDisplayText(action.id, 'action')}-${index}`}
+                    className={`rounded-xl border px-3 py-2 ${normalizePriorityTone(action.priority)}`}
+                  >
+                    <p className="font-medium text-white">{asDisplayText(action.label, 'Revisar senal IA')}</p>
+                    <p className="mt-1 text-[11px] opacity-80">
+                      {asDisplayText(action.ui_hint, 'open_ai_summary')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {hasData ? (
         <div

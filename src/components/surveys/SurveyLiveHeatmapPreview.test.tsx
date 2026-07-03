@@ -16,6 +16,23 @@ describe('SurveyLiveHeatmapPreview', () => {
             { id: 'cell-1', centroid_lat: -33.08, centroid_lon: -68.472, count: 11, barrio: 'Centro', channel: 'whatsapp' },
           ],
         }}
+        aiSignal={{
+          mode: 'deterministic_local_fallback',
+          hf_status: { configured: false, used: false },
+          summary: {
+            dominant_intent_label: 'encuesta o votacion',
+            risk_level: 'normal',
+            requires_human_attention: false,
+          },
+        }}
+        operatorRecommendations={[
+          {
+            id: 'share_survey_now',
+            label: 'Reforzar difusion por WhatsApp',
+            priority: 'high',
+            ui_hint: 'share_public_link',
+          },
+        ]}
       />,
     );
 
@@ -25,6 +42,9 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('Centro');
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('San Martin');
     expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('whatsapp');
+    expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Fallback local seguro');
+    expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('encuesta o votacion');
+    expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusion por WhatsApp');
     expect(screen.getByText(/Senal:/)).toHaveTextContent('21');
   });
 

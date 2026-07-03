@@ -82,6 +82,28 @@ export interface SurveyLiveKpis {
   active_filters?: Record<string, unknown>;
 }
 
+export interface SurveyLiveTelemetry {
+  has_responses?: boolean;
+  responses_total?: number;
+  responses_last_hour?: number;
+  participation_per_minute?: number;
+  trend?: string;
+  polling_interval_ms?: number;
+  active_filters?: Record<string, unknown>;
+}
+
+export interface SurveyAiSignal {
+  contract_version?: string;
+  provider_family?: string;
+  mode?: string;
+  hf_status?: Record<string, unknown>;
+  summary?: Record<string, unknown>;
+  collection?: Record<string, unknown>;
+  recommended_actions?: Array<Record<string, unknown>>;
+  advisory_policy?: Record<string, unknown>;
+  frontend_contract?: Record<string, unknown>;
+}
+
 export interface SurveyLiveHeatmapPoint {
   lat?: number;
   lng?: number;
@@ -140,8 +162,12 @@ export interface SurveyLivePublicResultsPayload {
   momentum?: SurveyLiveMomentum;
   kpis?: SurveyLiveKpis;
   heatmap?: SurveyLiveHeatmap;
+  live_telemetry?: SurveyLiveTelemetry;
   ai_summary?: string;
   ai_insights?: string[];
+  ai_signal?: SurveyAiSignal;
+  ai_layers?: Record<string, unknown>;
+  operator_recommendations?: Array<Record<string, unknown>>;
   render_contract?: {
     preferred_visualization?: string;
     supports?: string[];

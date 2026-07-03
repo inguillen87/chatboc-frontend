@@ -1039,6 +1039,8 @@ const PublicSurveyPage = () => {
                   {Number(liveRequestParams.include_heatmap ?? 1) !== 0 ? (
                     <SurveyLiveHeatmapPreview
                       heatmap={liveHeatmap}
+                      aiSignal={liveDashboard.ai_signal}
+                      operatorRecommendations={liveDashboard.operator_recommendations}
                       pointsLabel={textOr(liveResultsUi?.heatmap_points_label, 'Puntos')}
                       cellsLabel={textOr(liveResultsUi?.heatmap_cells_label, 'Celdas')}
                     />
