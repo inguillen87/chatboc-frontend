@@ -342,6 +342,19 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoria Alumbrado/i })).toBeTruthy();
   });
 
+  it('keeps the territorial section visible when the dedicated heatmap endpoint fails', async () => {
+    mocks.getOperationsHeatmapV2.mockRejectedValue(new Error('heatmap offline'));
+
+    renderPanel();
+
+    expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
+    expect(await screen.findByTestId('operations-heatmap')).toBeTruthy();
+    expect(screen.getByText('Mapa temporalmente no disponible')).toBeTruthy();
+    expect(screen.getByText('Reintento manual disponible')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Reintentar mapa/i })).toBeTruthy();
+    expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
+  });
+
   it('renders the AI operations queue for tickets, assisted orders and surveys', async () => {
     renderPanel();
 

@@ -692,8 +692,19 @@ function OperationsCommandCockpit({
     heatmap?.quality?.coverage_rate,
   );
   const coveragePercent = coverageRaw !== undefined && coverageRaw <= 1 ? coverageRaw * 100 : coverageRaw;
-  const mapPoints = readNumber(heatmap?.quality?.visible_points, heatmapSummary.points, heatmap?.points.length);
-  const pendingGeocode = readNumber(heatmap?.quality?.pending_geocode, heatmapSummary.pending_geocode, heatmap?.geocoding?.candidate_count);
+  const mapPoints = readNumber(
+    heatmap?.quality?.visible_points,
+    heatmapSummary.points,
+    heatmap?.points.length,
+    data.summary.map_points,
+    data.summary.geo_points,
+  );
+  const pendingGeocode = readNumber(
+    heatmap?.quality?.pending_geocode,
+    heatmapSummary.pending_geocode,
+    heatmap?.geocoding?.candidate_count,
+    data.summary.pending_geocode,
+  );
   const aiSummary = aiOpsQueue?.summary ?? {};
   const aiTotal = readNumber(aiSummary.total) ?? aiOpsQueue?.items?.length ?? 0;
   const aiHigh = readNumber(aiSummary.high) ?? 0;
@@ -1869,13 +1880,17 @@ function OperationsHeatmapPanel({
           : 'general';
 
   if (loading && !heatmap) {
-    return <ViewState status="loading" description="Cargando mapa operativo." />;
+    return (
+      <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden">
+        <ViewState status="loading" description="Cargando mapa operativo." />
+      </Card>
+    );
   }
 
   if (error && !heatmap) {
     const errorMessage = getErrorMessage(error, 'No se pudo cargar el mapa operativo.');
     return (
-      <Card className="overflow-hidden border-amber-500/25">
+      <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden border-amber-500/25">
         <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),rgba(59,130,246,0.06))]">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
