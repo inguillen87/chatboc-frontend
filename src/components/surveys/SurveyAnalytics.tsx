@@ -1,4 +1,5 @@
-import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Activity, Layers, MapPin, Radio, Radar, ShieldCheck, Target, type LucideIcon } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -480,6 +481,344 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
   }
   return normalized;
 };
+
+type SurveyGeoIntensity = {
+  totalWeight: number;
+  maxWeight: number;
+  avgWeight: number;
+  hotspots: SurveyHeatmapPoint[];
+};
+
+type SurveyTerritoryNode = {
+  id: string;
+  x: number;
+  y: number;
+  weight: number;
+  label: string;
+  channel?: string;
+};
+
+type SurveyTerritoryReadiness = {
+  label: string;
+  detail: string;
+  toneClass: string;
+  icon: LucideIcon;
+};
+
+const SURVEY_TERRITORY_WIDTH = 760;
+const SURVEY_TERRITORY_HEIGHT = 390;
+
+const providerLabel = (provider?: MapProvider | null) => {
+  if (provider === 'google') return 'Google Maps';
+  if (provider === 'maplibre') return 'MapLibre GL';
+  return 'Auto';
+};
+
+const formatSurveyNumber = (value: number | null | undefined) =>
+  typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-AR') : '--';
+
+const formatSurveyPointLabel = (point: SurveyHeatmapPoint, index: number) =>
+  point.categoria || point.canal || `Zona ${index + 1}`;
+
+const buildSurveyTerritoryNodes = (points: SurveyHeatmapPoint[]): SurveyTerritoryNode[] => {
+  const numericPoints = points
+    .map((point, index) => ({
+      point,
+      index,
+      lat: Number(point.lat),
+      lng: Number(point.lng),
+      weight: Math.max(1, Number(point.respuestas || 1)),
+    }))
+    .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng))
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 18);
+
+  if (!numericPoints.length) return [];
+
+  const lats = numericPoints.map((item) => item.lat);
+  const lngs = numericPoints.map((item) => item.lng);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const latSpan = Math.max(0.0001, maxLat - minLat);
+  const lngSpan = Math.max(0.0001, maxLng - minLng);
+
+  return numericPoints.map(({ point, index, lat, lng, weight }) => ({
+    id: `${lat.toFixed(5)}:${lng.toFixed(5)}:${index}`,
+    x: 62 + ((lng - minLng) / lngSpan) * (SURVEY_TERRITORY_WIDTH - 124),
+    y: 54 + (1 - (lat - minLat) / latSpan) * (SURVEY_TERRITORY_HEIGHT - 108),
+    weight,
+    label: formatSurveyPointLabel(point, index),
+    channel: point.canal,
+  }));
+};
+
+const buildSurveyTerritoryRoute = (nodes: SurveyTerritoryNode[]) => {
+  const routeNodes = nodes.slice(0, 5);
+  if (routeNodes.length < 2) return '';
+  const [first, ...rest] = routeNodes;
+  return rest.reduce((path, node, index) => {
+    const previous = routeNodes[index];
+    const controlX = (previous.x + node.x) / 2;
+    const controlY = Math.min(previous.y, node.y) - 40 - index * 8;
+    return `${path} Q ${controlX.toFixed(1)} ${controlY.toFixed(1)} ${node.x.toFixed(1)} ${node.y.toFixed(1)}`;
+  }, `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`);
+};
+
+const resolveSurveyTerritoryReadiness = (
+  usingSyntheticPoints: boolean,
+  mapRenderReady: boolean,
+  pointCount: number,
+): SurveyTerritoryReadiness => {
+  if (usingSyntheticPoints) {
+    return {
+      label: 'Fallback sintetico',
+      detail: 'El backend marco datos demo o sinteticos. No se presenta como precision territorial real.',
+      toneClass: 'border-amber-300/35 bg-amber-300/10 text-amber-50',
+      icon: ShieldCheck,
+    };
+  }
+  if (!mapRenderReady) {
+    return {
+      label: 'Contrato pendiente',
+      detail: 'La respuesta trae geometria, pero el contrato todavia no esta listo para render operativo.',
+      toneClass: 'border-violet-300/35 bg-violet-300/10 text-violet-50',
+      icon: Layers,
+    };
+  }
+  if (pointCount > 0) {
+    return {
+      label: 'Mapa real activo',
+      detail: 'Usando coordenadas reales de respuestas y capas del contrato de encuestas.',
+      toneClass: 'border-emerald-300/35 bg-emerald-300/10 text-emerald-50',
+      icon: ShieldCheck,
+    };
+  }
+  return {
+    label: 'Sin geometria',
+    detail: 'Hay que capturar ubicacion, barrio o coordenadas para activar lectura territorial.',
+    toneClass: 'border-rose-300/35 bg-rose-300/10 text-rose-50',
+    icon: MapPin,
+  };
+};
+
+function SurveyTerritoryCommandCenter({
+  points,
+  geoIntensity,
+  geoCoverageLabel,
+  totalResponses,
+  provider,
+  providerHint,
+  fallbackProvider,
+  usingSyntheticPoints,
+  mapRenderReady,
+  boundingBoxValue,
+  channelBreakdown,
+  categoryLayerCount,
+}: {
+  points: SurveyHeatmapPoint[];
+  geoIntensity: SurveyGeoIntensity;
+  geoCoverageLabel: string;
+  totalResponses: number | null;
+  provider: MapProvider;
+  providerHint: MapProvider | null;
+  fallbackProvider: MapProvider;
+  usingSyntheticPoints: boolean;
+  mapRenderReady: boolean;
+  boundingBoxValue?: string;
+  channelBreakdown: ChannelBreakdownItem[];
+  categoryLayerCount: number;
+}) {
+  const reactId = useId().replace(/:/g, '');
+  const gridId = `${reactId}-survey-grid`;
+  const heatGradientId = `${reactId}-survey-heat`;
+  const routeGradientId = `${reactId}-survey-route`;
+  const nodes = useMemo(() => buildSurveyTerritoryNodes(points), [points]);
+  const routePath = useMemo(() => buildSurveyTerritoryRoute(nodes), [nodes]);
+  const readiness = useMemo(
+    () => resolveSurveyTerritoryReadiness(usingSyntheticPoints, mapRenderReady, points.length),
+    [mapRenderReady, points.length, usingSyntheticPoints],
+  );
+  const ReadinessIcon = readiness.icon;
+  const focusNode = nodes[0];
+  const primaryHotspot = geoIntensity.hotspots[0];
+  const topChannel = channelBreakdown[0];
+  const categoryCount =
+    categoryLayerCount || new Set(points.map((point) => point.categoria).filter(Boolean)).size;
+  const activeSignal = usingSyntheticPoints
+    ? 'demo/fallback'
+    : mapRenderReady && points.length
+      ? 'coordenadas reales'
+      : 'pendiente geo';
+
+  return (
+    <Card
+      className="overflow-hidden border-slate-700/60 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.24),transparent_28%),linear-gradient(135deg,#06111f,#111827_48%,#1f2937)] text-slate-100 shadow-xl"
+      data-testid="survey-territory-command-center"
+    >
+      <CardHeader className="border-b border-white/10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+              <Radar className="h-3.5 w-3.5" />
+              Centro territorial
+            </div>
+            <div>
+              <CardTitle className="text-2xl text-white">Mapa vivo de participacion</CardTitle>
+              <CardDescription className="text-slate-300">
+                Lectura ejecutiva de cobertura, hotspots y calidad geografica antes de abrir el mapa interactivo.
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 ${readiness.toneClass}`}>
+              <ReadinessIcon className="h-3.5 w-3.5" />
+              {readiness.label}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1 text-slate-200">
+              <Radio className="h-3.5 w-3.5 text-cyan-200" />
+              {providerLabel(provider)}
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-5 p-4 lg:grid-cols-[1.25fr_0.9fr]">
+        <div className="relative min-h-[340px] overflow-hidden rounded-xl border border-white/10 bg-slate-950/50">
+          <div className="absolute left-4 top-4 z-10 rounded-lg border border-white/10 bg-slate-950/82 px-3 py-2 text-xs shadow-lg backdrop-blur">
+            <p className="font-semibold text-white">Radar de encuesta</p>
+            <p className="text-slate-400">{nodes.length ? `${nodes.length} nodos activos` : 'Esperando coordenadas'}</p>
+          </div>
+          <svg
+            className="h-full min-h-[340px] w-full"
+            viewBox={`0 0 ${SURVEY_TERRITORY_WIDTH} ${SURVEY_TERRITORY_HEIGHT}`}
+            preserveAspectRatio="none"
+            data-testid="survey-territory-telemetry"
+            aria-hidden="true"
+          >
+            <defs>
+              <pattern id={gridId} width="38" height="38" patternUnits="userSpaceOnUse">
+                <path d="M 38 0 L 0 0 0 38" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="1" />
+              </pattern>
+              <radialGradient id={heatGradientId} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(251,191,36,0.62)" />
+                <stop offset="45%" stopColor="rgba(34,211,238,0.24)" />
+                <stop offset="100%" stopColor="rgba(15,23,42,0)" />
+              </radialGradient>
+              <linearGradient id={routeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#22d3ee" />
+                <stop offset="52%" stopColor="#a78bfa" />
+                <stop offset="100%" stopColor="#fbbf24" />
+              </linearGradient>
+            </defs>
+            <rect width="100%" height="100%" fill={`url(#${gridId})`} />
+            <rect width="100%" height="100%" fill="rgba(2,6,23,0.18)" />
+            {focusNode ? (
+              <g transform={`translate(${focusNode.x} ${focusNode.y})`}>
+                <circle r="112" fill={`url(#${heatGradientId})`} opacity="0.72" />
+                <circle r="42" fill="none" stroke="rgba(34,211,238,0.46)" strokeWidth="1.4">
+                  <animate attributeName="r" values="42;94;42" dur="5s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.78;0.12;0.78" dur="5s" repeatCount="indefinite" />
+                </circle>
+                <g opacity="0.66">
+                  <line x1="-96" x2="96" y1="0" y2="0" stroke="rgba(125,211,252,0.58)" strokeWidth="1" />
+                  <line x1="0" x2="0" y1="-96" y2="96" stroke="rgba(125,211,252,0.58)" strokeWidth="1" />
+                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="13s" repeatCount="indefinite" />
+                </g>
+              </g>
+            ) : null}
+            {routePath ? (
+              <g>
+                <path
+                  id={`${reactId}-survey-route-path`}
+                  d={routePath}
+                  fill="none"
+                  stroke={`url(#${routeGradientId})`}
+                  strokeDasharray="9 11"
+                  strokeLinecap="round"
+                  strokeWidth="2.2"
+                  opacity="0.78"
+                />
+                <circle r="5" fill="#fbbf24">
+                  <animateMotion dur="7.5s" repeatCount="indefinite" rotate="auto">
+                    <mpath href={`#${reactId}-survey-route-path`} />
+                  </animateMotion>
+                </circle>
+              </g>
+            ) : null}
+            {nodes.map((node, index) => {
+              const radius = Math.max(6, Math.min(18, 5 + node.weight * 1.3));
+              return (
+                <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
+                  <circle r={radius + 10} fill="rgba(34,211,238,0.08)" />
+                  <circle r={radius} fill={index === 0 ? '#fbbf24' : '#38bdf8'} opacity="0.88" />
+                  <circle r={radius + 5} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="1">
+                    <animate attributeName="r" values={`${radius + 5};${radius + 18};${radius + 5}`} dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.65;0.06;0.65" dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
+                  </circle>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Estado operativo</p>
+                <p className="mt-2 text-lg font-semibold text-white">{readiness.label}</p>
+              </div>
+              <Target className="h-5 w-5 text-amber-200" />
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">{readiness.detail}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Cobertura</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{geoCoverageLabel}</p>
+              <p className="text-xs text-slate-400">{formatSurveyNumber(totalResponses)} respuestas totales</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Hotspots</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{geoIntensity.hotspots.length}</p>
+              <p className="text-xs text-slate-400">{geoIntensity.maxWeight || '--'} pico por zona</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Capas</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{categoryCount || '--'}</p>
+              <p className="text-xs text-slate-400">categorias territoriales</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Senal</p>
+              <p className="mt-2 text-lg font-semibold text-white">{activeSignal}</p>
+              <p className="text-xs text-slate-400">{boundingBoxValue ? 'zona filtrada' : 'vista completa'}</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Playbook</p>
+              <Activity className="h-4 w-4 text-emerald-200" />
+            </div>
+            <div className="mt-3 space-y-2 text-sm text-slate-300">
+              <p>
+                Foco: {primaryHotspot ? `${formatSurveyPointLabel(primaryHotspot, 0)} con ${primaryHotspot.respuestas} respuestas` : 'sin zona dominante'}.
+              </p>
+              <p>
+                Canal fuerte: {topChannel ? `${topChannel.canal} (${topChannel.respuestas})` : 'sin canal dominante'}.
+              </p>
+              <p className="text-xs text-slate-400">
+                Preferido: {providerLabel(providerHint)}. Fallback: {providerLabel(fallbackProvider)}.
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 
 export const SurveyAnalytics = ({
@@ -1109,70 +1448,20 @@ export const SurveyAnalytics = ({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Radar de participacion</CardTitle>
-          <CardDescription>Intensidad y focos de participacion segun las respuestas con ubicacion.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura territorial</p>
-              <p className="text-xl font-semibold">{geoCoverageLabel}</p>
-            </div>
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso territorial total</p>
-              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '-'}</p>
-            </div>
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Pico por punto</p>
-              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '-'}</p>
-            </div>
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3 sm:col-span-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Promedio por punto</p>
-              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '-'}</p>
-            </div>
-            <div className="sm:col-span-3 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <p className="text-xs uppercase tracking-wide text-primary">Pulso de actividad</p>
-              {geoIntensity.hotspots.length ? (
-                geoIntensity.hotspots.slice(0, 3).map((point, index) => {
-                  const ratio = geoIntensity.maxWeight > 0 ? Math.max(0.08, point.respuestas / geoIntensity.maxWeight) : 0.08;
-                  return (
-                    <div key={`${point.lat}-${point.lng}-${index}`} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">{point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
-                        <span className="font-medium">{point.respuestas}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-primary/10">
-                        <div
-                          className="h-2 rounded-full bg-primary animate-pulse"
-                          style={{ width: `${Math.min(100, ratio * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-muted-foreground">Esperando eventos georreferenciados.</p>
-              )}
-            </div>
-          </div>
-          <div className="rounded-lg border border-border/60 p-3">
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Zonas principales</p>
-            <ul className="space-y-2 text-sm">
-              {geoIntensity.hotspots.map((point, index) => (
-                <li key={`${point.lat}-${point.lng}-${index}`} className="flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
-                  <span>#{index + 1} - {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
-                  <span className="font-semibold">{point.respuestas}</span>
-                </li>
-              ))}
-              {!geoIntensity.hotspots.length ? (
-                <li className="text-muted-foreground">Sin zonas para mostrar todavia.</li>
-              ) : null}
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      <SurveyTerritoryCommandCenter
+        points={aggregatedHeatmapPoints}
+        geoIntensity={geoIntensity}
+        geoCoverageLabel={geoCoverageLabel}
+        totalResponses={totalResponsesValue}
+        provider={provider}
+        providerHint={providerHint}
+        fallbackProvider={fallbackProvider}
+        usingSyntheticPoints={usingSyntheticPoints}
+        mapRenderReady={mapRenderReady}
+        boundingBoxValue={boundingBoxValue}
+        channelBreakdown={channelBreakdown}
+        categoryLayerCount={categoryLayerCategories.length}
+      />
 
       <Card>
         <CardHeader>
