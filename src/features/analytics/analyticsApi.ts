@@ -684,6 +684,25 @@ const normalizeHeatmapAiLayers = (value: unknown): OperationsHeatmapV1['ai_layer
   };
 };
 
+const normalizeHeatmapAiInsights = (value: unknown): OperationsHeatmapV1['ai_insights'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    provider_family: asString(value.provider_family),
+    mode: asString(value.mode),
+    domain: asString(value.domain),
+    advisory_policy: pickRecord(value.advisory_policy),
+    thresholds: pickRecord(value.thresholds),
+    hf_status: pickRecord(value.hf_status),
+    groups: pickRecord(value.groups),
+    summary: pickRecord(value.summary),
+    collection: pickRecord(value.collection),
+    recommended_actions: normalizeActions(value.recommended_actions ?? value.actions),
+    frontend_contract: pickRecord(value.frontend_contract),
+  };
+};
+
 const normalizeHeatmapAiStatus = (value: unknown): OperationsHeatmapV1['ai_status'] => {
   if (!isRecord(value)) return undefined;
   return {
@@ -760,6 +779,7 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     legend: pickRecord(record.legend),
     map_layers: pickRecord(record.map_layers) as OperationsHeatmapV1['map_layers'],
     ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
+    ai_insights: normalizeHeatmapAiInsights(record.ai_insights),
     ai_status: normalizeHeatmapAiStatus(record.ai_status),
     map_narrative: normalizeHeatmapNarrative(record.map_narrative ?? record.narrative),
     layer_style_contract: normalizeHeatmapLayerStyleContract(record.layer_style_contract ?? record.style_contract),

@@ -288,6 +288,22 @@ export interface OperationsHeatmapAILayers {
   [key: string]: unknown;
 }
 
+export interface OperationsHeatmapAIInsights {
+  contract_version?: string;
+  provider_family?: string;
+  mode?: string;
+  domain?: string;
+  advisory_policy?: Record<string, unknown>;
+  thresholds?: Record<string, unknown>;
+  hf_status?: Record<string, unknown>;
+  groups?: Record<string, unknown>;
+  summary?: Record<string, unknown>;
+  collection?: Record<string, unknown>;
+  recommended_actions?: OperationsActionItem[];
+  frontend_contract?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface OperationsHeatmapAIStatus {
   contract_version?: string;
   provider_family?: string;
@@ -378,6 +394,7 @@ export interface OperationsHeatmapV1 {
   legend?: Record<string, unknown>;
   map_layers?: OperationsHeatmapMapLayersContract;
   ai_layers?: OperationsHeatmapAILayers;
+  ai_insights?: OperationsHeatmapAIInsights;
   ai_status?: OperationsHeatmapAIStatus;
   map_narrative?: OperationsHeatmapNarrative;
   layer_style_contract?: OperationsHeatmapLayerStyleContract;

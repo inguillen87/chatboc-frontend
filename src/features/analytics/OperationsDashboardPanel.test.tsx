@@ -115,6 +115,69 @@ const heatmapFixture = (overrides: Partial<OperationsHeatmapV1> = {}): Operation
     layer_groups: ['base_heatmap', 'ai_risk_layers', 'whatsapp_activity'],
     supports_reduced_motion: true,
   },
+  ai_status: {
+    contract_version: 'operations.heatmap_ai_status.v1',
+    provider_family: 'huggingface',
+    mode: 'municipal_risk_detection',
+    status: 'local_fallback',
+    configured: true,
+    zero_shot_enabled: true,
+    used_hf: false,
+    safe_to_render_without_hf_token: true,
+    ai_layers_ready: true,
+    map_layer_hints: ['ai_risk_pulses', 'whatsapp_activity', 'survey_participation'],
+  },
+  ai_layers: {
+    contract_version: 'huggingface.map_ai_layers.v1',
+    provider_family: 'huggingface',
+    status: 'ready',
+    mode: 'map_ai_layers',
+    layers: [
+      { key: 'risk_pulses', label: 'Pulsos de riesgo IA', count: 1 },
+      { key: 'whatsapp_activity', label: 'Actividad WhatsApp', count: 2 },
+    ],
+    recommendations: [{ id: 'open_ai_summary', label: 'Mantener monitoreo IA', priority: 'low' }],
+    frontend_contract: {
+      advisory_only: true,
+      map_engines: ['maplibre', 'deckgl'],
+      layer_groups: ['ai_risk_layers', 'whatsapp_activity'],
+    },
+  },
+  ai_insights: {
+    contract_version: 'huggingface.ai_insights.v1',
+    provider_family: 'huggingface',
+    mode: 'deterministic_local_fallback',
+    domain: 'operations',
+    hf_status: {
+      configured: true,
+      zero_shot_enabled: true,
+      used: false,
+      fallback_reason: 'zero_shot_disabled_or_unavailable',
+    },
+    advisory_policy: {
+      mutates_operational_state: false,
+    },
+    summary: {
+      dominant_intent: 'public_service_claim',
+      dominant_intent_label: 'reclamo de servicio publico',
+      risk_level: 'high',
+      risk_signal: 'high_priority',
+      sentiment: 'neutral',
+      requires_human_attention: true,
+    },
+    collection: {
+      items_analyzed: 8,
+      text_items_analyzed: 7,
+    },
+    recommended_actions: [
+      { id: 'open_human_review_queue', label: 'Revisar conversaciones con riesgo', priority: 'high' },
+      { id: 'request_or_validate_location', label: 'Validar ubicaciones exactas', priority: 'medium' },
+    ],
+    frontend_contract: {
+      advisory_only: true,
+      safe_to_render_without_hf_token: true,
+    },
+  },
   geocoding: {
     status: 'pending',
     candidate_count: 1,
@@ -319,6 +382,17 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    const aiCockpit = screen.getByTestId('territorial-ai-cockpit');
+    expect(aiCockpit).toBeTruthy();
+    expect(aiCockpit.textContent).toContain('IA territorial');
+    expect(aiCockpit.textContent).toContain('fallback local');
+    expect(aiCockpit.textContent).toContain('Huggingface');
+    expect(aiCockpit.textContent).toContain('Reclamo de servicio publico');
+    expect(aiCockpit.textContent).toContain('High');
+    expect(aiCockpit.textContent).toContain('8');
+    expect(aiCockpit.textContent).toContain('Revisar conversaciones con riesgo');
+    expect(aiCockpit.textContent).toContain('Validar ubicaciones exactas');
+    expect(aiCockpit.textContent).toContain('Pulsos de riesgo IA');
     expect(screen.getByText('Mapa operativo confiable')).toBeTruthy();
     expect(screen.getAllByText('75%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Cola de geocodificacion')).toBeTruthy();

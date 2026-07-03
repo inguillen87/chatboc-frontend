@@ -71,6 +71,16 @@ const asNumber = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const asBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'si'].includes(normalized)) return true;
+    if (['false', '0', 'no'].includes(normalized)) return false;
+  }
+  return undefined;
+};
+
 const asString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -1732,6 +1742,81 @@ function OperationsHeatmapPanel({
     [heatmap?.category_layers],
   );
 
+  const aiInsights = heatmap?.ai_insights;
+  const aiLayers = heatmap?.ai_layers;
+  const aiStatus = heatmap?.ai_status;
+  const aiSummary = aiInsights?.summary ?? aiLayers?.summary ?? {};
+  const aiCollection = aiInsights?.collection ?? {};
+  const hfStatus = aiInsights?.hf_status ?? aiLayers?.hf_status ?? {};
+  const aiLayerItems = [...(aiLayers?.layers ?? []), ...(aiLayers?.risk_layers ?? [])];
+  const aiRecommendedActions = [...(aiInsights?.recommended_actions ?? []), ...(aiLayers?.recommendations ?? [])].slice(0, 3);
+  const aiLayerHints = [
+    ...(aiStatus?.map_layer_hints ?? []),
+    ...aiLayerItems.map((item) => itemLabel(item)),
+  ]
+    .map((hint) => humanizeHeatmapToken(hint, hint))
+    .filter((hint, index, arr) => arr.indexOf(hint) === index)
+    .slice(0, 5);
+  const aiProvider = humanizeHeatmapToken(
+    aiStatus?.provider_family ?? aiInsights?.provider_family ?? aiLayers?.provider_family,
+    'IA operativa',
+  );
+  const aiMode = humanizeHeatmapToken(aiStatus?.mode ?? aiInsights?.mode ?? aiLayers?.mode, 'analisis operativo');
+  const aiState = aiStatus?.status ?? aiLayers?.status ?? aiInsights?.mode;
+  const aiStateLabel = humanizeHeatmapToken(aiState, 'sin estado IA');
+  const aiUsedHf = aiStatus?.used_hf ?? asBoolean(hfStatus.used);
+  const aiConfigured = aiStatus?.configured ?? asBoolean(hfStatus.configured);
+  const aiZeroShotEnabled = aiStatus?.zero_shot_enabled ?? asBoolean(hfStatus.zero_shot_enabled);
+  const aiSafeFallback = aiStatus?.safe_to_render_without_hf_token ?? asBoolean(aiInsights?.frontend_contract?.safe_to_render_without_hf_token);
+  const aiAdvisoryOnly =
+    asBoolean(aiInsights?.advisory_policy?.mutates_operational_state) === false ||
+    asBoolean(aiInsights?.frontend_contract?.advisory_only) === true ||
+    asBoolean(aiLayers?.frontend_contract?.advisory_only) === true;
+  const aiRiskLabel = humanizeHeatmapToken(aiSummary.risk_level ?? aiSummary.risk_signal, 'riesgo normal');
+  const aiIntentLabel = humanizeHeatmapToken(
+    aiSummary.dominant_intent_label ?? aiSummary.dominant_intent,
+    'consulta general',
+  );
+  const aiSentimentLabel = humanizeHeatmapToken(aiSummary.sentiment, 'neutral');
+  const aiItemsAnalyzed = readNumber(aiCollection.items_analyzed, aiCollection.text_items_analyzed);
+  const hasAiCockpit = Boolean(aiInsights || aiLayers || aiStatus || aiLayerHints.length || aiRecommendedActions.length);
+  const aiMetricCards: Array<{
+    key: string;
+    label: string;
+    value: string;
+    detail: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    {
+      key: 'provider',
+      label: 'Proveedor IA',
+      value: aiProvider,
+      detail: aiUsedHf ? 'clasificacion HF activa' : aiConfigured ? 'token listo, fallback disponible' : 'fallback local seguro',
+      icon: Brain,
+    },
+    {
+      key: 'intent',
+      label: 'Intencion dominante',
+      value: aiIntentLabel,
+      detail: aiSentimentLabel,
+      icon: Sparkles,
+    },
+    {
+      key: 'risk',
+      label: 'Riesgo detectado',
+      value: aiRiskLabel,
+      detail: aiSummary.requires_human_attention ? 'requiere revision humana' : 'sin alerta critica',
+      icon: AlertTriangle,
+    },
+    {
+      key: 'sample',
+      label: 'Muestra analizada',
+      value: aiItemsAnalyzed !== undefined ? formatNumber(aiItemsAnalyzed) : formatNumber(aiLayerItems.length),
+      detail: aiLayerItems.length ? `${formatNumber(aiLayerItems.length)} capas IA` : 'sin capas IA publicadas',
+      icon: DatabaseZap,
+    },
+  ];
+
   const quality = heatmap?.quality;
   const realtime = heatmap?.realtime;
   const mapExperience = heatmap?.map_experience;
@@ -2008,6 +2093,83 @@ function OperationsHeatmapPanel({
             );
           })}
         </div>
+
+        {hasAiCockpit ? (
+          <div
+            data-testid="territorial-ai-cockpit"
+            className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,rgba(37,99,235,0.09),hsl(var(--background)),rgba(20,184,166,0.08))] shadow-sm"
+          >
+            <div className="flex flex-col gap-3 border-b bg-background/45 p-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
+                  <Brain className="h-5 w-5" />
+                  <span className={cn(
+                    'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full',
+                    aiUsedHf ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.18)]' : 'bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.18)]',
+                  )} />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-primary">IA territorial</p>
+                    <Badge variant={aiUsedHf ? 'default' : 'secondary'}>{aiUsedHf ? 'Hugging Face activo' : 'fallback local'}</Badge>
+                    {aiAdvisoryOnly ? <Badge variant="outline">solo recomendaciones</Badge> : null}
+                  </div>
+                  <h3 className="mt-1 text-lg font-semibold leading-tight">Lectura automatica de reclamos, encuestas y WhatsApp</h3>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                    El CRM cruza intencion, riesgo, participacion y actividad conversacional para priorizar sin exponer claves ni cambiar estados automaticamente.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={statusVariant(aiState)}>{aiStateLabel}</Badge>
+                <Badge variant="outline">{aiMode}</Badge>
+                {aiZeroShotEnabled ? <Badge variant="secondary">zero-shot listo</Badge> : null}
+                {aiSafeFallback ? <Badge variant="outline">safe fallback</Badge> : null}
+              </div>
+            </div>
+            <div className="grid gap-0 divide-y divide-border/70 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+              {aiMetricCards.map((metric) => {
+                const Icon = metric.icon;
+                return (
+                  <div key={metric.key} className="min-w-0 p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="truncate">{metric.label}</span>
+                    </div>
+                    <p className="mt-2 truncate text-base font-semibold">{metric.value}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{metric.detail}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {aiLayerHints.length || aiRecommendedActions.length ? (
+              <div className="grid gap-3 border-t bg-background/35 p-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                {aiLayerHints.length ? (
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Capas IA sugeridas</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {aiLayerHints.map((hint) => (
+                        <Badge key={hint} variant="secondary" className="max-w-full truncate">
+                          {hint}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {aiRecommendedActions.length ? (
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente accion IA</p>
+                    <div className="mt-2 grid gap-2 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                      {aiRecommendedActions.map((action, index) => (
+                        <ActionItemRow key={action.id || action.reason_code || action.title || index} item={action} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="order-2 space-y-4 2xl:order-1">
@@ -2543,7 +2705,7 @@ function BreakdownRow({ item }: { item: OperationsBucketItem }) {
 }
 
 function ActionItemRow({ item }: { item: OperationsActionItem }) {
-  const title = asString(item.title) ?? 'Accion recomendada';
+  const title = asString(item.title) ?? asString(item.label) ?? 'Accion recomendada';
   const description = asString(item.description);
   const impact = asString(item.impact);
 

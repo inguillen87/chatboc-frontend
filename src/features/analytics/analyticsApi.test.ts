@@ -104,6 +104,37 @@ describe('operations heatmap v2 contract', () => {
         risk_layers: [{ key: 'riesgo_alto', label: 'Riesgo alto', count: '2' }],
         recommendations: [{ label: 'Priorizar cuadrilla', method: 'POST' }],
       },
+      ai_insights: {
+        contract_version: 'huggingface.ai_insights.v1',
+        provider_family: 'huggingface',
+        mode: 'deterministic_local_fallback',
+        domain: 'operations',
+        hf_status: {
+          configured: 'true',
+          zero_shot_enabled: 'true',
+          used: 'false',
+        },
+        advisory_policy: {
+          mutates_operational_state: false,
+        },
+        thresholds: {
+          risk_min_score: '0.56',
+        },
+        summary: {
+          dominant_intent: 'public_service_claim',
+          dominant_intent_label: 'reclamo de servicio publico',
+          risk_level: 'high',
+          requires_human_attention: true,
+        },
+        collection: {
+          items_analyzed: '4',
+        },
+        recommended_actions: [{ label: 'Revisar conversaciones con riesgo', priority: 'high' }],
+        frontend_contract: {
+          advisory_only: true,
+          safe_to_render_without_hf_token: true,
+        },
+      },
       map_narrative: {
         contract_version: 'operations.heatmap_narrative.v1',
         state: 'ready',
@@ -319,6 +350,34 @@ describe('operations heatmap v2 contract', () => {
       },
       risk_layers: [{ label: 'Riesgo alto', count: 2 }],
       recommendations: [{ title: 'Priorizar cuadrilla', method: 'POST' }],
+    });
+    expect(response.ai_insights).toMatchObject({
+      contract_version: 'huggingface.ai_insights.v1',
+      provider_family: 'huggingface',
+      mode: 'deterministic_local_fallback',
+      domain: 'operations',
+      hf_status: {
+        configured: 'true',
+        zero_shot_enabled: 'true',
+        used: 'false',
+      },
+      thresholds: {
+        risk_min_score: '0.56',
+      },
+      summary: {
+        dominant_intent: 'public_service_claim',
+        dominant_intent_label: 'reclamo de servicio publico',
+        risk_level: 'high',
+        requires_human_attention: true,
+      },
+      collection: {
+        items_analyzed: '4',
+      },
+      recommended_actions: [{ title: 'Revisar conversaciones con riesgo', priority: 'high' }],
+      frontend_contract: {
+        advisory_only: true,
+        safe_to_render_without_hf_token: true,
+      },
     });
     expect(response.map_narrative).toMatchObject({
       contract_version: 'operations.heatmap_narrative.v1',
