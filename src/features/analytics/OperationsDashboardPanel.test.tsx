@@ -24,8 +24,36 @@ const mocks = vi.hoisted(() => ({
   getPublicMapConfigV1: vi.fn(),
 }));
 
+const socketMocks = vi.hoisted(() => {
+  const handlers = new Map<string, Set<(payload?: unknown) => void>>();
+  return {
+    handlers,
+    socket: {
+      on: vi.fn((eventName: string, handler: (payload?: unknown) => void) => {
+        const current = handlers.get(eventName) ?? new Set<(payload?: unknown) => void>();
+        current.add(handler);
+        handlers.set(eventName, current);
+      }),
+      off: vi.fn((eventName: string, handler: (payload?: unknown) => void) => {
+        const current = handlers.get(eventName);
+        current?.delete(handler);
+      }),
+    },
+    emit: (eventName: string, payload?: unknown) => {
+      handlers.get(eventName)?.forEach((handler) => handler(payload));
+    },
+    reset: () => {
+      handlers.clear();
+    },
+  };
+});
+
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin' }),
+}));
+
+vi.mock('@/context/SocketContext', () => ({
+  useSocket: () => ({ socket: socketMocks.socket, isConnected: true }),
 }));
 
 vi.mock('@/utils/safeLocalStorage', () => ({
@@ -35,9 +63,20 @@ vi.mock('@/utils/safeLocalStorage', () => ({
 }));
 
 vi.mock('./PremiumTerritoryMap', () => ({
-  PremiumTerritoryHeatmap: ({ points, activeFilters }: { points: unknown[]; activeFilters?: Array<{ label: string; value: string }> }) => (
-    <div data-testid="premium-territory-heatmap">
+  PremiumTerritoryHeatmap: ({
+    points,
+    activeFilters,
+    heatmap,
+    labels,
+  }: {
+    points: unknown[];
+    activeFilters?: Array<{ label: string; value: string }>;
+    heatmap?: { contract_version?: string };
+    labels?: Record<string, string>;
+  }) => (
+    <div data-testid="premium-territory-heatmap" data-contract={heatmap?.contract_version ?? ''}>
       premium map {points.length} puntos
+      <span>{labels?.premium_heatmap_title ?? ''}</span>
       <span>
         {activeFilters?.length
           ? `filters: ${activeFilters.map((filter) => `${filter.label}=${filter.value}`).join(', ')}`
@@ -411,6 +450,7 @@ const renderPanel = () => {
 describe('OperationsDashboardPanel territory UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    socketMocks.reset();
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
@@ -478,6 +518,53 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
   });
 
+  it('uses the fastest live contract interval for operational refreshes', async () => {
+    const intervalSpy = vi.spyOn(window, 'setInterval');
+
+    try {
+      renderPanel();
+
+      expect(await screen.findByText('Centro territorial')).toBeTruthy();
+      expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 20_000);
+    } finally {
+      intervalSpy.mockRestore();
+    }
+  });
+
+  it('refreshes operational analytics immediately when a realtime heatmap event arrives', async () => {
+    renderPanel();
+
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    const initialHeatmapCalls = mocks.getOperationsHeatmapV2.mock.calls.length;
+    const initialDashboardCalls = mocks.getOperationsDashboardV2.mock.calls.length;
+    expect(socketMocks.socket.on).toHaveBeenCalledWith('ticket.updated', expect.any(Function));
+
+    socketMocks.emit('ticket.updated', {
+      tenant_slug: 'junin',
+      payload: { ticket_id: 'M-378430' },
+    });
+
+    await waitFor(() => {
+      expect(mocks.getOperationsHeatmapV2.mock.calls.length).toBeGreaterThan(initialHeatmapCalls);
+      expect(mocks.getOperationsDashboardV2.mock.calls.length).toBeGreaterThan(initialDashboardCalls);
+    });
+  });
+
+  it('ignores realtime operations events scoped to another tenant', async () => {
+    renderPanel();
+
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    const initialHeatmapCalls = mocks.getOperationsHeatmapV2.mock.calls.length;
+
+    socketMocks.emit('ticket.updated', {
+      tenant_slug: 'otro-tenant',
+      payload: { ticket_id: 'M-000001' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.getOperationsHeatmapV2.mock.calls.length).toBe(initialHeatmapCalls);
+  });
+
   it('keeps the territorial section visible when the dedicated heatmap endpoint fails', async () => {
     mocks.getOperationsHeatmapV2.mockRejectedValue(new Error('heatmap offline'));
 
@@ -488,6 +575,10 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Mapa temporalmente no disponible')).toBeTruthy();
     expect(screen.getByText('Reintento manual disponible')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Reintentar mapa/i })).toBeTruthy();
+    const recoveryMap = screen.getByTestId('premium-territory-heatmap');
+    expect(recoveryMap.getAttribute('data-contract')).toBe('operations.heatmap.recovery.v1');
+    expect(recoveryMap.textContent).toContain('premium map 0 puntos');
+    expect(recoveryMap.textContent).toContain('Mapa territorial en recuperacion');
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
   });
 
@@ -637,6 +728,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Esperando heatmap operativo')).toBeTruthy();
     expect(screen.getByText('No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Reintentar mapa/i })).toBeTruthy();
-    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    const recoveryMap = screen.getByTestId('premium-territory-heatmap');
+    expect(recoveryMap.getAttribute('data-contract')).toBe('operations.heatmap.recovery.v1');
+    expect(recoveryMap.textContent).toContain('premium map 0 puntos');
   });
 });

@@ -87,6 +87,7 @@ const ClerkAuthBridge: React.FC = () => {
   const navigate = useNavigate();
   const [onboardingOpen, setOnboardingOpen] = React.useState(false);
   const [onboardingRequired, setOnboardingRequired] = React.useState(false);
+  const [onboardingContract, setOnboardingContract] = React.useState<ClerkSessionResponse['onboarding']>();
   const [onboardingLoading, setOnboardingLoading] = React.useState(false);
   const [onboardingError, setOnboardingError] = React.useState<string | null>(null);
   const [profile, setProfile] = React.useState<ClerkUserProfilePayload | undefined>();
@@ -109,12 +110,14 @@ const ClerkAuthBridge: React.FC = () => {
         const session = await syncClerkSession(token, nextProfile);
         if (cancelled) return;
         persistChatbocSession(session);
+        setOnboardingContract(session.onboarding);
         if (session.onboarding?.required) {
           setOnboardingRequired(true);
           setOnboardingOpen(true);
           return;
         }
         setOnboardingRequired(false);
+        setOnboardingContract(session.onboarding);
         await refreshUser();
         if (isAuthEntryPath(location.pathname)) {
           navigate('/perfil', { replace: true });
@@ -146,6 +149,7 @@ const ClerkAuthBridge: React.FC = () => {
         user: profile || buildClerkProfile(clerkUser),
       });
       persistChatbocSession(session);
+      setOnboardingContract(session.onboarding);
       await refreshUser();
       setOnboardingRequired(false);
       setOnboardingOpen(false);
@@ -164,6 +168,7 @@ const ClerkAuthBridge: React.FC = () => {
       onOpenChange={setOnboardingOpen}
       userProfile={profile}
       defaultTenantName={defaultTenantName}
+      onboarding={onboardingContract}
       required={onboardingRequired}
       loading={onboardingLoading}
       error={onboardingError}

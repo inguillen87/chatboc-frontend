@@ -42,4 +42,15 @@ describe('env', () => {
 
     expect(env.GOOGLE_CLIENT_ID).toBe('build-google-client');
   });
+
+  it('reads Cloudflare Turnstile site key from runtime env', async () => {
+    vi.stubEnv('VITE_CLOUDFLARE_TURNSTILE_SITE_KEY', '');
+    (window as any).__ENV = {
+      VITE_CLOUDFLARE_TURNSTILE_SITE_KEY: 'runtime-turnstile-site-key',
+    };
+
+    const env = await importFreshEnv();
+
+    expect(env.CLOUDFLARE_TURNSTILE_SITE_KEY).toBe('runtime-turnstile-site-key');
+  });
 });

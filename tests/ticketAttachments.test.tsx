@@ -50,5 +50,47 @@ describe('TicketAttachments', () => {
     fireEvent.click(dialog);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
-});
 
+  it('uses signed delivery URLs and marks private evidence as secure', () => {
+    const secureAttachments: Attachment[] = [
+      {
+        id: 10,
+        filename: 'vereda.jpg',
+        url: 'https://cdn.chatboc.ar/reclamos/raw/vereda.jpg',
+        downloadUrl: 'https://signed.chatboc.ar/reclamos/vereda.jpg?sig=abc',
+        thumbnail_url: 'https://signed.chatboc.ar/reclamos/vereda-thumb.jpg?sig=abc',
+        storage_access: 'signed',
+        is_private: true,
+        mime_type: 'image/jpeg',
+      },
+      {
+        id: 11,
+        filename: 'acta.pdf',
+        url: 'https://cdn.chatboc.ar/reclamos/raw/acta.pdf',
+        download_url: 'https://signed.chatboc.ar/reclamos/acta.pdf?sig=def',
+        storage_access: 'signed',
+        is_private: true,
+        mime_type: 'application/pdf',
+      },
+    ];
+
+    render(<TicketAttachments attachments={secureAttachments} />);
+
+    expect(screen.getAllByText('Acceso seguro')).toHaveLength(2);
+    expect(screen.getByAltText('vereda.jpg')).toHaveAttribute(
+      'src',
+      'https://signed.chatboc.ar/reclamos/vereda-thumb.jpg?sig=abc',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir imagen adjunta/i }));
+    expect(within(screen.getByRole('dialog')).getByAltText('Adjunto ampliado')).toHaveAttribute(
+      'src',
+      'https://signed.chatboc.ar/reclamos/vereda.jpg?sig=abc',
+    );
+
+    expect(screen.getByRole('link', { name: /acta.pdf/i })).toHaveAttribute(
+      'href',
+      'https://signed.chatboc.ar/reclamos/acta.pdf?sig=def',
+    );
+  });
+});

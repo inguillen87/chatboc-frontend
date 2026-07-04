@@ -13,6 +13,7 @@ import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 
 
 interface TicketInboxFilters {
+  search: string;
   channel: string;
   status: string;
   area: string;
@@ -39,6 +40,7 @@ interface TicketRealtimeActivity {
 }
 
 const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
+  search: '',
   channel: 'all',
   status: 'all',
   area: 'all',
@@ -49,12 +51,33 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
 };
 
 const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
-  const serverFilters: { status?: string; category?: string } = {};
+  const serverFilters: {
+    q?: string;
+    status?: string;
+    category?: string;
+    channel?: string;
+    agent?: string;
+    unassigned?: boolean;
+  } = {};
+  const search = filters.search.trim();
+  if (search) {
+    serverFilters.q = search;
+  }
   if (filters.status !== 'all') {
     serverFilters.status = filters.status;
   }
   if (filters.area !== 'all') {
     serverFilters.category = filters.area;
+  }
+  if (filters.channel !== 'all') {
+    serverFilters.channel = filters.channel;
+  }
+  if (filters.agent !== 'all') {
+    if (filters.agent === 'unassigned') {
+      serverFilters.unassigned = true;
+    } else {
+      serverFilters.agent = filters.agent;
+    }
   }
   return serverFilters;
 };
@@ -194,6 +217,86 @@ const readStoredTenantSlug = (): string | null => {
   }
 };
 
+export interface TicketInboxErrorDetails {
+  status?: number;
+  reasonCode?: string;
+  actionHint?: string;
+  requestId?: string;
+  requiredCapabilities?: string[];
+  currentScope?: Record<string, unknown>;
+  accessContract?: Record<string, unknown>;
+}
+
+const asErrorRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+const readErrorString = (...values: unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+};
+
+const resolveTicketFetchErrorDetails = (err: unknown): TicketInboxErrorDetails | null => {
+  if (!(err instanceof ApiError)) return null;
+  const body = asErrorRecord(err.body);
+  if (!body) {
+    return {
+      status: err.status,
+      requestId: err.requestId,
+    };
+  }
+
+  const requiredCapabilities = Array.isArray(body.required_capabilities)
+    ? body.required_capabilities.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : undefined;
+
+  return {
+    status: err.status,
+    reasonCode: readErrorString(body.reason_code, body.code) ?? undefined,
+    actionHint: readErrorString(body.action_hint, body.action) ?? undefined,
+    requestId: readErrorString(body.request_id, err.requestId) ?? undefined,
+    requiredCapabilities,
+    currentScope: asErrorRecord(body.current_scope) ?? undefined,
+    accessContract: asErrorRecord(body.access_contract) ?? undefined,
+  };
+};
+
+const resolveTicketFetchErrorMessage = (err: unknown, cacheWasApplied = false): string => {
+  let message = 'Error al obtener los tickets.';
+  if (err instanceof ApiError) {
+    const body = asErrorRecord(err.body);
+    const bodyError = asErrorRecord(body?.error);
+    const bodyMessage = readErrorString(
+      body?.message,
+      body?.mensaje,
+      typeof body?.error === 'string' ? body.error : undefined,
+      bodyError?.message,
+      bodyError?.mensaje,
+    );
+    if (err.status === 401) {
+      message = 'La sesion del panel no esta activa. Inicia sesion para ver y responder reclamos.';
+    } else if (err.status === 403) {
+      const isMachineForbiddenCode = bodyMessage
+        ? ['forbidden', 'access_denied', 'permission_denied'].includes(bodyMessage.trim().toLowerCase())
+        : false;
+      message =
+        (!isMachineForbiddenCode ? bodyMessage : null) ||
+        'Tu usuario no tiene permisos para abrir la bandeja de reclamos de este tenant.';
+    } else if (err.status >= 500) {
+      message = 'Ocurrio un error en el servidor.';
+    } else if (bodyMessage) {
+      message = bodyMessage;
+    }
+  } else if (err instanceof Error && err.message.includes('tardo demasiado')) {
+    message = 'La bandeja de reclamos tardo demasiado en responder. Revisa la conexion y reintenta.';
+  }
+
+  return cacheWasApplied
+    ? `${message} Mostrando datos guardados; pueden estar desactualizados.`
+    : message;
+};
+
 interface TicketContextType {
   tickets: Ticket[];
   selectedTicket: Ticket | null;
@@ -201,6 +304,7 @@ interface TicketContextType {
   updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
   loading: boolean;
   error: string | null;
+  errorDetails: TicketInboxErrorDetails | null;
   ticketsByCategory: { [key: string]: Ticket[] };
   filters: TicketInboxFilters;
   setFilters: React.Dispatch<React.SetStateAction<TicketInboxFilters>>;
@@ -442,6 +546,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [loading, setLoading] = useState(true);
   const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<TicketInboxErrorDetails | null>(null);
   const [pagination, setPagination] = useState<TicketInboxPagination | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
@@ -502,9 +607,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   );
   const serverTicketFilters = React.useMemo(
     () => resolveServerTicketFilters(filters),
-    [filters.area, filters.status],
+    [filters.agent, filters.area, filters.channel, filters.search, filters.status],
   );
-  const serverTicketFiltersActive = Boolean(serverTicketFilters.status || serverTicketFilters.category);
+  const serverTicketFiltersActive = Object.values(serverTicketFilters).some(Boolean);
 
   const bumpRealtimeActivity = useCallback((label: string) => {
     setRealtimeActivity((current) => ({
@@ -623,6 +728,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     if (!tenantSlug) {
       setError(null);
+      setErrorDetails(null);
       setTickets([]);
       setSelectedTicket(null);
       setPagination(null);
@@ -654,6 +760,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     setLoading(true);
     setError(null);
+    setErrorDetails(null);
 
     try {
       const apiResponse = await withTimeout(
@@ -692,27 +799,18 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         }
       }
       setError(null);
+      setErrorDetails(null);
     } catch (err) {
       console.error('Error fetching tickets:', err);
+      const nextError = resolveTicketFetchErrorMessage(err, cacheWasApplied);
+      const nextErrorDetails = resolveTicketFetchErrorDetails(err);
       if (cacheWasApplied) {
-        setError(null);
+        setError(nextError);
+        setErrorDetails(nextErrorDetails);
         return;
       }
-      if (err instanceof ApiError) {
-        if (err.status === 401) {
-          setError('La sesión del panel no está activa. Iniciá sesión para ver y responder reclamos.');
-        } else if (err.status === 403) {
-          setError('Tu usuario no tiene permisos para abrir la bandeja de reclamos de este tenant.');
-        } else if (err.status >= 500) {
-          setError('Ocurrió un error en el servidor.');
-        } else {
-          setError('Error al obtener los tickets.');
-        }
-      } else if (err instanceof Error && err.message.includes('tardo demasiado')) {
-        setError('La bandeja de reclamos tardo demasiado en responder. Revisa la conexion y reintenta.');
-      } else {
-        setError('Error al obtener los tickets.');
-      }
+      setError(nextError);
+      setErrorDetails(nextErrorDetails);
       setTickets([]);
       setPagination(null);
     } finally {
@@ -985,6 +1083,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     updateTicket,
     loading,
     error,
+    errorDetails,
     ticketsByCategory,
     filters,
     setFilters,

@@ -34,6 +34,7 @@ interface UseSurveyAnalyticsResult {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapPayload?: SurveyAnalyticsHeatmap;
   heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   dashboardBundle?: SurveyDashboardBundle;
   executiveSummary?: SurveyExecutiveSummary;
@@ -211,6 +212,12 @@ export function useSurveyAnalytics(
     [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapQuery.data?.metadata],
   );
 
+  const heatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
+    const backendHeatmap = dashboardQuery.data?.modules?.heatmap ?? heatmapQuery.data;
+    if (backendHeatmap) return backendHeatmap;
+    return fallbackAnalytics?.heatmap ? { points: fallbackAnalytics.heatmap } : undefined;
+  }, [dashboardQuery.data?.modules?.heatmap, heatmapQuery.data, fallbackAnalytics?.heatmap]);
+
   const dashboardBundle = useMemo(
     () => dashboardQuery.data,
     [dashboardQuery.data],
@@ -260,6 +267,7 @@ export function useSurveyAnalytics(
     summary: summaryData ?? undefined,
     timeseries: timeseriesData,
     heatmap: heatmapData,
+    heatmapPayload,
     heatmapMeta,
     dashboardBundle,
     executiveSummary,

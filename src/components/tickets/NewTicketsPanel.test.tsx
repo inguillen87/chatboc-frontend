@@ -36,13 +36,16 @@ vi.mock('./Sidebar', () => ({
   default: ({
     className,
     showFilterControl = true,
+    showListSummaryBar = true,
   }: {
     className?: string;
     showFilterControl?: boolean;
+    showListSummaryBar?: boolean;
   }) => (
     <aside
       className={className}
       data-show-filter-control={showFilterControl ? 'true' : 'false'}
+      data-show-list-summary-bar={showListSummaryBar ? 'true' : 'false'}
       data-testid="tickets-sidebar"
     >
       Reclamos
@@ -88,6 +91,43 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByText(/sincronizando tickets, chats en vivo/i)).toBeInTheDocument();
   });
 
+  it('renders a repair contract when ticket access fails because tenant scope is incomplete', () => {
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: 'El usuario municipal no tiene municipio_id valido para operar la bandeja de reclamos.',
+      errorDetails: {
+        reasonCode: 'missing_municipal_scope',
+        actionHint: 'repair_ticket_scope',
+        requestId: 'req_scope_123',
+        requiredCapabilities: ['tickets.read', 'reclamos.read'],
+        currentScope: {
+          tenant_slug: 'junin',
+          tenant_tipo: 'municipio',
+          role: 'admin',
+          canonical_role: 'admin',
+        },
+      },
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+
+    const contract = screen.getByTestId('tickets-access-contract');
+    expect(contract).toHaveTextContent('Reparar acceso');
+    expect(contract).toHaveTextContent('missing_municipal_scope');
+    expect(contract).toHaveTextContent('request_id: req_scope_123');
+    expect(contract).toHaveTextContent('junin');
+    expect(contract).toHaveTextContent('tickets.read');
+  });
+
   it('reserves enough desktop width for the ticket list before the chat column', () => {
     useTicketsMock.mockReturnValue({
       loading: false,
@@ -107,6 +147,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
     expect(screen.getByTestId('tickets-desk-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
@@ -136,6 +177,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'true');
     expect(screen.getByTestId('ticket-ops-stat-strip')).not.toHaveClass('hidden');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Abiertos');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Riesgo');
@@ -175,6 +217,7 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel embedded />);
 
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'true');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('4 filtros');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
       'title',
@@ -287,7 +330,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(selectTicket).toHaveBeenCalledWith(2);
   });
 
-  it('does not hide channel, area or agent filters from the operational summary', () => {
+  it('keeps channel, area and agent filters available in a compact desk summary', () => {
     useTicketsMock.mockReturnValue({
       loading: false,
       error: null,
@@ -312,10 +355,18 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel />);
 
-    expect(screen.queryByText(/sin filtros activos/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Canal: whatsapp')).toBeInTheDocument();
-    expect(screen.getByText('Area: obras')).toBeInTheDocument();
-    expect(screen.getByText('Agente: unassigned')).toBeInTheDocument();
+    const summary = screen.getByTestId('tickets-desk-active-filters');
+    expect(summary).toHaveTextContent('3 filtros activos');
+    expect(summary).toHaveAttribute(
+      'title',
+      'Canal: whatsapp | Area: obras | Agente: unassigned',
+    );
+    expect(summary).toHaveAccessibleName(
+      'Filtros activos: Canal: whatsapp, Area: obras, Agente: unassigned',
+    );
+    expect(screen.queryByText('Canal: whatsapp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Area: obras')).not.toBeInTheDocument();
+    expect(screen.queryByText('Agente: unassigned')).not.toBeInTheDocument();
   });
 
   it('opens CRM desk from heatmap query links with filters and selected ticket', async () => {

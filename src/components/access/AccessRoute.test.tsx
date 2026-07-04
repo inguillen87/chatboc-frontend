@@ -255,6 +255,33 @@ describe('AccessRoute', () => {
     expect(screen.getByText('analytics-ok')).toBeInTheDocument();
   });
 
+  it('allows a route when capability grants access even if the role label is still incomplete', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'chat_user' }, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
+      hasAllCapabilities: () => false,
+      hasAnyCapability: (required: string[]) => required.includes('tickets.read'),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tickets']}>
+        <Routes>
+          <Route
+            path="/tickets"
+            element={
+              <AccessRoute roles={['tenant_admin', 'employee', 'superadmin']} requiredCapabilities={['tickets.read']}>
+                <div>tickets-capability-role-bridge-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('tickets-capability-role-bridge-ok')).toBeInTheDocument();
+  });
+
   it('keeps legacy backoffice routes accessible when backend has not declared capabilities yet', () => {
     useCapabilitiesMock.mockReturnValue({
       capabilities: [],

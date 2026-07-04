@@ -955,7 +955,11 @@ export const apiClient = {
     });
   },
 
-  adminUpdateOrder: async (tenantSlug: string, orderId: string | number, data: { status: string }) => {
+  adminUpdateOrder: async (
+    tenantSlug: string,
+    orderId: string | number,
+    data: { status?: string; catalog_resolutions?: Array<Record<string, unknown>> },
+  ) => {
     const encodedId = encodeURIComponent(String(orderId));
     const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, {
       method: 'PATCH',

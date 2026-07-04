@@ -62,6 +62,7 @@ vi.mock('./TicketListItem', () => ({
 }));
 
 const defaultFilters = {
+  search: '',
   channel: 'all',
   status: 'all',
   area: 'all',
@@ -207,6 +208,27 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('promotes sidebar search to the server-side ticket filters', async () => {
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar por nro, asunto o vecino...'), {
+      target: { value: 'Don Bosco' },
+    });
+
+    await waitFor(() => {
+      expect(setFiltersMock).toHaveBeenCalledWith(expect.any(Function));
+    });
+
+    const updater = setFiltersMock.mock.calls[setFiltersMock.mock.calls.length - 1]?.[0] as (
+      previous: typeof defaultFilters,
+    ) => typeof defaultFilters;
+    expect(updater(defaultFilters)).toMatchObject({ search: 'Don Bosco' });
   });
 
   it('lets operators jump from prioritized queue context into rubros and back', async () => {
@@ -378,8 +400,30 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
+    const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
+    expect(summaryBar).not.toHaveClass('sr-only');
+    expect(summaryBar).toHaveTextContent('1 activo');
+    expect(summaryBar).toHaveTextContent('1 visible');
+    expect(screen.queryByRole('button', { name: /^exportar$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /limpiar filtros activos/i })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+  });
+
+  it('can delegate the list summary bar to the parent operational header', async () => {
+    render(<Sidebar showFilterControl={false} showListSummaryBar={false} />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
+      'data-compact',
+      'true',
+    );
   });
 
   it('keeps the passive compact summary out of the visual flow when no filters are active', async () => {

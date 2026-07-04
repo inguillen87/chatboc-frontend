@@ -28,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 
 type AnyRecord = Record<string, any>;
 
@@ -323,15 +323,41 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
   const fixedMenuAudioCache = asRecord(first(accessibility, ["fixed_menu_audio_cache", "menu_audio_cache", "fixed_menus"]));
   const fixedMenuObservability = asRecord(first(fixedMenuAudioCache, ["observability", "audio_cache", "cache"]));
   const audioCacheSource = Object.keys(audioCache).length > 0 ? audioCache : fixedMenuObservability;
+  const audioCacheStorage = asRecord(first(audioCacheSource, ["storage", "publication", "public_storage"]));
   const audioCacheMetrics = asRecord(first(audioCacheSource, ["metrics", "counters"]));
   const audioCacheSummary = asRecord(first(audioCacheSource, ["summary"]));
   const fixedMenuScopes = toTextList(first(fixedMenuAudioCache, ["scope", "menus", "menu_ids"]));
   const audioCacheTtl = first(audioCacheSource, ["ttl_seconds", "ttl"]);
   const audioCacheStatus = readText(first(audioCacheSource, ["status", "cache_status"]));
+  const audioCachePublicMode =
+    readText(first(audioCacheStorage, ["public_url_mode", "mode"])) ||
+    readText(first(audioCacheSource, ["public_url_mode", "mode"])) ||
+    "backend_static";
+  const audioCacheCdnConfigured =
+    boolish(first(audioCacheStorage, ["cdn_configured", "cdn_enabled"])) ||
+    boolish(first(audioCacheSource, ["cdn_configured", "cdn_enabled"]));
+  const audioCacheCdnHost =
+    readText(first(audioCacheStorage, ["cdn_host", "public_host", "host"])) ||
+    readText(first(audioCacheSource, ["cdn_host", "public_host", "host"]));
+  const audioCachePublicPath =
+    readText(first(audioCacheStorage, ["public_path", "path"])) ||
+    readText(first(audioCacheSource, ["public_path", "path"])) ||
+    "/static/audio_cache";
+  const audioCacheFileFormat =
+    readText(first(audioCacheStorage, ["file_format", "format"])) ||
+    readText(first(audioCacheSource, ["file_format", "format"])) ||
+    "mp3";
   const audioCacheRequests = first(audioCacheSummary, ["requests"]) ?? first(audioCacheMetrics, ["requests"]);
   const audioCacheHits = first(audioCacheSummary, ["cache_hits", "hits"]) ?? first(audioCacheMetrics, ["cache_hits", "hits"]);
   const audioCacheFailures = first(audioCacheSummary, ["failures"]) ?? first(audioCacheMetrics, ["generation_failures", "provider_failures", "warmup_failures"]);
   const audioCacheHitRate = first(audioCacheSummary, ["hit_rate", "hitRate"]) ?? first(audioCacheMetrics, ["hit_rate", "hitRate"]);
+  const audioCacheDetail =
+    (audioCacheCdnConfigured ? `CDN ${audioCacheCdnHost || audioCachePublicMode}` : "") ||
+    audioCacheStatus ||
+    first(audioCacheSource, ["ttl_seconds", "ttl"]) ||
+    first(audioInput, ["status", "provider", "endpoint"]) ||
+    first(voiceCalls, ["status", "provider"]) ||
+    "Contrato de audio expuesto.";
 
   const phoneNumber = first(channel, ["number", "phone_number", "sender_id"]) || first(adminState, ["sender_id", "phone_number"]);
   const wabaId =
@@ -410,12 +436,7 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
       id: "audio-cache",
       label: "Audio cache",
       ok: audioCacheReady,
-      detail:
-        audioCacheStatus ||
-        first(audioCacheSource, ["ttl_seconds", "ttl"]) ||
-        first(audioInput, ["status", "provider", "endpoint"]) ||
-        first(voiceCalls, ["status", "provider"]) ||
-        "Contrato de audio expuesto.",
+      detail: audioCacheDetail,
       action: audioCacheReady ? undefined : "Activar cache o transcripcion de notas de voz.",
     });
   }
@@ -545,6 +566,28 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
               <Metric label="Hits" value={formatNumber(audioCacheHits)} tone={asNumber(audioCacheHits) ? "ready" : "neutral"} />
               <Metric label="Hit rate" value={formatPercent(audioCacheHitRate)} tone={audioCacheReady ? "ready" : "neutral"} />
               <Metric label="Fallos" value={formatNumber(audioCacheFailures)} tone={asNumber(audioCacheFailures) ? "warning" : "ready"} />
+            </div>
+            <div
+              data-testid="whatsapp-audio-cache-publication"
+              className="mt-3 rounded-2xl border border-border/60 bg-muted/20 p-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={audioCacheCdnConfigured ? "ready" : "warning"}>
+                  {audioCacheCdnConfigured ? "CDN activo" : "Backend static"}
+                </StatusPill>
+                <StatusPill>{formatKey(audioCachePublicMode)}</StatusPill>
+                <StatusPill>{audioCacheFileFormat.toUpperCase()}</StatusPill>
+              </div>
+              <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                {audioCacheCdnHost ? (
+                  <p>
+                    <span className="font-semibold text-foreground">Host:</span> {audioCacheCdnHost}
+                  </p>
+                ) : null}
+                <p>
+                  <span className="font-semibold text-foreground">Path:</span> {audioCachePublicPath}
+                </p>
+              </div>
             </div>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
               Menus fijos con audio cacheado para usuarios con discapacidad visual o motriz, sin regenerar TTS en cada consulta.
@@ -1188,6 +1231,14 @@ const TemplateBlueprintPanel = ({
   experience: WhatsappExperienceV2;
   tenantSlug?: string | null;
 }) => {
+  const access = asRecord(experience.access);
+  const accessKnown = Object.prototype.hasOwnProperty.call(access, "enabled");
+  const accessEnabled = accessKnown ? boolish(access.enabled) : true;
+  const templateCreationLocked = accessKnown && !accessEnabled;
+  const lockedReason = readText(access.lock_reason_code) || readText(access.reason_code) || "plan_full_required";
+  const lockedMessage =
+    readText(access.message) ||
+    "Las plantillas productivas de WhatsApp requieren plan Full y sender Meta/Twilio configurado.";
   const blueprint = experience.template_blueprint;
   const summary = asRecord(blueprint.registry_summary);
   const nextActions = asArray(blueprint.next_actions).map(asRecord);
@@ -1210,9 +1261,18 @@ const TemplateBlueprintPanel = ({
   const qaScenarios = asArray(qaPlaybook.scenarios).map(asRecord);
   const [syncingTemplateId, setSyncingTemplateId] = useState<string | null>(null);
   const [syncResults, setSyncResults] = useState<Record<string, string>>({});
+  const [templateConfirmations, setTemplateConfirmations] = useState<Record<string, string>>({});
+  const [templateRuntimeGuards, setTemplateRuntimeGuards] = useState<Record<string, AnyRecord>>({});
 
   const handleTemplateSync = async (templateId: string, mode: "dry" | "execute" | "refresh") => {
     if (!templateId) return;
+    if (mode === "execute" && !templateConfirmations[templateId]) {
+      setSyncResults((current) => ({
+        ...current,
+        [templateId]: "Valida el payload primero para obtener la confirmacion de ejecucion.",
+      }));
+      return;
+    }
     setSyncingTemplateId(`${templateId}:${mode}`);
     setSyncResults((current) => ({ ...current, [templateId]: "" }));
     try {
@@ -1230,16 +1290,52 @@ const TemplateBlueprintPanel = ({
             template_id: templateId,
             dry_run: mode === "dry",
             submit_for_approval: true,
+            ...(mode === "execute" ? { execute_confirmation: templateConfirmations[templateId] } : {}),
           }),
         },
       );
       const record = asRecord(response);
       const registry = asRecord(record.registry);
+      const frontendContract = asRecord(record.frontend_contract);
+      const operatorGuardrails = asRecord(record.operator_guardrails);
+      const responseLocked =
+        boolish(record.blocked) ||
+        boolish(frontendContract.render_locked_state) ||
+        boolish(frontendContract.hide_execute_controls) ||
+        boolish(operatorGuardrails.requires_full_plan);
       const contentSid = readText(record.content_sid) || readText(registry.content_sid);
       const approvalStatus = readText(record.approval_status) || readText(registry.status);
+      const executeConfirmation = readText(record.execute_confirmation);
+      if (mode === "dry") {
+        if (responseLocked) {
+          setTemplateConfirmations((current) => {
+            const next = { ...current };
+            delete next[templateId];
+            return next;
+          });
+          setTemplateRuntimeGuards((current) => ({
+            ...current,
+            [templateId]: {
+              frontend_contract: frontendContract,
+              operator_guardrails: operatorGuardrails,
+              message: readText(asRecord(record.integration_access).message) || readText(record.message),
+              locked_reason: readText(record.locked_reason) || readText(frontendContract.lock_reason_code),
+            },
+          }));
+        } else if (executeConfirmation) {
+          setTemplateConfirmations((current) => ({ ...current, [templateId]: executeConfirmation }));
+          setTemplateRuntimeGuards((current) => {
+            const next = { ...current };
+            delete next[templateId];
+            return next;
+          });
+        }
+      }
       const message =
         mode === "dry"
-          ? "Payload validado contra el manifiesto Twilio."
+          ? responseLocked
+            ? `Payload visible, ejecucion bloqueada: ${readText(asRecord(record.integration_access).message) || readText(record.locked_reason) || "requiere plan Full"}.`
+            : "Payload validado contra el manifiesto Twilio. Confirmacion lista para crear."
           : mode === "refresh"
             ? `Estado actualizado: ${approvalStatus || "sin estado"}${contentSid ? ` (${contentSid})` : ""}`
             : contentSid
@@ -1247,6 +1343,27 @@ const TemplateBlueprintPanel = ({
               : "Plantilla sincronizada.";
       setSyncResults((current) => ({ ...current, [templateId]: message }));
     } catch (err) {
+      if (err instanceof ApiError) {
+        const body = asRecord(err.body);
+        const frontendContract = asRecord(body.frontend_contract);
+        const operatorGuardrails = asRecord(body.operator_guardrails);
+        if (Object.keys(frontendContract).length || Object.keys(operatorGuardrails).length) {
+          setTemplateConfirmations((current) => {
+            const next = { ...current };
+            delete next[templateId];
+            return next;
+          });
+          setTemplateRuntimeGuards((current) => ({
+            ...current,
+            [templateId]: {
+              frontend_contract: frontendContract,
+              operator_guardrails: operatorGuardrails,
+              message: readText(body.message),
+              locked_reason: readText(body.locked_reason) || readText(frontendContract.lock_reason_code),
+            },
+          }));
+        }
+      }
       setSyncResults((current) => ({
         ...current,
         [templateId]: getErrorMessage(err, "No se pudo sincronizar la plantilla."),
@@ -1365,6 +1482,16 @@ const TemplateBlueprintPanel = ({
                 ) : null}
               </div>
             ) : null}
+            {templateCreationLocked ? (
+              <div className="mb-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-3 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-50">
+                <p className="text-sm font-semibold">Creacion real bloqueada</p>
+                <p className="mt-1 text-xs leading-5">{lockedMessage}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
+                  <StatusPill tone="warning">Plan {readText(access.required_plan) || "full"}</StatusPill>
+                  <StatusPill>{formatKey(lockedReason)}</StatusPill>
+                </div>
+              </div>
+            ) : null}
             {creationItems.length ? (
               <div className="grid gap-2 lg:grid-cols-2">
                 {creationItems.slice(0, 4).map((item, index) => {
@@ -1378,6 +1505,17 @@ const TemplateBlueprintPanel = ({
                   const templateId = String(item.id || "");
                   const dryKey = `${templateId}:dry`;
                   const executeKey = `${templateId}:execute`;
+                  const runtimeGuard = asRecord(templateRuntimeGuards[templateId]);
+                  const runtimeContract = asRecord(runtimeGuard.frontend_contract);
+                  const runtimeOperatorGuardrails = asRecord(runtimeGuard.operator_guardrails);
+                  const runtimeLocked =
+                    boolish(runtimeContract.render_locked_state) ||
+                    boolish(runtimeContract.hide_execute_controls) ||
+                    boolish(runtimeOperatorGuardrails.requires_full_plan);
+                  const effectiveTemplateLocked = templateCreationLocked || runtimeLocked;
+                  const hasConfirmation = Boolean(templateConfirmations[templateId]);
+                  const canExecuteTemplate = Boolean(templateId && hasConfirmation && !effectiveTemplateLocked && !syncingTemplateId);
+                  const canRefreshTemplate = Boolean(templateId && !effectiveTemplateLocked && !syncingTemplateId);
                   return (
                     <div key={`${item.id || "manifest"}-${index}`} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1420,7 +1558,7 @@ const TemplateBlueprintPanel = ({
                           type="button"
                           size="sm"
                           className="rounded-xl"
-                          disabled={!templateId || Boolean(syncingTemplateId)}
+                          disabled={!canExecuteTemplate}
                           onClick={() => handleTemplateSync(templateId, "execute")}
                         >
                           {syncingTemplateId === executeKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
@@ -1431,7 +1569,7 @@ const TemplateBlueprintPanel = ({
                           variant="outline"
                           size="sm"
                           className="rounded-xl"
-                          disabled={!templateId || Boolean(syncingTemplateId)}
+                          disabled={!canRefreshTemplate}
                           onClick={() => handleTemplateSync(templateId, "refresh")}
                         >
                           {syncingTemplateId === `${templateId}:refresh` ? (
@@ -1442,6 +1580,13 @@ const TemplateBlueprintPanel = ({
                           Refrescar estado
                         </Button>
                       </div>
+                      {runtimeLocked ? (
+                        <p className="mt-2 rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-50">
+                          {readText(runtimeGuard.message) ||
+                            readText(asRecord(runtimeContract.copy).description) ||
+                            "La ejecucion real esta bloqueada hasta habilitar el plan/canal productivo."}
+                        </p>
+                      ) : null}
                       {syncResults[templateId] ? (
                         <p className="mt-2 rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
                           {syncResults[templateId]}

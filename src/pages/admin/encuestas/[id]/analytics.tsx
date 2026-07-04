@@ -241,6 +241,7 @@ export default function SurveyAnalyticsPage() {
     summary,
     timeseries,
     heatmap,
+    heatmapPayload,
     heatmapMeta,
     dashboardBundle,
     executiveSummary,
@@ -1010,6 +1011,7 @@ export default function SurveyAnalyticsPage() {
             summary={summary}
             timeseries={timeseries}
             heatmap={heatmap}
+            heatmapPayload={heatmapPayload}
             heatmapMeta={heatmapMeta}
             onExport={handleExport}
             isExporting={isExporting}

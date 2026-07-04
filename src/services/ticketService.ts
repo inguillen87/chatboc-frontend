@@ -168,6 +168,9 @@ export interface GetTicketsOptions {
     status?: string;
     category?: string;
     categoryId?: string | number;
+    channel?: string;
+    agent?: string | number;
+    unassigned?: boolean;
 }
 
 const normalizeTicketPagination = (
@@ -615,6 +618,11 @@ export const getTickets = async (
       appendFilterParam('estado', options.status);
       appendFilterParam('categoria', options.category);
       appendFilterParam('categoria_id', options.categoryId);
+      appendFilterParam('channel', options.channel);
+      appendFilterParam('assigned_agent', options.agent);
+      if (options.unassigned) {
+        params.set('unassigned', 'true');
+      }
       const response = await apiFetch<{ tickets: Ticket[]; pagination?: TicketInboxPagination; summary?: Record<string, unknown> }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,

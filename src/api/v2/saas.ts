@@ -341,6 +341,7 @@ export interface WhatsappExperienceV2 {
   contract_version?: string;
   request_id?: string;
   tenant: UnknownRecord;
+  access: UnknownRecord;
   channel: UnknownRecord;
   enterprise_rules: UnknownRecord;
   contact_window: UnknownRecord;
@@ -1501,6 +1502,7 @@ export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperi
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
     tenant: asRecord(record.tenant),
+    access: asRecord(record.access),
     channel: asRecord(record.channel),
     enterprise_rules: asRecord(record.enterprise_rules),
     contact_window: asRecord(record.contact_window),

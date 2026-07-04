@@ -118,6 +118,20 @@ export interface CrmOrderDraft {
   [key: string]: unknown;
 }
 
+export interface CrmOperatorAction {
+  id?: string | null;
+  label?: string | null;
+  type?: string | null;
+  method?: string | null;
+  target_status?: string | null;
+  href?: string | null;
+  enabled?: boolean | null;
+  requires_review?: boolean | null;
+  creates?: string[];
+  description?: string | null;
+  [key: string]: unknown;
+}
+
 export interface CrmReviewCard {
   contract_version?: 'marketplace.crm_review_card.v1' | string | null;
   reference?: string | null;
@@ -127,6 +141,8 @@ export interface CrmReviewCard {
   priority?: 'high' | 'normal' | string | null;
   primary_intent?: string | null;
   needs_operator_review?: boolean | null;
+  operational_state?: string | null;
+  primary_action_id?: string | null;
   contact_state?: string | null;
   recommended_next_step?: string | null;
   summary?: {
@@ -162,6 +178,7 @@ export interface CrmReviewCard {
     href?: string | null;
   }>;
   next_actions?: Array<Record<string, unknown>>;
+  operator_actions?: CrmOperatorAction[];
   customer_next_steps?: Array<{
     id?: string | null;
     label?: string | null;

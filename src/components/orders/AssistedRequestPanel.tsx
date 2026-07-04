@@ -17,6 +17,13 @@ type AssistedRequestPanelProps = {
   order: Order;
   className?: string;
   dense?: boolean;
+  onResolveCatalogCandidate?: (payload: {
+    lineId?: string | null;
+    sourceName: string;
+    catalogItemId: string | number;
+    candidateName: string;
+  }) => Promise<void> | void;
+  resolvingCatalogCandidateKey?: string | null;
 };
 
 type SourceAttachmentView = {
@@ -455,6 +462,9 @@ const candidateReferenceUrl = (candidate: AssistedCatalogCandidate) =>
 const candidateReference = (candidate: AssistedCatalogCandidate) =>
   firstText(candidate.reference, candidate.catalogo_item_id, candidate.product_id, candidate.id);
 
+const candidateCatalogItemId = (candidate: AssistedCatalogCandidate) =>
+  firstText(candidate.catalog_item_id, candidate.catalogo_item_id, candidate.product_id, candidate.id);
+
 const makeAbsoluteHref = (href?: string | null) => {
   if (!href) return null;
   if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(href)) return href;
@@ -668,7 +678,13 @@ const taskToneClassName = (tone?: string | null) => {
   return 'border-border bg-muted/30 text-foreground';
 };
 
-export function AssistedRequestPanel({ order, className, dense = false }: AssistedRequestPanelProps) {
+export function AssistedRequestPanel({
+  order,
+  className,
+  dense = false,
+  onResolveCatalogCandidate,
+  resolvingCatalogCandidateKey,
+}: AssistedRequestPanelProps) {
   const crmReviewCard = order.crm_review_card || null;
   const derivedAssistedRequest: AssistedOrderRequest | null = crmReviewCard
     ? {
@@ -747,6 +763,16 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
   const matchedCount = reviewCardSummaryNumber(crmReviewCard, 'matched') || summaryNumber(assistedRequest, 'matched');
   const unmatchedCount = reviewCardSummaryNumber(crmReviewCard, 'unmatched') || summaryNumber(assistedRequest, 'unmatched');
   const draftLines = crmOrderDraft?.lines || [];
+  const findDraftLineForCandidateGroup = (group: CandidateGroupView) => {
+    const groupLabel = group.itemLabel.trim().toLowerCase();
+    if (!groupLabel) return null;
+    return (
+      draftLines.find((line) => {
+        const lineLabel = draftLineName(line).trim().toLowerCase();
+        return Boolean(lineLabel && (lineLabel === groupLabel || lineLabel.includes(groupLabel) || groupLabel.includes(lineLabel)));
+      }) || null
+    );
+  };
   const draftDetectedCount = draftSummaryNumber(crmOrderDraft, 'detected');
   const draftMatchedCount = draftSummaryNumber(crmOrderDraft, 'matched');
   const draftUnmatchedCount = draftSummaryNumber(crmOrderDraft, 'unmatched');
@@ -1650,6 +1676,10 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                     const reason = candidateReason(candidate);
                     const reference = candidateReference(candidate);
                     const referenceUrl = candidateReferenceUrl(candidate);
+                    const catalogItemId = candidateCatalogItemId(candidate);
+                    const draftLine = findDraftLineForCandidateGroup(group);
+                    const resolutionKey = `${draftLine?.line_id || group.itemLabel}:${catalogItemId || candidateIndex}`;
+                    const canResolveCandidate = Boolean(onResolveCatalogCandidate && catalogItemId);
 
                     return (
                       <div
@@ -1682,6 +1712,26 @@ export function AssistedRequestPanel({ order, className, dense = false }: Assist
                           </div>
 
                           <div className="flex shrink-0 flex-wrap gap-2">
+                            {onResolveCatalogCandidate ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={!canResolveCandidate || resolvingCatalogCandidateKey === resolutionKey}
+                                aria-label={`Vincular ${group.itemLabel} con ${name}`}
+                                onClick={() => {
+                                  if (!catalogItemId) return;
+                                  onResolveCatalogCandidate({
+                                    lineId: draftLine?.line_id || null,
+                                    sourceName: group.itemLabel,
+                                    catalogItemId,
+                                    candidateName: name,
+                                  });
+                                }}
+                              >
+                                <ClipboardCheck className="h-4 w-4" />
+                                {resolvingCatalogCandidateKey === resolutionKey ? 'Vinculando' : 'Vincular'}
+                              </Button>
+                            ) : null}
                             <Button
                               type="button"
                               size="sm"

@@ -6,7 +6,7 @@ Si no hay datos de ubicación, el componente permanece oculto según las pautas 
 
 - La selección de dirección utiliza `AddressAutocomplete`, que depende del servicio Places de Google.
 - Al elegir una dirección, se muestra un mapa interactivo con un marcador arrastrable para ajustar la posición.
-- Es necesario definir la variable `VITE_Maps_API_KEY` en el archivo `.env` para cargar dicho script.
+- Es necesario definir la variable `VITE_GOOGLE_MAPS_API_KEY` en el archivo `.env` para cargar dicho script.
 - Al guardar el perfil, las coordenadas finales enviadas por el backend determinan la ubicación.
 - No se personaliza ningún texto por municipio o pyme; todo el contenido visible proviene del backend.
 

@@ -16,6 +16,8 @@ import {
   FileQuestion,
   Download,
   Loader2,
+  LockKeyhole,
+  ShieldCheck,
 } from 'lucide-react';
 import type { AttachmentInfo } from '@/utils/attachment';
 import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml';
@@ -83,6 +85,15 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
   if (attachmentInfo && attachmentInfo.url) {
     const { url, name: filename, type: attachmentType, size, isUploading } = attachmentInfo;
     const sanitizedFallbackHtml = fallbackText ? sanitizeMessageHtml(fallbackText) : null;
+    const securityLabel = attachmentInfo.securityLabel || null;
+    const isSecureAccess = Boolean(attachmentInfo.isPrivate || attachmentInfo.storageAccess === 'signed' || attachmentInfo.storageAccess === 'private');
+
+    const securityBadge = securityLabel ? (
+      <span className="inline-flex w-fit items-center gap-1 rounded-full border border-border/70 bg-background/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shadow-sm">
+        {isSecureAccess ? <LockKeyhole className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+        {securityLabel}
+      </span>
+    ) : null;
 
     const renderDownloadLink = (displayText = filename, showIcon = false) => (
       <a
@@ -128,6 +139,11 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
                     <Loader2 className="w-6 h-6 text-white animate-spin" />
                   </div>
                 )}
+                {securityBadge ? (
+                  <span className="absolute left-2 top-2">
+                    {securityBadge}
+                  </span>
+                ) : null}
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh]">
@@ -168,6 +184,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
             <div className="flex flex-col">
               <span className="font-semibold">{filename}</span>
               <span className="text-sm text-muted-foreground">PDF</span>
+              {securityBadge}
               {formatFileSize(size) && <span className="text-xs text-muted-foreground mt-1">{formatFileSize(size)}</span>}
             </div>
           </a>
@@ -283,6 +300,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
             <span className="block text-sm font-medium text-foreground truncate group-hover:text-primary">
               {filename}
             </span>
+            {securityBadge}
             {fileSizeDisplay && <span className="text-xs text-muted-foreground">{fileSizeDisplay}</span>}
           </div>
           {!isUploading && <Download className="w-5 h-5 ml-auto text-muted-foreground group-hover:text-primary flex-shrink-0" />}

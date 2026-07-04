@@ -22,6 +22,138 @@ export interface AttachmentInfo {
   mimeType?: string;
   size?: number;
   isUploading?: boolean; // New flag for optimistic UI
+  securityLabel?: string | null;
+  storageAccess?: string | null;
+  isPrivate?: boolean;
+}
+
+export type AttachmentLike = {
+  id?: string | number | null;
+  filename?: string | null;
+  name?: string | null;
+  nombre?: string | null;
+  original_filename?: string | null;
+  file_name?: string | null;
+  url?: string | null;
+  href?: string | null;
+  file_url?: string | null;
+  media_url?: string | null;
+  foto_url_directa?: string | null;
+  downloadUrl?: string | null;
+  download_url?: string | null;
+  storage_url?: string | null;
+  storage_access?: string | null;
+  storageAccess?: string | null;
+  is_private?: boolean | null;
+  isPrivate?: boolean | null;
+  securityLabel?: string | null;
+  thumbUrl?: string | null;
+  thumb_url?: string | null;
+  thumbnail_url?: string | null;
+  thumbnailUrl?: string | null;
+  thumb_storage_url?: string | null;
+  mime_type?: string | null;
+  mimeType?: string | null;
+  content_type?: string | null;
+  type?: string | null;
+  size?: number | string | null;
+};
+
+const cleanUrl = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
+
+export function getAttachmentDeliveryUrl(attachment: AttachmentLike | null | undefined): string | null {
+  if (!attachment) return null;
+  return (
+    cleanUrl(attachment.downloadUrl) ||
+    cleanUrl(attachment.download_url) ||
+    cleanUrl(attachment.url) ||
+    cleanUrl(attachment.file_url) ||
+    cleanUrl(attachment.media_url) ||
+    cleanUrl(attachment.foto_url_directa) ||
+    cleanUrl(attachment.href) ||
+    cleanUrl(attachment.storage_url) ||
+    null
+  );
+}
+
+export function getAttachmentPreviewUrl(attachment: AttachmentLike | null | undefined): string | null {
+  if (!attachment) return null;
+  return (
+    cleanUrl(attachment.thumbUrl) ||
+    cleanUrl(attachment.thumb_url) ||
+    cleanUrl(attachment.thumbnail_url) ||
+    cleanUrl(attachment.thumbnailUrl) ||
+    cleanUrl(attachment.thumb_storage_url) ||
+    getAttachmentDeliveryUrl(attachment)
+  );
+}
+
+export function getAttachmentSecurityLabel(attachment: AttachmentLike | null | undefined): string | null {
+  if (!attachment) return null;
+  const explicitLabel = cleanUrl(attachment.securityLabel);
+  if (explicitLabel) return explicitLabel;
+  const access = (cleanUrl(attachment.storage_access) || cleanUrl(attachment.storageAccess))?.toLowerCase();
+  if (attachment.is_private || attachment.isPrivate || access === 'signed' || access === 'private') return 'Acceso seguro';
+  if (access === 'public') return 'Publico';
+  return null;
+}
+
+const resolveAttachmentName = (attachment: AttachmentLike, fallbackName: string, deliveryUrl: string): string => (
+  cleanUrl(attachment.filename) ||
+  cleanUrl(attachment.name) ||
+  cleanUrl(attachment.nombre) ||
+  cleanUrl(attachment.original_filename) ||
+  cleanUrl(attachment.file_name) ||
+  fallbackName ||
+  deliveryUrl.split('/').pop()?.split(/[?#]/)[0] ||
+  'archivo_adj'
+);
+
+const resolveAttachmentMimeType = (attachment: AttachmentLike): string | undefined => (
+  cleanUrl(attachment.mimeType) ||
+  cleanUrl(attachment.mime_type) ||
+  cleanUrl(attachment.content_type) ||
+  cleanUrl(attachment.type) ||
+  undefined
+);
+
+const resolveAttachmentSize = (attachment: AttachmentLike): number | undefined => {
+  if (typeof attachment.size === 'number' && Number.isFinite(attachment.size)) {
+    return attachment.size;
+  }
+  if (typeof attachment.size === 'string' && attachment.size.trim()) {
+    const parsed = Number(attachment.size);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+export function deriveAttachmentInfoFromPayload(
+  attachment: AttachmentLike | null | undefined,
+  fallbackName = 'archivo_adj'
+): AttachmentInfo | null {
+  if (!attachment) return null;
+
+  const deliveryUrl = getAttachmentDeliveryUrl(attachment);
+  if (!deliveryUrl) return null;
+
+  const storageAccess = (cleanUrl(attachment.storage_access) || cleanUrl(attachment.storageAccess))?.toLowerCase() || null;
+  const info = deriveAttachmentInfo(
+    deliveryUrl,
+    resolveAttachmentName(attachment, fallbackName, deliveryUrl),
+    resolveAttachmentMimeType(attachment),
+    resolveAttachmentSize(attachment),
+    getAttachmentPreviewUrl(attachment) || undefined
+  );
+
+  return {
+    ...info,
+    id: attachment.id ?? info.id,
+    securityLabel: getAttachmentSecurityLabel(attachment),
+    storageAccess,
+    isPrivate: Boolean(attachment.is_private || attachment.isPrivate || storageAccess === 'signed' || storageAccess === 'private'),
+  };
 }
 
 // --- Listas Blancas ---

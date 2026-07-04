@@ -24,3 +24,8 @@ export const CLERK_PUBLISHABLE_KEY =
   '';
 
 export const CLERK_AUTH_ENABLED = Boolean(CLERK_PUBLISHABLE_KEY);
+
+export const CLOUDFLARE_TURNSTILE_SITE_KEY =
+  (import.meta.env.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY || '').trim() ||
+  readRuntimeEnv('VITE_CLOUDFLARE_TURNSTILE_SITE_KEY') ||
+  '';

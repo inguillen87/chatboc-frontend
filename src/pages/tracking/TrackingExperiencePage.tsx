@@ -152,6 +152,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
   const adminSurface = isRecord(support?.admin_response_surface) ? support.admin_response_surface : {};
   const operatorQueue = isRecord(support?.operator_queue) ? support.operator_queue : {};
   const polling = isRecord(support?.polling) ? support.polling : {};
+  const ui = isRecord(support?.ui) ? support.ui : {};
   const cta = isRecord(support?.cta) ? support.cta : {};
   const primaryCta = isRecord(cta.primary) ? cta.primary : {};
   const messages = asArray(conversation.messages)
@@ -191,6 +192,21 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
       pendingCustomerMessages > 0,
   );
   const slaTargetMinutesRaw = Number(first(operatorQueue, ["sla_target_minutes", "slaTargetMinutes"]) ?? 0);
+  const slaTargetMinutes =
+    Number.isFinite(slaTargetMinutesRaw) && slaTargetMinutesRaw > 0 ? Math.round(slaTargetMinutesRaw) : null;
+  const pollingInterval = readText(polling, ["interval_ms"]);
+  const pollingIntervalNumber = Number(pollingInterval);
+  const pollingLabelFallback =
+    pollingInterval && Number.isFinite(pollingIntervalNumber) && pollingIntervalNumber > 0
+      ? `Actualizacion cada ${pollingIntervalNumber / 1000}s`
+      : "";
+  const responseExpectationFallback = liveAvailable
+    ? slaTargetMinutes
+      ? `Respuesta esperada en hasta ${slaTargetMinutes} min`
+      : "Atencion inmediata"
+    : slaTargetMinutes
+      ? `El equipo lo ve en el CRM. SLA objetivo ${slaTargetMinutes} min`
+      : "El equipo responde desde el CRM";
 
   return {
     enabled: support?.enabled !== false && (hasSupportContract || fallbackClaimSupport),
@@ -215,7 +231,28 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
       liveAvailable ? "Chatear con un agente" : "Dejar mensaje para el equipo",
     ),
     primaryCtaAction,
-    pollingInterval: readText(polling, ["interval_ms"]),
+    pollingInterval,
+    pollingLabel: readText(ui, ["polling_label", "pollingLabel"], pollingLabelFallback),
+    responseExpectationLabel: readText(
+      ui,
+      ["response_expectation_label", "responseExpectationLabel"],
+      responseExpectationFallback,
+    ),
+    channelBindingLabel: readText(
+      ui,
+      ["channel_binding_label", "channelBindingLabel"],
+      readText(serviceWindow, ["channel_binding_label", "channelBindingLabel"], "Canal interno del ticket"),
+    ),
+    noExternalRedirectLabel: readText(
+      ui,
+      ["no_external_redirect_label", "noExternalRedirectLabel"],
+      support?.webview_policy?.external_redirect_required === false ? "Sin redireccion externa" : "Sin salir del seguimiento",
+    ),
+    operationalStateLabel: readText(
+      ui,
+      ["operational_state_label", "operationalStateLabel"],
+      "Canal seguro asociado al reclamo",
+    ),
     schedule: readText(serviceWindow, ["schedule_label"]) || readText(liveChat, ["description"]) || (
       readText(liveChat, ["start_time"]) && readText(liveChat, ["end_time"])
         ? `${readText(liveChat, ["start_time"])} a ${readText(liveChat, ["end_time"])}`
@@ -243,7 +280,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     pendingCustomerMessages,
     hasPendingCustomerMessage,
     pendingSince: readText(operatorQueue, ["pending_since", "pendingSince"]),
-    slaTargetMinutes: Number.isFinite(slaTargetMinutesRaw) && slaTargetMinutesRaw > 0 ? Math.round(slaTargetMinutesRaw) : null,
+    slaTargetMinutes,
     nextTeamActionLabel: readText(
       operatorQueue,
       ["next_team_action_label", "nextTeamActionLabel"],
@@ -296,6 +333,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const [searchParams, setSearchParams] = useSearchParams();
   const code = params.code || params.nro_ticket || params.nro_pedido || searchParams.get("code") || "";
   const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || null;
+  const accessToken = searchParams.get("token") || searchParams.get("access_token") || null;
   const [pin, setPin] = useState(searchParams.get("pin") || "");
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -366,6 +404,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         kind,
         code,
         pin: pin.trim() || null,
+        token: accessToken,
         tenantSlug,
       });
       setPayload(nextPayload);
@@ -423,7 +462,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     if (!code || requiresPinForLoad) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, kind]);
+  }, [code, kind, accessToken]);
 
   React.useEffect(() => {
     if (!payload || !supportPollingMs || !support.endpoint || requiresPinForSupport) return;
@@ -845,6 +884,33 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                       El equipo responde desde el CRM del municipio, asociado a este ticket.
                     </p>
                   </div>
+                </div>
+
+                <div
+                  data-testid="tracking-helpdesk-operational-state"
+                  className="mt-5 flex flex-wrap items-center gap-2 rounded-[14px] border border-border/70 bg-background/70 p-3 text-xs font-semibold text-muted-foreground"
+                >
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    {support.noExternalRedirectLabel}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
+                    <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                    {support.channelBindingLabel}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
+                    {support.liveAvailable ? <Radio className="h-3.5 w-3.5 text-primary" /> : <Clock3 className="h-3.5 w-3.5 text-amber-500" />}
+                    {support.responseExpectationLabel}
+                  </span>
+                  {support.pollingLabel ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
+                      <RefreshCw className="h-3.5 w-3.5 text-sky-500" />
+                      {support.pollingLabel}
+                    </span>
+                  ) : null}
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5">
+                    {support.operationalStateLabel}
+                  </span>
                 </div>
 
                 <div

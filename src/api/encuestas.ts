@@ -650,11 +650,14 @@ const normalizeHeatmapPoint = (value: unknown) => {
   if (!isRecord(value)) return null;
   const lat = toFiniteNumberOrUndefined(firstDefined(value, ['lat', 'latitude', 'centroid_lat']));
   const lng = toFiniteNumberOrUndefined(firstDefined(value, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']));
+  const pointValue =
+    toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1;
   return {
     ...value,
     ...(lat !== undefined ? { lat } : {}),
     ...(lng !== undefined ? { lng } : {}),
-    value: toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1,
+    value: pointValue,
+    respuestas: toFiniteNumberOrUndefined(firstDefined(value, ['respuestas', 'value', 'votes', 'votos', 'count', 'total', 'weight'])) ?? pointValue,
   };
 };
 
@@ -662,11 +665,14 @@ const normalizeHeatmapCell = (value: unknown) => {
   if (!isRecord(value)) return null;
   const lat = toFiniteNumberOrUndefined(firstDefined(value, ['lat', 'latitude', 'centroid_lat']));
   const lng = toFiniteNumberOrUndefined(firstDefined(value, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']));
+  const cellValue =
+    toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1;
   return {
     ...value,
     ...(lat !== undefined ? { lat } : {}),
     ...(lng !== undefined ? { lng } : {}),
-    value: toFiniteNumberOrUndefined(firstDefined(value, ['value', 'respuestas', 'votes', 'votos', 'count', 'total', 'weight'])) ?? 1,
+    value: cellValue,
+    respuestas: toFiniteNumberOrUndefined(firstDefined(value, ['respuestas', 'value', 'votes', 'votos', 'count', 'total', 'weight'])) ?? cellValue,
   };
 };
 
@@ -1078,32 +1084,79 @@ export const getTimeseries = (
 ): Promise<SurveyTimeseriesPoint[]> =>
   callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
+const SURVEY_HEATMAP_METADATA_KEYS = [
+  'headline',
+  'legend',
+  'empty_state',
+  'recommended_action',
+  'render_contract',
+  'map',
+  'map_experience',
+  'category_layers',
+  'ai_layers',
+  'quality',
+  'privacy',
+  'privacy_mode',
+  'coordinate_precision',
+  'using_synthetic_points',
+  'source',
+  'provider',
+] as const;
+
+const buildSurveyHeatmapMetadata = (record: Record<string, unknown>): Record<string, unknown> | undefined => {
+  const metadata: Record<string, unknown> = isRecord(record.metadata) ? { ...record.metadata } : {};
+
+  SURVEY_HEATMAP_METADATA_KEYS.forEach((key) => {
+    if (record[key] !== undefined && metadata[key] === undefined) {
+      metadata[key] = record[key];
+    }
+  });
+
+  return Object.keys(metadata).length ? metadata : undefined;
+};
+
+const normalizeSurveyAnalyticsHeatmap = (payload: unknown): SurveyAnalyticsHeatmap => {
+  if (Array.isArray(payload)) {
+    return {
+      points: payload
+        .map(normalizeHeatmapPoint)
+        .filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapPoint>> =>
+          Boolean(item?.lat !== undefined && item?.lng !== undefined),
+        )
+        .map((item) => item as SurveyHeatmapPoint),
+    };
+  }
+
+  if (isRecord(payload)) {
+    const rawPoints = firstDefined(payload, ['points', 'data', 'puntos', 'geo_points', 'heatmap_points']);
+    const rawCells = firstDefined(payload, ['cells', 'celdas', 'heatmap_cells']);
+    const points = arrayFromUnknown(rawPoints)
+      .map(normalizeHeatmapPoint)
+      .filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapPoint>> =>
+        Boolean(item?.lat !== undefined && item?.lng !== undefined),
+      )
+      .map((item) => item as SurveyHeatmapPoint);
+    const cells = arrayFromUnknown(rawCells)
+      .map(normalizeHeatmapCell)
+      .filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapCell>> => Boolean(item));
+
+    return {
+      ...payload,
+      points,
+      ...(cells.length || Array.isArray(rawCells) ? { cells } : {}),
+      metadata: buildSurveyHeatmapMetadata(payload),
+    };
+  }
+
+  return { points: [] };
+};
+
 export const getHeatmap = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
 ): Promise<SurveyAnalyticsHeatmap> => {
   const payload = await callAdminSurveyEndpoint<unknown>(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
-
-  if (Array.isArray(payload)) {
-    return { points: payload as SurveyHeatmapPoint[] };
-  }
-
-  if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, unknown>;
-    const points = Array.isArray(record.points)
-      ? (record.points as SurveyHeatmapPoint[])
-      : Array.isArray(record.data)
-        ? (record.data as SurveyHeatmapPoint[])
-        : [];
-
-    return {
-      points,
-      cells: Array.isArray(record.cells) ? (record.cells as Array<Record<string, unknown>>) : undefined,
-      metadata: record.metadata && typeof record.metadata === 'object' ? (record.metadata as Record<string, unknown>) : undefined,
-    };
-  }
-
-  return { points: [] };
+  return normalizeSurveyAnalyticsHeatmap(payload);
 };
 
 
@@ -1153,7 +1206,17 @@ export const getSurveyDashboardBundle = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
 ): Promise<SurveyDashboardBundle> =>
-  callAdminSurveyEndpoint(`${id}/analytics/dashboard${buildQueryString(filtros)}`);
+  callAdminSurveyEndpoint<SurveyDashboardBundle>(`${id}/analytics/dashboard${buildQueryString(filtros)}`).then((bundle) => {
+    const heatmap = bundle?.modules?.heatmap;
+    if (!heatmap) return bundle;
+    return {
+      ...bundle,
+      modules: {
+        ...bundle.modules,
+        heatmap: normalizeSurveyAnalyticsHeatmap(heatmap),
+      },
+    };
+  });
 
 export const downloadExportCsv = async (
   id: number,

@@ -139,4 +139,33 @@ describe('SurveyAnalytics territory command center', () => {
     expect(commandCenter).toHaveTextContent('demo/fallback');
     expect(commandCenter).toHaveTextContent('No se presenta como precision territorial real');
   });
+
+  it('renders rich backend heatmap payload without requiring a separate metadata prop', () => {
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmapPayload={{
+          points: [
+            { lat: -33.086, lng: -68.471, value: 14, respuestas: 14, categoria: 'Centro', canal: 'whatsapp' },
+          ],
+          map: {
+            render_ready: true,
+            provider_hint: 'maplibre',
+            fallback_provider: 'maplibre',
+            available_providers: ['maplibre'],
+          },
+          category_layers: {
+            categories: [{ categoria: 'Centro', color: '#22d3ee', event_count: 14 }],
+          },
+          render_contract: { state: 'live', preferred_visualization: 'territory_map' },
+        }}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const commandCenter = screen.getByTestId('survey-territory-command-center');
+    expect(commandCenter).toHaveTextContent('Mapa real activo');
+    expect(commandCenter).toHaveTextContent('Centro con 14 respuestas');
+    expect(screen.getAllByTestId('mock-survey-map').some((map) => map.getAttribute('data-points') === '1')).toBe(true);
+  });
 });

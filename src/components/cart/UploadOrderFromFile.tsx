@@ -24,6 +24,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useTenant } from '@/context/TenantContext';
+import { CLOUDFLARE_TURNSTILE_SITE_KEY } from '@/env';
 import { cn } from '@/lib/utils';
 import type { MarketAssistedIntakeEntry, MarketAssistedIntakeTextExample } from '@/types/market';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
@@ -87,6 +88,8 @@ interface AssistedOperatorSummary {
 
 interface CrmOrderDraftLine {
   status?: string | null;
+  confirmation_state?: string | null;
+  customer_visible_status?: string | null;
   source_name?: string | null;
   name?: string | null;
   normalized_name?: string | null;
@@ -95,6 +98,28 @@ interface CrmOrderDraftLine {
   catalog_item_id?: number | string | null;
   candidate_count?: number | string | null;
   confidence?: string | number | null;
+}
+
+interface CrmOrderDraftConfirmationReason {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+}
+
+interface CrmOrderDraftConfirmation {
+  contract_version?: string | null;
+  status?: string | null;
+  status_label?: string | null;
+  headline?: string | null;
+  description?: string | null;
+  confidence_level?: string | null;
+  confidence_score?: number | string | null;
+  matched?: number | string | null;
+  detected?: number | string | null;
+  blocking_reasons?: CrmOrderDraftConfirmationReason[] | null;
+  primary_action_id?: string | null;
+  primary_action_label?: string | null;
+  allowed_actions?: string[] | null;
 }
 
 interface CrmOrderDraft {
@@ -108,6 +133,8 @@ interface CrmOrderDraft {
   provider_status?: string | null;
   status?: string | null;
   state?: string | null;
+  customer_confirmation?: CrmOrderDraftConfirmation | null;
+  confirmation?: CrmOrderDraftConfirmation | null;
   source?: Record<string, unknown> | null;
 }
 
@@ -589,6 +616,20 @@ const compactString = (value: unknown): string | null => {
   return null;
 };
 
+const isTurnstileSecurityError = (body: unknown): body is Record<string, unknown> => {
+  if (!isRecord(body)) return false;
+  const code = normalizeStateToken(body.codigo ?? body.code ?? body.error);
+  const contract = isRecord(body.security) ? body.security : {};
+  const provider = normalizeStateToken(contract.provider);
+  const resetTurnstile = isRecord(body.frontend_contract) && body.frontend_contract.reset_turnstile === true;
+  return (
+    code === 'turnstile_verificacion_fallida' ||
+    code === 'turnstile_no_configurado' ||
+    provider === 'cloudflare_turnstile' ||
+    resetTurnstile
+  );
+};
+
 const normalizeStateToken = (value: unknown): string | null =>
   compactString(value)?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || null;
 
@@ -776,6 +817,14 @@ const getCrmLineQuantity = (line: CrmOrderDraftLine) => {
   return quantity ?? unit ?? null;
 };
 
+const getCrmDraftConfirmation = (draft?: CrmOrderDraft | null): CrmOrderDraftConfirmation | null => {
+  const confirmation = draft?.customer_confirmation ?? draft?.confirmation;
+  return isRecord(confirmation) ? (confirmation as CrmOrderDraftConfirmation) : null;
+};
+
+const isReadyConfirmationStatus = (status?: string | null) =>
+  normalizeStateToken(status) === 'ready_for_customer_confirmation';
+
 const makeAbsoluteHref = (href?: string | null) => {
   if (!href) return null;
   if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(href)) return href;
@@ -912,6 +961,153 @@ const buildWhatsappFollowUpHref = (baseHref: string | null | undefined, requestI
 const isDocumentType = (value?: string | null): value is DocumentType =>
   DOCUMENT_TYPES.some((item) => item.value === value);
 
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: {
+          sitekey: string;
+          theme?: 'light' | 'dark' | 'auto';
+          callback?: (token: string) => void;
+          'expired-callback'?: () => void;
+          'error-callback'?: () => void;
+        },
+      ) => string;
+      remove?: (widgetId: string) => void;
+      reset?: (widgetId: string) => void;
+    };
+  }
+}
+
+const TURNSTILE_SCRIPT_ID = 'chatboc-cloudflare-turnstile';
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+let turnstileScriptPromise: Promise<void> | null = null;
+
+const loadTurnstileScript = () => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve();
+  }
+  if (window.turnstile) {
+    return Promise.resolve();
+  }
+  if (turnstileScriptPromise) {
+    return turnstileScriptPromise;
+  }
+
+  turnstileScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(TURNSTILE_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('turnstile_load_failed')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = TURNSTILE_SCRIPT_ID;
+    script.src = TURNSTILE_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('turnstile_load_failed'));
+    document.head.appendChild(script);
+  });
+
+  return turnstileScriptPromise;
+};
+
+const TurnstileChallenge = ({
+  siteKey,
+  onToken,
+  disabled,
+  resetSignal,
+}: {
+  siteKey: string;
+  onToken: (token: string) => void;
+  disabled?: boolean;
+  resetSignal?: number;
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!siteKey || disabled) {
+      onToken('');
+      return undefined;
+    }
+
+    setState('loading');
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || !containerRef.current || !window.turnstile) return;
+        containerRef.current.innerHTML = '';
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          theme: 'auto',
+          callback: (token) => {
+            onToken(token);
+            setState('ready');
+          },
+          'expired-callback': () => {
+            onToken('');
+            setState('loading');
+          },
+          'error-callback': () => {
+            onToken('');
+            setState('error');
+          },
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        onToken('');
+        setState('error');
+      });
+
+    return () => {
+      cancelled = true;
+      if (widgetIdRef.current && window.turnstile?.remove) {
+        window.turnstile.remove(widgetIdRef.current);
+      }
+      widgetIdRef.current = null;
+    };
+  }, [disabled, onToken, siteKey]);
+
+  useEffect(() => {
+    if (!widgetIdRef.current || !window.turnstile?.reset) return;
+    onToken('');
+    setState('loading');
+    window.turnstile.reset(widgetIdRef.current);
+  }, [onToken, resetSignal]);
+
+  if (!siteKey) return null;
+
+  return (
+    <div
+      className="rounded-lg border border-border/70 bg-background p-3"
+      data-testid="marketplace-turnstile-challenge"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Verificacion de seguridad</p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Protege la carga anonima de pedidos, reclamos y documentos sin pedirte registro previo.
+          </p>
+        </div>
+        <Badge
+          variant={state === 'ready' ? 'secondary' : state === 'error' ? 'destructive' : 'outline'}
+          className="w-fit"
+        >
+          {state === 'ready' ? 'Validada' : state === 'error' ? 'Reintentar' : 'Pendiente'}
+        </Badge>
+      </div>
+      <div className="mt-3 min-h-[65px]" ref={containerRef} />
+    </div>
+  );
+};
+
 const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   onCartUpdated,
   onProcessed,
@@ -951,6 +1147,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const [contactNotes, setContactNotes] = useState('');
   const [orderText, setOrderText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
+  const turnstileSiteKey = isMarketplace ? CLOUDFLARE_TURNSTILE_SITE_KEY : '';
+  const turnstileEnabled = Boolean(turnstileSiteKey);
 
   useEffect(() => {
     const nextDraft = String(suggestedTextDraft || '').trim();
@@ -1098,6 +1298,10 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       setError('Este marketplace todavia no habilito la carga asistida desde el backend.');
       return;
     }
+    if (turnstileEnabled && !turnstileToken.trim()) {
+      setError('Completa la verificacion de seguridad para enviar la solicitud anonima.');
+      return;
+    }
     if (file && !fileMatchesAcceptedSpec(file, submitAcceptedFileSpec)) {
       setError(`Formato no aceptado. Usa ${submitAcceptedLabel}.`);
       return;
@@ -1179,6 +1383,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       }
       if (idempotencyKey) {
         formData.append('idempotency_key', idempotencyKey);
+      }
+      if (turnstileToken.trim()) {
+        formData.append('turnstile_token', turnstileToken.trim());
       }
 
       const submitHeaderNames = Array.from(
@@ -1264,6 +1471,16 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       assistedIntakeIdempotencyRef.current = null;
     } catch (uploadError) {
       if (uploadError instanceof ApiError) {
+        if (isTurnstileSecurityError(uploadError.body)) {
+          setTurnstileToken('');
+          setTurnstileResetSignal((value) => value + 1);
+          setError(
+            compactString(uploadError.body?.mensaje) ||
+              'No pudimos validar la verificacion de seguridad. Completala otra vez e intenta nuevamente.',
+          );
+          setStatusMessage(null);
+          return;
+        }
         const contentType = String(uploadError.body?.contentType || '').toLowerCase();
         if (contentType.includes('text/html')) {
           console.warn('[UploadOrderFromFile] Respuesta inesperada al importar archivo', uploadError.body?.raw);
@@ -1361,6 +1578,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const crmDraftReference = compactString(crmDraft?.reference) ?? referenceCode;
   const crmDraftContactState = prettifyToken(crmDraft?.contact_state, CRM_CONTACT_STATE_LABELS);
   const crmDraftNextStep = prettifyToken(crmDraft?.recommended_next_step, CRM_NEXT_STEP_LABELS);
+  const crmDraftConfirmation = getCrmDraftConfirmation(crmDraft);
+  const crmDraftConfirmationReasons = Array.isArray(crmDraftConfirmation?.blocking_reasons)
+    ? crmDraftConfirmation.blocking_reasons.filter(isRecord).slice(0, 4) as CrmOrderDraftConfirmationReason[]
+    : [];
+  const crmDraftIsReadyToConfirm = isReadyConfirmationStatus(crmDraftConfirmation?.status);
   const crmSuggestedReply = getCrmSuggestedReply(processedResponse);
   const operatorPack = processedResponse?.operator_pack ?? null;
   const operatorSummary = processedResponse?.operator_intake_summary ?? null;
@@ -1619,6 +1841,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 </Button>
               </div>
             </div>
+
+            {turnstileEnabled ? (
+              <TurnstileChallenge
+                siteKey={turnstileSiteKey}
+                onToken={setTurnstileToken}
+                resetSignal={turnstileResetSignal}
+              />
+            ) : null}
 
             <fieldset>
               <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de archivo</legend>
@@ -2022,10 +2252,60 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             ))}
           </div>
 
+          {crmDraftConfirmation ? (
+            <div
+              data-testid="assisted-draft-confirmation"
+              className={cn(
+                'mt-4 rounded-xl border p-3',
+                crmDraftIsReadyToConfirm
+                  ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100'
+                  : 'border-amber-200 bg-amber-50/70 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100',
+              )}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="bg-background/80">
+                      {crmDraftConfirmation.status_label || (crmDraftIsReadyToConfirm ? 'Listo para confirmar' : 'Revision del equipo')}
+                    </Badge>
+                    {crmDraftConfirmation.confidence_level ? (
+                      <Badge variant="outline" className="bg-background/80">
+                        Confianza {String(crmDraftConfirmation.confidence_level).replace(/_/g, ' ')}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {crmDraftConfirmation.headline ? (
+                    <p className="mt-2 break-words text-sm font-semibold">{crmDraftConfirmation.headline}</p>
+                  ) : null}
+                  {crmDraftConfirmation.description ? (
+                    <p className="mt-1 break-words text-sm opacity-90">{crmDraftConfirmation.description}</p>
+                  ) : null}
+                </div>
+                {crmDraftConfirmation.primary_action_label ? (
+                  <div className="rounded-lg border bg-background/80 px-3 py-2 text-xs font-semibold">
+                    {crmDraftConfirmation.primary_action_label}
+                  </div>
+                ) : null}
+              </div>
+              {crmDraftConfirmationReasons.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {crmDraftConfirmationReasons.map((reason) => (
+                    <div key={reason.id ?? reason.label} className="rounded-lg border bg-background/80 p-2">
+                      <p className="text-xs font-semibold">{reason.label}</p>
+                      {reason.description ? <p className="mt-1 text-xs opacity-80">{reason.description}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {crmDraftLines.length ? (
             <div className="mt-4 space-y-2">
               {crmDraftLines.map((line, index) => {
                 const lineStatus = prettifyToken(line.status, CRM_LINE_STATUS_LABELS);
+                const publicLineStatus = compactString(line.customer_visible_status);
+                const lineConfidence = compactString(line.confidence);
                 const lineQuantity = getCrmLineQuantity(line);
                 const candidateCount = compactString(line.candidate_count);
                 return (
@@ -2039,7 +2319,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                           {candidateCount ? <span>{candidateCount} candidatos</span> : null}
                         </div>
                       </div>
-                      {lineStatus ? <Badge variant="outline" className="w-fit shrink-0">{lineStatus}</Badge> : null}
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        {publicLineStatus ? <Badge variant="secondary" className="w-fit">{publicLineStatus}</Badge> : null}
+                        {lineConfidence ? <Badge variant="outline" className="w-fit">Confianza {lineConfidence}</Badge> : null}
+                        {lineStatus ? <Badge variant="outline" className="w-fit">{lineStatus}</Badge> : null}
+                      </div>
                     </div>
                   </div>
                 );

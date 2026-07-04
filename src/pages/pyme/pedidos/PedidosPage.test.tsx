@@ -19,6 +19,7 @@ vi.mock('@/api/client', () => ({
 }));
 
 const mockAdminListOrders = vi.mocked(apiClient.adminListOrders);
+const mockAdminUpdateOrder = vi.mocked(apiClient.adminUpdateOrder);
 
 const assistedOrder: Order = {
   id: 'assistida-1',
@@ -50,6 +51,8 @@ const assistedOrder: Order = {
     status: 'needs_review',
     priority: 'high',
     needs_operator_review: true,
+    operational_state: 'needs_catalog_resolution',
+    primary_action_id: 'confirm_order_draft',
     recommended_next_step: 'resolver_faltantes_y_responder',
     summary: { detected: 3, matched: 1, unmatched: 2 },
     source: {
@@ -67,7 +70,42 @@ const assistedOrder: Order = {
       { line_id: 'l2', status: 'needs_catalog_resolution', source_name: 'Chapas', quantity: 4 },
     ],
     unmatched_items: ['chapas', 'tornillos'],
+    catalog_candidates: [
+      {
+        item: 'Chapas',
+        candidates: [
+          {
+            catalogo_item_id: 77,
+            nombre: 'Chapa galvanizada',
+            sku: 'CH-77',
+            precio: 12000,
+            confidence: 'medium',
+            score: 0.82,
+          },
+        ],
+      },
+    ],
     suggested_reply: 'Hola Marcelo, recibimos tu nota y revisamos stock y precio.',
+    operator_actions: [
+      {
+        id: 'confirm_order_draft',
+        label: 'Revisar y confirmar',
+        type: 'status_transition',
+        target_status: 'confirmed',
+        enabled: true,
+        requires_review: true,
+        creates: ['pyme_pedido', 'market_order'],
+        description: 'Materializa la nota en pedido operativo cuando los datos estan validados.',
+      },
+      {
+        id: 'resolve_catalog_candidates',
+        label: 'Resolver catalogo',
+        type: 'catalog_resolution',
+        enabled: true,
+        requires_review: true,
+        description: 'Vincula los renglones dudosos con productos reales.',
+      },
+    ],
   },
   assisted_request: {
     contract_version: 'marketplace.assisted_request.v1',
@@ -88,10 +126,34 @@ const assistedOrder: Order = {
       missing_fields: ['direccion'],
     },
     unmatched_items: ['chapas', 'tornillos'],
+    catalog_candidates: [
+      {
+        item: 'Chapas',
+        candidates: [
+          {
+            catalogo_item_id: 77,
+            nombre: 'Chapa galvanizada',
+            sku: 'CH-77',
+            precio: 12000,
+            confidence: 'medium',
+            score: 0.82,
+          },
+        ],
+      },
+    ],
+    crm_order_draft: {
+      lines: [
+        { line_id: 'l1', status: 'catalog_matched', source_name: 'Clavos', quantity: 2, catalog_match: { name: 'Clavos punta paris' } },
+        { line_id: 'l2', status: 'needs_catalog_resolution', source_name: 'Chapas', quantity: 4 },
+      ],
+    },
     public_follow_up: {
       tracking: {
         code: 'pc-123',
-        path: '/tracking/order/pc-123?tenant_slug=junin',
+        path: '/tracking/order/pc-123?tenant_slug=junin&token=signed-token-123',
+        token: 'signed-token-123',
+        token_required: true,
+        access: 'signed_link',
       },
     },
   },
@@ -143,6 +205,8 @@ const readyAssistedOrder: Order = {
     status: 'ready_to_reply',
     priority: 'normal',
     needs_operator_review: false,
+    operational_state: 'ready_for_order_creation',
+    primary_action_id: 'confirm_order_draft',
     recommended_next_step: 'Confirmar pedido con el cliente',
     summary: { detected: 1, matched: 1, unmatched: 0 },
     source: {
@@ -151,6 +215,18 @@ const readyAssistedOrder: Order = {
     },
     lines: [
       { line_id: 'l1', status: 'catalog_matched', source_name: 'Caja Malbec', quantity: 2 },
+    ],
+    operator_actions: [
+      {
+        id: 'confirm_order_draft',
+        label: 'Crear pedido',
+        type: 'status_transition',
+        target_status: 'confirmed',
+        enabled: true,
+        requires_review: false,
+        creates: ['pyme_pedido', 'market_order'],
+        description: 'Materializa la solicitud como pedido operativo.',
+      },
     ],
   },
   assisted_request: {
@@ -218,7 +294,9 @@ const failedAssistedOrder: Order = {
 describe('PedidosPage', () => {
   beforeEach(() => {
     mockAdminListOrders.mockReset();
+    mockAdminUpdateOrder.mockReset();
     mockAdminListOrders.mockResolvedValue([assistedOrder, regularOrder]);
+    mockAdminUpdateOrder.mockResolvedValue(assistedOrder);
   });
 
   it('searches assisted marketplace requests by extracted text/contact and avoids fake shipping data', async () => {
@@ -247,12 +325,28 @@ describe('PedidosPage', () => {
     await waitFor(() => expect(screen.getByText('Pedido #assistida-1')).toBeTruthy());
     expect(screen.getAllByTitle(/Marcelo - Avatar con imagen consentida/i).length).toBeGreaterThan(1);
     expect(screen.getAllByText('Revisar en CRM').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Revisar y confirmar/i })).toBeTruthy();
+    const reviewConfirmButton = screen.getByRole('button', { name: /Revisar y confirmar/i }) as HTMLButtonElement;
+    expect(reviewConfirmButton).toBeTruthy();
+    expect(reviewConfirmButton.disabled).toBe(true);
     expect(screen.queryByText('Av. Principal 1234, Local 5')).toBeNull();
     expect(screen.getByText(/No hay direccion ni metodo confirmado/)).toBeTruthy();
     expect(screen.getByText('Ficha CRM operativa')).toBeTruthy();
     expect(screen.getAllByText('pedido:assistida-1').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Hola Marcelo, recibimos tu nota/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('crm-operator-actions')).toBeTruthy();
+    expect(screen.getByText('Acciones operativas')).toBeTruthy();
+    expect(screen.getAllByText('Resolver catalogo').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Resolver catalogo').length).toBeGreaterThan(1);
+    expect(screen.getByText('Crea pyme pedido')).toBeTruthy();
+    expect(screen.getByText('Crea market order')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Ejecutar accion' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vincular Chapas con Chapa galvanizada' }));
+    await waitFor(() =>
+      expect(mockAdminUpdateOrder).toHaveBeenCalledWith('junin', 'assistida-1', {
+        catalog_resolutions: [{ line_id: 'l2', source_name: 'Chapas', catalog_item_id: '77' }],
+      }),
+    );
   });
 
   it('renders crm_review_card summaries without requiring assisted_request data', async () => {
@@ -287,6 +381,14 @@ describe('PedidosPage', () => {
     expect(screen.getByText('IA lista')).toBeTruthy();
     expect(screen.getByText('Revisar')).toBeTruthy();
     expect(screen.getByText('Revisión manual')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Abrir pedido ready-3'));
+    await waitFor(() => expect(screen.getByText('Pedido #ready-3')).toBeTruthy());
+    const createButton = screen.getByRole('button', { name: 'Crear pedido' }) as HTMLButtonElement;
+    expect(createButton).toBeTruthy();
+    expect(createButton.disabled).toBe(false);
+    expect(screen.getByTestId('crm-operator-actions')).toBeTruthy();
+    expect(screen.getByText('Listo para crear pedido')).toBeTruthy();
 
     fireEvent.click(readyCard);
 

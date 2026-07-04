@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useTickets } from '@/context/TicketContext';
+import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 const FILTER_SELECT_CLASS_NAME =
   'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
@@ -16,6 +17,7 @@ const QUICK_FILTER_BUTTON_CLASS_NAME =
   'h-7 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
 
 const defaultFilters = {
+  search: '',
   channel: 'all',
   status: 'all',
   area: 'all',
@@ -66,7 +68,9 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
     () =>
       [
         resolvedFilters.channel !== 'all' ? `Canal: ${resolvedFilters.channel}` : null,
-        resolvedFilters.status !== 'all' ? `Estado: ${resolvedFilters.status}` : null,
+        resolvedFilters.status !== 'all'
+          ? `Estado: ${formatTicketStatusLabel(resolvedFilters.status)}`
+          : null,
         resolvedFilters.area !== 'all' ? `Area: ${resolvedFilters.area}` : null,
         resolvedFilters.agent !== 'all' ? `Agente: ${resolvedFilters.agent}` : null,
         resolvedFilters.priority !== 'all' ? `Prioridad: ${resolvedFilters.priority}` : null,

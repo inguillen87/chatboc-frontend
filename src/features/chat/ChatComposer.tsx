@@ -7,6 +7,10 @@ import { requestLocation } from '@/utils/geolocation';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/chat';
 import { uploadChatAttachment } from './uploadChatAttachment';
+import {
+  getChatAttachmentAcceptedTypes,
+  validateChatAttachment,
+} from './chatAttachmentPolicy';
 
 export interface ChatComposerPayload {
   text: string;
@@ -120,6 +124,12 @@ export default function ChatComposer({
   };
 
   const uploadAttachment = async (file: File, mode: ChatMediaInputModeConfig | undefined) => {
+    const selectedMode = attachmentDraft?.mode ?? selectedFileMode;
+    const validationError = validateChatAttachment(file, mode, selectedMode);
+    if (validationError) {
+      setError(validationError);
+      return null;
+    }
     const endpoint = mode?.upload_endpoint?.trim();
     if (!endpoint) {
       setError('Esta accion no esta disponible en esta demo.');
@@ -234,6 +244,9 @@ export default function ChatComposer({
     }
   };
 
+  const selectedModeConfig = selectedFileMode === 'image' ? imageMode : fileMode;
+  const selectedFileAccept = getChatAttachmentAcceptedTypes(selectedModeConfig, selectedFileMode).join(',');
+
   return (
     <form
       className="space-y-2"
@@ -246,10 +259,17 @@ export default function ChatComposer({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept={selectedFileMode === 'image' ? 'image/*' : undefined}
+        accept={selectedFileAccept}
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) return;
+          const modeConfig = selectedFileMode === 'image' ? imageMode : fileMode;
+          const validationError = validateChatAttachment(file, modeConfig, selectedFileMode);
+          if (validationError) {
+            setError(validationError);
+            event.target.value = '';
+            return;
+          }
           const nextDraft: AttachmentDraft = {
             file,
             mode: selectedFileMode,

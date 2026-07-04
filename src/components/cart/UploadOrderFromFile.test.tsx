@@ -4,20 +4,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import UploadOrderFromFile from './UploadOrderFromFile';
 
-const apiFetchMock = vi.fn();
+const envMock = vi.hoisted(() => ({ turnstileSiteKey: '' }));
+const apiMock = vi.hoisted(() => {
+  class ApiError extends Error {
+    status = 500;
+    body: unknown = null;
+
+    constructor(message = 'api_error', status = 500, body: unknown = null) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
+    }
+  }
+
+  return {
+    ApiError,
+    apiFetchMock: vi.fn(),
+  };
+});
+const apiFetchMock = apiMock.apiFetchMock;
+const ApiError = apiMock.ApiError;
+
+vi.mock('@/env', () => ({
+  get CLOUDFLARE_TURNSTILE_SITE_KEY() {
+    return envMock.turnstileSiteKey;
+  },
+}));
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin' }),
 }));
 
 vi.mock('@/utils/api', () => {
-  class ApiError extends Error {
-    status = 500;
-    body: unknown = null;
-  }
-
   return {
-    ApiError,
+    ApiError: apiMock.ApiError,
     apiFetch: (...args: unknown[]) => apiFetchMock(...args),
     getErrorMessage: (_error: unknown, fallback: string) => fallback,
   };
@@ -26,11 +47,101 @@ vi.mock('@/utils/api', () => {
 describe('UploadOrderFromFile marketplace intake', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    envMock.turnstileSiteKey = '';
+    delete (window as any).turnstile;
+    document.getElementById('chatboc-cloudflare-turnstile')?.remove();
     Object.assign(navigator, {
       clipboard: {
         writeText: vi.fn().mockResolvedValue(undefined),
       },
     });
+  });
+
+  it('submits Cloudflare Turnstile token when marketplace protection is configured', async () => {
+    envMock.turnstileSiteKey = 'site-key-public';
+    const renderTurnstile = vi.fn((container: HTMLElement, options: { callback?: (token: string) => void }) => {
+      container.setAttribute('data-rendered-turnstile', 'true');
+      options.callback?.('turnstile-token-123');
+      return 'widget-1';
+    });
+    (window as any).turnstile = {
+      render: renderTurnstile,
+      remove: vi.fn(),
+    };
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 112,
+      customer_message: 'Solicitud protegida recibida.',
+    });
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    expect(await screen.findByTestId('marketplace-turnstile-challenge')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(renderTurnstile).toHaveBeenCalledWith(
+        expect.any(HTMLElement),
+        expect.objectContaining({ sitekey: 'site-key-public' }),
+      );
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalled();
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('turnstile_token')).toBe('turnstile-token-123');
+  });
+
+  it('resets Cloudflare Turnstile when backend rejects the marketplace security token', async () => {
+    envMock.turnstileSiteKey = 'site-key-public';
+    const resetTurnstile = vi.fn();
+    const renderTurnstile = vi.fn((container: HTMLElement, options: { callback?: (token: string) => void }) => {
+      container.setAttribute('data-rendered-turnstile', 'true');
+      options.callback?.('expired-token-123');
+      return 'widget-1';
+    });
+    (window as any).turnstile = {
+      render: renderTurnstile,
+      remove: vi.fn(),
+      reset: resetTurnstile,
+    };
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError('turnstile rejected', 400, {
+        codigo: 'turnstile_verificacion_fallida',
+        mensaje: 'No pudimos validar la verificacion de seguridad. Intenta nuevamente.',
+        security: {
+          contract_version: 'cloudflare.turnstile.public_intake.v1',
+          provider: 'cloudflare_turnstile',
+          status: 'verification_failed',
+          reset_required: true,
+        },
+        frontend_contract: {
+          render_as: 'public_intake_security_error',
+          reset_turnstile: true,
+        },
+      }),
+    );
+
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    expect(await screen.findByTestId('marketplace-turnstile-challenge')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    expect(await screen.findByText(/No pudimos validar la verificacion de seguridad/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(resetTurnstile).toHaveBeenCalledWith('widget-1');
+    });
+
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('turnstile_token')).toBe('expired-token-123');
   });
 
   it('creates an anonymous marketplace request and shows public follow-up actions', async () => {
@@ -53,6 +164,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
             quantity: 2,
             unit: 'unidades',
             status: 'matched',
+            customer_visible_status: 'Producto encontrado en catalogo',
+            confidence: 'high',
             catalog_item_id: 11,
           },
           {
@@ -60,9 +173,27 @@ describe('UploadOrderFromFile marketplace intake', () => {
             quantity: 1,
             unit: 'caja',
             status: 'needs_review',
+            customer_visible_status: 'Pendiente de asociar al catalogo',
+            confidence: 'medium',
             candidate_count: 2,
           },
         ],
+        customer_confirmation: {
+          contract_version: 'marketplace.customer_confirmation.v1',
+          status: 'operator_review_required',
+          status_label: 'Revision del equipo necesaria',
+          headline: 'Solicitud lista para revision',
+          description: 'Ya quedo cargada con lo que pudimos interpretar. El equipo completa faltantes y responde.',
+          confidence_level: 'medium',
+          primary_action_label: 'Continuar por WhatsApp o chat',
+          blocking_reasons: [
+            {
+              id: 'items_need_review',
+              label: 'Hay articulos para revisar',
+              description: 'Algunos renglones no se pudieron asociar al catalogo con seguridad.',
+            },
+          ],
+        },
       },
       operator_pack: {
         priority: 'normal',
@@ -89,7 +220,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
         contract_version: 'marketplace.assisted_followup.v1',
         tracking: {
           code: 'pc-77',
-          path: '/tracking/order/pc-77?tenant_slug=junin',
+          path: '/tracking/order/pc-77?tenant_slug=junin&token=signed-token-77',
+          token: 'signed-token-77',
+          token_required: true,
+          access: 'signed_link',
           label: 'Ver seguimiento',
         },
         channels: [
@@ -106,7 +240,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
           id: 'tracking',
           type: 'link',
           label: 'Ver seguimiento',
-          href: '/tracking/order/pc-77?tenant_slug=junin',
+          href: '/tracking/order/pc-77?tenant_slug=junin&token=signed-token-77',
           tracking_code: 'pc-77',
         },
       ],
@@ -182,12 +316,21 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(screen.getByText('Confirmar stock y precio')).toBeInTheDocument();
     expect(screen.getByText('Borrador que recibe el equipo')).toBeInTheDocument();
     expect(screen.getByText('Resolver items y cotizar')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-draft-confirmation')).toBeInTheDocument();
+    expect(screen.getByText('Revision del equipo necesaria')).toBeInTheDocument();
+    expect(screen.getByText('Solicitud lista para revision')).toBeInTheDocument();
+    expect(screen.getByText('Hay articulos para revisar')).toBeInTheDocument();
+    expect(screen.getByText('Continuar por WhatsApp o chat')).toBeInTheDocument();
+    expect(screen.getByText('Producto encontrado en catalogo')).toBeInTheDocument();
+    expect(screen.getByText('Pendiente de asociar al catalogo')).toBeInTheDocument();
+    expect(screen.getByText('Confianza high')).toBeInTheDocument();
+    expect(screen.getAllByText('Confianza medium').length).toBeGreaterThan(0);
     expect(screen.getByText('Chapas galvanizadas')).toBeInTheDocument();
     expect(screen.getByText('Clavos punta paris')).toBeInTheDocument();
     expect(screen.getByText(/Hola Marcelo, recibimos tu lista/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Abrir seguimiento/i })).toHaveAttribute(
       'href',
-      'http://localhost:3000/tracking/order/pc-77?tenant_slug=junin',
+      'http://localhost:3000/tracking/order/pc-77?tenant_slug=junin&token=signed-token-77',
     );
     expect(screen.getByRole('link', { name: /Continuar por WhatsApp/i })).toHaveAttribute(
       'href',
@@ -198,7 +341,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'http://localhost:3000/tracking/order/pc-77?tenant_slug=junin',
+        'http://localhost:3000/tracking/order/pc-77?tenant_slug=junin&token=signed-token-77',
       );
     });
   });
@@ -291,7 +434,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
       public_follow_up: {
         tracking: {
           code: 'pc-91',
-          path: '/tracking/order/pc-91?tenant_slug=junin',
+          path: '/tracking/order/pc-91?tenant_slug=junin&token=signed-token-91',
+          token: 'signed-token-91',
+          token_required: true,
+          access: 'signed_link',
         },
       },
     });

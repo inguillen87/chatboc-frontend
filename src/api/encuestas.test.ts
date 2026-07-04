@@ -41,7 +41,7 @@ describe('getHeatmap', () => {
 
     const result = await getHeatmap(10);
 
-    expect(result.points).toEqual([{ lat: -34.6, lng: -58.4, respuestas: 3 }]);
+    expect(result.points).toEqual([expect.objectContaining({ lat: -34.6, lng: -58.4, respuestas: 3, value: 3 })]);
     expect(result.metadata).toBeUndefined();
   });
 
@@ -57,6 +57,36 @@ describe('getHeatmap', () => {
     expect(result.points).toHaveLength(1);
     expect(result.metadata).toEqual({ using_synthetic_points: true });
     expect(result.cells).toEqual([]);
+  });
+
+  it('preserves rich heatmap render contract from backend payloads', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      headline: 'Participacion territorial activa',
+      points: [{ lat: '-33.086', lon: '-68.471', value: 12, categoria: 'Centro' }],
+      render_contract: { state: 'live', preferred_visualization: 'territory_map' },
+      map: { provider_hint: 'maplibre', render_ready: true },
+      category_layers: {
+        categories: [{ categoria: 'Centro', color: '#22d3ee', event_count: 12 }],
+      },
+      ai_layers: { hotspots: [{ label: 'Centro' }] },
+    });
+
+    const result = await getHeatmap(30);
+
+    expect(result.points).toEqual([
+      expect.objectContaining({ lat: -33.086, lng: -68.471, respuestas: 12, value: 12, categoria: 'Centro' }),
+    ]);
+    expect(result.render_contract).toEqual({ state: 'live', preferred_visualization: 'territory_map' });
+    expect(result.metadata).toEqual(
+      expect.objectContaining({
+        render_contract: { state: 'live', preferred_visualization: 'territory_map' },
+        map: { provider_hint: 'maplibre', render_ready: true },
+        category_layers: {
+          categories: [{ categoria: 'Centro', color: '#22d3ee', event_count: 12 }],
+        },
+        ai_layers: { hotspots: [{ label: 'Centro' }] },
+      }),
+    );
   });
 });
 

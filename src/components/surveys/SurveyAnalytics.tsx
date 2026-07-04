@@ -38,6 +38,7 @@ interface SurveyAnalyticsProps {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapPayload?: SurveyAnalyticsHeatmap;
   heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   onExport: () => Promise<void>;
   isExporting?: boolean;
@@ -99,6 +100,23 @@ const isFeatureCollection = (value: unknown): value is { type: 'FeatureCollectio
   if (!isRecord(value)) return false;
   return value.type === 'FeatureCollection' && Array.isArray(value.features);
 };
+
+const HEATMAP_METADATA_KEYS = [
+  'headline',
+  'legend',
+  'empty_state',
+  'recommended_action',
+  'render_contract',
+  'map',
+  'map_experience',
+  'category_layers',
+  'ai_layers',
+  'quality',
+  'privacy',
+  'privacy_mode',
+  'coordinate_precision',
+  'using_synthetic_points',
+] as const;
 
 const getNestedValue = (value: unknown, path: string[]): unknown => {
   let current: unknown = value;
@@ -374,7 +392,7 @@ const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): Survey
       const lat = toFiniteNumber(rawPoint.lat);
       const lng = toFiniteNumber(rawPoint.lng ?? rawPoint.lon ?? rawPoint.longitud ?? rawPoint.long);
       const respuestas =
-        toFiniteNumber(rawPoint.respuestas ?? rawPoint.weight ?? rawPoint.total ?? rawPoint.count) ?? 0;
+        toFiniteNumber(rawPoint.respuestas ?? rawPoint.value ?? rawPoint.votes ?? rawPoint.votos ?? rawPoint.weight ?? rawPoint.total ?? rawPoint.count) ?? 0;
       if (lat === null || lng === null) return null;
       const categoria =
         toNonEmptyString(rawPoint.categoria ?? rawPoint.category ?? rawPoint.tipo ?? rawPoint.segmento) ?? undefined;
@@ -825,6 +843,7 @@ export const SurveyAnalytics = ({
   summary,
   timeseries,
   heatmap,
+  heatmapPayload,
   heatmapMeta,
   onExport,
   isExporting,
@@ -840,7 +859,15 @@ export const SurveyAnalytics = ({
     [summary],
   );
   const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
-  const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
+  const heatmapPayloadRecord = useMemo(
+    () => (heatmapPayload && typeof heatmapPayload === 'object' ? (heatmapPayload as Record<string, unknown>) : null),
+    [heatmapPayload],
+  );
+  const heatmapPointsInput = useMemo(
+    () => (heatmap && heatmap.length ? heatmap : heatmapPayload?.points),
+    [heatmap, heatmapPayload?.points],
+  );
+  const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmapPointsInput), [heatmapPointsInput]);
   const aggregatedHeatmapPoints = useMemo(() => {
     if (!heatmapPoints.length) return [] as Array<SurveyHeatmapPoint & { categoria?: string; canal?: string }>;
 
@@ -867,10 +894,19 @@ export const SurveyAnalytics = ({
 
     return Array.from(grouped.values());
   }, [heatmapPoints]);
-  const heatmapMetaRecord = useMemo(
-    () => (heatmapMeta && typeof heatmapMeta === 'object' ? (heatmapMeta as Record<string, unknown>) : null),
-    [heatmapMeta],
-  );
+  const heatmapMetaRecord = useMemo(() => {
+    const payloadMetadata = isRecord(heatmapPayloadRecord?.metadata)
+      ? (heatmapPayloadRecord.metadata as Record<string, unknown>)
+      : {};
+    const explicitMetadata = isRecord(heatmapMeta) ? (heatmapMeta as Record<string, unknown>) : {};
+    const topLevelMetadata = HEATMAP_METADATA_KEYS.reduce<Record<string, unknown>>((accumulator, key) => {
+      const value = heatmapPayloadRecord?.[key];
+      if (value !== undefined) accumulator[key] = value;
+      return accumulator;
+    }, {});
+    const merged = { ...topLevelMetadata, ...payloadMetadata, ...explicitMetadata };
+    return Object.keys(merged).length ? merged : null;
+  }, [heatmapMeta, heatmapPayloadRecord]);
   const categoryLayersRecord = useMemo(() => {
     const direct = heatmapMetaRecord?.category_layers;
     if (isRecord(direct)) return direct;

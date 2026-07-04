@@ -27,6 +27,7 @@ import { ViewState } from '@/components/app-shell/ViewState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSocket } from '@/context/SocketContext';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
@@ -213,9 +214,11 @@ const resolveLabel = (data: OperationsDashboardV1 | undefined, key: string, fall
 };
 
 const getRefreshSeconds = (...values: Array<number | undefined>) => {
-  const parsed = values.find((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
-  if (!parsed) return undefined;
-  return parsed;
+  const candidates = values.filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  );
+  if (!candidates.length) return undefined;
+  return Math.min(...candidates);
 };
 
 type OperationsFocusCard = {
@@ -438,6 +441,37 @@ const OPERATIONS_DASHBOARD_FALLBACK: OperationsDashboardV1 = {
 };
 
 const HEATMAP_PERIOD_KEYS = new Set<HeatmapQueryKey>(['range', 'scope', 'days']);
+const OPERATIONS_REALTIME_FALLBACK_EVENTS = [
+  'ticket.updated',
+  'ticket_update',
+  'ticket.status.changed',
+  'ticket.assignment.changed',
+  'survey.vote.created',
+  'survey_update_v2',
+  'whatsapp.message.created',
+  'new_chat_message',
+  'analytics.event.created',
+] as const;
+
+const readRealtimeTenantSlug = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  const nestedPayload = record.payload && typeof record.payload === 'object'
+    ? (record.payload as Record<string, unknown>)
+    : null;
+  const value =
+    record.tenant_slug ||
+    record.tenant ||
+    nestedPayload?.tenant_slug ||
+    nestedPayload?.tenant;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+};
+
+const realtimeEventMatchesTenant = (payload: unknown, tenantSlug?: string) => {
+  if (!tenantSlug) return true;
+  const eventTenant = readRealtimeTenantSlug(payload);
+  return !eventTenant || eventTenant === tenantSlug;
+};
 
 const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): HeatmapFilterState => {
   const next = Object.fromEntries(
@@ -452,6 +486,7 @@ interface OperationsDashboardPanelProps {
 
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { currentSlug } = useTenant();
+  const { socket, isConnected: socketConnected } = useSocket();
   const storedTenantSlug = useMemo(() => readStoredTenantSlug(), []);
   const tenantSlug = currentSlug || storedTenantSlug || undefined;
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
@@ -548,6 +583,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const refetchFreshness = freshnessQuery.refetch;
 
   const refreshSeconds = getRefreshSeconds(
+    heatmapQuery.data?.realtime?.poll_seconds,
     dashboardQuery.data?.frontend_contract?.primary_refresh_seconds,
     actionCenterQuery.data?.frontend_contract?.primary_refresh_seconds,
     aiBriefQuery.data?.frontend_contract?.primary_refresh_seconds,
@@ -570,6 +606,37 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
 
     return () => window.clearInterval(timer);
   }, [refetchAIBrief, refetchAIOpsQueue, refetchAIProviderStatus, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
+
+  const realtimeEvents = useMemo(() => {
+    const contractEvents = heatmapQuery.data?.realtime?.socket_events ?? [];
+    return Array.from(new Set([...contractEvents, ...OPERATIONS_REALTIME_FALLBACK_EVENTS]));
+  }, [heatmapQuery.data?.realtime?.socket_events]);
+
+  useEffect(() => {
+    if (!socket || !socketConnected || realtimeEvents.length === 0) return undefined;
+
+    const refreshOperations = (payload?: unknown) => {
+      if (!realtimeEventMatchesTenant(payload, tenantSlug)) return;
+      void refetchDashboard();
+      void refetchHeatmap();
+      void refetchActionCenter();
+      void refetchFreshness();
+    };
+
+    realtimeEvents.forEach((eventName) => socket.on(eventName, refreshOperations));
+    return () => {
+      realtimeEvents.forEach((eventName) => socket.off(eventName, refreshOperations));
+    };
+  }, [
+    refetchActionCenter,
+    refetchDashboard,
+    refetchFreshness,
+    refetchHeatmap,
+    realtimeEvents,
+    socket,
+    socketConnected,
+    tenantSlug,
+  ]);
 
   const dashboardData = dashboardQuery.data;
   const dashboardFallbackActive = dashboardQuery.isError && !dashboardData;
@@ -2305,6 +2372,65 @@ function OperationsHeatmapPanel({
 
   if (error && !heatmap) {
     const errorMessage = getErrorMessage(error, 'No se pudo cargar el mapa operativo.');
+    const recoveryHeatmap: OperationsHeatmapV1 = {
+      contract_version: 'operations.heatmap.recovery.v1',
+      render_contract: {
+        state: 'degraded',
+        layers: ['recovery', 'geocoding', 'operations'],
+        can_render_heatmap: true,
+      },
+      summary: { points: 0 },
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      quality: {
+        state: 'degraded',
+        label: 'Mapa en recuperacion',
+        coverage_percent: 0,
+        visible_points: 0,
+        pending_geocode: 0,
+        can_render_heatmap: true,
+      },
+      realtime: {
+        sources: ['dashboard'],
+        socket_events: ['operations.heatmap.retry_required'],
+      },
+      map_experience: {
+        preferred_visualization: 'continuity_atlas',
+        layer_groups: ['diagnostico', 'geocoding', 'acciones'],
+        empty_state_behavior: 'render_safe_recovery_map',
+        supports_reduced_motion: true,
+      },
+      map_narrative: {
+        headline: 'Mapa temporalmente no disponible',
+        operator_summary: errorMessage,
+        primary_cta: {
+          id: 'retry_heatmap',
+          label: 'Reintentar mapa',
+          ui_hint: 'retry_heatmap',
+        },
+      },
+      hotspot_actions: {
+        safe_by_default: true,
+        writes_enabled: false,
+        playbook: [],
+        actions: [
+          {
+            id: 'retry_heatmap',
+            label: 'Reintentar mapa',
+            ui_hint: 'retry_heatmap',
+          },
+        ],
+      },
+      ai_status: {
+        status: 'safe_recovery',
+        mode: 'map_continuity',
+        safe_to_render_without_hf_token: true,
+        ai_layers_ready: false,
+      },
+    };
     return (
       <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden border-amber-500/25">
         <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),rgba(59,130,246,0.06))]">
@@ -2368,6 +2494,18 @@ function OperationsHeatmapPanel({
               <p className="mt-1 text-xs leading-5 text-muted-foreground">El equipo puede refrescar sin abandonar reclamos, encuestas ni acciones recomendadas.</p>
             </div>
           </div>
+          <PremiumTerritoryHeatmap
+            points={[]}
+            heatmap={recoveryHeatmap}
+            labels={{
+              premium_heatmap_title: 'Mapa territorial en recuperacion',
+              premium_heatmap_description:
+                'Continuidad visual sin puntos inventados: se mantiene el command loop y el equipo puede reintentar la capa geografica.',
+            }}
+            mapConfig={mapConfig}
+            allowDemoFallback={false}
+            demoProfile="general"
+          />
         </CardContent>
       </Card>
     );

@@ -26,6 +26,7 @@ import LazyMapLibreMap from '@/components/LazyMapLibreMap';
 import { cn } from '@/lib/utils';
 
 import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from './analyticsTypes';
+import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
 import {
   aggregateTerritoryHeatmap,
@@ -61,6 +62,8 @@ type BackendActionSummary = {
   href?: string;
 };
 
+type OperationsGeoLayerConfig = NonNullable<MapLibreMapProps['geoLayerConfig']>;
+
 type PremiumTerritoryHeatmapProps = {
   points: OperationsHeatmapPoint[];
   heatmap?: OperationsHeatmapV1;
@@ -92,6 +95,11 @@ const formatVariation = (value: number | undefined) => {
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 
+const asRecordArray = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)))
+    : [];
+
 const readString = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -106,6 +114,20 @@ const readNumber = (...values: unknown[]) => {
       const parsed = Number(value);
       if (Number.isFinite(parsed)) return parsed;
     }
+  }
+  return undefined;
+};
+
+const safeCssColor = (value: string | undefined) => {
+  if (!value) return undefined;
+  const color = value.trim();
+  if (
+    /^#[0-9a-f]{3,8}$/i.test(color) ||
+    /^rgba?\([\d\s.,%+-]+\)$/i.test(color) ||
+    /^hsla?\([\d\s.,%+-]+\)$/i.test(color) ||
+    /^var\(--[a-z0-9-_]+\)$/i.test(color)
+  ) {
+    return color;
   }
   return undefined;
 };
@@ -141,6 +163,18 @@ const formatPercent = (value: number | undefined) =>
 
 const humanizeContractValue = (value: string | undefined, fallback: string) =>
   value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : fallback;
+
+const operationalRankLabel = (reason: string | undefined) => {
+  const labels: Record<string, string> = {
+    sla_breached: 'SLA vencido',
+    overdue_cases: 'Casos vencidos',
+    unassigned_cases: 'Sin responsable',
+    recent_activity: 'Actividad reciente',
+    ticket_density: 'Densidad de tickets',
+    activity_density: 'Densidad operativa',
+  };
+  return labels[reason ?? ''] ?? humanizeContractValue(reason, 'Prioridad operativa');
+};
 
 const layerToneClass: Record<TerritoryLayerDescriptor['tone'], string> = {
   heat: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200',
@@ -198,6 +232,7 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
 
   const endpoint = readString(record.endpoint, record.endpoint_template);
   const target = asRecord(record.target);
+  const filters = asRecord(record.filters);
   const params = new URLSearchParams();
   params.set('tab', 'tickets');
 
@@ -206,10 +241,10 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
   const ticketId =
     readStringOrNumber(record.ticket_id, record.record_id, target?.ticket_id, target?.record_id) ??
     extractTicketIdFromEndpoint(endpoint);
-  const category = readString(record.categoria, record.category, target?.categoria, target?.category);
+  const category = readString(record.categoria, record.category, target?.categoria, target?.category, filters?.category, filters?.categoria);
   const status = readString(record.estado, record.status, target?.estado, target?.status);
-  const channel = readString(record.canal, record.channel, target?.canal, target?.channel);
-  const cellId = readString(record.cell_id, target?.cell_id);
+  const channel = readString(record.canal, record.channel, target?.canal, target?.channel, filters?.channel, filters?.canal);
+  const cellId = readString(record.cell_id, target?.cell_id, filters?.cell_id);
 
   if (uiHint) params.set('focus', uiHint);
   else if (actionType) params.set('focus', actionType);
@@ -270,6 +305,162 @@ const actionWithContext = (action: unknown, contextLabel: string | undefined) =>
 
 const layerIsEnabled = (enabledLayerIds: string[], fragments: string[]) =>
   enabledLayerIds.some((layerId) => fragments.some((fragment) => layerId.includes(fragment)));
+
+const readStringArray = (...values: unknown[]) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim());
+    }
+  }
+  return [];
+};
+
+const uniqueStrings = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
+
+const buildOperationsGeoLayerConfig = ({
+  heatmap,
+  points,
+  enabledLayerIds,
+  mapStyleUrl,
+  showHeatLayer,
+  showAiLayer,
+  showQualityLayer,
+  showRealtimeLayer,
+}: {
+  heatmap?: OperationsHeatmapV1;
+  points: HeatPoint[];
+  enabledLayerIds: string[];
+  mapStyleUrl?: string | null;
+  showHeatLayer: boolean;
+  showAiLayer: boolean;
+  showQualityLayer: boolean;
+  showRealtimeLayer: boolean;
+}): OperationsGeoLayerConfig | null => {
+  if (!heatmap || points.length === 0) return null;
+
+  const mapLayers = asRecord(heatmap.map_layers);
+  const provider = asRecord(mapLayers?.provider);
+  const categoryHeatmap = asRecord(mapLayers?.category_heatmap);
+  const hotspots = asRecord(mapLayers?.hotspots);
+  const telemetry = asRecord(mapLayers?.telemetry);
+  const layerStyle = asRecord(heatmap.layer_style_contract);
+  const styleTokens = asRecord(layerStyle?.style_tokens);
+  const layerIds = asRecord(styleTokens?.layer_ids);
+  const viewportPresets = asRecord(heatmap.viewport_presets);
+  const legend = asRecord(heatmap.legend);
+  const realtimeEvents = heatmap.realtime?.socket_events ?? [];
+  const telemetryEvents = uniqueStrings([
+    ...readStringArray(telemetry?.events),
+    ...realtimeEvents,
+    'map_loaded',
+    'cluster_click',
+    'layer_toggle',
+    'time_slider_changed',
+  ]).slice(0, 12);
+
+  const features = points
+    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    .map((point, index) => {
+      const featureRecord = asRecord(point.feature);
+      const rawPoint = asRecord(featureRecord?.raw) ?? featureRecord;
+      const pointId =
+        readStringOrNumber(point.id, point.ticket, rawPoint?.id, rawPoint?.ticket_id, rawPoint?.record_id, rawPoint?.cell_id) ??
+        `operations-point-${index}`;
+      const category = readString(point.categoria, rawPoint?.categoria, rawPoint?.category, rawPoint?.type, rawPoint?.layer);
+      const channel = readString(point.canal, rawPoint?.canal, rawPoint?.channel);
+      const status = readString(point.estado, rawPoint?.estado, rawPoint?.status);
+      const latestEventAt = readString(point.last_ticket_at, rawPoint?.latest_event_at, rawPoint?.updated_at, rawPoint?.created_at);
+      const weight = readNumber(point.totalWeight, point.weight, rawPoint?.weight, rawPoint?.count, rawPoint?.total) ?? 1;
+
+      return {
+        type: 'Feature' as const,
+        id: pointId,
+        geometry: { type: 'Point' as const, coordinates: [point.lng, point.lat] as [number, number] },
+        properties: {
+          id: pointId,
+          ticket: readString(point.ticket, rawPoint?.ticket, rawPoint?.ticket_id, rawPoint?.record_id),
+          categoria: category,
+          category,
+          canal: channel,
+          channel,
+          estado: status,
+          status,
+          weight,
+          intensity: readNumber(point.intensity, rawPoint?.intensity, weight) ?? weight,
+          totalWeight: readNumber(point.totalWeight, rawPoint?.total_weight, weight) ?? weight,
+          direccion: readString(point.direccion, rawPoint?.direccion, rawPoint?.address, rawPoint?.label),
+          barrio: readString(point.barrio, rawPoint?.barrio, rawPoint?.district, rawPoint?.distrito),
+          cell_id: readString(point.cellId, rawPoint?.cell_id),
+          fuente: readString(point.fuente, point.source, rawPoint?.fuente, rawPoint?.source) ?? 'operations',
+          latest_event_at: latestEventAt,
+          operational_score: readNumber(rawPoint?.operational_score),
+          operational_rank: readString(rawPoint?.rank_reason),
+          quality_state: readString(heatmap.quality?.state),
+          ai_layer_active: showAiLayer,
+          quality_layer_active: showQualityLayer,
+          realtime_layer_active: showRealtimeLayer,
+        },
+      };
+    });
+
+  if (features.length === 0) return null;
+
+  return {
+    contract_version: 'operations.heatmap.geo_layers.v1',
+    style_url: readString(mapStyleUrl, provider?.style_url, provider?.styleUrl),
+    source: {
+      type: 'FeatureCollection',
+      features,
+      metadata: {
+        backend_contract_version: heatmap.contract_version,
+        map_layer_contract_version: readString(mapLayers?.contract_version),
+        layer_style_contract_version: readString(layerStyle?.contract_version),
+        viewport_contract_version: readString(viewportPresets?.contract_version),
+        legend_contract_version: readString(legend?.contract_version),
+        enabled_layers: enabledLayerIds,
+        operational_hotspots: heatmap.operational_hotspots?.length ?? 0,
+      },
+    },
+    source_options: {
+      cluster: false,
+      clusterMaxZoom: 14,
+      clusterRadius: 54,
+      backend_contract_version: heatmap.contract_version,
+      map_layer_contract_version: readString(mapLayers?.contract_version),
+      layer_style_contract_version: readString(layerStyle?.contract_version),
+      default_viewport_id: readString(viewportPresets?.default_preset_id),
+      enabled_layers: enabledLayerIds,
+      active_layers: {
+        heatmap: showHeatLayer,
+        ai: showAiLayer,
+        quality: showQualityLayer,
+        realtime: showRealtimeLayer,
+      },
+    },
+    interactions: {
+      hover: true,
+      time_slider: {
+        enabled: showRealtimeLayer && Boolean(readString(heatmap.realtime?.latest_event_at) || realtimeEvents.length),
+        field: 'latest_event_at',
+      },
+    },
+    layers: {
+      heatmap: {
+        id: readString(layerIds?.heatmap, categoryHeatmap?.layer_id, categoryHeatmap?.id) ?? 'operations-heatmap-layer',
+      },
+      clusters: {
+        id: readString(layerIds?.clusters, hotspots?.cluster_layer_id, hotspots?.cluster_id) ?? 'operations-hotspot-clusters',
+      },
+      points: {
+        id: readString(layerIds?.points, hotspots?.point_layer_id, hotspots?.point_id) ?? 'operations-hotspot-points',
+      },
+    },
+    telemetry: {
+      event_endpoint: readString(telemetry?.event_endpoint, telemetry?.endpoint),
+      events: telemetryEvents,
+    },
+  };
+};
 
 const coverageArc = (coveragePercent: number | undefined) => {
   const coverage = Math.max(0, Math.min(100, coveragePercent ?? 0));
@@ -472,10 +663,15 @@ export function PremiumTerritoryHeatmap({
   const mapLayerVisualSystem = asRecord(mapLayers?.visual_system);
   const mapLayerAnimations = asRecord(mapLayerVisualSystem?.animations);
   const mapLayerOperatorMetrics = asRecord(mapLayers?.operator_metrics);
+  const heatmapSummary = asRecord(heatmap?.summary);
+  const operationalHotspots = heatmap?.operational_hotspots?.slice(0, 4) ?? [];
+  const topOperationalHotspot = operationalHotspots[0];
+  const topOperationalSignals = asRecord(topOperationalHotspot?.signals);
+  const operationalHotspotCount = readNumber(heatmapSummary?.operational_hotspots) ?? operationalHotspots.length;
   const backendTotalCases = readNumber(mapLayerOperatorMetrics?.total_cases, mapLayerIntensity?.total_cases);
   const backendVisibleLayers = readNumber(mapLayerOperatorMetrics?.visible_layers, mapLayerIntensity?.total_items);
-  const backendCriticalHotspots = readNumber(mapLayerOperatorMetrics?.critical_hotspots);
-  const backendTopCategory = readString(mapLayerOperatorMetrics?.top_category, mapLayerFocus?.category);
+  const backendCriticalHotspots = readNumber(mapLayerOperatorMetrics?.critical_hotspots, operationalHotspotCount);
+  const backendTopCategory = readString(mapLayerOperatorMetrics?.top_category, mapLayerFocus?.category, topOperationalHotspot?.top_category);
   const backendFocusCount = readNumber(mapLayerFocus?.count);
   const backendFocusRiskLabel = humanizeContractValue(
     readString(mapLayerFocusRisk?.label, mapLayerFocusRisk?.level),
@@ -504,8 +700,12 @@ export function PremiumTerritoryHeatmap({
     const contextLabel = readString(cell.label, cell.title, cell.key, cell.id);
     return (cell.actions ?? []).map((action) => actionWithContext(action, contextLabel));
   });
+  const operationalHotspotActions = operationalHotspots
+    .map((hotspot) => actionWithContext(hotspot.recommended_action, readString(hotspot.top_category, hotspot.id)))
+    .filter(Boolean);
   const operationalActionSummaries = uniqueActionSummaries([
     heatmap?.map_narrative?.primary_cta,
+    ...operationalHotspotActions,
     ...(heatmap?.hotspot_actions?.actions ?? []),
     ...(heatmap?.hotspot_actions?.playbook ?? []),
     ...(heatmap?.hotspot_playbook ?? []),
@@ -516,7 +716,7 @@ export function PremiumTerritoryHeatmap({
     ...geocodingCandidateActions,
     ...pointActions,
     ...cellActions,
-  ]).slice(0, 6);
+  ]).slice(0, 8);
   const hasOperationalBrief = Boolean(
     narrativeTitle ||
       narrativeBody ||
@@ -531,6 +731,29 @@ export function PremiumTerritoryHeatmap({
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
   const showQualityLayer = layerIsEnabled(enabledLayerIds, ['quality', 'coverage', 'geo']);
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
+  const geoLayerConfig = useMemo(
+    () =>
+      buildOperationsGeoLayerConfig({
+        heatmap,
+        points: liveMapPoints,
+        enabledLayerIds,
+        mapStyleUrl: mapConfig?.style_url,
+        showHeatLayer,
+        showAiLayer,
+        showQualityLayer,
+        showRealtimeLayer,
+      }),
+    [
+      heatmap,
+      liveMapPoints,
+      enabledLayerIds,
+      mapConfig?.style_url,
+      showAiLayer,
+      showHeatLayer,
+      showQualityLayer,
+      showRealtimeLayer,
+    ],
+  );
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
   const visiblePointCount = readiness.visiblePoints ?? aggregate.totalRecords;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
@@ -543,6 +766,78 @@ export function PremiumTerritoryHeatmap({
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
   const decisionActionDetail = decisionAction?.detail ?? decisionZone.recommendation;
+  const commandLoopHref = decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href;
+  const commandPrimaryCategory = backendTopCategory
+    ? humanizeContractValue(backendTopCategory, backendTopCategory)
+    : decisionZone.topCategories[0]?.label ?? aggregate.topCategories[0]?.label ?? 'sin categoria dominante';
+  const commandRealtimeDetail =
+    realtimeEvents.length > 0
+      ? humanizeContractValue(realtimeEvents[0], realtimeEvents[0])
+      : realtimeSources.length > 0
+        ? humanizeContractValue(realtimeSources[0], realtimeSources[0])
+        : latestRealtime
+          ? `ultimo evento ${latestRealtime}`
+          : 'sin socket visible';
+  const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+    {
+      label: 'Puntos visibles',
+      value: formatNumber(visiblePointCount, '0'),
+      detail: `${formatPercent(readiness.coveragePercent)} de cobertura territorial`,
+      icon: Eye,
+    },
+    {
+      label: 'Pendientes',
+      value: formatNumber(readiness.pendingGeocode, '0'),
+      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola de geocoding',
+      icon: DatabaseZap,
+    },
+    {
+      label: 'Foco territorial',
+      value: commandPrimaryCategory,
+      detail:
+        backendFocusCount !== undefined
+          ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
+          : decisionZone.suppressed
+            ? 'muestra insuficiente'
+            : decisionZone.zone.label,
+      icon: Compass,
+    },
+    {
+      label: 'Proxima accion',
+      value: decisionActionLabel,
+      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      icon: ListChecks,
+    },
+  ];
+  const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+    {
+      label: 'Foco critico',
+      value:
+        backendCriticalHotspots !== undefined
+          ? `${formatNumber(backendCriticalHotspots, '0')} hotspots`
+          : `${formatNumber(aggregate.alerts, '0')} alertas`,
+      detail: commandPrimaryCategory,
+      icon: ShieldAlert,
+    },
+    {
+      label: 'Accion siguiente',
+      value: decisionActionLabel,
+      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      icon: ListChecks,
+    },
+    {
+      label: 'Cobertura GPS',
+      value: formatPercent(readiness.coveragePercent),
+      detail: `${formatNumber(visiblePointCount, '0')} puntos visibles`,
+      icon: Gauge,
+    },
+    {
+      label: 'Tiempo real',
+      value: heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : 'manual',
+      detail: commandRealtimeDetail,
+      icon: Activity,
+    },
+  ];
   const commandSignals = [
     {
       label: backendTopCategory ? 'Foco backend' : 'Zona foco',
@@ -576,6 +871,64 @@ export function PremiumTerritoryHeatmap({
       detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola visible',
       icon: DatabaseZap,
     },
+  ];
+  const legendContract = asRecord(heatmap?.legend);
+  const layerStyleContract = asRecord(heatmap?.layer_style_contract);
+  const legendPalette = readStringArray(layerStyleContract?.palette, legendContract?.palette);
+  const fallbackLegendColors = ['#3b82f6', '#14b8a6', '#f59e0b', '#94a3b8'];
+  const liveLegendItems = [
+    ...asRecordArray(legendContract?.legend_items),
+    ...asRecordArray(layerStyleContract?.legend_items),
+    ...asRecordArray(layerStyleContract?.styles),
+    ...asRecordArray(layerStyleContract?.layers),
+  ]
+    .map((item, index) => ({
+      label: humanizeContractValue(
+        readString(item.label, item.name, item.title, item.key, item.id),
+        `Capa ${index + 1}`,
+      ),
+      detail: humanizeContractValue(readString(item.description, item.metric, item.source, item.bucket), ''),
+      color:
+        safeCssColor(readString(item.color, item.hex, item.fill, item.stroke, item.token)) ||
+        safeCssColor(legendPalette[index]) ||
+        fallbackLegendColors[index % fallbackLegendColors.length],
+    }))
+    .slice(0, 4);
+  const visibleLegendItems = liveLegendItems.length
+    ? liveLegendItems
+    : [
+        { label: 'Bajo', detail: 'demanda inicial', color: fallbackLegendColors[0] },
+        { label: 'Medio', detail: 'actividad sostenida', color: fallbackLegendColors[1] },
+        { label: 'Alto', detail: 'prioridad operativa', color: fallbackLegendColors[2] },
+        { label: 'Muestra insuficiente', detail: 'privacidad activa', color: fallbackLegendColors[3] },
+      ];
+  const liveSignalValue = latestRealtime
+    ? 'online'
+    : showRealtimeLayer || realtimeEvents.length || realtimeSources.length
+      ? 'escuchando'
+      : 'sin pulso';
+  const liveSignalDetail =
+    latestRealtime ||
+    realtimeEvents.map((event) => humanizeContractValue(event, event)).join(' / ') ||
+    realtimeSources.map((source) => humanizeContractValue(source, source)).join(' / ') ||
+    'sin evento realtime';
+  const focusDetail =
+    backendFocusCount !== undefined
+      ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
+      : operationalHotspotCount
+        ? `${formatNumber(operationalHotspotCount, '0')} hotspots`
+        : `${formatNumber(visiblePointCount, '0')} puntos`;
+  const visualSystemDetail = [
+    backendRadarEnabled ? 'radar activo' : null,
+    showHeatLayer ? 'calor' : null,
+    showAiLayer ? 'IA' : null,
+    showRealtimeLayer ? 'realtime' : null,
+  ].filter(Boolean).join(' - ');
+  const liveLegendCards = [
+    { label: 'Señal viva', value: liveSignalValue, detail: liveSignalDetail, icon: Activity },
+    { label: 'Foco', value: commandPrimaryCategory, detail: focusDetail, icon: Compass },
+    { label: 'Accion siguiente', value: decisionActionLabel, detail: decisionActionDetail || 'sin accion pendiente', icon: ListChecks },
+    { label: 'Sistema visual', value: backendRenderer, detail: visualSystemDetail || preferredVisualization, icon: Radar },
   ];
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
     { id: 'territory', label: labelFor(labels, 'premium_map_mode_territory', 'Territorio'), icon: Globe2 },
@@ -658,6 +1011,99 @@ export function PremiumTerritoryHeatmap({
           ))}
         </div>
       ) : null}
+
+      <div
+        data-testid="territory-executive-strip"
+        className="overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm"
+      >
+        <div className="flex flex-col gap-2 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <Radar className="h-3.5 w-3.5" />
+                Lectura ejecutiva
+              </Badge>
+              <Badge variant="outline" className="capitalize">
+                {readiness.label}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Resumen operativo para leer demanda, calidad de datos y accion siguiente sin abrir paneles internos.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit gap-1">
+            <Activity className="h-3.5 w-3.5" />
+            {hasBackendMapContract ? 'contrato backend activo' : 'atlas operativo'}
+          </Badge>
+        </div>
+        <div className="grid divide-y divide-border/70 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          {executiveSummaryCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.label} className="min-w-0 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate">{card.label}</span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-lg font-semibold leading-snug">{card.value}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{card.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        data-testid="territory-command-loop"
+        className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
+      >
+        <div className="flex flex-col gap-4 border-b border-border/70 p-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <Radar className="h-3.5 w-3.5" />
+                Command loop IA
+              </Badge>
+              <Badge variant={readiness.state === 'ready' ? 'outline' : 'secondary'} className="capitalize">
+                {readiness.label}
+              </Badge>
+            </div>
+            <h4 className="mt-2 text-lg font-semibold leading-tight">Pulso operativo territorial</h4>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Priorizacion del mapa para convertir heatmaps, encuestas, tickets y WhatsApp en una cola de trabajo clara para el equipo.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Badge variant="outline" className="gap-1">
+              <Activity className="h-3.5 w-3.5" />
+              {realtimeSources.length || realtimeEvents.length ? 'senal viva' : 'modo operativo'}
+            </Badge>
+            {commandLoopHref ? (
+              <a
+                href={commandLoopHref}
+                className="inline-flex min-h-9 items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              >
+                Abrir cola CRM
+              </a>
+            ) : null}
+          </div>
+        </div>
+        <div className="grid gap-0 divide-y divide-border/70 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+          {commandLoopCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.label} data-testid="territory-command-card" className="min-w-0 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate">{card.label}</span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-base font-semibold leading-snug">{card.value}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{card.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div
         data-testid="territory-decision-radar"
@@ -759,6 +1205,7 @@ export function PremiumTerritoryHeatmap({
                 mapStyleUrl={mapConfig?.style_url}
                 maptilerKey={mapConfig?.maptiler_key}
                 googleMapsKey={mapConfig?.google_maps_key}
+                geoLayerConfig={geoLayerConfig}
                 fitToBounds={liveMapBounds}
                 boundsPadding={{ top: 96, right: 48, bottom: 112, left: 48 }}
                 disableClientClustering
@@ -1125,29 +1572,54 @@ export function PremiumTerritoryHeatmap({
             </div>
           </div>
 
-          <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 rounded-lg border border-border/80 bg-background/90 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                bajo
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
-                medio
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                alto
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-                muestra insuficiente
-              </span>
+          <div
+            data-testid="territory-live-legend"
+            className="absolute bottom-3 left-3 right-3 z-20 rounded-lg border border-border/80 bg-background/95 p-3 shadow-sm backdrop-blur xl:pr-32"
+          >
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {liveLegendCards.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <div key={card.label} className="min-w-0 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                        <Icon className="h-3.5 w-3.5 text-primary" />
+                        <span className="truncate">{card.label}</span>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-semibold text-foreground">{card.value}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground">{card.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 xl:max-w-[280px]">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {visibleLegendItems.map((item) => (
+                    <span key={`${item.label}-${item.color}`} className="inline-flex max-w-[12rem] items-center gap-1">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </span>
+                  ))}
+                </div>
+                {visibleLegendItems.some((item) => item.detail) ? (
+                  <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                    {visibleLegendItems
+                      .filter((item) => item.detail)
+                      .map((item) => `${item.label}: ${item.detail}`)
+                      .join(' - ')}
+                  </p>
+                ) : null}
+              </div>
             </div>
             <Button
               type="button"
               size="sm"
               variant={comparisonEnabled ? 'default' : 'outline'}
+              className="mt-3 w-full justify-center gap-2 rounded-lg xl:absolute xl:right-3 xl:top-3 xl:mt-0 xl:w-auto"
               onClick={() => setComparisonEnabled((value) => !value)}
             >
               <TrendingUp className="h-4 w-4" />
@@ -1248,6 +1720,88 @@ export function PremiumTerritoryHeatmap({
             </div>
           ) : null}
 
+          {operationalHotspots.length ? (
+            <div
+              data-testid="operational-hotspots-panel"
+              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
+                    Hotspots operativos
+                  </p>
+                  <h4 className="mt-1 text-lg font-semibold leading-tight">Zonas para actuar primero</h4>
+                </div>
+                <Badge variant="outline" className="shrink-0 gap-1">
+                  <Radar className="h-3.5 w-3.5" />
+                  {formatNumber(operationalHotspotCount, '0')}
+                </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-lg border bg-background/70 p-2">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">SLA</p>
+                  <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.breached_sla), '0')}</p>
+                </div>
+                <div className="rounded-lg border bg-background/70 p-2">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Sin resp.</p>
+                  <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.unassigned), '0')}</p>
+                </div>
+                <div className="rounded-lg border bg-background/70 p-2">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">24h</p>
+                  <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.recent_24h), '0')}</p>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {operationalHotspots.slice(0, 3).map((hotspot, index) => {
+                  const signals = asRecord(hotspot.signals);
+                  const category = humanizeContractValue(readString(hotspot.top_category, hotspot.key, hotspot.label), 'sin categoria');
+                  const channel = humanizeContractValue(readString(hotspot.top_channel), 'sin canal');
+                  const signalChips = [
+                    { label: 'SLA', value: readNumber(signals?.breached_sla) },
+                    { label: 'sin responsable', value: readNumber(signals?.unassigned) },
+                    { label: '24h', value: readNumber(signals?.recent_24h) },
+                    { label: 'tickets', value: readNumber(signals?.tickets) },
+                  ].filter((chip) => (chip.value ?? 0) > 0);
+                  return (
+                    <div
+                      key={hotspot.id ?? `${category}-${index}`}
+                      data-testid="operational-hotspot-item"
+                      className="rounded-lg border bg-background/75 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                              {index + 1}
+                            </span>
+                            <p className="truncate text-sm font-semibold">{category}</p>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {channel} - {hotspot.id}
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">
+                          {formatNumber(readNumber(hotspot.operational_score), '0')}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {operationalRankLabel(readString(hotspot.rank_reason))}
+                        </Badge>
+                        {signalChips.map((chip) => (
+                          <Badge key={chip.label} variant="secondary" className="text-[10px]">
+                            {chip.label}: {formatNumber(chip.value, '0')}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
@@ -1330,7 +1884,7 @@ export function PremiumTerritoryHeatmap({
                     </div>
                     <div className="mt-2 space-y-2">
                       {operationalActionSummaries
-                        .slice(0, 5)
+                        .slice(0, 8)
                         .map((action) => (
                           <div
                             key={`${action.label}-${action.detail ?? action.uiHint ?? ''}`}

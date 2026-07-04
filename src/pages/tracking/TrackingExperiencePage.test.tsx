@@ -121,9 +121,51 @@ const makeClaimPayload = (mode: "live" | "offline" = "offline") => {
       polling: {
         interval_ms: 15000,
       },
+      ui: {
+        channel_binding_label: "Canal interno del ticket",
+        response_expectation_label: live
+          ? "Respuesta esperada en hasta 30 min"
+          : "El equipo lo ve en el CRM. SLA objetivo 240 min",
+        polling_label: "Actualizacion cada 15s",
+        no_external_redirect_label: "Sin redireccion externa",
+        operational_state_label: "Canal seguro asociado al reclamo",
+      },
     },
   };
 };
+
+const makeOrderPayload = () => ({
+  contract_version: "tracking.experience.v1",
+  kind: "order",
+  tenant: {
+    slug: "junin",
+    nombre: "Municipalidad de Junin",
+  },
+  resource: {
+    code: "pc-77",
+    subject: "Pedido asistido",
+    category: "Marketplace",
+    channel: "web",
+  },
+  status: {
+    current_stage: "recibido",
+    label: "Pedido recibido",
+    detail: "Tu solicitud fue recibida por el equipo.",
+  },
+  milestones: [
+    { key: "recibido", label: "Recibido" },
+    { key: "validando", label: "Validando" },
+    { key: "resuelto", label: "Resuelto" },
+  ],
+  timeline: [],
+  map: {
+    can_render: false,
+    fallback_when_no_coordinates: "timeline_only",
+  },
+  support: {
+    enabled: false,
+  },
+});
 
 const renderTrackingPage = () =>
   render(
@@ -139,6 +181,30 @@ describe("TrackingExperiencePage support contract", () => {
     fetchTrackingExperienceMock.mockReset();
     sendTrackingSupportMessageMock.mockReset();
     HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("forwards signed order tracking tokens from the public URL", async () => {
+    fetchTrackingExperienceMock.mockResolvedValueOnce(makeOrderPayload());
+
+    render(
+      <MemoryRouter initialEntries={["/tracking/order?code=pc-77&tenant_slug=junin&token=signed-token-123"]}>
+        <Routes>
+          <Route path="/tracking/order" element={<TrackingExperiencePage kind="order" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(fetchTrackingExperienceMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "order",
+          code: "pc-77",
+          tenantSlug: "junin",
+          token: "signed-token-123",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("Pedido recibido")).length).toBeGreaterThan(0);
   });
 
   it("keeps offline helpdesk messages inside the public claim tracking contract", async () => {
@@ -187,6 +253,10 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.getByText(/Siguiente:/i)).toHaveTextContent("Validando");
     expect(screen.getByText("Sin salir del seguimiento")).toBeInTheDocument();
     expect(screen.getByText("Cola offline activa")).toBeInTheDocument();
+    expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Sin redireccion externa");
+    expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Canal interno del ticket");
+    expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("SLA objetivo 240 min");
+    expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Actualizacion cada 15s");
     expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("El equipo esta al dia con este reclamo");
     expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Pendientes: 0");
     expect(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i })).toBeInTheDocument();
@@ -230,6 +300,7 @@ describe("TrackingExperiencePage support contract", () => {
 
     expect(await screen.findByText("Atencion en vivo disponible")).toBeInTheDocument();
     expect(screen.getByText("Atencion inmediata")).toBeInTheDocument();
+    expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Respuesta esperada en hasta 30 min");
     expect(screen.getByRole("button", { name: /Chatear con un agente/i })).toBeInTheDocument();
   });
 

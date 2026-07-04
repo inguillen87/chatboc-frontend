@@ -34,6 +34,26 @@ describe("trackingExperience api", () => {
     );
   });
 
+  it("loads signed public order tracking with the access token", async () => {
+    await fetchTrackingExperience({
+      kind: "order",
+      code: "pc-77",
+      tenantSlug: "junin",
+      token: "signed-token-123",
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/public/tracking/experience?kind=order&code=pc-77&token=signed-token-123&tenant_slug=junin",
+      expect.objectContaining({
+        skipAuth: true,
+        omitCredentials: true,
+        omitEntityToken: true,
+        omitTenant: true,
+        pin: null,
+      }),
+    );
+  });
+
   it("sends ticket-bound support messages to the live claim endpoint", async () => {
     await sendTrackingSupportMessage({
       endpoint: "/api/public/tracking/claims/42/messages",

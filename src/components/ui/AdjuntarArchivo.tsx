@@ -38,14 +38,17 @@ export interface AdjuntarArchivoProps {
   onFileSelected: (file: File) => void;
   disabled?: boolean;
   allowedFileTypes?: string[]; // e.g., ['image/*', 'application/pdf']
+  maxFileSizeMb?: number;
 }
 
 export interface AdjuntarArchivoHandle {
   openFileDialog: () => void;
 }
 
-const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(({ onFileSelected, disabled = false, allowedFileTypes }, ref) => {
+const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(({ onFileSelected, disabled = false, allowedFileTypes, maxFileSizeMb = MAX_FILE_SIZE_MB }, ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const effectiveMaxFileSizeMb =
+    Number.isFinite(maxFileSizeMb) && maxFileSizeMb > 0 ? maxFileSizeMb : MAX_FILE_SIZE_MB;
 
   useImperativeHandle(ref, () => ({
     openFileDialog: () => {
@@ -86,10 +89,10 @@ const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    if (file.size > effectiveMaxFileSizeMb * 1024 * 1024) {
       toast({
         title: "Archivo demasiado grande",
-        description: `El archivo excede el tamaño máximo de ${MAX_FILE_SIZE_MB}MB.`,
+        description: `El archivo excede el tamaño máximo de ${effectiveMaxFileSizeMb}MB.`,
         variant: "destructive",
         duration: 5000,
       });

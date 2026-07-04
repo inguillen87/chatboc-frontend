@@ -32,6 +32,27 @@ export interface OperationsBucketItem {
   [key: string]: unknown;
 }
 
+export interface OperationsOperationalHotspot extends OperationsBucketItem {
+  operational_score?: number;
+  rank_reason?: string;
+  latest_event_at?: string | null;
+  top_category?: string | null;
+  top_channel?: string | null;
+  lat?: number;
+  lng?: number;
+  signals?: {
+    overdue?: number;
+    unassigned?: number;
+    breached_sla?: number;
+    recent_24h?: number;
+    tickets?: number;
+    surveys?: number;
+    analytics_events?: number;
+    [key: string]: unknown;
+  };
+  recommended_action?: OperationsActionItem;
+}
+
 export interface OperationsTrend {
   id?: string;
   key?: string;
@@ -355,7 +376,7 @@ export interface OperationsHeatmapV1 {
     point_format?: Record<string, string>;
     can_render_heatmap?: boolean;
     recommended_views?: string[];
-    premium_metadata?: Record<string, unknown>;
+    premium_metadata?: string[] | Record<string, unknown>;
     [key: string]: unknown;
   };
   summary?: Record<string, unknown>;
@@ -363,6 +384,7 @@ export interface OperationsHeatmapV1 {
   points: OperationsHeatmapPoint[];
   cells: OperationsBucketItem[];
   hotspots: OperationsBucketItem[];
+  operational_hotspots?: OperationsOperationalHotspot[];
   facets: OperationsHeatmapFacet[];
   category_layers: OperationsBucketItem[];
   demographics?: OperationsHeatmapDemographics;

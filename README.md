@@ -72,6 +72,18 @@ The chat interface defaults to the "municipio" style. To switch to the
 "pyme" variant, set `VITE_APP_TARGET=pyme` in your environment or `.env`
 file before running `npm run dev`.
 
+### Cloudflare Turnstile
+
+Anonymous marketplace/widget intake can show a Cloudflare Turnstile challenge
+before sending handwritten order notes or public assisted requests.
+
+- Frontend: set `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY` with the public site key.
+- Backend/Render: set `CLOUDFLARE_TURNSTILE_SECRET_KEY` and enable
+  `CLOUDFLARE_TURNSTILE_ENFORCE_PUBLIC_INTAKE=true` only after frontend deploy.
+  If enforcement is enabled without the backend secret, public intake fails closed.
+- Local smoke tests can use Cloudflare's always-pass dummy site key
+  `1x00000000000000000000AA`; never use dummy keys in production.
+
 ### Timezone and locale
 
 All dates are formatted using the timezone from `VITE_TIMEZONE` and the locale
@@ -241,7 +253,7 @@ either a `direccion` or the coordinates `latitud` and `longitud`.
 Address selection uses the `AddressAutocomplete` component powered by
 Google Places. Once an address is chosen, an interactive map with a
 draggable marker appears so the user can fine‑tune the coordinates.
-Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
+Make sure to define `VITE_GOOGLE_MAPS_API_KEY` in your `.env` file so the map
 script loads correctly. If the backend does not provide any location
 data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
 

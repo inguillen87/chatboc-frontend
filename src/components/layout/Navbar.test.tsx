@@ -49,7 +49,7 @@ describe('Navbar account menu routing', () => {
     });
   });
 
-  it('opens tickets from the tenant profile tab instead of the protected root route', () => {
+  it('opens municipal claims from the tenant profile tab instead of the protected root route on mobile', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <Navbar />
@@ -58,13 +58,13 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
-    expect(screen.getByRole('link', { name: /^Tickets$/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets',
     );
   });
 
-  it('keeps the tickets shortcut for tenant admins even while backend capabilities are partial', () => {
+  it('keeps the municipal claims shortcut for tenant admins even while backend capabilities are partial', () => {
     useUserMock.mockReturnValue({
       user: {
         rol: 'admin_municipio',
@@ -84,13 +84,35 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
+    expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets',
+    );
+  });
+
+  it('keeps the generic tickets label for non-municipal tenants', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'admin',
+        tipo_chat: 'pyme',
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
     expect(screen.getByRole('link', { name: /^Tickets$/i })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets',
     );
   });
 
-  it('does not expose Tickets to backoffice profiles without ticket role or capability', () => {
+  it('does not expose claims to backoffice profiles without ticket role or capability', () => {
     useUserMock.mockReturnValue({
       user: {
         rol: 'analytics_viewer',
@@ -110,6 +132,6 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
-    expect(screen.queryByRole('link', { name: /^Tickets$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Reclamos$/i })).not.toBeInTheDocument();
   });
 });

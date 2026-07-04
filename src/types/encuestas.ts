@@ -491,12 +491,24 @@ export interface SurveyHeatmapPoint {
   respuestas: number;
   categoria?: string;
   canal?: string;
+  [key: string]: unknown;
 }
 
 export interface SurveyAnalyticsHeatmap {
   points: SurveyHeatmapPoint[];
   cells?: Array<Record<string, unknown>>;
   metadata?: Record<string, unknown>;
+  headline?: string;
+  legend?: Record<string, unknown> | Array<Record<string, unknown>>;
+  empty_state?: string | Record<string, unknown>;
+  recommended_action?: string | Record<string, unknown>;
+  render_contract?: Record<string, unknown>;
+  map?: Record<string, unknown>;
+  map_experience?: Record<string, unknown>;
+  category_layers?: Record<string, unknown>;
+  ai_layers?: Record<string, unknown>;
+  quality?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface SurveyExecutiveSummary {

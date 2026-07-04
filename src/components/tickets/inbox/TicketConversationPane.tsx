@@ -19,6 +19,13 @@ import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import { getErrorMessage } from '@/utils/api';
+import {
+  getAttachmentDeliveryUrl,
+  getAttachmentPreviewUrl,
+  getAttachmentSecurityLabel,
+  type AttachmentLike,
+} from '@/utils/attachment';
+import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
@@ -52,12 +59,10 @@ const readInboxLocationPoint = (location?: Record<string, unknown>) => {
 };
 
 const readInboxAttachmentUrl = (attachment: Record<string, unknown>) =>
-  asText(attachment.url) ||
-  asText(attachment.file_url) ||
-  asText(attachment.download_url) ||
-  asText(attachment.media_url) ||
-  asText(attachment.foto_url_directa) ||
-  asText(attachment.href);
+  getAttachmentDeliveryUrl(attachment as AttachmentLike);
+
+const readInboxAttachmentPreviewUrl = (attachment: Record<string, unknown>) =>
+  getAttachmentPreviewUrl(attachment as AttachmentLike);
 
 const readInboxAttachmentLabel = (attachment: Record<string, unknown>, index: number) =>
   asText(attachment.name) ||
@@ -153,7 +158,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         title: deliveryTitle(delivery),
         description: deliveryDescription(
           delivery,
-          updatedTicket.status ? `Estado actual: ${updatedTicket.status}.` : null,
+          updatedTicket.status ? `Estado actual: ${formatTicketStatusLabel(updatedTicket.status)}.` : null,
         ),
       });
       onActionComplete?.();
@@ -276,7 +281,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const attachmentCount = detailTicket.archivos_count ?? attachments.length;
   const directPhotoUrl =
     asText(detailTicket.foto_url_directa) ||
-    attachments.map((attachment) => (isImageAttachment(attachment) ? readInboxAttachmentUrl(attachment) : null)).find(Boolean) ||
+    attachments
+      .map((attachment) => (isImageAttachment(attachment) ? readInboxAttachmentPreviewUrl(attachment) : null))
+      .find(Boolean) ||
     null;
   const locationAddress = asText(detailTicket.location?.address) || asText(detailTicket.location?.direccion);
   const originRows = [
@@ -522,6 +529,8 @@ const EvidencePanel = ({
         {attachments.map((attachment, index) => {
           const label = readInboxAttachmentLabel(attachment, index);
           const url = readInboxAttachmentUrl(attachment);
+          const previewUrl = readInboxAttachmentPreviewUrl(attachment);
+          const securityLabel = getAttachmentSecurityLabel(attachment as AttachmentLike);
           const key = `${String(attachment.id ?? attachment.archivo_adjunto_id ?? url ?? label)}-${index}`;
           return url ? (
             <a
@@ -531,8 +540,13 @@ const EvidencePanel = ({
               rel="noreferrer"
               className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
             >
-              <Paperclip className="h-3 w-3" />
+              {previewUrl && isImageAttachment(attachment) ? (
+                <ImageIcon className="h-3 w-3" />
+              ) : (
+                <Paperclip className="h-3 w-3" />
+              )}
               <span className="truncate">{label}</span>
+              {securityLabel ? <span className="shrink-0 text-[10px] font-semibold uppercase">{securityLabel}</span> : null}
               <ExternalLink className="h-3 w-3" />
             </a>
           ) : (

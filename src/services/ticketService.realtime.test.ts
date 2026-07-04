@@ -406,6 +406,8 @@ describe('ticketService realtime normalization', () => {
       q: 'Don Bosco',
       status: 'cerrado',
       category: 'Arreglo de calle',
+      channel: 'whatsapp',
+      agent: 42,
     });
 
     const [endpoint, options] = apiFetchMock.mock.calls[0];
@@ -416,11 +418,37 @@ describe('ticketService realtime normalization', () => {
     expect(endpoint).toContain('q=Don+Bosco');
     expect(endpoint).toContain('estado=cerrado');
     expect(endpoint).toContain('categoria=Arreglo+de+calle');
+    expect(endpoint).toContain('channel=whatsapp');
+    expect(endpoint).toContain('assigned_agent=42');
     expect(options).toMatchObject({
       tenantSlug: 'junin',
       omitTenant: false,
       suppressPanel401Redirect: true,
     });
+  });
+
+  it('passes unassigned inbox filters as backend query parameters', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [],
+      pagination: {
+        page: 1,
+        per_page: 25,
+        total_items: 0,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+    });
+
+    await getTickets('junin', {
+      page: 1,
+      perPage: 25,
+      unassigned: true,
+    });
+
+    const [endpoint] = apiFetchMock.mock.calls[0];
+    expect(endpoint).toContain('/api/tickets?');
+    expect(endpoint).toContain('unassigned=true');
   });
 
   it('normalizes admin reply delivery evidence for the visible CRM composer', () => {

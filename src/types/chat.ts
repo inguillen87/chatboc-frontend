@@ -9,6 +9,9 @@ export interface AttachmentInfo {
   mimeType?: string;
   size?: number;
   isUploading?: boolean;
+  securityLabel?: string | null;
+  storageAccess?: string | null;
+  isPrivate?: boolean;
 }
 // Define cómo es un objeto Boton
 export interface Boton {
@@ -129,6 +132,9 @@ export interface ChatMediaInputModeConfig {
   chat_payload_key?: string | null;
   multipart_field?: string | null;
   max_seconds?: number | null;
+  max_file_mb?: number | null;
+  accepted_mime_types?: string[] | null;
+  accepted_extensions?: string[] | null;
   fields?: string[];
 }
 
@@ -520,6 +526,9 @@ export interface Message {
   posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
   socialLinks?: Record<string, string>; // Enlaces generales a redes sociales
   listItems?: string[]; // Lista de elementos para mostrar como viñetas numeradas o con emojis
+  attachments?: AttachmentInfo[];
+  adjuntos?: AttachmentInfo[];
+  archivos_adjuntos?: AttachmentInfo[];
   confirmationCard?: ConfirmationCardData;
 }
 

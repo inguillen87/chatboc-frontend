@@ -11,7 +11,11 @@ import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import { simplify } from "@/lib/simplify";
 import { readAccessibilityPrefs } from "./AccessibilityToggle";
 import AttachmentPreview from "./AttachmentPreview";
-import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
+import {
+  AttachmentInfo,
+  deriveAttachmentInfo,
+  deriveAttachmentInfoFromPayload,
+} from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
 import EventCard from './EventCard';
 import SocialLinks from './SocialLinks';
@@ -32,49 +36,26 @@ import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 
-type RawAttachment = {
-  url: string;
-  name: string;
-  mimeType?: string;
-  size?: number;
-  thumbUrl?: string;
-  thumb_url?: string;
-  thumbnail_url?: string;
-  thumbnailUrl?: string;
-};
+function normalizeAttachments(msg: any): AttachmentInfo[] {
+  const results: AttachmentInfo[] = [];
+  const pushAttachment = (raw: any, fallbackName = 'archivo_adj') => {
+    const info = deriveAttachmentInfoFromPayload(raw, fallbackName);
+    if (!info) return;
 
-function normalizeAttachments(msg: any): RawAttachment[] {
-  const results: RawAttachment[] = [];
+    const isDuplicate = results.some((item) => item.url === info.url);
+    if (!isDuplicate) {
+      results.push(info);
+    }
+  };
 
   if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
-    const a = msg.attachmentInfo;
-    results.push({
-      url: a.url,
-      name: a.name,
-      mimeType: a.mimeType || a.mime_type,
-      size: a.size,
-      thumbUrl: a.thumbUrl || a.thumb_url || a.thumbnail_url || a.thumbnailUrl,
-    });
+    pushAttachment(msg.attachmentInfo, msg.attachmentInfo.name);
   }
 
-  const attachmentsList = msg?.attachments || msg?.adjuntos;
+  const attachmentsList = msg?.attachments || msg?.adjuntos || msg?.archivos_adjuntos;
 
   if (Array.isArray(attachmentsList) && attachmentsList.length > 0) {
-    attachmentsList.forEach((att: any) => {
-      if (att?.url && (att?.name || att?.filename)) {
-        // Avoid duplicates if attachmentInfo was already added and matches
-        const isDuplicate = results.some(r => r.url === att.url);
-        if (!isDuplicate) {
-          results.push({
-            url: att.url,
-            name: att.name || att.filename,
-            mimeType: att.mimeType || att.mime_type,
-            size: att.size,
-            thumbUrl: att.thumbUrl || att.thumb_url || att.thumbnail_url || att.thumbnailUrl,
-          });
-        }
-      }
-    });
+    attachmentsList.forEach((att: any, index: number) => pushAttachment(att, `archivo_${index + 1}`));
   }
   return results;
 }
@@ -639,9 +620,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   let processedAttachments: AttachmentInfo[] = [];
 
   if (normalizedAttachments.length > 0) {
-    processedAttachments = normalizedAttachments.map(att =>
-      deriveAttachmentInfo(att.url, att.name, att.mimeType, att.size, att.thumbUrl)
-    );
+    processedAttachments = normalizedAttachments;
   } else if (message.mediaUrl && isBot) {
      processedAttachments.push(deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto"));
   }

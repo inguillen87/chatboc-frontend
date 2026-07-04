@@ -20,6 +20,12 @@ import {
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { uploadChatAttachment } from "@/features/chat/uploadChatAttachment";
+import {
+  getChatAttachmentAcceptedTypes,
+  getChatAttachmentMaxFileMb,
+  isChatImageFile,
+  validateChatAttachment,
+} from "@/features/chat/chatAttachmentPolicy";
 
 export interface ChatInputHandle {
   openFilePicker: () => void;
@@ -170,6 +176,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const fileLabel = mediaActionLabel(mediaCapabilities, 'file', channelCapabilities?.file_upload_label || 'Archivo');
   const audioLabel = mediaActionLabel(mediaCapabilities, 'audio', channelCapabilities?.audio_input_label || 'Audio');
   const locationLabel = mediaActionLabel(mediaCapabilities, 'location', channelCapabilities?.location_share_label || 'Ubicacion');
+  const imageMode = mediaCapabilities?.input_modes?.image;
+  const fileMode = mediaCapabilities?.input_modes?.file;
+  const audioMode = mediaCapabilities?.input_modes?.audio;
   const attachmentLabel = supportsImageInput && supportsFileUpload
     ? `${imageLabel} / ${fileLabel}`
     : supportsImageInput
@@ -177,11 +186,25 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       : fileLabel;
   const allowedFileTypes = React.useMemo(() => {
     const nextTypes: string[] = [];
-    if (supportsImageInput) nextTypes.push('image/*');
-    if (supportsFileUpload) nextTypes.push('application/pdf', 'video/*');
-    if (!mediaCapabilities && supportsAudioInput) nextTypes.push('audio/*');
-    return nextTypes;
-  }, [mediaCapabilities, supportsAudioInput, supportsFileUpload, supportsImageInput]);
+    if (supportsImageInput) {
+      nextTypes.push(...getChatAttachmentAcceptedTypes(imageMode, 'image'));
+    }
+    if (supportsFileUpload) {
+      nextTypes.push(...getChatAttachmentAcceptedTypes(fileMode, 'file', ['application/pdf', 'video/*']));
+    }
+    if (!mediaCapabilities && supportsAudioInput) {
+      nextTypes.push(...getChatAttachmentAcceptedTypes(audioMode, 'audio'));
+    }
+    return Array.from(new Set(nextTypes));
+  }, [audioMode, fileMode, imageMode, mediaCapabilities, supportsAudioInput, supportsFileUpload, supportsImageInput]);
+  const maxAttachmentSizeMb = React.useMemo(() => {
+    const sizes = [
+      supportsImageInput ? getChatAttachmentMaxFileMb(imageMode) : 0,
+      supportsFileUpload ? getChatAttachmentMaxFileMb(fileMode) : 0,
+      !mediaCapabilities && supportsAudioInput ? getChatAttachmentMaxFileMb(audioMode) : 0,
+    ].filter((value) => value > 0);
+    return sizes.length ? Math.max(...sizes) : undefined;
+  }, [audioMode, fileMode, imageMode, mediaCapabilities, supportsAudioInput, supportsFileUpload, supportsImageInput]);
   const showAttachAction = allowedFileTypes.length > 0 && shouldShowToolbarAction("attach_file");
   const showLocationAction = supportsLocationShare && shouldShowToolbarAction("share_location");
   const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
@@ -262,9 +285,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         formData.append('file', attachmentPreview.file);
         return formData;
       };
-      const selectedMode = attachmentPreview.file.type.startsWith("image/")
-        ? mediaCapabilities?.input_modes?.image
-        : mediaCapabilities?.input_modes?.file;
+      const selectedMode = isChatImageFile(attachmentPreview.file) ? imageMode : fileMode;
       const uploadEndpoint = selectedMode?.upload_endpoint || '/archivos/upload/chat_attachment';
       const uploadResponseKey = selectedMode?.upload_response_key || 'attachmentInfo';
 
@@ -419,14 +440,27 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   const handleFileSelected = (file: File) => {
-    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
-    setAttachmentPreview({ file, previewUrl });
-    // Revoke the object URL when the component unmounts or the preview changes
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+    const mode = isChatImageFile(file) ? 'image' : 'file';
+    const validationError = validateChatAttachment(
+      file,
+      mode === 'image' ? imageMode : fileMode,
+      mode,
+      mode === 'image' ? undefined : ['application/pdf', 'video/*'],
+    );
+    if (validationError) {
+      setInlineError(validationError);
+      toast({ title: 'Archivo no permitido', description: validationError, variant: 'destructive' });
+      return;
+    }
+
+    const previewUrl = isChatImageFile(file) ? URL.createObjectURL(file) : "";
+    setInlineError(null);
+    setAttachmentPreview((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl);
       }
-    };
+      return { file, previewUrl };
+    });
   };
 
   const handleShareLocation = async () => {
@@ -746,6 +780,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 onFileSelected={handleFileSelected}
                 disabled={disabled || isRecording || !!attachmentPreview}
                 allowedFileTypes={allowedFileTypes}
+                maxFileSizeMb={maxAttachmentSizeMb}
               />
               </div>
             ) : null}

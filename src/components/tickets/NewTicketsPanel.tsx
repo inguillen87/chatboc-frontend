@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
 import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import type { Ticket } from '@/types/tickets';
-import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
@@ -195,7 +195,7 @@ const TicketOpsStat = ({
             {label}
           </span>
         </span>
-        <span className={cn('max-w-[9.5rem] truncate text-[11px] leading-4 text-muted-foreground', compact ? 'hidden min-[1120px]:block' : 'block')}>
+        <span className={cn('max-w-[9.5rem] truncate text-[11px] leading-4 text-muted-foreground', compact ? 'sr-only' : 'block')}>
           {helper}
         </span>
       </span>
@@ -213,6 +213,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const {
     loading,
     error,
+    errorDetails,
     tickets,
     filteredTickets,
     selectedTicket,
@@ -543,6 +544,21 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   if (error) {
     const isSessionError = /sesión|sesion|iniciá sesión|inicia sesión/i.test(error);
+    const isTicketScopeError =
+      errorDetails?.actionHint === 'repair_ticket_scope' ||
+      Boolean(errorDetails?.reasonCode?.startsWith('missing_'));
+    const currentScope = errorDetails?.currentScope ?? {};
+    const scopeSummary = [
+      ['tenant', currentScope.tenant_slug || currentScope.tenant_id],
+      ['tipo', currentScope.tenant_tipo || currentScope.tipo_chat],
+      ['municipio', currentScope.tenant_municipio_id || currentScope.municipio_id || currentScope.empresa_id],
+      ['empresa', currentScope.tenant_pyme_id || currentScope.pyme_id || currentScope.rubro_id],
+      ['rol', currentScope.canonical_role || currentScope.role],
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim().length > 0);
+    const copyRequestId = async () => {
+      if (!errorDetails?.requestId) return;
+      await navigator.clipboard?.writeText(errorDetails.requestId);
+    };
     const goToLogin = () => {
       if (typeof window === 'undefined') return;
       const next = `${window.location.pathname}${window.location.search}`;
@@ -556,6 +572,54 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </span>
         <h2 className="text-lg font-semibold text-foreground">No pudimos cargar la bandeja</h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-destructive">{error}</p>
+        {isTicketScopeError ? (
+          <div
+            data-testid="tickets-access-contract"
+            className="mt-4 w-full max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-left"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
+                Reparar acceso
+              </Badge>
+              {errorDetails?.reasonCode ? (
+                <Badge variant="secondary" className="font-mono text-[11px]">
+                  {errorDetails.reasonCode}
+                </Badge>
+              ) : null}
+              {errorDetails?.requestId ? (
+                <button
+                  type="button"
+                  onClick={() => void copyRequestId()}
+                  className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  request_id: {errorDetails.requestId}
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-foreground">
+              El usuario tiene que quedar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
+            </p>
+            {scopeSummary.length ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {scopeSummary.map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">{String(value)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {errorDetails?.requiredCapabilities?.length ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
+                  <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
+                    {capability}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           {isSessionError ? (
             <Button type="button" className="gap-2 rounded-full" onClick={goToLogin}>
@@ -598,7 +662,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const operationalFilterBadges = [
     channelFilter !== 'all' ? `Canal: ${channelFilter}` : null,
     unreadFilter !== 'all' ? `Lectura: ${unreadFilter}` : null,
-    statusFilter !== 'all' ? `Estado: ${statusFilter}` : null,
+    statusFilter !== 'all' ? `Estado: ${formatTicketStatusLabel(statusFilter)}` : null,
     areaFilter !== 'all' ? `Area: ${areaFilter}` : null,
     agentFilter !== 'all' ? `Agente: ${agentFilter}` : null,
     slaFilter !== 'all' ? `SLA: ${slaFilter}` : null,
@@ -621,7 +685,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   );
   const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
   const selectedTicketReference = selectedTicket?.nro_ticket || selectedTicket?.id || null;
-  const selectedTicketStatus = selectedTicket ? normalizeTicketStatus(selectedTicket.estado).replace(/_/g, ' ') : null;
+  const selectedTicketStatus = selectedTicket ? formatTicketStatusLabel(selectedTicket.estado) : null;
   const selectedTicketChannel = selectedTicket?.channel || 'whatsapp';
   const selectedTicketSla = selectedTicket?.sla_status ? `SLA ${selectedTicket.sla_status}` : null;
   const selectedTicketHasUnread = selectedTicket ? hasUnreadTicket(selectedTicket) : false;
@@ -841,21 +905,31 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               panelTestId="tickets-desk-filter-panel"
               className="h-8 rounded-full"
             />
-            <Badge variant="outline" className="gap-1 rounded-full">
-              <Filter className="h-3 w-3" />
-              Activos
-            </Badge>
             {operationalFilterBadges.length > 0 ? (
-              operationalFilterBadges.map((label) => (
-                <Badge key={label} variant="secondary" className="max-w-[12rem] truncate rounded-full">
-                  {label}
-                </Badge>
-              ))
+              <Badge
+                data-testid="tickets-desk-active-filters"
+                variant="secondary"
+                className="max-w-full gap-1 rounded-full"
+                title={operationalFilterBadges.join(' | ')}
+                aria-label={`Filtros activos: ${operationalFilterBadges.join(', ')}`}
+              >
+                <Filter className="h-3 w-3" />
+                {operationalFilterBadges.length === 1
+                  ? '1 filtro activo'
+                  : `${operationalFilterBadges.length} filtros activos`}
+              </Badge>
             ) : (
-              <span className="text-xs text-muted-foreground">Sin filtros activos</span>
+              <Badge
+                data-testid="tickets-desk-active-filters"
+                variant="outline"
+                className="gap-1 rounded-full text-muted-foreground"
+              >
+                <Filter className="h-3 w-3" />
+                Sin filtros
+              </Badge>
             )}
             {operationalFilterBadges.length > 0 ? (
-              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={resetOperationalFilters}>
+              <Button type="button" variant="ghost" size="sm" className="h-7 rounded-full px-2 text-xs" onClick={resetOperationalFilters}>
                 Limpiar
               </Button>
             ) : null}
@@ -989,6 +1063,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   <Sidebar
                     compact={embedded}
                     showFilterControl={!embedded}
+                    showListSummaryBar={embedded}
                     className="h-full min-h-0 w-full min-w-full"
                     onTicketSelected={handleMobileTicketSelection}
                   />
@@ -1044,6 +1119,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               <Sidebar
                 compact={embedded}
                 showFilterControl={isMobile && !embedded}
+                showListSummaryBar={embedded}
                 className="h-full w-full shrink-0"
               />
             </div>

@@ -1,24 +1,31 @@
 import React, { useState } from 'react';
 import { CardContent } from '@/components/ui/card';
 import type { Attachment } from '@/types/tickets';
-import { deriveAttachmentInfo, isAllowedAttachmentType } from '@/utils/attachment';
-import { Paperclip, X } from 'lucide-react';
+import {
+  deriveAttachmentInfoFromPayload,
+  getAttachmentSecurityLabel,
+  isAllowedAttachmentType,
+} from '@/utils/attachment';
+import { ExternalLink, LockKeyhole, Paperclip, ShieldCheck, X } from 'lucide-react';
 
 interface Props {
   attachments: Attachment[];
 }
 
 const TicketAttachments: React.FC<Props> = ({ attachments }) => {
-  const processed = attachments.map((att) => ({
-    data: att,
-    info: deriveAttachmentInfo(
-      att.url,
-      att.filename || att.url.split('/').pop() || 'archivo_adj',
-      att.mime_type || att.mimeType,
-      att.size,
-      att.thumbUrl || att.thumb_url || att.thumbnail_url || att.thumbnailUrl
-    ),
-  }));
+  const processed = attachments
+    .map((att) => {
+      const info = deriveAttachmentInfoFromPayload(att, att.filename || 'archivo_adj');
+      if (!info) return null;
+      return {
+        data: att,
+        info,
+        deliveryUrl: info.url,
+        previewUrl: info.thumbUrl || info.url,
+        securityLabel: info.securityLabel || getAttachmentSecurityLabel(att),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   const allowed = processed.filter((p) => isAllowedAttachmentType(p.info));
   const disallowed = processed.filter((p) => !isAllowedAttachmentType(p.info));
@@ -55,44 +62,58 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
       <h4 className="font-semibold mb-2">Adjuntos</h4>
       {images.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
-          {images.map(({ data, info }) => (
+          {images.map(({ data, info, deliveryUrl, previewUrl, securityLabel }) => (
             <button
               key={`${data.id}-${info.url}`}
               onClick={() => {
-                setOpenUrl(data.url);
+                setOpenUrl(deliveryUrl);
               }}
               className="relative group aspect-video overflow-hidden rounded-lg border"
               aria-label="Abrir imagen adjunta"
             >
               <img
-                src={
-                  info.thumbUrl ||
-                  data.thumbUrl ||
-                  data.thumb_url ||
-                  data.thumbnail_url ||
-                  data.thumbnailUrl ||
-                  data.url
-                }
+                src={previewUrl}
                 alt={info.name || 'Adjunto'}
                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
                 loading="lazy"
               />
+              {securityLabel ? (
+                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[11px] font-medium text-white shadow">
+                  {info.isPrivate ? (
+                    <LockKeyhole className="h-3 w-3" />
+                  ) : (
+                    <ShieldCheck className="h-3 w-3" />
+                  )}
+                  {securityLabel}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
       )}
       {others.length > 0 && (
         <ul className="space-y-1">
-          {others.map(({ data, info }, index) => (
+          {others.map(({ data, info, deliveryUrl, securityLabel }, index) => (
             <li key={`${data.id}-${info.url}-${index}`}>
               <a
-                href={data.url}
+                href={deliveryUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline break-all"
+                className="flex items-center gap-2 rounded-[8px] border bg-muted/20 px-2 py-1.5 text-sm text-primary hover:bg-muted/40"
               >
-                <Paperclip className="h-4 w-4" />
-                <span>{info.name}</span>
+                <Paperclip className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{info.name}</span>
+                {securityLabel ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {info.isPrivate ? (
+                      <LockKeyhole className="h-3 w-3" />
+                    ) : (
+                      <ShieldCheck className="h-3 w-3" />
+                    )}
+                    {securityLabel}
+                  </span>
+                ) : null}
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </a>
             </li>
           ))}
@@ -131,4 +152,3 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
 };
 
 export default TicketAttachments;
-

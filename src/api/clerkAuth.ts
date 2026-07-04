@@ -46,6 +46,56 @@ export interface ClerkOnboardingPayload {
   user?: ClerkUserProfilePayload;
 }
 
+export interface ClerkOnboardingOption {
+  value: string;
+  label: string;
+}
+
+export interface ClerkOnboardingModule {
+  id: string;
+  label: string;
+  description?: string;
+}
+
+export interface ClerkOnboardingVerticalPreset {
+  rubro?: string;
+  primary_goal?: string;
+  preferred_channels?: string[];
+  headline?: string;
+  recommended_modules?: string[];
+  starter_questions?: string[];
+}
+
+export interface ClerkOnboardingModalContract {
+  summary_cards?: ClerkOnboardingModule[];
+  starter_modules?: ClerkOnboardingModule[];
+  vertical_presets?: Record<string, ClerkOnboardingVerticalPreset>;
+  vertical_options?: ClerkOnboardingOption[];
+  goal_options?: ClerkOnboardingOption[];
+  social_login?: {
+    provider?: string;
+    enabled_providers?: string[];
+    required_dashboard_setup?: string[];
+    connection_aliases?: Record<string, string>;
+  };
+  whatsapp_business_requirements?: {
+    production_enabled_by_default?: boolean;
+    required_plan?: string;
+    required_provider_setup?: string[];
+    free_plan_state?: string;
+    message?: string;
+  };
+  plan_policy?: {
+    self_service_plan?: string;
+    requested_plan_allowed?: boolean;
+    productive_plan?: string;
+    upgrade_requires?: string;
+    message?: string;
+  };
+  profile_picture_policy?: string;
+  steps?: Array<Record<string, unknown>>;
+}
+
 export interface ClerkSessionResponse {
   contract_version: 'auth.clerk.v1';
   token: string;
@@ -85,7 +135,7 @@ export interface ClerkSessionResponse {
     title?: string;
     description?: string;
     submit_endpoint?: string;
-    modal?: Record<string, unknown>;
+    modal?: ClerkOnboardingModalContract;
   };
   message?: string;
 }

@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import {
   getQueueScore,
@@ -47,11 +48,13 @@ interface SidebarProps {
   onTicketSelected?: () => void;
   compact?: boolean;
   showFilterControl?: boolean;
+  showListSummaryBar?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
 const QUEUE_ITEMS_PER_PAGE = 25;
 const defaultFilters = {
+  search: '',
   channel: 'all',
   status: 'all',
   area: 'all',
@@ -66,6 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onTicketSelected,
   compact = false,
   showFilterControl = true,
+  showListSummaryBar = true,
 }) => {
   const { tenant } = useTenant();
   const {
@@ -96,8 +100,30 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
     QUEUE_ITEMS_PER_PAGE,
   );
+  const delegatedHeader = compact && !showFilterControl;
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
   const searchInputId = React.useId();
+  const contextSearchTerm = typeof (filters as any).search === 'string' ? (filters as any).search : '';
+  const previousContextSearchRef = React.useRef(contextSearchTerm);
+
+  React.useEffect(() => {
+    if (previousContextSearchRef.current !== contextSearchTerm && contextSearchTerm !== searchTerm) {
+      setSearchTerm(contextSearchTerm);
+    }
+    previousContextSearchRef.current = contextSearchTerm;
+  }, [contextSearchTerm, searchTerm]);
+
+  React.useEffect(() => {
+    const nextSearch = debouncedSearchTerm.trim();
+    if (contextSearchTerm === nextSearch) {
+      return;
+    }
+    setFilters((current) => ({
+      ...defaultFilters,
+      ...current,
+      search: nextSearch,
+    }));
+  }, [contextSearchTerm, debouncedSearchTerm, setFilters]);
 
   React.useEffect(() => {
     if (compact) {
@@ -314,7 +340,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     () =>
       [
         filters.channel !== 'all' ? `Canal: ${filters.channel}` : null,
-        filters.status !== 'all' ? `Estado: ${filters.status}` : null,
+        filters.status !== 'all' ? `Estado: ${formatTicketStatusLabel(filters.status)}` : null,
         filters.area !== 'all' ? `Area: ${filters.area}` : null,
         filters.agent !== 'all' ? `Agente: ${filters.agent}` : null,
         filters.priority !== 'all' ? `Prioridad: ${filters.priority}` : null,
@@ -390,7 +416,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
-  const showVisibleSummaryBar = !compact;
+  const showVisibleSummaryBar = showListSummaryBar && (!compact || delegatedHeader);
   const listSummaryTitle = activeFilterSummary.length
     ? activeFilterSummary.join(' | ')
     : 'Sin filtros activos';
@@ -446,12 +472,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className={cn(
         'shrink-0 border-b border-border/70 bg-background/80',
-        compact ? 'space-y-1.5 p-2' : 'space-y-2 p-2.5',
+        delegatedHeader ? 'space-y-1 p-1.5' : compact ? 'space-y-1.5 p-2' : 'space-y-2 p-2.5',
       )}>
         {compact ? (
           <div
-            className="flex min-w-0 items-center gap-1.5"
+            className={cn('flex min-w-0 items-center gap-1.5', delegatedHeader && 'gap-1')}
             data-testid="sidebar-search-controls"
+            data-density={delegatedHeader ? 'delegated' : 'compact'}
           >
             <h1 className="sr-only">
               {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
@@ -475,7 +502,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <span
                 data-testid="sidebar-compact-summary"
-                className="hidden shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground min-[380px]:inline-flex"
+                className={cn(
+                  'hidden shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground min-[380px]:inline-flex',
+                  delegatedHeader && 'max-[420px]:hidden',
+                )}
               >
                 {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
               </span>
@@ -494,35 +524,37 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <X className="h-4 w-4" />
                 </Button>
               ) : null}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 px-0"
-                    title="Exportar"
-                  >
-                    <FileDown className="h-4 w-4" />
-                    <span className="sr-only">Exportar</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                    Exportar Todos (Excel)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                    Exportar Todos (PDF)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      exportToPdf(selectedTicket, selectedTicket?.messages || [])
-                    }
-                    disabled={!selectedTicket}
-                  >
-                    Exportar Ticket Actual (PDF)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {!delegatedHeader ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 px-0"
+                      title="Exportar"
+                    >
+                      <FileDown className="h-4 w-4" />
+                      <span className="sr-only">Exportar</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                      Exportar Todos (Excel)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                      Exportar Todos (PDF)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                      }
+                      disabled={!selectedTicket}
+                    >
+                      Exportar Ticket Actual (PDF)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
             <p data-testid="sidebar-ticket-summary" className="sr-only">
               {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}

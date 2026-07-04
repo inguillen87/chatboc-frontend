@@ -149,7 +149,10 @@ describe('AssistedRequestPanel', () => {
               contract_version: 'marketplace.assisted_followup.v1',
               tracking: {
                 code: 'pc-42',
-                path: '/tracking/order/pc-42?tenant_slug=demo',
+                path: '/tracking/order/pc-42?tenant_slug=demo&token=signed-token-42',
+                token: 'signed-token-42',
+                token_required: true,
+                access: 'signed_link',
                 label: 'Seguimiento de solicitud',
               },
               channels: [
@@ -248,7 +251,7 @@ describe('AssistedRequestPanel', () => {
     expect(screen.getByText('Seguimiento publico')).toBeTruthy();
     expect(screen.getAllByText('pc-42').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('link', { name: 'Abrir' }).getAttribute('href')).toBe(
-      'http://localhost:3000/tracking/order/pc-42?tenant_slug=demo',
+      'http://localhost:3000/tracking/order/pc-42?tenant_slug=demo&token=signed-token-42',
     );
     expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')).toBe('https://wa.me/?text=Pedido%20pc-42');
     expect(screen.getByText('Pedido asistido por foto, papel o texto')).toBeTruthy();
@@ -286,7 +289,7 @@ describe('AssistedRequestPanel', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Motivo: Nombre similar al texto detectado'));
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Copiar' })[0]);
-    expect(writeText).toHaveBeenCalledWith('http://localhost:3000/tracking/order/pc-42?tenant_slug=demo');
+    expect(writeText).toHaveBeenCalledWith('http://localhost:3000/tracking/order/pc-42?tenant_slug=demo&token=signed-token-42');
   });
 
   it('keeps rendering older assisted requests without candidates', () => {

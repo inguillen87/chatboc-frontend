@@ -47,6 +47,12 @@ export interface Attachment {
   id: number;
   filename: string;
   url: string;
+  downloadUrl?: string;
+  download_url?: string;
+  storage_url?: string;
+  storage_provider?: string;
+  storage_access?: "public" | "signed" | "external" | string;
+  is_private?: boolean;
   size?: number;
   mime_type?: string;
   mimeType?: string;

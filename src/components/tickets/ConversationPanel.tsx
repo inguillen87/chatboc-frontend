@@ -51,6 +51,11 @@ import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './t
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { restoreComposerDraftAfterSendFailure } from './conversationDraftRecovery';
 import { isTicketAiDraftEvent, TICKET_AI_DRAFT_EVENT_NAME } from './aiDraftEvents';
+import {
+  deriveAttachmentInfoFromPayload,
+  getAttachmentDeliveryUrl,
+  getAttachmentPreviewUrl,
+} from '@/utils/attachment';
 
 type UploadResponse = UploadResponseLike;
 
@@ -225,23 +230,19 @@ export const getComposerChannelView = ({
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
+  const attachments = (msg.attachments || [])
+    .map((attachment, index) => deriveAttachmentInfoFromPayload(attachment, attachment.filename || `archivo_${index + 1}`))
+    .filter((attachment): attachment is NonNullable<typeof attachment> => Boolean(attachment));
+  const primaryAttachment = attachments[0];
+
   return {
     id: msg.id,
     text: msg.content,
     isBot: msg.author === 'agent',
     timestamp: new Date(msg.timestamp),
     // Adapt other fields as needed
-    attachmentInfo: msg.attachments?.[0] ? {
-        name: msg.attachments[0].filename,
-        url: msg.attachments[0].url,
-        thumbUrl:
-          msg.attachments[0].thumbUrl ||
-          msg.attachments[0].thumb_url ||
-          msg.attachments[0].thumbnail_url ||
-          msg.attachments[0].thumbnailUrl,
-        mimeType: msg.attachments[0].mime_type,
-        size: msg.attachments[0].size
-    } : undefined,
+    attachmentInfo: primaryAttachment,
+    attachments,
     // Add other fields if they exist in your new TicketMessage type
   };
 };
@@ -306,14 +307,12 @@ type TicketAttachment = NonNullable<TicketMessage['attachments']>[number];
 const normalizeAttachmentFromPayload = (raw: any): TicketAttachment | null => {
   if (!raw || typeof raw !== 'object') return null;
 
-  const url =
-    raw.url ||
+  const deliveryUrl =
+    getAttachmentDeliveryUrl(raw) ||
     raw.archivo_url ||
-    raw.file_url ||
-    raw.media_url ||
-    raw.download_url ||
     raw.public_url ||
     raw.thumbnail_url;
+  const previewUrl = getAttachmentPreviewUrl(raw);
   const filename =
     raw.filename ||
     raw.name ||
@@ -322,19 +321,25 @@ const normalizeAttachmentFromPayload = (raw: any): TicketAttachment | null => {
     raw.file_name ||
     'archivo';
 
-  if (!url && !filename) return null;
+  if (!deliveryUrl && !filename) return null;
 
   return {
-    id: raw.id ?? raw.archivo_id ?? raw.attachment_id ?? url ?? filename,
+    id: raw.id ?? raw.archivo_id ?? raw.attachment_id ?? deliveryUrl ?? filename,
     filename,
-    url: url ? ensureAbsoluteUrl(String(url)) : '',
+    url: deliveryUrl ? ensureAbsoluteUrl(String(deliveryUrl)) : '',
+    downloadUrl: raw.downloadUrl,
+    download_url: raw.download_url,
+    storage_url: raw.storage_url,
+    storage_provider: raw.storage_provider,
+    storage_access: raw.storage_access,
+    is_private: raw.is_private,
     mime_type: raw.mime_type || raw.mimeType || raw.content_type || raw.type,
     mimeType: raw.mimeType || raw.mime_type || raw.content_type || raw.type,
     size: raw.size,
-    thumbUrl: raw.thumbUrl || raw.thumb_url || raw.thumbnail_url || raw.thumbnailUrl,
-    thumb_url: raw.thumb_url || raw.thumbUrl || raw.thumbnail_url || raw.thumbnailUrl,
-    thumbnail_url: raw.thumbnail_url || raw.thumb_url || raw.thumbUrl || raw.thumbnailUrl,
-    thumbnailUrl: raw.thumbnailUrl || raw.thumbnail_url || raw.thumb_url || raw.thumbUrl,
+    thumbUrl: previewUrl ? ensureAbsoluteUrl(String(previewUrl)) : undefined,
+    thumb_url: previewUrl ? ensureAbsoluteUrl(String(previewUrl)) : undefined,
+    thumbnail_url: previewUrl ? ensureAbsoluteUrl(String(previewUrl)) : undefined,
+    thumbnailUrl: previewUrl ? ensureAbsoluteUrl(String(previewUrl)) : undefined,
   };
 };
 

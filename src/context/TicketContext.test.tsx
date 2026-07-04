@@ -38,6 +38,7 @@ vi.mock('@/utils/api', async () => {
 });
 
 import { TicketProvider, useTickets } from '@/context/TicketContext';
+import { ApiError } from '@/utils/api';
 
 let ticketUpdateHandlers: Record<string, any> = {};
 
@@ -91,12 +92,13 @@ const FilterSelectionConsumer = () => {
 };
 
 const CachedInboxConsumer = () => {
-  const { tickets, selectedTicket, loading } = useTickets();
+  const { tickets, selectedTicket, loading, error } = useTickets();
   return (
     <div>
       <span data-testid="cached-ticket-count">{tickets.length}</span>
       <span data-testid="cached-selected-ticket">{selectedTicket?.nro_ticket ?? 'none'}</span>
       <span data-testid="cached-loading">{String(loading)}</span>
+      <span data-testid="cached-error">{error ?? 'none'}</span>
     </div>
   );
 };
@@ -221,6 +223,57 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('cached-selected-ticket').textContent).toBe('REC-LIVE');
       expect(screen.getByTestId('cached-loading').textContent).toBe('false');
     });
+  });
+
+  it('keeps cached tickets visible but surfaces auth errors from the live refresh', async () => {
+    getTicketsMock.mockRejectedValueOnce(
+      new ApiError('Acceso prohibido', 403, { error: 'forbidden' }),
+    );
+    window.sessionStorage.setItem(
+      'chatboc:ticket-inbox:v1:demo:admin_3A1_3Acats_3Aall',
+      JSON.stringify({
+        version: 1,
+        cached_at: Date.now(),
+        tenant_slug: 'demo',
+        viewer_key: 'admin:1:cats:all',
+        selected_ticket_id: 99,
+        pagination: {
+          page: 1,
+          per_page: 20,
+          total_items: 1,
+          total_pages: 1,
+          has_next: false,
+          has_prev: false,
+        },
+        tickets: [
+          {
+            id: 99,
+            tipo: 'municipio',
+            nro_ticket: 'REC-CACHE',
+            asunto: 'Arreglo de calle',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:00:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      }),
+    );
+
+    render(
+      <TicketProvider>
+        <CachedInboxConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cached-ticket-count').textContent).toBe('1');
+      expect(screen.getByTestId('cached-selected-ticket').textContent).toBe('REC-CACHE');
+      expect(screen.getByTestId('cached-loading').textContent).toBe('false');
+    });
+    expect(screen.getByTestId('cached-error').textContent).toContain(
+      'Tu usuario no tiene permisos para abrir la bandeja de reclamos de este tenant.',
+    );
+    expect(screen.getByTestId('cached-error').textContent).toContain('Mostrando datos guardados');
   });
 
   it('updates ticket unread badges from ticket.unread.changed without refetch', async () => {
@@ -380,14 +433,20 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('selected-ticket').textContent).toBe('REC-2');
     });
 
-    const callsAfterBackendStatusFilter = getTicketsMock.mock.calls.length;
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [],
+    });
     fireEvent.click(screen.getByRole('button', { name: /dejar sin resultados/i }));
 
     await waitFor(() => {
+      expect(getTicketsMock).toHaveBeenLastCalledWith('demo', {
+        page: 1,
+        status: 'cerrado',
+        channel: 'sin-resultados',
+      });
       expect(screen.getByTestId('visible-tickets').textContent).toBe('');
       expect(screen.getByTestId('selected-ticket').textContent).toBe('none');
     });
-    expect(getTicketsMock).toHaveBeenCalledTimes(callsAfterBackendStatusFilter);
   });
 
   it('keeps assigned agent avatars behind the same consent contract as public contacts', async () => {

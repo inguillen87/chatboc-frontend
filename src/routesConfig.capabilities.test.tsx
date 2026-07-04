@@ -105,7 +105,7 @@ describe('routesConfig route capabilities', () => {
     expect(routeBlock).not.toContain('requiredCapabilities');
   });
 
-  it('keeps tenant ticket aliases and inbox mounted in the CRM shell instead of sending missing capabilities to /403', () => {
+  it('keeps tenant ticket aliases mounted in the CRM shell with ticket capability bridge', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
 
@@ -117,7 +117,7 @@ describe('routesConfig route capabilities', () => {
 
       expect(routeBlock).toContain('element: <TicketsPanel />');
       expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
-      expect(routeBlock).not.toContain('requiredCapabilities');
+      expect(routeBlock).toContain('requiredCapabilities: TICKET_READ_CAPABILITIES');
     }
   });
 

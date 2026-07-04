@@ -176,10 +176,10 @@ export default function OrderTrackingPage() {
       // Trigger global chat widget with context
       window.postMessage({
           type: 'OPEN_CHAT_WITH_CONTEXT',
-          tenantSlug: order?.tenant_slug,
-          tipoChat: 'pyme',
-          context: {
-              orderId: order?.id,
+              tenantSlug: order?.tenant_slug,
+              tipoChat: 'pyme',
+              context: {
+              orderId: order?.id ?? order?.tracking_id ?? order?.nro_pedido,
               orderNumber: order?.nro_pedido,
               action: 'consultar_pedido'
           }
@@ -248,8 +248,13 @@ export default function OrderTrackingPage() {
   const StatusIcon = STATUS_CONFIG[order.estado]?.icon || Clock;
   const statusInfo = STATUS_CONFIG[order.estado] || STATUS_CONFIG.pendiente;
   const currentStep = STATUS_CONFIG[order.estado]?.step || 0;
-  const deliveryPoint = readOrderPoint(order, ['delivery_location', 'customer_location'], order.direccion || 'Destino');
-  const storePoint = readOrderPoint(order, ['store_location'], order.pyme_nombre || 'Origen', false);
+  const displayBusinessName = order.pyme_nombre || 'Comercio';
+  const displayDeliverySummary = order.delivery_summary || order.direccion || 'Direccion registrada';
+  const displayCustomerName = order.nombre_cliente || 'Cliente';
+  const displayCustomerPhone = order.telefono_cliente || null;
+  const isPublicRedacted = Boolean(order.privacy?.pii_redacted);
+  const deliveryPoint = readOrderPoint(order, ['delivery_location', 'customer_location'], displayDeliverySummary);
+  const storePoint = readOrderPoint(order, ['store_location'], displayBusinessName, false);
   const driverPoint = readPointFromRecord(order.driver_location, 'Ubicacion actual');
   const canRenderTrackingMap = Boolean(deliveryPoint || storePoint || driverPoint);
   const brandingStyle: React.CSSProperties = {
@@ -292,10 +297,10 @@ export default function OrderTrackingPage() {
                     <img src={tenantBranding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
                 ) : (
                     <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary font-bold">
-                        {order.pyme_nombre.charAt(0)}
+                        {displayBusinessName.charAt(0)}
                     </div>
                 )}
-                <span className="font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-none">{order.pyme_nombre}</span>
+                <span className="font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-none">{displayBusinessName}</span>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setIsSupportOpen(true)} className="text-primary hover:bg-primary/5">
                   <MessageCircle className="h-5 w-5" />
@@ -443,13 +448,20 @@ export default function OrderTrackingPage() {
                     <CardContent className="pt-6 space-y-4">
                         <div>
                             <p className="text-sm text-gray-500 mb-1">Dirección de envío</p>
-                            <p className="font-medium text-gray-900">{order.direccion}</p>
+                            <p className="font-medium text-gray-900">{displayDeliverySummary}</p>
+                            {isPublicRedacted ? (
+                              <p className="mt-1 text-xs text-gray-500">
+                                Por seguridad, el detalle exacto queda disponible solo en el portal o por soporte autenticado.
+                              </p>
+                            ) : null}
                         </div>
                         <Separator className="bg-gray-100" />
                         <div>
                              <p className="text-sm text-gray-500 mb-1">Destinatario</p>
-                             <p className="font-medium text-gray-900">{order.nombre_cliente}</p>
-                             <p className="text-sm text-gray-600">{order.telefono_cliente}</p>
+                             <p className="font-medium text-gray-900">{displayCustomerName}</p>
+                             <p className="text-sm text-gray-600">
+                               {displayCustomerPhone || 'Contacto protegido'}
+                             </p>
                         </div>
                     </CardContent>
                 </Card>

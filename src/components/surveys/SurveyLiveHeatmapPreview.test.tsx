@@ -15,6 +15,11 @@ describe('SurveyLiveHeatmapPreview', () => {
           cells: [
             { id: 'cell-1', centroid_lat: -33.08, centroid_lon: -68.472, count: 11, barrio: 'Centro', channel: 'whatsapp' },
           ],
+          metadata: {
+            privacy_mode: 'public_aggregated',
+            raw_points_redacted: true,
+            coordinate_precision: 'rounded_3_decimals',
+          },
         }}
         aiSignal={{
           mode: 'deterministic_local_fallback',
@@ -37,6 +42,8 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
+    expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('coordenadas aproximadas');
     expect(screen.getByTestId('survey-live-heatmap-radar')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-telemetry-route')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-focus-lock')).toBeInTheDocument();

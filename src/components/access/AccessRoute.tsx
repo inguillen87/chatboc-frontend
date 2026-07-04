@@ -57,9 +57,16 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   const role = normalizeRole(effectiveUser?.rol);
   const isSuperadmin = hasRequiredRole(effectiveUser?.rol, ['superadmin']);
   const isTenantAdmin = hasRequiredRole(effectiveUser?.rol, ['tenant_admin']);
+  const hasAnyRequiredCapability = Boolean(
+    requiredCapabilities?.length && hasAnyCapability(requiredCapabilities),
+  );
+  const hasEveryRequiredCapability = Boolean(
+    requiredAllCapabilities?.length && hasAllCapabilities(requiredAllCapabilities),
+  );
+  const hasCapabilityRouteGrant = hasAnyRequiredCapability || hasEveryRequiredCapability;
 
   if (roles && roles.length > 0) {
-    if (!hasRequiredRole(effectiveUser?.rol, roles)) {
+    if (!hasRequiredRole(effectiveUser?.rol, roles) && !hasCapabilityRouteGrant) {
       return (
         <Navigate
           to="/403"

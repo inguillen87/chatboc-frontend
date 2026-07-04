@@ -7,6 +7,7 @@ export interface TrackingExperienceQuery {
   kind: TrackingKind;
   code: string;
   pin?: string | null;
+  token?: string | null;
   tenantSlug?: string | null;
 }
 
@@ -28,12 +29,14 @@ export async function fetchTrackingExperience({
   kind,
   code,
   pin,
+  token,
   tenantSlug,
 }: TrackingExperienceQuery): Promise<TrackingExperienceResponse> {
   const params = new URLSearchParams();
   params.set("kind", kind);
   params.set("code", code);
   if (pin) params.set("pin", pin);
+  if (token) params.set("token", token);
   if (tenantSlug) params.set("tenant_slug", tenantSlug);
 
   return apiFetch<TrackingExperienceResponse>(

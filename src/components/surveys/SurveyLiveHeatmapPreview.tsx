@@ -1,5 +1,5 @@
 import { useId, useMemo } from 'react';
-import { Activity, BrainCircuit, Layers3, MapPin, Radio } from 'lucide-react';
+import { Activity, BrainCircuit, Layers3, MapPin, Radio, ShieldCheck } from 'lucide-react';
 
 import type { SurveyLiveHeatmap } from '@/types/encuestas';
 
@@ -183,6 +183,15 @@ const normalizePriorityTone = (value: unknown) => {
   return 'text-amber-100 border-amber-200/20 bg-amber-300/10';
 };
 
+const privacyPrecisionLabel = (value: unknown) => {
+  const precision = asDisplayText(value, '').toLowerCase();
+  if (!precision) return '';
+  if (precision.includes('rounded') || precision.includes('approx') || precision.includes('cell')) {
+    return 'coordenadas aproximadas';
+  }
+  return precision.replace(/_/g, ' ');
+};
+
 const buildTelemetryPath = (from: HeatmapDatum, to: HeatmapDatum) => {
   const controlX = (from.x + to.x) / 2;
   const controlY = Math.min(from.y, to.y) - 74;
@@ -210,6 +219,15 @@ export function SurveyLiveHeatmapPreview({
   const points = useMemo(() => (heatmap ? normalizeGeoPoints(heatmap) : []), [heatmap]);
   const cells = useMemo(() => (heatmap ? normalizeCells(heatmap) : []), [heatmap]);
   const allData = useMemo(() => [...points, ...cells], [points, cells]);
+  const heatmapMetadata = heatmap?.metadata && typeof heatmap.metadata === 'object' ? heatmap.metadata : {};
+  const privacyMode = asDisplayText(heatmapMetadata.privacy_mode, '').toLowerCase();
+  const privacyProtected = heatmapMetadata.raw_points_redacted === true || privacyMode === 'public_aggregated';
+  const privacyLabel = privacyProtected
+    ? 'Privacidad protegida'
+    : privacyMode === 'raw'
+      ? 'Coordenadas exactas'
+      : '';
+  const precisionLabel = privacyPrecisionLabel(heatmapMetadata.coordinate_precision);
   const topZones = useMemo(() => summarizeBy(allData, (item) => item.label), [allData]);
   const topChannels = useMemo(() => summarizeBy(allData, (item) => item.channel), [allData]);
   const maxValue = Math.max(1, ...points.map((point) => point.value), ...cells.map((cell) => cell.value));
@@ -270,6 +288,16 @@ export function SurveyLiveHeatmapPreview({
           <div>
             <h3 className="text-sm font-semibold text-white">{title}</h3>
             <p className="mt-1 text-xs text-slate-300">{subtitle}</p>
+            {privacyLabel ? (
+              <span
+                className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100"
+                data-testid="survey-live-heatmap-privacy"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                {privacyLabel}
+                {precisionLabel ? <span className="font-medium text-emerald-100/70">- {precisionLabel}</span> : null}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">

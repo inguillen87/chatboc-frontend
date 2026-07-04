@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
-import { CrmReviewCard, Order } from '@/types/unified';
+import { CrmOperatorAction, CrmReviewCard, Order } from '@/types/unified';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -168,12 +168,48 @@ const crmStateLabel = (state?: string | null) => {
   return 'Pedido asistido';
 };
 
+const crmOperationalStateLabel = (state?: string | null) => {
+  if (state === 'ready_for_order_creation') return 'Listo para crear pedido';
+  if (state === 'needs_catalog_resolution') return 'Resolver catalogo';
+  if (state === 'needs_operator_review') return 'Revision operativa';
+  if (state === 'ready_to_reply') return 'Listo para responder';
+  return state ? state.replace(/_/g, ' ') : null;
+};
+
+const getCrmOperatorActions = (order: Order): CrmOperatorAction[] => {
+  const cardActions = order.crm_review_card?.operator_actions;
+  if (Array.isArray(cardActions) && cardActions.length > 0) {
+    return cardActions.filter(Boolean);
+  }
+  const requestActions = order.assisted_request?.crm_review_card?.operator_actions;
+  if (Array.isArray(requestActions) && requestActions.length > 0) {
+    return requestActions.filter(Boolean);
+  }
+  return [];
+};
+
+const getPrimaryCrmOperatorAction = (order: Order): CrmOperatorAction | null => {
+  const actions = getCrmOperatorActions(order);
+  if (actions.length === 0) return null;
+  const primaryId = order.crm_review_card?.primary_action_id || order.assisted_request?.crm_review_card?.primary_action_id;
+  if (primaryId) {
+    const byPrimaryId = actions.find((action) => action.id === primaryId);
+    if (byPrimaryId) return byPrimaryId;
+  }
+  return actions.find((action) => action.id === 'confirm_order_draft') || actions[0] || null;
+};
+
 const assistedConfirmActionLabel = (order: Order) => {
+  const primaryActionLabel = textValue(getPrimaryCrmOperatorAction(order)?.label)?.trim();
+  if (primaryActionLabel) return primaryActionLabel;
   const state = order.assisted_request?.crm_state;
   if (state === 'ready_for_confirmation') return 'Crear pedido';
   if (state === 'pending_operator_review') return 'Revisar y confirmar';
   return order.assisted_request ? 'Confirmar candidato' : 'Confirmar';
 };
+
+const canConfirmOrderFromCrm = (order: Order): boolean =>
+  !hasAssistedOrderContract(order) || isAssistedReady(order);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -489,6 +525,100 @@ const CrmReviewCardSummary = ({ card, compact = false }: { card: CrmReviewCardVi
   </div>
 );
 
+const CrmOperatorActionsPanel = ({
+  order,
+  onStatusChange,
+}: {
+  order: Order;
+  onStatusChange: (orderId: string | number, newStatus: string) => void;
+}) => {
+  const actions = getCrmOperatorActions(order).filter((action) => action && (action.id || action.label)).slice(0, 4);
+  const operationalStateLabel = crmOperationalStateLabel(order.crm_review_card?.operational_state);
+  if (actions.length === 0) return null;
+
+  return (
+    <div
+      data-testid="crm-operator-actions"
+      className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-950 shadow-sm dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-100"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-semibold">Acciones operativas</p>
+          <p className="text-xs text-blue-900/70 dark:text-blue-100/70">
+            El CRM recibe la nota, el pedido sugerido y las acciones para resolverlo sin perder contexto.
+          </p>
+        </div>
+        {operationalStateLabel ? (
+          <Badge variant="outline" className="bg-background/80">
+            {operationalStateLabel}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        {actions.map((action) => {
+          const label = textValue(action.label || action.id) || 'Accion CRM';
+          const description = textValue(action.description);
+          const targetStatus = textValue(action.target_status);
+          const href = textValue(action.href);
+          const enabled = action.enabled !== false;
+          const canExecuteStatusAction = enabled && action.requires_review !== true;
+          const isStatusAction = action.type === 'status_transition' && Boolean(targetStatus);
+          const creates = Array.isArray(action.creates) ? action.creates.filter(Boolean) : [];
+
+          return (
+            <div key={`${action.id || label}-${targetStatus || href || 'action'}`} className="rounded-md border border-blue-200/80 bg-background/80 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold">{label}</p>
+                {action.requires_review ? (
+                  <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                    Requiere revision
+                  </Badge>
+                ) : null}
+              </div>
+              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+              {creates.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {creates.map((record) => (
+                    <Badge key={String(record)} variant="outline" className="bg-background/80 text-[11px]">
+                      Crea {String(record).replace(/_/g, ' ')}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-3">
+                {isStatusAction && targetStatus ? (
+                  <Button
+                    size="sm"
+                    disabled={!canExecuteStatusAction}
+                    title={
+                      canExecuteStatusAction
+                        ? undefined
+                        : textValue(action.disabled_reason) || 'Resolver catalogo y revision antes de crear el pedido operativo.'
+                    }
+                    onClick={() => onStatusChange(order.id, targetStatus)}
+                  >
+                    Ejecutar accion
+                  </Button>
+                ) : href ? (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={href} target="_blank" rel="noreferrer">
+                      {label}
+                    </a>
+                  </Button>
+                ) : (
+                  <Badge variant="outline" className={enabled ? 'bg-background/80' : 'opacity-60'}>
+                    {enabled ? 'Disponible en CRM' : 'No disponible'}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
   const navigate = useNavigate();
@@ -504,6 +634,7 @@ const PedidosPage = () => {
   const [isAssistedUploadOpen, setIsAssistedUploadOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
+  const [resolvingCatalogCandidateKey, setResolvingCatalogCandidateKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentSlug) {
@@ -556,6 +687,42 @@ const PedidosPage = () => {
     } catch (error) {
       console.error('Failed to update status', error);
       toast.error("No se pudo actualizar el estado. El pedido no fue modificado.");
+    }
+  };
+
+  const handleResolveCatalogCandidate = async (
+    order: Order,
+    payload: {
+      lineId?: string | null;
+      sourceName: string;
+      catalogItemId: string | number;
+      candidateName: string;
+    },
+  ) => {
+    if (!currentSlug) return;
+    const resolutionKey = `${payload.lineId || payload.sourceName}:${payload.catalogItemId}`;
+    setResolvingCatalogCandidateKey(resolutionKey);
+    try {
+      const response = await apiClient.adminUpdateOrder(currentSlug, order.id, {
+        catalog_resolutions: [
+          {
+            line_id: payload.lineId,
+            source_name: payload.sourceName,
+            catalog_item_id: payload.catalogItemId,
+          },
+        ],
+      });
+      const updated = resolveUpdatedOrder(order, response, order.status);
+      setOrders((currentOrders) => currentOrders.map((item) => (item.id === order.id ? resolveUpdatedOrder(item, response, item.status) : item)));
+      if (selectedOrder && selectedOrder.id === order.id) {
+        setSelectedOrder(updated);
+      }
+      toast.success(`Catalogo vinculado: ${payload.sourceName} -> ${payload.candidateName}`);
+    } catch (error) {
+      console.error('Failed to resolve catalog candidate', error);
+      toast.error('No se pudo vincular el producto del catalogo.');
+    } finally {
+      setResolvingCatalogCandidateKey(null);
     }
   };
 
@@ -619,6 +786,7 @@ const PedidosPage = () => {
   const selectedCrmReviewCard = selectedOrder ? getCrmReviewCard(selectedOrder) : null;
   const selectedCustomerProfile = selectedOrder ? getOrderCustomerProfile(selectedOrder) : {};
   const selectedCustomerName = selectedOrder ? getOrderCustomerName(selectedOrder) : 'Consumidor Final';
+  const selectedCanConfirmOrder = selectedOrder ? canConfirmOrderFromCrm(selectedOrder) : false;
   const selectedCustomerAvatar = selectedOrder
     ? getOrderCustomerAvatar(selectedOrder)
     : { avatarUrl: undefined, source: undefined, consented: undefined };
@@ -1045,7 +1213,16 @@ const PedidosPage = () => {
                     <div className="flex-1" />
                     <div className="flex gap-2">
                         {selectedOrder.status === 'nuevo' && (
-                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}>
+                            <Button
+                              size="sm"
+                              disabled={!selectedCanConfirmOrder}
+                              title={
+                                selectedCanConfirmOrder
+                                  ? undefined
+                                  : 'Resolver catalogo, datos bloqueantes o revision antes de crear el pedido operativo.'
+                              }
+                              onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}
+                            >
                               {assistedConfirmActionLabel(selectedOrder)}
                             </Button>
                         )}
@@ -1065,7 +1242,13 @@ const PedidosPage = () => {
                     <CrmReviewCardSummary card={selectedCrmReviewCard} />
                   ) : null}
 
-                  <AssistedRequestPanel order={selectedOrder} />
+                  <CrmOperatorActionsPanel order={selectedOrder} onStatusChange={handleStatusChange} />
+
+                  <AssistedRequestPanel
+                    order={selectedOrder}
+                    resolvingCatalogCandidateKey={resolvingCatalogCandidateKey}
+                    onResolveCatalogCandidate={(payload) => handleResolveCatalogCandidate(selectedOrder, payload)}
+                  />
 
                   <div className="grid md:grid-cols-2 gap-6">
                       {/* Customer Info */}

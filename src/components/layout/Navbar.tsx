@@ -144,7 +144,7 @@ const Navbar: React.FC = () => {
     const links: AdminNavLink[] = [
       {
         to: TICKET_DESK_PATH,
-        label: "Tickets",
+        label: isMunicipal ? "Reclamos" : "Tickets",
         icon: TicketIcon,
         roles: ["tenant_admin", "employee", "superadmin"],
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
