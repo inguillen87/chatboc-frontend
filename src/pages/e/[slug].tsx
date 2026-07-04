@@ -152,6 +152,7 @@ const PublicSurveyPage = () => {
     submitError,
     duplicateDetected,
     submitStatus,
+    submitErrorDetails,
   } = useSurveyPublic(slug, { tenantSlug });
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
@@ -1117,6 +1118,7 @@ const PublicSurveyPage = () => {
                   defaultMetadata={metadata}
                   submitErrorMessage={submitError}
                   submitErrorStatus={submitStatus}
+                  submitErrorDetails={submitErrorDetails}
                   duplicateDetected={duplicateDetected}
                   showHeader={false}
                   submitLabel={
@@ -1150,6 +1152,7 @@ const PublicSurveyPage = () => {
             defaultMetadata={metadata}
             submitErrorMessage={submitError}
             submitErrorStatus={submitStatus}
+            submitErrorDetails={submitErrorDetails}
             duplicateDetected={duplicateDetected}
           />
           {survey.permitir_comentarios && (

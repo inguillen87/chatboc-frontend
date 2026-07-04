@@ -27,6 +27,8 @@ interface UseSurveyPublicResult {
   duplicateDetected: boolean;
   submitError: string | null;
   submitStatus: number | null;
+  submitErrorDetails: Record<string, unknown> | null;
+  submitReasonCode: string | null;
 }
 
 const getSurveyPublicErrorReasonCode = (error: unknown): string | null => {
@@ -120,5 +122,10 @@ export function useSurveyPublic(
     duplicateDetected: mutation.error instanceof ApiError && mutation.error.status === 409,
     submitError: mutation.error ? getErrorMessage(mutation.error) : null,
     submitStatus: mutation.error instanceof ApiError ? mutation.error.status : null,
+    submitErrorDetails:
+      mutation.error instanceof ApiError && mutation.error.body && typeof mutation.error.body === 'object'
+        ? (mutation.error.body as Record<string, unknown>)
+        : null,
+    submitReasonCode: getSurveyPublicErrorReasonCode(mutation.error),
   };
 }

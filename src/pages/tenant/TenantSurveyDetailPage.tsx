@@ -42,6 +42,7 @@ const TenantSurveyDetailPage = () => {
     submitError,
     duplicateDetected,
     submitStatus,
+    submitErrorDetails,
   } = useSurveyPublic(surveySlug, { tenantSlug });
 
   const metadata = useMemo(() => ({ tenant: tenantSlug ?? undefined }), [tenantSlug]);
@@ -150,6 +151,7 @@ const TenantSurveyDetailPage = () => {
             defaultMetadata={metadata}
             submitErrorMessage={submitError}
             submitErrorStatus={submitStatus}
+            submitErrorDetails={submitErrorDetails}
             duplicateDetected={duplicateDetected}
           />
         </div>

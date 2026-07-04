@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { TurnstileChallenge } from '@/components/security/TurnstileChallenge';
 import {
   type PublicResponsePayload,
   type SurveyAnalyticsMetadata,
@@ -26,6 +27,7 @@ import {
   type SurveyLiveResults,
   type SurveyOptionId,
 } from '@/types/encuestas';
+import { CLOUDFLARE_TURNSTILE_SITE_KEY } from '@/env';
 import { requestLocation, type PositionCoords } from '@/utils/geolocation';
 import {
   AGE_RANGE_OPTIONS,
@@ -36,6 +38,57 @@ import {
 import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
 
 const SURVEY_DRAFT_TTL_MS = 30 * 60 * 1000;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const readBool = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return null;
+};
+
+const getSurveyTurnstileConfig = (survey: SurveyPublic) => {
+  const frontendContract = isRecord(survey.frontend_contract) ? survey.frontend_contract : {};
+  const turnstile = isRecord(frontendContract.turnstile) ? frontendContract.turnstile : {};
+  const security = isRecord(survey.security) ? survey.security : {};
+  const provider = typeof security.provider === 'string' ? security.provider : frontendContract.security_provider;
+  const required =
+    readBool(turnstile.required) ??
+    readBool(security.required) ??
+    readBool(security.enforced) ??
+    false;
+  const explicitEnabled = readBool(turnstile.enabled);
+  const enabled =
+    explicitEnabled ??
+    (
+      required ||
+      provider === 'cloudflare_turnstile' ||
+      security.contract_version === 'cloudflare.turnstile.public_intake.v1'
+    );
+
+  return {
+    enabled: Boolean(enabled),
+    required: Boolean(required),
+    status: typeof turnstile.status === 'string' ? turnstile.status : security.status,
+  };
+};
+
+const shouldResetTurnstileFromError = (details?: Record<string, unknown> | null): boolean => {
+  if (!details) return false;
+  const frontendContract = isRecord(details.frontend_contract) ? details.frontend_contract : {};
+  const turnstile = isRecord(frontendContract.turnstile) ? frontendContract.turnstile : {};
+  const security = isRecord(details.security) ? details.security : {};
+  return (
+    readBool(frontendContract.reset_turnstile) === true ||
+    readBool(turnstile.reset_required) === true ||
+    readBool(security.reset_required) === true
+  );
+};
 
 interface SurveyDraftSnapshot {
   updatedAt: number;
@@ -53,6 +106,7 @@ interface SurveyFormProps {
   defaultMetadata?: Pick<PublicResponsePayload, 'utm_campaign' | 'utm_source' | 'canal'>;
   submitErrorMessage?: string | null;
   submitErrorStatus?: number | null;
+  submitErrorDetails?: Record<string, unknown> | null;
   duplicateDetected?: boolean;
   liveResults?: SurveyLiveResults;
   showLiveResults?: boolean;
@@ -107,6 +161,7 @@ export const SurveyForm = ({
   defaultMetadata,
   submitErrorMessage,
   submitErrorStatus,
+  submitErrorDetails,
   duplicateDetected,
   liveResults,
   showLiveResults,
@@ -137,6 +192,8 @@ export const SurveyForm = ({
   const [submissionErrorTitle, setSubmissionErrorTitle] = useState<string | null>(null);
   const [submissionErrorDetails, setSubmissionErrorDetails] = useState<string | null>(null);
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
   const currentErrorKey = useMemo(
     () => (submitErrorMessage ? `${submitErrorStatus ?? 'na'}::${submitErrorMessage}` : null),
@@ -148,6 +205,11 @@ export const SurveyForm = ({
       ? survey.municipio_slug.trim()
       : null) ??
     null;
+  const turnstileConfig = useMemo(() => getSurveyTurnstileConfig(survey), [survey]);
+  const turnstileSiteKey = turnstileConfig.enabled ? CLOUDFLARE_TURNSTILE_SITE_KEY : '';
+  const turnstileRequired = turnstileConfig.required;
+  const turnstileUnavailable = turnstileRequired && !turnstileSiteKey;
+  const turnstileMissingToken = turnstileRequired && Boolean(turnstileSiteKey) && !turnstileToken.trim();
   const draftStorageKey = useMemo(
     () => {
       if (!survey.slug) return null;
@@ -177,6 +239,8 @@ export const SurveyForm = ({
     setCustomGender('');
     setGeoStatus('idle');
     setGeoMessage(null);
+    setTurnstileToken('');
+    setTurnstileResetSignal((value) => value + 1);
   }, [initialState]);
 
   useEffect(() => {
@@ -246,6 +310,11 @@ export const SurveyForm = ({
       return;
     }
 
+    if (shouldResetTurnstileFromError(submitErrorDetails)) {
+      setTurnstileToken('');
+      setTurnstileResetSignal((value) => value + 1);
+    }
+
     const normalized = submitErrorMessage.toLowerCase();
     const baseTitle =
       duplicateDetected || submitErrorStatus === 409
@@ -270,6 +339,7 @@ export const SurveyForm = ({
     submitting,
     currentErrorKey,
     dismissedErrorKey,
+    submitErrorDetails,
   ]);
 
   useEffect(() => {
@@ -637,6 +707,16 @@ export const SurveyForm = ({
     if (readOnly) return;
     if (submitting) return;
     if (!validate()) return;
+    if (turnstileUnavailable) {
+      setSubmissionErrorTitle('No pudimos enviar tu respuesta');
+      setSubmissionErrorDetails('La verificacion de seguridad no esta configurada para esta pantalla.');
+      return;
+    }
+    if (turnstileMissingToken) {
+      setSubmissionErrorTitle('Falta verificacion de seguridad');
+      setSubmissionErrorDetails('Completa la verificacion antes de enviar tu respuesta.');
+      return;
+    }
 
     setSubmissionErrorTitle(null);
     setSubmissionErrorDetails(null);
@@ -724,6 +804,7 @@ export const SurveyForm = ({
         phone: normalizedPhone ? normalizedPhone : undefined,
         ...defaultMetadata,
         metadata: metadataPayload,
+        ...(turnstileToken.trim() ? { turnstile_token: turnstileToken.trim() } : {}),
       };
       await onSubmit(payload);
       setErrors({});
@@ -738,6 +819,8 @@ export const SurveyForm = ({
       setCustomGender('');
       setGeoStatus('idle');
       setGeoMessage(null);
+      setTurnstileToken('');
+      setTurnstileResetSignal((value) => value + 1);
       setAnswers(initialState);
       if (draftStorageKey && typeof window !== 'undefined') {
         window.localStorage.removeItem(draftStorageKey);
@@ -1207,14 +1290,36 @@ export const SurveyForm = ({
         ))}
 
         {!readOnly && (
+          <div className="space-y-3">
+            {turnstileConfig.enabled && turnstileSiteKey ? (
+              <TurnstileChallenge
+                siteKey={turnstileSiteKey}
+                onToken={setTurnstileToken}
+                resetSignal={turnstileResetSignal}
+                disabled={loading || submitting}
+                testId="survey-turnstile-challenge"
+                description="Protege la votacion o encuesta publica sin pedirte registro previo."
+              />
+            ) : null}
+
+            {turnstileUnavailable ? (
+              <Alert variant="destructive">
+                <AlertTitle>Verificacion no disponible</AlertTitle>
+                <AlertDescription>
+                  Esta encuesta requiere verificacion de seguridad, pero falta configurar la clave publica del sitio.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
           <Button
             type="button"
-            disabled={loading || submitting}
+            disabled={loading || submitting || turnstileUnavailable || turnstileMissingToken}
             onClick={handleSubmit}
             className="w-full md:w-auto"
           >
             {loading || submitting ? 'Enviando…' : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
-          </Button>
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

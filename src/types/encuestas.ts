@@ -104,6 +104,40 @@ export interface SurveyAiSignal {
   frontend_contract?: Record<string, unknown>;
 }
 
+export interface SurveySecurityContract {
+  contract_version?: string;
+  provider?: string;
+  surface?: string;
+  status?: string;
+  configured?: boolean;
+  enforced?: boolean;
+  required?: boolean;
+  token_header?: string;
+  token_fields?: string[];
+  retryable?: boolean;
+  reset_required?: boolean;
+  reason?: string;
+}
+
+export interface SurveyFrontendContract {
+  contract_version?: string;
+  render_as?: string;
+  security_provider?: string;
+  turnstile?: {
+    enabled?: boolean;
+    required?: boolean;
+    status?: string;
+    surface?: string;
+    token_header?: string;
+    token_fields?: string[];
+    can_retry?: boolean;
+    reset_required?: boolean;
+  };
+  can_retry?: boolean;
+  reset_turnstile?: boolean;
+  [key: string]: unknown;
+}
+
 export interface SurveyLiveHeatmapPoint {
   lat?: number;
   lng?: number;
@@ -219,6 +253,8 @@ export interface SurveyPublic {
   commentConfig?: SurveyCommentConfig;
   puntos_recompensa?: number;
   resultados_envivo?: SurveyLiveResults;
+  security?: SurveySecurityContract;
+  frontend_contract?: SurveyFrontendContract;
 
   [key: string]: unknown;
 }
@@ -296,6 +332,7 @@ export interface PublicResponsePayload {
   utm_campaign?: string;
   canal?: 'qr' | 'web' | 'whatsapp' | 'email';
   metadata?: SurveyAnalyticsMetadata;
+  turnstile_token?: string;
 }
 
 export interface SurveyAdmin extends SurveyPublic {
