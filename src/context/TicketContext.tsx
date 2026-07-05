@@ -98,6 +98,7 @@ const TICKET_FETCH_TIMEOUT_MS = 45000;
 const TICKET_INBOX_CACHE_VERSION = 1;
 const TICKET_INBOX_CACHE_TTL_MS = 10 * 60 * 1000;
 const TICKET_INBOX_RECENT_LIVE_TTL_MS = 15 * 1000;
+const TICKET_WORKFLOW_METADATA_DEFER_MS = 1200;
 
 interface TicketInboxCachePayload {
   version: number;
@@ -619,6 +620,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [pagination, setPagination] = useState<TicketInboxPagination | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
+  const workflowMetadataTenantRef = React.useRef<string | null>(null);
   const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
     pending: 0,
     lastLabel: null,
@@ -934,34 +936,46 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   }, [fetchTickets]);
 
   useEffect(() => {
+    workflowMetadataTenantRef.current = null;
+    setWorkflowStatuses([]);
+  }, [activeTenantSlug]);
+
+  useEffect(() => {
+    if (!activeTenantSlug || loading) return;
+    if (workflowMetadataTenantRef.current === activeTenantSlug) return;
+
+    workflowMetadataTenantRef.current = activeTenantSlug;
     let cancelled = false;
-
-    const loadWorkflowMetadata = async () => {
-      try {
-        const metadata = await apiClient.getTicketWorkflowMetadata(activeTenantSlug ?? undefined);
-        if (cancelled) return;
-        const normalized = metadata.states
-          .map((state, index) => ({
-            value: normalizeFilterValue(state),
-            label: prettifyWorkflowStateLabel(state),
-            order: index,
-          }))
-          .filter((state) => Boolean(state.value))
-          .sort((a, b) => a.order - b.order)
-          .map(({ value, label }) => ({ value, label }));
-        setWorkflowStatuses(normalized);
-      } catch {
-        if (!cancelled) {
-          setWorkflowStatuses([]);
+    const timer = window.setTimeout(() => {
+      const loadWorkflowMetadata = async () => {
+        try {
+          const metadata = await apiClient.getTicketWorkflowMetadata(activeTenantSlug ?? undefined);
+          if (cancelled) return;
+          const normalized = metadata.states
+            .map((state, index) => ({
+              value: normalizeFilterValue(state),
+              label: prettifyWorkflowStateLabel(state),
+              order: index,
+            }))
+            .filter((state) => Boolean(state.value))
+            .sort((a, b) => a.order - b.order)
+            .map(({ value, label }) => ({ value, label }));
+          setWorkflowStatuses(normalized);
+        } catch {
+          if (!cancelled) {
+            setWorkflowStatuses([]);
+            workflowMetadataTenantRef.current = null;
+          }
         }
-      }
-    };
+      };
 
-    loadWorkflowMetadata();
+      void loadWorkflowMetadata();
+    }, TICKET_WORKFLOW_METADATA_DEFER_MS);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [activeTenantSlug]);
+  }, [activeTenantSlug, loading]);
 
   const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {
