@@ -1,7 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
-import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
 import { fmtARWithOffset } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
@@ -23,6 +22,8 @@ import {
   normalizeTicketStatus,
 } from '@/utils/ticketStatus';
 import { formatHistoryDate, pickHistoryDate } from '@/utils/ticketHistory';
+
+const LazyTicketMap = React.lazy(() => import('../TicketMap'));
 
 interface TicketLogisticsSummaryProps {
   ticket: Ticket;
@@ -281,13 +282,21 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                   <ExternalLink className="h-4 w-4" />
                 </button>
               )}
-              <TicketMap
-                ticket={mapTicket}
-                hideTitle
-                heightClassName="h-[160px] sm:h-[180px]"
-                showAddressHint={false}
-                showOverlay={false}
-              />
+              <React.Suspense
+                fallback={
+                  <div className="flex h-[160px] items-center justify-center bg-muted/50 text-xs text-muted-foreground sm:h-[180px]">
+                    Cargando mapa...
+                  </div>
+                }
+              >
+                <LazyTicketMap
+                  ticket={mapTicket}
+                  hideTitle
+                  heightClassName="h-[160px] sm:h-[180px]"
+                  showAddressHint={false}
+                  showOverlay={false}
+                />
+              </React.Suspense>
             </div>
           )}
         </div>

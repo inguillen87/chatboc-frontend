@@ -2,7 +2,8 @@ import React from 'react';
 import { fmtARWithOffset } from '@/utils/date';
 import { CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { TicketHistoryEvent, Message, Ticket } from '@/types/tickets';
-import TicketMap from '../TicketMap';
+
+const LazyTicketMap = React.lazy(() => import('../TicketMap'));
 
 interface TicketTimelineProps {
   history: TicketHistoryEvent[];
@@ -83,7 +84,15 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [],
                 )}
                 {hasLocation && (
                   <div className="mt-2">
-                    <TicketMap ticket={ticket} />
+                    <React.Suspense
+                      fallback={
+                        <div className="flex h-40 items-center justify-center rounded-lg border border-border bg-muted/40 text-xs text-muted-foreground">
+                          Cargando mapa...
+                        </div>
+                      }
+                    >
+                      <LazyTicketMap ticket={ticket} />
+                    </React.Suspense>
                   </div>
                 )}
               </div>

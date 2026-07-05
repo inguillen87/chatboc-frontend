@@ -29,7 +29,7 @@ const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
-const EMBEDDED_DETAIL_MIN_WIDTH = 1280;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1536;
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||

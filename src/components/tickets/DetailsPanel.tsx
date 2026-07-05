@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { buildFullAddress } from '../TicketMap';
+import { buildFullAddress } from '@/utils/ticketLocationAddress';
 import TicketTimeline from './TicketTimeline';
 import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';

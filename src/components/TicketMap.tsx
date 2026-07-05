@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { pickFirstCoordinate } from '@/utils/location';
+import { buildFullAddress } from '@/utils/ticketLocationAddress';
 import type { TicketHistoryEvent } from '@/types/tickets';
 import { ExternalLink, LocateFixed, MapPin, Navigation, RadioTower } from 'lucide-react';
 import {
@@ -31,43 +32,7 @@ export interface TicketLocation {
   municipio_longitud?: number | null;
 }
 
-export const buildFullAddress = (ticket: TicketLocation) => {
-  const parts: string[] = [];
-  const addPart = (value?: string | null) => {
-    if (typeof value !== 'string') {
-      return;
-    }
-
-    const trimmed = value.trim();
-
-    if (!trimmed) {
-      return;
-    }
-
-    parts.push(trimmed);
-  };
-
-  addPart(ticket.direccion);
-  addPart(ticket.esquinas_cercanas);
-  addPart(ticket.distrito);
-
-  const municipioNombre =
-    typeof ticket.municipio_nombre === 'string'
-      ? ticket.municipio_nombre.trim()
-      : '';
-
-  if (
-    ticket.tipo !== 'pyme' &&
-    municipioNombre &&
-    !parts.some((part) =>
-      part.toLowerCase().includes(municipioNombre.toLowerCase()),
-    )
-  ) {
-    parts.push(municipioNombre);
-  }
-
-  return parts.join(', ');
-};
+export { buildFullAddress };
 
 const pickFirstNonEmptyString = (
   ...values: Array<string | null | undefined>

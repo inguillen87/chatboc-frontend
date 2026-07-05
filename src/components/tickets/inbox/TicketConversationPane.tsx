@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-import TicketMap from '@/components/TicketMap';
 import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
@@ -31,6 +30,8 @@ import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
 import { PresenceAvatars } from './PresenceAvatars';
 import { TimelineMergeView } from './TimelineMergeView';
+
+const LazyTicketMap = React.lazy(() => import('@/components/TicketMap'));
 
 interface TicketConversationPaneProps {
   ticketId?: string;
@@ -371,17 +372,25 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           <EvidencePanel photoUrl={directPhotoUrl} attachments={attachments} />
         ) : null}
         {canRenderMap && locationPoint ? (
-          <TicketMap
-            ticket={{
-              latitud: locationPoint.lat,
-              longitud: locationPoint.lng,
-              direccion: locationAddress,
-            }}
-            hideTitle
-            showOverlay={false}
-            showAddressHint={Boolean(locationAddress)}
-            heightClassName="h-44"
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex h-44 items-center justify-center rounded-lg border border-border bg-muted/40 text-xs text-muted-foreground">
+                Cargando mapa...
+              </div>
+            }
+          >
+            <LazyTicketMap
+              ticket={{
+                latitud: locationPoint.lat,
+                longitud: locationPoint.lng,
+                direccion: locationAddress,
+              }}
+              hideTitle
+              showOverlay={false}
+              showAddressHint={Boolean(locationAddress)}
+              heightClassName="h-44"
+            />
+          </React.Suspense>
         ) : null}
         {detailTicket.timeline.length ? (
           <TimelineMergeView events={detailTicket.timeline as TicketTimelineEvent[]} />
