@@ -26,7 +26,8 @@ type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
 
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
-const TICKET_LOADING_GRACE_MS = 22000;
+const TICKET_LOADING_GRACE_MS = 12000;
+const INBOX_SUMMARY_DEFER_MS = 1600;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
 const EMBEDDED_DETAIL_MIN_WIDTH = 1280;
 
@@ -292,21 +293,27 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       setInboxSummary(null);
       return;
     }
+    if (loading) {
+      return;
+    }
 
     const scope = tenant?.tipo === 'municipio' || tenant?.tipo === 'colegio' ? tenant.tipo : 'pyme';
-    backofficeService
-      .getInboxSummary({ tenantSlug, scope })
-      .then((response) => {
-        if (!cancelled) setInboxSummary(response);
-      })
-      .catch(() => {
-        if (!cancelled) setInboxSummary(null);
-      });
+    const timer = window.setTimeout(() => {
+      backofficeService
+        .getInboxSummary({ tenantSlug, scope })
+        .then((response) => {
+          if (!cancelled) setInboxSummary(response);
+        })
+        .catch(() => {
+          if (!cancelled) setInboxSummary(null);
+        });
+    }, INBOX_SUMMARY_DEFER_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [currentSlug, tenant?.slug, tenant?.tipo]);
+  }, [currentSlug, loading, tenant?.slug, tenant?.tipo]);
 
   // Sync mobile view with ticket selection
   React.useEffect(() => {

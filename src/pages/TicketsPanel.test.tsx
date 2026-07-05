@@ -82,7 +82,7 @@ describe('TicketsPanel request_id support surface', () => {
       alerts: [{ message: 'Falta identidad en WhatsApp', channel: 'whatsapp' }],
     });
 
-    render(<TicketsPanelPage />);
+    render(<TicketsPanelPage identityCoverageDelayMs={0} />);
 
     expect(await screen.findByText(/request_id: req-coverage-123/i)).toBeInTheDocument();
 
@@ -110,7 +110,7 @@ describe('TicketsPanel request_id support surface', () => {
       alerts: [],
     });
 
-    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" identityCoverageDelayMs={0} />);
 
     expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /reclamos y conversaciones/i })).not.toBeInTheDocument();
@@ -130,7 +130,7 @@ describe('TicketsPanel request_id support surface', () => {
       hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
     });
 
-    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" identityCoverageDelayMs={0} />);
 
     expect(await screen.findByTestId('tickets-access-denied')).toBeInTheDocument();
     expect(screen.queryByText('tickets-panel-body')).not.toBeInTheDocument();
@@ -148,7 +148,7 @@ describe('TicketsPanel request_id support surface', () => {
       hasAnyCapability: () => false,
     });
 
-    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" identityCoverageDelayMs={0} />);
 
     expect(await screen.findByTestId('tickets-access-denied')).toBeInTheDocument();
     expect(screen.queryByText('tickets-panel-body')).not.toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('TicketsPanel request_id support surface', () => {
       alerts: [],
     });
 
-    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" identityCoverageDelayMs={0} />);
 
     expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
     expect(screen.queryByTestId('tickets-access-denied')).not.toBeInTheDocument();

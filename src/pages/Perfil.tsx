@@ -84,15 +84,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import TicketsPanel from '@/pages/TicketsPanel';
-import EstadisticasPage from '@/pages/EstadisticasPage';
-import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
-import UsuariosPage from '@/pages/UsuariosPage';
-import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
-import InternalUsers from '@/pages/InternalUsers';
-import IncidentsMap from '@/pages/IncidentsMap';
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
-import CatalogManagementPage from '@/pages/admin/CatalogManagementPage';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
@@ -124,6 +116,25 @@ import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { uploadProfileAvatar } from "@/services/profileAvatarService";
+
+const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
+const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
+const AnalyticsPage = React.lazy(() => import('@/pages/analytics/AnalyticsPage'));
+const UsuariosPage = React.lazy(() => import('@/pages/UsuariosPage'));
+const SmartPedidosWrapper = React.lazy(() => import('@/pages/SmartPedidosWrapper'));
+const InternalUsers = React.lazy(() => import('@/pages/InternalUsers'));
+const IncidentsMap = React.lazy(() => import('@/pages/IncidentsMap'));
+const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogManagementPage'));
+
+const ProfileTabFallback = ({ label = "Cargando modulo operativo..." }: { label?: string }) => (
+  <div className="flex min-h-[320px] w-full items-center justify-center rounded-xl border border-border/70 bg-card/80 p-6 text-center">
+    <div>
+      <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
+      <p className="text-sm font-semibold text-foreground">{label}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Preparando la vista sin bloquear el resto del panel.</p>
+    </div>
+  </div>
+);
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -566,7 +577,7 @@ export default function Perfil() {
     setFilters: updateMunicipalPostFilters,
     loadMore: loadMoreMunicipalPosts,
     refresh: refreshMunicipalPosts,
-  } = useMunicipalPosts({ limit: 10, enabled: esMunicipio });
+  } = useMunicipalPosts({ limit: 10, enabled: esMunicipio && activeProfileTab === "perfil" });
 
   const handleTipoPostFilterChange = useCallback(
     (value: string) => {
@@ -662,6 +673,11 @@ export default function Perfil() {
   }, [activeProfileTab, requestedProfileTab]);
 
   useEffect(() => {
+    if (activeProfileTab !== "perfil") {
+      setBackofficeNavigation(null);
+      return;
+    }
+
     if (!derivedTenantSlug) {
       setBackofficeNavigation(null);
       return;
@@ -688,9 +704,13 @@ export default function Perfil() {
     return () => {
       cancelled = true;
     };
-  }, [derivedTenantSlug]);
+  }, [activeProfileTab, derivedTenantSlug]);
 
   useEffect(() => {
+    if (activeProfileTab !== "perfil") {
+      return;
+    }
+
     const checkPromotionStatus = async () => {
       try {
         const data = await apiFetch<any>('/api/whatsapp/promocionar');
@@ -710,7 +730,7 @@ export default function Perfil() {
       }
     };
     checkPromotionStatus();
-  }, []);
+  }, [activeProfileTab]);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -1094,7 +1114,7 @@ export default function Perfil() {
   }, [fetchPerfil, location.pathname, location.search, navigate]);
 
   useEffect(() => {
-    if (!canViewAnalytics) {
+    if (!canViewAnalytics || activeProfileTab !== "perfil") {
       return;
     }
 
@@ -1104,7 +1124,7 @@ export default function Perfil() {
     }
 
     void fetchMapData();
-  }, [canViewAnalytics, fetchMapData]);
+  }, [activeProfileTab, canViewAnalytics, fetchMapData]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -1154,14 +1174,14 @@ export default function Perfil() {
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
   useEffect(() => {
-    if (!isPyme) {
+    if (!isPyme || !["perfil", "catalogo"].includes(activeProfileTab)) {
       setVectorSyncStatus(null);
       return;
     }
     if (user?.id) {
       refreshVectorSyncStatus();
     }
-  }, [user?.id, isPyme, refreshVectorSyncStatus]);
+  }, [activeProfileTab, user?.id, isPyme, refreshVectorSyncStatus]);
 
   useEffect(() => {
     if (!pendingGeocode) {
@@ -3072,33 +3092,49 @@ export default function Perfil() {
           data-testid="profile-ticket-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
-          <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando mesa de reclamos..." />}>
+            <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
+          </React.Suspense>
         </TabsContent>
         <TabsContent value="estadisticas">
-          <EstadisticasPage />
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando reportes..." />}>
+            <EstadisticasPage />
+          </React.Suspense>
         </TabsContent>
         {canViewAnalytics && (
           <TabsContent value="analytics">
-            <AnalyticsPage />
+            <React.Suspense fallback={<ProfileTabFallback label="Cargando analitica IA..." />}>
+              <AnalyticsPage />
+            </React.Suspense>
           </TabsContent>
         )}
         <TabsContent value="catalogo">
-          <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando catalogo..." />}>
+            <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
+          </React.Suspense>
         </TabsContent>
         <TabsContent value="pedidos">
-          <SmartPedidosWrapper />
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando gestion..." />}>
+            <SmartPedidosWrapper />
+          </React.Suspense>
         </TabsContent>
         <TabsContent value="usuarios">
-          <UsuariosPage />
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando usuarios..." />}>
+            <UsuariosPage />
+          </React.Suspense>
         </TabsContent>
         {isStaff && (
           <TabsContent value="empleados">
-            <InternalUsers />
+            <React.Suspense fallback={<ProfileTabFallback label="Cargando empleados..." />}>
+              <InternalUsers />
+            </React.Suspense>
           </TabsContent>
         )}
         {isStaff && (
           <TabsContent value="mapas">
-            <IncidentsMap />
+            <React.Suspense fallback={<ProfileTabFallback label="Cargando mapas..." />}>
+              <IncidentsMap />
+            </React.Suspense>
           </TabsContent>
         )}
       </Tabs>

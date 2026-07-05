@@ -16,7 +16,15 @@ import { hasRequiredRole } from '@/utils/roles';
 import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 import { resolveTenantSlug } from '@/utils/api';
 
-const TicketsIdentityCoverageAlert = ({ tenantSlugOverride }: { tenantSlugOverride?: string | null }) => {
+const TICKETS_IDENTITY_COVERAGE_DEFER_MS = 1600;
+
+const TicketsIdentityCoverageAlert = ({
+  tenantSlugOverride,
+  deferMs = TICKETS_IDENTITY_COVERAGE_DEFER_MS,
+}: {
+  tenantSlugOverride?: string | null;
+  deferMs?: number;
+}) => {
   const { currentSlug } = useTenant();
   const resolvedTenantSlug = React.useMemo(
     () => resolveTenantSlug(tenantSlugOverride ?? currentSlug, undefined, { persist: false }),
@@ -35,28 +43,31 @@ const TicketsIdentityCoverageAlert = ({ tenantSlugOverride }: { tenantSlugOverri
       };
     }
 
-    apiClient
-      .getIdentityCoverage(resolvedTenantSlug, { emit_alert_events: 1 })
-      .then((response) => {
-        if (!mounted) return;
-        if (response.alert_count > 0 && response.slo_status === 'below_target') {
-          setRequestId(response.request_id);
-          setMessage(response.alerts[0]?.message || 'Falta identidad suficiente para operar conversaciones omnicanal.');
-          return;
-        }
-        setRequestId(null);
-        setMessage(null);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setRequestId(null);
-        setMessage(null);
-      });
+    const timer = window.setTimeout(() => {
+      apiClient
+        .getIdentityCoverage(resolvedTenantSlug, { emit_alert_events: 1 })
+        .then((response) => {
+          if (!mounted) return;
+          if (response.alert_count > 0 && response.slo_status === 'below_target') {
+            setRequestId(response.request_id);
+            setMessage(response.alerts[0]?.message || 'Falta identidad suficiente para operar conversaciones omnicanal.');
+            return;
+          }
+          setRequestId(null);
+          setMessage(null);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setRequestId(null);
+          setMessage(null);
+        });
+    }, Math.max(0, deferMs));
 
     return () => {
       mounted = false;
+      window.clearTimeout(timer);
     };
-  }, [resolvedTenantSlug]);
+  }, [deferMs, resolvedTenantSlug]);
 
   if (!requestId) return null;
 
@@ -87,9 +98,14 @@ const TicketsIdentityCoverageAlert = ({ tenantSlugOverride }: { tenantSlugOverri
 interface TicketsPanelPageProps {
   tenantSlugOverride?: string | null;
   embedded?: boolean;
+  identityCoverageDelayMs?: number;
 }
 
-const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanelPageProps) => {
+const TicketsPanelPage = ({
+  tenantSlugOverride,
+  embedded = false,
+  identityCoverageDelayMs,
+}: TicketsPanelPageProps) => {
   const { user } = useUser();
   const { capabilities, hasAnyCapability } = useCapabilities();
 
@@ -138,7 +154,10 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
           </div>
         ) : (
           <>
-            <TicketsIdentityCoverageAlert tenantSlugOverride={tenantSlugOverride} />
+            <TicketsIdentityCoverageAlert
+              tenantSlugOverride={tenantSlugOverride}
+              deferMs={identityCoverageDelayMs}
+            />
         <div className="relative flex h-full min-h-0 w-full flex-1">
           <SectionErrorBoundary
             title="Ocurrio un problema al cargar reclamos"
