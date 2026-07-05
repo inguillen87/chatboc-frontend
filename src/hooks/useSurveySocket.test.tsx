@@ -38,12 +38,13 @@ vi.mock('@/utils/safeLocalStorage', () => ({
 
 import { useSurveySocket } from './useSurveySocket';
 
-const SurveySocketHarness = () => {
+const SurveySocketHarness = ({ onUpdate }: { onUpdate?: (payload: any) => void }) => {
   useSurveySocket({
     slug: 'consulta-barrial',
     tenantSlug: 'junin',
     rooms: ['encuesta:junin:consulta-barrial', 'encuesta_consulta-barrial'],
     enabled: true,
+    onUpdate,
   });
   return null;
 };
@@ -69,5 +70,32 @@ describe('useSurveySocket', () => {
     expect(socketEmitMock).toHaveBeenCalledWith('join', {
       room: 'encuesta_consulta-barrial',
     });
+  });
+
+  it('consumes the modern vote-created event emitted by the backend', () => {
+    const onUpdate = vi.fn();
+    const livePayload = {
+      contract_version: 'surveys.live_results.v2',
+      encuesta_id: 42,
+      total_votos: 12,
+      realtime: { room: 'encuesta:junin:consulta-barrial' },
+    };
+
+    render(<SurveySocketHarness onUpdate={onUpdate} />);
+
+    act(() => {
+      socketHandlers['survey.vote.created']?.(livePayload);
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith(livePayload);
+  });
+
+  it('removes vote-created listeners on unmount', () => {
+    const { unmount } = render(<SurveySocketHarness />);
+
+    unmount();
+
+    expect(socketOffMock).toHaveBeenCalledWith('survey.vote.created', expect.any(Function));
+    expect(socketDisconnectMock).toHaveBeenCalled();
   });
 });

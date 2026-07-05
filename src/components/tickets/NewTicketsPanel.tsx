@@ -1063,7 +1063,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   <Sidebar
                     compact={embedded}
                     showFilterControl={!embedded}
-                    showListSummaryBar={embedded}
+                    showListSummaryBar={false}
                     className="h-full min-h-0 w-full min-w-full"
                     onTicketSelected={handleMobileTicketSelection}
                   />
@@ -1119,7 +1119,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               <Sidebar
                 compact={embedded}
                 showFilterControl={isMobile && !embedded}
-                showListSummaryBar={embedded}
+                showListSummaryBar={false}
                 className="h-full w-full shrink-0"
               />
             </div>

@@ -411,7 +411,7 @@ describe('Tickets Sidebar category density', () => {
   });
 
   it('can delegate the list summary bar to the parent operational header', async () => {
-    render(<Sidebar showFilterControl={false} showListSummaryBar={false} />);
+    render(<Sidebar compact showFilterControl={false} showListSummaryBar={false} />);
 
     await waitFor(() => {
       expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
@@ -419,6 +419,7 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
       'data-compact',

@@ -177,7 +177,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
-    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'true');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
     expect(screen.getByTestId('ticket-ops-stat-strip')).not.toHaveClass('hidden');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Abiertos');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Riesgo');
@@ -217,7 +217,7 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel embedded />);
 
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
-    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'true');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('4 filtros');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
       'title',

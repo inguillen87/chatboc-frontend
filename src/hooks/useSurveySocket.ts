@@ -129,6 +129,7 @@ export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUp
     safeOn(socket, 'connect_error', handleConnectError);
     safeOn(socket, 'survey_update', handleUpdate);
     safeOn(socket, 'survey_update_v2', handleUpdate);
+    safeOn(socket, 'survey.vote.created', handleUpdate);
     safeOn(socket, 'survey_comment', handleComment);
 
     return () => {
@@ -138,6 +139,7 @@ export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUp
         socket.off('connect_error', handleConnectError);
         socket.off('survey_update', handleUpdate);
         socket.off('survey_update_v2', handleUpdate);
+        socket.off('survey.vote.created', handleUpdate);
         socket.off('survey_comment', handleComment);
         socket.disconnect();
       }
