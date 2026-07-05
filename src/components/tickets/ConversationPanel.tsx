@@ -965,6 +965,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         payload?.action
           ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
           : undefined,
+        {
+          ticket: selectedTicket,
+          tenantSlug: selectedTicket.tenant_slug,
+        },
       );
       setLastReplyDelivery(normalizeTicketReplyDelivery((response as any)?.delivery));
       const responseMessages = extractResponseTicketMessages(response)

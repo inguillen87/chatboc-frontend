@@ -192,9 +192,37 @@ export function useSurveyAnalytics(
     [dashboardQuery.data?.modules?.timeseries, timeseriesQuery.data, fallbackAnalytics?.timeseries],
   );
 
+  const fallbackHeatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
+    if (!fallbackAnalytics?.heatmap) return undefined;
+    return {
+      points: fallbackAnalytics.heatmap,
+      metadata: {
+        source: 'frontend_demo_fallback',
+        using_synthetic_points: true,
+        map: {
+          render_ready: false,
+          provider_hint: 'maplibre',
+          fallback_provider: 'maplibre',
+          available_providers: ['maplibre'],
+        },
+        render_contract: {
+          state: 'demo_fallback',
+          preferred_visualization: 'summary_only',
+          reason: 'backend_heatmap_unavailable',
+        },
+      },
+      render_contract: {
+        state: 'demo_fallback',
+        preferred_visualization: 'summary_only',
+        reason: 'backend_heatmap_unavailable',
+      },
+      using_synthetic_points: true,
+    };
+  }, [fallbackAnalytics?.heatmap]);
+
   const heatmapDataRaw = useMemo(
-    () => pickHeatmap(dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points, fallbackAnalytics?.heatmap),
-    [dashboardQuery.data?.modules?.heatmap?.points, heatmapQuery.data?.points, fallbackAnalytics?.heatmap],
+    () => pickHeatmap(dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points, fallbackHeatmapPayload?.points),
+    [dashboardQuery.data?.modules?.heatmap?.points, heatmapQuery.data?.points, fallbackHeatmapPayload?.points],
   );
 
   const timeseriesData = useMemo(
@@ -208,15 +236,15 @@ export function useSurveyAnalytics(
   );
 
   const heatmapMeta = useMemo(
-    () => dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata,
-    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapQuery.data?.metadata],
+    () => dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata ?? fallbackHeatmapPayload?.metadata,
+    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapQuery.data?.metadata, fallbackHeatmapPayload?.metadata],
   );
 
   const heatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
     const backendHeatmap = dashboardQuery.data?.modules?.heatmap ?? heatmapQuery.data;
     if (backendHeatmap) return backendHeatmap;
-    return fallbackAnalytics?.heatmap ? { points: fallbackAnalytics.heatmap } : undefined;
-  }, [dashboardQuery.data?.modules?.heatmap, heatmapQuery.data, fallbackAnalytics?.heatmap]);
+    return fallbackHeatmapPayload;
+  }, [dashboardQuery.data?.modules?.heatmap, heatmapQuery.data, fallbackHeatmapPayload]);
 
   const dashboardBundle = useMemo(
     () => dashboardQuery.data,

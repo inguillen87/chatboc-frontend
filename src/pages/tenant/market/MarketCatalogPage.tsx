@@ -332,7 +332,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         { id: 'price_asc', label: 'Menor precio' },
         { id: 'price_desc', label: 'Mayor precio' },
       ];
-  const assistedIntakeExplicitlyDisabled = frontendContract?.show_assisted_intake === false;
+  const catalogHasNoPublishedProducts = (totalUnfiltered ?? products.length) === 0;
+  const assistedIntakeExplicitlyDisabled =
+    frontendContract?.show_assisted_intake === false && !catalogHasNoPublishedProducts;
   const catalogStatusLine = useMemo(() => {
     if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
     const visibleCount = total ?? products.length;
@@ -348,7 +350,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     return `${parts.join(' - ')}.`;
   }, [assistedIntakeExplicitlyDisabled, facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
   const emptyState = !isLoading && products.length === 0;
-  const catalogActuallyEmpty = (totalUnfiltered ?? products.length) === 0;
+  const catalogActuallyEmpty = catalogHasNoPublishedProducts;
   const effectiveAssistedIntake = assistedIntakeExplicitlyDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);

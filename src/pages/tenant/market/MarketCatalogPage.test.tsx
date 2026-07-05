@@ -208,7 +208,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
   });
 
-  it('keeps a neutral empty catalog state when the backend contract disables assisted intake', async () => {
+  it('keeps assisted intake available when a disabled backend flag would leave an empty catalog dead-ended', async () => {
     fetchMarketCatalogMock.mockResolvedValueOnce({
       products: [],
       promotions: { items: [] },
@@ -237,13 +237,12 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(fetchMarketCatalogMock).toHaveBeenCalled();
     });
 
-    expect(screen.getByTestId('market-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('Catalogo pendiente')).toBeInTheDocument();
-    expect(screen.getByText('No hay productos disponibles en este catalogo.')).toBeInTheDocument();
-    expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
-    expect(screen.queryByText('Sin registro')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('market-assisted-command')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Subir foto o archivo/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
+    expect(screen.getByText('Carga asistida')).toBeInTheDocument();
+    expect(screen.getByText('Sin registro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
   });
 
   it('hides assisted intake when the catalog has products and the backend contract disables it', async () => {

@@ -56,7 +56,7 @@ export const isTenantTicketV2 = (ticket?: TicketEndpointContext | null): boolean
 const resolveTenantTicketV2Endpoint = (
     ticketId: string | number,
     ticket?: TicketEndpointContext | null,
-    suffix?: 'messages' | 'timeline' | 'ai-enrichment',
+    suffix?: 'messages' | 'timeline' | 'ai-enrichment' | 'comments',
 ): string => {
     const endpointKey =
         suffix === 'messages'
@@ -65,6 +65,8 @@ const resolveTenantTicketV2Endpoint = (
               ? 'timeline_endpoint'
               : suffix === 'ai-enrichment'
                 ? 'ai_enrichment_endpoint'
+                : suffix === 'comments'
+                  ? 'comments_endpoint'
                 : 'detail_endpoint';
     const camelEndpointKey =
         suffix === 'messages'
@@ -73,6 +75,8 @@ const resolveTenantTicketV2Endpoint = (
               ? 'timelineEndpoint'
               : suffix === 'ai-enrichment'
                 ? 'aiEnrichmentEndpoint'
+                : suffix === 'comments'
+                  ? 'commentsEndpoint'
                 : 'detailEndpoint';
     const explicit = readEndpointString(ticket?.[endpointKey]) || readEndpointString(ticket?.[camelEndpointKey]);
     if (explicit && explicit.startsWith('/') && explicit.includes('/api/v2/tickets/')) {
@@ -1574,9 +1578,41 @@ export const sendMessage = async (
     comentario: string,
     files?: File[],
     buttons?: Button[],
-    opts?: { public?: boolean; pin?: string }
+    opts?: { public?: boolean; pin?: string; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
 ): Promise<any> => {
     try {
+        const hasFiles = Boolean(files && files.length > 0);
+        const hasButtons = Boolean(buttons && buttons.length > 0);
+        const shouldUseTenantV2Comment =
+            isTenantTicketV2(opts?.ticket) && !opts?.public && !hasFiles && !hasButtons;
+
+        if (shouldUseTenantV2Comment) {
+            const endpoint = resolveTenantTicketV2Endpoint(ticketId, opts?.ticket, 'comments');
+            const response = await apiFetch<any>(endpoint, {
+                method: 'POST',
+                body: {
+                    body: comentario,
+                    visibility: 'public',
+                },
+                tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
+            });
+            const responseComment =
+                response?.comment && typeof response.comment === 'object'
+                    ? {
+                        ...response.comment,
+                        author_type: response.comment.author_type ?? 'agent',
+                        actor_type: response.comment.actor_type ?? 'agent',
+                        es_admin: response.comment.es_admin ?? true,
+                      }
+                    : response?.comment;
+            return responseComment
+                ? {
+                    ...response,
+                    comment: responseComment,
+                  }
+                : response;
+        }
+
         let body: any;
         const shouldUseJsonBody = Boolean(opts?.public) && (!files || files.length === 0);
 

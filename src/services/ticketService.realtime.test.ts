@@ -323,6 +323,53 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('routes authenticated TenantTicket v2 text replies to the v2 public comments contract', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.v2.comment',
+      ok: true,
+      comment: {
+        id: 1,
+        body: 'Estamos revisando tu reclamo.',
+        visibility: 'public',
+        created_at: '2026-07-04T12:00:00.000Z',
+      },
+    });
+
+    const response = await sendMessage(
+      378430,
+      'municipio',
+      'Estamos revisando tu reclamo.',
+      undefined,
+      undefined,
+      {
+        tenantSlug: 'junin',
+        ticket: {
+          id: 378430,
+          tipo: 'municipio',
+          tenant_slug: 'junin',
+          source_model: 'TenantTicket',
+          comments_endpoint: '/api/v2/tickets/378430/comments',
+        } as any,
+      },
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/tickets/378430/comments', {
+      method: 'POST',
+      body: {
+        body: 'Estamos revisando tu reclamo.',
+        visibility: 'public',
+      },
+      tenantSlug: 'junin',
+    });
+    expect(response.comment).toMatchObject({
+      body: 'Estamos revisando tu reclamo.',
+      author_type: 'agent',
+      actor_type: 'agent',
+      es_admin: true,
+    });
+  });
+
   it('uses the PyME legacy detail endpoint when the selected ticket is PyME', async () => {
     apiFetchMock.mockResolvedValueOnce({
       id: 88,

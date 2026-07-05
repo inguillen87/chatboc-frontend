@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import {
   HeatPoint,
@@ -14,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { Activity, Gauge, Layers, MapPinned, Radar } from 'lucide-react';
 
 interface HeatmapProps {
   initialHeatmapData: HeatPoint[];
@@ -461,6 +463,31 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     return cards;
   }, [insights]);
 
+  const layerBadges = useMemo(
+    () => {
+      const layers = (mapLayers ?? {}) as Record<string, MapLayerSource>;
+      return Object.entries(layers)
+        .map(([key, source]) => ({
+          key,
+          label: key.replace(/[_-]+/g, ' '),
+          detail: source.providerHint || source.preferredFormat || source.kind || 'capa',
+        }))
+        .slice(0, 5);
+    },
+    [mapLayers],
+  );
+
+  const leadingHotspot = useMemo(() => {
+    if (!insights) return null;
+    return insights.categories[0] ?? insights.barrios[0] ?? insights.tipos[0] ?? null;
+  }, [insights]);
+
+  const mapReadinessLabel = heatmapData.length
+    ? 'Mapa territorial activo'
+    : initialHeatmapData.length
+      ? 'Sin resultados para filtros'
+      : 'Esperando ubicaciones';
+
   return (
     <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -481,6 +508,88 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div
+          data-testid="analytics-heatmap-command"
+          className="overflow-hidden rounded-xl border bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-lg"
+        >
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+            <div className="relative min-w-0 p-4 sm:p-5">
+              <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(56,189,248,.16)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,.12)_1px,transparent_1px)] [background-size:28px_28px]" />
+              <div className="relative flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="border-cyan-400/30 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/20">
+                    <Radar className="mr-1 h-3.5 w-3.5" />
+                    {mapReadinessLabel}
+                  </Badge>
+                  <Badge variant="outline" className="border-white/20 bg-white/10 text-white">
+                    {provider === 'google' ? 'Google Maps' : 'MapLibre GL'}
+                  </Badge>
+                  {disableClustering ? (
+                    <Badge variant="outline" className="border-amber-300/30 bg-amber-300/15 text-amber-100">
+                      Celdas agregadas
+                    </Badge>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Centro territorial</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Calor operativo, zonas y prioridad en una sola vista
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                    El mapa combina reclamos, canales, categorias y recencia para decidir donde actuar primero.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-white/10 bg-white/10 p-3">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-300">
+                      <MapPinned className="h-4 w-4 text-cyan-200" />
+                      Puntos
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold">{(insights?.totalPoints ?? heatmapData.length).toLocaleString('es-AR')}</p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/10 p-3">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-300">
+                      <Gauge className="h-4 w-4 text-emerald-200" />
+                      Intensidad
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold">{(insights?.totalWeight ?? 0).toLocaleString('es-AR')}</p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/10 p-3">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-300">
+                      <Activity className="h-4 w-4 text-amber-200" />
+                      Hotspot
+                    </div>
+                    <p className="mt-2 truncate text-lg font-semibold">{leadingHotspot?.label ?? 'Sin foco activo'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-white/10 bg-slate-950/55 p-4 sm:p-5 lg:border-l lg:border-t-0">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Layers className="h-4 w-4 text-cyan-200" />
+                Capas disponibles
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {layerBadges.length ? (
+                  layerBadges.map((layer) => (
+                    <Badge key={layer.key} variant="outline" className="max-w-full border-white/15 bg-white/10 text-slate-100">
+                      <span className="truncate capitalize">{layer.label}</span>
+                      <span className="ml-1 text-slate-400">{layer.detail}</span>
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-slate-300">
+                    Heatmap, clusters y pulsos desde datos normalizados.
+                  </span>
+                )}
+              </div>
+              <p className="mt-4 text-xs leading-5 text-slate-400">
+                Las capas respetan filtros activos y datos georreferenciados reales. Si no hay coordenadas suficientes,
+                la pantalla lo muestra como estado operativo, no como mapa inventado.
+              </p>
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border-b border-border">
             <FilterGroup title="Tipos de Ticket" items={availableTipos} selected={selectedTipos} onSelectedChange={setSelectedTipos} />
             <FilterGroup title="Categorías" items={availableCategories} selected={selectedCategories} onSelectedChange={setSelectedCategories} />
