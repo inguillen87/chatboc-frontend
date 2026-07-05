@@ -156,6 +156,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Pedido desmenuzado')).toBeInTheDocument();
     expect(screen.getByText('Datos faltantes')).toBeInTheDocument();
     expect(screen.getByText('Respuesta lista')).toBeInTheDocument();
+    expect(screen.getByTestId('market-operational-continuity')).toHaveClass('order-last');
     expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
     expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
     expect(screen.getByText('Catalogo visto')).toBeInTheDocument();

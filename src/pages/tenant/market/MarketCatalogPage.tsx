@@ -548,6 +548,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
       <OperationalContinuityBar
         testId="market-operational-continuity"
+        className={assistedFirstActive ? 'order-last' : undefined}
         icon={ShoppingBag}
         tone={cartItemCount > 0 ? 'success' : assistedFirstActive ? 'warning' : 'default'}
         title="Operacion comercial conectada"
