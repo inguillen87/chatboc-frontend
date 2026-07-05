@@ -1,5 +1,4 @@
 import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
-import { PUBLIC_BACKEND_URL } from '@/config';
 import {
   Ticket,
   Message,
@@ -638,7 +637,6 @@ export const getTickets = async (
       tenantSlug,
       omitTenant: false,
       suppressPanel401Redirect: true,
-      baseUrlOverride: PUBLIC_BACKEND_URL,
       omitCredentials: true,
       omitChatSessionId: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets

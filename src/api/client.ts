@@ -1,5 +1,5 @@
 import { ApiError, apiFetch } from '@/utils/api';
-import { PUBLIC_BACKEND_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
@@ -562,7 +562,6 @@ export const apiClient = {
     const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', {
       tenantSlug,
       suppressPanel401Redirect: true,
-      baseUrlOverride: PUBLIC_BACKEND_URL,
       omitCredentials: true,
       omitChatSessionId: true,
     });
