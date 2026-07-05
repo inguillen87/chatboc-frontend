@@ -13,11 +13,11 @@ const activationPayload = {
   contract_version: 'tenant.channel_activation.v1' as const,
   tenant: { slug: 'junin', nombre: 'Municipalidad de Junin', plan: 'free' },
   summary: {
-    total: 3,
+    total: 5,
     ready: 1,
-    locked: 1,
-    attention: 1,
-    progress: 33,
+    locked: 2,
+    attention: 2,
+    progress: 20,
     health_label: 'Activacion en progreso',
     primary_next_action: { id: 'connect_whatsapp', label: 'Conectar WhatsApp', href: '/t/junin/integracion' },
   },
@@ -46,6 +46,22 @@ const activationPayload = {
       actions: [{ id: 'connect_whatsapp', label: 'Conectar WhatsApp', href: '/t/junin/integracion', primary: true }],
     },
     {
+      id: 'payments_checkout',
+      label: 'Cobros y checkout',
+      status: 'locked',
+      locked: true,
+      description: 'Links de pago y webviews seguros.',
+      required_plan: 'full',
+      actions: [{ id: 'configure_payments', label: 'Configurar cobros', href: '/t/junin/integracion', primary: true }],
+    },
+    {
+      id: 'team_routing',
+      label: 'Equipo y responsables',
+      status: 'action_required',
+      description: 'Operadores y categorias.',
+      actions: [{ id: 'open_team', label: 'Configurar equipo', href: '/perfil?tab=empleados', primary: true }],
+    },
+    {
       id: 'catalog_marketplace',
       label: 'Catalogo y marketplace',
       status: 'action_required',
@@ -65,15 +81,19 @@ describe('ChannelActivationChecklist', () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
     expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
-    expect(screen.getByText('33%')).toBeInTheDocument();
-    expect(screen.getByText(/1 de 3 frentes listos/i)).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
+    expect(screen.getByText(/1 de 5 frentes listos/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
     expect(screen.getByText('WhatsApp Business')).toBeInTheDocument();
-    expect(screen.getByText(/requiere plan full/i)).toBeInTheDocument();
+    expect(screen.getByText('Cobros y checkout')).toBeInTheDocument();
+    expect(screen.getByText('Equipo y responsables')).toBeInTheDocument();
+    expect(screen.getAllByText(/requiere plan full/i)).toHaveLength(2);
     expect(screen.getAllByRole('link', { name: /conectar whatsapp/i })[0]).toHaveAttribute(
       'href',
       '/t/junin/integracion',
     );
+    expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion');
+    expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados');
   });
 
   it('refreshes the contract from the current tenant', async () => {

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
+  CreditCard,
   FileCheck2,
   Headphones,
   Lock,
@@ -12,6 +13,7 @@ import {
   ShoppingBag,
   Sparkles,
   TicketCheck,
+  UserCog,
   Wifi,
 } from 'lucide-react';
 
@@ -31,6 +33,8 @@ const channelIcons: Record<string, React.ComponentType<{ className?: string }>> 
   widget: Wifi,
   templates: FileCheck2,
   catalog_marketplace: ShoppingBag,
+  payments_checkout: CreditCard,
+  team_routing: UserCog,
   live_chat: Headphones,
   analytics_surveys: BarChart3,
 };
