@@ -818,6 +818,36 @@ export function PremiumTerritoryHeatmap({
         : latestRealtime
           ? `ultimo evento ${latestRealtime}`
           : 'sin socket visible';
+  const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
+  const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
+  const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
+  const telemetryRouteZones = topZones.length >= 2 ? topZones : aggregate.zones.slice(0, 4);
+  const telemetryRoutes = telemetryRouteZones.slice(0, -1).map((metric, index) => {
+    const nextMetric = telemetryRouteZones[index + 1];
+    const [startX, startY] = territoryCentroid(metric.zone.polygon);
+    const [endX, endY] = territoryCentroid(nextMetric.zone.polygon);
+    const controlX = (startX + endX) / 2;
+    const controlY = (startY + endY) / 2 + (index % 2 === 0 ? -5.5 : 4.5);
+    const routeId = `${svgId}-telemetry-route-${metric.zone.id}-${nextMetric.zone.id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+    return {
+      id: routeId,
+      d: `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`,
+      delay: `${index * 0.9}s`,
+      duration: `${5.4 + index * 0.8}s`,
+      tone:
+        index === 0
+          ? 'rgba(34,211,238,0.9)'
+          : index === 1
+            ? 'rgba(168,85,247,0.82)'
+            : 'rgba(245,158,11,0.86)',
+    };
+  });
+  const hudBars = [
+    { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
+    { id: 'hotspots', label: 'hotspots', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' },
+    { id: 'pend', label: 'pend.', value: readiness.pendingGeocode ?? 0, tone: 'rgba(245,158,11,0.86)' },
+  ];
+  const hudMax = Math.max(1, ...hudBars.map((bar) => bar.value));
   const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
     {
       label: 'Puntos visibles',
@@ -1276,6 +1306,16 @@ export function PremiumTerritoryHeatmap({
                 <stop offset="48%" stopColor="rgba(255,255,255,0.42)" />
                 <stop offset="100%" stopColor="rgba(255,255,255,0)" />
               </linearGradient>
+              <radialGradient id={`${svgId}-radar-wedge`} cx="0%" cy="0%" r="100%">
+                <stop offset="0%" stopColor="rgba(34,211,238,0.5)" />
+                <stop offset="46%" stopColor="rgba(59,130,246,0.2)" />
+                <stop offset="100%" stopColor="rgba(34,211,238,0)" />
+              </radialGradient>
+              <linearGradient id={`${svgId}-telemetry-line`} x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor="rgba(34,211,238,0.06)" />
+                <stop offset="52%" stopColor="rgba(255,255,255,0.62)" />
+                <stop offset="100%" stopColor="rgba(168,85,247,0.12)" />
+              </linearGradient>
               <filter id={`${svgId}-zone-shadow`} x="-20%" y="-20%" width="140%" height="150%">
                 <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="rgba(15,23,42,0.32)" />
               </filter>
@@ -1335,6 +1375,64 @@ export function PremiumTerritoryHeatmap({
               strokeWidth="0.24"
               strokeDasharray="1 2"
             />
+            <g data-testid="territory-hud-overlay" aria-hidden="true" opacity="0.94">
+              <rect x="5.5" y="6" width="27.5" height="13.6" rx="2.2" fill="rgba(15,23,42,0.58)" stroke="rgba(148,163,184,0.36)" strokeWidth="0.18" />
+              <text x="8" y="10.2" className="fill-white text-[2.05px] font-semibold tracking-[0.18em]">
+                HEATMAP OPERATIVO
+              </text>
+              <text x="8" y="13.7" className="fill-cyan-100 text-[1.85px] font-medium">
+                {preferredVisualization.slice(0, 27)}
+              </text>
+              <text x="8" y="17" className="fill-slate-200 text-[1.75px]">
+                foco: {decisionZone.zone.label.slice(0, 20)}
+              </text>
+              {hudBars.map((bar, index) => {
+                const y = 22.8 + index * 2.9;
+                const width = 4 + (bar.value / hudMax) * 16;
+                return (
+                  <g key={bar.id}>
+                    <text x="7" y={y + 0.7} className="fill-slate-200 text-[1.45px] uppercase">
+                      {bar.label}
+                    </text>
+                    <rect x="15.8" y={y - 0.85} width="17.6" height="1.25" rx="0.62" fill="rgba(148,163,184,0.2)" />
+                    <rect x="15.8" y={y - 0.85} width={width} height="1.25" rx="0.62" fill={bar.tone}>
+                      {!shouldReduceMotion ? (
+                        <animate attributeName="opacity" values="0.72;1;0.72" dur={`${3.4 + index * 0.45}s`} repeatCount="indefinite" />
+                      ) : null}
+                    </rect>
+                  </g>
+                );
+              })}
+            </g>
+            <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
+              <circle r={decisionRadarRadius} fill="none" stroke="rgba(34,211,238,0.28)" strokeWidth="0.24" strokeDasharray="1.4 1.6" />
+              <circle r={decisionRadarRadius * 0.58} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
+              <path
+                d={`M 0 0 L ${decisionRadarRadius} 0 A ${decisionRadarRadius} ${decisionRadarRadius} 0 0 1 ${decisionRadarRadius * 0.42} ${decisionRadarRadius * 0.91} Z`}
+                fill={`url(#${svgId}-radar-wedge)`}
+              >
+                {!shouldReduceMotion ? (
+                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
+                ) : null}
+              </path>
+              <line x1={-decisionRadarRadius} x2={decisionRadarRadius} y1="0" y2="0" stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+              <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+            </g>
+            <g data-testid="territory-comet-network" aria-hidden="true" opacity={showRealtimeLayer || focusMode === 'telemetry' ? 0.82 : 0.5}>
+              {telemetryRoutes.map((route, index) => (
+                <g key={route.id} data-testid="territory-comet-route">
+                  <path id={route.id} d={route.d} fill="none" stroke={`url(#${svgId}-telemetry-line)`} strokeWidth="0.34" strokeLinecap="round" strokeDasharray="0.8 1.4" />
+                  {!shouldReduceMotion ? (
+                    <circle r={index === 0 ? 0.74 : 0.58} fill={route.tone} stroke="rgba(255,255,255,0.76)" strokeWidth="0.12">
+                      <animateMotion dur={route.duration} begin={route.delay} repeatCount="indefinite" rotate="auto">
+                        <mpath href={`#${route.id}`} />
+                      </animateMotion>
+                      <animate attributeName="opacity" values="0;1;0" dur={route.duration} begin={route.delay} repeatCount="indefinite" />
+                    </circle>
+                  ) : null}
+                </g>
+              ))}
+            </g>
             {aggregate.zones.map((metric) => {
               const [cx, cy] = territoryCentroid(metric.zone.polygon);
               if (!showHeatLayer || !metric.records || metric.suppressed) return null;
@@ -1501,6 +1599,16 @@ export function PremiumTerritoryHeatmap({
                 </g>
               );
             })}
+            <g data-testid="territory-selected-crosshair" aria-hidden="true" transform={`translate(${selectedCx} ${selectedCy})`} className="pointer-events-none">
+              <circle r="4.8" fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="0.24" strokeDasharray="0.9 0.8">
+                {!shouldReduceMotion ? <animate attributeName="r" values="4.2;6.4;4.2" dur="3.2s" repeatCount="indefinite" /> : null}
+              </circle>
+              <circle r="1.9" fill="none" stroke="rgba(34,211,238,0.82)" strokeWidth="0.22" />
+              <line x1="-7" x2="-2.4" y1="0" y2="0" stroke="rgba(255,255,255,0.62)" strokeWidth="0.18" />
+              <line x1="2.4" x2="7" y1="0" y2="0" stroke="rgba(255,255,255,0.62)" strokeWidth="0.18" />
+              <line x1="0" x2="0" y1="-7" y2="-2.4" stroke="rgba(255,255,255,0.62)" strokeWidth="0.18" />
+              <line x1="0" x2="0" y1="2.4" y2="7" stroke="rgba(255,255,255,0.62)" strokeWidth="0.18" />
+            </g>
             {!shouldReduceMotion ? (
               <rect
                 x="-22"

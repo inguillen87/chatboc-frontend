@@ -363,6 +363,10 @@ describe('PremiumTerritoryHeatmap', () => {
 
     expect(screen.queryByTestId('live-territory-map')).toBeNull();
     expect(screen.getByRole('img', { name: 'Inteligencia territorial' })).toBeTruthy();
+    expect(screen.getByTestId('territory-hud-overlay')).toBeTruthy();
+    expect(screen.getByTestId('territory-radar-sweep')).toBeTruthy();
+    expect(screen.getByTestId('territory-selected-crosshair')).toBeTruthy();
+    expect(screen.getAllByTestId('territory-comet-route').length).toBeGreaterThan(0);
   });
 
   it('renders backend heatmap cells as live map points when raw points are absent', () => {
