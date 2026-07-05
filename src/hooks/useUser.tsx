@@ -9,6 +9,7 @@ import { getValidStoredToken } from '@/utils/authTokens';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 
 interface UserData {
   id?: number;
@@ -49,6 +50,7 @@ interface UserData {
   widget_animation?: string;
   latitud?: number;
   longitud?: number;
+  channel_activation?: ChannelActivationContract | null;
 }
 
 interface UserContextValue {
@@ -287,6 +289,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         widget_animation: data.widget_animation,
         latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
         longitud: typeof data.longitud === 'number' ? data.longitud : Number(data.longitud),
+        channel_activation: data.channel_activation || null,
       };
       if (resolvedTenantSlug) {
         safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);

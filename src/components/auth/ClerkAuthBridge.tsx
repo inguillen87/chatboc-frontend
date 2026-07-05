@@ -153,7 +153,7 @@ const ClerkAuthBridge: React.FC = () => {
       await refreshUser();
       setOnboardingRequired(false);
       setOnboardingOpen(false);
-      navigate('/perfil', { replace: true });
+      navigate('/perfil?setup=channels', { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo completar el onboarding.';
       setOnboardingError(message);

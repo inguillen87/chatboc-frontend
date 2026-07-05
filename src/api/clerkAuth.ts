@@ -1,4 +1,5 @@
 import { apiFetch } from '@/utils/api';
+import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 
 export interface ClerkEmailAddressPayload {
   id?: string | null;
@@ -137,6 +138,7 @@ export interface ClerkSessionResponse {
     submit_endpoint?: string;
     modal?: ClerkOnboardingModalContract;
   };
+  channel_activation?: ChannelActivationContract | null;
   message?: string;
 }
 

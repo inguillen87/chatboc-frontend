@@ -93,6 +93,7 @@ import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
 import CatalogManagementPage from '@/pages/admin/CatalogManagementPage';
+import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -490,6 +491,7 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const requestedProfileTab = normalizeProfileTabValue(searchParams.get("tab"));
+  const shouldHighlightChannelSetup = searchParams.get("setup") === "channels";
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
@@ -2014,6 +2016,12 @@ export default function Perfil() {
             <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
           ))}
         </div>
+
+        <ChannelActivationChecklist
+          tenantSlug={derivedTenantSlug}
+          initialData={(user as any)?.channel_activation || null}
+          highlighted={shouldHighlightChannelSetup}
+        />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
           <Card className="border-border/70 bg-card/80 shadow-sm">
