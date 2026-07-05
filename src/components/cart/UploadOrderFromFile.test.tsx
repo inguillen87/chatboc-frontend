@@ -57,6 +57,16 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
   });
 
+  it('shows the assisted marketplace pipeline in the visible public intake header', () => {
+    render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
+
+    expect(screen.getByTestId('marketplace-assisted-visible-pipeline')).toBeInTheDocument();
+    expect(screen.getByText('Foto o texto')).toBeInTheDocument();
+    expect(screen.getByText('Lectura ordenada')).toBeInTheDocument();
+    expect(screen.getByText('Solicitud en panel')).toBeInTheDocument();
+    expect(screen.getByText('Respuesta y seguimiento')).toBeInTheDocument();
+  });
+
   it('submits Cloudflare Turnstile token when marketplace protection is configured', async () => {
     envMock.turnstileSiteKey = 'site-key-public';
     const renderTurnstile = vi.fn((container: HTMLElement, options: { callback?: (token: string) => void }) => {

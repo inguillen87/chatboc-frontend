@@ -433,23 +433,23 @@ const fileMatchesAcceptedSpec = (
 const DEFAULT_MARKETPLACE_PIPELINE = [
   {
     id: 'capture',
-    label: 'Subi foto, PDF o texto',
-    description: 'Pedido anonimo, boleta, certificado o lista escrita a mano.',
+    label: 'Foto o texto',
+    description: 'El cliente sube papel, PDF, boleta o lista pegada sin registro.',
   },
   {
     id: 'ai_parse',
-    label: 'Datos ordenados',
-    description: 'Productos, cantidades, referencias, comprobantes y datos operativos.',
+    label: 'Lectura ordenada',
+    description: 'Chatboc separa articulos, cantidades, direccion, tramite y faltantes.',
   },
   {
     id: 'crm_handoff',
-    label: 'Equipo responde',
-    description: 'El equipo confirma stock, precio, tramite o proximo paso.',
+    label: 'Solicitud en panel',
+    description: 'El panel recibe resumen, archivo original, candidatos y proximo paso.',
   },
   {
     id: 'public_follow_up',
-    label: 'Seguimiento publico',
-    description: 'El cliente recibe link seguro para continuar sin registro.',
+    label: 'Respuesta y seguimiento',
+    description: 'La respuesta sigue por WhatsApp, mail, llamada o link publico seguro.',
   },
 ] as const;
 
@@ -496,9 +496,28 @@ const CRM_RECEIVES = [
 ];
 
 const PUBLIC_PIPELINE_LABELS: Record<string, string> = {
-  ai_parse: 'Datos ordenados',
-  crm_handoff: 'Equipo responde',
+  capture: 'Foto o texto',
+  ai_parse: 'Lectura ordenada',
+  crm_handoff: 'Solicitud en panel',
+  public_follow_up: 'Respuesta y seguimiento',
 };
+
+const PUBLIC_PIPELINE_DESCRIPTIONS: Record<string, string> = {
+  capture: 'Foto, PDF, boleta o lista pegada sin registro.',
+  ai_parse: 'Articulos, cantidades, direccion, tramite y faltantes.',
+  crm_handoff: 'Resumen, archivo original, candidatos y proximo paso.',
+  public_follow_up: 'WhatsApp, mail, llamada o link publico seguro.',
+};
+
+const MARKETPLACE_PIPELINE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  capture: Upload,
+  ai_parse: Sparkles,
+  crm_handoff: ClipboardList,
+  public_follow_up: MessageCircle,
+};
+
+const getMarketplacePipelineIcon = (id?: string | null) =>
+  MARKETPLACE_PIPELINE_ICONS[String(id ?? '')] ?? ClipboardCheck;
 
 const publicFacingText = (value: unknown) =>
   String(value ?? '')
@@ -1151,7 +1170,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   ).map((step) => ({
     ...step,
     label: PUBLIC_PIPELINE_LABELS[String(step.id ?? '')] ?? publicFacingText(step.label),
-    description: publicFacingText(step.description),
+    description: PUBLIC_PIPELINE_DESCRIPTIONS[String(step.id ?? '')] ?? publicFacingText(step.description),
   }));
   const marketplaceExamples = intakeExperience?.input_examples?.length
     ? intakeExperience.input_examples.slice(0, 4)
@@ -1639,21 +1658,43 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               ) : null}
             </div>
 
-            <div className="grid gap-2 rounded-lg border bg-card/80 p-3">
-              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Como se resuelve</p>
-              {marketplacePipeline.map((step, index) => (
-                <div key={step.id ?? step.label ?? index} className="rounded-lg border bg-background p-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{step.label}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{step.description}</p>
+            <div
+              data-testid="marketplace-assisted-visible-pipeline"
+              className="rounded-lg border border-primary/20 bg-background/80 p-3 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Como se resuelve</p>
+                <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary">
+                  4 pasos
+                </Badge>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {marketplacePipeline.map((step, index) => {
+                  const StepIcon = getMarketplacePipelineIcon(step.id ? String(step.id) : null);
+                  return (
+                    <div
+                      key={step.id ?? step.label ?? index}
+                      className="relative rounded-lg border bg-card/90 p-2.5 shadow-sm"
+                    >
+                      {index < marketplacePipeline.length - 1 ? (
+                        <span className="absolute left-[21px] top-10 hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+                      ) : null}
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <StepIcon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-primary">{index + 1}</span>
+                            <p className="truncate text-sm font-semibold">{step.label}</p>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
