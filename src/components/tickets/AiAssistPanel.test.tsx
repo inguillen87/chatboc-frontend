@@ -36,6 +36,7 @@ describe('AiAssistPanel', () => {
 
     render(
       <AiAssistPanel
+        autoRefreshDelayMs={0}
         ticket={{
           ...ticketFixture(),
           ai_enrichment: {
@@ -139,7 +140,7 @@ describe('AiAssistPanel', () => {
       secret_values_exposed: false,
     });
 
-    render(<AiAssistPanel ticket={ticketFixture()} />);
+    render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
     expect(await screen.findAllByText('IA local deterministica')).not.toHaveLength(0);
     expect(screen.getByText('fallback seguro')).toBeInTheDocument();
@@ -185,7 +186,7 @@ describe('AiAssistPanel', () => {
     window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
 
     try {
-      render(<AiAssistPanel ticket={ticketFixture()} />);
+      render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
       fireEvent.click(await screen.findByRole('button', { name: /usar borrador/i }));
 
@@ -208,7 +209,7 @@ describe('AiAssistPanel', () => {
       new ApiError('Bad Gateway', 502, '<html><title>502</title><body>Bad Gateway</body></html>'),
     );
 
-    render(<AiAssistPanel ticket={ticketFixture()} />);
+    render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
     expect(
       await screen.findByText(
@@ -231,7 +232,7 @@ describe('AiAssistPanel', () => {
       new ApiError('El servidor no pudo responder correctamente.', 502, { error: 'Bad Gateway' }),
     );
 
-    render(<AiAssistPanel ticket={ticketFixture()} />);
+    render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
     expect(
       await screen.findByText(
@@ -251,7 +252,7 @@ describe('AiAssistPanel', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockedGetTicketAiEnrichment.mockRejectedValue(new TypeError('Failed to fetch'));
 
-    render(<AiAssistPanel ticket={ticketFixture()} />);
+    render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
     expect(
       await screen.findByText(

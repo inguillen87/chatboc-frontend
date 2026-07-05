@@ -31,7 +31,10 @@ type RecordLike = Record<string, unknown>;
 
 interface AiAssistPanelProps {
   ticket: Ticket;
+  autoRefreshDelayMs?: number;
 }
+
+const AI_ASSIST_AUTO_REFRESH_DELAY_MS = 2400;
 
 const asRecord = (value: unknown): RecordLike => (
   value && typeof value === 'object' && !Array.isArray(value) ? (value as RecordLike) : {}
@@ -269,7 +272,10 @@ const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
     .filter((item): item is OperatorChecklistItem => Boolean(item))
 );
 
-export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
+export default function AiAssistPanel({
+  ticket,
+  autoRefreshDelayMs = AI_ASSIST_AUTO_REFRESH_DELAY_MS,
+}: AiAssistPanelProps) {
   const ticketRecord = React.useMemo(() => asRecord(ticket), [ticket]);
   const persistedEnrichment = React.useMemo(
     () => extractPersistedTicketEnrichment(ticketRecord),
@@ -356,8 +362,13 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
   }, [persistedEnrichment]);
 
   React.useEffect(() => {
-    void loadEnrichment();
-  }, [loadEnrichment]);
+    if (autoRefreshDelayMs < 0) return;
+    const refreshTimer = window.setTimeout(() => {
+      void loadEnrichment();
+    }, Math.max(0, autoRefreshDelayMs));
+
+    return () => window.clearTimeout(refreshTimer);
+  }, [autoRefreshDelayMs, loadEnrichment]);
 
   const hints = React.useMemo(() => extractHints(enrichment), [enrichment]);
   const riskKey = normalizeRisk(asString(hints.risk_level));

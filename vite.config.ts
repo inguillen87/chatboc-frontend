@@ -17,7 +17,7 @@ const shouldDeferModulePreload = (dependencyPath: string) =>
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://chatbot-backend-2e14.onrender.com').replace(/\/+$/, '');
+  const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://api.chatboc.ar').replace(/\/+$/, '');
   const socketTarget = backendTarget.replace(/^http/i, 'ws');
 
   return {

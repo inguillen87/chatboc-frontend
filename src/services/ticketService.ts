@@ -24,7 +24,7 @@ const ticketApiPath = (path: string): string => {
     return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
 };
 
-const TICKET_INBOX_INITIAL_PAGE_SIZE = 20;
+const TICKET_INBOX_INITIAL_PAGE_SIZE = 12;
 
 type TicketEndpointContext = Partial<Ticket> & Record<string, any>;
 
