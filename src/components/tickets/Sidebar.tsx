@@ -503,8 +503,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span
                 data-testid="sidebar-compact-summary"
                 className={cn(
-                  'hidden shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground min-[380px]:inline-flex',
-                  delegatedHeader && 'max-[420px]:hidden',
+                  'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground',
+                  delegatedHeader && 'max-[330px]:hidden',
                 )}
               >
                 {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}

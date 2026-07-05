@@ -401,6 +401,8 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
+    expect(screen.getByTestId('sidebar-compact-summary')).not.toHaveClass('hidden');
+    expect(screen.getByTestId('sidebar-compact-summary')).toHaveTextContent('1/1');
     const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
     expect(summaryBar).toHaveClass('sr-only');
     expect(summaryBar).toHaveTextContent('1 activo');

@@ -26,7 +26,7 @@ type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
 
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
-const TICKET_LOADING_GRACE_MS = 42000;
+const TICKET_LOADING_GRACE_MS = 12000;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
 const EMBEDDED_DETAIL_MIN_WIDTH = 1280;
 
@@ -469,9 +469,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-500">
           <AlertTriangle className="h-5 w-5" />
         </span>
-        <h2 className="text-lg font-semibold text-foreground">La bandeja sigue sincronizando</h2>
+        <h2 className="text-lg font-semibold text-foreground">La bandeja tarda mas de lo esperado</h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          El backend todavia no respondio con la lista completa. Podes reintentar, pero el CRM no corta la carga antes de que termine el request real.
+          El backend todavia no respondio con la lista completa. Podes reintentar ahora o seguir esperando sin perder la vista del CRM.
         </p>
         <Button type="button" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
           <RefreshCw className="h-4 w-4" />

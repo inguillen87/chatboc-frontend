@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import NewTicketsPanel from './NewTicketsPanel';
@@ -89,6 +89,25 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByRole('status', { name: /cargando bandeja de reclamos/i })).toBeInTheDocument();
     expect(screen.getByText(/sincronizando tickets, chats en vivo/i)).toBeInTheDocument();
+  });
+
+  it('surfaces an actionable retry state after a short CRM loading grace period', async () => {
+    vi.useFakeTimers();
+    try {
+      render(<NewTicketsPanel />);
+
+      expect(screen.queryByText(/la bandeja tarda mas de lo esperado/i)).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(12000);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(/la bandeja tarda mas de lo esperado/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /reintentar carga/i })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders a repair contract when ticket access fails because tenant scope is incomplete', () => {

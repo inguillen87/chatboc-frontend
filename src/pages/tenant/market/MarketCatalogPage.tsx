@@ -137,6 +137,29 @@ const ASSISTED_TEAM_HANDOFFS = [
   },
 ];
 
+const ASSISTED_PUBLIC_FLOW_STEPS = [
+  {
+    title: 'Foto o texto',
+    description: 'El cliente sube papel, PDF, boleta o lista pegada.',
+    icon: UploadIcon,
+  },
+  {
+    title: 'Lectura ordenada',
+    description: 'Se separan articulos, cantidades, direccion y faltantes.',
+    icon: Search,
+  },
+  {
+    title: 'Solicitud en panel',
+    description: 'El equipo recibe resumen, archivo original y proximo paso.',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Respuesta y seguimiento',
+    description: 'Continua por WhatsApp, mail, llamada o link publico.',
+    icon: CheckCircle2,
+  },
+];
+
 const publicMarketplaceText = (value: unknown) =>
   String(value ?? '')
     .replace(/\bOCR\s*\+\s*IA\b/gi, 'Lectura del documento')
@@ -681,6 +704,28 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   Referencia publica para consultar estado o continuar por WhatsApp.
                 </p>
               </div>
+            </div>
+            <div
+              data-testid="market-assisted-public-flow"
+              className="mt-3 grid gap-2 rounded-lg border border-primary/20 bg-background/80 p-2 md:grid-cols-4"
+            >
+              {ASSISTED_PUBLIC_FLOW_STEPS.map((step, index) => {
+                const Icon = step.icon;
+                return (
+                  <div key={step.title} className="relative min-w-0 rounded-md border bg-card/90 px-3 py-2">
+                    {index < ASSISTED_PUBLIC_FLOW_STEPS.length - 1 ? (
+                      <ArrowRight className="pointer-events-none absolute -right-3 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 text-primary/60 md:block" />
+                    ) : null}
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="truncate">{step.title}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                  </div>
+                );
+              })}
             </div>
             <div
               data-testid="market-assisted-team-handoff"

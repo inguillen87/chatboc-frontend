@@ -152,6 +152,11 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Texto de WhatsApp')).toBeInTheDocument();
     expect(screen.getByText('Documento o reclamo')).toBeInTheDocument();
     expect(screen.getByText('Seguimiento seguro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-public-flow')).toBeInTheDocument();
+    expect(screen.getByText('Foto o texto')).toBeInTheDocument();
+    expect(screen.getByText('Lectura ordenada')).toBeInTheDocument();
+    expect(screen.getByText('Solicitud en panel')).toBeInTheDocument();
+    expect(screen.getByText('Respuesta y seguimiento')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-team-handoff')).toBeInTheDocument();
     expect(screen.getByText('Pedido desmenuzado')).toBeInTheDocument();
     expect(screen.getByText('Datos faltantes')).toBeInTheDocument();
