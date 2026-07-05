@@ -56,6 +56,29 @@ interface AssistedOrderAction {
   tracking_code?: string;
 }
 
+interface AssistedOperationalResult {
+  contract_version?: string | null;
+  type?: 'assisted_order_request' | 'municipal_ticket' | 'document_request' | string | null;
+  request_kind?: string | null;
+  request_kind_label?: string | null;
+  created_record?: string | null;
+  created_record_id?: number | string | null;
+  pedido_id?: number | string | null;
+  status?: string | null;
+  status_label?: string | null;
+  requires_operator_confirmation?: boolean | null;
+  admin_surface?: string | null;
+  admin_thread_binding?: string | null;
+  record_reference?: string | null;
+  tracking_path?: string | null;
+  tracking_code?: string | null;
+  tracking_kind?: string | null;
+  customer_headline?: string | null;
+  customer_description?: string | null;
+  operator_next_step?: string | null;
+  linked_record?: Record<string, unknown> | null;
+}
+
 interface AssistedOperatorTask {
   id?: string | null;
   label?: string | null;
@@ -217,6 +240,7 @@ interface AssistedOrderUploadResponse {
     operator_queue_label?: string | null;
     sla_hint?: AssistedOperatorSlaHint | null;
   };
+  operational_result?: AssistedOperationalResult | null;
   operator_pack?: {
     suggested_reply?: string | null;
     needs_human_review?: boolean | null;
@@ -587,6 +611,18 @@ const OPERATOR_CHANNEL_LABELS: Record<string, string> = {
   crm: 'Panel',
   web: 'Web',
   widget: 'Chat web',
+};
+
+const OPERATIONAL_SURFACE_LABELS: Record<string, string> = {
+  orders: 'Pedidos asistidos',
+  tickets: 'Reclamos',
+  document_requests: 'Documentos y tramites',
+};
+
+const OPERATIONAL_RECORD_LABELS: Record<string, string> = {
+  pedido_conversacional: 'Solicitud asistida',
+  tenant_ticket: 'Ticket del equipo',
+  municipio_ticket: 'Reclamo municipal',
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -1387,17 +1423,22 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const customerNextSteps = processedResponse?.customer_next_steps ?? [];
   const requestId = processedResponse?.pedido_id ?? processedResponse?.lead_id ?? null;
   const needsManualReview = isAssistedUploadManualReview(processedResponse);
+  const operationalResult = isRecord(processedResponse?.operational_result)
+    ? processedResponse.operational_result
+    : null;
   const trackingAction = enabledActions.find((action) => action.id === 'tracking' || action.tracking_code);
   const whatsappHandoffAction =
     processedResponse?.public_follow_up?.channels?.find((action) => action.id === 'whatsapp_handoff' && action.href) ??
     enabledActions.find((action) => action.id === 'whatsapp_handoff' && action.href);
   const trackingCode =
     processedResponse?.public_follow_up?.tracking?.code ??
+    operationalResult?.tracking_code ??
     trackingAction?.tracking_code ??
     null;
-  const referenceCode = trackingCode ?? (requestId ? String(requestId) : null);
+  const referenceCode = trackingCode ?? compactString(operationalResult?.record_reference) ?? (requestId ? String(requestId) : null);
   const trackingPath =
     processedResponse?.public_follow_up?.tracking?.path ??
+    operationalResult?.tracking_path ??
     trackingAction?.href ??
     null;
   const trackingHref = makeAbsoluteHref(trackingPath);
@@ -1405,16 +1446,35 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     whatsappHandoffAction?.href ??
     buildWhatsappFollowUpHref(fallbackWhatsappHref, requestId);
   const hasRealTracking = Boolean(trackingCode || trackingHref);
-  const hasPublicFollowUp = Boolean(processedResponse && (hasRealTracking || whatsappHandoffHref || requestId));
-  const trackingKind = processedResponse?.public_follow_up?.tracking?.kind ?? null;
-  const isClaimFollowUp = trackingKind === 'claim' || processedResponse?.request_kind === 'service_request';
+  const hasPublicFollowUp = Boolean(processedResponse && (hasRealTracking || whatsappHandoffHref || requestId || operationalResult));
+  const trackingKind = processedResponse?.public_follow_up?.tracking?.kind ?? operationalResult?.tracking_kind ?? null;
+  const isClaimFollowUp =
+    trackingKind === 'claim' ||
+    processedResponse?.request_kind === 'service_request' ||
+    operationalResult?.type === 'municipal_ticket';
+  const operationalSurfaceLabel =
+    prettifyToken(operationalResult?.admin_surface, OPERATIONAL_SURFACE_LABELS) ??
+    (isClaimFollowUp ? 'Reclamos' : 'Pedidos asistidos');
+  const operationalRecordLabel =
+    prettifyToken(operationalResult?.created_record, OPERATIONAL_RECORD_LABELS) ??
+    (isClaimFollowUp ? 'Reclamo municipal' : 'Solicitud asistida');
+  const operationalStatusLabel =
+    publicOperatorText(operationalResult?.status_label) ??
+    (needsManualReview ? 'Revision del equipo' : isClaimFollowUp ? 'Reclamo creado' : 'Solicitud recibida');
+  const operationalNextStepLabel =
+    publicOperatorText(operationalResult?.operator_next_step) ??
+    (isClaimFollowUp ? 'Revisar reclamo y actualizar estado' : 'Resolver faltantes y responder');
   const followUpBadgeLabel = hasRealTracking
     ? isClaimFollowUp ? 'Reclamo trazable' : 'Pedido trazable'
-    : 'Referencia interna';
-  const followUpTitle = hasRealTracking
+    : operationalStatusLabel;
+  const followUpTitle = operationalResult?.customer_headline
+    ? operationalResult.customer_headline
+    : hasRealTracking
     ? isClaimFollowUp ? 'Seguimiento de reclamo creado' : 'Seguimiento publico creado'
     : 'Referencia recibida';
-  const followUpDescription = !hasRealTracking
+  const followUpDescription = operationalResult?.customer_description
+    ? operationalResult.customer_description
+    : !hasRealTracking
     ? 'La solicitud quedo registrada para el equipo. Si todavia no hay link publico, la referencia permite continuar por WhatsApp sin perder el contexto.'
     : isClaimFollowUp
     ? 'El vecino puede consultar el estado, agregar datos y continuar por WhatsApp sin registrarse. El equipo conserva el archivo o texto original, la lectura y el ticket municipal.'
@@ -1963,6 +2023,40 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 {followUpDescription}
               </p>
+              {operationalResult ? (
+                <div
+                  data-testid="assisted-operational-result"
+                  className="mt-3 grid gap-2 text-sm sm:grid-cols-3"
+                >
+                  <div className="rounded-lg border border-emerald-200/70 bg-background/80 px-3 py-2 dark:border-emerald-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Constancia
+                    </p>
+                    <p className="mt-1 break-words font-semibold text-foreground">
+                      {operationalStatusLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-200/70 bg-background/80 px-3 py-2 dark:border-emerald-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Panel del equipo
+                    </p>
+                    <p className="mt-1 break-words font-semibold text-foreground">
+                      {operationalSurfaceLabel}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {operationalRecordLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-200/70 bg-background/80 px-3 py-2 dark:border-emerald-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Proximo paso
+                    </p>
+                    <p className="mt-1 break-words font-semibold text-foreground">
+                      {operationalNextStepLabel}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
             {referenceCode ? (
               <div className="rounded-lg border bg-background px-4 py-3 text-left shadow-sm">

@@ -86,6 +86,19 @@ const FilterSelectionConsumer = () => {
       >
         dejar sin resultados
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          setFilters((current) => ({
+            ...current,
+            priority: 'alta',
+            sla: 'risk',
+            unread: 'unread',
+          }))
+        }
+      >
+        filtrar operativos
+      </button>
       <span data-testid="active-status-filter">{filters.status}</span>
     </div>
   );
@@ -446,6 +459,45 @@ describe('TicketContext unread delta reconciliation', () => {
       });
       expect(screen.getByTestId('visible-tickets').textContent).toBe('');
       expect(screen.getByTestId('selected-ticket').textContent).toBe('none');
+    });
+  });
+
+  it('passes operational filters to the backend instead of filtering only the loaded page', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-1',
+          asunto: 'Alumbrado',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'General',
+        },
+      ],
+    });
+
+    render(
+      <TicketProvider>
+        <FilterSelectionConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-1');
+    });
+
+    getTicketsMock.mockResolvedValueOnce({ tickets: [] });
+    fireEvent.click(screen.getByRole('button', { name: /filtrar operativos/i }));
+
+    await waitFor(() => {
+      expect(getTicketsMock).toHaveBeenLastCalledWith('demo', {
+        page: 1,
+        priority: 'alta',
+        sla: 'risk',
+        unread: 'unread',
+      });
     });
   });
 

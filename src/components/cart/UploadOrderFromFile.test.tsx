@@ -152,6 +152,24 @@ describe('UploadOrderFromFile marketplace intake', () => {
       match_summary: { detected: 2, matched: 1, unmatched: 1 },
       source: { text_preview: '2 chapas galvanizadas' },
       crm_state: 'pending_operator_review',
+      operational_result: {
+        contract_version: 'marketplace.assisted_operational_result.v1',
+        type: 'assisted_order_request',
+        created_record: 'tenant_ticket',
+        created_record_id: 501,
+        pedido_id: 77,
+        status: 'pending_operator_review',
+        status_label: 'Solicitud recibida',
+        requires_operator_confirmation: true,
+        admin_surface: 'orders',
+        record_reference: 'pc-77',
+        tracking_path: '/tracking/order/pc-77?tenant_slug=junin&token=signed-token-77',
+        tracking_code: 'pc-77',
+        tracking_kind: 'order',
+        customer_headline: 'Tu pedido quedo armado para revision',
+        customer_description: 'El equipo recibe articulos, cantidades, candidatos de catalogo y faltantes antes de confirmar precio, stock o entrega.',
+        operator_next_step: 'Resolver faltantes y responder',
+      },
       crm_order_draft: {
         contract_version: 'marketplace.crm_order_draft.v1',
         reference: 'pedido:77',
@@ -304,7 +322,12 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('contact_email')).toBe('marcelo@example.com');
     expect(body.get('contact_notes')).toBe('Entregar por la tarde');
 
-    expect(await screen.findByText('Seguimiento publico creado')).toBeInTheDocument();
+    expect(await screen.findByText('Tu pedido quedo armado para revision')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-operational-result')).toBeInTheDocument();
+    expect(screen.getAllByText('Solicitud recibida').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Pedidos asistidos').length).toBeGreaterThan(0);
+    expect(screen.getByText('Ticket del equipo')).toBeInTheDocument();
+    expect(screen.getByText('Resolver faltantes y responder')).toBeInTheDocument();
     expect(screen.getByText('pc-77')).toBeInTheDocument();
     expect(screen.getByText('Que hace el equipo ahora')).toBeInTheDocument();
     expect(screen.getByText('Prioridad Normal')).toBeInTheDocument();

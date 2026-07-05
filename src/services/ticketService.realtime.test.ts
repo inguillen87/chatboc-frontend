@@ -408,6 +408,9 @@ describe('ticketService realtime normalization', () => {
       category: 'Arreglo de calle',
       channel: 'whatsapp',
       agent: 42,
+      priority: 'alta',
+      sla: 'risk',
+      unread: 'unread',
     });
 
     const [endpoint, options] = apiFetchMock.mock.calls[0];
@@ -420,6 +423,9 @@ describe('ticketService realtime normalization', () => {
     expect(endpoint).toContain('categoria=Arreglo+de+calle');
     expect(endpoint).toContain('channel=whatsapp');
     expect(endpoint).toContain('assigned_agent=42');
+    expect(endpoint).toContain('priority=alta');
+    expect(endpoint).toContain('sla=risk');
+    expect(endpoint).toContain('unread=unread');
     expect(options).toMatchObject({
       tenantSlug: 'junin',
       omitTenant: false,

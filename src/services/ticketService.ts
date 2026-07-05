@@ -171,6 +171,9 @@ export interface GetTicketsOptions {
     channel?: string;
     agent?: string | number;
     unassigned?: boolean;
+    priority?: string;
+    sla?: string;
+    unread?: string;
 }
 
 const normalizeTicketPagination = (
@@ -620,6 +623,9 @@ export const getTickets = async (
       appendFilterParam('categoria_id', options.categoryId);
       appendFilterParam('channel', options.channel);
       appendFilterParam('assigned_agent', options.agent);
+      appendFilterParam('priority', options.priority);
+      appendFilterParam('sla', options.sla);
+      appendFilterParam('unread', options.unread);
       if (options.unassigned) {
         params.set('unassigned', 'true');
       }

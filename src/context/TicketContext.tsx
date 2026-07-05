@@ -58,6 +58,9 @@ const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
     channel?: string;
     agent?: string;
     unassigned?: boolean;
+    priority?: string;
+    sla?: string;
+    unread?: string;
   } = {};
   const search = filters.search.trim();
   if (search) {
@@ -78,6 +81,15 @@ const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
     } else {
       serverFilters.agent = filters.agent;
     }
+  }
+  if (filters.priority !== 'all') {
+    serverFilters.priority = filters.priority;
+  }
+  if (filters.sla !== 'all') {
+    serverFilters.sla = filters.sla;
+  }
+  if (filters.unread !== 'all') {
+    serverFilters.unread = filters.unread;
   }
   return serverFilters;
 };
@@ -607,7 +619,16 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   );
   const serverTicketFilters = React.useMemo(
     () => resolveServerTicketFilters(filters),
-    [filters.agent, filters.area, filters.channel, filters.search, filters.status],
+    [
+      filters.agent,
+      filters.area,
+      filters.channel,
+      filters.priority,
+      filters.search,
+      filters.sla,
+      filters.status,
+      filters.unread,
+    ],
   );
   const serverTicketFiltersActive = Object.values(serverTicketFilters).some(Boolean);
 
