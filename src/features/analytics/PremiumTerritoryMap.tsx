@@ -754,6 +754,46 @@ export function PremiumTerritoryHeatmap({
       showRealtimeLayer,
     ],
   );
+  const liveMapEvidence = useMemo(
+    () => {
+      const heatmapRecord = asRecord(heatmap);
+      return {
+        source: usesDemoData ? 'demo_fallback' : usesBackendCellPoints ? 'backend_cells' : 'operations_heatmap',
+        provider: liveMapProvider,
+        contractVersion: readString(heatmap?.contract_version, geoLayerConfig?.contract_version),
+        usingSyntheticPoints: usesDemoData,
+        pointCount: liveMapPoints.length,
+        featureCount:
+          geoLayerConfig?.source && Array.isArray((geoLayerConfig.source as { features?: unknown[] }).features)
+            ? (geoLayerConfig.source as { features?: unknown[] }).features?.length ?? 0
+            : 0,
+        coveragePct: readNumber(
+          heatmap?.quality?.coverage_pct,
+          heatmap?.quality?.coverage,
+          heatmap?.summary?.coverage_pct,
+        ),
+        updatedAt: readString(
+          heatmap?.realtime?.latest_event_at,
+          heatmapRecord?.generated_at,
+          heatmapRecord?.updated_at,
+        ),
+      };
+    },
+    [
+      geoLayerConfig?.contract_version,
+      geoLayerConfig?.source,
+      heatmap,
+      heatmap?.contract_version,
+      heatmap?.quality?.coverage,
+      heatmap?.quality?.coverage_pct,
+      heatmap?.realtime?.latest_event_at,
+      heatmap?.summary?.coverage_pct,
+      liveMapPoints.length,
+      liveMapProvider,
+      usesBackendCellPoints,
+      usesDemoData,
+    ],
+  );
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
   const visiblePointCount = readiness.visiblePoints ?? aggregate.totalRecords;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
@@ -1209,6 +1249,7 @@ export function PremiumTerritoryHeatmap({
                 fitToBounds={liveMapBounds}
                 boundsPadding={{ top: 96, right: 48, bottom: 112, left: 48 }}
                 disableClientClustering
+                evidence={liveMapEvidence}
               />
             </div>
           ) : (

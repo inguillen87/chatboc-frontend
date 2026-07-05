@@ -1105,6 +1105,35 @@ export const SurveyAnalytics = ({
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
     [heatmapData],
   );
+  const surveyMapEvidence = useMemo(
+    () => ({
+      metadata: heatmapMetaRecord ?? undefined,
+      source: toNonEmptyString(heatmapMetaRecord?.source ?? heatmapMetaRecord?.fuente) ?? 'survey_heatmap',
+      provider,
+      requestId: toNonEmptyString(heatmapMetaRecord?.request_id),
+      contractVersion: toNonEmptyString(
+        categoryLayersRecord?.contract_version ??
+          heatmapMetaRecord?.contract_version ??
+          renderContractRecord?.contract_version,
+      ),
+      usingSyntheticPoints,
+      pointCount: heatmapData.length,
+      featureCount: categoryLayerSource?.features?.length ?? 0,
+      coveragePct:
+        toFiniteNumber(mapMetaRecord?.coverage_pct ?? mapMetaRecord?.coverage ?? heatmapMetaRecord?.coverage_pct) ??
+        undefined,
+    }),
+    [
+      categoryLayerSource?.features?.length,
+      categoryLayersRecord?.contract_version,
+      heatmapData.length,
+      heatmapMetaRecord,
+      mapMetaRecord,
+      provider,
+      renderContractRecord,
+      usingSyntheticPoints,
+    ],
+  );
   const totalResponsesValue = useMemo(
     () =>
       extractNumberFromRecord(summaryRecord, [
@@ -1561,6 +1590,7 @@ export const SurveyAnalytics = ({
                       : undefined
                   }
                   mapStyleUrl={toNonEmptyString(categoryLayersRecord?.style_url) ?? undefined}
+                  evidence={surveyMapEvidence}
                 />
               </MeasuredContainer>
               <div className="overflow-x-auto">
@@ -1676,6 +1706,7 @@ export const SurveyAnalytics = ({
                     : undefined
                 }
                 mapStyleUrl={toNonEmptyString(categoryLayersRecord?.style_url) ?? undefined}
+                evidence={surveyMapEvidence}
               />
             </MeasuredContainer>
           ) : heatmapData.length ? (

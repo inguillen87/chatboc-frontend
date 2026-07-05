@@ -5,6 +5,7 @@ import type { HeatPoint } from "@/services/statsService";
 import type { Map, LngLatLike, StyleSpecification } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
+import { MapEvidenceBadge, buildMapEvidence, type MapEvidenceInput } from "@/components/maps/MapEvidenceBadge";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { runtimeDiagnostics } from "@/utils/runtimeDiagnostics";
@@ -100,6 +101,7 @@ export type MapLibreMapProps = {
     details?: unknown,
   ) => void;
   disableClientClustering?: boolean;
+  evidence?: MapEvidenceInput | null;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -324,6 +326,7 @@ export default function MapLibreMap({
   onBoundingBoxChange,
   onProviderUnavailable,
   disableClientClustering = false,
+  evidence,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
@@ -442,6 +445,24 @@ export default function MapLibreMap({
   const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
 
   const effectiveProvider = providerOverride ?? provider;
+  const mapEvidence = useMemo(
+    () =>
+      buildMapEvidence({
+        evidence,
+        points: normalizedHeatmap,
+        features: configuredGeoSource?.features ?? null,
+        source: effectiveProvider,
+        provider: effectiveProvider,
+        contractVersion: geoLayerConfig?.contract_version,
+      }),
+    [
+      configuredGeoSource?.features,
+      effectiveProvider,
+      evidence,
+      geoLayerConfig?.contract_version,
+      normalizedHeatmap,
+    ],
+  );
 
   useEffect(() => {
     setProviderOverride(null);
@@ -485,6 +506,7 @@ export default function MapLibreMap({
         onProviderUnavailable={handleProviderUnavailable}
         disableClustering={!shouldCluster}
         googleMapsKey={resolvedGoogleMapsKey}
+        evidence={mapEvidence}
       />
     );
   }
@@ -1492,6 +1514,7 @@ export default function MapLibreMap({
   return (
     <div className={containerClassName}>
       <div ref={mapContainerRef} className="absolute inset-0" />
+      <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
       {fallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           {fallbackMessage}

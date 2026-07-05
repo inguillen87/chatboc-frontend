@@ -243,6 +243,39 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
       .filter(([, value]) => value !== null && value !== undefined && value !== '')
       .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
   }, [heatmapResponse]);
+  const heatmapEvidence = useMemo(() => {
+    const geoLayers = heatmapResponse?.geo_layers as Record<string, unknown> | undefined;
+    const provider = typeof geoLayers?.provider === 'string' ? geoLayers.provider : 'analytics_heatmap';
+    const contractVersion =
+      typeof heatmapResponse?.contract_version === 'string'
+        ? heatmapResponse.contract_version
+        : typeof geoLayers?.contract_version === 'string'
+          ? geoLayers.contract_version
+          : undefined;
+    return {
+      metadata: heatmapResponse?.metadata,
+      locationQuality,
+      source: provider,
+      provider,
+      requestId: heatmapResponse?.request_id,
+      contractVersion,
+      pointCount: filteredPoints.length,
+      cellCount: cells.length,
+      featureCount: geoLayerSource?.features?.length ?? 0,
+      coveragePct: locationQuality?.coverage_pct,
+      withCoordinates: locationQuality?.with_coordinates,
+      withoutCoordinates: locationQuality?.without_coordinates,
+    };
+  }, [
+    cells.length,
+    filteredPoints.length,
+    geoLayerSource?.features?.length,
+    heatmapResponse?.contract_version,
+    heatmapResponse?.geo_layers,
+    heatmapResponse?.metadata,
+    heatmapResponse?.request_id,
+    locationQuality,
+  ]);
 
   if (loading) return <div className="h-[320px] sm:h-[420px] flex items-center justify-center rounded-2xl border border-border/50 bg-background/60"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -448,6 +481,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
                         events?: string[];
                       } | undefined) ?? undefined,
                   }}
+                  evidence={heatmapEvidence}
               />
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">

@@ -3,6 +3,7 @@ import { GoogleMap, HeatmapLayerF, MarkerF, useJsApiLoader } from "@react-google
 import { cn } from "@/lib/utils";
 import type { HeatPoint } from "@/services/statsService";
 import type { MapProviderUnavailableReason } from "@/hooks/useMapProvider";
+import { MapEvidenceBadge, type MapEvidenceInput } from "@/components/maps/MapEvidenceBadge";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 
 type GoogleHeatmapMapProps = {
@@ -20,6 +21,7 @@ type GoogleHeatmapMapProps = {
   onProviderUnavailable?: (reason: MapProviderUnavailableReason, details?: unknown) => void;
   disableClustering?: boolean;
   googleMapsKey?: string | null;
+  evidence?: MapEvidenceInput | null;
 };
 
 declare global {
@@ -120,6 +122,7 @@ export function GoogleHeatmapMap({
   onProviderUnavailable,
   disableClustering,
   googleMapsKey,
+  evidence,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
@@ -388,6 +391,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("missing-api-key");
     return (
       <div className={mapContainerClassName}>
+        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           La configuracion de mapas todavia no esta completa. Cuando este lista, este mapa se activara automaticamente.
         </div>
@@ -399,6 +403,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("load-error", loadError);
     return (
       <div className={mapContainerClassName}>
+        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           No se pudo cargar Google Maps. Revisá la clave (`VITE_GOOGLE_MAPS_API_KEY`) o la conexión a Internet.
         </div>
@@ -409,6 +414,7 @@ export function GoogleHeatmapMap({
   if (!isLoaded) {
     return (
       <div className={mapContainerClassName}>
+        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           Cargando mapa de Google Maps...
         </div>
@@ -420,6 +426,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
     return (
       <div className={mapContainerClassName}>
+        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           No se pudo inicializar Google Maps. Verificá la clave (`VITE_GOOGLE_MAPS_API_KEY`) y la configuración de facturación.
         </div>
@@ -431,14 +438,15 @@ export function GoogleHeatmapMap({
     showHeatmap && heatmapPoints && heatmapLayerAvailable && aggregatedHeatmap.length > 0;
 
   return (
-    <GoogleMapComponent
+    <div className={mapContainerClassName}>
+      <GoogleMapComponent
       onLoad={handleMapLoad}
       onUnmount={handleMapUnmount}
       onClick={handleClick}
       onIdle={handleIdle}
       center={fallbackCenter}
       zoom={initialZoom}
-      mapContainerClassName={mapContainerClassName}
+      mapContainerClassName="absolute inset-0"
       options={{
         clickableIcons: true,
         fullscreenControl: true,
@@ -531,6 +539,8 @@ export function GoogleHeatmapMap({
           }}
         />
       ) : null}
-    </GoogleMapComponent>
+      </GoogleMapComponent>
+      <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+    </div>
   );
 }
