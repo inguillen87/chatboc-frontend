@@ -18,10 +18,14 @@ export const tenantService = {
   },
 
   updateTenantConfig: async (slug: string, payload: Partial<TenantConfigBundle>): Promise<TenantConfigBundle> => {
-    return apiFetch<TenantConfigBundle>(`${BASE_URL}/${slug}/config`, {
+    const response = await apiFetch<TenantConfigBundle | { message?: string }>(`${BASE_URL}/${slug}/config`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
+    if (response && "tenant" in response && "configs" in response) {
+      return response;
+    }
+    return tenantService.getTenantConfig(slug);
   },
 
   assignWhatsappNumber: async (slug: string): Promise<{ assigned: boolean; phone_number: string; sender_id: string }> => {

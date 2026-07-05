@@ -401,6 +401,40 @@ export interface IntegrationConnectResponse {
   [key: string]: unknown;
 }
 
+const INTEGRATION_PROVIDER_ALIASES: Record<string, IntegrationStatus['provider']> = {
+  mercadolibre: 'mercadolibre',
+  mercado_libre: 'mercadolibre',
+  'mercado libre': 'mercadolibre',
+  tiendanube: 'tiendanube',
+  tienda_nube: 'tiendanube',
+  'tienda nube': 'tiendanube',
+  whatsapp: 'whatsapp',
+  whats_app: 'whatsapp',
+  'whats app': 'whatsapp',
+  'whatsapp business': 'whatsapp',
+};
+
+const normalizeIntegrationProvider = (value: unknown): IntegrationStatus['provider'] | null => {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim().toLowerCase();
+  const normalized = raw.replace(/[-\s]+/g, '_');
+  return INTEGRATION_PROVIDER_ALIASES[normalized] ?? INTEGRATION_PROVIDER_ALIASES[raw] ?? null;
+};
+
+const normalizeIntegrationConnected = (details: any): boolean => {
+  if (typeof details?.connected === 'boolean') return details.connected;
+  if (typeof details?.is_connected === 'boolean') return details.is_connected;
+  if (typeof details?.enabled === 'boolean') return details.enabled;
+  if (typeof details?.active === 'boolean') return details.active;
+  if (typeof details?.status === 'string') {
+    return ['active', 'connected', 'enabled', 'ready'].includes(details.status.trim().toLowerCase());
+  }
+  return false;
+};
+
+const normalizeIntegrationLastSync = (details: any): string | undefined =>
+  details?.lastSync ?? details?.last_sync ?? details?.last_sync_at ?? details?.updated_at ?? undefined;
+
 export const apiClient = {
   // Updated endpoints for Commerce module
   // Legacy generic methods for backward compatibility
@@ -638,24 +672,40 @@ export const apiClient = {
   },
 
   adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
-    // Backend might return Object { "MercadoLibre": {...} } OR Array [{ provider: 'mercadolibre', ... }]
+    // Backend might return Object { "MercadoLibre": {...} } OR Array [{ type: 'WhatsApp', ... }]
     const rawData = await apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
 
     if (!rawData) return [];
 
     if (Array.isArray(rawData)) {
-        return rawData.map((item) => ({
-            provider: item.provider ? item.provider.toLowerCase() : 'unknown',
-            connected: !!item.connected,
-            lastSync: item.lastSync
-        }));
+      return rawData
+        .map((item): IntegrationStatus | null => {
+          const provider = normalizeIntegrationProvider(
+            item?.provider ?? item?.type ?? item?.integration_type ?? item?.channel,
+          );
+          if (!provider) return null;
+          return {
+            provider,
+            connected: normalizeIntegrationConnected(item),
+            lastSync: normalizeIntegrationLastSync(item),
+          };
+        })
+        .filter((item): item is IntegrationStatus => item !== null);
     }
 
-    return Object.entries(rawData).map(([provider, details]: [string, any]) => ({
-      provider: provider.toLowerCase() as any,
-      connected: details.connected,
-      lastSync: details.lastSync
-    }));
+    return Object.entries(rawData)
+      .map(([providerKey, details]: [string, any]): IntegrationStatus | null => {
+        const provider = normalizeIntegrationProvider(
+          details?.provider ?? details?.type ?? details?.integration_type ?? details?.channel ?? providerKey,
+        );
+        if (!provider) return null;
+        return {
+          provider,
+          connected: normalizeIntegrationConnected(details),
+          lastSync: normalizeIntegrationLastSync(details),
+        };
+      })
+      .filter((item): item is IntegrationStatus => item !== null);
   },
 
   adminConnectIntegration: async (tenantSlug: string, type: string): Promise<IntegrationConnectResponse> => {

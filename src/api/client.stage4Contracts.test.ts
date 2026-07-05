@@ -102,6 +102,40 @@ describe('apiClient stage4 contract integrations', () => {
     );
   });
 
+  it('normalizes tenant integrations returned with backend type fields', async () => {
+    apiFetchMock.mockResolvedValueOnce([
+      { type: 'MercadoLibre', connected: false },
+      { type: 'TiendaNube', status: 'active', last_sync_at: '2026-07-05T03:00:00Z' },
+      { type: 'WhatsApp', connected: true, lastSync: '2026-07-05T03:10:00Z' },
+    ]);
+
+    const integrations = await apiClient.adminGetIntegrations('junin');
+
+    expect(integrations).toEqual([
+      { provider: 'mercadolibre', connected: false, lastSync: undefined },
+      { provider: 'tiendanube', connected: true, lastSync: '2026-07-05T03:00:00Z' },
+      { provider: 'whatsapp', connected: true, lastSync: '2026-07-05T03:10:00Z' },
+    ]);
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/integrations', { tenantSlug: 'junin' });
+  });
+
+  it('normalizes tenant integrations returned as keyed objects', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      MercadoLibre: { connected: true, last_sync: '2026-07-05T03:20:00Z' },
+      TiendaNube: { enabled: false },
+      WhatsApp: { type: 'WhatsApp Business', active: true },
+      UnknownProvider: { connected: true },
+    });
+
+    const integrations = await apiClient.adminGetIntegrations('junin');
+
+    expect(integrations).toEqual([
+      { provider: 'mercadolibre', connected: true, lastSync: '2026-07-05T03:20:00Z' },
+      { provider: 'tiendanube', connected: false, lastSync: undefined },
+      { provider: 'whatsapp', connected: true, lastSync: undefined },
+    ]);
+  });
+
   it('falls back to legacy widget auth paths only when canonical routes are unavailable', async () => {
     const notFound = new ApiError('Not found', 404, { reason_code: 'not_found' });
     apiFetchMock
@@ -202,6 +236,9 @@ describe('apiClient stage4 contract integrations', () => {
     expect(result.request_id).toBe('req-workflow');
     expect(result.states).toEqual(['nuevo', 'en_proceso', 'cerrado']);
     expect(result.transitions.nuevo).toEqual(['en_proceso', 'cerrado']);
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/workflow/metadata', { tenantSlug: 'municipio' });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/tickets/workflow/metadata',
+      expect.objectContaining({ tenantSlug: 'municipio', suppressPanel401Redirect: true }),
+    );
   });
 });
