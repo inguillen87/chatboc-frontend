@@ -4,9 +4,22 @@ export type Role =
   | 'admin_super'
   | 'tenant_admin'
   | 'tenant-admin'
+  | 'tenant_owner'
+  | 'tenant-owner'
+  | 'owner'
+  | 'propietario'
+  | 'administrador'
+  | 'admin_tenant'
   | 'admin'
   | 'admin_pyme'
   | 'admin_municipio'
+  | 'admin_municipal'
+  | 'municipal_admin'
+  | 'municipality_admin'
+  | 'government_admin'
+  | 'gobierno_admin'
+  | 'school_admin'
+  | 'colegio_admin'
   | 'pyme_admin'
   | 'municipio_admin'
   | 'employee'
@@ -26,7 +39,28 @@ export type Role =
 
 const ROLE_EQUIVALENCE: Record<string, string[]> = {
   superadmin: ['superadmin', 'super_admin', 'admin_super'],
-  tenant_admin: ['tenant_admin', 'tenant-admin', 'admin', 'admin_pyme', 'admin_municipio', 'pyme_admin', 'municipio_admin'],
+  tenant_admin: [
+    'tenant_admin',
+    'tenant-admin',
+    'tenant_owner',
+    'tenant-owner',
+    'owner',
+    'propietario',
+    'administrador',
+    'admin',
+    'admin_tenant',
+    'admin_pyme',
+    'admin_municipio',
+    'admin_municipal',
+    'municipal_admin',
+    'municipality_admin',
+    'government_admin',
+    'gobierno_admin',
+    'school_admin',
+    'colegio_admin',
+    'pyme_admin',
+    'municipio_admin',
+  ],
   employee: ['employee', 'agent', 'empleado', 'operator', 'operador'],
   catalog_manager: ['catalog_manager'],
   analytics_viewer: ['analytics_viewer'],

@@ -90,6 +90,32 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('keeps the claims shortcut when the backend role uses a municipal admin alias', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'municipal_admin',
+        tipo_chat: 'municipio',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets',
+    );
+  });
+
   it('keeps the generic tickets label for non-municipal tenants', () => {
     useUserMock.mockReturnValue({
       user: {
