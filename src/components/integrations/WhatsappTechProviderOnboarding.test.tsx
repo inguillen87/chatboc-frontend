@@ -124,7 +124,7 @@ const baseContract = {
         label: "Prueba real WhatsApp",
         description: "Debe pedir confirmacion explicita antes de enviar.",
         method: "POST",
-        endpoint: "/api/v2/tenants/junin-1/whatsapp/live-message-test",
+        endpoint: "/api/v2/tenants/junin-1/whatsapp/tech-provider/smoke-test/live_whatsapp_message",
         execution_mode: "manual_confirmation_required",
         danger_level: "real_message",
         can_execute: false,
