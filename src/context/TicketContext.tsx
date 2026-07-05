@@ -97,6 +97,7 @@ const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
 const TICKET_FETCH_TIMEOUT_MS = 45000;
 const TICKET_INBOX_CACHE_VERSION = 1;
 const TICKET_INBOX_CACHE_TTL_MS = 10 * 60 * 1000;
+const TICKET_INBOX_RECENT_LIVE_TTL_MS = 15 * 1000;
 
 interface TicketInboxCachePayload {
   version: number;
@@ -107,6 +108,19 @@ interface TicketInboxCachePayload {
   pagination: TicketInboxPagination | null;
   selected_ticket_id: number | string | null;
 }
+
+type TicketInboxLiveResponse = Awaited<ReturnType<typeof getTickets>>;
+
+const ticketInboxInflightRequests = new Map<string, Promise<TicketInboxLiveResponse>>();
+const ticketInboxRecentLiveResponses = new Map<
+  string,
+  { fetchedAt: number; response: TicketInboxLiveResponse }
+>();
+
+export const __resetTicketInboxRuntimeDedupeForTests = () => {
+  ticketInboxInflightRequests.clear();
+  ticketInboxRecentLiveResponses.clear();
+};
 
 const sanitizeCacheSegment = (value: string) =>
   encodeURIComponent(value.trim().toLowerCase()).replace(/%/g, '_');
@@ -133,6 +147,49 @@ const resolveTicketInboxViewerKey = (profile: {
 
 const buildTicketInboxCacheKey = (tenantSlug: string, viewerKey: string) =>
   `chatboc:ticket-inbox:v${TICKET_INBOX_CACHE_VERSION}:${sanitizeCacheSegment(tenantSlug)}:${sanitizeCacheSegment(viewerKey)}`;
+
+const buildTicketInboxFetchKey = (
+  tenantSlug: string,
+  viewerKey: string,
+  serverFilters: Record<string, unknown>,
+) =>
+  JSON.stringify({
+    tenantSlug,
+    viewerKey,
+    filters: serverFilters,
+  });
+
+const fetchTicketInboxLive = (
+  fetchKey: string,
+  tenantSlug: string,
+  serverFilters: Parameters<typeof getTickets>[1],
+  options: { force?: boolean } = {},
+): Promise<TicketInboxLiveResponse> => {
+  const inFlight = ticketInboxInflightRequests.get(fetchKey);
+  if (inFlight) return inFlight;
+
+  if (!options.force) {
+    const recent = ticketInboxRecentLiveResponses.get(fetchKey);
+    if (recent && Date.now() - recent.fetchedAt < TICKET_INBOX_RECENT_LIVE_TTL_MS) {
+      return Promise.resolve(recent.response);
+    }
+  }
+
+  const request = getTickets(tenantSlug, serverFilters)
+    .then((response) => {
+      ticketInboxRecentLiveResponses.set(fetchKey, {
+        fetchedAt: Date.now(),
+        response,
+      });
+      return response;
+    })
+    .finally(() => {
+      ticketInboxInflightRequests.delete(fetchKey);
+    });
+
+  ticketInboxInflightRequests.set(fetchKey, request);
+  return request;
+};
 
 const readCachedTicketInbox = (cacheKey: string): TicketInboxCachePayload | null => {
   try {
@@ -742,10 +799,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     [userAccessProfile]
   );
 
-  const fetchTickets = useCallback(async () => {
+  const fetchTickets = useCallback(async (options: { force?: boolean } = {}) => {
     const tenantSlug = activeTenantSlug;
     const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
     const useCache = !serverTicketFiltersActive;
+    const forceLive = options.force === true;
 
     if (!tenantSlug) {
       setError(null);
@@ -758,6 +816,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     }
 
     const cacheKey = buildTicketInboxCacheKey(tenantSlug, viewerKey);
+    const fetchKey = buildTicketInboxFetchKey(tenantSlug, viewerKey, serverTicketFilters);
     const cachedInbox = readCachedTicketInbox(cacheKey);
     let cacheWasApplied = false;
 
@@ -785,7 +844,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
     try {
       const apiResponse = await withTimeout(
-        getTickets(tenantSlug, { page: 1, ...serverTicketFilters }),
+        fetchTicketInboxLive(fetchKey, tenantSlug, { page: 1, ...serverTicketFilters }, { force: forceLive }),
         TICKET_FETCH_TIMEOUT_MS,
         'La bandeja de reclamos tardo demasiado en responder.',
       );
@@ -1110,7 +1169,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setFilters,
     filterOptions,
     filteredTickets,
-    refreshTickets: fetchTickets,
+    refreshTickets: () => fetchTickets({ force: true }),
     pagination,
     hasMoreTickets: Boolean(pagination?.has_next),
     loadingMoreTickets,

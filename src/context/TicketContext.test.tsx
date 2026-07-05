@@ -37,7 +37,11 @@ vi.mock('@/utils/api', async () => {
   };
 });
 
-import { TicketProvider, useTickets } from '@/context/TicketContext';
+import {
+  TicketProvider,
+  __resetTicketInboxRuntimeDedupeForTests,
+  useTickets,
+} from '@/context/TicketContext';
 import { ApiError } from '@/utils/api';
 
 let ticketUpdateHandlers: Record<string, any> = {};
@@ -134,6 +138,7 @@ describe('TicketContext unread delta reconciliation', () => {
     window.sessionStorage.clear();
     ticketUpdateHandlers = {};
     getTicketsMock.mockReset();
+    __resetTicketInboxRuntimeDedupeForTests();
     useTicketUpdatesMock.mockReset();
     getTicketWorkflowMetadataMock.mockReset();
     getTicketWorkflowMetadataMock.mockResolvedValue({
@@ -236,6 +241,65 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('cached-selected-ticket').textContent).toBe('REC-LIVE');
       expect(screen.getByTestId('cached-loading').textContent).toBe('false');
     });
+  });
+
+  it('deduplicates identical live inbox loads across immediate CRM remounts', async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    getTicketsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    const renderInbox = () =>
+      render(
+        <>
+          <TicketProvider>
+            <CachedInboxConsumer />
+          </TicketProvider>
+          <TicketProvider>
+            <CachedInboxConsumer />
+          </TicketProvider>
+        </>,
+      );
+
+    const view = renderInbox();
+
+    await waitFor(() => {
+      expect(getTicketsMock).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      resolveFetch({
+        tickets: [
+          {
+            id: 77,
+            tipo: 'municipio',
+            nro_ticket: 'REC-DEDUP',
+            asunto: 'Luminaria',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:01:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('cached-ticket-count').map((node) => node.textContent)).toEqual([
+        '1',
+        '1',
+      ]);
+    });
+
+    view.unmount();
+    renderInbox();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('cached-selected-ticket')[0].textContent).toBe('REC-DEDUP');
+    });
+    expect(getTicketsMock).toHaveBeenCalledTimes(1);
   });
 
   it('keeps cached tickets visible but surfaces auth errors from the live refresh', async () => {
