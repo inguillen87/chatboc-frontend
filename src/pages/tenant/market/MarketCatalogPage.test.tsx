@@ -144,9 +144,9 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     expect(screen.getByText('Sin registro')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
-    expect(screen.getByText(/Subi una foto, lista o documento/i)).toBeInTheDocument();
+    expect(screen.getByText(/Subi una foto del papel, pega tu lista o manda un documento/i)).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
-    expect(screen.getByText(/Sirve para notas manuscritas/i)).toBeInTheDocument();
+    expect(screen.getByText(/Chatboc separa articulos, cantidades, direcciones/i)).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-public-promise')).toBeInTheDocument();
     expect(screen.getByText('Foto o manuscrito')).toBeInTheDocument();
     expect(screen.getByText('Texto de WhatsApp')).toBeInTheDocument();
@@ -243,6 +243,41 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
+  });
+
+  it('keeps assisted intake available when products are not visible even if the backend disables the block', async () => {
+    fetchMarketCatalogMock.mockResolvedValueOnce({
+      products: [],
+      promotions: { items: [] },
+      facets: { categories: [{ value: 'Materiales', label: 'Materiales', count: 4 }], promotion_count: 0 },
+      sort_options: [],
+      total: 0,
+      total_unfiltered: 4,
+      assisted_intake: {
+        contract_version: 'marketplace.assisted_intake_entry.v1',
+        title: 'Carga asistida apagada por contrato',
+      },
+      frontend_contract: {
+        show_assisted_intake: false,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Subi una foto del papel, pega tu lista o manda un documento/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeEnabled();
+    expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
+    expect(screen.getByText(/No hace falta saber usar un catalogo/i)).toBeInTheDocument();
   });
 
   it('hides assisted intake when the catalog has products and the backend contract disables it', async () => {

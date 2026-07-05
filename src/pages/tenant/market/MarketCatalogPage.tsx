@@ -334,7 +334,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       ];
   const catalogHasNoPublishedProducts = (totalUnfiltered ?? products.length) === 0;
   const assistedIntakeExplicitlyDisabled =
-    frontendContract?.show_assisted_intake === false && !catalogHasNoPublishedProducts;
+    frontendContract?.show_assisted_intake === false && products.length > 0 && !catalogHasNoPublishedProducts;
   const catalogStatusLine = useMemo(() => {
     if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
     const visibleCount = total ?? products.length;
@@ -638,10 +638,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   Sin registro
                 </Badge>
                 <h3 className="mt-2 text-lg font-semibold tracking-normal">
-                  Subi una foto, lista o documento. El equipo te responde con seguimiento.
+                  Subi una foto del papel, pega tu lista o manda un documento. El equipo recibe una solicitud lista para responder.
                 </h3>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  No hace falta navegar producto por producto: sirve para notas manuscritas, boletas, certificados, reclamos, pedidos de ferreteria, supermercado, bebidas o mensajes copiados de WhatsApp.
+                  No hace falta saber usar un catalogo ni escribir perfecto: Chatboc separa articulos, cantidades, direcciones, comprobantes o datos faltantes y deja todo en el panel con seguimiento publico.
                 </p>
               </div>
               <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
@@ -995,7 +995,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="font-semibold">Camino recomendado</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia y contacto comercial.
+                  Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia, seguimiento y respuesta del equipo.
                 </p>
               </div>
             ) : null}
