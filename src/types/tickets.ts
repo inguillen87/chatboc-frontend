@@ -303,6 +303,10 @@ export interface Ticket {
   allowed_actions?: Array<string | Record<string, unknown>> | null;
   actions?: Array<string | Record<string, unknown>> | null;
   next_steps?: Array<string | Record<string, unknown>> | null;
+  datos_extra?: Record<string, unknown> | null;
+  ai_enrichment?: Record<string, unknown> | null;
+  ai_hints?: Record<string, unknown> | null;
+  ai_operator_brief?: Record<string, unknown> | null;
   detail_endpoint?: string | null;
   messages_endpoint?: string | null;
   timeline_endpoint?: string | null;

@@ -223,6 +223,32 @@ const extractOperatorBrief = (payload: TicketAiEnrichmentResponse | null): Recor
   )) || {};
 };
 
+const extractPersistedTicketEnrichment = (ticketRecord: RecordLike): TicketAiEnrichmentResponse | null => {
+  const extra = asRecord(ticketRecord.datos_extra);
+  const directPayload = asRecord(ticketRecord.ai_enrichment);
+  const nestedPayload = asRecord(extra.ai_enrichment);
+  const payload = Object.keys(directPayload).length ? directPayload : nestedPayload;
+
+  if (!Object.keys(payload).length) return null;
+
+  const ticketHints = {
+    ...asRecord(ticketRecord.ai_hints),
+    ...asRecord(extra.ai_hints),
+    ...asRecord(payload.crm_hints),
+  };
+  const ticketOperatorBrief = {
+    ...asRecord(ticketRecord.ai_operator_brief),
+    ...asRecord(extra.ai_operator_brief),
+    ...asRecord(payload.operator_brief),
+  };
+
+  return {
+    ...payload,
+    crm_hints: Object.keys(ticketHints).length ? ticketHints : payload.crm_hints,
+    operator_brief: Object.keys(ticketOperatorBrief).length ? ticketOperatorBrief : payload.operator_brief,
+  } as TicketAiEnrichmentResponse;
+};
+
 type OperatorChecklistItem = { id: string; label: string; priority: string; done: boolean };
 
 const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
@@ -244,14 +270,18 @@ const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
 );
 
 export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
-  const [enrichment, setEnrichment] = React.useState<TicketAiEnrichmentResponse | null>(null);
+  const ticketRecord = React.useMemo(() => asRecord(ticket), [ticket]);
+  const persistedEnrichment = React.useMemo(
+    () => extractPersistedTicketEnrichment(ticketRecord),
+    [ticketRecord],
+  );
+  const [enrichment, setEnrichment] = React.useState<TicketAiEnrichmentResponse | null>(() => persistedEnrichment);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [replyCopied, setReplyCopied] = React.useState(false);
   const [replyLoaded, setReplyLoaded] = React.useState(false);
   const requestSeq = React.useRef(0);
 
-  const ticketRecord = asRecord(ticket);
   const ticketId = asString(ticketRecord.id || ticketRecord.ticket_id);
   const ticketType = asString(ticketRecord.ticket_type || ticketRecord.tipo || ticketRecord.tenant_type).toLowerCase();
   const isTenantTicket = isTenantTicketV2(ticketRecord as Partial<Ticket> & Record<string, unknown>);
@@ -309,13 +339,21 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
           ? AI_ENRICHMENT_UNAVAILABLE_COPY
           : 'No se pudo calcular la asistencia IA para este ticket. El CRM sigue operativo.',
       );
-      setEnrichment(null);
+      if (!persistedEnrichment) {
+        setEnrichment(null);
+      }
     } finally {
       if (requestSeq.current === currentRequest) {
         setLoading(false);
       }
     }
-  }, [isTenantTicket, requestTicketType, scope, tenantSlug, ticketId, ticketNumber, ticketRecord]);
+  }, [isTenantTicket, persistedEnrichment, requestTicketType, scope, tenantSlug, ticketId, ticketNumber, ticketRecord]);
+
+  React.useEffect(() => {
+    if (!persistedEnrichment) return;
+    setEnrichment(persistedEnrichment);
+    setError(null);
+  }, [persistedEnrichment]);
 
   React.useEffect(() => {
     void loadEnrichment();
@@ -424,6 +462,11 @@ export default function AiAssistPanel({ ticket }: AiAssistPanelProps) {
           {enrichment?.contract_version ? (
             <Badge variant="outline" className="bg-background/80">
               {enrichment.contract_version}
+            </Badge>
+          ) : null}
+          {asBoolean(enrichment?.persisted) ? (
+            <Badge variant="outline" className="bg-background/80">
+              guardado en CRM
             </Badge>
           ) : null}
         </div>

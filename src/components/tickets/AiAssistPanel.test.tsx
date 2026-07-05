@@ -30,6 +30,61 @@ describe('AiAssistPanel', () => {
     mockedGetTicketAiEnrichment.mockReset();
   });
 
+  it('uses persisted CRM enrichment immediately and keeps it if refresh is unavailable', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockedGetTicketAiEnrichment.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    render(
+      <AiAssistPanel
+        ticket={{
+          ...ticketFixture(),
+          ai_enrichment: {
+            contract_version: 'ticket.ai_enrichment.v1',
+            advisory_policy: { advisory_only: true, mutates_operational_state: false },
+            source: { text_chars: 96, comments_count: 0 },
+            huggingface: {
+              provider_family: 'huggingface',
+              priority: {
+                prioridad: 'urgente',
+                score: 0.91,
+                provider: 'deterministic_local_fallback',
+              },
+            },
+            crm_hints: {
+              risk_level: 'alto',
+              requires_human_attention: true,
+              requires_photo: true,
+              advisory_only: true,
+              mutates_operational_state: false,
+            },
+            operator_brief: {
+              summary: 'Reclamo con evidencia operativa suficiente para mesa de entrada.',
+              routing_hint: 'servicios_publicos_luminaria',
+              recommended_first_reply: 'Hola, ya tenemos registrado el reclamo y lo revisa el area.',
+            },
+            state_mutation: { applied: false },
+            persisted: true,
+            secret_values_exposed: false,
+          },
+        } as Ticket}
+      />,
+    );
+
+    expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
+    expect(screen.getByText('guardado en CRM')).toBeInTheDocument();
+    expect(screen.getByText('Reclamo con evidencia operativa suficiente para mesa de entrada.')).toBeInTheDocument();
+
+    await waitFor(() => expect(mockedGetTicketAiEnrichment).toHaveBeenCalled());
+    expect(
+      await screen.findByText(
+        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
+
   it('surfaces the local fallback engine and advisory municipal signals', async () => {
     mockedGetTicketAiEnrichment.mockResolvedValue({
       contract_version: 'ticket.ai_enrichment.v1',
