@@ -416,7 +416,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
-  const showVisibleSummaryBar = showListSummaryBar && (!compact || delegatedHeader);
+  const showVisibleSummaryBar = showListSummaryBar && !compact;
   const listSummaryTitle = activeFilterSummary.length
     ? activeFilterSummary.join(' | ')
     : 'Sin filtros activos';

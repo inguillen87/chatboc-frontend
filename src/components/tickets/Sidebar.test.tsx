@@ -402,7 +402,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.queryByTestId('sidebar-filter-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
     const summaryBar = screen.getByTestId('sidebar-list-summary-bar');
-    expect(summaryBar).not.toHaveClass('sr-only');
+    expect(summaryBar).toHaveClass('sr-only');
     expect(summaryBar).toHaveTextContent('1 activo');
     expect(summaryBar).toHaveTextContent('1 visible');
     expect(screen.queryByRole('button', { name: /^exportar$/i })).not.toBeInTheDocument();
