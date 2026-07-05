@@ -112,8 +112,8 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 <h4 className="line-clamp-1 text-sm font-semibold leading-5 text-foreground" title={subject}>
                   {subject}
                 </h4>
-                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
-                  {ticketNumber} - {displayName}
+                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${displayName} - ${ticketNumber}`}>
+                  {displayName} - {ticketNumber}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
@@ -125,11 +125,6 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
             </div>
             {(categoryLabel || priorityLabel || slaLabel || assignedLabel) && (
               <div className="mt-1 flex min-w-0 items-center gap-1 overflow-hidden">
-                {categoryLabel && categoryLabel !== subject ? (
-                  <Badge variant="outline" className="max-w-[7rem] shrink truncate px-1.5 py-0 text-[10px] font-semibold">
-                    {categoryLabel}
-                  </Badge>
-                ) : null}
                 {priorityLabel ? (
                   <Badge
                     variant="outline"
@@ -156,14 +151,17 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                   </Badge>
                 ) : null}
                 {assignedLabel ? (
-                  <Badge variant="secondary" className="min-w-0 shrink truncate px-1.5 py-0 text-[10px]">
-                    {assignedLabel}
-                  </Badge>
+                  <span className="min-w-0 truncate text-[10px] font-medium leading-4 text-muted-foreground">
+                    Resp. {assignedLabel}
+                  </span>
                 ) : null}
               </div>
             )}
-            <p className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground">
-              {ticket.lastMessage || '...'}
+            <p
+              className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground"
+              title={ticket.lastMessage || categoryLabel || 'Sin actividad reciente'}
+            >
+              {ticket.lastMessage || categoryLabel || 'Sin actividad reciente'}
             </p>
             {nextAction ? <span className="sr-only">Accion sugerida: {nextAction}</span> : null}
           </div>

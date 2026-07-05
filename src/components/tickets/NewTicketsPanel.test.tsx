@@ -184,7 +184,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('No');
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Resueltos');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr)',
     });
     expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
@@ -272,17 +272,17 @@ describe('NewTicketsPanel CRM layout', () => {
     });
 
     try {
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1500 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
       const narrow = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr)',
       });
       narrow.unmount();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1650 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr) minmax(280px, 340px)',
+        gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr) minmax(280px, 320px)',
       });
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });

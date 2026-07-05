@@ -28,7 +28,7 @@ type MobileTransitionDirection = -1 | 0 | 1;
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
 const TICKET_LOADING_GRACE_MS = 42000;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
-const EMBEDDED_DETAIL_MIN_WIDTH = 1600;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1280;
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
@@ -670,11 +670,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(300px, 380px) minmax(0, 1fr) minmax(280px, 340px)'
+      ? 'minmax(288px, 340px) minmax(0, 1fr) minmax(280px, 320px)'
       : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(300px, 380px) minmax(0, 1fr)'
+        ? 'minmax(288px, 340px) minmax(0, 1fr)'
         : 'minmax(280px, 340px) minmax(0, 1fr)'
       : isDetailsVisible
         ? 'minmax(0, 1fr) minmax(300px, 360px)'
