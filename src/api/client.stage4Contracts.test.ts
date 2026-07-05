@@ -242,6 +242,8 @@ describe('apiClient stage4 contract integrations', () => {
         tenantSlug: 'municipio',
         suppressPanel401Redirect: true,
         baseUrlOverride: expect.any(String),
+        omitCredentials: true,
+        omitChatSessionId: true,
       }),
     );
   });

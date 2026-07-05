@@ -563,6 +563,8 @@ export const apiClient = {
       tenantSlug,
       suppressPanel401Redirect: true,
       baseUrlOverride: PUBLIC_BACKEND_URL,
+      omitCredentials: true,
+      omitChatSessionId: true,
     });
     return normalizeTicketWorkflowMetadata(response);
   },

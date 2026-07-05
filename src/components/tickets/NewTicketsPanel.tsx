@@ -26,7 +26,7 @@ type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
 
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
-const TICKET_LOADING_GRACE_MS = 12000;
+const TICKET_LOADING_GRACE_MS = 22000;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
 const EMBEDDED_DETAIL_MIN_WIDTH = 1280;
 

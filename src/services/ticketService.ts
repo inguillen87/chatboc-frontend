@@ -639,6 +639,8 @@ export const getTickets = async (
       omitTenant: false,
       suppressPanel401Redirect: true,
       baseUrlOverride: PUBLIC_BACKEND_URL,
+      omitCredentials: true,
+      omitChatSessionId: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });
