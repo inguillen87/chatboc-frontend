@@ -1,4 +1,5 @@
 import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
+import { PUBLIC_BACKEND_URL } from '@/config';
 import {
   Ticket,
   Message,
@@ -637,6 +638,7 @@ export const getTickets = async (
       tenantSlug,
       omitTenant: false,
       suppressPanel401Redirect: true,
+      baseUrlOverride: PUBLIC_BACKEND_URL,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });

@@ -477,6 +477,7 @@ describe('ticketService realtime normalization', () => {
       tenantSlug: 'junin',
       omitTenant: false,
       suppressPanel401Redirect: true,
+      baseUrlOverride: expect.any(String),
     });
   });
 

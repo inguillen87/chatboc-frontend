@@ -238,7 +238,11 @@ describe('apiClient stage4 contract integrations', () => {
     expect(result.transitions.nuevo).toEqual(['en_proceso', 'cerrado']);
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/tickets/workflow/metadata',
-      expect.objectContaining({ tenantSlug: 'municipio', suppressPanel401Redirect: true }),
+      expect.objectContaining({
+        tenantSlug: 'municipio',
+        suppressPanel401Redirect: true,
+        baseUrlOverride: expect.any(String),
+      }),
     );
   });
 });
