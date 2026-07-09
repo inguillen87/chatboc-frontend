@@ -384,6 +384,14 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     `Busco: ${term}`,
     'No lo encontre en el catalogo. Quiero que el equipo revise disponibilidad, precio o alternativa y me responda.',
   ].join('\n');
+  const buildProductConsultDraft = (product: MarketProduct, reason?: string | null) => [
+    `Busco: ${product.name}`,
+    product.sku ? `SKU: ${product.sku}` : null,
+    product.category ? `Categoria: ${product.category}` : null,
+    product.priceText ? `Precio publicado: ${product.priceText}` : null,
+    reason ? `Motivo: ${reason}` : 'Necesito confirmar disponibilidad, precio o alternativa.',
+    'Quiero que el equipo revise este producto y me responda para completar el pedido.',
+  ].filter(Boolean).join('\n');
   const assistedFirstActive = showAssistedIntake && !isLoading && (
     effectiveAssistedIntake?.mode === 'assisted_first' ||
     totalUnfiltered === 0 ||
@@ -510,6 +518,28 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       return;
     }
     scrollToAssistedUpload(preferredMode);
+  };
+  const activateProductConsult = (product: MarketProduct, reason?: string | null) => {
+    const draft = buildProductConsultDraft(product, reason);
+    trackMarketplaceCta('product_consult_started', 'product_card', {
+      product_id: product.id,
+      product_name: product.name,
+      stock_status: product.stock_status ?? product.inventory?.stock_status ?? null,
+      reason: reason ?? null,
+    });
+    if (showAssistedIntake) {
+      setAssistedDraftRequest((current) => ({
+        text: draft,
+        key: (current?.key ?? 0) + 1,
+      }));
+      scrollToAssistedUpload('text');
+      return;
+    }
+    const fallbackUrl =
+      product.whatsappShareUrl ||
+      shareMeta?.whatsappShareUrl ||
+      `https://wa.me/?text=${encodeURIComponent(draft)}`;
+    window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -1082,6 +1112,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <ProductCard
                 product={product}
                 onAdd={(id) => addItem(id)}
+                onConsult={activateProductConsult}
                 isAdding={isCartLoading}
               />
               <Button asChild variant="outline" size="sm">

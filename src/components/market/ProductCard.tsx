@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { MarketProduct } from '@/types/market';
 import { formatCurrency } from '@/utils/currency';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
-import { ExternalLink, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
+import { ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
 
 interface ProductCardProps {
   product: MarketProduct;
   onAdd: (productId: string) => void;
+  onConsult?: (product: MarketProduct, reason?: string | null) => void;
   isAdding?: boolean;
 }
 
@@ -18,7 +19,7 @@ const formatPrice = (value?: number | null, currency = 'ARS'): string => {
   return formatCurrency(value, currency);
 };
 
-export default function ProductCard({ product, onAdd, isAdding }: ProductCardProps) {
+export default function ProductCard({ product, onAdd, onConsult, isAdding }: ProductCardProps) {
   const currency = (product.currency ?? 'ARS').toUpperCase();
   const displayPrice = product.priceText ?? formatPrice(product.price, currency);
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
@@ -134,11 +135,17 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
           ) : (
             <Button
               className="w-full"
-              onClick={() => onAdd(product.id)}
-              disabled={isAdding || !canAddToCart}
+              onClick={() => {
+                if (canAddToCart) {
+                  onAdd(product.id);
+                  return;
+                }
+                onConsult?.(product, validation.reason);
+              }}
+              disabled={isAdding || (!canAddToCart && !onConsult)}
               title={!canAddToCart && validation.reason ? validation.reason : undefined}
             >
-              <ShoppingBag className="mr-2 h-4 w-4" />
+              {canAddToCart ? <ShoppingBag className="mr-2 h-4 w-4" /> : <MessageCircle className="mr-2 h-4 w-4" />}
               {isAdding ? 'Agregando...' : canAddToCart ? 'Agregar' : 'Consultar'}
             </Button>
           )}
