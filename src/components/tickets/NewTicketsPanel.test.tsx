@@ -306,6 +306,13 @@ describe('NewTicketsPanel CRM layout', () => {
       commonDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
+      const mediumDesktop = render(<NewTicketsPanel embedded />);
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr)',
+      });
+      mediumDesktop.unmount();
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
         gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr) minmax(280px, 320px)',

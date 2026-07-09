@@ -35,6 +35,7 @@ interface UserData {
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
   rol?: string;
+  role?: string;
   permissions?: string[];
   capabilities?: string[];
   scopes?: string[];
@@ -141,10 +142,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await apiFetch<any>('/api/me');
       const rubroNorm = parseRubro(data.rubro) || '';
+      const resolvedRole = typeof data.rol === 'string' ? data.rol : typeof data.role === 'string' ? data.role : undefined;
       if (!data.tipo_chat) {
         console.warn('tipo_chat faltante en respuesta de /me');
       }
-      if (!data.rol) {
+      if (!resolvedRole) {
         console.warn('rol faltante en respuesta de /me');
       }
       const finalTipo = data.tipo_chat
@@ -263,7 +265,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar_consent: resolvedProfileAvatar.consented,
         picture: resolvedProfileAvatar.avatarUrl,
         tipo_chat: finalTipo,
-        rol: data.rol,
+        rol: resolvedRole,
+        role: resolvedRole,
         permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
         capabilities: Array.isArray(data.capabilities) ? data.capabilities : undefined,
         scopes: Array.isArray(data.scopes) ? data.scopes : undefined,

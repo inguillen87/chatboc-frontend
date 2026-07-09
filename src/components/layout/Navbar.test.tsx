@@ -64,6 +64,44 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('routes backoffice live chat into the operational ticket desk on mobile', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Chat$/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets&focus=live_chat',
+    );
+  });
+
+  it('keeps the public chat shortcut for end users', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'chat_user',
+        tipo_chat: 'municipio',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: [],
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Chat$/i })).toHaveAttribute('href', '/chat');
+  });
+
   it('keeps the municipal claims shortcut for tenant admins even while backend capabilities are partial', () => {
     useUserMock.mockReturnValue({
       user: {

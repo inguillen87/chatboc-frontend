@@ -77,4 +77,29 @@ describe("persistPanelLoginSession", () => {
       tenantSlug: "junin",
     });
   });
+
+  it("normalizes backend role payloads into the rol field expected by the app", () => {
+    const user = persistPanelLoginSession({
+      token: "jwt-token",
+      user: {
+        id: 11,
+        email: "mauricio@junin.com",
+        name: "Mauricio",
+        role: "admin_municipio",
+        tenant_slug: "municipio",
+      },
+      tipoChat: "municipio",
+    });
+
+    expect(user).toMatchObject({
+      role: "admin_municipio",
+      rol: "admin_municipio",
+      tenant_slug: "municipio",
+      tipo_chat: "municipio",
+    });
+    expect(JSON.parse(safeLocalStorage.getItem("user") || "{}")).toMatchObject({
+      role: "admin_municipio",
+      rol: "admin_municipio",
+    });
+  });
 });

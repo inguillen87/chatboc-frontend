@@ -131,6 +131,7 @@ const Navbar: React.FC = () => {
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
   const isMunicipal = effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
+  const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
@@ -337,7 +338,7 @@ const Navbar: React.FC = () => {
                   </RouterLink>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <RouterLink to="/chat" className="flex items-center gap-2 text-sm">
+                  <RouterLink to={liveChatPath} className="flex items-center gap-2 text-sm">
                     <MessageCircle className="h-4 w-4" />
                     Chat en vivo
                   </RouterLink>
@@ -424,7 +425,7 @@ const Navbar: React.FC = () => {
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
                   Mi perfil
                 </RouterLink>
-                <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
+                <RouterLink to={liveChatPath} onClick={() => setMenuOpen(false)} className={mobileItemClass}>
                   Chat
                 </RouterLink>
                 {adminLinks.length > 0 || FEATURE_ENCUESTAS ? (

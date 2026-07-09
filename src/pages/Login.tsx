@@ -28,6 +28,7 @@ import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
 import { persistPanelLoginSession } from "@/utils/panelLoginSession";
+import { hasRequiredRole } from "@/utils/roles";
 
 
 const isDevEnvironment = () => {
@@ -56,6 +57,7 @@ interface LoginResponse {
     email: string;
     name: string;
     rol: string;
+    role?: string;
     tenant_slug: string;
   };
   entityToken?: string;
@@ -463,7 +465,7 @@ const Login = () => {
       });
 
       const responseTenantSlug = data.user?.tenant_slug;
-      const responseRole = data.user?.rol;
+      const responseRole = data.user?.rol || data.user?.role;
       const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
       persistPanelLoginSession({
         token: data.token,
@@ -476,9 +478,9 @@ const Login = () => {
 
       if (safeNextPath) {
         navigate(safeNextPath);
-      } else if (responseRole === "super_admin") {
+      } else if (hasRequiredRole(responseRole, ["superadmin"])) {
         navigate("/superadmin");
-      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(responseRole)) {
+      } else if (hasRequiredRole(responseRole, ["tenant_admin", "employee", "catalog_manager", "analytics_viewer"])) {
         navigate("/perfil");
       } else {
         navigate(buildTenantPath("/", resolvedTenantSlug));
@@ -509,7 +511,7 @@ const Login = () => {
     try {
       const result = await loginPasskey();
       const responseTenantSlug = (result as any)?.tenantSlug || (result as any)?.tenant_slug;
-      const resultRole = (result as any)?.user?.rol;
+      const resultRole = (result as any)?.user?.rol || (result as any)?.user?.role;
       persistPanelLoginSession({
         token: result?.token,
         user: (result as any)?.user,
@@ -518,8 +520,8 @@ const Login = () => {
         tenantSlugHint: responseTenantSlug,
         setUser: setUser as any,
       });
-      const isSuperAdmin = resultRole === "super_admin" || resultRole === "superadmin";
-      const isAdmin = isSuperAdmin || resultRole === "admin" || resultRole === "empleado";
+      const isSuperAdmin = hasRequiredRole(resultRole, ["superadmin"]);
+      const isAdmin = isSuperAdmin || hasRequiredRole(resultRole, ["tenant_admin", "employee", "catalog_manager", "analytics_viewer"]);
 
       if (safeNextPath) {
         navigate(safeNextPath);

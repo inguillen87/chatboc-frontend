@@ -5,6 +5,7 @@ export interface PanelLoginUser {
   email?: string;
   name?: string;
   rol?: string;
+  role?: string;
   tenant_slug?: string | null;
   tenantSlug?: string | null;
   tipo_chat?: "pyme" | "municipio" | string | null;
@@ -79,12 +80,12 @@ export const persistPanelLoginSession = ({
     safeLocalStorage.setItem("tenantSlug", resolvedTenantSlug);
   }
 
-  const resolvedRole = firstText(user?.rol, storedUser.rol);
+  const resolvedRole = firstText(user?.rol, user?.role, storedUser.rol, storedUser.role);
   const resolvedTipoChat = firstText(tipoChat, user?.tipo_chat, storedUser.tipo_chat);
   const nextUser: PanelLoginUser = {
     ...storedUser,
     ...(user || {}),
-    ...(resolvedRole ? { rol: resolvedRole } : {}),
+    ...(resolvedRole ? { rol: resolvedRole, role: resolvedRole } : {}),
     ...(resolvedTipoChat ? { tipo_chat: resolvedTipoChat } : {}),
     ...(token ? { token } : {}),
     ...(resolvedTenantSlug
