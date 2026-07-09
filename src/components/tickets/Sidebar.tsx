@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
     QUEUE_ITEMS_PER_PAGE,
   );
-  const delegatedHeader = compact && !showFilterControl;
+  const delegatedHeader = !showFilterControl;
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
   const searchInputId = React.useId();
   const contextSearchTerm = typeof (filters as any).search === 'string' ? (filters as any).search : '';
@@ -562,6 +562,66 @@ const Sidebar: React.FC<SidebarProps> = ({
               {totalBackendTickets.toLocaleString('es-AR')} cargados
             </p>
           </div>
+        ) : delegatedHeader ? (
+          <>
+            <h1 className="sr-only">
+              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+            </h1>
+            <div
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5"
+              data-testid="sidebar-search-controls"
+              data-density="delegated"
+            >
+              <div className="relative min-w-0" role="search">
+                <label className="sr-only" htmlFor={searchInputId}>
+                  Buscar reclamos por numero, asunto, nombre, DNI o telefono
+                </label>
+                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id={searchInputId}
+                  placeholder="Buscar por nro, asunto o vecino..."
+                  className="h-8 pl-8 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              {listModeToggle}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 px-0"
+                    title="Exportar"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    <span className="sr-only">Exportar</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                    Exportar Todos (Excel)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                    Exportar Todos (PDF)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      exportToPdf(selectedTicket, selectedTicket?.messages || [])
+                    }
+                    disabled={!selectedTicket}
+                  >
+                    Exportar Ticket Actual (PDF)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p data-testid="sidebar-ticket-summary" className="sr-only">
+              {filteredTickets.length.toLocaleString('es-AR')} filtrados -{' '}
+              {tickets.length.toLocaleString('es-AR')} de{' '}
+              {totalBackendTickets.toLocaleString('es-AR')} cargados
+            </p>
+          </>
         ) : (
           <>
             <div className="flex items-center justify-between gap-2">

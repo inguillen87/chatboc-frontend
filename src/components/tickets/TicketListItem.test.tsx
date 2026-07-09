@@ -130,7 +130,7 @@ describe('TicketListItem', () => {
     expect(screen.getByText('MA')).toBeInTheDocument();
   });
 
-  it('keeps suggested actions accessible but out of the compact visual row', () => {
+  it('shows suggested actions in the compact operational row', () => {
     const { container } = render(
       <TicketListItem
         ticket={{
@@ -144,7 +144,8 @@ describe('TicketListItem', () => {
       />,
     );
 
-    expect(screen.getByText(/accion sugerida: responder desde la mesa operativa/i)).toHaveClass('sr-only');
-    expect(container.querySelector('.bg-primary\\/5')).not.toBeInTheDocument();
+    expect(screen.getByText(/ahora:/i)).toBeInTheDocument();
+    expect(screen.getByText(/responder desde la mesa operativa/i)).toBeInTheDocument();
+    expect(container.querySelector('.bg-primary\\/5')).toBeInTheDocument();
   });
 });

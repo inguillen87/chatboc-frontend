@@ -163,7 +163,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
             >
               {ticket.lastMessage || categoryLabel || 'Sin actividad reciente'}
             </p>
-            {nextAction ? <span className="sr-only">Accion sugerida: {nextAction}</span> : null}
+            {nextAction ? (
+              <p
+                className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"
+                title={nextAction}
+              >
+                <span className="font-semibold">Ahora: </span>
+                {nextAction}
+              </p>
+            ) : null}
           </div>
         </div>
       </button>

@@ -412,6 +412,26 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
   });
 
+  it('uses a lightweight work queue header when desktop CRM delegates filters upstream', async () => {
+    render(<Sidebar showFilterControl={false} showListSummaryBar={false} />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
+    expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^rubros$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^exportar$/i })).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
+      'data-compact',
+      'true',
+    );
+  });
+
   it('can delegate the list summary bar to the parent operational header', async () => {
     render(<Sidebar compact showFilterControl={false} showListSummaryBar={false} />);
 
