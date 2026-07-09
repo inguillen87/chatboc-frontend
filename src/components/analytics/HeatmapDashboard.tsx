@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 // Assuming MapLibreMap component exists as per prompt trace
 // If not, a placeholder or simple div will be used to avoid breaking
 import MapLibreMap from '@/components/LazyMapLibreMap';
+import { buildMapExperience } from '@/features/maps/mapExperienceAdapter';
 
 interface Props {
   tenantId: number;
@@ -97,6 +98,14 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
 
 
   const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
+  const mapExperience = useMemo(
+    () =>
+      buildMapExperience(heatmapResponse, {
+        sourceContract: heatmapResponse?.contract_version,
+        sourceKind: filters?.source || filters?.canal || 'analytics_heatmap',
+      }),
+    [filters?.canal, filters?.source, heatmapResponse],
+  );
   const segments = useMemo(() => heatmapResponse?.segments || {}, [heatmapResponse]);
   const availableLayers = useMemo(() => {
     const layers = heatmapResponse?.geo_layers?.layers;
@@ -154,32 +163,17 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
           : [],
     [heatmapResponse],
   );
-  const cells = useMemo(() => (Array.isArray(heatmapResponse?.cells) ? heatmapResponse.cells : []), [heatmapResponse]);
+  const cells = useMemo(() => mapExperience.cells, [mapExperience.cells]);
   const hotspots = useMemo(() => (Array.isArray(heatmapResponse?.hotspots) ? heatmapResponse.hotspots : []), [heatmapResponse]);
   const locationQuality = useMemo(() => heatmapResponse?.location_quality, [heatmapResponse]);
   const geocodingCandidates = useMemo(
     () => (Array.isArray(heatmapResponse?.geocoding?.candidates) ? heatmapResponse.geocoding.candidates : []),
     [heatmapResponse],
   );
-  const tileUrl = useMemo(() => {
-    const url = heatmapResponse?.geo_layers?.tiles?.url;
-    return typeof url === 'string' && url.trim() ? url.trim() : undefined;
-  }, [heatmapResponse]);
-  const tileAttribution = useMemo(() => {
-    const attribution = heatmapResponse?.geo_layers?.tiles?.attribution;
-    return typeof attribution === 'string' && attribution.trim() ? attribution.trim() : undefined;
-  }, [heatmapResponse]);
-  const mapStyleUrl = useMemo(() => {
-    const styleUrl = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.style_url;
-    return typeof styleUrl === 'string' && styleUrl.trim() ? styleUrl.trim() : undefined;
-  }, [heatmapResponse]);
-  const geoLayerSource = useMemo(() => {
-    const source = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.source;
-    if (!source || typeof source !== 'object') return null;
-    const record = source as Record<string, unknown>;
-    if (record.type !== 'FeatureCollection' || !Array.isArray(record.features)) return null;
-    return source as { type: 'FeatureCollection'; features: unknown[] };
-  }, [heatmapResponse]);
+  const tileUrl = mapExperience.mapTileUrl;
+  const tileAttribution = mapExperience.mapTileAttribution;
+  const mapStyleUrl = mapExperience.mapStyleUrl;
+  const geoLayerSource = mapExperience.geoLayerSource ?? null;
   const sourceOptions = useMemo(() => {
     const sourceOptionsCandidate = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.source_options;
     return sourceOptionsCandidate && typeof sourceOptionsCandidate === 'object'
@@ -188,20 +182,25 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
   }, [heatmapResponse]);
   const mapBounds = useMemo(
     () =>
-      filteredPoints
+      (filteredPoints.length ? filteredPoints : mapExperience.displayPoints)
         .map((point) => [Number(point.lng), Number(point.lat)] as [number, number])
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
-    [filteredPoints],
+    [filteredPoints, mapExperience.displayPoints],
   );
   const mapCenter = useMemo(() => {
-    if (!filteredPoints.length) return undefined;
-    const totalWeight = filteredPoints.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
-    const divisor = totalWeight > 0 ? totalWeight : filteredPoints.length;
-    const avgLat = filteredPoints.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
-    const avgLng = filteredPoints.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    const targetPoints = filteredPoints.length ? filteredPoints : mapExperience.displayPoints;
+    if (!targetPoints.length) return mapExperience.center;
+    const totalWeight = targetPoints.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
+    const divisor = totalWeight > 0 ? totalWeight : targetPoints.length;
+    const avgLat = targetPoints.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    const avgLng = targetPoints.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
     if (!Number.isFinite(avgLat) || !Number.isFinite(avgLng)) return undefined;
     return [avgLng, avgLat] as [number, number];
-  }, [filteredPoints]);
+  }, [filteredPoints, mapExperience.center, mapExperience.displayPoints]);
+  const mapDisplayPoints = useMemo(
+    () => (filteredPoints.length ? filteredPoints : mapExperience.displayPoints),
+    [filteredPoints, mapExperience.displayPoints],
+  );
   const legend = useMemo(() => heatmapResponse?.geo_layers?.legend, [heatmapResponse]);
   const uiLabels = useMemo(() => heatmapResponse?.ui?.labels || {}, [heatmapResponse]);
   const layerLabels = useMemo(() => heatmapResponse?.ui?.layer_labels || {}, [heatmapResponse]);
@@ -259,22 +258,31 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
       provider,
       requestId: heatmapResponse?.request_id,
       contractVersion,
-      pointCount: filteredPoints.length,
-      cellCount: cells.length,
+      pointCount: mapDisplayPoints.length,
+      cellCount: mapExperience.quality.cellCount,
       featureCount: geoLayerSource?.features?.length ?? 0,
-      coveragePct: locationQuality?.coverage_pct,
-      withCoordinates: locationQuality?.with_coordinates,
-      withoutCoordinates: locationQuality?.without_coordinates,
+      coveragePct: locationQuality?.coverage_pct ?? mapExperience.quality.coveragePct,
+      withCoordinates: locationQuality?.with_coordinates ?? mapExperience.quality.withCoordinates,
+      withoutCoordinates: locationQuality?.without_coordinates ?? mapExperience.quality.withoutCoordinates,
+      usingCellFallback: mapExperience.quality.usingCellFallback,
+      privacyMode: mapExperience.quality.privacyMode,
+      rawPointsRedacted: mapExperience.quality.rawPointsRedacted,
     };
   }, [
-    cells.length,
-    filteredPoints.length,
     geoLayerSource?.features?.length,
     heatmapResponse?.contract_version,
     heatmapResponse?.geo_layers,
     heatmapResponse?.metadata,
     heatmapResponse?.request_id,
     locationQuality,
+    mapDisplayPoints.length,
+    mapExperience.quality.cellCount,
+    mapExperience.quality.coveragePct,
+    mapExperience.quality.privacyMode,
+    mapExperience.quality.rawPointsRedacted,
+    mapExperience.quality.usingCellFallback,
+    mapExperience.quality.withCoordinates,
+    mapExperience.quality.withoutCoordinates,
   ]);
 
   if (loading) return <div className="h-[320px] sm:h-[420px] flex items-center justify-center rounded-2xl border border-border/50 bg-background/60"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -446,9 +454,9 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
           </div>
         ) : null}
         <div className="h-[300px] sm:h-[420px] lg:h-[520px] relative overflow-hidden rounded-xl border">
-          {(filteredPoints.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
+          {(mapDisplayPoints.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
               <MapLibreMap
-                  heatmapData={filteredPoints as any}
+                  heatmapData={mapDisplayPoints as any}
                   showHeatmap={showHeatLayer}
                   center={mapCenter}
                   fitToBounds={mapBounds.length ? mapBounds : undefined}
@@ -456,31 +464,11 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => 
                   mapStyleUrl={mapStyleUrl}
                   mapTileUrl={tileUrl}
                   mapTileAttribution={tileAttribution}
-                  geoLayerConfig={{
-                    contract_version:
-                      typeof (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.contract_version === 'string'
-                        ? String((heatmapResponse?.geo_layers as Record<string, unknown>).contract_version)
-                        : undefined,
-                    style_url: mapStyleUrl,
-                    source: geoLayerSource,
-                    source_options: sourceOptions,
-                    interactions:
-                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.interactions as {
-                        hover?: boolean;
-                        time_slider?: { enabled?: boolean; field?: string };
-                      } | undefined) ?? undefined,
-                    layers:
-                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.layers as {
-                        heatmap?: { id?: string };
-                        clusters?: { id?: string };
-                        points?: { id?: string };
-                      } | undefined) ?? undefined,
-                    telemetry:
-                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.telemetry as {
-                        event_endpoint?: string;
-                        events?: string[];
-                      } | undefined) ?? undefined,
-                  }}
+                  geoLayerConfig={
+                    mapExperience.geoLayerConfig
+                      ? { ...mapExperience.geoLayerConfig, source_options: sourceOptions ?? mapExperience.geoLayerConfig.source_options }
+                      : undefined
+                  }
                   evidence={heatmapEvidence}
               />
           ) : (
