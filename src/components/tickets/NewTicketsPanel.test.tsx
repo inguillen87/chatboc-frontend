@@ -337,6 +337,18 @@ describe('NewTicketsPanel CRM layout', () => {
       fecha: '2026-06-01T09:00:00.000Z',
       tipo: 'municipio',
       collaboration_state: { has_unread: true },
+      crm_queue: {
+        contract_version: 'tickets.crm_queue.v1',
+        state: 'customer_waiting',
+        score: 135,
+        label: 'Responder ahora',
+        reason: 'Hay actividad del vecino sin lectura completa del equipo.',
+        next_team_action: 'reply_from_crm',
+        badges: [
+          { id: 'unread', label: 'Mensaje sin leer', tone: 'live' },
+          { id: 'unassigned', label: 'Sin responsable', tone: 'warning' },
+        ],
+      },
     };
     useTicketsMock.mockReturnValue({
       loading: false,
@@ -355,7 +367,11 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel embedded />);
 
     expect(screen.getByTestId('tickets-next-priority-strip')).toHaveTextContent('M-2');
-    fireEvent.click(screen.getByRole('button', { name: /atender siguiente prioridad/i }));
+    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Proxima accion');
+    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Responder ahora');
+    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Score 135');
+    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Hay actividad del vecino');
+    fireEvent.click(screen.getByRole('button', { name: /atender prioridad recomendada/i }));
 
     expect(selectTicket).toHaveBeenCalledWith(2);
   });

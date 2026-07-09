@@ -148,6 +148,26 @@ export interface TicketCollaborationState {
   idle_window_minutes?: number;
 }
 
+export interface TicketCrmQueueBadge {
+  id?: string;
+  label?: string;
+  tone?: string;
+}
+
+export interface TicketCrmQueue {
+  contract_version?: string;
+  id?: string;
+  ticket_type?: string;
+  state?: string;
+  score?: number;
+  label?: string;
+  reason?: string;
+  next_team_action?: string;
+  requires_admin_response?: boolean;
+  badges?: TicketCrmQueueBadge[];
+  signals?: Record<string, unknown>;
+}
+
 
 export interface UnifiedConversationStreamItem {
   id: string;
@@ -299,6 +319,7 @@ export interface Ticket {
   priority?: string | number | null;
   priority_score?: number | null;
   priority_breakdown?: Record<string, unknown> | null;
+  crm_queue?: TicketCrmQueue | null;
   recommended_next_action?: string | null;
   allowed_actions?: Array<string | Record<string, unknown>> | null;
   actions?: Array<string | Record<string, unknown>> | null;

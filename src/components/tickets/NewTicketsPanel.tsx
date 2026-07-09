@@ -13,11 +13,11 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, Target, UserRound } from 'lucide-react';
 import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import type { Ticket } from '@/types/tickets';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
-import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
+import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 import { resolveTenantSlug } from '@/utils/api';
@@ -147,6 +147,44 @@ const resolveTicketQueueLabel = (ticket: Ticket) =>
   ticket.title ||
   ticket.description ||
   'Sin asunto';
+
+const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
+  if (!ticket) return null;
+  const explicit = ticket.crm_queue && typeof ticket.crm_queue === 'object' ? ticket.crm_queue : null;
+  if (explicit?.label || explicit?.reason || explicit?.state) {
+    return {
+      state: explicit.state || 'ready',
+      score: Number(explicit.score || 0),
+      label: explicit.label || 'Atender caso',
+      reason: explicit.reason || 'El CRM recomienda revisar este caso.',
+      next_team_action: explicit.next_team_action || 'open_ticket',
+      badges: Array.isArray(explicit.badges) ? explicit.badges : [],
+    };
+  }
+
+  const unread = hasUnreadTicket(ticket);
+  const risk = isRiskTicket(ticket);
+  const unassigned = isUnassignedQueueTicket(ticket);
+  const state = unread ? 'customer_waiting' : risk ? 'sla_attention' : unassigned ? 'unassigned' : 'ready';
+  return {
+    state,
+    score: (unread ? 100 : 0) + (risk ? 50 : 0) + (unassigned ? 25 : 0),
+    label: unread ? 'Responder ahora' : risk ? 'Revisar SLA' : unassigned ? 'Asignar responsable' : 'Mesa al dia',
+    reason: unread
+      ? 'Hay actividad ciudadana o de cliente sin lectura completa del equipo.'
+      : risk
+        ? 'El caso esta vencido, por vencer o marcado como prioridad alta.'
+        : unassigned
+          ? 'El caso esta abierto y necesita un operador responsable.'
+          : 'No hay senales criticas activas para este caso.',
+    next_team_action: unread ? 'reply_from_crm' : risk ? 'review_sla_and_update' : unassigned ? 'assign_owner' : 'monitor_ticket',
+    badges: [
+      unread ? { id: 'unread', label: 'Sin leer', tone: 'live' } : null,
+      risk ? { id: 'sla_risk', label: 'SLA riesgo', tone: 'warning' } : null,
+      unassigned ? { id: 'unassigned', label: 'Sin responsable', tone: 'warning' } : null,
+    ].filter(Boolean) as Array<{ id?: string; label?: string; tone?: string }>,
+  };
+};
 
 const TicketOpsStat = ({
   label,
@@ -691,6 +729,8 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     nextPriorityTicket && selectedTicket && String(nextPriorityTicket.id) === String(selectedTicket.id),
   );
   const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
+  const nextPriorityCrmQueue = resolveTicketCrmQueue(nextPriorityTicket);
+  const selectedTicketCrmQueue = resolveTicketCrmQueue(selectedTicket);
   const selectedTicketReference = selectedTicket?.nro_ticket || selectedTicket?.id || null;
   const selectedTicketStatus = selectedTicket ? formatTicketStatusLabel(selectedTicket.estado) : null;
   const selectedTicketChannel = selectedTicket?.channel || 'whatsapp';
@@ -698,6 +738,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const selectedTicketHasUnread = selectedTicket ? hasUnreadTicket(selectedTicket) : false;
   const selectedTicketNextAction =
     selectedTicket?.recommended_next_action ||
+    selectedTicketCrmQueue?.label ||
     (selectedTicketHasUnread ? 'Responder conversacion' : null) ||
     (nextPriorityTicket ? `Proximo: ${nextPriorityLabel}` : 'Mesa actualizada');
   const continuityTone = riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default';
@@ -1029,6 +1070,50 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
             ]}
           />
+        </div>
+      ) : null}
+      {embedded && nextPriorityTicket && nextPriorityCrmQueue ? (
+        <div className="border-b border-border/70 bg-background/70 px-2.5 py-1.5 sm:px-3" data-testid="tickets-queue-command-card">
+          <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2 shadow-sm min-[860px]:flex-row min-[860px]:items-center min-[860px]:justify-between">
+            <div className="flex min-w-0 items-start gap-2">
+              <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-background/90 text-primary">
+                <Target className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="secondary" className="rounded-full text-[10px] uppercase tracking-[0.12em]">
+                    Proxima accion
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full text-[11px]">
+                    Score {nextPriorityCrmQueue.score.toLocaleString('es-AR')}
+                  </Badge>
+                  {nextPriorityCrmQueue.badges.slice(0, 3).map((badge) => (
+                    <Badge key={badge.id || badge.label} variant="outline" className="rounded-full text-[11px]">
+                      {badge.label || badge.id}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="mt-1 truncate text-sm font-semibold text-foreground">
+                  {nextPriorityCrmQueue.label}: #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} - {nextPriorityLabel}
+                </p>
+                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  {nextPriorityCrmQueue.reason}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant={isNextPrioritySelected ? 'secondary' : 'default'}
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs"
+              disabled={isNextPrioritySelected}
+              aria-label={isNextPrioritySelected ? 'Prioridad recomendada en atencion' : 'Atender prioridad recomendada'}
+              onClick={() => selectTicket(nextPriorityTicket.id)}
+            >
+              <span>{isNextPrioritySelected ? 'En foco' : 'Atender'}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       ) : null}
       {isMobile ? (
