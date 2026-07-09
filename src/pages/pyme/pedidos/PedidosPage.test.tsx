@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 import { apiClient } from '@/api/client';
 import type { Order } from '@/types/unified';
@@ -20,6 +21,13 @@ vi.mock('@/api/client', () => ({
 
 const mockAdminListOrders = vi.mocked(apiClient.adminListOrders);
 const mockAdminUpdateOrder = vi.mocked(apiClient.adminUpdateOrder);
+
+const renderPedidosPage = (initialEntry = '/pedidos') =>
+  render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <PedidosPage />
+    </MemoryRouter>,
+  );
 
 const assistedOrder: Order = {
   id: 'assistida-1',
@@ -299,8 +307,24 @@ describe('PedidosPage', () => {
     mockAdminUpdateOrder.mockResolvedValue(assistedOrder);
   });
 
+  it('opens assisted commerce deep links with the operational filter and detail ready', async () => {
+    renderPedidosPage('/perfil?tab=orders&focus=assisted&channel=marketplace&q=clavos');
+
+    expect(await screen.findByTestId('orders-operational-focus')).toBeTruthy();
+    expect(screen.getByText('Vista operativa aplicada')).toBeTruthy();
+    expect(screen.getByText('Canal: Marketplace')).toBeTruthy();
+    expect(screen.getByText('Busqueda: clavos')).toBeTruthy();
+    expect(screen.getByText('1 visibles')).toBeTruthy();
+
+    expect(screen.getByLabelText('Abrir pedido assistida-1')).toBeTruthy();
+    expect(screen.queryByLabelText('Abrir pedido regular-2')).toBeNull();
+
+    await waitFor(() => expect(screen.getByText('Pedido #assistida-1')).toBeTruthy());
+    expect(screen.getAllByText('Revisar en CRM').length).toBeGreaterThan(0);
+  });
+
   it('searches assisted marketplace requests by extracted text/contact and avoids fake shipping data', async () => {
-    render(<PedidosPage />);
+    renderPedidosPage();
 
     expect(await screen.findByLabelText('Abrir pedido assistida-1')).toBeTruthy();
     expect(screen.getByLabelText('Abrir pedido regular-2')).toBeTruthy();
@@ -350,7 +374,7 @@ describe('PedidosPage', () => {
   });
 
   it('renders crm_review_card summaries without requiring assisted_request data', async () => {
-    render(<PedidosPage />);
+    renderPedidosPage();
 
     expect(await screen.findByLabelText('Abrir pedido regular-2')).toBeTruthy();
     expect(screen.getAllByText('Resumen CRM').length).toBeGreaterThan(0);
@@ -367,7 +391,7 @@ describe('PedidosPage', () => {
   it('does not count partial or failed assisted requests as ready for confirmation', async () => {
     mockAdminListOrders.mockResolvedValueOnce([readyAssistedOrder, failedAssistedOrder]);
 
-    render(<PedidosPage />);
+    renderPedidosPage();
 
     expect(await screen.findByLabelText('Abrir pedido ready-3')).toBeTruthy();
     expect(screen.getByLabelText('Abrir pedido manual-4')).toBeTruthy();
@@ -397,7 +421,7 @@ describe('PedidosPage', () => {
   });
 
   it('opens an authenticated assisted upload workspace for operator intake', async () => {
-    render(<PedidosPage />);
+    renderPedidosPage();
 
     expect(await screen.findByLabelText('Abrir pedido assistida-1')).toBeTruthy();
 

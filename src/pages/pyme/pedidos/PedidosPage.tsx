@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { CrmOperatorAction, CrmReviewCard, Order } from '@/types/unified';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,39 @@ const CHANNEL_LABELS: Record<string, string> = {
   marketplace: "Marketplace",
   manual_admin: "Manual admin",
   phone: "Teléfono",
+};
+
+const AI_FILTER_VALUES = new Set(['all', 'assisted', 'needs_review', 'ready']);
+const CHANNEL_FILTER_VALUES = new Set([
+  'all',
+  'mercadolibre',
+  'whatsapp',
+  'tiendanube',
+  'marketplace',
+  'manual_admin',
+  'phone',
+  'web',
+]);
+
+const normalizeAiFocusParam = (value: string | null): string => {
+  const normalized = (value || '').trim().toLowerCase();
+  if (!normalized) return 'all';
+  if (['review', 'needs-review', 'needs_review', 'manual_review', 'pending_operator_review'].includes(normalized)) {
+    return 'needs_review';
+  }
+  if (['ready', 'ready_to_reply', 'ready_for_confirmation', 'confirmation'].includes(normalized)) {
+    return 'ready';
+  }
+  if (['assisted', 'ai', 'ia', 'commerce_assisted_orders'].includes(normalized)) {
+    return 'assisted';
+  }
+  return AI_FILTER_VALUES.has(normalized) ? normalized : 'all';
+};
+
+const normalizeChannelParam = (value: string | null): string => {
+  const normalized = (value || '').trim().toLowerCase();
+  if (!normalized) return 'all';
+  return CHANNEL_FILTER_VALUES.has(normalized) ? normalized : 'all';
 };
 
 const normalizeOrders = (raw: unknown): Order[] => {
@@ -622,11 +655,28 @@ const CrmOperatorActionsPanel = ({
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryString = searchParams.toString();
+  const initialSearchTerm = searchParams.get('q') || searchParams.get('search') || '';
+  const requestedOrderId = searchParams.get('order_id') || searchParams.get('id') || searchParams.get('pedido_id') || '';
+  const hasOperationalDeepLink = Boolean(
+    searchParams.get('focus') ||
+      searchParams.get('queue') ||
+      searchParams.get('ai') ||
+      searchParams.get('channel') ||
+      searchParams.get('canal') ||
+      initialSearchTerm ||
+      requestedOrderId,
+  );
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [channelFilter, setChannelFilter] = useState<string>('all');
-  const [aiFilter, setAiFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState(() => initialSearchTerm);
+  const [channelFilter, setChannelFilter] = useState<string>(() =>
+    normalizeChannelParam(searchParams.get('channel') || searchParams.get('canal')),
+  );
+  const [aiFilter, setAiFilter] = useState<string>(() =>
+    normalizeAiFocusParam(searchParams.get('focus') || searchParams.get('queue') || searchParams.get('ai')),
+  );
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Manual Order State
@@ -641,6 +691,17 @@ const PedidosPage = () => {
       loadOrders();
     }
   }, [currentSlug]);
+
+  useEffect(() => {
+    const nextSearchTerm = searchParams.get('q') || searchParams.get('search') || '';
+    const nextChannelFilter = normalizeChannelParam(searchParams.get('channel') || searchParams.get('canal'));
+    const nextAiFilter = normalizeAiFocusParam(searchParams.get('focus') || searchParams.get('queue') || searchParams.get('ai'));
+
+    setSearchTerm((current) => (current === nextSearchTerm ? current : nextSearchTerm));
+    setChannelFilter((current) => (current === nextChannelFilter ? current : nextChannelFilter));
+    setAiFilter((current) => (current === nextAiFilter ? current : nextAiFilter));
+    setSelectedOrder(null);
+  }, [queryString, searchParams]);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -792,6 +853,16 @@ const PedidosPage = () => {
     : { avatarUrl: undefined, source: undefined, consented: undefined };
   const selectedCustomerPhone = selectedCustomerProfile.phone || (selectedOrder as any)?.customerPhone || 'Sin teléfono';
   const selectedCustomerEmail = selectedCustomerProfile.email || (selectedOrder as any)?.customerEmail || 'Sin email';
+
+  useEffect(() => {
+    if (!hasOperationalDeepLink || loading || selectedOrder || !filteredOrders.length) return;
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+
+    const requested = requestedOrderId
+      ? filteredOrders.find((order) => String(order.id) === String(requestedOrderId))
+      : null;
+    setSelectedOrder(requested || filteredOrders[0]);
+  }, [filteredOrders, hasOperationalDeepLink, loading, requestedOrderId, selectedOrder]);
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -984,6 +1055,49 @@ const PedidosPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {hasOperationalDeepLink ? (
+        <div
+          data-testid="orders-operational-focus"
+          className="flex flex-none flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-950 shadow-sm dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-100 md:flex-row md:items-center md:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">Vista operativa aplicada</p>
+            <p className="text-xs text-blue-900/75 dark:text-blue-100/75">
+              {aiFilter === 'needs_review'
+                ? 'Pedidos asistidos que requieren revision del operador.'
+                : aiFilter === 'ready'
+                  ? 'Pedidos asistidos listos para confirmar o responder.'
+                  : aiFilter === 'assisted'
+                    ? 'Pedidos asistidos recibidos desde marketplace, WhatsApp o widget.'
+                    : 'Pedidos filtrados por contexto operativo.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {channelFilter !== 'all' ? <Badge variant="secondary">Canal: {CHANNEL_LABELS[channelFilter] || channelFilter}</Badge> : null}
+            {searchTerm ? <Badge variant="secondary">Busqueda: {searchTerm}</Badge> : null}
+            <Badge variant="outline">{filteredOrders.length} visibles</Badge>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchTerm('');
+                setChannelFilter('all');
+                setAiFilter('all');
+                setSelectedOrder(null);
+                const next = new URLSearchParams(searchParams);
+                ['focus', 'queue', 'ai', 'channel', 'canal', 'q', 'search', 'order_id', 'id', 'pedido_id'].forEach((key) =>
+                  next.delete(key),
+                );
+                setSearchParams(next, { replace: true });
+              }}
+            >
+              Limpiar vista
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0 relative">
         {/* Order List */}
