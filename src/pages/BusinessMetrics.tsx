@@ -385,14 +385,43 @@ export default function BusinessMetrics() {
     ? tenantHeatmap.heatmap_points
         .map((point) => ({
           lat: Number(point?.lat),
-          lng: Number(point?.lng),
+          lng: Number(point?.lng ?? point?.lon),
           weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
           categoria: point?.categoria,
           zona: point?.zona,
-          label: point?.label,
+          label:
+            point?.label ??
+            point?.survey_title ??
+            point?.survey_slug ??
+            point?.ticket_id ??
+            point?.response_id,
+          source: point?.source,
+          ticket_type: point?.ticket_type,
+          survey_id: point?.survey_id,
+          survey_slug: point?.survey_slug,
+          survey_title: point?.survey_title,
+          is_live_vote: point?.is_live_vote,
         }))
         .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
     : [];
+  const heatmapSourceSummary = useMemo(() => {
+    const counts = {
+      tickets: 0,
+      surveys: 0,
+      liveVotes: 0,
+    };
+
+    heatmapPoints.forEach((point) => {
+      if (point.source === "survey_response" || point.ticket_type === "survey_response") {
+        counts.surveys += 1;
+        if (point.is_live_vote) counts.liveVotes += 1;
+      } else {
+        counts.tickets += 1;
+      }
+    });
+
+    return counts;
+  }, [heatmapPoints]);
   const coverageCategories = Array.isArray(employeeCoverage?.categorias)
     ? employeeCoverage.categorias
     : [];
@@ -692,6 +721,11 @@ export default function BusinessMetrics() {
             <CardContent className="space-y-6">
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
                 <div className="rounded-xl border border-border bg-muted/20 p-3">
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <Badge variant="outline">Tickets {heatmapSourceSummary.tickets.toLocaleString("es-AR")}</Badge>
+                    <Badge variant="secondary">Encuestas {heatmapSourceSummary.surveys.toLocaleString("es-AR")}</Badge>
+                    <Badge variant="secondary">Votaciones {heatmapSourceSummary.liveVotes.toLocaleString("es-AR")}</Badge>
+                  </div>
                   {heatmapPoints.length ? (
                     <MapLibreMap
                       className="h-[360px] w-full rounded-lg"

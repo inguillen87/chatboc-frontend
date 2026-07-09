@@ -552,16 +552,28 @@ export interface LeadTimelineEvent {
 
 export interface StrategicHeatmapPoint {
   lat?: number;
+  lng?: number;
   lon?: number;
   categoria?: string;
   zona?: string;
   tipo?: string;
   count?: number;
+  source?: string;
+  ticket_type?: string;
+  survey_id?: number;
+  survey_slug?: string;
+  survey_title?: string;
+  survey_tipo?: string;
+  is_live_vote?: boolean;
+  response_id?: number;
+  channel?: string;
 }
 
 export interface StrategicHeatmapResponse {
   top_categories?: Array<{ categoria?: string; count?: number }>;
   top_zones?: Array<{ zona?: string; count?: number }>;
+  hotspot_pairs?: Array<{ categoria?: string; zona?: string; count?: number }>;
+  hotspots?: Array<{ categoria?: string; zona?: string; count?: number }>;
   heatmap_points?: StrategicHeatmapPoint[];
 }
 
