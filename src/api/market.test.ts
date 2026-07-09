@@ -546,6 +546,23 @@ describe('market api continuity normalization', () => {
           method: 'POST',
           endpoint: '/api/pedidos/from-file?origen=marketplace',
         },
+        security: {
+          contract_version: 'marketplace.public_security.v1',
+          protected_surfaces: ['marketplace_assisted_upload'],
+          turnstile: {
+            contract_version: 'cloudflare.turnstile.public_intake.v1',
+            provider: 'cloudflare_turnstile',
+            surface: 'marketplace_assisted_upload',
+            status: 'required',
+            configured: true,
+            enforced: true,
+            required: true,
+            token_header: 'X-Turnstile-Token',
+            token_fields: ['turnstile_token', 'cf-turnstile-response'],
+            retryable: false,
+            reset_required: false,
+          },
+        },
         flow_runtime: {
           method: 'GET',
           endpoint: '/api/public/flows/runtime?tenant=junin&channel=whatsapp',
@@ -599,6 +616,22 @@ describe('market api continuity normalization', () => {
       },
       assisted_upload: {
         endpoint: '/api/pedidos/from-file?origen=marketplace',
+      },
+      security: {
+        contract_version: 'marketplace.public_security.v1',
+        protected_surfaces: ['marketplace_assisted_upload'],
+        turnstile: {
+          contract_version: 'cloudflare.turnstile.public_intake.v1',
+          provider: 'cloudflare_turnstile',
+          surface: 'marketplace_assisted_upload',
+          status: 'required',
+          configured: true,
+          enforced: true,
+          required: true,
+          token_header: 'X-Turnstile-Token',
+          token_fields: ['turnstile_token', 'cf-turnstile-response'],
+          reset_required: false,
+        },
       },
       flow_runtime: {
         endpoint: '/api/public/flows/runtime?tenant=junin&channel=whatsapp',

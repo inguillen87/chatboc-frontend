@@ -27,7 +27,11 @@ import { TurnstileChallenge } from '@/components/security/TurnstileChallenge';
 import { useTenant } from '@/context/TenantContext';
 import { CLOUDFLARE_TURNSTILE_SITE_KEY } from '@/env';
 import { cn } from '@/lib/utils';
-import type { MarketAssistedIntakeEntry, MarketAssistedIntakeTextExample } from '@/types/market';
+import type {
+  MarketAssistedIntakeEntry,
+  MarketAssistedIntakeTextExample,
+  MarketPublicSecurityContract,
+} from '@/types/market';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 
 interface UploadOrderFromFileProps {
@@ -40,6 +44,7 @@ interface UploadOrderFromFileProps {
   suggestedTextDraft?: string | null;
   suggestedTextDraftKey?: number | null;
   suggestedDocumentType?: string | null;
+  securityContract?: MarketPublicSecurityContract | null;
   compactMarketplaceHeader?: boolean;
   className?: string;
   id?: string;
@@ -1027,6 +1032,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   suggestedTextDraft,
   suggestedTextDraftKey,
   suggestedDocumentType,
+  securityContract,
   compactMarketplaceHeader = false,
   className,
   id,
@@ -1058,8 +1064,22 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
-  const turnstileSiteKey = isMarketplace ? CLOUDFLARE_TURNSTILE_SITE_KEY : '';
+  const turnstileContract = securityContract?.turnstile ?? null;
+  const hasExplicitTurnstileContract = Boolean(turnstileContract);
+  const turnstileRequired = Boolean(
+    isMarketplace &&
+      turnstileContract &&
+      (turnstileContract.required === true ||
+        turnstileContract.enforced === true ||
+        turnstileContract.status === 'required'),
+  );
+  const turnstileSiteKey =
+    isMarketplace && (!hasExplicitTurnstileContract || turnstileRequired)
+      ? CLOUDFLARE_TURNSTILE_SITE_KEY
+      : '';
   const turnstileEnabled = Boolean(turnstileSiteKey);
+  const turnstileUnavailable = Boolean(isMarketplace && turnstileRequired && !turnstileSiteKey);
+  const turnstileRequiresToken = turnstileEnabled && (!hasExplicitTurnstileContract || turnstileRequired);
 
   useEffect(() => {
     const nextDraft = String(suggestedTextDraft || '').trim();
@@ -1111,7 +1131,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const hasExplicitIntakeContract = Boolean(intakeExperience);
   const submitEndpoint = submitContract?.endpoint || (!hasExplicitIntakeContract ? '/api/pedidos/from-file?origen=marketplace' : '');
   const canSubmitToServer = !isMarketplace || Boolean(submitEndpoint);
-  const submitDisabled = uploading || !canSubmitToServer;
+  const submitDisabled = uploading || !canSubmitToServer || turnstileUnavailable;
   const submitMethod = (submitContract?.method || 'POST').toUpperCase() === 'POST' ? 'POST' : 'POST';
   const submitFileField = submitContract?.file_field || 'archivo';
   const submitTextField = submitContract?.text_field || 'pedido_text';
@@ -1207,7 +1227,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       setError('Este marketplace todavia no habilito la carga asistida desde el backend.');
       return;
     }
-    if (turnstileEnabled && !turnstileToken.trim()) {
+    if (turnstileUnavailable) {
+      setError('Cloudflare Turnstile esta requerido, pero falta configurar la site key publica en el frontend.');
+      return;
+    }
+    if (turnstileRequiresToken && !turnstileToken.trim()) {
       setError('Completa la verificacion de seguridad para enviar la solicitud anonima.');
       return;
     }
@@ -1805,6 +1829,16 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 testId="marketplace-turnstile-challenge"
                 description="Protege la carga anonima de pedidos, reclamos y documentos sin pedirte registro previo."
               />
+            ) : null}
+
+            {turnstileUnavailable ? (
+              <Alert variant="destructive" className="border-destructive/40 bg-destructive/10">
+                <FileWarning className="h-4 w-4" />
+                <AlertTitle>Proteccion pendiente de configurar</AlertTitle>
+                <AlertDescription>
+                  Cloudflare Turnstile esta requerido para esta carga anonima, pero falta publicar la site key del frontend.
+                </AlertDescription>
+              </Alert>
             ) : null}
 
             <fieldset>

@@ -647,6 +647,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           variant="marketplace"
           compactMarketplaceHeader
           intakeEntry={effectiveAssistedIntake}
+          securityContract={publicApi?.security ?? null}
           fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
           suggestedTextDraft={assistedDraftRequest?.text ?? null}
           suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
@@ -944,6 +945,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           tenantSlug={tenantSlug}
           variant="marketplace"
           intakeEntry={effectiveAssistedIntake}
+          securityContract={publicApi?.security ?? null}
           fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
           suggestedTextDraft={assistedDraftRequest?.text ?? null}
           suggestedTextDraftKey={assistedDraftRequest?.key ?? null}

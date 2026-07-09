@@ -410,6 +410,38 @@ const normalizePublicApiAnalytics = (value: unknown): MarketPublicApiContract['a
   };
 };
 
+const normalizePublicApiSecurity = (value: unknown): MarketPublicApiContract['security'] => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const turnstileRecord = asRecordOrNull(
+    getFirst(record, ['turnstile', 'cloudflare_turnstile', 'cloudflareTurnstile']),
+  );
+  return {
+    ...record,
+    contract_version: asStringOrNull(getFirst(record, ['contract_version', 'contractVersion'])),
+    protected_surfaces: asArrayOfStringsOrNull(getFirst(record, ['protected_surfaces', 'protectedSurfaces'])),
+    turnstile: turnstileRecord
+      ? {
+          ...turnstileRecord,
+          contract_version: asStringOrNull(
+            getFirst(turnstileRecord, ['contract_version', 'contractVersion']),
+          ),
+          provider: asStringOrNull(turnstileRecord.provider),
+          surface: asStringOrNull(turnstileRecord.surface),
+          status: asStringOrNull(turnstileRecord.status),
+          configured: asBooleanOrNull(turnstileRecord.configured),
+          enforced: asBooleanOrNull(turnstileRecord.enforced),
+          required: asBooleanOrNull(turnstileRecord.required),
+          token_header: asStringOrNull(getFirst(turnstileRecord, ['token_header', 'tokenHeader'])),
+          token_fields: asArrayOfStringsOrNull(getFirst(turnstileRecord, ['token_fields', 'tokenFields'])),
+          retryable: asBooleanOrNull(turnstileRecord.retryable),
+          reset_required: asBooleanOrNull(getFirst(turnstileRecord, ['reset_required', 'resetRequired'])),
+          reason: asStringOrNull(turnstileRecord.reason),
+        }
+      : null,
+  };
+};
+
 const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | null => {
   const record = asRecordOrNull(value);
   if (!record) return null;
@@ -423,6 +455,7 @@ const normalizePublicApiContract = (value: unknown): MarketPublicApiContract | n
     cart: normalizePublicApiCart(record.cart),
     checkout: normalizePublicApiCheckout(record.checkout),
     assisted_upload: normalizePublicApiEndpoint(getFirst(record, ['assisted_upload', 'assistedUpload'])),
+    security: normalizePublicApiSecurity(record.security),
     flow_runtime: normalizePublicApiFlowRuntime(getFirst(record, ['flow_runtime', 'flowRuntime'])),
     tracking: normalizePublicApiTracking(record.tracking),
     analytics: normalizePublicApiAnalytics(record.analytics),

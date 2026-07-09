@@ -107,6 +107,77 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(body.get('turnstile_token')).toBe('turnstile-token-123');
   });
 
+  it('blocks anonymous marketplace intake when backend requires Turnstile but the public site key is missing', () => {
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        securityContract={{
+          contract_version: 'marketplace.public_security.v1',
+          protected_surfaces: ['marketplace_assisted_upload'],
+          turnstile: {
+            contract_version: 'cloudflare.turnstile.public_intake.v1',
+            provider: 'cloudflare_turnstile',
+            surface: 'marketplace_assisted_upload',
+            status: 'required',
+            configured: true,
+            enforced: true,
+            required: true,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId('marketplace-turnstile-challenge')).not.toBeInTheDocument();
+    expect(screen.getByText(/Proteccion pendiente de configurar/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    expect(screen.getByRole('button', { name: /Crear solicitud/i })).toBeDisabled();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not force Turnstile when the backend contract marks marketplace intake as not required', async () => {
+    envMock.turnstileSiteKey = 'site-key-public';
+    apiFetchMock.mockResolvedValue({
+      contract_version: 'marketplace.assisted_request.v1',
+      pedido_id: 114,
+      customer_message: 'Solicitud recibida sin desafio requerido.',
+    });
+
+    render(
+      <UploadOrderFromFile
+        tenantSlug="junin"
+        variant="marketplace"
+        securityContract={{
+          contract_version: 'marketplace.public_security.v1',
+          protected_surfaces: ['marketplace_assisted_upload'],
+          turnstile: {
+            contract_version: 'cloudflare.turnstile.public_intake.v1',
+            provider: 'cloudflare_turnstile',
+            surface: 'marketplace_assisted_upload',
+            status: 'not_required',
+            configured: true,
+            enforced: false,
+            required: false,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId('marketplace-turnstile-challenge')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/2 chapas galvanizadas/i), {
+      target: { value: '2 chapas galvanizadas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalled();
+    });
+    const body = apiFetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('turnstile_token')).toBeNull();
+  });
+
   it('resets Cloudflare Turnstile when backend rejects the marketplace security token', async () => {
     envMock.turnstileSiteKey = 'site-key-public';
     const resetTurnstile = vi.fn();

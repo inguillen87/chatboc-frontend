@@ -470,6 +470,29 @@ export interface MarketPublicFlowExecutionPolicy {
   [key: string]: unknown;
 }
 
+export interface MarketTurnstileSecurityContract {
+  contract_version?: string | null;
+  provider?: string | null;
+  surface?: string | null;
+  status?: string | null;
+  configured?: boolean | null;
+  enforced?: boolean | null;
+  required?: boolean | null;
+  token_header?: string | null;
+  token_fields?: string[] | null;
+  retryable?: boolean | null;
+  reset_required?: boolean | null;
+  reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketPublicSecurityContract {
+  contract_version?: string | null;
+  turnstile?: MarketTurnstileSecurityContract | null;
+  protected_surfaces?: string[] | null;
+  [key: string]: unknown;
+}
+
 export interface MarketPublicApiContract {
   contract_version?: string | null;
   anonymous?: boolean | null;
@@ -493,6 +516,7 @@ export interface MarketPublicApiContract {
     [key: string]: unknown;
   } | null;
   assisted_upload?: MarketPublicApiEndpoint | null;
+  security?: MarketPublicSecurityContract | null;
   flow_runtime?: (MarketPublicApiEndpoint & {
     actions_endpoint?: string | null;
     contract_version?: string | null;
