@@ -338,12 +338,30 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("python scripts/qa_whatsapp_flows.py")).toBeInTheDocument();
   });
 
-  it("opens templates inside the current tenant route", async () => {
+  it("opens official WhatsApp templates inside the current tenant route", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /^plantillas$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^plantillas whatsapp$/i }));
 
-    expect(window.open).toHaveBeenCalledWith("/t/junin-1/perfil/plantillas-respuesta", "_self");
+    expect(window.open).toHaveBeenCalledWith(
+      "/t/junin-1/perfil/plantillas-respuesta?section=whatsapp-operations&action=twilio-content&tenant=junin-1",
+      "_self",
+    );
+  });
+
+  it("keeps register sender as the primary action when the embedded signup handoff requests it", async () => {
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="register-sender" />);
+
+    const registerSenderButton = await screen.findByRole("button", { name: /^registrar sender$/i });
+    expect(registerSenderButton).toBeEnabled();
+
+    fireEvent.click(registerSenderButton);
+
+    await waitFor(() => {
+      expect(mockedTenantService.registerWhatsappSender).toHaveBeenCalledWith("junin-1", {
+        source: "tenant_panel",
+      });
+    });
   });
 
   it("explains why Meta signup cannot start when platform setup is incomplete", async () => {

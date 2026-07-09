@@ -336,7 +336,15 @@ export default function WhatsappEmbeddedSignupPage() {
   ];
   const completedStages = stages.filter((stage) => stage.done).length;
   const progress = Math.round((completedStages / stages.length) * 100);
-  const integrationsPath = tenant ? buildTenantPath("/integracion", tenant) : "/integracion";
+  const integrationsPath = useMemo(() => {
+    const basePath = tenant ? buildTenantPath("/integracion", tenant) : "/integracion";
+    if (!result) return basePath;
+    const params = new URLSearchParams({
+      channel: "whatsapp",
+      action: "register-sender",
+    });
+    return `${basePath}?${params.toString()}`;
+  }, [result, tenant]);
   const waitingForSdk = !sdkReady && missingConfig.length === 0;
   const startDisabled = missingConfig.length > 0 || !sdkReady || starting || saving || Boolean(result);
   const integrationsLabel = result ? "Continuar activacion" : "Volver a integraciones";

@@ -93,7 +93,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /continuar activacion/i }));
 
-    expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /t/junin-1/integracion");
+    expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /t/junin-1/integracion?channel=whatsapp&action=register-sender");
     consoleLogSpy.mockRestore();
   });
 });

@@ -284,7 +284,12 @@ const StepCard = ({
   </div>
 );
 
-export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantSlug?: string | null }) {
+type WhatsappTechProviderOnboardingProps = {
+  tenantSlug?: string | null;
+  focusAction?: string | null;
+};
+
+export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction }: WhatsappTechProviderOnboardingProps) {
   const [contract, setContract] = useState<TechProviderContract | null>(null);
   const [loading, setLoading] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
@@ -385,7 +390,15 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const canRegisterSender = envReady && Boolean(state?.waba_id && state?.phone_number_id);
   const canPollSender = envReady && Boolean(state?.sender_sid);
   const showProgressSteps = contract?.frontend_contract?.show_progress_steps !== false;
-  const templatesPath = useMemo(() => buildTenantPath("/perfil/plantillas-respuesta", tenantSlug), [tenantSlug]);
+  const templatesPath = useMemo(() => {
+    const basePath = buildTenantPath("/perfil/plantillas-respuesta", tenantSlug);
+    const params = new URLSearchParams({
+      section: "whatsapp-operations",
+      action: "twilio-content",
+    });
+    if (tenantSlug?.trim()) params.set("tenant", tenantSlug.trim());
+    return `${basePath}?${params.toString()}`;
+  }, [tenantSlug]);
   const signupUnavailableMessage = embeddedSignupEnabled && !canStartSignup
     ? !envReady
       ? missingEnv.length
@@ -404,6 +417,20 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const hasSender = Boolean(state?.sender_id || state?.sender_sid);
   const senderReady = isReadyStatus(state?.sender_status);
   const operationalReady = senderReady || normalizeStatus(contract?.status).includes("active");
+  const normalizedFocusAction = normalizeStatus(focusAction).replace(/_/g, "-");
+  const normalizedNextAction = normalizeStatus(contract?.next_action || setupHealth?.recommended_next_action || contract?.status);
+  const registerSenderIsPrimary =
+    normalizedFocusAction === "register-sender" ||
+    normalizedFocusAction === "register-whatsapp-sender" ||
+    normalizedNextAction === "register_whatsapp_sender_via_senders_api" ||
+    normalizedNextAction === "register sender" ||
+    normalizedNextAction === "register-sender";
+  const templatesArePrimary =
+    normalizedFocusAction === "twilio-content" ||
+    normalizedFocusAction === "templates" ||
+    normalizedFocusAction === "plantillas" ||
+    normalizedNextAction.includes("template") ||
+    normalizedNextAction.includes("plantilla");
   const activationSteps = [
     {
       id: "meta",
@@ -1289,7 +1316,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
             <div className="mt-2 grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-2">
               <p>1. Iniciar registro embebido y conectar una WABA autorizada.</p>
               <p>2. Registrar sender productivo con Twilio Senders API desde Chatboc.</p>
-              <p>3. Crear o revisar plantillas desde el perfil del tenant.</p>
+              <p>3. Crear o revisar plantillas oficiales desde el hub WhatsApp/Twilio Content.</p>
               <p>4. Enviar y recibir un mensaje de prueba por WhatsApp.</p>
               <p>5. Mostrar estado de entrega, lectura o actividad en el panel.</p>
               <p>6. Mostrar que el cliente nunca entra a Twilio Console.</p>
@@ -1324,7 +1351,12 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
                   Iniciar registro embebido
                 </Button>
               ) : null}
-              <Button type="button" variant="outline" onClick={handleRegisterSender} disabled={!canRegisterSender || registeringSender}>
+              <Button
+                type="button"
+                variant={registerSenderIsPrimary ? "default" : "outline"}
+                onClick={handleRegisterSender}
+                disabled={!canRegisterSender || registeringSender}
+              >
                 {registeringSender ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Registrar sender
               </Button>
@@ -1336,8 +1368,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
                 {provisioningVoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar voz
               </Button>
-              <Button type="button" variant="ghost" onClick={() => window.open(templatesPath, "_self")}>
-                Plantillas
+              <Button type="button" variant={templatesArePrimary ? "default" : "outline"} onClick={() => window.open(templatesPath, "_self")}>
+                Plantillas WhatsApp
               </Button>
               {signupUnavailableMessage ? (
                 <div className="basis-full rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-muted-foreground">

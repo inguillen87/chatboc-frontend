@@ -623,6 +623,10 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/perfil/plantillas-respuesta', {
+    element: <GestionPlantillasPage />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+  }),
 
   {
     path: '/admin/catalog',

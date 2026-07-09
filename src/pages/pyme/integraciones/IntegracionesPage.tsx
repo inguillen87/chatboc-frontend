@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { ApiError } from '@/utils/api';
@@ -317,6 +318,7 @@ export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup =>
 
 const IntegracionesPage = () => {
   const { currentSlug } = useTenant();
+  const [searchParams] = useSearchParams();
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -335,6 +337,8 @@ const IntegracionesPage = () => {
   // UI State
   const [activeTab, setActiveTab] = useState("integrations");
   const [selectedChannel, setSelectedChannel] = useState("whatsapp");
+  const requestedChannel = searchParams.get("channel");
+  const requestedAction = searchParams.get("action");
 
   // Notification Settings State
   const [ownerPhone, setOwnerPhone] = useState('');
@@ -359,6 +363,14 @@ const IntegracionesPage = () => {
       loadWhatsappSandboxSetup();
     }
   }, [currentSlug]);
+
+  useEffect(() => {
+    if (!requestedChannel) return;
+    const normalizedChannel = requestedChannel.trim().toLowerCase();
+    if (!CHANNELS.some((channel) => channel.id === normalizedChannel)) return;
+    setActiveTab("integrations");
+    setSelectedChannel(normalizedChannel);
+  }, [requestedChannel]);
 
   const normalizeCatalog = (data: TenantCatalog | any): TenantCatalog => {
     const metadata = data?.metadata ?? data?.catalog ?? {
@@ -1694,7 +1706,7 @@ const IntegracionesPage = () => {
                                 </div>
                                 {selectedChannel === 'whatsapp' ? (
                                     <div className="space-y-6">
-                                        <WhatsappTechProviderOnboarding tenantSlug={currentSlug} />
+                                        <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
                                         <Separator />
                                         {renderWhatsappSandboxPanel()}
                                         <Separator />
