@@ -1,0 +1,318 @@
+import { useMemo, useState } from 'react';
+import { Activity, AlertTriangle, BarChart3, Loader2, Radio, RefreshCw, Signal, Users } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
+import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
+import { useSurveySocket } from '@/hooks/useSurveySocket';
+import type { SurveyLivePublicQuestion, SurveyLivePublicResultsPayload } from '@/types/encuestas';
+
+interface SurveyLiveResultsPanelProps {
+  slug?: string | null;
+  tenantSlug?: string | null;
+  enabled?: boolean;
+  title?: string;
+  description?: string;
+  className?: string;
+}
+
+const DEFAULT_PARAMS: SurveyLiveRequestParams = {
+  include_heatmap: 1,
+  window_minutes: 60,
+  max_points: 800,
+  max_cells: 120,
+};
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const displayText = (value: unknown, fallback = '-') => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return value ? 'si' : 'no';
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return displayText(record.label ?? record.texto ?? record.value ?? record.nombre, fallback);
+  }
+  return fallback;
+};
+
+const payloadVersion = (payload?: SurveyLivePublicResultsPayload) => {
+  const resultVersion = toNumber(payload?.result_version, Number.NaN);
+  if (Number.isFinite(resultVersion)) return resultVersion;
+  const updatedAt = Date.parse(String(payload?.updated_at || ''));
+  return Number.isFinite(updatedAt) ? updatedAt : 0;
+};
+
+const statusTone = (mode: string) => {
+  if (mode === 'socket') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+  if (mode === 'fallback') return 'border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-200';
+  if (mode === 'error') return 'border-rose-400/40 bg-rose-500/10 text-rose-700 dark:text-rose-200';
+  return 'border-sky-400/30 bg-sky-500/10 text-sky-700 dark:text-sky-200';
+};
+
+const questionTotal = (question: SurveyLivePublicQuestion) =>
+  toNumber(question.total_votos) ||
+  (question.opciones ?? []).reduce((sum, option) => sum + toNumber(option.votos), 0);
+
+const topQuestions = (questions?: SurveyLivePublicQuestion[]) =>
+  (questions ?? [])
+    .map((question) => ({ ...question, total: questionTotal(question) }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 3);
+
+export function SurveyLiveResultsPanel({
+  slug,
+  tenantSlug,
+  enabled = true,
+  title = 'Resultados en vivo',
+  description = 'Pulso operativo con socket, polling, mapa de calor e inteligencia de participacion.',
+  className,
+}: SurveyLiveResultsPanelProps) {
+  const normalizedSlug = slug?.trim() ?? '';
+  const normalizedTenant = tenantSlug?.trim() ?? '';
+  const [params, setParams] = useState<SurveyLiveRequestParams>(DEFAULT_PARAMS);
+  const [socketPayload, setSocketPayload] = useState<SurveyLivePublicResultsPayload | undefined>(undefined);
+
+  const {
+    liveResults: polledPayload,
+    isLoading,
+    isFetching,
+    error,
+    consecutiveErrors,
+    liveStatus,
+    pollingIntervalMs,
+    refetch,
+  } = useSurveyLiveResults(enabled && normalizedSlug ? normalizedSlug : undefined, normalizedTenant || undefined, params);
+
+  const rooms = useMemo(() => {
+    if (!normalizedSlug) return [];
+    return normalizedTenant
+      ? [`encuesta:${normalizedTenant}:${normalizedSlug}`, `encuesta_${normalizedSlug}`]
+      : [`encuesta_${normalizedSlug}`];
+  }, [normalizedSlug, normalizedTenant]);
+
+  useSurveySocket({
+    slug: normalizedSlug,
+    tenantSlug: normalizedTenant || undefined,
+    rooms,
+    enabled: enabled && Boolean(normalizedSlug),
+    onUpdate: (payload) => {
+      if (payload?.contract_version === 'surveys.live_results.v2') {
+        setSocketPayload(payload as SurveyLivePublicResultsPayload);
+      } else {
+        void refetch();
+      }
+    },
+  });
+
+  const payload = useMemo(() => {
+    if (!socketPayload) return polledPayload;
+    if (!polledPayload) return socketPayload;
+    return payloadVersion(socketPayload) >= payloadVersion(polledPayload) ? socketPayload : polledPayload;
+  }, [polledPayload, socketPayload]);
+
+  const hasSocketPayload = Boolean(socketPayload && payload === socketPayload);
+  const hasActivity = hasSurveyLiveActivity(payload);
+  const statusMode = error && !payload ? 'error' : consecutiveErrors > 2 ? 'fallback' : hasSocketPayload ? 'socket' : liveStatus.status;
+  const statusLabel =
+    statusMode === 'socket'
+      ? 'Socket live'
+      : statusMode === 'fallback'
+        ? 'Polling fallback'
+        : statusMode === 'error'
+          ? 'Sin conexion live'
+          : liveStatus.label;
+  const totalResponses = toNumber(payload?.total_respuestas);
+  const questions = topQuestions(payload?.preguntas);
+  const maxQuestionTotal = Math.max(1, ...questions.map((question) => question.total));
+  const timeline = (payload?.timeline_minute ?? []).slice(-18);
+  const maxTimelineValue = Math.max(
+    1,
+    ...timeline.map((point) => toNumber(point.respuestas ?? point.value ?? point.total)),
+  );
+  const updatedAtLabel = payload?.updated_at ? new Date(payload.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  const pollingSeconds = Math.max(1, Math.round((pollingIntervalMs ?? 0) / 1000));
+
+  if (!enabled || !normalizedSlug) {
+    return (
+      <Card className={className} data-testid="survey-live-results-panel-disabled">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>Activa resultados en vivo y publica la encuesta para ver la sala operativa.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={className} data-testid="survey-live-results-panel">
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2">
+              <Radio className="h-5 w-5 text-primary" />
+              {title}
+            </CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${statusTone(statusMode)}`} role="status">
+              <span className={`h-2 w-2 rounded-full bg-current ${isFetching || hasSocketPayload ? 'animate-pulse' : ''}`} />
+              {statusLabel}
+            </span>
+            {updatedAtLabel ? <span className="text-xs text-muted-foreground">Actualizado {updatedAtLabel}</span> : null}
+            <Button type="button" variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+              {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Refrescar
+            </Button>
+          </div>
+        </div>
+        {error && consecutiveErrors > 2 ? (
+          <div className="flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4" />
+            Se muestran datos previos mientras polling reintenta: {error}
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {isLoading && !payload ? (
+          <div className="flex min-h-[180px] items-center justify-center rounded-xl border border-dashed border-border/70 text-sm text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Cargando sala live...
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  Respuestas
+                </div>
+                <p className="text-2xl font-semibold">{totalResponses || '-'}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  <Activity className="h-4 w-4" />
+                  Ultima hora
+                </div>
+                <p className="text-2xl font-semibold">{payload?.kpis?.responses_last_hour ?? '-'}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  <Signal className="h-4 w-4" />
+                  Ritmo/min
+                </div>
+                <p className="text-2xl font-semibold">{payload?.kpis?.participation_per_minute ?? '-'}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  <BarChart3 className="h-4 w-4" />
+                  Cadencia
+                </div>
+                <p className="text-2xl font-semibold">{pollingSeconds}s</p>
+              </div>
+            </div>
+
+            {!hasActivity ? (
+              <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
+                La sala esta lista. Va a mostrar votos, comentarios y zonas activas cuando entren respuestas.
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold">Preguntas con mas actividad</p>
+                    <span className="text-xs text-muted-foreground">{questions.length} visibles</span>
+                  </div>
+                  <div className="space-y-3">
+                    {questions.length ? (
+                      questions.map((question) => (
+                        <div key={String(question.id ?? question.texto ?? question.titulo)} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate font-medium">{displayText(question.texto ?? question.titulo, 'Pregunta')}</span>
+                            <span className="shrink-0 text-muted-foreground">{question.total}</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${Math.max(4, Math.min(100, (question.total / maxQuestionTotal) * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Sin preguntas activas todavia.</p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold">Timeline live</p>
+                    <select
+                      className="rounded-md border bg-background px-2 py-1 text-xs"
+                      value={String(params.window_minutes ?? 60)}
+                      onChange={(event) => setParams((current) => ({ ...current, window_minutes: Number(event.target.value) || 60 }))}
+                    >
+                      <option value="60">Ultima hora</option>
+                      <option value="360">6 horas</option>
+                      <option value="1440">24 horas</option>
+                    </select>
+                  </div>
+                  <div className="flex h-24 items-end gap-1">
+                    {timeline.length ? (
+                      timeline.map((point, index) => {
+                        const value = toNumber(point.respuestas ?? point.value ?? point.total);
+                        return (
+                          <div
+                            key={`${point.minute ?? point.timestamp ?? index}`}
+                            className="flex-1 rounded-t bg-primary/70"
+                            title={`${displayText(point.label ?? point.minute ?? point.timestamp, 'minuto')}: ${value}`}
+                            style={{ height: `${Math.max(6, (value / maxTimelineValue) * 96)}%` }}
+                          />
+                        );
+                      })
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground">
+                        Sin actividad temporal para esta ventana.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <SurveyLiveHeatmapPreview
+                heatmap={payload?.heatmap}
+                aiSignal={payload?.ai_signal}
+                operatorRecommendations={payload?.operator_recommendations}
+                title="Mapa live de participacion"
+                subtitle="Zonas y canales activos con privacidad protegida"
+                emptyLabel="Sin actividad territorial para esta ventana"
+              />
+            </div>
+
+            {(payload?.ai_summary || payload?.ai_insights?.length) ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+                <p className="mb-2 font-semibold">Lectura IA</p>
+                {payload.ai_summary ? <p className="text-muted-foreground">{payload.ai_summary}</p> : null}
+                {payload.ai_insights?.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                    {payload.ai_insights.slice(0, 4).map((insight, index) => (
+                      <li key={`${index}-${insight}`}>{insight}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default SurveyLiveResultsPanel;

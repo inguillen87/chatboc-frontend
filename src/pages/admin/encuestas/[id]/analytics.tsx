@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
+import { SurveyLiveResultsPanel } from '@/components/surveys/SurveyLiveResultsPanel';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { SurveyRecentResponses } from '@/components/surveys/SurveyRecentResponses';
 import { TransparencyTab } from '@/components/surveys/TransparencyTab';
@@ -444,6 +445,7 @@ export default function SurveyAnalyticsPage() {
   const resolvedWhatsappShareUrl = resolveHref(whatsappShareUrl);
   const publicContractVersion = readRecordText(surveyPublication, 'contract_version');
   const publicSlug = readRecordText(surveyPublication, 'slug_publico') || readRecordText(surveyPublication, 'canonical_slug');
+  const livePanelSlug = publicSlug || effectiveSurvey?.slug_publico || effectiveSurvey?.canonical_slug || effectiveSurvey?.slug || '';
   const publicationActionIds = publicationActions.map((action) => readRecordText(action, 'id')).filter(Boolean);
   const publicationActionLabel =
     publicationActionIds.includes('publish_survey')
@@ -977,6 +979,15 @@ export default function SurveyAnalyticsPage() {
           </div>
       </CardContent>
     </Card>
+      {liveResultsEnabled ? (
+        <SurveyLiveResultsPanel
+          slug={livePanelSlug}
+          tenantSlug={effectiveTenantSlug}
+          enabled={liveResultsEnabled}
+          title="Sala live de la encuesta"
+          description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la pagina publica."
+        />
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Filtros demográficos y territoriales</CardTitle>
