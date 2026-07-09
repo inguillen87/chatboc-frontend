@@ -145,7 +145,14 @@ describe("WhatsappOperationsHub", () => {
             public_url_mode: "cdn",
             cdn_configured: true,
             cdn_host: "cdn.chatboc.ar",
+            edge_ready: true,
+            cache_control: "public, max-age=31536000, immutable",
             file_format: "mp3",
+            next_action: "monitor_hit_rate",
+            privacy: {
+              content_text_exposed: false,
+              pii_in_url: false,
+            },
           },
           summary: {
             requests: 12,
@@ -173,10 +180,14 @@ describe("WhatsappOperationsHub", () => {
 
     const publication = screen.getByTestId("whatsapp-audio-cache-publication");
     expect(publication).toHaveTextContent("CDN activo");
+    expect(publication).toHaveTextContent("Cloudflare ready");
+    expect(publication).toHaveTextContent("Sin PII");
     expect(publication).toHaveTextContent("Cdn");
     expect(publication).toHaveTextContent("MP3");
     expect(publication).toHaveTextContent("cdn.chatboc.ar");
     expect(publication).toHaveTextContent("/static/audio_cache");
+    expect(publication).toHaveTextContent("public, max-age=31536000, immutable");
+    expect(publication).toHaveTextContent("Monitor hit rate");
     expect(screen.getByText("Audio cache")).toBeInTheDocument();
   });
 

@@ -347,6 +347,21 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
     readText(first(audioCacheStorage, ["file_format", "format"])) ||
     readText(first(audioCacheSource, ["file_format", "format"])) ||
     "mp3";
+  const audioCacheEdgeReady =
+    boolish(first(audioCacheStorage, ["edge_ready", "edgeReady", "cloudflare_ready", "cloudflareReady"])) ||
+    boolish(first(audioCacheSource, ["edge_ready", "edgeReady", "cloudflare_ready", "cloudflareReady"]));
+  const audioCacheControl =
+    readText(first(audioCacheStorage, ["cache_control", "cacheControl"])) ||
+    readText(first(audioCacheSource, ["cache_control", "cacheControl"]));
+  const audioCacheNextAction =
+    readText(first(audioCacheStorage, ["next_action", "nextAction"])) ||
+    readText(first(audioCacheSource, ["next_action", "nextAction"]));
+  const audioCachePrivacy = asRecord(first(audioCacheStorage, ["privacy"]) || first(audioCacheSource, ["privacy"]));
+  const audioCachePrivacySafe =
+    Object.keys(audioCachePrivacy).length > 0
+      ? !boolish(first(audioCachePrivacy, ["content_text_exposed", "contentTextExposed"])) &&
+        !boolish(first(audioCachePrivacy, ["pii_in_url", "piiInUrl"]))
+      : true;
   const audioCacheRequests = first(audioCacheSummary, ["requests"]) ?? first(audioCacheMetrics, ["requests"]);
   const audioCacheHits = first(audioCacheSummary, ["cache_hits", "hits"]) ?? first(audioCacheMetrics, ["cache_hits", "hits"]);
   const audioCacheFailures = first(audioCacheSummary, ["failures"]) ?? first(audioCacheMetrics, ["generation_failures", "provider_failures", "warmup_failures"]);
@@ -575,8 +590,14 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
                 <StatusPill tone={audioCacheCdnConfigured ? "ready" : "warning"}>
                   {audioCacheCdnConfigured ? "CDN activo" : "Backend static"}
                 </StatusPill>
+                <StatusPill tone={audioCacheEdgeReady ? "ready" : "warning"}>
+                  {audioCacheEdgeReady ? "Cloudflare ready" : "CDN pendiente"}
+                </StatusPill>
                 <StatusPill>{formatKey(audioCachePublicMode)}</StatusPill>
                 <StatusPill>{audioCacheFileFormat.toUpperCase()}</StatusPill>
+                <StatusPill tone={audioCachePrivacySafe ? "ready" : "danger"}>
+                  {audioCachePrivacySafe ? "Sin PII" : "Revisar PII"}
+                </StatusPill>
               </div>
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
                 {audioCacheCdnHost ? (
@@ -587,6 +608,16 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
                 <p>
                   <span className="font-semibold text-foreground">Path:</span> {audioCachePublicPath}
                 </p>
+                {audioCacheControl ? (
+                  <p>
+                    <span className="font-semibold text-foreground">Cache:</span> {audioCacheControl}
+                  </p>
+                ) : null}
+                {audioCacheNextAction ? (
+                  <p>
+                    <span className="font-semibold text-foreground">Accion:</span> {formatKey(audioCacheNextAction)}
+                  </p>
+                ) : null}
               </div>
             </div>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
