@@ -411,6 +411,70 @@ const actionHref = (action?: OperationsActionItem) =>
 
 const isExternalHref = (href: string) => /^https?:\/\//i.test(href);
 
+const appendInternalQueryParam = (href: string, key: string, value: string) => {
+  if (!href || isExternalHref(href)) return href;
+  const [withoutHash, hash = ''] = href.split('#');
+  const [path, query = ''] = withoutHash.split('?');
+  const params = new URLSearchParams(query);
+  if (!params.has(key)) {
+    params.set(key, value);
+  }
+  const nextQuery = params.toString();
+  return `${path}${nextQuery ? `?${nextQuery}` : ''}${hash ? `#${hash}` : ''}`;
+};
+
+const inferAiOpsSurveyFocus = (item: OperationsAIOpsQueueItem): 'live' | 'comments' | null => {
+  const source = `${item.source ?? ''} ${item.source_model ?? ''}`.toLowerCase();
+  if (!source.includes('survey') && !source.includes('encuesta') && !source.includes('vote')) {
+    return null;
+  }
+
+  const action = item.recommended_action;
+  const signals = item.signals ?? {};
+  const haystack = [
+    item.id,
+    item.title,
+    item.priority,
+    action?.id,
+    action?.label,
+    action?.title,
+    action?.endpoint,
+    action?.href,
+    action?.route,
+    action?.ui_hint,
+    ...((item.reason_codes ?? []) as string[]),
+    ...Object.keys(signals),
+    ...Object.values(signals).map((value) => String(value ?? '')),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  if (haystack.includes('comment') || haystack.includes('comentario') || haystack.includes('debate')) {
+    return 'comments';
+  }
+  if (
+    haystack.includes('live') ||
+    haystack.includes('votacion') ||
+    haystack.includes('votación') ||
+    haystack.includes('vote') ||
+    haystack.includes('realtime') ||
+    haystack.includes('resultado')
+  ) {
+    return 'live';
+  }
+
+  return null;
+};
+
+const aiOpsActionHref = (item: OperationsAIOpsQueueItem) => {
+  const href = actionHref(item.recommended_action);
+  const focus = inferAiOpsSurveyFocus(item);
+  if (!href || !focus || isExternalHref(href) || !href.startsWith('/admin/encuestas')) {
+    return href;
+  }
+  return appendInternalQueryParam(href, 'focus', focus);
+};
+
 const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   Object.fromEntries(
     Object.entries(filters)
@@ -1420,7 +1484,7 @@ function AIOpsQueuePanel({
 function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
   const action = item.recommended_action;
   const actionLabel = action?.label || action?.title;
-  const uiHref = actionHref(action);
+  const uiHref = aiOpsActionHref(item);
   const signals = item.signals ?? {};
   const reasonCodes = item.reason_codes ?? [];
   const signalPairs = Object.entries(signals)

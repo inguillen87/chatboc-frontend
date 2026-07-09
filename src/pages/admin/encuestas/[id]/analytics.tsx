@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
-import { Activity, AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Gauge, Loader2, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Copy, Download, ExternalLink, EyeOff, Gauge, Loader2, MessageCircle, ShieldCheck, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -20,7 +20,17 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
-import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare, getSurveySegmentsSuggestions } from '@/api/encuestas';
+import {
+  adminGetSurveyComments,
+  adminModerateSurveyComment,
+  getSurveyAlerts,
+  getSurveyAnomalies,
+  getSurveyBrief,
+  getSurveyForecast,
+  getSurveySegmentsCompare,
+  getSurveySegmentsSuggestions,
+  type AdminSurveyComment,
+} from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -239,6 +249,207 @@ function publicationStateLabel(value?: unknown) {
   return normalized || 'Sin estado';
 }
 
+type SurveyAnalyticsFocusMode = 'live' | 'comments' | null;
+
+function normalizeSurveyAnalyticsFocus(value?: string | null): SurveyAnalyticsFocusMode {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (['live', 'realtime', 'vivo', 'votacion', 'votacion_live', 'votación'].includes(normalized)) return 'live';
+  if (['comments', 'comentarios', 'debate', 'moderacion', 'moderación'].includes(normalized)) return 'comments';
+  return null;
+}
+
+const SURVEY_ANALYTICS_FOCUS_COPY: Record<Exclude<SurveyAnalyticsFocusMode, null>, {
+  title: string;
+  description: string;
+  badge: string;
+  targetId: string;
+}> = {
+  live: {
+    title: 'Foco operativo: sala live',
+    description: 'Llegaste desde la cola operativa para monitorear votos, resultados, mapa de calor y actividad en tiempo real.',
+    badge: 'Resultados live',
+    targetId: 'survey-live-results-focus',
+  },
+  comments: {
+    title: 'Foco operativo: comentarios ciudadanos',
+    description: 'Llegaste desde la cola operativa para revisar comentarios, reportes y moderacion de la encuesta.',
+    badge: 'Comentarios',
+    targetId: 'survey-comments-focus',
+  },
+};
+
+function formatCommentDate(value?: string | null) {
+  if (!value) return 'Sin fecha';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function commentStateLabel(value?: string | null) {
+  const normalized = (value || '').trim().toLowerCase();
+  if (normalized === 'publicado') return 'Publicado';
+  if (normalized === 'revision') return 'En revision';
+  if (normalized === 'oculto') return 'Oculto';
+  if (normalized === 'eliminado') return 'Eliminado';
+  return normalized || 'Sin estado';
+}
+
+function commentStateVariant(value?: string | null): 'outline' | 'default' | 'secondary' | 'destructive' {
+  const normalized = (value || '').trim().toLowerCase();
+  if (normalized === 'revision') return 'destructive';
+  if (normalized === 'oculto' || normalized === 'eliminado') return 'secondary';
+  if (normalized === 'publicado') return 'default';
+  return 'outline';
+}
+
+function SurveyAdminCommentsPanel({
+  surveyId,
+  tenantSlug,
+  commentsEnabled,
+  focused,
+}: {
+  surveyId: number;
+  tenantSlug?: string;
+  commentsEnabled?: boolean;
+  focused?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const commentsQuery = useQuery({
+    queryKey: ['survey-admin-comments', surveyId, tenantSlug],
+    enabled: Boolean(surveyId && (commentsEnabled || focused)),
+    queryFn: () => adminGetSurveyComments(surveyId, { limit: 50, offset: 0 }, { tenantSlug, sendAnonId: true }),
+    staleTime: 15_000,
+  });
+  const moderateMutation = useMutation({
+    mutationFn: ({ commentId, accion }: { commentId: number; accion: 'aprobar' | 'ocultar' | 'eliminar' }) =>
+      adminModerateSurveyComment(commentId, accion, { tenantSlug, sendAnonId: true }),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['survey-admin-comments', surveyId, tenantSlug] });
+      toast({
+        title: 'Comentario actualizado',
+        description: `Accion aplicada: ${variables.accion}.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'No se pudo moderar el comentario',
+        description: getErrorMessage(error, 'Intenta nuevamente.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const comments = commentsQuery.data ?? [];
+  const reviewCount = comments.filter((comment) => {
+    const state = (comment.estado || '').toLowerCase();
+    return state === 'revision' || state === 'oculto' || Number(comment.report_count || 0) > 0;
+  }).length;
+
+  return (
+    <Card
+      id={SURVEY_ANALYTICS_FOCUS_COPY.comments.targetId}
+      data-testid="survey-admin-comments-panel"
+      className={focused ? 'border-primary/30 shadow-[0_0_0_1px_rgba(59,130,246,0.20)]' : undefined}
+    >
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-primary" />
+              Moderacion de comentarios
+            </CardTitle>
+            <CardDescription>
+              Revisa aportes ciudadanos, reportes y estados sin salir del tablero de analytics.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={commentsEnabled ? 'default' : 'outline'}>
+              {commentsEnabled ? 'Comentarios activos' : 'Comentarios apagados'}
+            </Badge>
+            <Badge variant={reviewCount ? 'destructive' : 'secondary'}>{reviewCount} a revisar</Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!commentsEnabled ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+            Esta encuesta no tiene comentarios habilitados. Si la cola IA te trajo aca, revisa la configuracion de participacion.
+          </div>
+        ) : null}
+        {commentsQuery.isLoading ? (
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando comentarios...
+          </div>
+        ) : commentsQuery.error ? (
+          <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
+            {getErrorMessage(commentsQuery.error, 'No se pudieron cargar los comentarios.')}
+          </div>
+        ) : comments.length ? (
+          <div className="space-y-3">
+            {comments.slice(0, 12).map((comment: AdminSurveyComment) => {
+              const pending = moderateMutation.isPending;
+              return (
+                <div key={comment.id} className="rounded-xl border border-border/70 bg-background/80 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant={commentStateVariant(comment.estado)}>{commentStateLabel(comment.estado)}</Badge>
+                        <span>{formatCommentDate(comment.fecha)}</span>
+                        {Number(comment.report_count || 0) > 0 ? (
+                          <Badge variant="destructive">{comment.report_count} reportes</Badge>
+                        ) : null}
+                      </div>
+                      <p className="font-medium text-foreground">{comment.nombre_autor || 'Anonimo'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => moderateMutation.mutate({ commentId: comment.id, accion: 'aprobar' })}
+                      >
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                        Aprobar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => moderateMutation.mutate({ commentId: comment.id, accion: 'ocultar' })}
+                      >
+                        <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                        Ocultar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={pending}
+                        onClick={() => moderateMutation.mutate({ commentId: comment.id, accion: 'eliminar' })}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{comment.texto}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm text-muted-foreground">
+            Todavia no hay comentarios ciudadanos para revisar.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function normalizeSegmentFilterValue(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -272,7 +483,10 @@ function decodeSegmentFilters(encodedValue: string) {
 
 export default function SurveyAnalyticsPage() {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
+  const focusMode = useMemo(() => normalizeSurveyAnalyticsFocus(searchParams.get('focus')), [searchParams]);
+  const focusCopy = focusMode ? SURVEY_ANALYTICS_FOCUS_COPY[focusMode] : null;
   const { survey, surveys, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
   const {
     summary,
@@ -350,6 +564,14 @@ export default function SurveyAnalyticsPage() {
     setSegmentAKey('');
     setSegmentBKey('');
   }, [surveyId]);
+
+  useEffect(() => {
+    if (!focusCopy?.targetId) return;
+    const timeout = window.setTimeout(() => {
+      document.getElementById(focusCopy.targetId)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    return () => window.clearTimeout(timeout);
+  }, [focusCopy?.targetId]);
 
   useEffect(() => {
     if (!segmentSuggestionOptions.length) return;
@@ -878,6 +1100,22 @@ export default function SurveyAnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      {focusCopy ? (
+        <Card data-testid="survey-analytics-focus-banner" className="border-primary/25 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">{focusCopy.badge}</Badge>
+                <p className="font-semibold text-foreground">{focusCopy.title}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">{focusCopy.description}</p>
+            </div>
+            <Button variant="outline" size="sm" asChild className="shrink-0">
+              <a href={`#${focusCopy.targetId}`}>Ir al modulo</a>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Difusión y acceso público</CardTitle>
@@ -980,12 +1218,26 @@ export default function SurveyAnalyticsPage() {
       </CardContent>
     </Card>
       {liveResultsEnabled ? (
-        <SurveyLiveResultsPanel
-          slug={livePanelSlug}
+        <div
+          id={SURVEY_ANALYTICS_FOCUS_COPY.live.targetId}
+          data-testid="survey-live-results-focus"
+          className={focusMode === 'live' ? 'rounded-2xl border border-primary/30 bg-primary/[0.03] p-2 shadow-[0_0_0_1px_rgba(59,130,246,0.20)]' : undefined}
+        >
+          <SurveyLiveResultsPanel
+            slug={livePanelSlug}
+            tenantSlug={effectiveTenantSlug}
+            enabled={liveResultsEnabled}
+            title="Sala live de la encuesta"
+            description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la pagina publica."
+          />
+        </div>
+      ) : null}
+      {(effectiveSurvey.permitir_comentarios || focusMode === 'comments') ? (
+        <SurveyAdminCommentsPanel
+          surveyId={effectiveSurvey.id}
           tenantSlug={effectiveTenantSlug}
-          enabled={liveResultsEnabled}
-          title="Sala live de la encuesta"
-          description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la pagina publica."
+          commentsEnabled={Boolean(effectiveSurvey.permitir_comentarios)}
+          focused={focusMode === 'comments'}
         />
       ) : null}
       <Card>

@@ -889,6 +889,36 @@ export const postSurveyComment = (
     omitTenant: true,
   });
 
+export type AdminSurveyComment = SurveyComment & {
+  estado?: string | null;
+  report_count?: number | null;
+  updated_at?: string | null;
+};
+
+export const adminGetSurveyComments = (
+  id: number,
+  params?: { limit?: number; offset?: number },
+  options?: ApiFetchOptions,
+): Promise<AdminSurveyComment[]> =>
+  callAdminSurveyEndpoint<AdminSurveyComment[]>(
+    `${id}/comentarios${buildQueryString({ limit: params?.limit ?? 50, offset: params?.offset ?? 0 })}`,
+    options,
+  );
+
+export const adminModerateSurveyComment = (
+  commentId: number,
+  accion: 'aprobar' | 'ocultar' | 'eliminar',
+  options?: ApiFetchOptions,
+): Promise<{ id: number; estado?: string | null; report_count?: number | null }> =>
+  callAdminSurveyEndpoint<{ id: number; estado?: string | null; report_count?: number | null }>(
+    `comentarios/${commentId}`,
+    {
+      method: 'PATCH',
+      body: { accion },
+      ...options,
+    },
+  );
+
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
   if (!value || typeof value !== 'object') {
     return undefined;

@@ -646,7 +646,7 @@ describe('OperationsDashboardPanel territory UX', () => {
       '/t/junin/tickets?ticket_id=1&source=tenant_ticket',
     );
     expect(screen.getByRole('link', { name: /Revisar pedido/i }).getAttribute('href')).toBe('/t/junin/pedidos/2');
-    expect(screen.getByRole('link', { name: /Ver analitica/i }).getAttribute('href')).toBe('/admin/encuestas/3/analytics');
+    expect(screen.getByRole('link', { name: /Ver analitica/i }).getAttribute('href')).toBe('/admin/encuestas/3/analytics?focus=live');
     await waitFor(() => {
       expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledWith(
         expect.objectContaining({

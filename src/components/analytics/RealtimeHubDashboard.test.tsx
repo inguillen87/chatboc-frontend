@@ -74,6 +74,8 @@ describe('RealtimeHubDashboard', () => {
     expect(screen.getByText('Engagement')).toBeInTheDocument();
     expect(screen.getByText('Moderar comentarios')).toBeInTheDocument();
     expect(screen.getByText('Revisar resultados en vivo')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Moderar comentarios/i }).getAttribute('href')).toBe('/admin/encuestas?focus=comments');
+    expect(screen.getByRole('link', { name: /Revisar resultados en vivo/i }).getAttribute('href')).toBe('/admin/encuestas?focus=live');
     expect(screen.getByText('Queremos mas turnos online')).toBeInTheDocument();
   });
 });
