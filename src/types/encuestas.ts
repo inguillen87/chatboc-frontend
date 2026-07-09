@@ -573,6 +573,54 @@ export interface SurveyDashboardModules {
   brief?: SurveyBrief;
   segments_compare?: SurveySegmentsCompare;
   anomalies?: SurveyAnomalies;
+  publication?: SurveyPublicationContract;
+  [key: string]: unknown;
+}
+
+export interface SurveyPublicationLinks {
+  public_page_path?: string;
+  public_url?: string;
+  share_url?: string;
+  copy_url?: string;
+  copy_text?: string;
+  public_api_endpoint?: string;
+  respond_endpoint?: string;
+  live_results_endpoint?: string;
+  results_endpoint?: string;
+  legacy_public_api_endpoint?: string;
+  legacy_live_results_endpoint?: string;
+  qr_endpoint?: string;
+  qr_image_url?: string;
+  whatsapp_share_url?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyPublicationAction {
+  id?: string;
+  label?: string;
+  ui_hint?: string;
+  href?: string | null;
+  enabled?: boolean;
+  [key: string]: unknown;
+}
+
+export interface SurveyPublicationContract {
+  contract_version?: string;
+  encuesta_id?: number | string;
+  tenant_id?: number | string | null;
+  tenant_slug?: string | null;
+  slug_publico?: string | null;
+  canonical_slug?: string | null;
+  estado?: string | null;
+  public_state?: string;
+  is_published?: boolean;
+  has_public_link?: boolean;
+  is_live_vote?: boolean;
+  live_results_enabled?: boolean;
+  requires_identity?: boolean;
+  anonymous_allowed?: boolean;
+  links?: SurveyPublicationLinks;
+  actions?: SurveyPublicationAction[];
   [key: string]: unknown;
 }
 
@@ -637,8 +685,12 @@ export interface SurveyDashboardBundle {
   visual_blueprint?: SurveyVisualBlueprint;
   admin_template?: SurveyAdminTemplate;
   modules?: SurveyDashboardModules;
+  survey_publication?: SurveyPublicationContract;
+  public_links?: SurveyPublicationLinks;
   kpis?: Record<string, unknown>;
   kpis_executive?: Record<string, SurveyExecutiveKpi>;
+  frontend_render_contract?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

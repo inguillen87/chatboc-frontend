@@ -18,6 +18,7 @@ vi.mock('@/utils/api', () => ({
 import {
   adminDuplicateSurvey,
   adminPublishSurvey,
+  getSurveyDashboardBundle,
   getHeatmap,
   getPublicSurvey,
   getPublicSurveyLiveResults,
@@ -86,6 +87,51 @@ describe('getHeatmap', () => {
         },
         ai_layers: { hotspots: [{ label: 'Centro' }] },
       }),
+    );
+  });
+});
+
+describe('getSurveyDashboardBundle', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('preserves publication links while normalizing the embedded heatmap', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      survey_publication: {
+        contract_version: 'surveys.dashboard_publication.v1',
+        public_state: 'published',
+        links: {
+          public_page_path: '/e/voto-plaza',
+          live_results_endpoint: '/api/v2/public/surveys/voto-plaza/live-results?tenant_slug=junin',
+        },
+        actions: [{ id: 'open_live_results' }],
+      },
+      public_links: {
+        share_url: '/e/voto-plaza',
+      },
+      modules: {
+        heatmap: {
+          points: [{ lat: '-32.92', lon: '-68.81', value: 5, categoria: 'Centro' }],
+          metadata: { using_synthetic_points: false },
+        },
+        publication: {
+          public_state: 'published',
+        },
+      },
+    });
+
+    const bundle = await getSurveyDashboardBundle(55, { canal: 'web' });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas/55/analytics/dashboard?canal=web',
+      expect.any(Object),
+    );
+    expect(bundle.survey_publication?.links?.live_results_endpoint).toContain('/live-results');
+    expect(bundle.public_links?.share_url).toBe('/e/voto-plaza');
+    expect(bundle.modules?.publication?.public_state).toBe('published');
+    expect(bundle.modules?.heatmap?.points[0]).toEqual(
+      expect.objectContaining({ lat: -32.92, lng: -68.81, respuestas: 5, value: 5 }),
     );
   });
 });

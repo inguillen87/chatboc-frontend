@@ -202,6 +202,42 @@ function asStringList(value: unknown): string[] {
     .filter((item): item is string => Boolean(item.trim()));
 }
 
+function readRecordText(record: Record<string, unknown> | null | undefined, key: string) {
+  return asRenderableText(record?.[key]).trim();
+}
+
+function resolveDisplayUrl(value?: unknown) {
+  const text = asRenderableText(value).trim();
+  if (!text) return '';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+  if (text.startsWith('/') && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin.replace(/\/$/, '')}${text}`;
+  }
+  return text;
+}
+
+function resolveHref(value?: unknown) {
+  return asRenderableText(value).trim();
+}
+
+function appendClientQueryParam(href: string, key: string, value: string) {
+  const normalized = href.trim();
+  if (!normalized) return '';
+  const [withoutHash, hash = ''] = normalized.split('#');
+  const separator = withoutHash.includes('?') ? '&' : '?';
+  const nextHref = `${withoutHash}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+  return hash ? `${nextHref}#${hash}` : nextHref;
+}
+
+function publicationStateLabel(value?: unknown) {
+  const normalized = asRenderableText(value).trim().toLowerCase();
+  if (normalized === 'published') return 'Publicado';
+  if (normalized === 'closed') return 'Cerrado';
+  if (normalized === 'draft') return 'Borrador';
+  if (normalized === 'unavailable') return 'Sin contrato';
+  return normalized || 'Sin estado';
+}
+
 function normalizeSegmentFilterValue(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -355,11 +391,69 @@ export default function SurveyAnalyticsPage() {
   const effectiveSurvey = survey ?? surveyFromList;
   const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
 
-  const publicUrl = useMemo(
-    () => getPublicSurveyUrlFromRecord(effectiveSurvey),
-    [effectiveSurvey],
+  const surveyPublication = useMemo(
+    () => asRecord(dashboardBundle?.survey_publication) ?? asRecord(dashboardBundle?.modules?.publication),
+    [dashboardBundle?.modules?.publication, dashboardBundle?.survey_publication],
   );
-  const qrUrl = getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512 }) || null;
+  const publicationLinks = useMemo(() => {
+    const directLinks = asRecord(surveyPublication?.links);
+    if (directLinks && Object.keys(directLinks).length) return directLinks;
+    return asRecord(dashboardBundle?.public_links) ?? {};
+  }, [dashboardBundle?.public_links, surveyPublication?.links]);
+  const publicationActions = useMemo(() => asRecordList(surveyPublication?.actions), [surveyPublication?.actions]);
+  const backendPublicHref =
+    readRecordText(publicationLinks, 'public_page_path') ||
+    readRecordText(publicationLinks, 'share_url') ||
+    readRecordText(publicationLinks, 'public_url') ||
+    readRecordText(publicationLinks, 'copy_url');
+  const publicHref = backendPublicHref || getPublicSurveyUrlFromRecord(effectiveSurvey);
+  const publicUrl = useMemo(
+    () => resolveDisplayUrl(publicHref),
+    [publicHref],
+  );
+  const copyPublicUrl = useMemo(
+    () => resolveDisplayUrl(readRecordText(publicationLinks, 'copy_url') || publicHref),
+    [publicHref, publicationLinks],
+  );
+  const qrUrl = (
+    readRecordText(publicationLinks, 'qr_image_url') ||
+    readRecordText(publicationLinks, 'qr_endpoint') ||
+    getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512 })
+  ) || null;
+  const whatsappShareUrl = readRecordText(publicationLinks, 'whatsapp_share_url');
+  const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
+  const isPublicationReady =
+    surveyPublication?.is_published === true ||
+    publicationState.toLowerCase() === 'published' ||
+    Boolean(publicUrl);
+  const liveResultsEnabled =
+    surveyPublication?.live_results_enabled === true ||
+    effectiveSurvey?.mostrar_resultados_envivo === true;
+  const isLiveVote =
+    surveyPublication?.is_live_vote === true ||
+    effectiveSurvey?.es_votacion_envivo === true;
+  const requiresIdentity =
+    surveyPublication?.requires_identity === true ||
+    effectiveSurvey?.requiere_identidad === true;
+  const openLiveAction = publicationActions.find((action) => readRecordText(action, 'id') === 'open_live_results');
+  const resolvedPublicHref = resolveHref(publicHref);
+  const openLiveActionHref = readRecordText(openLiveAction, 'href');
+  const liveResultsPageHref = openLiveActionHref || (resolvedPublicHref ? appendClientQueryParam(resolvedPublicHref, 'live', '1') : '');
+  const shouldShowLiveResultsButton = liveResultsEnabled && Boolean(liveResultsPageHref);
+  const resolvedLiveResultsHref = resolveHref(liveResultsPageHref);
+  const resolvedWhatsappShareUrl = resolveHref(whatsappShareUrl);
+  const publicContractVersion = readRecordText(surveyPublication, 'contract_version');
+  const publicSlug = readRecordText(surveyPublication, 'slug_publico') || readRecordText(surveyPublication, 'canonical_slug');
+  const publicationActionIds = publicationActions.map((action) => readRecordText(action, 'id')).filter(Boolean);
+  const publicationActionLabel =
+    publicationActionIds.includes('publish_survey')
+      ? 'Publicar encuesta'
+      : publicationActionIds.includes('enable_live_results')
+        ? 'Activar resultados en vivo'
+        : publicationActionIds.includes('open_live_results')
+          ? 'Resultados listos'
+          : 'Distribucion lista';
+
   const rangeLabel = useMemo(() => {
     const start = formatDateLabel(effectiveSurvey?.inicio_at);
     const end = formatDateLabel(effectiveSurvey?.fin_at);
@@ -785,13 +879,20 @@ export default function SurveyAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Difusión y acceso público</CardTitle>
-          <CardDescription>Copiá el enlace y compartí el QR para recibir nuevas respuestas rápidamente.</CardDescription>
+          <CardDescription>Copiá el enlace, abrí resultados en vivo y compartí el QR desde un contrato público validado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <Badge variant="outline" className="uppercase tracking-wide">
-              Estado: {effectiveSurvey.estado}
+            <Badge variant={isPublicationReady ? 'default' : 'outline'} className="uppercase tracking-wide">
+              {publicationStateLabel(publicationState)}
             </Badge>
+            {publicSlug ? <Badge variant="secondary">Slug {publicSlug}</Badge> : null}
+            {isLiveVote ? <Badge variant="secondary">Votación en vivo</Badge> : null}
+            <Badge variant={liveResultsEnabled ? 'default' : 'outline'}>
+              {liveResultsEnabled ? 'Realtime encendido' : 'Realtime apagado'}
+            </Badge>
+            {requiresIdentity ? <Badge variant="outline">Identidad requerida</Badge> : <Badge variant="outline">Anónima permitida</Badge>}
+            {publicContractVersion ? <Badge variant="outline">{publicContractVersion}</Badge> : null}
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="h-3.5 w-3.5" />
               {rangeLabel}
@@ -813,9 +914,9 @@ export default function SurveyAnalyticsPage() {
                     <Button
                       variant="outline"
                       onClick={async () => {
-                        if (!publicUrl) return;
+                        if (!copyPublicUrl) return;
                         try {
-                          await navigator.clipboard.writeText(publicUrl);
+                          await navigator.clipboard.writeText(copyPublicUrl);
                           toast({
                             title: 'Link copiado',
                             description: 'Listo para compartir por WhatsApp, redes o correo.',
@@ -829,10 +930,24 @@ export default function SurveyAnalyticsPage() {
                         }
                       }}
                       className="inline-flex items-center gap-2"
-                      disabled={!publicUrl}
+                      disabled={!copyPublicUrl}
                     >
                       <Copy className="h-4 w-4" /> Copiar link
                     </Button>
+                    {resolvedWhatsappShareUrl ? (
+                      <Button variant="outline" asChild className="inline-flex items-center gap-2">
+                        <a href={resolvedWhatsappShareUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-4 w-4" /> WhatsApp
+                        </a>
+                      </Button>
+                    ) : null}
+                    {shouldShowLiveResultsButton && resolvedLiveResultsHref ? (
+                      <Button variant="outline" asChild className="inline-flex items-center gap-2">
+                        <a href={resolvedLiveResultsHref} target="_blank" rel="noreferrer">
+                          <Activity className="h-4 w-4" /> Resultados
+                        </a>
+                      </Button>
+                    ) : null}
                     {qrUrl ? (
                       <Button variant="outline" asChild className="inline-flex items-center gap-2">
                         <a href={qrUrl} download>
@@ -844,7 +959,7 @@ export default function SurveyAnalyticsPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Compartí el enlace en WhatsApp, redes sociales o insertalo en tu sitio para maximizar la participación.
+                {publicationActionLabel}. Compartí el enlace en WhatsApp, redes sociales o insertalo en tu sitio para maximizar la participación.
               </p>
             </div>
             {qrUrl ? (
@@ -962,10 +1077,17 @@ export default function SurveyAnalyticsPage() {
             >
               {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} 100 demo
             </Button>
-            {publicUrl ? (
+            {publicUrl && resolvedPublicHref ? (
               <Button variant="outline" size="sm" asChild className="inline-flex items-center gap-2">
-                <a href={publicUrl} target="_blank" rel="noreferrer">
+                <a href={resolvedPublicHref} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-4 w-4" /> Pública
+                </a>
+              </Button>
+            ) : null}
+            {shouldShowLiveResultsButton && resolvedLiveResultsHref ? (
+              <Button variant="outline" size="sm" asChild className="inline-flex items-center gap-2">
+                <a href={resolvedLiveResultsHref} target="_blank" rel="noreferrer">
+                  <Activity className="h-4 w-4" /> Live
                 </a>
               </Button>
             ) : null}
