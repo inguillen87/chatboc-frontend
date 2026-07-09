@@ -16,6 +16,7 @@ import {
   Radio,
   RefreshCw,
   Route,
+  ShoppingCart,
   SlidersHorizontal,
   Sparkles,
   Ticket,
@@ -429,6 +430,7 @@ const OPERATIONS_DASHBOARD_FALLBACK: OperationsDashboardV1 = {
   tickets: { summary: {} },
   surveys: { summary: {} },
   chats: { summary: {} },
+  commerce: { summary: {}, by_state: [], by_origin: [], by_request_kind: [], review_items: [] },
   live_chat: { summary: {}, items: [] },
   employees: { summary: {}, items: [], coverage: { uncovered_categories: [], uncovered_channels: [] } },
   maps: { heatmap: { hotspots: [], points: [] } },
@@ -845,6 +847,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             error={aiOpsQueueQuery.error}
             refetch={() => void refetchAIOpsQueue()}
           />
+          <CommerceOpsPanel data={data} />
           <AIProviderStatusPanel
             status={aiProviderStatus}
             loading={aiProviderStatusQuery.isLoading}
@@ -884,10 +887,14 @@ function OperationsCommandCockpit({
 }) {
   const ticketsSummary = data.tickets?.summary ?? {};
   const surveysSummary = data.surveys?.summary ?? {};
+  const commerceSummary = data.commerce?.summary ?? {};
   const openTickets = readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
   const overdueTickets = readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos);
   const surveyResponses = readNumber(data.summary.survey_responses, surveysSummary.responses, surveysSummary.respuestas);
   const liveVotes = readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes);
+  const assistedOrders = readNumber(data.summary.assisted_orders, commerceSummary.assisted_orders);
+  const ordersNeedingReview = readNumber(data.summary.orders_needing_review, commerceSummary.orders_needing_review);
+  const unmatchedItems = readNumber(data.summary.unmatched_order_items, commerceSummary.unmatched_items);
   const heatmapSummary = heatmap?.summary ?? {};
   const coverageRaw = readNumber(
     heatmap?.quality?.coverage_percent,
@@ -926,6 +933,19 @@ function OperationsCommandCockpit({
       tone: overdueTickets ? 'warning' : 'success',
       href: '/perfil?tab=tickets',
       action: 'Abrir bandeja de reclamos',
+    },
+    {
+      key: 'commerce',
+      eyebrow: 'Marketplace',
+      title: 'Pedidos asistidos',
+      value: formatNumber(assistedOrders),
+      detail: ordersNeedingReview
+        ? `${formatNumber(ordersNeedingReview)} a revisar · ${formatNumber(unmatchedItems)} items sin resolver`
+        : 'Notas, fotos y PDFs listos para operar',
+      icon: ShoppingCart,
+      tone: ordersNeedingReview ? 'warning' : 'success',
+      href: '/perfil?tab=orders&focus=assisted',
+      action: 'Abrir pedidos asistidos',
     },
     {
       key: 'heatmap',
@@ -983,7 +1003,7 @@ function OperationsCommandCockpit({
           {alertsCount ? <Badge variant="destructive">{formatNumber(alertsCount)} alertas</Badge> : null}
         </div>
       </div>
-      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
         {cards.map((card) => {
           const Icon = card.icon;
           const toneClass =
@@ -1190,6 +1210,134 @@ function AIProviderStatusPanel({
   );
 }
 
+function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
+  const commerce = data.commerce;
+  const summary = commerce?.summary ?? {};
+  const totalOrders = readNumber(summary.orders);
+  const assistedOrders = readNumber(data.summary.assisted_orders, summary.assisted_orders);
+  const reviewCount = readNumber(data.summary.orders_needing_review, summary.orders_needing_review);
+  const unmatchedItems = readNumber(data.summary.unmatched_order_items, summary.unmatched_items);
+  const reviewItems = commerce?.review_items ?? [];
+  const origins = commerce?.by_origin ?? [];
+  const requestKinds = commerce?.by_request_kind ?? [];
+  const hasSignal =
+    (totalOrders ?? 0) > 0 ||
+    (assistedOrders ?? 0) > 0 ||
+    (reviewCount ?? 0) > 0 ||
+    reviewItems.length > 0 ||
+    origins.length > 0;
+
+  return (
+    <Card id="operations-commerce" data-testid="operations-commerce" className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-emerald-500/5">
+      <CardHeader className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShoppingCart className="h-4 w-4 text-primary" />
+              Pedidos asistidos
+            </CardTitle>
+            <CardDescription>
+              Notas, fotos, PDFs y pedidos de WhatsApp o marketplace que requieren validacion operativa.
+            </CardDescription>
+          </div>
+          <Badge variant={reviewCount ? 'secondary' : 'outline'}>
+            {reviewCount ? `${formatNumber(reviewCount)} a revisar` : 'sin cola critica'}
+          </Badge>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Pedidos</p>
+            <p className="mt-1 text-lg font-semibold">{formatNumber(totalOrders)}</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Asistidos</p>
+            <p className="mt-1 text-lg font-semibold">{formatNumber(assistedOrders)}</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Items</p>
+            <p className="mt-1 text-lg font-semibold">{formatNumber(unmatchedItems)}</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!hasSignal ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+            <p className="text-sm font-semibold text-foreground">Sin pedidos asistidos en este periodo</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              Cuando un cliente suba una nota, foto o PDF desde WhatsApp o marketplace, aparece aca con cola y origen.
+            </p>
+          </div>
+        ) : null}
+
+        {reviewItems.length ? (
+          <div className="space-y-2">
+            {reviewItems.slice(0, 4).map((item, index) => {
+              const href = asString(item.frontend_path) ?? asString(item.href) ?? asString(item.route);
+              const title = asString(item.title) ?? asString(item.label) ?? `Pedido asistido ${index + 1}`;
+              return (
+                <div key={item.id || title} className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant={priorityVariant(asString(item.priority))}>{priorityLabel(asString(item.priority))}</Badge>
+                        {item.origin ? <Badge variant="outline">{String(item.origin)}</Badge> : null}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold leading-5 text-foreground">{title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatNumber(item.detected)} detectados · {formatNumber(item.matched)} resueltos · {formatNumber(item.unmatched)} sin resolver
+                      </p>
+                    </div>
+                    {href ? (
+                      <Button asChild size="sm" variant="secondary" className="h-8 shrink-0 px-3">
+                        {isExternalHref(href) ? (
+                          <a href={href} target="_blank" rel="noreferrer">
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                            Revisar
+                          </a>
+                        ) : (
+                          <Link to={href}>
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                            Revisar
+                          </Link>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {origins.length || requestKinds.length ? (
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Origen</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {origins.slice(0, 4).map((item, index) => (
+                  <Badge key={bucketItemKey(item, index)} variant="outline">
+                    {itemLabel(item)} {formatNumber(itemValue(item))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Tipo</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {requestKinds.slice(0, 4).map((item, index) => (
+                  <Badge key={bucketItemKey(item, index)} variant="outline">
+                    {itemLabel(item)} {formatNumber(itemValue(item))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AIOpsQueuePanel({
   queue,
   loading,
@@ -1375,7 +1523,7 @@ function AIBriefBanner({ brief }: { brief: OperationsAIBriefV1 }) {
         <div className="border-t border-white/10 bg-white/5 p-5 lg:border-l lg:border-t-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">Foco del momento</p>
           <div className="mt-3 grid gap-2">
-            {focusItems.slice(0, 4).map((item, index) => (
+            {focusItems.slice(0, 5).map((item, index) => (
               <div key={item.id || item.key || item.label || index} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
                 <span className="min-w-0 truncate text-sm">{item.label || item.title || item.key || 'Foco operativo'}</span>
                 <span className="shrink-0 text-sm font-semibold">{formatNumber(item.value ?? item.count ?? item.total)}</span>
@@ -1460,6 +1608,7 @@ function KpiGrid({
   const ticketsSummary = data.tickets?.summary ?? {};
   const surveysSummary = data.surveys?.summary ?? {};
   const chatsSummary = data.chats?.summary ?? {};
+  const commerceSummary = data.commerce?.summary ?? {};
   const employeesSummary = data.employees?.summary ?? {};
   const heatmapSummary = heatmap?.summary ?? {};
 
@@ -1493,6 +1642,18 @@ function KpiGrid({
       label: resolveLabel(data, 'whatsapp_messages', 'WhatsApp'),
       value: readNumber(data.summary.whatsapp_messages, chatsSummary.whatsapp_messages),
       icon: Bell,
+    },
+    {
+      key: 'assisted_orders',
+      label: resolveLabel(data, 'assisted_orders', 'Pedidos asistidos'),
+      value: readNumber(data.summary.assisted_orders, commerceSummary.assisted_orders),
+      icon: ShoppingCart,
+    },
+    {
+      key: 'orders_needing_review',
+      label: resolveLabel(data, 'orders_needing_review', 'Pedidos a revisar'),
+      value: readNumber(data.summary.orders_needing_review, commerceSummary.orders_needing_review),
+      icon: AlertTriangle,
     },
     {
       key: 'employees',

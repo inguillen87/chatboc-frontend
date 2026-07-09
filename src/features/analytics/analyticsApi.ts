@@ -10,6 +10,7 @@ import type {
   OperationsActionItem,
   OperationsAlert,
   OperationsBucketItem,
+  OperationsCommerce,
   OperationsDashboardV1,
   OperationsFrontendContract,
   OperationsFreshnessSource,
@@ -340,6 +341,20 @@ const normalizeEmployees = (value: unknown) => {
   };
 };
 
+const normalizeCommerce = (value: unknown): OperationsCommerce => {
+  const record = pickRecord(value) ?? {};
+  return {
+    ...record,
+    contract_version: asString(record.contract_version),
+    summary: pickRecord(record.summary),
+    by_state: normalizeBucketItems(record.by_state),
+    by_origin: normalizeBucketItems(record.by_origin),
+    by_request_kind: normalizeBucketItems(record.by_request_kind),
+    review_items: normalizeBucketItemsWithActions(record.review_items),
+    frontend_contract: pickRecord(record.frontend_contract),
+  };
+};
+
 const normalizeMaps = (value: unknown) => {
   const record = pickRecord(value) ?? {};
   const heatmap = pickRecord(record.heatmap) ?? {};
@@ -366,6 +381,7 @@ const normalizeDashboard = (response: unknown): OperationsDashboardV1 => {
     tickets: normalizeBreakdowns(record.tickets),
     surveys: normalizeBreakdowns(record.surveys),
     chats: normalizeBreakdowns(record.chats),
+    commerce: normalizeCommerce(record.commerce),
     live_chat: normalizeLiveChat(record.live_chat),
     employees: normalizeEmployees(record.employees),
     maps: normalizeMaps(record.maps),

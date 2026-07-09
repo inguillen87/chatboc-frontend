@@ -138,6 +138,17 @@ export interface OperationsEmployees {
   [key: string]: unknown;
 }
 
+export interface OperationsCommerce {
+  contract_version?: string;
+  summary?: Record<string, unknown>;
+  by_state?: OperationsBucketItem[];
+  by_origin?: OperationsBucketItem[];
+  by_request_kind?: OperationsBucketItem[];
+  review_items?: OperationsBucketItem[];
+  frontend_contract?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface OperationsMaps {
   heatmap?: {
     hotspots?: OperationsBucketItem[];
@@ -168,6 +179,7 @@ export interface OperationsDashboardV1 {
   tickets?: OperationsBreakdowns;
   surveys?: OperationsBreakdowns;
   chats?: OperationsBreakdowns;
+  commerce?: OperationsCommerce;
   live_chat?: OperationsLiveChat;
   employees?: OperationsEmployees;
   maps?: OperationsMaps;

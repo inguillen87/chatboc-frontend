@@ -103,6 +103,9 @@ const dashboardFixture = (): OperationsDashboardV1 => ({
     open_tickets: 12,
     survey_responses: 44,
     whatsapp_messages: 90,
+    assisted_orders: 2,
+    orders_needing_review: 1,
+    unmatched_order_items: 3,
     employees: 6,
     map_points: 2,
   },
@@ -117,6 +120,29 @@ const dashboardFixture = (): OperationsDashboardV1 => ({
   },
   chats: {
     summary: { whatsapp_messages: 90 },
+  },
+  commerce: {
+    contract_version: 'operations.commerce.v1',
+    summary: {
+      orders: 4,
+      assisted_orders: 2,
+      orders_needing_review: 1,
+      unmatched_items: 3,
+    },
+    by_origin: [{ key: 'marketplace_upload', label: 'marketplace_upload', count: 2 }],
+    by_request_kind: [{ key: 'order_note', label: 'order_note', count: 2 }],
+    review_items: [
+      {
+        id: 'assisted_order:2',
+        title: 'Pedido asistido requiere revision',
+        priority: 'high',
+        origin: 'marketplace_upload',
+        detected: 5,
+        matched: 2,
+        unmatched: 3,
+        frontend_path: '/t/junin/pedidos/2',
+      },
+    ],
   },
   employees: {
     summary: { employees: 6 },
@@ -468,11 +494,19 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/perfil?tab=orders&focus=assisted');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
     expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
+    const commercePanel = screen.getByTestId('operations-commerce');
+    expect(commercePanel).toHaveTextContent('Pedidos asistidos');
+    expect(commercePanel).toHaveTextContent('1 a revisar');
+    expect(commercePanel).toHaveTextContent('Pedido asistido requiere revision');
+    expect(commercePanel).toHaveTextContent('5 detectados');
+    expect(commercePanel).toHaveTextContent('3 sin resolver');
+    expect(commercePanel.querySelector('a')?.getAttribute('href')).toBe('/t/junin/pedidos/2');
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
     const decisionBrief = screen.getByTestId('territorial-decision-brief');
     expect(decisionBrief).toHaveTextContent('Mesa territorial inteligente');
@@ -606,7 +640,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('1 alta')).toBeTruthy();
     expect(screen.getAllByText('solo lectura').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Reclamo requiere revision humana')).toBeTruthy();
-    expect(screen.getByText('Pedido asistido requiere revision')).toBeTruthy();
+    expect(screen.getAllByText('Pedido asistido requiere revision').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Encuesta o votacion en monitoreo')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Abrir caso/i }).getAttribute('href')).toBe(
       '/t/junin/tickets?ticket_id=1&source=tenant_ticket',
