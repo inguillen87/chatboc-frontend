@@ -40,8 +40,10 @@ import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
 import { enterpriseService } from "@/services/enterpriseService";
 import { useTenant } from "@/context/TenantContext";
 import { useParams } from "react-router-dom";
-import MapLibreMap from "@/components/LazyMapLibreMap";
 import { isRecord, pickCollection, pickText } from "@/utils/responseShape";
+import { getOperationsHeatmapV2, getPublicMapConfigV1 } from "@/features/analytics/analyticsApi";
+import { PremiumTerritoryHeatmap } from "@/features/analytics/PremiumTerritoryMap";
+import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from "@/features/analytics/analyticsTypes";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -102,17 +104,145 @@ interface TenantEmployeeCoverage {
   meta?: Record<string, any>;
 }
 
+const toNumber = (value: unknown): number => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const normalizeBusinessHeatmapPoint = (point: Record<string, any>): OperationsHeatmapPoint | null => {
+  const lat = Number(point?.lat ?? point?.latitude);
+  const lng = Number(point?.lng ?? point?.lon ?? point?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const fallbackCategory = point?.ticket_type ?? point?.source ?? "actividad";
+  return {
+    ...point,
+    id: point?.id ?? point?.ticket_id ?? point?.survey_id ?? point?.response_id,
+    lat,
+    lng,
+    weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
+    category: String(point?.category ?? point?.categoria ?? fallbackCategory),
+    categoria: String(point?.categoria ?? point?.category ?? fallbackCategory),
+    barrio: point?.barrio ?? point?.zona,
+    distrito: point?.distrito ?? point?.zona,
+    label:
+      point?.label ??
+      point?.survey_title ??
+      point?.survey_slug ??
+      point?.ticket_id ??
+      point?.response_id,
+    source: point?.source,
+    type: point?.ticket_type,
+    estado: point?.estado ?? point?.status,
+  };
+};
+
+const normalizeLegacyHeatmapPoints = (tenantHeatmap?: TenantHeatmapSummary | null): OperationsHeatmapPoint[] =>
+  Array.isArray(tenantHeatmap?.heatmap_points)
+    ? tenantHeatmap.heatmap_points
+        .map(normalizeBusinessHeatmapPoint)
+        .filter((point): point is OperationsHeatmapPoint => Boolean(point))
+    : [];
+
+const bucketFromRecord = (item: Record<string, any>, index: number, labelKeys: string[], fallbackPrefix: string) => {
+  const label = labelKeys.map((key) => item?.[key]).find((value) => value !== undefined && value !== null);
+  return {
+    ...item,
+    key: String(label ?? item?.id ?? `${fallbackPrefix}_${index + 1}`),
+    label: String(label ?? `${fallbackPrefix} ${index + 1}`),
+    count: toNumber(item?.count ?? item?.total ?? item?.weight),
+  };
+};
+
+const mapLegacyHeatmapSummary = (
+  tenantHeatmap: TenantHeatmapSummary | null,
+  heatmapPoints: OperationsHeatmapPoint[],
+): OperationsHeatmapV1 | undefined => {
+  if (!tenantHeatmap && heatmapPoints.length === 0) return undefined;
+  const topCategories = tenantHeatmap?.top_categories ?? [];
+  const topZones = tenantHeatmap?.top_zones ?? [];
+  const hotspotPairs = tenantHeatmap?.hotspot_pairs ?? [];
+
+  return {
+    contract_version: "operations.heatmap.v1",
+    render_contract: {
+      state: heatmapPoints.length ? "ready" : "empty",
+      map_engine: "maplibre",
+      layers: ["heatmap", "points", "categories"],
+      can_render_heatmap: heatmapPoints.length > 0,
+      recommended_views: ["territory", "hotspots", "coverage"],
+      premium_metadata: {
+        source: "tenant_heatmap_summary",
+        fallback: true,
+      },
+    },
+    summary: {
+      points: heatmapPoints.length,
+      top_categories: topCategories.length,
+      top_zones: topZones.length,
+      hotspots: hotspotPairs.length,
+      can_render_heatmap: heatmapPoints.length > 0,
+    },
+    points: heatmapPoints,
+    cells: [],
+    hotspots: hotspotPairs.map((item, index) => bucketFromRecord(item, index, ["label", "categoria", "category", "zona"], "hotspot")),
+    facets: [
+      {
+        key: "categoria",
+        field: "categoria",
+        query_param: "categoria",
+        label: "Categoria",
+        items: topCategories.map((item, index) => bucketFromRecord(item, index, ["categoria", "category", "label", "name"], "categoria")),
+      },
+      {
+        key: "zona",
+        field: "zona",
+        query_param: "zona",
+        label: "Zona",
+        items: topZones.map((item, index) => bucketFromRecord(item, index, ["zona", "label", "name"], "zona")),
+      },
+    ].filter((facet) => facet.items.length > 0),
+    category_layers: topCategories.map((item, index) => bucketFromRecord(item, index, ["categoria", "category", "label", "name"], "categoria")),
+    quality: {
+      contract_version: "operations.heatmap_quality.v1",
+      state: heatmapPoints.length ? "ready" : "empty",
+      label: heatmapPoints.length ? "Mapa listo" : "Sin coordenadas",
+      reason_code: heatmapPoints.length ? "legacy_summary_ready" : "legacy_summary_without_points",
+      visible_points: heatmapPoints.length,
+      can_render_heatmap: heatmapPoints.length > 0,
+    },
+    realtime: {
+      contract_version: "operations.heatmap_realtime.v1",
+      poll_seconds: 60,
+      sources: ["tickets", "surveys", "legacy_summary"],
+    },
+    map_narrative: {
+      contract_version: "operations.heatmap_narrative.v1",
+      state: heatmapPoints.length ? "ready" : "empty",
+      headline: heatmapPoints.length
+        ? "Mapa operativo unificado"
+        : "Todavia faltan coordenadas para activar el mapa",
+      body: heatmapPoints.length
+        ? "Lectura territorial de reclamos, encuestas y actividad comercial con fallback seguro desde el resumen tenant."
+        : "Cuando el tenant cargue direcciones geocodificadas o respuestas con zona, este modulo muestra hotspots y cobertura.",
+    },
+    map_experience: {
+      contract_version: "operations.heatmap_experience.v1",
+      preferred_visualization: "interactive_globe_heatmap",
+      map_engines: ["maplibre", "svg"],
+      layer_groups: ["base_heatmap", "category_layers", "survey_participation"],
+      empty_state_behavior: "show_geocoding_guidance",
+      supports_reduced_motion: true,
+    },
+  };
+};
+
 const formatStatusLabel = (value: string) =>
   value
     .split(/[_\s]+/)
     .filter(Boolean)
     .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
     .join(' ');
-
-const toNumber = (value: unknown): number => {
-  const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num : 0;
-};
 
 const normalizeKpi = (value: unknown): Kpi => {
   if (isRecord(value)) {
@@ -272,6 +402,9 @@ export default function BusinessMetrics() {
     useState<TenantDashboardBundle | null>(null);
   const [tenantHeatmap, setTenantHeatmap] =
     useState<TenantHeatmapSummary | null>(null);
+  const [operationsHeatmap, setOperationsHeatmap] =
+    useState<OperationsHeatmapV1 | null>(null);
+  const [mapConfig, setMapConfig] = useState<PublicMapConfigV1 | null>(null);
   const [employeeCoverage, setEmployeeCoverage] =
     useState<TenantEmployeeCoverage | null>(null);
   const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
@@ -290,6 +423,8 @@ export default function BusinessMetrics() {
       const [
         dashboardBundleRes,
         heatmapSummaryRes,
+        operationsHeatmapRes,
+        mapConfigRes,
         employeeCoverageRes,
         summaryRes,
         kpisRes,
@@ -310,6 +445,22 @@ export default function BusinessMetrics() {
             })
           : Promise.resolve(null),
         tenantSlug
+          ? getOperationsHeatmapV2({
+              tenantSlug,
+              range: "30d",
+              include_ai: 0,
+            }).catch((error) => {
+              console.warn("Operations heatmap unavailable, using tenant summary fallback:", error);
+              return null;
+            })
+          : Promise.resolve(null),
+        tenantSlug
+          ? getPublicMapConfigV1({ tenantSlug }).catch((error) => {
+              console.warn("Map config unavailable, using default renderer:", error);
+              return null;
+            })
+          : Promise.resolve(null),
+        tenantSlug
           ? enterpriseService.getTenantEmployeeCoverage(tenantSlug)
           : Promise.resolve(null),
         apiFetch<unknown>('/api/metrics/summary'),
@@ -322,6 +473,8 @@ export default function BusinessMetrics() {
 
       setDashboardBundle(dashboardBundleRes);
       setTenantHeatmap(heatmapSummaryRes);
+      setOperationsHeatmap(operationsHeatmapRes);
+      setMapConfig(mapConfigRes);
       setEmployeeCoverage(employeeCoverageRes);
       setSummary(pickText(summaryRes));
       setKpis(normalizeKpiData(kpisRes));
@@ -381,29 +534,12 @@ export default function BusinessMetrics() {
   const leadsWithCollaboration = leadItems.filter(
     (item) => item?.collaboration_state,
   );
-  const heatmapPoints = Array.isArray(tenantHeatmap?.heatmap_points)
-    ? tenantHeatmap.heatmap_points
-        .map((point) => ({
-          lat: Number(point?.lat),
-          lng: Number(point?.lng ?? point?.lon),
-          weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
-          categoria: point?.categoria,
-          zona: point?.zona,
-          label:
-            point?.label ??
-            point?.survey_title ??
-            point?.survey_slug ??
-            point?.ticket_id ??
-            point?.response_id,
-          source: point?.source,
-          ticket_type: point?.ticket_type,
-          survey_id: point?.survey_id,
-          survey_slug: point?.survey_slug,
-          survey_title: point?.survey_title,
-          is_live_vote: point?.is_live_vote,
-        }))
-        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-    : [];
+  const legacyHeatmapPoints = useMemo(() => normalizeLegacyHeatmapPoints(tenantHeatmap), [tenantHeatmap]);
+  const premiumHeatmap = useMemo(
+    () => operationsHeatmap ?? mapLegacyHeatmapSummary(tenantHeatmap, legacyHeatmapPoints),
+    [legacyHeatmapPoints, operationsHeatmap, tenantHeatmap],
+  );
+  const heatmapPoints = premiumHeatmap?.points?.length ? premiumHeatmap.points : legacyHeatmapPoints;
   const heatmapSourceSummary = useMemo(() => {
     const counts = {
       tickets: 0,
@@ -412,7 +548,7 @@ export default function BusinessMetrics() {
     };
 
     heatmapPoints.forEach((point) => {
-      if (point.source === "survey_response" || point.ticket_type === "survey_response") {
+      if (point.source === "survey_response" || point.type === "survey_response" || point.ticket_type === "survey_response") {
         counts.surveys += 1;
         if (point.is_live_vote) counts.liveVotes += 1;
       } else {
@@ -710,12 +846,12 @@ export default function BusinessMetrics() {
           </>
         )}
 
-        {(tenantHeatmap || employeeCoverage) && (
+        {(tenantHeatmap || premiumHeatmap || employeeCoverage) && (
           <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Mapa de calor y cobertura operativa</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Lectura rápida para operación territorial, hotspots y distribución del equipo.
+                Lectura rapida para operacion territorial, hotspots y distribucion del equipo.
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -725,18 +861,18 @@ export default function BusinessMetrics() {
                     <Badge variant="outline">Tickets {heatmapSourceSummary.tickets.toLocaleString("es-AR")}</Badge>
                     <Badge variant="secondary">Encuestas {heatmapSourceSummary.surveys.toLocaleString("es-AR")}</Badge>
                     <Badge variant="secondary">Votaciones {heatmapSourceSummary.liveVotes.toLocaleString("es-AR")}</Badge>
+                    <Badge variant={operationsHeatmap ? "default" : "outline"}>
+                      {operationsHeatmap ? "Contrato ops" : "Fallback tenant"}
+                    </Badge>
                   </div>
-                  {heatmapPoints.length ? (
-                    <MapLibreMap
-                      className="h-[360px] w-full rounded-lg"
-                      heatmapData={heatmapPoints as any}
-                      showHeatmap
-                    />
-                  ) : (
-                    <div className="flex h-[360px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-                      No hay puntos de heatmap disponibles en el rango actual.
-                    </div>
-                  )}
+                  <PremiumTerritoryHeatmap
+                    points={heatmapPoints}
+                    heatmap={premiumHeatmap}
+                    mapConfig={mapConfig ?? undefined}
+                    allowDemoFallback
+                    demoProfile={tenant?.tipo === "municipio" ? "gobierno" : "general"}
+                    className="min-h-[520px]"
+                  />
                 </div>
 
                 <div className="grid gap-4">
