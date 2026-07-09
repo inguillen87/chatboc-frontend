@@ -197,11 +197,8 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).not.toHaveClass('hidden');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Abiertos');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Riesgo');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('No');
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveTextContent('Resueltos');
+    expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tickets-embedded-kpi-summary')).toHaveTextContent('0 abiertos');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(288px, 340px) minmax(0, 1fr)',
     });

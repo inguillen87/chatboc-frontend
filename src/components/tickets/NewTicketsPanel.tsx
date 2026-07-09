@@ -774,13 +774,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               </div>
             ) : null}
           </div>
-          <div
-            data-testid="ticket-ops-stat-strip"
-            className={cn(
-              'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-              embedded ? 'w-full min-[920px]:w-auto min-[920px]:justify-end' : 'min-[1080px]:justify-end',
-            )}
-          >
+          {!embedded ? (
+            <div
+              data-testid="ticket-ops-stat-strip"
+              className={cn(
+                'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                embedded ? 'w-full min-[920px]:w-auto min-[920px]:justify-end' : 'min-[1080px]:justify-end',
+              )}
+            >
             <TicketOpsStat
               label="Abiertos"
               value={openTickets}
@@ -817,9 +818,22 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               onClick={() => applyQuickFilter({ status: 'resuelto' })}
               compact={embedded}
             />
-          </div>
+            </div>
+          ) : null}
           {embedded ? (
             <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 min-[920px]:w-auto min-[920px]:justify-end">
+              <Badge
+                data-testid="tickets-embedded-kpi-summary"
+                variant="outline"
+                className="max-w-full rounded-full bg-background/70 text-[11px] font-medium text-muted-foreground"
+                title={`${openTickets} abiertos | ${unreadTickets} sin leer | ${riskTickets} en riesgo | ${resolvedTickets} resueltos`}
+              >
+                <span className="truncate">
+                  {openTickets.toLocaleString('es-AR')} abiertos
+                  {unreadTickets > 0 ? ` · ${unreadTickets.toLocaleString('es-AR')} sin leer` : ''}
+                  {riskTickets > 0 ? ` · ${riskTickets.toLocaleString('es-AR')} riesgo` : ''}
+                </span>
+              </Badge>
               {nextPriorityTicket ? (
                 <div
                   data-testid="tickets-next-priority-strip"
@@ -877,9 +891,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                     variant="ghost"
                     size="sm"
                     className="h-7 rounded-full px-2 text-xs"
+                    aria-label="Limpiar filtros"
+                    title="Limpiar filtros"
                     onClick={resetOperationalFilters}
                   >
-                    Limpiar
+                    <Filter className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ) : null}
