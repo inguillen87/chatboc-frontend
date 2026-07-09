@@ -74,6 +74,20 @@ const Integracion = () => {
   const [activatingDemo, setActivatingDemo] = useState(false);
 
   const tenantSlug = useMemo(() => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug), [user]);
+  const canManageLegacyWhatsappInventory = useMemo(() => {
+    const currentUser = user as any;
+    const roles = [
+      currentUser?.role,
+      currentUser?.rol,
+      currentUser?.tipo,
+      currentUser?.user_role,
+      ...(Array.isArray(currentUser?.roles) ? currentUser.roles : []),
+    ]
+      .map((role) => String(role || "").toLowerCase())
+      .filter(Boolean);
+
+    return roles.includes("superadmin") || roles.includes("super_admin");
+  }, [user]);
 
   const loadConfig = useCallback(async () => {
     if (!tenantSlug) return;
@@ -142,10 +156,10 @@ const Integracion = () => {
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
 
   useEffect(() => {
-    if (activeTab === "whatsapp") {
+    if (activeTab === "whatsapp" && canManageLegacyWhatsappInventory) {
       loadWhatsappNumbers();
     }
-  }, [activeTab, loadWhatsappNumbers]);
+  }, [activeTab, canManageLegacyWhatsappInventory, loadWhatsappNumbers]);
 
   const handleSave = async (section: keyof TenantConfigBundle | "configs", data: any) => {
     if (!tenantSlug || !config) return;
@@ -457,14 +471,21 @@ const Integracion = () => {
                     <p className="text-yellow-800 dark:text-yellow-200 mb-4">
                       Tu organización aún no tiene un número de WhatsApp oficial asignado.
                     </p>
-                    <Button onClick={handleAssignWhatsapp}>
-                      Asignar número automáticamente
-                    </Button>
+                    {canManageLegacyWhatsappInventory ? (
+                      <Button onClick={handleAssignWhatsapp}>
+                        Asignar número automáticamente
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-yellow-800 dark:text-yellow-100">
+                        Usá el onboarding oficial de arriba para conectar Meta, registrar el remitente y sincronizar plantillas sin entrar a consola interna.
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <Separator />
 
+                {canManageLegacyWhatsappInventory ? (
                 <div className="space-y-6">
                   {(demoExperienceSources.twilioTrial || demoExperienceSources.onboardingQuickMenu.length > 0) && (
                     <div className="rounded-lg border p-4 space-y-4">
@@ -675,6 +696,7 @@ const Integracion = () => {
                     </Button>
                   </div>
                 </div>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>

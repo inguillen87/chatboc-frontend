@@ -82,6 +82,9 @@ const GestionPlantillasPage: React.FC = () => {
   const [promptIA, setPromptIA] = useState("");
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [plantillaAEliminar, setPlantillaAEliminar] = useState<GestionResponseTemplate | null>(null);
+  const whatsappOnboardingHref = tenantSlug
+    ? `/${encodeURIComponent(tenantSlug)}/integracion?channel=whatsapp&action=twilio-content`
+    : "/integracion?channel=whatsapp&action=twilio-content";
 
   const fetchPlantillas = useCallback(async () => {
     setIsLoading(true);
@@ -280,7 +283,7 @@ const GestionPlantillasPage: React.FC = () => {
                     Actualizar
                   </Button>
                   <Button asChild type="button" variant="ghost" className="rounded-[8px]">
-                    <Link to="/integracion/whatsapp/connect">Onboarding WhatsApp</Link>
+                    <Link to={whatsappOnboardingHref}>Onboarding WhatsApp</Link>
                   </Button>
                 </div>
               </div>

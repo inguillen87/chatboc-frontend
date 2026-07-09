@@ -10,6 +10,7 @@ import {
   Lock,
   MessageCircle,
   RefreshCw,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   TicketCheck,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 
 const channelIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   crm: TicketCheck,
+  identity_auth: ShieldCheck,
   whatsapp: MessageCircle,
   widget: Wifi,
   templates: FileCheck2,
@@ -248,6 +250,12 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               {channel.required_plan ? (
                 <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-200">
                   Requiere plan {channel.required_plan}.
+                </p>
+              ) : null}
+
+              {channel.progress_hint ? (
+                <p className="mt-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs leading-5 text-blue-800 dark:text-blue-100">
+                  {channel.progress_hint}
                 </p>
               ) : null}
 

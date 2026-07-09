@@ -13,11 +13,11 @@ const activationPayload = {
   contract_version: 'tenant.channel_activation.v1' as const,
   tenant: { slug: 'junin', nombre: 'Municipalidad de Junin', plan: 'free' },
   summary: {
-    total: 5,
+    total: 6,
     ready: 1,
     locked: 2,
-    attention: 2,
-    progress: 20,
+    attention: 3,
+    progress: 17,
     health_label: 'Activacion en progreso',
     primary_next_action: { id: 'connect_whatsapp', label: 'Conectar WhatsApp', href: '/t/junin/integracion' },
   },
@@ -35,6 +35,16 @@ const activationPayload = {
       ready: true,
       description: 'Bandeja activa.',
       actions: [{ id: 'open_crm', label: 'Abrir reclamos/tickets', href: '/perfil?tab=tickets', primary: true }],
+    },
+    {
+      id: 'identity_auth',
+      label: 'Identidad y login social',
+      status: 'pending',
+      description: 'Portal, Clerk y avatar consentido.',
+      evidence: ['tenant vinculado a Clerk', 'JWT/JWKS configurado'],
+      reason_code: 'clerk_webhook_recommended',
+      progress_hint: 'Configurar CLERK_WEBHOOK_SECRET para sincronizar altas, bajas y cambios de email.',
+      actions: [{ id: 'open_profile', label: 'Abrir perfil', href: '/perfil', primary: true }],
     },
     {
       id: 'whatsapp',
@@ -81,9 +91,11 @@ describe('ChannelActivationChecklist', () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
     expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
-    expect(screen.getByText('20%')).toBeInTheDocument();
-    expect(screen.getByText(/1 de 5 frentes listos/i)).toBeInTheDocument();
+    expect(screen.getByText('17%')).toBeInTheDocument();
+    expect(screen.getByText(/1 de 6 frentes listos/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.getByText('Identidad y login social')).toBeInTheDocument();
+    expect(screen.getByText(/Configurar CLERK_WEBHOOK_SECRET/i)).toBeInTheDocument();
     expect(screen.getByText('WhatsApp Business')).toBeInTheDocument();
     expect(screen.getByText('Cobros y checkout')).toBeInTheDocument();
     expect(screen.getByText('Equipo y responsables')).toBeInTheDocument();

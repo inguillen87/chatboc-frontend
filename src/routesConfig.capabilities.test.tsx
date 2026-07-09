@@ -134,7 +134,18 @@ describe('routesConfig route capabilities', () => {
     const templatesPagePath = path.resolve(__dirname, 'pages/GestionPlantillasPage.tsx');
     const content = fs.readFileSync(templatesPagePath, 'utf8');
 
-    expect(content).toContain('to="/integracion/whatsapp/connect"');
+    expect(content).toContain('whatsappOnboardingHref');
+    expect(content).toContain('action=twilio-content');
+    expect(content).not.toContain('to="/integracion/whatsapp/connect"');
     expect(content).not.toContain('/integraciones/whatsapp/embedded-signup');
+  });
+
+  it('keeps legacy WhatsApp number inventory hidden from tenant admin screens', () => {
+    const integrationPagePath = path.resolve(__dirname, 'pages/Integracion.tsx');
+    const content = fs.readFileSync(integrationPagePath, 'utf8');
+
+    expect(content).toContain('canManageLegacyWhatsappInventory');
+    expect(content).toContain('activeTab === "whatsapp" && canManageLegacyWhatsappInventory');
+    expect(content).toContain('Usá el onboarding oficial de arriba');
   });
 });
