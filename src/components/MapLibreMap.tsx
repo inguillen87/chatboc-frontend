@@ -261,6 +261,205 @@ const isFeatureCollection = (value: unknown): value is { type: "FeatureCollectio
   return record.type === "FeatureCollection" && Array.isArray(record.features);
 };
 
+const popupNumberFormatter = new Intl.NumberFormat("es-AR", {
+  maximumFractionDigits: 1,
+});
+
+const appendPopupText = (
+  parent: HTMLElement,
+  tagName: "p" | "span" | "strong",
+  text: string,
+  className?: string,
+) => {
+  const element = document.createElement(tagName);
+  if (className) element.className = className;
+  element.textContent = text;
+  parent.appendChild(element);
+  return element;
+};
+
+const appendPopupBreakdown = (
+  parent: HTMLElement,
+  title: string,
+  items: HeatPoint["aggregatedCategorias"] | undefined,
+  numberFormatter = popupNumberFormatter,
+) => {
+  if (!items?.length) return;
+
+  const section = document.createElement("div");
+  section.className = "mt-3 text-xs leading-relaxed";
+  appendPopupText(
+    section,
+    "p",
+    title,
+    "font-semibold uppercase tracking-wide text-slate-500",
+  );
+
+  const list = document.createElement("ul");
+  list.className = "mt-1 space-y-0.5";
+  items.slice(0, 3).forEach((item) => {
+    const row = document.createElement("li");
+    const label = document.createElement("span");
+    label.className = "font-medium text-slate-700";
+    label.textContent = String(item.label ?? "");
+    row.appendChild(label);
+    row.append(
+      ` · ${numberFormatter.format(Number(item.weight ?? 0))} (${Number(item.percentage ?? 0).toFixed(1)}%)`,
+    );
+    list.appendChild(row);
+  });
+
+  section.appendChild(list);
+  parent.appendChild(section);
+};
+
+const appendPopupTicketLink = (
+  parent: HTMLElement,
+  ticketId: unknown,
+  label: string,
+  className = "text-blue-600 underline hover:text-blue-500",
+) => {
+  const safeId = String(ticketId ?? "").trim();
+  if (!safeId) return null;
+
+  const link = document.createElement("a");
+  link.href = `/chat/${encodeURIComponent(safeId)}`;
+  link.className = className;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = label;
+  parent.appendChild(link);
+  return link;
+};
+
+export const buildMapClusterPopupContent = ({
+  cluster,
+  properties,
+  numberFormatter = popupNumberFormatter,
+}: {
+  cluster?: HeatPoint;
+  properties?: Record<string, unknown>;
+  numberFormatter?: Intl.NumberFormat;
+}) => {
+  const root = document.createElement("div");
+  root.className = "max-w-xs space-y-1";
+
+  if (cluster) {
+    const clusterSize = Number.isFinite(cluster.clusterSize)
+      ? Number(cluster.clusterSize)
+      : 1;
+    const totalWeight = Number.isFinite(cluster.totalWeight)
+      ? Number(cluster.totalWeight)
+      : Number(cluster.weight ?? 0);
+
+    appendPopupText(
+      root,
+      "p",
+      `Reportes en la zona: ${clusterSize.toLocaleString("es-AR")}`,
+      "text-sm font-semibold text-slate-800",
+    );
+
+    if (totalWeight > 0) {
+      appendPopupText(
+        root,
+        "p",
+        `Peso agregado: ${numberFormatter.format(totalWeight)}`,
+        "text-xs text-slate-600",
+      );
+    }
+
+    if (Number.isFinite(cluster.averageWeight) && clusterSize > 1) {
+      appendPopupText(
+        root,
+        "p",
+        `Peso promedio por reporte: ${numberFormatter.format(Number(cluster.averageWeight))}`,
+        "text-xs text-slate-600",
+      );
+    }
+
+    const topBarrio = cluster.aggregatedBarrios?.[0];
+    if (topBarrio) {
+      appendPopupText(
+        root,
+        "p",
+        `Zona destacada: ${topBarrio.label} (${Number(topBarrio.percentage ?? 0).toFixed(1)}%)`,
+        "text-xs text-slate-600",
+      );
+    } else if (cluster.barrio || cluster.distrito) {
+      appendPopupText(
+        root,
+        "p",
+        `Zona: ${cluster.barrio ?? cluster.distrito}`,
+        "text-xs text-slate-600",
+      );
+    }
+
+    if (cluster.last_ticket_at) {
+      const parsed = Date.parse(cluster.last_ticket_at);
+      if (Number.isFinite(parsed)) {
+        appendPopupText(
+          root,
+          "p",
+          `Ultimo ticket: ${new Date(parsed).toLocaleString("es-AR")}`,
+          "text-xs text-slate-600",
+        );
+      }
+    }
+
+    appendPopupBreakdown(root, "Categorias principales", cluster.aggregatedCategorias, numberFormatter);
+    appendPopupBreakdown(root, "Estados", cluster.aggregatedEstados, numberFormatter);
+    appendPopupBreakdown(root, "Severidad", cluster.aggregatedSeveridades, numberFormatter);
+    appendPopupBreakdown(root, "Tipos de ticket", cluster.aggregatedTipos, numberFormatter);
+
+    const samples = cluster.sampleTickets ?? [];
+    if (samples.length) {
+      const paragraph = document.createElement("p");
+      paragraph.className = "mt-3 text-xs text-slate-600";
+      paragraph.append("Tickets relacionados: ");
+      samples.slice(0, 3).forEach((ticketId, index) => {
+        if (index > 0) paragraph.append(" · ");
+        appendPopupTicketLink(paragraph, ticketId, `#${String(ticketId)}`);
+      });
+      root.appendChild(paragraph);
+    } else if (cluster.ticket || cluster.id) {
+      const paragraph = document.createElement("p");
+      paragraph.className = "mt-3 text-xs";
+      appendPopupTicketLink(paragraph, cluster.ticket ?? cluster.id, "Ver ticket de referencia");
+      root.appendChild(paragraph);
+    }
+
+    return root;
+  }
+
+  const safeProperties = properties ?? {};
+  const id = safeProperties.id;
+  const ticket = safeProperties.ticket;
+  const categoria = safeProperties.categoria;
+  const direccion = safeProperties.direccion;
+  const distrito = safeProperties.distrito;
+
+  if (ticket || id) {
+    appendPopupText(root, "p", `Ticket #${String(ticket ?? id)}`, "text-sm font-semibold");
+  }
+  if (categoria) {
+    appendPopupText(root, "p", `Categoria: ${String(categoria)}`, "text-xs text-slate-600");
+  }
+  if (distrito) {
+    appendPopupText(root, "p", `Distrito: ${String(distrito)}`, "text-xs text-slate-600");
+  }
+  if (direccion) {
+    appendPopupText(root, "p", `Direccion: ${String(direccion)}`, "text-xs text-slate-600");
+  }
+  if (id) {
+    const paragraph = document.createElement("p");
+    paragraph.className = "mt-3 text-xs";
+    appendPopupTicketLink(paragraph, id, "Ver ticket");
+    root.appendChild(paragraph);
+  }
+
+  return root;
+};
+
 const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   const source = map.getSource("points");
   if (source && typeof (source as any).setData === "function") {
@@ -649,10 +848,6 @@ export default function MapLibreMap({
 
         mapRef.current = mapInstance;
 
-        const numberFormatter = new Intl.NumberFormat("es-AR", {
-          maximumFractionDigits: 2,
-        });
-
         if (typeof maplibre.NavigationControl === "function") {
           mapInstance.addControl(new maplibre.NavigationControl(), "top-right");
         }
@@ -994,26 +1189,6 @@ export default function MapLibreMap({
           ]);
         };
 
-        const formatBreakdown = (
-          title: string,
-          items?: HeatPoint["aggregatedCategorias"],
-        ): string => {
-          if (!items?.length) return "";
-          const rows = items.slice(0, 3).map(
-            (item) =>
-              `<li><span class="font-medium text-slate-700">${item.label}</span> · ${numberFormatter.format(
-                item.weight,
-              )} (${item.percentage.toFixed(1)}%)</li>`,
-          );
-
-          return `
-            <div class="mt-3 text-xs leading-relaxed">
-              <p class="font-semibold uppercase tracking-wide text-slate-500">${title}</p>
-              <ul class="mt-1 space-y-0.5">${rows.join("")}</ul>
-            </div>
-          `;
-        };
-
         const handleCircleClick = (e: any) => {
           if (!e.features?.length) return;
           const feature = e.features[0];
@@ -1028,8 +1203,6 @@ export default function MapLibreMap({
             coords[0] += e.lngLat.lng > coords[0] ? 360 : -360;
           }
 
-          const sections: string[] = [];
-
           trackFrontendEvent("map_cluster_click", {
             provider: "maplibre",
             cluster_id: clusterId,
@@ -1043,112 +1216,10 @@ export default function MapLibreMap({
             contract_version: geoLayerConfig?.contract_version ?? null,
           });
 
-          if (cluster) {
-            const clusterSize = Number.isFinite(cluster.clusterSize)
-              ? Number(cluster.clusterSize)
-              : 1;
-            const totalWeight = Number.isFinite(cluster.totalWeight)
-              ? Number(cluster.totalWeight)
-              : Number(cluster.weight ?? 0);
-
-            sections.push(
-              `<p class="text-sm font-semibold text-slate-800">Reportes en la zona: ${clusterSize.toLocaleString(
-                "es-AR",
-              )}</p>`,
-            );
-
-            if (totalWeight > 0) {
-              sections.push(
-                `<p class="text-xs text-slate-600">Peso agregado: <span class="font-medium">${numberFormatter.format(
-                  totalWeight,
-                )}</span></p>`,
-              );
-            }
-
-            if (Number.isFinite(cluster.averageWeight) && clusterSize > 1) {
-              sections.push(
-                `<p class="text-xs text-slate-600">Peso promedio por reporte: ${numberFormatter.format(
-                  Number(cluster.averageWeight),
-                )}</p>`,
-              );
-            }
-
-            const topBarrio = cluster.aggregatedBarrios?.[0];
-            if (topBarrio) {
-              sections.push(
-                `<p class="text-xs text-slate-600">Zona destacada: <span class="font-medium">${topBarrio.label}</span> (${topBarrio.percentage.toFixed(1)}%)</p>`,
-              );
-            } else if (cluster.barrio || cluster.distrito) {
-              sections.push(
-                `<p class="text-xs text-slate-600">Zona: ${cluster.barrio ?? cluster.distrito}</p>`,
-              );
-            }
-
-            if (cluster.last_ticket_at) {
-              const parsed = Date.parse(cluster.last_ticket_at);
-              if (Number.isFinite(parsed)) {
-                sections.push(
-                  `<p class="text-xs text-slate-600">Último ticket: ${new Date(parsed).toLocaleString("es-AR")}</p>`,
-                );
-              }
-            }
-
-            const categoriasBlock = formatBreakdown(
-              "Categorías principales",
-              cluster.aggregatedCategorias,
-            );
-            if (categoriasBlock) sections.push(categoriasBlock);
-
-            const estadosBlock = formatBreakdown("Estados", cluster.aggregatedEstados);
-            if (estadosBlock) sections.push(estadosBlock);
-
-            const severidadesBlock = formatBreakdown(
-              "Severidad",
-              cluster.aggregatedSeveridades,
-            );
-            if (severidadesBlock) sections.push(severidadesBlock);
-
-            const tiposBlock = formatBreakdown(
-              "Tipos de ticket",
-              cluster.aggregatedTipos,
-            );
-            if (tiposBlock) sections.push(tiposBlock);
-
-            const samples = cluster.sampleTickets ?? [];
-            if (samples.length) {
-              const links = samples.slice(0, 3).map((ticketId) => {
-                const safeId = `${ticketId}`;
-                return `<a href="/chat/${safeId}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">#${safeId}</a>`;
-              });
-              sections.push(
-                `<p class="mt-3 text-xs text-slate-600">Tickets relacionados: ${links.join(
-                  " · ",
-                )}</p>`,
-              );
-            } else if (cluster.ticket || cluster.id) {
-              const fallbackId = `${cluster.ticket ?? cluster.id}`;
-              sections.push(
-                `<p class="mt-3 text-xs"><a href="/chat/${fallbackId}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">Ver ticket de referencia</a></p>`,
-              );
-            }
-          } else {
-            const { id, ticket, categoria, direccion, distrito } = properties;
-            const fallbackLines = [
-              ticket || id ? `<p class="text-sm font-semibold">Ticket #${ticket ?? id}</p>` : "",
-              categoria ? `<p class="text-xs text-slate-600">Categoría: ${categoria}</p>` : "",
-              distrito ? `<p class="text-xs text-slate-600">Distrito: ${distrito}</p>` : "",
-              direccion ? `<p class="text-xs text-slate-600">Dirección: ${direccion}</p>` : "",
-              id
-                ? `<p class="mt-3 text-xs"><a href="/chat/${id}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">Ver ticket</a></p>`
-                : "",
-            ].filter(Boolean);
-            sections.push(...fallbackLines);
-          }
-
           const popup = new maplibre.Popup();
           popup
             .setLngLat(coords as LngLatLike)
-            .setHTML(`<div class="max-w-xs space-y-1">${sections.join("")}</div>`)
+            .setDOMContent(buildMapClusterPopupContent({ cluster, properties }))
             .addTo(mapInstance);
         };
 
@@ -1371,11 +1442,12 @@ export default function MapLibreMap({
       if (adminMarkerRef.current) {
         adminMarkerRef.current.setLngLat(adminLocation);
       } else if (maplibre) {
+        const popupContent = document.createElement("div");
+        popupContent.className = "text-sm font-medium";
+        popupContent.textContent = "Ubicacion del administrador";
         const popup =
           typeof maplibre.Popup === "function"
-            ? new maplibre.Popup({ offset: 12 }).setHTML(
-                '<div class="text-sm font-medium">Ubicación del administrador</div>',
-              )
+            ? new maplibre.Popup({ offset: 12 }).setDOMContent(popupContent)
             : undefined;
 
         const markerInstance = new maplibre.Marker({ color: "#059669" }).setLngLat(adminLocation);
