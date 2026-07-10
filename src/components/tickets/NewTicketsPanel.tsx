@@ -30,6 +30,10 @@ const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
 const EMBEDDED_DETAIL_MIN_WIDTH = 1800;
+const DESKTOP_TICKET_LIST_COLUMN = 'minmax(320px, 380px)';
+const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(340px, 400px)';
+const DESKTOP_DETAIL_COLUMN = 'minmax(300px, 360px)';
+const EMBEDDED_DETAIL_COLUMN = 'minmax(300px, 340px)';
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
@@ -715,14 +719,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(320px, 360px) minmax(0, 1fr) minmax(280px, 320px)'
-      : 'minmax(320px, 360px) minmax(0, 1fr) minmax(300px, 360px)'
+      ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr) ${EMBEDDED_DETAIL_COLUMN}`
+      : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
     : isSidebarVisible
       ? embedded
-        ? 'minmax(320px, 360px) minmax(0, 1fr)'
-        : 'minmax(320px, 360px) minmax(0, 1fr)'
+        ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr)`
+        : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
       : isDetailsVisible
-        ? 'minmax(0, 1fr) minmax(300px, 360px)'
+        ? `minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
