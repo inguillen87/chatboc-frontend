@@ -1,6 +1,16 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
+import {
+  AdminOrdersResponse,
+  Order,
+  Cart,
+  Ticket,
+  PortalContent,
+  IntegrationStatus,
+  PortalLoyaltySummary,
+  PortalPremiumBundle,
+  OrderOperationalSummary,
+} from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 import { CatalogPromotion, TenantCatalog } from '@/types/catalog';
@@ -104,6 +114,23 @@ const normalizeAdminOrdersResponse = (raw: unknown): Order[] => {
       : [];
 
   return asArray(candidate).map(normalizeAdminOrder);
+};
+
+const normalizeAdminOrdersEnvelope = (raw: unknown): AdminOrdersResponse => {
+  const record = isRecord(raw) ? raw : {};
+  const orders = normalizeAdminOrdersResponse(raw);
+  const sources = asArray(record.sources)
+    .map(asStringOrUndefined)
+    .filter((source): source is string => Boolean(source));
+  const summary = isRecord(record.summary) ? (record.summary as OrderOperationalSummary) : null;
+
+  return {
+    orders,
+    count: asNumberOrUndefined(record.count) ?? orders.length,
+    total: asNumberOrUndefined(record.total) ?? orders.length,
+    sources,
+    summary,
+  };
 };
 
 const serializeIdentityCoverageTargetByChannel = (
@@ -649,6 +676,11 @@ export const apiClient = {
   // --- Admin Methods ---
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
+    const response = await apiClient.adminListOrdersWithSummary(tenantSlug, filters);
+    return response.orders;
+  },
+
+  adminListOrdersWithSummary: async (tenantSlug: string, filters?: Record<string, any>): Promise<AdminOrdersResponse> => {
     const normalizedFilters = { ...(filters || {}) };
     if (String(normalizedFilters.status || '').toLowerCase() === 'all') {
       delete normalizedFilters.status;
@@ -656,7 +688,7 @@ export const apiClient = {
     const params = new URLSearchParams(normalizedFilters);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, { tenantSlug });
-    return normalizeAdminOrdersResponse(raw);
+    return normalizeAdminOrdersEnvelope(raw);
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {

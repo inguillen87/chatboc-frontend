@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 import { apiClient } from '@/api/client';
-import type { Order } from '@/types/unified';
+import type { AdminOrdersResponse, Order } from '@/types/unified';
 import PedidosPage from './PedidosPage';
 
 vi.mock('@/context/TenantContext', () => ({
@@ -14,12 +14,14 @@ vi.mock('@/context/TenantContext', () => ({
 vi.mock('@/api/client', () => ({
   apiClient: {
     adminListOrders: vi.fn(),
+    adminListOrdersWithSummary: vi.fn(),
     adminUpdateOrder: vi.fn(),
     adminCreateOrder: vi.fn(),
   },
 }));
 
 const mockAdminListOrders = vi.mocked(apiClient.adminListOrders);
+const mockAdminListOrdersWithSummary = vi.mocked(apiClient.adminListOrdersWithSummary);
 const mockAdminUpdateOrder = vi.mocked(apiClient.adminUpdateOrder);
 
 const renderPedidosPage = (initialEntry = '/pedidos') =>
@@ -28,6 +30,18 @@ const renderPedidosPage = (initialEntry = '/pedidos') =>
       <PedidosPage />
     </MemoryRouter>,
   );
+
+const ordersEnvelope = (
+  orders: Order[],
+  overrides: Partial<AdminOrdersResponse> = {},
+): AdminOrdersResponse => ({
+  orders,
+  count: orders.length,
+  total: orders.length,
+  sources: ['PedidoConversacional'],
+  summary: null,
+  ...overrides,
+});
 
 const assistedOrder: Order = {
   id: 'assistida-1',
@@ -302,8 +316,10 @@ const failedAssistedOrder: Order = {
 describe('PedidosPage', () => {
   beforeEach(() => {
     mockAdminListOrders.mockReset();
+    mockAdminListOrdersWithSummary.mockReset();
     mockAdminUpdateOrder.mockReset();
     mockAdminListOrders.mockResolvedValue([assistedOrder, regularOrder]);
+    mockAdminListOrdersWithSummary.mockResolvedValue(ordersEnvelope([assistedOrder, regularOrder]));
     mockAdminUpdateOrder.mockResolvedValue(assistedOrder);
   });
 
@@ -389,7 +405,7 @@ describe('PedidosPage', () => {
   });
 
   it('does not count partial or failed assisted requests as ready for confirmation', async () => {
-    mockAdminListOrders.mockResolvedValueOnce([readyAssistedOrder, failedAssistedOrder]);
+    mockAdminListOrdersWithSummary.mockResolvedValueOnce(ordersEnvelope([readyAssistedOrder, failedAssistedOrder]));
 
     renderPedidosPage();
 
@@ -418,6 +434,49 @@ describe('PedidosPage', () => {
 
     expect(screen.getByLabelText('Abrir pedido ready-3')).toBeTruthy();
     expect(screen.queryByLabelText('Abrir pedido manual-4')).toBeNull();
+  });
+
+  it('renders backend operational summary metrics for assisted orders', async () => {
+    mockAdminListOrdersWithSummary.mockResolvedValueOnce(
+      ordersEnvelope([assistedOrder, readyAssistedOrder], {
+        total: 25,
+        sources: ['PedidoConversacional', 'MarketOrder'],
+        summary: {
+          contract_version: 'orders.unified_summary.v1',
+          total: 25,
+          assisted_requests: 6,
+          needs_operator_review: 3,
+          ready_for_order_creation: 2,
+          ready_to_reply: 1,
+          by_channel: { whatsapp: 4, marketplace: 2 },
+          by_source_model: { PedidoConversacional: 6, MarketOrder: 19 },
+          latest_activity_at: '2026-06-28T14:15:00.000Z',
+          crm_focus: {
+            has_assisted_intake: true,
+            has_operator_review_queue: true,
+            has_ready_order_creation: true,
+            primary_next_action: 'create_orders_from_assisted_requests',
+          },
+        },
+      }),
+    );
+
+    renderPedidosPage();
+
+    const summary = await screen.findByTestId('orders-operational-summary');
+    expect(within(summary).getByText('Operacion IA')).toBeTruthy();
+    expect(within(summary).getByText('orders.unified_summary.v1')).toBeTruthy();
+    expect(within(summary).getByText('Crear pedidos desde IA')).toBeTruthy();
+    expect(within(summary).getByText('25')).toBeTruthy();
+    expect(within(summary).getByText('3')).toBeTruthy();
+    expect(within(summary).getByText('2')).toBeTruthy();
+    expect(within(summary).getByText('1')).toBeTruthy();
+    expect(within(summary).getByText(/Canales: WhatsApp, Marketplace/)).toBeTruthy();
+    expect(within(summary).getByText(/Fuentes: PedidoConversacional, MarketOrder/)).toBeTruthy();
+
+    expect(within(screen.getByRole('button', { name: 'Filtrar solicitudes IA' })).getByText('6')).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: 'Filtrar solicitudes IA para revisar' })).getByText('3')).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: 'Filtrar solicitudes IA listas para confirmar' })).getByText('2')).toBeTruthy();
   });
 
   it('opens an authenticated assisted upload workspace for operator intake', async () => {

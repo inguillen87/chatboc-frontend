@@ -456,6 +456,43 @@ export interface Order {
   } | null;
 }
 
+export interface OrderOperationalSummary {
+  contract_version?: 'orders.unified_summary.v1' | string;
+  total?: number;
+  page_limit?: number | null;
+  sources?: string[];
+  by_source_model?: Record<string, number>;
+  by_status?: Record<string, number>;
+  by_commercial_stage?: Record<string, number>;
+  by_channel?: Record<string, number>;
+  by_operational_state?: Record<string, number>;
+  by_operator_queue?: Record<string, number>;
+  assisted_requests?: number;
+  needs_operator_review?: number;
+  ready_for_order_creation?: number;
+  ready_to_reply?: number;
+  totals?: {
+    monetary?: number | null;
+    points?: number | null;
+  } | null;
+  latest_activity_at?: string | null;
+  crm_focus?: {
+    has_assisted_intake?: boolean;
+    has_operator_review_queue?: boolean;
+    has_ready_order_creation?: boolean;
+    primary_next_action?: string | null;
+    [key: string]: unknown;
+  } | null;
+}
+
+export interface AdminOrdersResponse {
+  orders: Order[];
+  count: number;
+  total: number;
+  sources: string[];
+  summary?: OrderOperationalSummary | null;
+}
+
 export interface OrderItem {
   id: string | number;
   product_id?: string | number | null;

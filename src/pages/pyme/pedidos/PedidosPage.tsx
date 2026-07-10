@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
-import { CrmOperatorAction, CrmReviewCard, Order } from '@/types/unified';
+import { AdminOrdersResponse, CrmOperatorAction, CrmReviewCard, Order, OrderOperationalSummary } from '@/types/unified';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,15 @@ const CHANNEL_LABELS: Record<string, string> = {
   phone: "Teléfono",
 };
 
+const ORDER_SUMMARY_ACTION_LABELS: Record<string, string> = {
+  resolve_operator_review: 'Resolver revision operativa',
+  create_ready_orders: 'Crear pedidos listos',
+  review_assisted_requests: 'Revisar solicitudes IA',
+  create_orders_from_assisted_requests: 'Crear pedidos desde IA',
+  reply_ready_assisted_requests: 'Responder casos listos',
+  monitor_orders: 'Monitorear pedidos',
+};
+
 const AI_FILTER_VALUES = new Set(['all', 'assisted', 'needs_review', 'ready']);
 const CHANNEL_FILTER_VALUES = new Set([
   'all',
@@ -91,6 +100,23 @@ const normalizeOrders = (raw: unknown): Order[] => {
   }
 
   return [];
+};
+
+type OrdersClientWithSummary = typeof apiClient & {
+  adminListOrdersWithSummary?: (tenantSlug: string, filters?: Record<string, any>) => Promise<AdminOrdersResponse>;
+};
+
+const listOrdersWithOptionalSummary = async (
+  tenantSlug: string,
+  filters?: Record<string, any>,
+): Promise<AdminOrdersResponse> => {
+  const client = apiClient as OrdersClientWithSummary;
+  if (typeof client.adminListOrdersWithSummary === 'function') {
+    return client.adminListOrdersWithSummary(tenantSlug, filters);
+  }
+
+  const orders = await client.adminListOrders(tenantSlug, filters);
+  return { orders, count: orders.length, total: orders.length, sources: [], summary: null };
 };
 
 const getOrderCustomerProfile = (order: Order): Record<string, any> => {
@@ -260,6 +286,19 @@ const firstText = (...values: unknown[]) => {
   }
   return null;
 };
+
+const summaryNumber = (value: unknown, fallback = 0): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+const summaryKeys = (value: unknown): string[] =>
+  isRecord(value)
+    ? Object.entries(value)
+        .filter(([, count]) => typeof count === 'number' && Number.isFinite(count) && count > 0)
+        .map(([key]) => key)
+    : [];
+
+const summaryActionLabel = (action?: string | null): string =>
+  action ? ORDER_SUMMARY_ACTION_LABELS[action] || action.replace(/_/g, ' ') : 'Monitorear pedidos';
 
 type CrmReviewCardView = {
   title: string;
@@ -669,6 +708,7 @@ const PedidosPage = () => {
       requestedOrderId,
   );
   const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersSummary, setOrdersSummary] = useState<OrderOperationalSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(() => initialSearchTerm);
   const [channelFilter, setChannelFilter] = useState<string>(() =>
@@ -708,24 +748,27 @@ const PedidosPage = () => {
     try {
       if (!currentSlug) return;
 
-      const data = await apiClient.adminListOrders(currentSlug, { status: 'all', limit: 100 });
-      const normalized = normalizeOrders(data);
+      const data = await listOrdersWithOptionalSummary(currentSlug, { status: 'all', limit: 100 });
+      const normalized = normalizeOrders(data.orders);
       setOrders(normalized);
+      setOrdersSummary(data.summary ?? null);
     } catch (error) {
       console.error('Error loading orders:', error);
 
       try {
           // Fallback retry without filters
-          const fallbackData = await apiClient.adminListOrders(currentSlug);
-          const fallbackNormalized = normalizeOrders(fallbackData);
+          const fallbackData = await listOrdersWithOptionalSummary(currentSlug);
+          const fallbackNormalized = normalizeOrders(fallbackData.orders);
           if (fallbackNormalized.length > 0) {
               setOrders(fallbackNormalized);
+              setOrdersSummary(fallbackData.summary ?? null);
               return;
           }
       } catch (e) {
           // Ignore fallback error
       }
       setOrders([]);
+      setOrdersSummary(null);
     } finally {
       setLoading(false);
     }
@@ -829,6 +872,13 @@ const PedidosPage = () => {
   const assistedOrders = safeOrders.filter(hasAssistedOrderContract);
   const assistedNeedsReview = assistedOrders.filter(isAssistedNeedsReview);
   const assistedReady = assistedOrders.filter(isAssistedReady);
+  const summaryAssistedTotal = summaryNumber(ordersSummary?.assisted_requests, assistedOrders.length);
+  const summaryNeedsReviewTotal = summaryNumber(ordersSummary?.needs_operator_review, assistedNeedsReview.length);
+  const summaryReadyTotal = summaryNumber(ordersSummary?.ready_for_order_creation, assistedReady.length);
+  const summaryReadyToReplyTotal = summaryNumber(ordersSummary?.ready_to_reply, 0);
+  const summaryChannelKeys = summaryKeys(ordersSummary?.by_channel);
+  const summarySourceKeys = summaryKeys(ordersSummary?.by_source_model);
+  const summaryPrimaryAction = summaryActionLabel(ordersSummary?.crm_focus?.primary_next_action);
 
   const filteredOrders = safeOrders.filter(o => {
     const normalizedSearch = normalizeSearchText(searchTerm);
@@ -1007,7 +1057,7 @@ const PedidosPage = () => {
           <CardContent className="flex items-center justify-between p-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Solicitudes IA</p>
-              <p className="mt-1 text-2xl font-bold">{assistedOrders.length}</p>
+              <p className="mt-1 text-2xl font-bold">{summaryAssistedTotal}</p>
             </div>
             <Sparkles className="h-5 w-5 text-blue-600" />
           </CardContent>
@@ -1028,7 +1078,7 @@ const PedidosPage = () => {
           <CardContent className="flex items-center justify-between p-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Para revisar</p>
-              <p className="mt-1 text-2xl font-bold">{assistedNeedsReview.length}</p>
+              <p className="mt-1 text-2xl font-bold">{summaryNeedsReviewTotal}</p>
             </div>
             <Package className="h-5 w-5 text-amber-600" />
           </CardContent>
@@ -1049,12 +1099,71 @@ const PedidosPage = () => {
           <CardContent className="flex items-center justify-between p-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Listas para confirmar</p>
-              <p className="mt-1 text-2xl font-bold">{assistedReady.length}</p>
+              <p className="mt-1 text-2xl font-bold">{summaryReadyTotal}</p>
             </div>
             <CheckCircle className="h-5 w-5 text-emerald-600" />
           </CardContent>
         </Card>
       </div>
+
+      {ordersSummary ? (
+        <div
+          data-testid="orders-operational-summary"
+          className={`flex-none rounded-xl border border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-4 text-white shadow-sm dark:border-slate-800 ${selectedOrder ? 'hidden md:block' : ''}`}
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="border-cyan-400/50 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/15">
+                  Operacion IA
+                </Badge>
+                {ordersSummary.contract_version ? (
+                  <span className="font-mono text-[11px] text-slate-400">{ordersSummary.contract_version}</span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm font-semibold md:text-base">{summaryPrimaryAction}</p>
+              <p className="mt-1 max-w-2xl text-xs text-slate-300 md:text-sm">
+                Pedidos consolidados desde WhatsApp, widget, marketplace y carga asistida para que el operador priorice sin perder contexto.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 md:min-w-[520px]">
+              <div className="rounded-lg border border-white/10 bg-white/10 p-3">
+                <p className="text-slate-400">Total CRM</p>
+                <p className="mt-1 text-xl font-bold">{summaryNumber(ordersSummary.total, safeOrders.length)}</p>
+              </div>
+              <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 p-3">
+                <p className="text-amber-100/75">Revision</p>
+                <p className="mt-1 text-xl font-bold">{summaryNeedsReviewTotal}</p>
+              </div>
+              <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
+                <p className="text-emerald-100/75">Listos CRM</p>
+                <p className="mt-1 text-xl font-bold">{summaryReadyTotal}</p>
+              </div>
+              <div className="rounded-lg border border-blue-300/20 bg-blue-400/10 p-3">
+                <p className="text-blue-100/75">Responder</p>
+                <p className="mt-1 text-xl font-bold">{summaryReadyToReplyTotal}</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {summaryChannelKeys.length ? (
+              <Badge variant="outline" className="border-white/15 bg-white/5 text-slate-200">
+                Canales: {summaryChannelKeys.map((channel) => CHANNEL_LABELS[channel] || normalizeChannelLabel(channel)).join(', ')}
+              </Badge>
+            ) : null}
+            {summarySourceKeys.length ? (
+              <Badge variant="outline" className="border-white/15 bg-white/5 text-slate-200">
+                Fuentes: {summarySourceKeys.join(', ')}
+              </Badge>
+            ) : null}
+            {ordersSummary.latest_activity_at ? (
+              <Badge variant="outline" className="border-white/15 bg-white/5 text-slate-200">
+                Ultima actividad: {format(new Date(ordersSummary.latest_activity_at), "d MMM, HH:mm", { locale: es })}
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {hasOperationalDeepLink ? (
         <div
