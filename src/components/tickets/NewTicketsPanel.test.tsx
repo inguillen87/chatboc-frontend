@@ -236,7 +236,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
-    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('4 filtros');
+    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('Canal: whatsapp +3');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
       'title',
       'Canal: whatsapp | Area: obras | Agente: unassigned | SLA: risk',
@@ -404,7 +404,7 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel />);
 
     const summary = screen.getByTestId('tickets-desk-active-filters');
-    expect(summary).toHaveTextContent('3 filtros activos');
+    expect(summary).toHaveTextContent('Canal: whatsapp +2');
     expect(summary).toHaveAttribute(
       'title',
       'Canal: whatsapp | Area: obras | Agente: unassigned',

@@ -262,6 +262,49 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(mockedGetTenantOpsQaPlaybookV2).not.toHaveBeenCalled();
   });
 
+  it("renders an actionable plan lock when WhatsApp production is not enabled", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockRejectedValueOnce({
+      status: 403,
+      body: {
+        error: "plan_required",
+        message: "WhatsApp productivo requiere plan Full activo.",
+        feature_id: "whatsapp_sender_management",
+        frontend_contract: {
+          render_as: "integration_locked",
+          feature_id: "whatsapp_sender_management",
+          feature_label: "Gestion de sender y plantillas",
+          current_plan: "free",
+          required_plan: "full",
+          primary_action: "upgrade_to_full",
+        },
+        upgrade: {
+          url: "https://www.chatboc.ar/#precios",
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    expect(await screen.findByTestId("whatsapp-plan-lock-panel")).toBeInTheDocument();
+    expect(screen.getByText("Plan requerido")).toBeInTheDocument();
+    expect(screen.getByText("Gestion de sender y plantillas")).toBeInTheDocument();
+    expect(screen.getByText("WhatsApp productivo requiere plan Full activo.")).toBeInTheDocument();
+    expect(screen.getByText("Feature: whatsapp_sender_management")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /solicitar plan full/i })).toHaveAttribute(
+      "href",
+      "https://www.chatboc.ar/#precios",
+    );
+    expect(screen.getByRole("link", { name: /probar sandbox whatsapp/i })).toHaveAttribute(
+      "href",
+      "/t/junin-1/integracion?channel=whatsapp&mode=sandbox",
+    );
+    expect(screen.getByRole("link", { name: /preparar plantillas y webviews/i })).toHaveAttribute(
+      "href",
+      "/t/junin-1/perfil/plantillas-respuesta?section=whatsapp-operations&action=twilio-content&tenant=junin-1",
+    );
+    expect(screen.getByRole("link", { name: /ver marketplace publico/i })).toHaveAttribute("href", "/t/junin-1/market");
+  });
+
   it("renders the production WhatsApp activation contract for a tenant", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 

@@ -717,6 +717,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     slaFilter !== 'all' ? `SLA: ${slaFilter}` : null,
     priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
   ].filter(Boolean) as string[];
+  const compactFilterSummaryLabel =
+    operationalFilterBadges.length === 0
+      ? 'Sin filtros'
+      : operationalFilterBadges.length === 1
+        ? operationalFilterBadges[0]
+        : `${operationalFilterBadges[0]} +${operationalFilterBadges.length - 1}`;
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
       ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr) ${EMBEDDED_DETAIL_COLUMN}`
@@ -927,9 +933,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   title={operationalFilterBadges.join(' | ')}
                 >
                   <Badge variant="secondary" className="rounded-full text-[11px]">
-                    {operationalFilterBadges.length === 1
-                      ? '1 filtro'
-                      : `${operationalFilterBadges.length} filtros`}
+                    {compactFilterSummaryLabel}
                   </Badge>
                   <Button
                     type="button"
@@ -982,9 +986,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 aria-label={`Filtros activos: ${operationalFilterBadges.join(', ')}`}
               >
                 <Filter className="h-3 w-3" />
-                {operationalFilterBadges.length === 1
-                  ? '1 filtro activo'
-                  : `${operationalFilterBadges.length} filtros activos`}
+                {compactFilterSummaryLabel}
               </Badge>
             ) : (
               <Badge

@@ -106,6 +106,16 @@ type TechProviderContract = {
   status?: string | null;
 };
 
+type IntegrationPlanLockPayload = {
+  error?: string | null;
+  message?: string | null;
+  feature_id?: string | null;
+  feature?: Record<string, unknown> | null;
+  access?: Record<string, unknown> | null;
+  upgrade?: Record<string, unknown> | null;
+  frontend_contract?: Record<string, unknown> | null;
+};
+
 const readText = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value !== "string") continue;
@@ -114,6 +124,9 @@ const readText = (...values: unknown[]) => {
   }
   return null;
 };
+
+const asPlainRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
 const readBoolean = (value: unknown, fallback = false) =>
   typeof value === "boolean" ? value : fallback;
@@ -124,6 +137,25 @@ const readNumber = (...values: unknown[]) => {
     if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   }
   return null;
+};
+
+const extractIntegrationPlanLock = (error: unknown): IntegrationPlanLockPayload | null => {
+  const errorRecord = asPlainRecord(error);
+  const payload = asPlainRecord(errorRecord?.body) ?? asPlainRecord(error);
+  if (!payload) return null;
+  const frontendContract = asPlainRecord(payload.frontend_contract);
+  const errorCode = readText(payload.error);
+  const renderAs = readText(frontendContract?.render_as);
+  if (errorCode !== "plan_required" && renderAs !== "integration_locked") return null;
+  return {
+    error: errorCode,
+    message: readText(payload.message),
+    feature_id: readText(payload.feature_id),
+    feature: asPlainRecord(payload.feature),
+    access: asPlainRecord(payload.access),
+    upgrade: asPlainRecord(payload.upgrade),
+    frontend_contract: frontendContract,
+  };
 };
 
 const normalizeStatus = (value?: string | null) => String(value ?? "").trim().toLowerCase();
@@ -304,11 +336,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const [runningOpsQaCheck, setRunningOpsQaCheck] = useState<string | null>(null);
   const [opsQaResults, setOpsQaResults] = useState<Record<string, TenantOpsQaExecutionV2>>({});
   const [error, setError] = useState<string | null>(null);
+  const [planLock, setPlanLock] = useState<IntegrationPlanLockPayload | null>(null);
 
   const load = async () => {
     if (!tenantSlug) return;
     setLoading(true);
     setError(null);
+    setPlanLock(null);
     try {
       const [contractResult, qaResult] = await Promise.allSettled([
         tenantService.getWhatsappTechProvider(tenantSlug),
@@ -326,8 +360,16 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         setOpsQaError(getErrorMessage(qaResult.reason, "No se pudo cargar el QA final del tenant."));
       }
     } catch (err) {
+      const lock = extractIntegrationPlanLock(err);
       setContract(null);
-      setError(getErrorMessage(err, "No se pudo cargar el onboarding de WhatsApp."));
+      if (lock) {
+        setPlanLock(lock);
+        setOpsQa(null);
+        setOpsQaError(null);
+        setError(null);
+      } else {
+        setError(getErrorMessage(err, "No se pudo cargar el onboarding de WhatsApp."));
+      }
     } finally {
       setLoading(false);
     }
@@ -405,6 +447,33 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     const safeSlug = tenantSlug?.trim();
     return safeSlug ? `/t/${encodeURIComponent(safeSlug)}/market` : "/market";
   }, [tenantSlug]);
+  const integrationSandboxPath = useMemo(() => {
+    const basePath = buildTenantPath("/integracion", tenantSlug);
+    const params = new URLSearchParams({
+      channel: "whatsapp",
+      mode: "sandbox",
+    });
+    return `${basePath}?${params.toString()}`;
+  }, [tenantSlug]);
+  const planLockFeatureLabel = readText(
+    planLock?.feature?.label,
+    planLock?.frontend_contract?.feature_label,
+    planLock?.feature_id,
+    "WhatsApp Business productivo",
+  )!;
+  const planLockMessage = readText(
+    planLock?.message,
+    planLock?.access?.message,
+    "WhatsApp productivo, plantillas oficiales, sender y webhooks requieren plan Full activo.",
+  )!;
+  const planLockCurrentPlan = readText(planLock?.frontend_contract?.current_plan, planLock?.access?.current_plan, "free")!;
+  const planLockRequiredPlan = readText(
+    planLock?.frontend_contract?.required_plan,
+    planLock?.feature?.required_plan,
+    planLock?.access?.required_plan,
+    "full",
+  )!;
+  const planLockUpgradeUrl = readText(planLock?.upgrade?.url, planLock?.upgrade?.upgrade_url, "https://www.chatboc.ar/#precios")!;
   const signupUnavailableMessage = embeddedSignupEnabled && !canStartSignup
     ? !envReady
       ? missingEnv.length
@@ -725,6 +794,99 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 Abrir integracion
                 <ArrowRight className="ml-2 h-4 w-4" />
               </a>
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (planLock) {
+    return (
+      <section
+        data-testid="whatsapp-plan-lock-panel"
+        className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-slate-950 via-slate-900 to-primary/25 text-white shadow-sm"
+      >
+        <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-amber-300/30 bg-amber-300/15 px-3 py-1 text-xs font-semibold text-amber-100">
+                Plan requerido
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
+                Actual: {planLockCurrentPlan}
+              </span>
+              <span className="rounded-full border border-emerald-300/30 bg-emerald-300/15 px-3 py-1 text-xs font-semibold text-emerald-100">
+                Requiere: {planLockRequiredPlan}
+              </span>
+            </div>
+            <div className="mt-5 flex items-start gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/35 bg-primary/20 text-primary-foreground">
+                <KeyRound className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-foreground/70">WhatsApp Business Platform</p>
+                <h3 className="mt-2 text-2xl font-semibold leading-tight text-white">{planLockFeatureLabel}</h3>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">{planLockMessage}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                <MessageSquareText className="h-4 w-4 text-sky-200" />
+                <p className="mt-3 text-sm font-semibold text-white">Sender y plantillas</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">Bloquea envio productivo, no la preparacion del flujo.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                <ShoppingBag className="h-4 w-4 text-emerald-200" />
+                <p className="mt-3 text-sm font-semibold text-white">Catalogo conectado</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">Usa marketplace y pedido asistido mientras se habilita Full.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                <ShieldCheck className="h-4 w-4 text-amber-200" />
+                <p className="mt-3 text-sm font-semibold text-white">Seguro por defecto</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">Sin Twilio Console expuesta ni acciones reales sin plan activo.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 bg-black/20 p-5 sm:p-6 lg:border-l lg:border-t-0">
+            <p className="text-sm font-semibold text-white">Que puede hacer el equipo ahora</p>
+            <div className="mt-4 space-y-3">
+              <Button type="button" className="w-full justify-between bg-white text-slate-950 hover:bg-slate-100" asChild>
+                <a href={planLockUpgradeUrl} target="_blank" rel="noreferrer">
+                  Solicitar plan Full
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-between border-white/20 bg-white/10 text-white hover:bg-white/15" asChild>
+                <a href={integrationSandboxPath}>
+                  Probar sandbox WhatsApp
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-between border-white/20 bg-white/10 text-white hover:bg-white/15" asChild>
+                <a href={templatesPath}>
+                  Preparar plantillas y webviews
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-between border-white/20 bg-white/10 text-white hover:bg-white/15" asChild>
+                <a href={marketplacePath} target="_blank" rel="noreferrer">
+                  Ver marketplace publico
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/10 p-4 text-xs leading-5 text-slate-300">
+              <p className="font-semibold text-white">Contrato recibido</p>
+              <p className="mt-2">Feature: {planLock.feature_id || "whatsapp_sender_management"}</p>
+              <p>Estado: {readText(planLock.frontend_contract?.render_as, "integration_locked")}</p>
+              <p>Accion: {readText(planLock.frontend_contract?.primary_action, "upgrade_to_full")}</p>
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="mt-4 text-slate-200 hover:bg-white/10 hover:text-white" onClick={() => void load()} disabled={loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Reintentar contrato
             </Button>
           </div>
         </div>
