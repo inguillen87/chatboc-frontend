@@ -10,6 +10,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
+import { hasRequiredRole } from '@/utils/roles';
 
 
 interface TicketInboxFilters {
@@ -50,6 +51,21 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   unread: 'all',
 };
 
+const normalizeAreaLookupValue = (value: unknown): string =>
+  String(value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+const normalizeAreaServerValue = (value: unknown): string =>
+  String(value ?? '')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
 const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
   const serverFilters: {
     q?: string;
@@ -70,7 +86,7 @@ const resolveServerTicketFilters = (filters: TicketInboxFilters) => {
     serverFilters.status = filters.status;
   }
   if (filters.area !== 'all') {
-    serverFilters.category = filters.area;
+    serverFilters.category = normalizeAreaServerValue(filters.area);
   }
   if (filters.channel !== 'all') {
     serverFilters.channel = filters.channel;
@@ -731,9 +747,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   const filterTicketsForUser = useCallback(
     (list: Ticket[]): Ticket[] => {
-      const role = (userAccessProfile.rol || '').toString().toLowerCase();
-      const isSuperAdmin = role.includes('super_admin');
-      const shouldRestrict = !isSuperAdmin && role.includes('empleado');
+      const role = (userAccessProfile.rol || '').toString();
+      const isSuperAdmin = hasRequiredRole(role, ['superadmin']);
+      const shouldRestrict = !isSuperAdmin && hasRequiredRole(role, ['employee']);
 
       if (!shouldRestrict) return list;
 
@@ -750,7 +766,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         if (Number.isFinite(numeric)) {
           allowedCategoryIds.add(Number(numeric));
         }
-        const label = String(value).trim().toLowerCase();
+        const label = normalizeAreaLookupValue(value);
         if (label) {
           allowedCategoryNames.add(label);
         }
@@ -761,7 +777,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       (userAccessProfile.categorias || []).forEach((cat) => {
         collectUserCategory(cat?.id);
         if (cat?.nombre) {
-          allowedCategoryNames.add(cat.nombre.toLowerCase().trim());
+          allowedCategoryNames.add(normalizeAreaLookupValue(cat.nombre));
         }
       });
 
@@ -788,7 +804,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           if (Number.isFinite(numeric)) {
             ticketCategoryIds.add(Number(numeric));
           }
-          const label = String(value).trim().toLowerCase();
+          const label = normalizeAreaLookupValue(value);
           if (label) {
             ticketCategoryNames.add(label);
           }
@@ -1209,7 +1225,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           return false;
         }
       }
-      if (filters.area !== 'all' && normalizeFilterValue(resolveAreaLabel(ticket)) !== normalizeFilterValue(filters.area)) return false;
+      if (filters.area !== 'all' && normalizeAreaLookupValue(resolveAreaLabel(ticket)) !== normalizeAreaLookupValue(filters.area)) return false;
       if (filters.agent !== 'all') {
         const agentId = resolveAgentFilterId(ticket);
         if (filters.agent === 'unassigned') {

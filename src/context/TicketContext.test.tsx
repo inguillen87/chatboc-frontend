@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const getTicketsMock = vi.fn();
 const useTicketUpdatesMock = vi.fn();
 const getTicketWorkflowMetadataMock = vi.fn();
-const mockUser = { tenantSlug: 'demo', rol: 'admin', id: 1 };
+const mockUser: Record<string, any> = { tenantSlug: 'demo', rol: 'admin', id: 1 };
 
 vi.mock('@/services/ticketService', () => ({
   getTickets: (...args: unknown[]) => getTicketsMock(...args),
@@ -103,7 +103,14 @@ const FilterSelectionConsumer = () => {
       >
         filtrar operativos
       </button>
+      <button
+        type="button"
+        onClick={() => setFilters((current) => ({ ...current, area: 'Arreglo_De_Calle' }))}
+      >
+        filtrar arreglo deep link
+      </button>
       <span data-testid="active-status-filter">{filters.status}</span>
+      <span data-testid="active-area-filter">{filters.area}</span>
     </div>
   );
 };
@@ -148,6 +155,10 @@ const FilterOptionsConsumer = () => {
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
+    Object.keys(mockUser).forEach((key) => {
+      delete mockUser[key];
+    });
+    Object.assign(mockUser, { tenantSlug: 'demo', rol: 'admin', id: 1 });
     window.localStorage.clear();
     window.sessionStorage.clear();
     ticketUpdateHandlers = {};
@@ -576,6 +587,124 @@ describe('TicketContext unread delta reconciliation', () => {
         sla: 'risk',
         unread: 'unread',
       });
+    });
+  });
+
+  it('normalizes deep-link category filters before calling the backend and local inbox filter', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-ROAD',
+          asunto: 'Bache',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'Arreglo De Calle',
+        },
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-LIGHT',
+          asunto: 'Luminaria',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'Luminaria',
+        },
+      ],
+    });
+
+    render(
+      <TicketProvider>
+        <FilterSelectionConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-ROAD,REC-LIGHT');
+    });
+
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-ROAD',
+          asunto: 'Bache',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'Arreglo De Calle',
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /filtrar arreglo deep link/i }));
+
+    await waitFor(() => {
+      expect(getTicketsMock).toHaveBeenLastCalledWith('demo', {
+        page: 1,
+        category: 'Arreglo De Calle',
+      });
+      expect(screen.getByTestId('active-area-filter').textContent).toBe('Arreglo_De_Calle');
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-ROAD');
+      expect(screen.getByTestId('selected-ticket').textContent).toBe('REC-ROAD');
+    });
+  });
+
+  it('applies employee ticket scope aliases before showing the operational inbox', async () => {
+    Object.assign(mockUser, {
+      rol: 'employee',
+      id: 42,
+      categorias: [{ id: 7, nombre: 'Arreglo de calle' }],
+    });
+
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-ROAD',
+          asunto: 'Bache',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'Arreglo_De_Calle',
+        },
+        {
+          id: 2,
+          tipo: 'municipio',
+          nro_ticket: 'REC-LIGHT',
+          asunto: 'Luminaria',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:01:00.000Z',
+          categoria: 'Luminaria',
+        },
+        {
+          id: 3,
+          tipo: 'municipio',
+          nro_ticket: 'REC-ASSIGNED',
+          asunto: 'Arbolado',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:02:00.000Z',
+          categoria: 'Arbolado',
+          assigned_user_id: 42,
+        },
+      ],
+    });
+
+    render(
+      <TicketProvider>
+        <FilterSelectionConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('visible-tickets').textContent).toBe('REC-ROAD,REC-ASSIGNED');
     });
   });
 
