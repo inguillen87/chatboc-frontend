@@ -96,7 +96,7 @@ import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
+import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { buildLoginPathWithNext } from "@/utils/authRedirect";
@@ -116,6 +116,7 @@ import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { uploadProfileAvatar } from "@/services/profileAvatarService";
+import { resolveOperationalTenantSlug } from "@/utils/tenantIdentity";
 
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
@@ -446,28 +447,10 @@ export default function Perfil() {
     avatar_consent: false,
   });
   const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
-  const derivedTenantSlug = useMemo(() => {
-    const candidates = [
-      (user as any)?.tenantSlug,
-      (user as any)?.tenant_slug,
-      (perfil as any)?.tenant_slug,
-      (perfil as any)?.slug,
-      (perfil as any)?.endpoint,
-      (perfil as any)?.municipio,
-      (user as any)?.tenant?.slug,
-      (user as any)?.tenant?.tenant_slug,
-      (user as any)?.empresa,
-      (user as any)?.nombre_empresa,
-      storedTenantSlug,
-    ];
-
-    for (const candidate of candidates) {
-      const normalized = slugify(candidate);
-      if (normalized && !TENANT_PLACEHOLDER_SLUGS.has(normalized)) return normalized;
-    }
-
-    return null;
-  }, [perfil, storedTenantSlug, user]);
+  const derivedTenantSlug = useMemo(
+    () => resolveOperationalTenantSlug({ user: user as any, perfil: perfil as any, storedTenantSlug }),
+    [perfil, storedTenantSlug, user],
+  );
   const isAdminUser = useMemo(
     () => (user?.rol || "").toLowerCase() === "admin",
     [user?.rol],
