@@ -170,7 +170,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-desk-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(340px, 420px) minmax(0, 1fr)',
     });
     expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
   });
@@ -202,7 +202,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-embedded-kpi-summary')).toHaveTextContent('0 abiertos');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(340px, 400px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
     });
     expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
@@ -293,28 +293,28 @@ describe('NewTicketsPanel CRM layout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
       const narrow = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(340px, 400px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
       });
       narrow.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
       const commonDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(340px, 400px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
       });
       commonDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
       const mediumDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(340px, 400px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
       });
       mediumDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(340px, 400px) minmax(0, 1fr) minmax(300px, 340px)',
+        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr) minmax(300px, 340px)',
       });
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });

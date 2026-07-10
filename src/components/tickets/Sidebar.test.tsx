@@ -175,6 +175,13 @@ describe('Tickets Sidebar category density', () => {
     );
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
+      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+    );
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('Cola');
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('No leidos');
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('Riesgo');
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('Sin resp.');
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -421,11 +428,15 @@ describe('Tickets Sidebar category density', () => {
 
     expect(screen.getByTestId('sidebar-search-controls')).toHaveAttribute('data-density', 'delegated');
     expect(screen.queryByRole('button', { name: /filtros secundarios/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-list-mode-toggle')).toHaveAttribute('data-layout', 'toolbar');
     expect(screen.getByRole('button', { name: /^cola$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /^rubros$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^exportar$/i })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
+      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+    );
     expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
       'data-compact',
       'true',

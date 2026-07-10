@@ -417,6 +417,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
   const showVisibleSummaryBar = showListSummaryBar && !compact;
+  const toolbarDensity = compact || delegatedHeader;
   const listSummaryTitle = activeFilterSummary.length
     ? activeFilterSummary.join(' | ')
     : 'Sin filtros activos';
@@ -424,34 +425,34 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div
       className={cn(
         'grid grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/60 p-1',
-        compact && 'shrink-0 bg-background/75 p-0.5',
+        toolbarDensity && 'shrink-0 bg-background/75 p-0.5',
       )}
       data-testid="sidebar-list-mode-toggle"
-      data-layout={compact ? 'toolbar' : 'inline'}
+      data-layout={toolbarDensity ? 'toolbar' : 'inline'}
     >
       <Button
         type="button"
         variant={listMode === 'queue' ? 'secondary' : 'ghost'}
         size="sm"
-        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', compact && 'w-7 px-0')}
+        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', toolbarDensity && 'w-7 px-0')}
         aria-pressed={listMode === 'queue'}
         title="Ver cola priorizada"
         onClick={() => setListMode('queue')}
       >
         <List className="h-3.5 w-3.5" />
-        <span className={compact ? 'sr-only' : undefined}>Cola</span>
+        <span className={toolbarDensity ? 'sr-only' : undefined}>Cola</span>
       </Button>
       <Button
         type="button"
         variant={listMode === 'categories' ? 'secondary' : 'ghost'}
         size="sm"
-        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', compact && 'w-7 px-0')}
+        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', toolbarDensity && 'w-7 px-0')}
         aria-pressed={listMode === 'categories'}
         title="Ver rubros"
         onClick={() => setListMode('categories')}
       >
         <FolderOpen className="h-3.5 w-3.5" />
-        <span className={compact ? 'sr-only' : undefined}>Rubros</span>
+        <span className={toolbarDensity ? 'sr-only' : undefined}>Rubros</span>
       </Button>
     </div>
   );
@@ -771,6 +772,52 @@ const Sidebar: React.FC<SidebarProps> = ({
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
             </p>
+            <div
+              data-testid="sidebar-queue-metrics"
+              className={cn(
+                'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                compact && 'mb-1',
+              )}
+              aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
+            >
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-primary">
+                Cola
+                <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
+              </span>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
+                  queueUnreadCount > 0
+                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-700 dark:text-violet-200'
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                )}
+              >
+                No leidos
+                <strong className="tabular-nums">{queueUnreadCount.toLocaleString('es-AR')}</strong>
+              </span>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
+                  queueRiskCount > 0
+                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                )}
+              >
+                Riesgo
+                <strong className="tabular-nums">{queueRiskCount.toLocaleString('es-AR')}</strong>
+              </span>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
+                  queueUnassignedCount > 0
+                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-700 dark:text-sky-200'
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                )}
+              >
+                Sin resp.
+                <strong className="tabular-nums">{queueUnassignedCount.toLocaleString('es-AR')}</strong>
+              </span>
+            </div>
             <div className="overflow-hidden rounded-[8px] border border-border/80 bg-background shadow-sm">
               {visibleQueueEntries.map(({ ticket, category }) => (
                 <div key={`${category}-${ticket.id}`} className="min-w-0 border-b border-border/60 last:border-b-0">
