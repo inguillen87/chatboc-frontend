@@ -471,6 +471,38 @@ describe('normalizePublicSurveyLiveResults', () => {
     expect(normalized.realtime?.rooms).toEqual(['contract-primary', 'contract-legacy']);
     expect(normalized.realtime?.socket?.events?.[0]).toMatchObject({ name: 'survey.vote.created' });
   });
+
+  it('normalizes realtime socket aliases to the polling live-results contract', () => {
+    const normalized = normalizePublicSurveyLiveResults({
+      contractVersion: 'surveys.live_results.v2',
+      resultVersion: '7',
+      snapshotVersion: 20260710,
+      total_votes: '31',
+      questions: [
+        {
+          question_id: 'prioridad',
+          title: 'Prioridad barrial',
+          total_votes: '31',
+          options: [{ key: 'luz', label: 'Luminaria', votes: '31', percent: '100' }],
+        },
+      ],
+      series: [{ minute: '20:10', value: '31' }],
+      points: [{ latitude: '-33.086', lon: '-68.471', votes: '31', barrio: 'Centro' }],
+      celdas: [{ centroid_lat: '-33.08', centroid_lng: '-68.472', count: '31', barrio: 'Centro' }],
+      heatmap_metadata: { points_count: 1, cells_count: 1, raw_points_redacted: true },
+    });
+
+    expect(normalized.contract_version).toBe('surveys.live_results.v2');
+    expect(normalized.result_version).toBe(7);
+    expect(normalized.snapshot_version).toBe('20260710');
+    expect(normalized.total_respuestas).toBe(31);
+    expect(normalized.preguntas?.[0]).toMatchObject({ id: 'prioridad', total_votos: 31 });
+    expect(normalized.preguntas?.[0]?.opciones?.[0]).toMatchObject({ value: 'luz', votos: 31, porcentaje: 100 });
+    expect(normalized.timeline_minute?.[0]).toMatchObject({ respuestas: 31, total: 31 });
+    expect(normalized.heatmap?.points?.[0]).toMatchObject({ lat: -33.086, lng: -68.471, value: 31 });
+    expect(normalized.heatmap?.cells?.[0]).toMatchObject({ lat: -33.08, lng: -68.472, value: 31 });
+    expect(normalized.heatmap?.metadata).toMatchObject({ raw_points_redacted: true });
+  });
 });
 
 describe('postPublicResponse', () => {

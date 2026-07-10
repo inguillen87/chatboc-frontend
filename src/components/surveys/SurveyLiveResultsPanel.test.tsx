@@ -121,6 +121,39 @@ describe('SurveyLiveResultsPanel', () => {
     expect(screen.getAllByText('24').length).toBeGreaterThan(0);
   });
 
+  it('normalizes socket payloads with vote, snapshot and heatmap aliases before rendering', () => {
+    mocks.liveHook = {
+      ...mocks.liveHook,
+      liveResults: payloadFixture(1, 1),
+    };
+
+    render(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+
+    act(() => {
+      mocks.socketOptions.onUpdate({
+        contractVersion: 'surveys.live_results.v2',
+        snapshotVersion: '2026-07-10T20:15:00Z',
+        total_votes: '31',
+        questions: [
+          {
+            question_id: 'emergencia',
+            title: 'Emergencia escolar',
+            total_votes: '31',
+            options: [{ key: 'aulas', label: 'Aulas', votes: '31', percent: '100' }],
+          },
+        ],
+        series: [{ minute: '20:15', value: '31' }],
+        points: [{ latitude: '-33.086', lon: '-68.471', votes: '31', barrio: 'Centro' }],
+        heatmap_metadata: { points_count: 1, raw_points_redacted: true },
+      });
+    });
+
+    expect(screen.getByRole('status')).toHaveTextContent('Socket live');
+    expect(screen.getByText('Emergencia escolar')).toBeInTheDocument();
+    expect(screen.getAllByText('31').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 1');
+  });
+
   it('keeps an actionable disabled state without a public slug', () => {
     render(<SurveyLiveResultsPanel slug="" enabled={false} />);
 

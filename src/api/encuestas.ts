@@ -686,6 +686,11 @@ export const normalizePublicSurveyLiveResults = (payload: unknown): SurveyLivePu
     };
   }
 
+  const contractVersion = toTrimmedStringOrUndefined(firstDefined(payload, ['contract_version', 'contractVersion']));
+  const rawResultVersion = firstDefined(payload, ['result_version', 'resultVersion', 'version']);
+  const normalizedResultVersion =
+    toFiniteNumberOrUndefined(rawResultVersion) ?? toTrimmedStringOrUndefined(rawResultVersion);
+  const snapshotVersion = toTrimmedStringOrUndefined(firstDefined(payload, ['snapshot_version', 'snapshotVersion']));
   const rawQuestions = firstDefined(payload, ['preguntas', 'questions', 'resultados', 'results']);
   const preguntas = arrayFromUnknown(rawQuestions)
     .map(normalizeLiveQuestion)
@@ -702,8 +707,12 @@ export const normalizePublicSurveyLiveResults = (payload: unknown): SurveyLivePu
   });
 
   const heatmapRecord = isRecord(payload.heatmap) ? payload.heatmap : {};
-  const rawHeatmapPoints = firstDefined(heatmapRecord, ['points', 'puntos', 'geo_points', 'heatmap_points']) ?? firstDefined(payload, ['heatmap_points', 'geo_points']);
-  const rawHeatmapCells = firstDefined(heatmapRecord, ['cells', 'celdas', 'heatmap_cells']) ?? firstDefined(payload, ['heatmap_cells', 'cells']);
+  const rawHeatmapPoints =
+    firstDefined(heatmapRecord, ['points', 'puntos', 'geo_points', 'heatmap_points']) ??
+    firstDefined(payload, ['heatmap_points', 'geo_points', 'points', 'puntos']);
+  const rawHeatmapCells =
+    firstDefined(heatmapRecord, ['cells', 'celdas', 'heatmap_cells']) ??
+    firstDefined(payload, ['heatmap_cells', 'cells', 'celdas']);
   const heatmap = {
     ...heatmapRecord,
     points: arrayFromUnknown(rawHeatmapPoints).map(normalizeHeatmapPoint).filter((item): item is NonNullable<ReturnType<typeof normalizeHeatmapPoint>> => Boolean(item)),
@@ -717,8 +726,11 @@ export const normalizePublicSurveyLiveResults = (payload: unknown): SurveyLivePu
 
   return {
     ...payload,
+    ...(contractVersion ? { contract_version: contractVersion } : {}),
+    ...(normalizedResultVersion !== undefined ? { result_version: normalizedResultVersion } : {}),
+    ...(snapshotVersion ? { snapshot_version: snapshotVersion } : {}),
     total_respuestas:
-      toFiniteNumberOrUndefined(firstDefined(payload, ['total_respuestas', 'total_responses', 'responses', 'total'])) ??
+      toFiniteNumberOrUndefined(firstDefined(payload, ['total_respuestas', 'total_responses', 'total_votos', 'total_votes', 'votes', 'votos', 'responses', 'total'])) ??
       preguntas.reduce((sum, question) => sum + (question.total_votos ?? 0), 0),
     preguntas,
     timeline_minute,

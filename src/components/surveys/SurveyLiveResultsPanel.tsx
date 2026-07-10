@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, BarChart3, Loader2, Radio, RefreshCw, Signal, 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
+import { normalizePublicSurveyLiveResults } from '@/api/encuestas';
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import type { SurveyLivePublicQuestion, SurveyLivePublicResultsPayload, SurveyRealtimeContract } from '@/types/encuestas';
@@ -43,6 +44,10 @@ const displayText = (value: unknown, fallback = '-') => {
 const payloadVersion = (payload?: SurveyLivePublicResultsPayload) => {
   const resultVersion = toNumber(payload?.result_version, Number.NaN);
   if (Number.isFinite(resultVersion)) return resultVersion;
+  const numericSnapshotVersion = toNumber(payload?.snapshot_version, Number.NaN);
+  if (Number.isFinite(numericSnapshotVersion)) return numericSnapshotVersion;
+  const snapshotTimestamp = Date.parse(String(payload?.snapshot_version || ''));
+  if (Number.isFinite(snapshotTimestamp)) return snapshotTimestamp;
   const updatedAt = Date.parse(String(payload?.updated_at || ''));
   return Number.isFinite(updatedAt) ? updatedAt : 0;
 };
@@ -65,6 +70,47 @@ const topQuestions = (questions?: SurveyLivePublicQuestion[]) =>
     .slice(0, 3);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+
+const LIVE_RESULTS_SOCKET_SIGNAL_KEYS = [
+  'preguntas',
+  'questions',
+  'resultados',
+  'results',
+  'total_respuestas',
+  'total_responses',
+  'total_votos',
+  'total_votes',
+  'votes',
+  'votos',
+  'timeline_minute',
+  'timeline',
+  'series',
+  'timeseries',
+  'heatmap',
+  'heatmap_points',
+  'geo_points',
+  'points',
+  'puntos',
+  'heatmap_cells',
+  'cells',
+  'celdas',
+  'result_version',
+  'resultVersion',
+  'snapshot_version',
+  'snapshotVersion',
+] as const;
+
+const isSurveyLiveResultsSocketPayload = (payload: unknown) => {
+  if (!isRecord(payload)) return false;
+  const contractVersion = payload.contract_version ?? payload.contractVersion;
+  if (contractVersion === 'surveys.live_results.v2') return true;
+  return LIVE_RESULTS_SOCKET_SIGNAL_KEYS.some((key) => payload[key] !== undefined && payload[key] !== null);
+};
+
+const normalizeSocketLiveResultsPayload = (payload: unknown): SurveyLivePublicResultsPayload | null => {
+  if (!isSurveyLiveResultsSocketPayload(payload)) return null;
+  return normalizePublicSurveyLiveResults(payload);
+};
 
 const normalizeStringList = (values: unknown[]) =>
   Array.from(
@@ -163,8 +209,9 @@ export function SurveyLiveResultsPanel({
     events: realtimeSocketOptions.events,
     enabled: enabled && Boolean(normalizedSlug),
     onUpdate: (payload) => {
-      if (payload?.contract_version === 'surveys.live_results.v2') {
-        setSocketPayload(payload as SurveyLivePublicResultsPayload);
+      const normalizedPayload = normalizeSocketLiveResultsPayload(payload);
+      if (normalizedPayload) {
+        setSocketPayload(normalizedPayload);
       } else {
         void refetch();
       }
