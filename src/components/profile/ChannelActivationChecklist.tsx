@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 const channelIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   crm: TicketCheck,
   identity_auth: ShieldCheck,
+  public_intake_security: ShieldCheck,
   whatsapp: MessageCircle,
   widget: Wifi,
   templates: FileCheck2,

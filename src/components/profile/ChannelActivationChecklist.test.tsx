@@ -13,11 +13,11 @@ const activationPayload = {
   contract_version: 'tenant.channel_activation.v1' as const,
   tenant: { slug: 'junin', nombre: 'Municipalidad de Junin', plan: 'free' },
   summary: {
-    total: 6,
+    total: 7,
     ready: 1,
     locked: 2,
-    attention: 3,
-    progress: 17,
+    attention: 4,
+    progress: 14,
     health_label: 'Activacion en progreso',
     primary_next_action: { id: 'connect_whatsapp', label: 'Conectar WhatsApp', href: '/t/junin/integracion' },
   },
@@ -57,6 +57,16 @@ const activationPayload = {
       actions: [{ id: 'connect_whatsapp', label: 'Conectar WhatsApp', href: '/t/junin/integracion', primary: true }],
     },
     {
+      id: 'public_intake_security',
+      label: 'Proteccion publica',
+      status: 'action_required',
+      description: 'Cloudflare Turnstile para cargas anonimas de marketplace y encuestas.',
+      evidence: ['protege marketplace asistido', 'enforcement pendiente'],
+      reason_code: 'turnstile_config_missing',
+      progress_hint: 'Configurar Cloudflare Turnstile antes de exigir desafio publico.',
+      actions: [{ id: 'configure_turnstile', label: 'Configurar Cloudflare', href: '/t/junin/integracion', primary: true }],
+    },
+    {
       id: 'payments_checkout',
       label: 'Cobros y checkout',
       status: 'locked',
@@ -92,13 +102,15 @@ describe('ChannelActivationChecklist', () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
     expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
-    expect(screen.getByText('17%')).toBeInTheDocument();
-    expect(screen.getByText(/1 de 6 frentes listos/i)).toBeInTheDocument();
+    expect(screen.getByText('14%')).toBeInTheDocument();
+    expect(screen.getByText(/1 de 7 frentes listos/i)).toBeInTheDocument();
     expect(screen.getByText(/self-service activo/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
     expect(screen.getByText('Identidad y login social')).toBeInTheDocument();
     expect(screen.getByText(/Configurar CLERK_WEBHOOK_SECRET/i)).toBeInTheDocument();
     expect(screen.getByText('WhatsApp Business')).toBeInTheDocument();
+    expect(screen.getByText('Proteccion publica')).toBeInTheDocument();
+    expect(screen.getByText(/Configurar Cloudflare Turnstile/i)).toBeInTheDocument();
     expect(screen.getByText('Cobros y checkout')).toBeInTheDocument();
     expect(screen.getByText('Equipo y responsables')).toBeInTheDocument();
     expect(screen.getAllByText(/requiere plan full/i)).toHaveLength(2);
@@ -106,6 +118,7 @@ describe('ChannelActivationChecklist', () => {
       'href',
       '/t/junin/integracion',
     );
+    expect(screen.getByRole('link', { name: /configurar cloudflare/i })).toHaveAttribute('href', '/t/junin/integracion');
     expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion');
     expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados');
   });
