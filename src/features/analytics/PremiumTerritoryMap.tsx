@@ -271,7 +271,9 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
   const targetId = readString(target?.cell_id, target?.record_id, target?.ticket_id) ?? (numericTargetId !== undefined ? String(numericTargetId) : undefined);
   const targetLabel = targetType || targetId ? [targetType, targetId].filter(Boolean).join(' ') : undefined;
   const endpointDetail = [method, endpoint].filter(Boolean).join(' ') || undefined;
-  const detail = contextLabel ?? endpointDetail ?? targetLabel;
+  const humanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
+  const href = buildTicketDeskHref(record);
+  const detail = contextLabel ?? humanDetail ?? targetLabel ?? (href ? undefined : endpointDetail);
   if (!label && !detail) return undefined;
   return {
     label: label ?? 'Accion disponible',
@@ -280,7 +282,7 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
     uiHint: readString(record.ui_hint),
     actionType: readString(record.action_type),
     writesEnabled: record.writes_enabled === true,
-    href: buildTicketDeskHref(record),
+    href,
   };
 };
 

@@ -350,6 +350,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Actualizar ubicacion')).toBeTruthy();
     expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
     expect(screen.getAllByText('preparacion segura').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('heatmap-action-loop').textContent).not.toContain('/api/');
     const crmLinks = screen.getAllByRole('link', { name: /abrir en crm/i });
     expect(crmLinks.length).toBeGreaterThan(0);
     expect(crmLinks.some((link) => link.getAttribute('href')?.includes('/perfil?tab=tickets'))).toBe(true);
