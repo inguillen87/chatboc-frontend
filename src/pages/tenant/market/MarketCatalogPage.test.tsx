@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MarketCatalogPage from './MarketCatalogPage';
 
@@ -29,11 +29,16 @@ vi.mock('@/utils/frontendTelemetry', () => ({
 }));
 
 describe('MarketCatalogPage assisted marketplace entry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     fetchMarketCatalogMock.mockReset();
     fetchMarketCartMock.mockReset();
     addMarketItemMock.mockReset();
     trackFrontendEventMock.mockReset();
+    vi.spyOn(window, 'open').mockImplementation(() => null);
     fetchMarketCartMock.mockResolvedValue({ items: [], totalAmount: 0, totalPoints: 0 });
     fetchMarketCatalogMock.mockResolvedValue({
       products: [],
@@ -227,8 +232,25 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
     expect(screen.getAllByText('Escribir lista').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Continuar por WhatsApp/i })).toBeInTheDocument();
+    expect(screen.getByTestId('market-mobile-qr-share')).toBeEnabled();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bCRM\b|Intake IA|OCR \+ IA|\bIA\b desmenuza|lectura IA/i);
+
+    fireEvent.click(screen.getByTestId('market-mobile-qr-share'));
+
+    expect(trackFrontendEventMock).toHaveBeenCalledWith(
+      'catalog_qr_opened',
+      expect.objectContaining({
+        tenant_slug: 'junin',
+        source: 'mobile_qr_button',
+        share_url_available: true,
+      }),
+    );
+    expect(window.open).toHaveBeenCalledWith(
+      'https://quickchart.io/qr?text=https%3A%2F%2Fchatboc.ar%2Ft%2Fjunin%2Fcart&margin=12&size=320',
+      '_blank',
+      'noopener,noreferrer',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Subir foto o archivo/i }));
 

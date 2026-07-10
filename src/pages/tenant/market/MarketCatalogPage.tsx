@@ -556,6 +556,12 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
+  const openQrShare = (source: string) => {
+    if (!shareUrl) return;
+    trackMarketplaceCta('catalog_qr_opened', source, { share_url_available: true });
+    const qrLink = `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=320`;
+    window.open(qrLink, '_blank', 'noopener,noreferrer');
+  };
   const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
@@ -666,11 +672,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (!shareUrl) return;
-              const qrLink = `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=320`;
-              window.open(qrLink, '_blank', 'noopener,noreferrer');
-            }}
+            onClick={() => openQrShare('desktop_qr_button')}
             disabled={!shareUrl}
           >
             <QrCode className="mr-2 h-4 w-4" /> QR
@@ -1056,7 +1058,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </div>
         ) : null}
 
-        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 md:hidden">
+        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-3 md:hidden">
           <Button
             type="button"
             variant="outline"
@@ -1084,6 +1086,17 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           >
             <Copy className="mr-2 h-4 w-4" />
             Copiar enlace
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => openQrShare('mobile_qr_button')}
+            disabled={!shareUrl}
+            className="w-full"
+            data-testid="market-mobile-qr-share"
+          >
+            <QrCode className="mr-2 h-4 w-4" />
+            QR
           </Button>
         </div>
       </section>
