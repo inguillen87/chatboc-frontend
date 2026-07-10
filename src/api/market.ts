@@ -624,6 +624,9 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
 const shouldFallbackEndpoint = (error: unknown) =>
   error instanceof ApiError && [404, 405, 501].includes(error.status);
 
+const shouldFallbackCheckoutEndpoint = (error: unknown) =>
+  error instanceof ApiError && [401, 403, 404, 405, 501].includes(error.status);
+
 const normalizeCheckoutUrls = (value: unknown): Record<string, string | null> | null => {
   const record = asRecordOrNull(value);
   if (!record) return null;
@@ -1268,7 +1271,7 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
     const response = await apiFetch<unknown>('/api/v2/payments/checkout-session', options);
     return normalizeCheckoutStartResponse(response);
   } catch (error) {
-    if (!shouldFallbackEndpoint(error)) {
+    if (!shouldFallbackCheckoutEndpoint(error)) {
       console.error("Error starting checkout:", error);
       throw error;
     }
@@ -1278,7 +1281,7 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
     const response = await apiFetch<unknown>('/api/v2/payments/preference', options);
     return normalizeCheckoutStartResponse(response);
   } catch (error) {
-    if (!shouldFallbackEndpoint(error)) {
+    if (!shouldFallbackCheckoutEndpoint(error)) {
       console.error("Error starting checkout preference:", error);
       throw error;
     }

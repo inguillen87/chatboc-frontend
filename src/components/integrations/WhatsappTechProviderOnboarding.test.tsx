@@ -349,6 +349,21 @@ describe("WhatsappTechProviderOnboarding", () => {
     );
   });
 
+  it("links WhatsApp onboarding with catalog administration and public marketplace", async () => {
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="catalog" />);
+
+    expect(await screen.findByText("Catalogo para WhatsApp")).toBeInTheDocument();
+    expect(screen.getByText("productos visibles")).toBeInTheDocument();
+    expect(screen.getByText("promos y combos")).toBeInTheDocument();
+    expect(screen.getByText("pedido asistido")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^administrar catalogo$/i }));
+    expect(window.open).toHaveBeenCalledWith("/t/junin-1/admin/catalog", "_self");
+
+    fireEvent.click(screen.getByRole("button", { name: /^ver marketplace$/i }));
+    expect(window.open).toHaveBeenCalledWith("/t/junin-1/market", "_blank", "noopener,noreferrer");
+  });
+
   it("keeps register sender as the primary action when the embedded signup handoff requests it", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="register-sender" />);
 

@@ -351,6 +351,50 @@ describe('market api continuity normalization', () => {
     expect(checkout.preference_id).toBe('pref_fallback');
   });
 
+  it('falls back to public marketplace checkout when internal checkout endpoints require auth', async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new ApiError('unauthorized', 401))
+      .mockRejectedValueOnce(new ApiError('forbidden', 403))
+      .mockResolvedValueOnce({
+        ok: true,
+        checkout_url: 'https://checkout.example/public',
+        order_id: 'ord_public_1',
+      });
+
+    const checkout = await startMarketCheckout('bodega', {
+      items: [{ id: '1', quantity: 2 }],
+    });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v2/payments/checkout-session',
+      expect.objectContaining({
+        suppressPanel401Redirect: true,
+        omitChatSessionId: true,
+      }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v2/payments/preference',
+      expect.objectContaining({
+        suppressPanel401Redirect: true,
+        omitChatSessionId: true,
+      }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/market/bodega/checkout/start',
+      expect.objectContaining({
+        suppressPanel401Redirect: true,
+        omitChatSessionId: true,
+      }),
+    );
+    expect(checkout.ok).toBe(true);
+    expect(checkout.checkoutUrl).toBe('https://checkout.example/public');
+    expect(checkout.init_point).toBe('https://checkout.example/public');
+    expect(checkout.order_id).toBe('ord_public_1');
+  });
+
   it('normalizes rewards profile wallet and redemption options', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'rewards.profile.v1',

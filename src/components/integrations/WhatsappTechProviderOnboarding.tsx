@@ -19,6 +19,7 @@ import {
   SendHorizontal,
   Settings2,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -399,6 +400,11 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     if (tenantSlug?.trim()) params.set("tenant", tenantSlug.trim());
     return `${basePath}?${params.toString()}`;
   }, [tenantSlug]);
+  const catalogAdminPath = useMemo(() => buildTenantPath("/admin/catalog", tenantSlug), [tenantSlug]);
+  const marketplacePath = useMemo(() => {
+    const safeSlug = tenantSlug?.trim();
+    return safeSlug ? `/t/${encodeURIComponent(safeSlug)}/market` : "/market";
+  }, [tenantSlug]);
   const signupUnavailableMessage = embeddedSignupEnabled && !canStartSignup
     ? !envReady
       ? missingEnv.length
@@ -431,6 +437,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     normalizedFocusAction === "plantillas" ||
     normalizedNextAction.includes("template") ||
     normalizedNextAction.includes("plantilla");
+  const catalogIsPrimary =
+    normalizedFocusAction === "catalog" ||
+    normalizedFocusAction === "catalogo" ||
+    normalizedFocusAction === "marketplace" ||
+    normalizedNextAction.includes("catalog") ||
+    normalizedNextAction.includes("catalogo") ||
+    normalizedNextAction.includes("marketplace");
   const activationSteps = [
     {
       id: "meta",
@@ -1320,6 +1333,40 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               <p>4. Enviar y recibir un mensaje de prueba por WhatsApp.</p>
               <p>5. Mostrar estado de entrega, lectura o actividad en el panel.</p>
               <p>6. Mostrar que el cliente nunca entra a Twilio Console.</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-background/70 p-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+                  <ShoppingBag className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Catalogo para WhatsApp</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Conecta productos, promos, stock, webviews de pedido y checkout para que el cliente compre o pida asistencia sin salir del canal.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-muted-foreground">
+                    <span className="rounded-full border px-2 py-0.5">productos visibles</span>
+                    <span className="rounded-full border px-2 py-0.5">promos y combos</span>
+                    <span className="rounded-full border px-2 py-0.5">pedido asistido</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={catalogIsPrimary ? "default" : "outline"}
+                  onClick={() => window.open(catalogAdminPath, "_self")}
+                >
+                  Administrar catalogo
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => window.open(marketplacePath, "_blank", "noopener,noreferrer")}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Ver marketplace
+                </Button>
+              </div>
             </div>
           </div>
 
