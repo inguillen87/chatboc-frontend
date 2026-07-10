@@ -123,4 +123,49 @@ describe('DetailsPanel CRM contact priority', () => {
     expect(pageText.indexOf('Marcelo')).toBeLessThan(pageText.indexOf('IA operativa'));
     expect(pageText.indexOf('Marcelo')).toBeLessThan(pageText.indexOf('Logistica'));
   });
+
+  it('surfaces assisted request context and public follow-up actions', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      recommended_next_action: 'Resolver faltantes y responder',
+      assisted_request: {
+        contract_version: 'ticket.assisted_marketplace_request.v1',
+        request_kind_label: 'reclamo o solicitud vecinal',
+        target_module: 'municipal_claims',
+        operator_intake_summary: {
+          summary: 'Vecino informa luminaria quemada con direccion suficiente.',
+        },
+      },
+      public_follow_up: {
+        contract_version: 'marketplace.assisted_followup.v1',
+        tracking: {
+          code: 'M-123456',
+          path: '/tracking/claim/M-123456?pin=900144',
+          label: 'Ver reclamo',
+        },
+        channels: [
+          {
+            id: 'tracking_page',
+            label: 'Ver reclamo',
+            href: '/tracking/claim/M-123456?pin=900144',
+          },
+        ],
+      },
+      ai_operator_brief: {
+        recommended_next_action: 'Resolver faltantes y responder',
+        summary: 'Vecino informa luminaria quemada con direccion suficiente.',
+      },
+    };
+
+    render(<DetailsPanel />);
+
+    const assistedCard = screen.getByTestId('ticket-assisted-context-card');
+    expect(assistedCard).toHaveTextContent('Solicitud asistida');
+    expect(assistedCard).toHaveTextContent('Reclamos municipales');
+    expect(assistedCard).toHaveTextContent('reclamo o solicitud vecinal');
+    expect(assistedCard).toHaveTextContent('M-123456');
+    expect(assistedCard).toHaveTextContent('Vecino informa luminaria quemada con direccion suficiente.');
+    expect(assistedCard).toHaveTextContent('Resolver faltantes y responder');
+    expect(screen.getByRole('button', { name: /ver reclamo/i })).toBeEnabled();
+  });
 });

@@ -134,6 +134,43 @@ const normalizeTextValue = (value: unknown): string => {
 
 const formatCompactLabel = (value: unknown): string => normalizeTextValue(value).replace(/_/g, ' ');
 
+const asPlainRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
+const asRecordList = (value: unknown): Array<Record<string, unknown>> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asPlainRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item));
+};
+
+const humanizeAssistedModule = (value: unknown): string => {
+  const normalized = normalizeTextValue(value).toLowerCase();
+
+  if (!normalized) return '';
+
+  const moduleLabels: Record<string, string> = {
+    municipal_claims: 'Reclamos municipales',
+    claims: 'Reclamos',
+    marketplace: 'Marketplace',
+    commerce: 'Pedidos y ventas',
+    orders: 'Pedidos',
+    surveys: 'Encuestas',
+    school: 'Colegios',
+    payments: 'Pagos',
+  };
+
+  return moduleLabels[normalized] || formatCompactLabel(normalized);
+};
+
 const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[] => {
   const seen = new Set<string>();
   const actions: OperationalAction[] = [];
@@ -711,6 +748,89 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const nextActionLabel = operationalGuidance.label;
   const hasOperationalSignal =
     Boolean(nextActionLabel || priorityLabel || slaLabel || assignedAgentLabel || operationalActions.length);
+  const assistedContext = React.useMemo(() => {
+    const request =
+      asPlainRecord(ticket.assisted_request) ||
+      asPlainRecord(ticket.datos_extra?.assisted_request);
+    const publicFollowUp =
+      asPlainRecord(ticket.public_follow_up) ||
+      asPlainRecord(request?.public_follow_up) ||
+      asPlainRecord(ticket.datos_extra?.public_follow_up);
+    const operatorSummary =
+      asPlainRecord(request?.operator_intake_summary) ||
+      asPlainRecord(ticket.datos_extra?.operator_intake_summary);
+    const aiOperatorBrief =
+      asPlainRecord(ticket.ai_operator_brief) ||
+      asPlainRecord(ticket.datos_extra?.ai_operator_brief) ||
+      operatorSummary;
+    const tracking = asPlainRecord(publicFollowUp?.tracking);
+    const moduleLabel = humanizeAssistedModule(
+      request?.target_module ||
+        request?.module ||
+        request?.target ||
+        publicFollowUp?.target_module,
+    );
+    const kindLabel = normalizeTextValue(
+      request?.request_kind_label ||
+        request?.request_kind ||
+        request?.kind_label ||
+        request?.kind,
+    );
+    const summary = normalizeTextValue(
+      aiOperatorBrief?.summary ||
+        aiOperatorBrief?.operator_summary ||
+        operatorSummary?.summary ||
+        request?.summary ||
+        request?.description,
+    );
+    const recommendedAction = normalizeTextValue(
+      ticket.recommended_next_action ||
+        aiOperatorBrief?.recommended_next_action ||
+        request?.recommended_next_action,
+    );
+    const trackingCode = normalizeTextValue(
+      tracking?.code ||
+        tracking?.id ||
+        tracking?.ticket ||
+        publicFollowUp?.tracking_code,
+    );
+    const trackingHref = normalizeTextValue(
+      tracking?.href ||
+        tracking?.url ||
+        tracking?.path ||
+        publicFollowUp?.href ||
+        publicFollowUp?.url,
+    );
+    const trackingLabel =
+      normalizeTextValue(tracking?.label || publicFollowUp?.label) ||
+      'Abrir seguimiento';
+    const dedupeActionKeys = new Set<string>();
+    const channelActions = normalizeOperationalActions(
+      asRecordList(publicFollowUp?.channels),
+      trackingHref
+        ? [{ id: 'open_public_follow_up', label: trackingLabel, href: trackingHref }]
+        : [],
+    ).filter((action) => {
+      if (!action.href) return false;
+      const key = `${action.href}|${action.label}`.toLowerCase();
+      if (dedupeActionKeys.has(key)) return false;
+      dedupeActionKeys.add(key);
+      return true;
+    });
+    const visible = Boolean(request || publicFollowUp || summary || trackingHref);
+
+    return {
+      visible,
+      moduleLabel,
+      kindLabel,
+      summary,
+      recommendedAction,
+      trackingCode,
+      trackingHref,
+      trackingLabel,
+      channelActions,
+    };
+  }, [ticket]);
   const openActionHref = (href: string) => {
     if (!href) return;
     if (href.startsWith('/api/')) {
@@ -861,6 +981,68 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               )}
             </CardContent>
           </Card>
+          {assistedContext.visible ? (
+            <Card
+              className="border-blue-500/25 bg-blue-500/5 shadow-sm"
+              data-testid="ticket-assisted-context-card"
+            >
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      <p className="text-sm font-semibold">Solicitud asistida</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {assistedContext.summary || 'El sistema preparo el caso para que el equipo lo atienda sin reconstruir el contexto.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {assistedContext.moduleLabel ? (
+                      <Badge variant="secondary">{assistedContext.moduleLabel}</Badge>
+                    ) : null}
+                    {assistedContext.kindLabel ? (
+                      <Badge variant="outline" className="capitalize">
+                        {assistedContext.kindLabel}
+                      </Badge>
+                    ) : null}
+                    {assistedContext.trackingCode ? (
+                      <Badge variant="outline">#{assistedContext.trackingCode}</Badge>
+                    ) : null}
+                  </div>
+                </div>
+
+                {assistedContext.recommendedAction ? (
+                  <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Proxima accion
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {assistedContext.recommendedAction}
+                    </p>
+                  </div>
+                ) : null}
+
+                {assistedContext.channelActions.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {assistedContext.channelActions.map((action) => (
+                      <Button
+                        key={action.id}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="max-w-full gap-2"
+                        onClick={() => (action.href ? openActionHref(action.href) : undefined)}
+                      >
+                        <span className="truncate">{action.label}</span>
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
           <Card className="border-border/70 bg-background/95 shadow-sm" data-testid="ticket-operator-contact-card">
             <CardContent className="space-y-3 p-4">
               <div className="flex items-start gap-3">

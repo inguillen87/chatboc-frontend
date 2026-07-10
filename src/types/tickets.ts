@@ -328,6 +328,8 @@ export interface Ticket {
   ai_enrichment?: Record<string, unknown> | null;
   ai_hints?: Record<string, unknown> | null;
   ai_operator_brief?: Record<string, unknown> | null;
+  assisted_request?: Record<string, unknown> | null;
+  public_follow_up?: Record<string, unknown> | null;
   detail_endpoint?: string | null;
   messages_endpoint?: string | null;
   timeline_endpoint?: string | null;
