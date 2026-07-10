@@ -119,6 +119,40 @@ const ASSISTED_ENTRY_PROMISES = [
   'Reclamo, tramite o consulta con seguimiento publico',
 ];
 
+type AssistedUseCaseCard = {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
+  {
+    id: 'quote_request',
+    title: 'Pedido o cotizacion',
+    description: 'Ferreteria, supermercado, bebidas, repuestos o compras por lista.',
+    icon: ShoppingBag,
+  },
+  {
+    id: 'service_request',
+    title: 'Reclamo o tramite',
+    description: 'Direccion, foto, boleta, certificado o dato faltante para derivar.',
+    icon: ClipboardList,
+  },
+  {
+    id: 'receipt',
+    title: 'Comprobante o cuota',
+    description: 'Recibo, transferencia, impuesto o pago para revision del equipo.',
+    icon: ShieldCheck,
+  },
+  {
+    id: 'follow_up',
+    title: 'Seguimiento publico',
+    description: 'Referencia para consultar estado y continuar por WhatsApp o link seguro.',
+    icon: MessageCircle,
+  },
+];
+
 const ASSISTED_TEAM_HANDOFFS = [
   {
     title: 'Pedido desmenuzado',
@@ -184,6 +218,23 @@ const commerceLoopEventLabel = (eventName: string) =>
   eventName
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const assistedUseCaseIcon = (value: string) => {
+  const normalized = value.toLowerCase();
+  if (normalized.includes('reclamo') || normalized.includes('service') || normalized.includes('tramite')) {
+    return ClipboardList;
+  }
+  if (normalized.includes('boleta') || normalized.includes('comprobante') || normalized.includes('cuota') || normalized.includes('receipt')) {
+    return ShieldCheck;
+  }
+  if (normalized.includes('certificado') || normalized.includes('certificate') || normalized.includes('document')) {
+    return FileText;
+  }
+  if (normalized.includes('seguimiento') || normalized.includes('whatsapp') || normalized.includes('follow')) {
+    return MessageCircle;
+  }
+  return ShoppingBag;
+};
 
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
@@ -376,6 +427,28 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const catalogActuallyEmpty = catalogHasNoPublishedProducts;
   const effectiveAssistedIntake = assistedIntakeExplicitlyDisabled ? null : assistedIntake ?? FALLBACK_ASSISTED_INTAKE;
   const showAssistedIntake = Boolean(effectiveAssistedIntake);
+  const assistedUseCases = useMemo(() => {
+    const rawUseCases = Array.isArray(effectiveAssistedIntake?.use_cases)
+      ? effectiveAssistedIntake.use_cases
+      : [];
+    const normalizedUseCases = rawUseCases
+      .map((item, index) => {
+        const record = item as Record<string, unknown>;
+        const title = publicMarketplaceText(record.title ?? record.label ?? record.name);
+        if (!title) return null;
+        const id = publicMarketplaceText(record.id) || `use-case-${index}`;
+        const description = publicMarketplaceText(record.description);
+        return {
+          id,
+          title,
+          description,
+          icon: assistedUseCaseIcon(`${id} ${title} ${description}`),
+        };
+      })
+      .filter((item): item is AssistedUseCaseCard => Boolean(item))
+      .slice(0, 4);
+    return normalizedUseCases.length ? normalizedUseCases : FALLBACK_ASSISTED_USE_CASES;
+  }, [effectiveAssistedIntake?.use_cases]);
   const hasActiveFilters = Boolean(deferredSearchTerm.trim() || selectedCategory !== 'all' || promotionOnly);
   const noResultsSearchTerm = !isLoading && products.length === 0 && !catalogActuallyEmpty
     ? deferredSearchTerm.trim()
@@ -622,6 +695,27 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 Pensado para clientes y vecinos que no quieren navegar un catalogo: Chatboc conserva el archivo original,
                 separa articulos o datos clave y deja una respuesta operativa lista para el panel.
               </p>
+              <div
+                data-testid="market-assisted-use-cases"
+                className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
+              >
+                {assistedUseCases.map((useCase) => {
+                  const Icon = useCase.icon;
+                  return (
+                    <div key={useCase.id} className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Icon className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="truncate">{useCase.title}</span>
+                      </div>
+                      {useCase.description ? (
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                          {useCase.description}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
               <Button

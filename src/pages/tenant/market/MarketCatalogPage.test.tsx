@@ -48,6 +48,28 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
         title: 'Subi boletas, certificados, pedidos o notas y el municipio lo toma desde el CRM',
         summary: 'Contrato de intake asistido para vecinos sin registro.',
         input_examples: ['Boleta de tasa municipal o comprobante', 'Foto de una nota del vecino'],
+        use_cases: [
+          {
+            id: 'service_request',
+            title: 'Reclamo vecinal',
+            description: 'Direccion, foto o descripcion para seguimiento del municipio.',
+          },
+          {
+            id: 'tax_bill',
+            title: 'Boleta o comprobante',
+            description: 'Cuenta, padron, periodo, vencimiento o pago.',
+          },
+          {
+            id: 'certificate',
+            title: 'Certificado o tramite',
+            description: 'Documento, permiso o constancia.',
+          },
+          {
+            id: 'handwritten_order',
+            title: 'Pedido escrito',
+            description: 'Lista de materiales o nota manuscrita.',
+          },
+        ],
         text_examples: [
           {
             id: 'gov_tax_bill',
@@ -145,6 +167,12 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByTestId('market-assisted-header-rail')).toBeInTheDocument();
     expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Subi una foto, PDF, boleta o lista escrita/i)).toBeInTheDocument();
+    const useCases = screen.getByTestId('market-assisted-use-cases');
+    expect(useCases).toBeInTheDocument();
+    expect(useCases).toHaveTextContent('Reclamo vecinal');
+    expect(useCases).toHaveTextContent('Boleta o comprobante');
+    expect(useCases).toHaveTextContent('Certificado o tramite');
+    expect(useCases).toHaveTextContent('Pedido escrito');
     expect(screen.getByTestId('market-assisted-header-upload')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-header-text')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();

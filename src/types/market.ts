@@ -420,6 +420,13 @@ export interface MarketAssistedIntakeEntry {
     [key: string]: unknown;
   } | null;
   input_examples?: string[] | null;
+  use_cases?: Array<{
+    id?: string | null;
+    title?: string | null;
+    label?: string | null;
+    description?: string | null;
+    [key: string]: unknown;
+  }> | null;
   text_examples?: MarketAssistedIntakeTextExample[] | null;
   document_types?: Array<{
     id?: string | null;
