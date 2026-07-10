@@ -400,6 +400,35 @@ const humanizeKey = (value: unknown) => {
   return HUMAN_FIELD_LABELS[text] || text.replace(/_/g, ' ');
 };
 
+type CustomerBlockerView = {
+  id?: string | null;
+  code?: string | null;
+  label?: string | null;
+  message?: string | null;
+  description?: string | null;
+  source_name?: string | null;
+  line_id?: string | null;
+};
+
+const normalizeBlockingReasons = (...values: unknown[]): CustomerBlockerView[] => {
+  for (const value of values) {
+    if (!Array.isArray(value) || !value.length) continue;
+    const reasons = value.filter(isRecord) as CustomerBlockerView[];
+    if (reasons.length) return reasons;
+  }
+  return [];
+};
+
+const blockerLabel = (reason: CustomerBlockerView) =>
+  firstText(
+    reason.label,
+    reason.message,
+    reason.description,
+    humanizeKey(reason.code),
+    humanizeKey(reason.id),
+    'Pendiente de revision',
+  ) || 'Pendiente de revision';
+
 const targetModuleLabel = (value: unknown) => {
   const text = valueText(value);
   if (!text) return null;
@@ -762,6 +791,12 @@ export function AssistedRequestPanel({
   const detectedCount = reviewCardSummaryNumber(crmReviewCard, 'detected') || summaryNumber(assistedRequest, 'detected');
   const matchedCount = reviewCardSummaryNumber(crmReviewCard, 'matched') || summaryNumber(assistedRequest, 'matched');
   const unmatchedCount = reviewCardSummaryNumber(crmReviewCard, 'unmatched') || summaryNumber(assistedRequest, 'unmatched');
+  const customerConfirmation = isRecord(crmOrderDraft?.customer_confirmation) ? crmOrderDraft.customer_confirmation : {};
+  const customerBlockingReasons = normalizeBlockingReasons(
+    customerConfirmation.blocking_reasons,
+    crmReviewCard?.blocking_reasons,
+    (assistedRequest as Record<string, unknown>).blocking_reasons,
+  );
   const draftLines = crmOrderDraft?.lines || [];
   const findDraftLineForCandidateGroup = (group: CandidateGroupView) => {
     const groupLabel = group.itemLabel.trim().toLowerCase();
@@ -1262,6 +1297,26 @@ export function AssistedRequestPanel({
               </p>
             </div>
           </div>
+
+          {customerBlockingReasons.length ? (
+            <div className="mx-3 mb-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+              <div className="mb-2 flex items-center gap-2 font-medium">
+                <AlertTriangle className="h-4 w-4" />
+                Pendientes antes de confirmar
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {customerBlockingReasons.slice(0, 6).map((reason, index) => (
+                  <div key={`${reason.code || reason.id || index}-${reason.line_id || reason.source_name || index}`} className="rounded-md border border-amber-200/70 bg-background/70 p-2 dark:border-amber-900/70">
+                    <p className="font-medium">{blockerLabel(reason)}</p>
+                    {reason.source_name ? <p className="mt-1 text-xs opacity-80">Renglon: {reason.source_name}</p> : null}
+                    {reason.description && reason.description !== blockerLabel(reason) ? (
+                      <p className="mt-1 text-xs opacity-80">{reason.description}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-2 px-3 pb-3">
             {draftLines.length ? (
