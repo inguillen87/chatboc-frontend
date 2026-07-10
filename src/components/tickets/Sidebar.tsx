@@ -764,26 +764,28 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
-          <div className={cn(compact ? 'space-y-1.5 px-2 py-1.5' : 'space-y-1.5 px-2 py-2')} data-testid="sidebar-ticket-queue">
+          <div className={cn(compact ? 'px-2 py-1.5' : 'px-2 py-2')} data-testid="sidebar-ticket-queue">
             <p data-testid="sidebar-queue-summary" className="sr-only">
               Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
               {queueUnreadCount.toLocaleString('es-AR')} no leidos;
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
             </p>
-            {visibleQueueEntries.map(({ ticket, category }) => (
-              <div key={`${category}-${ticket.id}`} className="min-w-0">
-                <TicketListItem
-                  ticket={ticket}
-                  isSelected={selectedTicket?.id === ticket.id}
-                  compact
-                  onClick={() => {
-                    selectTicket(ticket.id);
-                    onTicketSelected?.();
-                  }}
-                />
-              </div>
-            ))}
+            <div className="overflow-hidden rounded-[8px] border border-border/80 bg-background shadow-sm">
+              {visibleQueueEntries.map(({ ticket, category }) => (
+                <div key={`${category}-${ticket.id}`} className="min-w-0 border-b border-border/60 last:border-b-0">
+                  <TicketListItem
+                    ticket={ticket}
+                    isSelected={selectedTicket?.id === ticket.id}
+                    compact
+                    onClick={() => {
+                      selectTicket(ticket.id);
+                      onTicketSelected?.();
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
             {hasMoreQueueItems ? (
               <div className="px-1 pb-2 pt-1">
                 <Button

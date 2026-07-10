@@ -83,11 +83,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
       <button
         type="button"
         className={cn(
-          'relative w-full rounded-lg border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'relative w-full p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isSelected
-            ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
-            : 'border-border/80 bg-background hover:bg-muted/50',
-          hasUnread && !isSelected && 'border-primary/50',
+            ? 'bg-primary/10 shadow-sm ring-1 ring-inset ring-primary/25'
+            : 'bg-background hover:bg-muted/45',
+          hasUnread && !isSelected && 'bg-primary/[0.035]',
         )}
         onClick={onClick}
         aria-pressed={isSelected}
@@ -98,7 +98,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
             {unreadBadgeLabel}
           </span>
         )}
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 items-start gap-2.5">
           <IdentityAvatar
             name={displayName}
             avatarUrl={avatarUrl}
@@ -112,8 +112,10 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 <h4 className="line-clamp-1 text-sm font-semibold leading-5 text-foreground" title={subject}>
                   {subject}
                 </h4>
-                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${displayName} - ${ticketNumber}`}>
-                  {displayName} - {ticketNumber}
+                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+                  <span className="font-semibold text-foreground/80">{ticketNumber}</span>
+                  <span className="mx-1 text-muted-foreground/70">-</span>
+                  {displayName}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
@@ -124,7 +126,12 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
               </div>
             </div>
             {(categoryLabel || priorityLabel || slaLabel || assignedLabel) && (
-              <div className="mt-1 flex min-w-0 items-center gap-1 overflow-hidden">
+              <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden">
+                {categoryLabel ? (
+                  <span className="min-w-0 truncate rounded-full border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-muted-foreground">
+                    {categoryLabel}
+                  </span>
+                ) : null}
                 {priorityLabel ? (
                   <Badge
                     variant="outline"
@@ -157,12 +164,14 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 ) : null}
               </div>
             )}
-            <p
-              className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground"
-              title={ticket.lastMessage || categoryLabel || 'Sin actividad reciente'}
-            >
-              {ticket.lastMessage || categoryLabel || 'Sin actividad reciente'}
-            </p>
+            {ticket.lastMessage ? (
+              <p
+                className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground"
+                title={ticket.lastMessage}
+              >
+                {ticket.lastMessage}
+              </p>
+            ) : null}
             {nextAction ? (
               <p
                 className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"

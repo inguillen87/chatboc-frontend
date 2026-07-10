@@ -715,12 +715,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   ].filter(Boolean) as string[];
   const desktopGridTemplate = isSidebarVisible && isDetailsVisible
     ? embedded
-      ? 'minmax(288px, 340px) minmax(0, 1fr) minmax(280px, 320px)'
-      : 'minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 360px)'
+      ? 'minmax(320px, 360px) minmax(0, 1fr) minmax(280px, 320px)'
+      : 'minmax(320px, 360px) minmax(0, 1fr) minmax(300px, 360px)'
     : isSidebarVisible
       ? embedded
-        ? 'minmax(288px, 340px) minmax(0, 1fr)'
-        : 'minmax(280px, 340px) minmax(0, 1fr)'
+        ? 'minmax(320px, 360px) minmax(0, 1fr)'
+        : 'minmax(320px, 360px) minmax(0, 1fr)'
       : isDetailsVisible
         ? 'minmax(0, 1fr) minmax(300px, 360px)'
         : 'minmax(0, 1fr)';

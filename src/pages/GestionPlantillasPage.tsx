@@ -36,6 +36,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useTenantStore } from "@/stores/tenantStore";
 import type { GestionResponseTemplate } from "@/types";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import { buildTenantPath } from "@/utils/tenantPaths";
 
 type TemplateDraft = Partial<GestionResponseTemplate> & {
   keywords?: string[] | string;
@@ -82,9 +83,7 @@ const GestionPlantillasPage: React.FC = () => {
   const [promptIA, setPromptIA] = useState("");
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [plantillaAEliminar, setPlantillaAEliminar] = useState<GestionResponseTemplate | null>(null);
-  const whatsappOnboardingHref = tenantSlug
-    ? `/${encodeURIComponent(tenantSlug)}/integracion?channel=whatsapp&action=twilio-content`
-    : "/integracion?channel=whatsapp&action=twilio-content";
+  const whatsappOnboardingHref = `${buildTenantPath("/integracion", tenantSlug)}?channel=whatsapp&action=twilio-content`;
 
   const fetchPlantillas = useCallback(async () => {
     setIsLoading(true);

@@ -135,8 +135,10 @@ describe('routesConfig route capabilities', () => {
     const content = fs.readFileSync(templatesPagePath, 'utf8');
 
     expect(content).toContain('whatsappOnboardingHref');
+    expect(content).toContain('buildTenantPath("/integracion", tenantSlug)');
     expect(content).toContain('action=twilio-content');
     expect(content).not.toContain('to="/integracion/whatsapp/connect"');
+    expect(content).not.toContain('/${encodeURIComponent(tenantSlug)}/integracion');
     expect(content).not.toContain('/integraciones/whatsapp/embedded-signup');
   });
 
