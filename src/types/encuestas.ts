@@ -166,6 +166,13 @@ export interface SurveyLiveHeatmap {
   metadata?: Record<string, unknown>;
 }
 
+export interface SurveyProductSurface {
+  name?: string;
+  scope?: string;
+  supports?: string[];
+  [key: string]: unknown;
+}
+
 export interface SurveyRealtimeEventContract {
   name?: string;
   contract_version?: string;
@@ -235,6 +242,7 @@ export interface SurveyLivePublicResultsPayload {
   operator_recommendations?: Array<Record<string, unknown>>;
   render_contract?: {
     preferred_visualization?: string;
+    product_surface?: SurveyProductSurface;
     supports?: string[];
     polling_interval_ms?: number;
     empty_state?: string;
@@ -242,6 +250,8 @@ export interface SurveyLivePublicResultsPayload {
     map_experience?: string;
   };
   ui_actions?: Array<Record<string, unknown>>;
+  operations?: SurveyOperationsContract;
+  admin_operations?: SurveyOperationsContract;
   updated_at?: string;
 }
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, AlertTriangle, BarChart3, Loader2, Radio, RefreshCw, Signal, Users } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, ExternalLink, Loader2, MapPinned, Radio, RefreshCw, ShieldCheck, Signal, Users } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +70,37 @@ const topQuestions = (questions?: SurveyLivePublicQuestion[]) =>
     .slice(0, 3);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+
+const displayProductSurface = (payload?: SurveyLivePublicResultsPayload) => {
+  const surface = payload?.render_contract?.product_surface;
+  if (isRecord(surface) && typeof surface.name === 'string' && surface.name.trim()) {
+    return surface.name.trim();
+  }
+  return 'Noether Analytics Maps';
+};
+
+const heatmapProviderLabel = (payload?: SurveyLivePublicResultsPayload) => {
+  const metadata = payload?.heatmap?.metadata;
+  const mapConfig = isRecord(metadata?.map_config) ? metadata.map_config : undefined;
+  return displayText(mapConfig?.provider, 'MapLibre');
+};
+
+const heatmapPrivacyLabel = (payload?: SurveyLivePublicResultsPayload) => {
+  const metadata = payload?.heatmap?.metadata;
+  if (metadata?.raw_points_redacted || metadata?.privacy_mode === 'public_aggregated') {
+    return 'Privacidad protegida';
+  }
+  if (metadata?.privacy_mode === 'raw') {
+    return 'Vista interna exacta';
+  }
+  return 'Geo segura';
+};
+
+const heatmapAdminRoute = (payload?: SurveyLivePublicResultsPayload) => {
+  const analyticsSurface = payload?.admin_operations?.analytics_surface ?? payload?.operations?.analytics_surface;
+  const route = analyticsSurface?.heatmap_href ?? analyticsSurface?.heatmap_route;
+  return typeof route === 'string' && route.trim() ? route.trim() : undefined;
+};
 
 const LIVE_RESULTS_SOCKET_SIGNAL_KEYS = [
   'preguntas',
@@ -245,6 +276,11 @@ export function SurveyLiveResultsPanel({
   );
   const updatedAtLabel = payload?.updated_at ? new Date(payload.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
   const pollingSeconds = Math.max(1, Math.round((pollingIntervalMs ?? 0) / 1000));
+  const productSurfaceName = displayProductSurface(payload);
+  const productSurfaceScope = displayText(payload?.render_contract?.product_surface?.scope, 'surveys_live_heatmap');
+  const privacyLabel = heatmapPrivacyLabel(payload);
+  const providerLabel = heatmapProviderLabel(payload);
+  const adminHeatmapRoute = heatmapAdminRoute(payload);
 
   if (!enabled || !normalizedSlug) {
     return (
@@ -295,6 +331,48 @@ export function SurveyLiveResultsPanel({
           </div>
         ) : (
           <>
+            <div
+              className="grid gap-3 rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4 text-sm md:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]"
+              data-testid="survey-live-product-surface"
+            >
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-200">
+                    <MapPinned className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold">{productSurfaceName}</p>
+                    <p className="text-xs text-muted-foreground">{productSurfaceScope}</p>
+                  </div>
+                </div>
+                <p className="max-w-3xl text-sm text-muted-foreground">
+                  Mapa operativo para leer votos, zonas activas, canales y senales IA sin exponer coordenadas sensibles.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-2">
+                  <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                    {privacyLabel}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{providerLabel}</span>
+                </div>
+                {adminHeatmapRoute ? (
+                  <a
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90"
+                    href={adminHeatmapRoute}
+                  >
+                    Abrir mapa admin
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+                    Mapa admin disponible cuando el contrato operativo incluya ruta.
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-border/60 bg-background/80 p-4">
                 <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">

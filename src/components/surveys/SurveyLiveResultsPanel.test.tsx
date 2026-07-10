@@ -47,7 +47,7 @@ const payloadFixture = (total = 12, version = 1): SurveyLivePublicResultsPayload
   ],
   heatmap: {
     points: [{ lat: -33.086, lng: -68.471, respuestas: total, barrio: 'Centro', canal: 'whatsapp' }],
-    metadata: { privacy_mode: 'public_aggregated', raw_points_redacted: true },
+    metadata: { privacy_mode: 'public_aggregated', raw_points_redacted: true, map_config: { provider: 'MapLibre' } },
   },
   realtime: {
     contract_version: 'surveys.realtime.v2',
@@ -65,6 +65,22 @@ const payloadFixture = (total = 12, version = 1): SurveyLivePublicResultsPayload
       ],
     },
     polling: { interval_ms: 4500 },
+  },
+  render_contract: {
+    preferred_visualization: 'live_vote_command_center',
+    product_surface: {
+      name: 'Noether Analytics Maps',
+      scope: 'surveys_live_heatmap',
+      supports: ['live_vote_heatmaps', 'privacy_safe_geo_aggregation', 'maplibre_layers'],
+    },
+    supports: ['cards', 'timeline', 'heatmap', 'admin_operations'],
+    map_experience: 'interactive_heatmap_with_ai_layers',
+  },
+  admin_operations: {
+    contract_version: 'surveys.operations.v2',
+    analytics_surface: {
+      heatmap_route: '/admin/encuestas/1/analytics?focus=heatmap&include_heatmap=1',
+    },
   },
   ai_summary: 'Centro concentra la actividad reciente.',
 });
@@ -90,6 +106,13 @@ describe('SurveyLiveResultsPanel', () => {
 
     expect(screen.getByTestId('survey-live-results-panel')).toBeInTheDocument();
     expect(screen.getByText('Sala live')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-product-surface')).toHaveTextContent('Noether Analytics Maps');
+    expect(screen.getByTestId('survey-live-product-surface')).toHaveTextContent('Privacidad protegida');
+    expect(screen.getByTestId('survey-live-product-surface')).toHaveTextContent('MapLibre');
+    expect(screen.getByRole('link', { name: 'Abrir mapa admin' })).toHaveAttribute(
+      'href',
+      '/admin/encuestas/1/analytics?focus=heatmap&include_heatmap=1',
+    );
     expect(screen.getByRole('status')).toHaveTextContent('En vivo');
     expect(screen.getByText('Prioridad barrial')).toBeInTheDocument();
     expect(screen.getByText('Centro concentra la actividad reciente.')).toBeInTheDocument();
