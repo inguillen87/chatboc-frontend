@@ -439,6 +439,9 @@ const INTEGRATION_PROVIDER_ALIASES: Record<string, IntegrationStatus['provider']
   whats_app: 'whatsapp',
   'whats app': 'whatsapp',
   'whatsapp business': 'whatsapp',
+  mercadopago: 'mercadopago',
+  mercado_pago: 'mercadopago',
+  'mercado pago': 'mercadopago',
 };
 
 const normalizeIntegrationProvider = (value: unknown): IntegrationStatus['provider'] | null => {
@@ -454,7 +457,7 @@ const normalizeIntegrationConnected = (details: any): boolean => {
   if (typeof details?.enabled === 'boolean') return details.enabled;
   if (typeof details?.active === 'boolean') return details.active;
   if (typeof details?.status === 'string') {
-    return ['active', 'connected', 'enabled', 'ready'].includes(details.status.trim().toLowerCase());
+    return ['active', 'connected', 'enabled', 'ready', 'configured', 'ok'].includes(details.status.trim().toLowerCase());
   }
   return false;
 };
@@ -754,6 +757,25 @@ export const apiClient = {
     return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/sync`, {
       method: 'POST',
       tenantSlug
+    });
+  },
+
+  adminGetMercadoPagoCredentials: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/mercadopago`, { tenantSlug });
+  },
+
+  adminSetMercadoPagoCredentials: async (tenantSlug: string, accessToken: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/mercadopago`, {
+      method: 'POST',
+      body: { access_token: accessToken },
+      tenantSlug,
+    });
+  },
+
+  adminTestMercadoPagoCredentials: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/mercadopago/test`, {
+      method: 'POST',
+      tenantSlug,
     });
   },
 

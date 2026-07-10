@@ -680,7 +680,7 @@ export interface PortalContent {
 }
 
 export interface IntegrationStatus {
-  provider: 'mercadolibre' | 'tiendanube' | 'whatsapp';
+  provider: 'mercadolibre' | 'tiendanube' | 'whatsapp' | 'mercadopago';
   connected: boolean;
   lastSync?: string;
 }

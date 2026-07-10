@@ -107,6 +107,7 @@ describe('apiClient stage4 contract integrations', () => {
       { type: 'MercadoLibre', connected: false },
       { type: 'TiendaNube', status: 'active', last_sync_at: '2026-07-05T03:00:00Z' },
       { type: 'WhatsApp', connected: true, lastSync: '2026-07-05T03:10:00Z' },
+      { type: 'MercadoPago', status: 'configured', lastSync: '2026-07-05T03:15:00Z' },
     ]);
 
     const integrations = await apiClient.adminGetIntegrations('junin');
@@ -115,6 +116,7 @@ describe('apiClient stage4 contract integrations', () => {
       { provider: 'mercadolibre', connected: false, lastSync: undefined },
       { provider: 'tiendanube', connected: true, lastSync: '2026-07-05T03:00:00Z' },
       { provider: 'whatsapp', connected: true, lastSync: '2026-07-05T03:10:00Z' },
+      { provider: 'mercadopago', connected: true, lastSync: '2026-07-05T03:15:00Z' },
     ]);
     expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/integrations', { tenantSlug: 'junin' });
   });
@@ -124,6 +126,7 @@ describe('apiClient stage4 contract integrations', () => {
       MercadoLibre: { connected: true, last_sync: '2026-07-05T03:20:00Z' },
       TiendaNube: { enabled: false },
       WhatsApp: { type: 'WhatsApp Business', active: true },
+      MercadoPago: { connected: true, last_sync: '2026-07-05T03:25:00Z' },
       UnknownProvider: { connected: true },
     });
 
@@ -133,7 +136,41 @@ describe('apiClient stage4 contract integrations', () => {
       { provider: 'mercadolibre', connected: true, lastSync: '2026-07-05T03:20:00Z' },
       { provider: 'tiendanube', connected: false, lastSync: undefined },
       { provider: 'whatsapp', connected: true, lastSync: undefined },
+      { provider: 'mercadopago', connected: true, lastSync: '2026-07-05T03:25:00Z' },
     ]);
+  });
+
+  it('uses tenant MercadoPago credential endpoints', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ provider: 'mercadopago', configured: true, access_token_masked: 'APP_...1234' })
+      .mockResolvedValueOnce({ provider: 'mercadopago', configured: true, status: 'configured' })
+      .mockResolvedValueOnce({ provider: 'mercadopago', ok: true, status: 'ok' });
+
+    await expect(apiClient.adminGetMercadoPagoCredentials('junin')).resolves.toMatchObject({
+      configured: true,
+      access_token_masked: 'APP_...1234',
+    });
+    await expect(apiClient.adminSetMercadoPagoCredentials('junin', 'APP_USR-token')).resolves.toMatchObject({
+      status: 'configured',
+    });
+    await expect(apiClient.adminTestMercadoPagoCredentials('junin')).resolves.toMatchObject({
+      ok: true,
+      status: 'ok',
+    });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/admin/tenants/junin/integrations/mercadopago', {
+      tenantSlug: 'junin',
+    });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/admin/tenants/junin/integrations/mercadopago',
+      expect.objectContaining({ method: 'POST', body: { access_token: 'APP_USR-token' }, tenantSlug: 'junin' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/admin/tenants/junin/integrations/mercadopago/test',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'junin' }),
+    );
   });
 
   it('falls back to legacy widget auth paths only when canonical routes are unavailable', async () => {

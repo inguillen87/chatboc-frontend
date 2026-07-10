@@ -78,6 +78,7 @@ describe("integration plan lock helpers", () => {
     expect(lock?.featureId).toBe("mercadopago_checkout");
     expect(lock?.featureLabel).toBe("Cobros y checkout seguro");
     expect(lock?.featureAction).toBe("configure_payment_gateway");
+    expect(lockMatchesChannel(lock, "mercadopago")).toBe(true);
     expect(lockMatchesChannel(lock, "mercadolibre")).toBe(false);
   });
 });

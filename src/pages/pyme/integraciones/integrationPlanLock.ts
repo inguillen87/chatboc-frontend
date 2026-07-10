@@ -74,5 +74,6 @@ export const lockMatchesChannel = (lock: IntegrationPlanLockView | null, channel
   const normalized = channel.trim().toLowerCase();
   if (normalized === "whatsapp") return lock.featureId === "whatsapp_sender_management";
   if (normalized === "mercadolibre" || normalized === "tiendanube") return lock.featureId === "marketplace_sync";
+  if (normalized === "mercadopago") return lock.featureId === "mercadopago_checkout";
   return false;
 };

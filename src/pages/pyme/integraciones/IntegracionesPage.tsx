@@ -69,6 +69,11 @@ const CHANNEL_GUIDANCE: Record<string, { title: string; detail: string; outcome:
     detail: "Conecta ecommerce, carrito y catálogo para cerrar pedidos con contexto.",
     outcome: "Pedidos online preparados para despacho.",
   },
+  mercadopago: {
+    title: "Cobros y checkout",
+    detail: "Configura MercadoPago para webviews, marketplace y pedidos conversacionales con pago seguro.",
+    outcome: "Checkout listo para cobrar pedidos desde WhatsApp, widget y marketplace.",
+  },
   email: {
     title: "Email",
     detail: "Respaldo operativo para notificaciones, comprobantes y alertas internas.",
@@ -80,6 +85,7 @@ const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
   tiendanube: "https://d26lpennugtm8s.cloudfront.net/assets/common/img/logos/header/logo_tiendanube_header.svg",
   whatsapp: "https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg",
+  mercadopago: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/6.6.92/mercadopago/logo__large.png",
   telegram: "https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg",
   email: "https://cdn-icons-png.flaticon.com/512/281/281769.png"
 };
@@ -89,6 +95,7 @@ const CHANNELS = [
     { id: 'telegram', label: 'Telegram', icon: Send },
     { id: 'mercadolibre', label: 'MercadoLibre', icon: ShoppingBag },
     { id: 'tiendanube', label: 'Tiendanube', icon: ShoppingBag },
+    { id: 'mercadopago', label: 'Cobros', icon: KeyRound },
     { id: 'email', label: 'Email', icon: Mail },
 ];
 
@@ -137,6 +144,16 @@ type WhatsappSandboxSetup = {
   quickMenu: QuickMenuPreviewItem[];
   testEndpoint?: string | null;
   sessionEndpoint?: string | null;
+};
+
+type PaymentGatewayStatus = {
+  provider?: string | null;
+  configured: boolean;
+  accessTokenMasked?: string | null;
+  status?: string | null;
+  testedAt?: string | null;
+  ok?: boolean | null;
+  details?: Record<string, unknown> | null;
 };
 
 const DEFAULT_WHATSAPP_SANDBOX: WhatsappSandboxState = {
@@ -360,6 +377,11 @@ const IntegracionesPage = () => {
   const [sandboxResult, setSandboxResult] = useState<WhatsappSandboxResult | null>(null);
   const [integrationPlanLock, setIntegrationPlanLock] = useState<IntegrationPlanLockView | null>(null);
   const [channelPlanLocks, setChannelPlanLocks] = useState<Record<string, IntegrationPlanLockView>>({});
+  const [paymentGateway, setPaymentGateway] = useState<PaymentGatewayStatus | null>(null);
+  const [paymentToken, setPaymentToken] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentTesting, setPaymentTesting] = useState(false);
 
   useEffect(() => {
     if (currentSlug) {
@@ -368,6 +390,7 @@ const IntegracionesPage = () => {
       loadCatalog();
       loadWidgetQuickMenu();
       loadWhatsappSandboxSetup();
+      loadPaymentGateway();
     }
   }, [currentSlug]);
 
@@ -736,6 +759,38 @@ const IntegracionesPage = () => {
   const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? null;
   const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? null;
 
+  const normalizePaymentGatewayStatus = (data: any): PaymentGatewayStatus => ({
+    provider: readTextValue(data?.provider) || "mercadopago",
+    configured: Boolean(data?.configured || data?.ok || ["configured", "ok", "active"].includes(String(data?.status || "").toLowerCase())),
+    accessTokenMasked: readTextValue(data?.access_token_masked, data?.masked_token, data?.account),
+    status: readTextValue(data?.status) || (data?.configured ? "configured" : "missing"),
+    testedAt: readTextValue(data?.tested_at, data?.lastSync, data?.last_sync_at),
+    ok: typeof data?.ok === "boolean" ? data.ok : null,
+    details: data?.details && typeof data.details === "object" && !Array.isArray(data.details) ? data.details : null,
+  });
+
+  const loadPaymentGateway = async () => {
+    if (!currentSlug) return;
+    setPaymentLoading(true);
+    try {
+      const data = await apiClient.adminGetMercadoPagoCredentials(currentSlug);
+      setPaymentGateway(normalizePaymentGatewayStatus(data));
+      setPaymentToken("");
+      clearIntegrationPlanLock("mercadopago");
+    } catch (error: any) {
+      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+      if (status === 403) {
+        rememberIntegrationPlanLock(error, "mercadopago", "mercadopago_checkout");
+        setPaymentGateway(null);
+      } else {
+        console.error("Error loading MercadoPago credentials", error);
+        setPaymentGateway(null);
+      }
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   const loadSettings = async () => {
     try {
       if (!currentSlug) return;
@@ -890,6 +945,70 @@ const IntegracionesPage = () => {
       toast.error("Error al sincronizar.");
     } finally {
       setSyncing(null);
+    }
+  };
+
+  const handleSavePaymentGateway = async () => {
+    if (!currentSlug) return;
+    const token = paymentToken.trim();
+    if (!token) {
+      toast.error("Pegá el access token de MercadoPago antes de guardar.");
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      const data = await apiClient.adminSetMercadoPagoCredentials(currentSlug, token);
+      setPaymentGateway(normalizePaymentGatewayStatus(data));
+      setPaymentToken("");
+      clearIntegrationPlanLock("mercadopago");
+      toast.success("MercadoPago configurado");
+      await loadIntegrations();
+    } catch (error: any) {
+      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+      if (status === 403) {
+        const lock = rememberIntegrationPlanLock(error, "mercadopago", "mercadopago_checkout");
+        toast.error(
+          lock
+            ? `${lock.featureLabel}: requiere plan ${lock.requiredPlan}.`
+            : "Tu plan actual no permite configurar cobros.",
+        );
+        return;
+      }
+      console.error("Error saving MercadoPago credentials", error);
+      toast.error("No se pudo guardar MercadoPago.");
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const handleTestPaymentGateway = async () => {
+    if (!currentSlug) return;
+    if (!paymentGateway?.configured) {
+      toast.error("Primero guardá el access token de MercadoPago.");
+      return;
+    }
+    setPaymentTesting(true);
+    try {
+      const data = await apiClient.adminTestMercadoPagoCredentials(currentSlug);
+      setPaymentGateway(normalizePaymentGatewayStatus(data));
+      clearIntegrationPlanLock("mercadopago");
+      toast.success("MercadoPago validado");
+      await loadIntegrations();
+    } catch (error: any) {
+      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+      if (status === 403) {
+        const lock = rememberIntegrationPlanLock(error, "mercadopago", "mercadopago_checkout");
+        toast.error(
+          lock
+            ? `${lock.featureLabel}: requiere plan ${lock.requiredPlan}.`
+            : "Tu plan actual no permite probar cobros.",
+        );
+        return;
+      }
+      console.error("Error testing MercadoPago credentials", error);
+      toast.error("MercadoPago no respondió correctamente.");
+    } finally {
+      setPaymentTesting(false);
     }
   };
 
@@ -1305,6 +1424,95 @@ const IntegracionesPage = () => {
             </div>
         </AlertDescription>
       </Alert>
+    );
+  };
+
+  const renderPaymentGatewayPanel = () => {
+    const status = paymentGateway?.status || (paymentGateway?.configured ? "configured" : "missing");
+    const isReady = Boolean(paymentGateway?.configured && (paymentGateway.ok === true || status === "ok" || status === "configured"));
+    return (
+      <div className="space-y-5">
+        <div className="rounded-2xl border bg-muted/30 p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={isReady ? "default" : "secondary"} className="gap-1">
+                  {paymentLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  {isReady ? "Checkout listo" : "Checkout pendiente"}
+                </Badge>
+                {paymentGateway?.testedAt ? <Badge variant="outline">Testeado {paymentGateway.testedAt}</Badge> : null}
+              </div>
+              <div>
+                <h4 className="text-lg font-semibold">MercadoPago para pedidos y marketplace</h4>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Usa credenciales del tenant para crear preferencias de pago desde webviews, carrito, WhatsApp y widget sin exponer tokens al cliente.
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="w-fit">
+              {status}
+            </Badge>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="mercadopago-token">Access token del tenant</Label>
+                <Input
+                  id="mercadopago-token"
+                  type="password"
+                  value={paymentToken}
+                  onChange={(event) => setPaymentToken(event.target.value)}
+                  placeholder={paymentGateway?.accessTokenMasked || "APP_USR-..."}
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se guarda en backend y luego solo se muestra enmascarado.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button onClick={handleSavePaymentGateway} disabled={paymentSaving || paymentLoading}>
+                  {paymentSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Guardar MercadoPago
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestPaymentGateway}
+                  disabled={paymentTesting || paymentLoading || !paymentGateway?.configured}
+                >
+                  {paymentTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Probar conexion
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-background/70 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Credencial activa</p>
+              <p className="mt-2 break-all font-mono text-sm text-foreground">
+                {paymentGateway?.accessTokenMasked || "Sin token guardado"}
+              </p>
+              <Separator className="my-4" />
+              <div className="grid gap-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Estado</span>
+                  <span className="font-medium">{status}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Proveedor</span>
+                  <span className="font-medium">{paymentGateway?.provider || "mercadopago"}</span>
+                </div>
+                {paymentGateway?.details?.site_id ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Site</span>
+                    <span className="font-medium">{String(paymentGateway.details.site_id)}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -1845,6 +2053,8 @@ const IntegracionesPage = () => {
                                             </div>
                                         </div>
                                     </div>
+                                ) : selectedChannel === 'mercadopago' ? (
+                                    renderPaymentGatewayPanel()
                                 ) : selectedChannel === 'email' ? (
                                     <div className="space-y-5">
                                         <p className="text-sm text-muted-foreground">Configurá las notificaciones por correo electrónico.</p>
