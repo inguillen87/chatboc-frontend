@@ -483,6 +483,10 @@ const normalizeAssistedIntake = (
 
   return {
     ...record,
+    display_name:
+      asStringOrNull(getFirst(record, ['display_name', 'displayName'])) ??
+      asStringOrNull(getFirst(frontendContract ?? {}, ['display_name', 'displayName'])) ??
+      null,
     submit:
       submitRecord || submitEndpoint
         ? {

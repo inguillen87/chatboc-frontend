@@ -519,6 +519,7 @@ describe('market api continuity normalization', () => {
       },
       assisted_intake: {
         contract_version: 'marketplace.assisted_intake_entry.v1',
+        display_name: 'Vega Marketplace IA',
         mode: 'catalog_plus_assisted',
         text_examples: [
           {
@@ -549,6 +550,7 @@ describe('market api continuity normalization', () => {
     expect(catalog.products[1].promoInfo).toBeNull();
     expect(catalog.assisted_intake).toMatchObject({
       contract_version: 'marketplace.assisted_intake_entry.v1',
+      display_name: 'Vega Marketplace IA',
       mode: 'catalog_plus_assisted',
     });
     expect(catalog.assisted_intake?.text_examples?.[0]?.document_type).toBe('quote_request');

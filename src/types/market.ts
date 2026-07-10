@@ -394,6 +394,13 @@ export interface MarketAssistedIntakeTextExample {
 
 export interface MarketAssistedIntakeEntry {
   contract_version?: string | null;
+  display_name?: string | null;
+  product_surface?: {
+    name?: string | null;
+    scope?: string | null;
+    supports?: string[] | null;
+    [key: string]: unknown;
+  } | null;
   render_as?: string | null;
   mode?: 'assisted_first' | 'catalog_plus_assisted' | string | null;
   title?: string | null;

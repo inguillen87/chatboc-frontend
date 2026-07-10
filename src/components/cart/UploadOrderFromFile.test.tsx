@@ -60,6 +60,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
   it('shows the assisted marketplace pipeline in the visible public intake header', () => {
     render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
 
+    expect(screen.getByTestId('marketplace-assisted-product-surface')).toHaveTextContent('Vega Marketplace IA');
     expect(screen.getByTestId('marketplace-assisted-visible-pipeline')).toBeInTheDocument();
     expect(screen.getByText('Foto o texto')).toBeInTheDocument();
     expect(screen.getByText('Lectura ordenada')).toBeInTheDocument();

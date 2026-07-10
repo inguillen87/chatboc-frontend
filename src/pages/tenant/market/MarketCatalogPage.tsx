@@ -203,6 +203,11 @@ const publicMarketplaceText = (value: unknown) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const publicProductName = (value: unknown) =>
+  String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const commerceLoopDescription = (stageOrEvent: string) => {
   const normalized = stageOrEvent.toLowerCase();
   if (normalized.includes('catalog')) return 'El cliente ve disponibilidad y promociones.';
@@ -238,6 +243,11 @@ const assistedUseCaseIcon = (value: string) => {
 
 const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   contract_version: 'marketplace.assisted_intake_entry.v1',
+  display_name: 'Vega Marketplace IA',
+  product_surface: {
+    name: 'Vega Marketplace IA',
+    scope: 'anonymous_marketplace_intake',
+  },
   mode: 'assisted_first',
   title: 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable',
   summary:
@@ -311,6 +321,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   },
   frontend_contract: {
     render_as: 'marketplace_assisted_intake',
+    display_name: 'Vega Marketplace IA',
     show_quick_examples: true,
     fallback: true,
   },
@@ -534,6 +545,11 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
+  const assistedDisplayName =
+    publicProductName(effectiveAssistedIntake?.display_name) ||
+    publicProductName(effectiveAssistedIntake?.product_surface?.name) ||
+    publicProductName((effectiveAssistedIntake?.frontend_contract as Record<string, unknown> | null | undefined)?.display_name) ||
+    'Vega Marketplace IA';
   const assistedEmptyTitle =
     publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) ||
     'Catalogo sin productos visibles, solicitud asistida activa.';
@@ -709,6 +725,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                  {assistedDisplayName}
+                </Badge>
                 <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
                   {catalogActuallyEmpty ? 'No hace falta catalogo' : 'Pedido libre'}
                 </Badge>

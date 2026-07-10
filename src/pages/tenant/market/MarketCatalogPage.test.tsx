@@ -50,6 +50,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       heroSubtitle: 'Catalogo actualizado con promociones y disponibilidad operativa.',
       assisted_intake: {
         contract_version: 'marketplace.assisted_intake_entry.v1',
+        display_name: 'Vega Marketplace IA',
         title: 'Subi boletas, certificados, pedidos o notas y el municipio lo toma desde el CRM',
         summary: 'Contrato de intake asistido para vecinos sin registro.',
         input_examples: ['Boleta de tasa municipal o comprobante', 'Foto de una nota del vecino'],
@@ -170,6 +171,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
 
     expect(screen.getByTestId('market-assisted-header-rail')).toBeInTheDocument();
+    expect(screen.getAllByText('Vega Marketplace IA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Subi una foto, PDF, boleta o lista escrita/i)).toBeInTheDocument();
     const useCases = screen.getByTestId('market-assisted-use-cases');

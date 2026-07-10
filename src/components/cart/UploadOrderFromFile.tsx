@@ -534,6 +534,11 @@ const publicFacingText = (value: unknown) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const publicProductName = (value: unknown) =>
+  String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const ASSISTED_OUTCOMES = [
   {
     label: 'Pedido o cotizacion',
@@ -1215,6 +1220,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const publicIntakeSummary =
     publicFacingText(intakeExperience?.summary) ||
     'Subi una foto de papel, pega una lista o adjunta una boleta: el equipo recibe la solicitud ordenada, con datos faltantes y un canal claro para responderte.';
+  const publicIntakeDisplayName =
+    publicProductName(intakeExperience?.display_name) ||
+    publicProductName(intakeExperience?.product_surface?.name) ||
+    publicProductName((intakeExperience?.frontend_contract as Record<string, unknown> | null | undefined)?.display_name) ||
+    'Vega Marketplace IA';
 
   const applyTextExample = (example: MarketAssistedIntakeTextExample) => {
     if (isDocumentType(example.document_type)) {
@@ -1656,6 +1666,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" data-testid="marketplace-assisted-product-surface">
+                      {publicIntakeDisplayName}
+                    </Badge>
                     <Badge variant="outline">Carga asistida</Badge>
                     <Badge variant="outline">Sin registro previo</Badge>
                     <Badge variant="secondary">Revision humana</Badge>
