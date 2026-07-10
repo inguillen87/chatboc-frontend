@@ -696,7 +696,41 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     }
   };
 
-  if (!tenantSlug) return null;
+  if (!tenantSlug) {
+    return (
+      <section
+        data-testid="whatsapp-onboarding-missing-tenant"
+        className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-700">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Tenant no resuelto</p>
+              <h3 className="mt-1 text-base font-semibold text-foreground">No pude cargar la activacion de WhatsApp</h3>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                La pantalla necesita un tenant activo para revisar sender, plantillas, webviews y pruebas reales. Volve al panel o abri integracion con
+                contexto de WhatsApp.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <a href="/perfil">Volver al panel</a>
+            </Button>
+            <Button type="button" size="sm" asChild>
+              <a href="/integracion?channel=whatsapp">
+                Abrir integracion
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-sm">

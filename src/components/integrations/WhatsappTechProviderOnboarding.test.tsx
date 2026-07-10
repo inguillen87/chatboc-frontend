@@ -247,6 +247,21 @@ describe("WhatsappTechProviderOnboarding", () => {
     vi.stubGlobal("open", vi.fn());
   });
 
+  it("shows a recoverable state when tenant context is missing", () => {
+    render(<WhatsappTechProviderOnboarding tenantSlug={null} />);
+
+    expect(screen.getByTestId("whatsapp-onboarding-missing-tenant")).toBeInTheDocument();
+    expect(screen.getByText("Tenant no resuelto")).toBeInTheDocument();
+    expect(screen.getByText("No pude cargar la activacion de WhatsApp")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /volver al panel/i })).toHaveAttribute("href", "/perfil");
+    expect(screen.getByRole("link", { name: /abrir integracion/i })).toHaveAttribute(
+      "href",
+      "/integracion?channel=whatsapp",
+    );
+    expect(mockedTenantService.getWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedGetTenantOpsQaPlaybookV2).not.toHaveBeenCalled();
+  });
+
   it("renders the production WhatsApp activation contract for a tenant", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
