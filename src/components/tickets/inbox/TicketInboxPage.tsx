@@ -90,6 +90,18 @@ export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
     [filteredTickets, selectedTicketId],
   );
 
+  React.useEffect(() => {
+    if (!filteredTickets.length) {
+      if (selectedTicketId) setSelectedTicketId(undefined);
+      return;
+    }
+
+    const selectedStillVisible = filteredTickets.some((ticket) => ticket.id === selectedTicketId);
+    if (!selectedStillVisible) {
+      setSelectedTicketId(filteredTickets[0].id);
+    }
+  }, [filteredTickets, selectedTicketId]);
+
   if (inboxQuery.isLoading) {
     return (
       <div className="p-4">
