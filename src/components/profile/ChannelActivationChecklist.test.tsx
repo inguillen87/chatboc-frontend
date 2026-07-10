@@ -23,6 +23,7 @@ const activationPayload = {
   },
   integration_access: {
     enabled: false,
+    status: 'partial',
     current_plan: 'free',
     required_plan: 'full',
     message: 'Requiere plan Full.',
@@ -93,6 +94,7 @@ describe('ChannelActivationChecklist', () => {
     expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
     expect(screen.getByText('17%')).toBeInTheDocument();
     expect(screen.getByText(/1 de 6 frentes listos/i)).toBeInTheDocument();
+    expect(screen.getByText(/self-service activo/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
     expect(screen.getByText('Identidad y login social')).toBeInTheDocument();
     expect(screen.getByText(/Configurar CLERK_WEBHOOK_SECRET/i)).toBeInTheDocument();

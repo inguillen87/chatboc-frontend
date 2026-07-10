@@ -116,6 +116,8 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const primaryAction = data?.summary?.primary_next_action;
   const locked = data?.summary?.locked ?? channels.filter((item) => item.locked).length;
   const hasChannels = channels.length > 0;
+  const integrationStatus = String(data?.integration_access?.status || '').toLowerCase();
+  const selfServiceActive = integrationStatus === 'partial';
 
   return (
     <section
@@ -134,6 +136,11 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             {data?.integration_access?.current_plan ? (
               <Badge variant="secondary" className="capitalize">
                 Plan {data.integration_access.current_plan}
+              </Badge>
+            ) : null}
+            {selfServiceActive ? (
+              <Badge className="border-emerald-400/40 bg-emerald-500/15 text-emerald-100" variant="outline">
+                Self-service activo
               </Badge>
             ) : null}
             {locked ? (
