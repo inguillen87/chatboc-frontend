@@ -55,6 +55,7 @@ export interface SurveyLiveResults {
   updated_at?: string;
   total_respuestas: number;
   preguntas: Record<string, SurveyLiveQuestionResult>;
+  realtime?: SurveyRealtimeContract;
 }
 
 export interface SurveyLiveTimelineMinute {
@@ -165,6 +166,35 @@ export interface SurveyLiveHeatmap {
   metadata?: Record<string, unknown>;
 }
 
+export interface SurveyRealtimeEventContract {
+  name?: string;
+  contract_version?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyRealtimeSocketContract {
+  enabled?: boolean;
+  path?: string;
+  join_event?: string;
+  join_payload?: Record<string, unknown>;
+  join_payloads?: Array<Record<string, unknown>>;
+  events?: Array<SurveyRealtimeEventContract | string>;
+  [key: string]: unknown;
+}
+
+export interface SurveyRealtimeContract {
+  contract_version?: string;
+  enabled?: boolean;
+  room?: string | null;
+  primary_room?: string | null;
+  legacy_room?: string | null;
+  rooms?: string[];
+  socket?: SurveyRealtimeSocketContract;
+  polling?: Record<string, unknown>;
+  versioning?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface SurveyLivePublicQuestionOption {
   id?: SurveyOptionId;
   label?: string;
@@ -196,6 +226,7 @@ export interface SurveyLivePublicResultsPayload {
   momentum?: SurveyLiveMomentum;
   kpis?: SurveyLiveKpis;
   heatmap?: SurveyLiveHeatmap;
+  realtime?: SurveyRealtimeContract;
   live_telemetry?: SurveyLiveTelemetry;
   ai_summary?: string;
   ai_insights?: string[];

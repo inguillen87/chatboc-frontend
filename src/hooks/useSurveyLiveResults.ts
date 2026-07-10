@@ -53,7 +53,10 @@ const toFiniteNumber = (value: unknown, fallback = 0) => {
 };
 
 const getBackendPollingInterval = (payload?: SurveyLivePublicResultsPayload) => {
-  const interval = Number(payload?.render_contract?.polling_interval_ms);
+  const realtimeInterval = Number(payload?.realtime?.polling?.interval_ms);
+  const interval = Number.isFinite(realtimeInterval) && realtimeInterval > 0
+    ? realtimeInterval
+    : Number(payload?.render_contract?.polling_interval_ms);
   if (!Number.isFinite(interval) || interval <= 0) return null;
   return Math.max(2500, Math.min(interval, 30000));
 };

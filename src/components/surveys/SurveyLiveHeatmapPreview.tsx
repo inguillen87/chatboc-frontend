@@ -1,6 +1,8 @@
 import { useId, useMemo } from 'react';
 import { Activity, BrainCircuit, Layers3, MapPin, Radio, ShieldCheck } from 'lucide-react';
 
+import LazyMapLibreMap from '@/components/LazyMapLibreMap';
+import type { HeatPoint } from '@/services/statsService';
 import type { SurveyLiveHeatmap } from '@/types/encuestas';
 
 type HeatmapDatum = {
@@ -40,6 +42,8 @@ const VIEWBOX_WIDTH = 640;
 const VIEWBOX_HEIGHT = 320;
 const CELL_COLUMNS = 8;
 const CELL_ROWS = 4;
+const MAX_SVG_POINTS = 28;
+const MAX_SVG_CELLS = CELL_COLUMNS * CELL_ROWS;
 const TELEMETRY_PARTICLES = [
   { cx: 88, cy: 82, r: 1.8, delay: '0s', color: '#67e8f9' },
   { cx: 148, cy: 236, r: 1.5, delay: '-1.4s', color: '#34d399' },
@@ -75,6 +79,23 @@ const readString = (item: Record<string, unknown>, keys: string[]) => {
 const datumValue = (item: Record<string, unknown>) =>
   Math.max(1, readNumber(item, ['value', 'respuestas', 'votos', 'count', 'total', 'weight', 'intensity'], 1));
 
+const readMetadataNumber = (metadata: Record<string, unknown>, keys: string[], fallback = 0) => {
+  for (const key of keys) {
+    const value = toFiniteNumber(metadata[key], Number.NaN);
+    if (Number.isFinite(value)) return value;
+  }
+  return fallback;
+};
+
+const readMetadataFlag = (metadata: Record<string, unknown>, keys: string[]) =>
+  keys.some((key) => {
+    const value = metadata[key];
+    if (value === true) return true;
+    if (typeof value === 'number') return value > 0;
+    if (typeof value === 'string') return ['true', '1', 'yes', 'si'].includes(value.trim().toLowerCase());
+    return false;
+  });
+
 const scaleCoordinates = <T extends { item: Record<string, unknown>; index: number; lat: number; lng: number }>(
   points: T[],
   kind: HeatmapDatum['kind'],
@@ -100,7 +121,9 @@ const scaleCoordinates = <T extends { item: Record<string, unknown>; index: numb
 };
 
 const normalizeGeoPoints = (heatmap: SurveyLiveHeatmap): HeatmapDatum[] => {
-  const points = (heatmap.points ?? []).slice(0, 28);
+  const points = [...(heatmap.points ?? [])]
+    .sort((a, b) => datumValue(b) - datumValue(a))
+    .slice(0, MAX_SVG_POINTS);
   const numericPoints = points
     .map((point, index) => ({
       point,
@@ -129,7 +152,9 @@ const normalizeGeoPoints = (heatmap: SurveyLiveHeatmap): HeatmapDatum[] => {
 };
 
 const normalizeCells = (heatmap: SurveyLiveHeatmap): HeatmapDatum[] => {
-  const cells = (heatmap.cells ?? []).slice(0, CELL_COLUMNS * CELL_ROWS);
+  const cells = [...(heatmap.cells ?? [])]
+    .sort((a, b) => datumValue(b) - datumValue(a))
+    .slice(0, MAX_SVG_CELLS);
   const numericCells = cells
     .map((cell, index) => ({
       item: cell,
@@ -198,6 +223,57 @@ const buildTelemetryPath = (from: HeatmapDatum, to: HeatmapDatum) => {
   return `M${from.x} ${from.y} Q${controlX} ${controlY} ${to.x} ${to.y}`;
 };
 
+const extractCoordinate = (item: Record<string, unknown>) => {
+  const lat = readNumber(item, ['lat', 'latitude', 'centroid_lat']);
+  const lng = readNumber(item, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
+const buildMapLibreHeatmapData = (heatmap?: SurveyLiveHeatmap | null): HeatPoint[] => {
+  if (!heatmap) return [];
+  const pointSource = (heatmap.points ?? []).filter((point) => extractCoordinate(point));
+  const usingPoints = pointSource.length > 0;
+  const source = usingPoints ? pointSource : (heatmap.cells ?? []).filter((cell) => extractCoordinate(cell));
+
+  return source.map((item, index) => {
+    const coords = extractCoordinate(item) || { lat: 0, lng: 0 };
+    const weight = datumValue(item);
+    const label = readString(item, ['barrio', 'zona', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']);
+    const channel = readString(item, ['canal', 'channel', 'source']);
+    const clusterSize = Math.max(1, readNumber(item, ['point_count', 'points_count', 'count', 'respuestas', 'value'], weight));
+
+    return {
+      lat: coords.lat,
+      lng: coords.lng,
+      weight,
+      totalWeight: weight,
+      averageWeight: clusterSize > 0 ? Number((weight / clusterSize).toFixed(2)) : weight,
+      clusterSize,
+      barrio: label,
+      distrito: label,
+      canal: channel,
+      fuente: channel,
+      categoria: readString(item, ['categoria', 'category', 'tipo', 'intent']) || (usingPoints ? 'respuesta' : 'celda'),
+      clusterId: readString(item, ['clusterId', 'cluster_id', 'cellId', 'cell_id', 'id']) || `survey-${usingPoints ? 'point' : 'cell'}-${index}`,
+      cellId: readString(item, ['cellId', 'cell_id', 'id']),
+      source: usingPoints ? 'survey_live_point' : 'survey_live_cell',
+      total: weight,
+    };
+  });
+};
+
+const resolveMapCenter = (points: HeatPoint[]): [number, number] | undefined => {
+  if (!points.length) return undefined;
+  const totalWeight = points.reduce((sum, point) => sum + (point.totalWeight ?? point.weight ?? 1), 0);
+  const divisor = totalWeight > 0 ? totalWeight : points.length;
+  const lat = points.reduce((sum, point) => sum + point.lat * (point.totalWeight ?? point.weight ?? 1), 0) / divisor;
+  const lng = points.reduce((sum, point) => sum + point.lng * (point.totalWeight ?? point.weight ?? 1), 0) / divisor;
+  return [lng, lat];
+};
+
+const formatCount = (visible: number, total: number) => (total > visible ? `${visible}/${total}` : String(visible));
+
 export function SurveyLiveHeatmapPreview({
   heatmap,
   aiSignal,
@@ -220,6 +296,24 @@ export function SurveyLiveHeatmapPreview({
   const cells = useMemo(() => (heatmap ? normalizeCells(heatmap) : []), [heatmap]);
   const allData = useMemo(() => [...points, ...cells], [points, cells]);
   const heatmapMetadata = heatmap?.metadata && typeof heatmap.metadata === 'object' ? heatmap.metadata : {};
+  const mapLibreHeatmapData = useMemo(() => buildMapLibreHeatmapData(heatmap), [heatmap]);
+  const mapCenter = useMemo(() => resolveMapCenter(mapLibreHeatmapData), [mapLibreHeatmapData]);
+  const mapBounds = useMemo(
+    () => mapLibreHeatmapData.map((point) => [point.lng, point.lat] as [number, number]),
+    [mapLibreHeatmapData],
+  );
+  const rawPointsCount = heatmap?.points?.length ?? 0;
+  const rawCellsCount = heatmap?.cells?.length ?? 0;
+  const totalPointsCount = Math.max(
+    rawPointsCount,
+    readMetadataNumber(heatmapMetadata, ['points_count', 'point_count', 'total_points', 'raw_points_count'], rawPointsCount),
+  );
+  const totalCellsCount = Math.max(
+    rawCellsCount,
+    readMetadataNumber(heatmapMetadata, ['cells_count', 'cell_count', 'total_cells'], rawCellsCount),
+  );
+  const backendDatasetLimited = readMetadataFlag(heatmapMetadata, ['truncated_points', 'truncated_cells']);
+  const localHudLimited = rawPointsCount > points.length || rawCellsCount > cells.length;
   const privacyMode = asDisplayText(heatmapMetadata.privacy_mode, '').toLowerCase();
   const privacyProtected = heatmapMetadata.raw_points_redacted === true || privacyMode === 'public_aggregated';
   const privacyLabel = privacyProtected
@@ -228,21 +322,30 @@ export function SurveyLiveHeatmapPreview({
       ? 'Coordenadas exactas'
       : '';
   const precisionLabel = privacyPrecisionLabel(heatmapMetadata.coordinate_precision);
-  const topZones = useMemo(() => summarizeBy(allData, (item) => item.label), [allData]);
-  const topChannels = useMemo(() => summarizeBy(allData, (item) => item.channel), [allData]);
+  const summaryData = useMemo(
+    () => (privacyProtected && points.length > 0 && cells.length > 0 ? points : allData),
+    [allData, cells.length, points, privacyProtected],
+  );
+  const topZones = useMemo(() => summarizeBy(summaryData, (item) => item.label), [summaryData]);
+  const topChannels = useMemo(() => summarizeBy(summaryData, (item) => item.channel), [summaryData]);
   const maxValue = Math.max(1, ...points.map((point) => point.value), ...cells.map((cell) => cell.value));
   const hasData = points.length > 0 || cells.length > 0;
-  const totalSignal = allData.reduce((sum, item) => sum + item.value, 0);
+  const totalSignal = summaryData.reduce((sum, item) => sum + item.value, 0);
+  const datasetLimitLabel = backendDatasetLimited
+    ? `Dataset limitado por backend: ${formatCount(rawPointsCount, totalPointsCount)} puntos, ${formatCount(rawCellsCount, totalCellsCount)} celdas`
+    : localHudLimited
+      ? `HUD prioriza ${formatCount(points.length, rawPointsCount)} puntos y ${formatCount(cells.length, rawCellsCount)} celdas`
+      : '';
   const focusDatum = useMemo(
-    () => [...allData].sort((a, b) => b.value - a.value)[0],
-    [allData],
+    () => [...summaryData].sort((a, b) => b.value - a.value)[0],
+    [summaryData],
   );
   const originDatum = useMemo(
     () =>
-      [...points, ...cells]
+      [...summaryData]
         .filter((item) => item.id !== focusDatum?.id)
         .sort((a, b) => b.value - a.value)[0],
-    [cells, focusDatum?.id, points],
+    [focusDatum?.id, summaryData],
   );
   const telemetryPath = focusDatum && originDatum ? buildTelemetryPath(originDatum, focusDatum) : null;
   const aiSummary = aiSignal?.summary ?? {};
@@ -298,14 +401,22 @@ export function SurveyLiveHeatmapPreview({
                 {precisionLabel ? <span className="font-medium text-emerald-100/70">- {precisionLabel}</span> : null}
               </span>
             ) : null}
+            {datasetLimitLabel ? (
+              <span
+                className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100"
+                data-testid="survey-live-heatmap-dataset-limit"
+              >
+                {datasetLimitLabel}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200">
-            {pointsLabel}: <strong className="text-white">{heatmap?.points?.length ?? 0}</strong>
+          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200" data-testid="survey-live-heatmap-points-count">
+            {pointsLabel}: <strong className="text-white">{formatCount(rawPointsCount, totalPointsCount)}</strong>
           </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200">
-            {cellsLabel}: <strong className="text-white">{heatmap?.cells?.length ?? 0}</strong>
+          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200" data-testid="survey-live-heatmap-cells-count">
+            {cellsLabel}: <strong className="text-white">{formatCount(rawCellsCount, totalCellsCount)}</strong>
           </span>
           <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200">
             Zonas: <strong className="text-white">{topZones.length}</strong>
@@ -317,7 +428,21 @@ export function SurveyLiveHeatmapPreview({
       </div>
 
       <div className="relative aspect-[2/1] min-h-[230px]">
-        <svg className="h-full w-full" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} role="img">
+        {mapLibreHeatmapData.length ? (
+          <div className="absolute inset-0" data-testid="survey-live-heatmap-maplibre">
+            <LazyMapLibreMap
+              center={mapCenter}
+              fitToBounds={mapBounds}
+              boundsPadding={44}
+              heatmapData={mapLibreHeatmapData}
+              showHeatmap
+              disableClientClustering
+              initialZoom={12}
+              className="absolute inset-0 h-full rounded-none"
+            />
+          </div>
+        ) : null}
+        <svg className="pointer-events-none h-full w-full" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} role="img">
           <defs>
             <pattern id={gridId} width="40" height="40" patternUnits="userSpaceOnUse">
               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth="1" />
@@ -343,8 +468,8 @@ export function SurveyLiveHeatmapPreview({
             </linearGradient>
           </defs>
 
-          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#020617" />
-          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${gridId})`} />
+          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={mapLibreHeatmapData.length ? 'rgba(2, 6, 23, 0.22)' : '#020617'} />
+          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${gridId})`} opacity={mapLibreHeatmapData.length ? 0.72 : 1} />
           <circle cx="320" cy="160" r="150" fill={`url(#${radarGradientId})`} opacity="0.78" />
           {hasData
             ? TELEMETRY_PARTICLES.map((particle, index) => (

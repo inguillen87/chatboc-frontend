@@ -8,6 +8,7 @@ import {
 
 describe('useSurveyLiveResults helpers', () => {
   it('uses backend polling cadence safely and falls back to live momentum', () => {
+    expect(getSurveyLivePollingInterval({ realtime: { polling: { interval_ms: 4500 } }, render_contract: { polling_interval_ms: 9000 } })).toBe(4500);
     expect(getSurveyLivePollingInterval({ render_contract: { polling_interval_ms: 1000 } })).toBe(2500);
     expect(getSurveyLivePollingInterval({ render_contract: { polling_interval_ms: 45000 } })).toBe(30000);
     expect(getSurveyLivePollingInterval({ render_contract: { polling_interval_ms: 7000 } })).toBe(7000);

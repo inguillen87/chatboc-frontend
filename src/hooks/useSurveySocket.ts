@@ -10,10 +10,16 @@ interface UseSurveySocketOptions {
   slug: string;
   tenantSlug?: string | null;
   rooms?: string[];
+  joinEvent?: string;
+  joinPayloads?: Array<Record<string, unknown>>;
+  events?: string[];
   enabled?: boolean;
   onUpdate?: (data: SurveyLiveResults | SurveyLivePublicResultsPayload) => void;
   onComment?: (comment: SurveyComment) => void;
 }
+
+const DEFAULT_UPDATE_EVENTS = ['survey_update', 'survey_update_v2', 'survey.vote.created'];
+const DEFAULT_COMMENT_EVENTS = ['survey_comment'];
 
 const resolveSurveyRooms = (slug: string, tenantSlug?: string | null, rooms?: string[]) => {
   const explicitRooms = (rooms || [])
@@ -31,7 +37,40 @@ const resolveSurveyRooms = (slug: string, tenantSlug?: string | null, rooms?: st
     : [legacyRoom];
 };
 
-export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUpdate, onComment }: UseSurveySocketOptions) {
+const normalizeJoinPayloads = (
+  surveyRooms: string[],
+  joinPayloads?: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> => {
+  const explicitPayloads = (joinPayloads || []).filter((payload) => payload && typeof payload === 'object');
+  const source = explicitPayloads.length > 0 ? explicitPayloads : surveyRooms.map((room) => ({ room }));
+  const seen = new Set<string>();
+  return source.filter((payload) => {
+    const key = JSON.stringify(payload);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const resolveUpdateEvents = (events?: string[]) => {
+  const explicitEvents = (events || [])
+    .map((event) => (typeof event === 'string' ? event.trim() : ''))
+    .filter(Boolean);
+  const source = explicitEvents.length > 0 ? [...DEFAULT_UPDATE_EVENTS, ...explicitEvents] : DEFAULT_UPDATE_EVENTS;
+  return Array.from(new Set(source));
+};
+
+export function useSurveySocket({
+  slug,
+  tenantSlug,
+  rooms,
+  joinEvent = 'join',
+  joinPayloads,
+  events,
+  enabled = false,
+  onUpdate,
+  onComment,
+}: UseSurveySocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const onUpdateRef = useRef(onUpdate);
   const onCommentRef = useRef(onComment);
@@ -45,7 +84,10 @@ export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUp
     if (!enabled || !slug) return;
 
     const surveyRooms = resolveSurveyRooms(slug, tenantSlug, rooms);
-    if (surveyRooms.length === 0) return;
+    const resolvedJoinPayloads = normalizeJoinPayloads(surveyRooms, joinPayloads);
+    if (surveyRooms.length === 0 && resolvedJoinPayloads.length === 0) return;
+    const updateEvents = resolveUpdateEvents(events);
+    const commentEvents = DEFAULT_COMMENT_EVENTS;
 
     const socketUrl = getSocketUrl();
     const resolveTransportHintKey = (tenant?: string | null) => `chatboc_socket_transport_hint:${tenant || 'default'}`;
@@ -99,8 +141,8 @@ export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUp
           error_code: null,
         },
       }, tenantSlug || slug).catch(() => undefined);
-      surveyRooms.forEach((room) => {
-        socket.emit('join', { room });
+      resolvedJoinPayloads.forEach((payload) => {
+        socket.emit(joinEvent || 'join', payload);
       });
     };
 
@@ -127,24 +169,20 @@ export function useSurveySocket({ slug, tenantSlug, rooms, enabled = false, onUp
     safeOn(socket, 'connect', handleConnect);
     safeOn(socket, 'disconnect', handleDisconnect);
     safeOn(socket, 'connect_error', handleConnectError);
-    safeOn(socket, 'survey_update', handleUpdate);
-    safeOn(socket, 'survey_update_v2', handleUpdate);
-    safeOn(socket, 'survey.vote.created', handleUpdate);
-    safeOn(socket, 'survey_comment', handleComment);
+    updateEvents.forEach((eventName) => safeOn(socket, eventName, handleUpdate));
+    commentEvents.forEach((eventName) => safeOn(socket, eventName, handleComment));
 
     return () => {
       if (socket) {
         socket.off('connect', handleConnect);
         socket.off('disconnect', handleDisconnect);
         socket.off('connect_error', handleConnectError);
-        socket.off('survey_update', handleUpdate);
-        socket.off('survey_update_v2', handleUpdate);
-        socket.off('survey.vote.created', handleUpdate);
-        socket.off('survey_comment', handleComment);
+        updateEvents.forEach((eventName) => socket.off(eventName, handleUpdate));
+        commentEvents.forEach((eventName) => socket.off(eventName, handleComment));
         socket.disconnect();
       }
     };
-  }, [enabled, rooms, slug, tenantSlug]);
+  }, [enabled, events, joinEvent, joinPayloads, rooms, slug, tenantSlug]);
 
   return socketRef.current;
 }

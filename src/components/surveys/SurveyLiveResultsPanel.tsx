@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
-import type { SurveyLivePublicQuestion, SurveyLivePublicResultsPayload } from '@/types/encuestas';
+import type { SurveyLivePublicQuestion, SurveyLivePublicResultsPayload, SurveyRealtimeContract } from '@/types/encuestas';
 
 interface SurveyLiveResultsPanelProps {
   slug?: string | null;
@@ -64,6 +64,67 @@ const topQuestions = (questions?: SurveyLivePublicQuestion[]) =>
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
 
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+
+const normalizeStringList = (values: unknown[]) =>
+  Array.from(
+    new Set(
+      values
+        .flatMap((value) => (Array.isArray(value) ? value : [value]))
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean),
+    ),
+  );
+
+const extractRealtimeEvents = (realtime?: SurveyRealtimeContract) =>
+  normalizeStringList(
+    (realtime?.socket?.events ?? []).map((event) => (typeof event === 'string' ? event : isRecord(event) ? event.name : undefined)),
+  );
+
+const extractRealtimeJoinPayloads = (realtime?: SurveyRealtimeContract) => {
+  const payloads = Array.isArray(realtime?.socket?.join_payloads)
+    ? realtime?.socket?.join_payloads?.filter(isRecord) ?? []
+    : [];
+  const singlePayload = isRecord(realtime?.socket?.join_payload) ? [realtime.socket.join_payload] : [];
+  const source = payloads.length ? payloads : singlePayload;
+  if (!source.length) return undefined;
+  const seen = new Set<string>();
+  return source.filter((payload) => {
+    const key = JSON.stringify(payload);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const buildFallbackRooms = (slug: string, tenantSlug?: string) => {
+  if (!slug) return [];
+  const legacyRoom = `encuesta_${slug}`;
+  return tenantSlug ? [`encuesta:${tenantSlug}:${slug}`, legacyRoom] : [legacyRoom];
+};
+
+const buildRealtimeSocketOptions = (
+  realtime: SurveyRealtimeContract | undefined,
+  slug: string,
+  tenantSlug?: string,
+) => {
+  const rooms = normalizeStringList([
+    realtime?.rooms,
+    realtime?.primary_room,
+    realtime?.room,
+    realtime?.legacy_room,
+    buildFallbackRooms(slug, tenantSlug),
+  ]);
+  return {
+    rooms,
+    joinEvent: typeof realtime?.socket?.join_event === 'string' && realtime.socket.join_event.trim()
+      ? realtime.socket.join_event.trim()
+      : 'join',
+    joinPayloads: extractRealtimeJoinPayloads(realtime),
+    events: extractRealtimeEvents(realtime),
+  };
+};
+
 export function SurveyLiveResultsPanel({
   slug,
   tenantSlug,
@@ -88,17 +149,18 @@ export function SurveyLiveResultsPanel({
     refetch,
   } = useSurveyLiveResults(enabled && normalizedSlug ? normalizedSlug : undefined, normalizedTenant || undefined, params);
 
-  const rooms = useMemo(() => {
-    if (!normalizedSlug) return [];
-    return normalizedTenant
-      ? [`encuesta:${normalizedTenant}:${normalizedSlug}`, `encuesta_${normalizedSlug}`]
-      : [`encuesta_${normalizedSlug}`];
-  }, [normalizedSlug, normalizedTenant]);
+  const realtimeSocketOptions = useMemo(
+    () => buildRealtimeSocketOptions(polledPayload?.realtime, normalizedSlug, normalizedTenant || undefined),
+    [normalizedSlug, normalizedTenant, polledPayload?.realtime],
+  );
 
   useSurveySocket({
     slug: normalizedSlug,
     tenantSlug: normalizedTenant || undefined,
-    rooms,
+    rooms: realtimeSocketOptions.rooms,
+    joinEvent: realtimeSocketOptions.joinEvent,
+    joinPayloads: realtimeSocketOptions.joinPayloads,
+    events: realtimeSocketOptions.events,
     enabled: enabled && Boolean(normalizedSlug),
     onUpdate: (payload) => {
       if (payload?.contract_version === 'surveys.live_results.v2') {

@@ -1,7 +1,15 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { SurveyLiveHeatmapPreview } from './SurveyLiveHeatmapPreview';
+
+vi.mock('@/components/LazyMapLibreMap', () => ({
+  default: ({ heatmapData }: { heatmapData?: unknown[] }) => (
+    <div data-testid="mock-survey-live-maplibre" data-points={String(heatmapData?.length ?? 0)}>
+      mapa live {heatmapData?.length ?? 0}
+    </div>
+  ),
+}));
 
 describe('SurveyLiveHeatmapPreview', () => {
   it('renders a premium live territory summary from points and centroid cells', () => {
@@ -60,7 +68,9 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Canal dominante');
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('whatsapp');
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Proxima accion');
-    expect(screen.getByText(/Senal:/)).toHaveTextContent('21');
+    expect(screen.getByTestId('survey-live-heatmap-maplibre')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
+    expect(screen.getByText(/Senal:/)).toHaveTextContent('10');
   });
 
   it('keeps an actionable empty state when there is no geolocated activity', () => {
@@ -90,5 +100,43 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('widget');
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Monitorear evolucion');
     expect(screen.queryByText('Senales IA')).not.toBeInTheDocument();
+  });
+
+  it('shows backend and local dataset limits instead of silently truncating the map HUD', () => {
+    const points = Array.from({ length: 40 }, (_, index) => ({
+      lat: -33.08 - index * 0.001,
+      lng: -68.47 + index * 0.001,
+      respuestas: index + 1,
+      barrio: `Zona ${index + 1}`,
+      canal: 'web',
+    }));
+    const cells = Array.from({ length: 40 }, (_, index) => ({
+      id: `cell-${index + 1}`,
+      centroid_lat: -33.09 - index * 0.001,
+      centroid_lon: -68.45 + index * 0.001,
+      count: index + 2,
+      barrio: `Celda ${index + 1}`,
+      channel: 'whatsapp',
+    }));
+
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          points,
+          cells,
+          metadata: {
+            points_count: 120,
+            cells_count: 64,
+            truncated_points: true,
+            truncated_cells: true,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 40/120');
+    expect(screen.getByTestId('survey-live-heatmap-cells-count')).toHaveTextContent('Celdas: 40/64');
+    expect(screen.getByTestId('survey-live-heatmap-dataset-limit')).toHaveTextContent('Dataset limitado por backend');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '40');
   });
 });

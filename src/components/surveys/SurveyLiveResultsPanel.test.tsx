@@ -49,6 +49,23 @@ const payloadFixture = (total = 12, version = 1): SurveyLivePublicResultsPayload
     points: [{ lat: -33.086, lng: -68.471, respuestas: total, barrio: 'Centro', canal: 'whatsapp' }],
     metadata: { privacy_mode: 'public_aggregated', raw_points_redacted: true },
   },
+  realtime: {
+    contract_version: 'surveys.realtime.v2',
+    enabled: true,
+    room: 'contract-primary',
+    primary_room: 'contract-primary',
+    legacy_room: 'contract-legacy',
+    rooms: ['contract-primary', 'contract-legacy'],
+    socket: {
+      join_event: 'join',
+      join_payloads: [{ room: 'contract-primary', tenant_slug: 'junin' }],
+      events: [
+        { name: 'survey.live_results.updated', contract_version: 'surveys.live_results.v2' },
+        { name: 'survey.vote.created', contract_version: 'surveys.live_results.v2' },
+      ],
+    },
+    polling: { interval_ms: 4500 },
+  },
   ai_summary: 'Centro concentra la actividad reciente.',
 });
 
@@ -80,8 +97,12 @@ describe('SurveyLiveResultsPanel', () => {
     expect(mocks.socketOptions).toMatchObject({
       slug: 'voto-plaza',
       tenantSlug: 'junin',
+      joinPayloads: [{ room: 'contract-primary', tenant_slug: 'junin' }],
+      events: ['survey.live_results.updated', 'survey.vote.created'],
       enabled: true,
     });
+    expect(mocks.socketOptions.rooms).toEqual(expect.arrayContaining(['contract-primary', 'contract-legacy']));
+    expect(mocks.socketOptions.rooms).toEqual(expect.arrayContaining(['encuesta:junin:voto-plaza', 'encuesta_voto-plaza']));
   });
 
   it('prefers a newer socket payload over polling data', () => {

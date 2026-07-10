@@ -441,6 +441,15 @@ describe('normalizePublicSurveyLiveResults', () => {
       heatmap: {
         points: [{ latitude: '-33.079', lon: '-68.47', respuestas: '7', barrio: 'Centro' }],
         cells: [{ centroid_lat: '-33.08', centroid_lon: '-68.472', count: '11', barrio: 'Centro' }],
+        metadata: { points_count: 40, cells_count: 12, truncated_points: true },
+      },
+      realtime: {
+        contract_version: 'surveys.realtime.v2',
+        rooms: ['contract-primary', 'contract-legacy'],
+        socket: {
+          join_payloads: [{ room: 'contract-primary' }],
+          events: [{ name: 'survey.vote.created' }],
+        },
       },
     });
 
@@ -458,6 +467,9 @@ describe('normalizePublicSurveyLiveResults', () => {
     expect(normalized.timeline_minute?.[0]).toMatchObject({ respuestas: 4, total: 4 });
     expect(normalized.heatmap?.points?.[0]).toMatchObject({ lat: -33.079, lng: -68.47, value: 7 });
     expect(normalized.heatmap?.cells?.[0]).toMatchObject({ lat: -33.08, lng: -68.472, value: 11 });
+    expect(normalized.heatmap?.metadata).toMatchObject({ points_count: 40, truncated_points: true });
+    expect(normalized.realtime?.rooms).toEqual(['contract-primary', 'contract-legacy']);
+    expect(normalized.realtime?.socket?.events?.[0]).toMatchObject({ name: 'survey.vote.created' });
   });
 });
 

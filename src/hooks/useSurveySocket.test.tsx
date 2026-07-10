@@ -49,6 +49,20 @@ const SurveySocketHarness = ({ onUpdate }: { onUpdate?: (payload: any) => void }
   return null;
 };
 
+const SurveySocketContractHarness = ({ onUpdate }: { onUpdate?: (payload: any) => void }) => {
+  useSurveySocket({
+    slug: 'consulta-barrial',
+    tenantSlug: 'junin',
+    rooms: ['contract-primary', 'contract-legacy'],
+    joinEvent: 'join_survey',
+    joinPayloads: [{ room: 'contract-primary', tenant_slug: 'junin' }],
+    events: ['survey.live_results.updated'],
+    enabled: true,
+    onUpdate,
+  });
+  return null;
+};
+
 describe('useSurveySocket', () => {
   beforeEach(() => {
     Object.keys(socketHandlers).forEach((key) => delete socketHandlers[key]);
@@ -88,6 +102,35 @@ describe('useSurveySocket', () => {
     });
 
     expect(onUpdate).toHaveBeenCalledWith(livePayload);
+  });
+
+  it('joins and listens with backend-provided realtime contract options', () => {
+    const onUpdate = vi.fn();
+    const livePayload = {
+      contract_version: 'surveys.live_results.v2',
+      total_respuestas: 18,
+    };
+
+    const { unmount } = render(<SurveySocketContractHarness onUpdate={onUpdate} />);
+
+    act(() => {
+      socketHandlers.connect?.();
+    });
+
+    expect(socketEmitMock).toHaveBeenCalledWith('join_survey', {
+      room: 'contract-primary',
+      tenant_slug: 'junin',
+    });
+
+    act(() => {
+      socketHandlers['survey.live_results.updated']?.(livePayload);
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith(livePayload);
+
+    unmount();
+
+    expect(socketOffMock).toHaveBeenCalledWith('survey.live_results.updated', expect.any(Function));
   });
 
   it('removes vote-created listeners on unmount', () => {
