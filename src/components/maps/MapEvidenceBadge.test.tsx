@@ -40,4 +40,21 @@ describe("MapEvidenceBadge", () => {
     expect(evidence.coveragePct).toBe(91);
     expect(evidence.pointCount).toBe(2);
   });
+
+  it("surfaces aggregated cells when raw points are not shown", () => {
+    render(
+      <MapEvidenceBadge
+        evidence={{
+          source: "operations.heatmap.v1",
+          pointCount: 0,
+          cellCount: 3,
+          coveragePct: 82,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Datos reales")).toBeInTheDocument();
+    expect(screen.getByText("3 celdas")).toBeInTheDocument();
+    expect(screen.getByText("Cobertura 82%")).toBeInTheDocument();
+  });
 });

@@ -104,6 +104,9 @@ const formatShortDate = (value?: string) => {
   }).format(new Date(timestamp));
 };
 
+const formatCount = (value: number, singular: string, plural: string) =>
+  `${value} ${value === 1 ? singular : plural}`;
+
 export function buildMapEvidence({
   evidence,
   metadata,
@@ -228,9 +231,13 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
   }[variant];
 
   const details = [
-    normalized.pointCount || normalized.featureCount
-      ? `${Math.max(normalized.pointCount, normalized.featureCount)} puntos`
-      : null,
+    normalized.pointCount
+      ? formatCount(normalized.pointCount, "punto", "puntos")
+      : normalized.featureCount
+        ? formatCount(normalized.featureCount, "geometria", "geometrias")
+        : normalized.cellCount
+          ? formatCount(normalized.cellCount, "celda", "celdas")
+          : null,
     normalized.coveragePct !== undefined ? `Cobertura ${normalized.coveragePct}%` : null,
     normalized.source ? `Fuente ${normalized.source}` : normalized.provider ? `Mapa ${normalized.provider}` : null,
     normalized.updatedAt ? `Act. ${formatShortDate(normalized.updatedAt)}` : null,

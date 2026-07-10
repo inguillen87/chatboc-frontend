@@ -56,6 +56,13 @@ const safeMetadataItems = (items: unknown): HeatmapMetadataItem[] =>
 const formatCompactNumber = (value: number) =>
   new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 
+const formatLegendWeight = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '0';
+  if (value >= 1000) return formatCompactNumber(value);
+  if (value >= 10) return value.toFixed(0);
+  return value.toFixed(1);
+};
+
 export function MapWidget({
   title,
   description,
@@ -153,6 +160,7 @@ export function MapWidget({
   const coverage = safeNumber(metadataTotals.coverage);
   const totalWeight = safeNumber(metadataIntensity.totalWeight);
   const averageWeight = safeNumber(metadataIntensity.averageWeight);
+  const maxVisibleWeight = dataset.reduce((max, point) => Math.max(max, safeNumber(point.weight)), 0);
   const primaryHotspot = hotspots[0];
   const primaryHotspotLabel =
     primaryHotspot?.label ??
@@ -182,6 +190,27 @@ export function MapWidget({
   const focusNarrative = primaryHotspot
     ? `${String(primaryHotspotLabel)} concentra ${safeNumber(primaryHotspot.count).toLocaleString('es-AR')} eventos.`
     : 'Sin hotspot dominante en este periodo.';
+  const mapEvidence = {
+    source: mode === 'puntos' ? 'geo_points' : heatmap?.contract_version ?? 'heatmap_cells',
+    provider,
+    contractVersion: heatmap?.contract_version,
+    requestId: heatmap?.request_id ?? points?.request_id,
+    pointCount: mode === 'puntos' ? visibleCount : 0,
+    cellCount: mode === 'heatmap' ? cellCount || visibleCount : 0,
+    coveragePct: coverage || undefined,
+    withCoordinates: safeNumber(metadataTotals.geocoded) || undefined,
+    withoutCoordinates: missingGeo || undefined,
+    label: coverage ? `Geo ${geoCoverageTone}` : undefined,
+  };
+  const mapProvenanceLabel =
+    mode === 'puntos'
+      ? 'puntos georreferenciados'
+      : heatmap?.contract_version
+        ? `contrato ${heatmap.contract_version}`
+        : 'celdas agregadas';
+  const legendRangeLabel = maxVisibleWeight
+    ? `0 - ${formatLegendWeight(maxVisibleWeight)} peso`
+    : 'sin escala visible';
 
   const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
@@ -350,10 +379,31 @@ export function MapWidget({
               onBoundingBoxChange={handleBbox}
               provider={provider}
               onProviderUnavailable={handleProviderUnavailable}
+              evidence={mapEvidence}
             />
-            <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/15 bg-slate-950/82 px-3 py-2 text-xs text-white shadow-lg backdrop-blur">
-              <p className="font-semibold">Radar territorial</p>
-              <p className="text-white/70">{mode === 'heatmap' ? 'Intensidad por zona' : 'Puntos reales'}</p>
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div
+                className="max-w-[18rem] rounded-md border border-white/15 bg-slate-950/82 px-3 py-2 text-xs text-white shadow-lg backdrop-blur"
+                data-testid="analytics-map-provenance"
+              >
+                <p className="font-semibold">Radar territorial</p>
+                <p className="text-white/70">{mode === 'heatmap' ? 'Intensidad por zona' : 'Puntos reales'}</p>
+                <p className="mt-1 text-[11px] text-white/55">{mapProvenanceLabel}</p>
+              </div>
+              <div
+                className="w-full max-w-[18rem] rounded-md border border-white/15 bg-slate-950/82 px-3 py-2 text-xs text-white shadow-lg backdrop-blur sm:w-64"
+                data-testid="analytics-map-visual-legend"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">Intensidad</p>
+                  <span className="text-[11px] text-white/60">{legendRangeLabel}</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#facc15_52%,#fb7185_100%)]" />
+                <div className="mt-1 flex justify-between text-[10px] uppercase tracking-wide text-white/55">
+                  <span>Baja</span>
+                  <span>Alta</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

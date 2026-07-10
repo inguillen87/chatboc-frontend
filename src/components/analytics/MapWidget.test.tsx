@@ -5,10 +5,22 @@ import { MapWidget } from './MapWidget';
 import type { HeatmapResponse, PointsResponse } from '@/services/analyticsService';
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
-  default: ({ showHeatmap, heatmapData }: { showHeatmap?: boolean; heatmapData?: Array<Record<string, unknown>> }) => (
+  default: ({
+    showHeatmap,
+    heatmapData,
+    evidence,
+  }: {
+    showHeatmap?: boolean;
+    heatmapData?: Array<Record<string, unknown>>;
+    evidence?: Record<string, unknown>;
+  }) => (
     <div data-testid="mock-map" data-mode={showHeatmap ? 'heatmap' : 'points'}>
       <span data-testid="mock-map-first-lat">{String(heatmapData?.[0]?.lat ?? '')}</span>
       <span data-testid="mock-map-first-lng">{String(heatmapData?.[0]?.lng ?? '')}</span>
+      <span data-testid="mock-map-evidence-source">{String(evidence?.source ?? '')}</span>
+      <span data-testid="mock-map-evidence-cells">{String(evidence?.cellCount ?? '')}</span>
+      <span data-testid="mock-map-evidence-points">{String(evidence?.pointCount ?? '')}</span>
+      <span data-testid="mock-map-evidence-coverage">{String(evidence?.coveragePct ?? '')}</span>
       mapa operativo {heatmapData?.length ?? 0}
     </div>
   ),
@@ -144,6 +156,12 @@ describe('MapWidget', () => {
     expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('Respuesta p90');
     expect(screen.getByTestId('analytics-map-intelligence-strip')).toHaveTextContent('30 min');
     expect(screen.getByTestId('mock-map')).toHaveAttribute('data-mode', 'heatmap');
+    expect(screen.getByTestId('mock-map-evidence-source')).toHaveTextContent('heatmap_cells');
+    expect(screen.getByTestId('mock-map-evidence-cells')).toHaveTextContent('2');
+    expect(screen.getByTestId('mock-map-evidence-coverage')).toHaveTextContent('90');
+    expect(screen.getByTestId('analytics-map-provenance')).toHaveTextContent('celdas agregadas');
+    expect(screen.getByTestId('analytics-map-visual-legend')).toHaveTextContent('Intensidad');
+    expect(screen.getByTestId('analytics-map-visual-legend')).toHaveTextContent('0 - 7.5 peso');
     expect(screen.getAllByText('Radar territorial').length).toBeGreaterThan(0);
     expect(screen.getByText('Categorías principales')).toBeInTheDocument();
   });
@@ -159,6 +177,8 @@ describe('MapWidget', () => {
 
     expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('1 celdas de calor');
     expect(screen.getByTestId('mock-map')).toHaveTextContent('mapa operativo 1');
+    expect(screen.getByTestId('mock-map-evidence-source')).toHaveTextContent('operations.heatmap.v1');
+    expect(screen.getByTestId('analytics-map-provenance')).toHaveTextContent('contrato operations.heatmap.v1');
     expect(screen.getByTestId('mock-map-first-lat')).toHaveTextContent('-33.086');
     expect(screen.getByTestId('mock-map-first-lng')).toHaveTextContent('-68.471');
   });
@@ -177,5 +197,8 @@ describe('MapWidget', () => {
 
     expect(screen.getByTestId('analytics-map-command-strip')).toHaveTextContent('1 puntos reales');
     expect(screen.getByTestId('mock-map')).toHaveAttribute('data-mode', 'points');
+    expect(screen.getByTestId('mock-map-evidence-source')).toHaveTextContent('geo_points');
+    expect(screen.getByTestId('mock-map-evidence-points')).toHaveTextContent('1');
+    expect(screen.getByTestId('analytics-map-provenance')).toHaveTextContent('puntos georreferenciados');
   });
 });
