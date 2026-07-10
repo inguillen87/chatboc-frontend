@@ -470,7 +470,7 @@ const DEFAULT_TEXT_EXAMPLES: MarketAssistedIntakeTextExample[] = [
   {
     id: 'hardware_order',
     label: 'Ferreteria',
-    document_type: 'quote_request',
+    document_type: 'handwritten_order',
     text: '2 chapas galvanizadas\n1 caja de clavos punta paris\n3 bolsas de cemento',
   },
   {

@@ -568,7 +568,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
             {
               id: 'hardware_order',
               label: 'Ferreteria',
-              document_type: 'quote_request',
+              document_type: 'handwritten_order',
               text: '2 chapas galvanizadas\n1 caja de clavos punta paris',
             },
           ],
@@ -591,7 +591,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas\n1 caja de clavos punta paris');
-    expect(body.get('document_type')).toBe('quote_request');
+    expect(body.get('document_type')).toBe('handwritten_order');
   });
 
   it('submits an explicit assisted search draft as marketplace text', async () => {
