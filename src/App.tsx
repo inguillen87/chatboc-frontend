@@ -83,6 +83,8 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
           loading: false,
           publishableKey,
           source: enabled ? 'backend' : 'disabled',
+          environment: typeof config.environment === 'string' ? config.environment : 'unknown',
+          productionReady: Boolean(config.production_ready),
           socialProviders: Array.isArray(config.social_providers) && config.social_providers.length
             ? config.social_providers
             : DEFAULT_CLERK_RUNTIME.socialProviders,
@@ -94,6 +96,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
           configurationWarnings: Array.isArray(config.configuration_warnings)
             ? config.configuration_warnings
             : [],
+          productionRequirements: config.production_requirements,
         });
       } catch (error) {
         if (!cancelled) {

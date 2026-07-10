@@ -146,6 +146,8 @@ export interface ClerkFrontendConfigResponse {
   contract_version: 'auth.clerk.v1';
   enabled?: boolean;
   provider?: 'clerk' | string;
+  environment?: 'development' | 'production' | 'unconfigured' | 'unknown' | string;
+  production_ready?: boolean;
   session_sync_endpoint?: string;
   onboarding_endpoint?: string;
   webhook_endpoint?: string;
@@ -157,6 +159,13 @@ export interface ClerkFrontendConfigResponse {
   webhook_configured?: boolean;
   ready_for_session_sync?: boolean;
   configuration_warnings?: Array<{ code?: string; message?: string }>;
+  production_requirements?: {
+    live_publishable_key?: boolean;
+    session_verification?: boolean;
+    webhook_secret?: boolean;
+    superadmin_allowlist?: boolean;
+    custom_domain_or_production_instance?: boolean;
+  };
   social_providers?: string[];
   superadmin_policy?: {
     mode?: 'email_allowlist' | string;

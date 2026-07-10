@@ -16,6 +16,8 @@ describe('clerkRuntimeResolver', () => {
     expect(runtime.enabled).toBe(false);
     expect(runtime.readyForSessionSync).toBe(false);
     expect(runtime.source).toBe('disabled');
+    expect(runtime.environment).toBe('production');
+    expect(runtime.productionReady).toBe(false);
     expect(runtime.configurationWarnings?.[0]?.code).toBe('backend_config_unavailable');
     expect(runtime.configurationWarnings?.[0]?.message).toContain('deshabilitado en produccion');
   });
@@ -30,5 +32,7 @@ describe('clerkRuntimeResolver', () => {
     expect(runtime.enabled).toBe(true);
     expect(runtime.readyForSessionSync).toBe(true);
     expect(runtime.source).toBe('env');
+    expect(runtime.environment).toBe('development');
+    expect(runtime.productionReady).toBe(false);
   });
 });

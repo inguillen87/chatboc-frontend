@@ -10,6 +10,14 @@ interface ClerkEnvRuntimeOptions {
   publishableKey: string;
 }
 
+const resolveClerkEnvironment = (publishableKey: string) => {
+  const key = publishableKey.trim();
+  if (key.startsWith('pk_live_')) return 'production';
+  if (key.startsWith('pk_test_')) return 'development';
+  if (key) return 'unknown';
+  return 'unconfigured';
+};
+
 export const buildClerkRuntimeFromEnv = ({
   allowEnvFallback,
   envEnabled,
@@ -24,6 +32,8 @@ export const buildClerkRuntimeFromEnv = ({
     loading,
     publishableKey,
     source: enabled ? 'env' : 'disabled',
+    environment: resolveClerkEnvironment(publishableKey),
+    productionReady: false,
     readyForSessionSync: enabled,
   };
 };
