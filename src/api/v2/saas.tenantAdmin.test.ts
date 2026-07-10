@@ -307,7 +307,9 @@ describe("tenant admin v2 contracts", () => {
             id: "open_tracking",
             label: "Ver seguimiento publico",
             method: "GET",
-            endpoint: "/api/public/tracking/experience?kind=claim&code=378430&pin=900144",
+            endpoint: "/api/public/tracking/experience?kind=claim&code=M-378430&pin=900144",
+            href: "/tracking/claim/M-378430?pin=900144",
+            frontend_path: "/tracking/claim/M-378430?pin=900144",
           },
         ],
       },
@@ -326,9 +328,36 @@ describe("tenant admin v2 contracts", () => {
         ticket_id: 378430,
       },
     });
-    expect(normalized.item.allowed_actions.find((action) => action.id === "open_tracking")?.href).toContain(
-      "/api/public/tracking/experience",
-    );
+    const tracking = normalized.item.allowed_actions.find((action) => action.id === "open_tracking");
+    expect(tracking?.endpoint).toBe("/api/public/tracking/experience?kind=claim&code=M-378430&pin=900144");
+    expect(tracking?.href).toBe("/tracking/claim/M-378430?pin=900144");
+    expect(tracking?.frontend_path).toBe("/tracking/claim/M-378430?pin=900144");
+  });
+
+  it("does not turn API-only GET actions into frontend navigation links", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: "municipio:378430",
+        legacy_id: 378430,
+        ticket_id: 378430,
+        source_model: "MunicipioTicket",
+        title: "Arreglo de calle",
+        status: "nuevo",
+        allowed_actions: [
+          {
+            id: "open_tracking",
+            label: "Ver seguimiento publico",
+            method: "GET",
+            endpoint: "/api/public/tracking/experience?kind=claim&code=M-378430&pin=900144",
+          },
+        ],
+      },
+    });
+
+    const tracking = normalized.item.allowed_actions.find((action) => action.id === "open_tracking");
+    expect(tracking?.endpoint).toBe("/api/public/tracking/experience?kind=claim&code=M-378430&pin=900144");
+    expect(tracking?.href).toBeUndefined();
   });
 
   it("normalizes inbox action delivery so the CRM composer can distinguish real sends from timeline notes", () => {

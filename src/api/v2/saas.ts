@@ -13,6 +13,7 @@ export interface SaasAction {
   label: string;
   type?: string;
   href?: string;
+  frontend_path?: string;
   endpoint?: string;
   method?: string;
   requires?: string[];
@@ -681,9 +682,10 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     id;
   const method = asString(value.method);
   const endpoint = asString(value.endpoint);
+  const frontendPath = asString(getFirst(value, ['href', 'frontend_path', 'frontendPath', 'url', 'path']));
   const href =
-    asString(getFirst(value, ['href', 'url', 'path'])) ??
-    (method?.toUpperCase() === 'GET' ? endpoint : undefined);
+    frontendPath ??
+    (method?.toUpperCase() === 'GET' && endpoint && !endpoint.startsWith('/api') ? endpoint : undefined);
   const payloadDefaults = isRecord(value.payload_defaults)
     ? value.payload_defaults
     : isRecord(value.payloadDefaults)
@@ -694,6 +696,7 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     label,
     type: asString(getFirst(value, ['type', 'kind'])),
     href,
+    frontend_path: asString(getFirst(value, ['frontend_path', 'frontendPath'])) ?? frontendPath,
     endpoint,
     method,
     requires: Array.isArray(value.requires) ? value.requires.map(String).filter(Boolean) : undefined,

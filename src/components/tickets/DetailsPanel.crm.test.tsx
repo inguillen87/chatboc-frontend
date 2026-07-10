@@ -168,4 +168,46 @@ describe('DetailsPanel CRM contact priority', () => {
     expect(assistedCard).toHaveTextContent('Resolver faltantes y responder');
     expect(screen.getByRole('button', { name: /ver reclamo/i })).toBeEnabled();
   });
+
+  it('shows backend blocker reasons for disabled operational actions', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      allowed_actions: [
+        {
+          id: 'open_live_chat',
+          label: 'Abrir chat en vivo',
+          enabled: false,
+          disabled_reason: 'Fuera de horario de atencion',
+        },
+      ],
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    expect(screen.getByRole('button', { name: /abrir chat en vivo/i })).toBeDisabled();
+    expect(screen.getByText('Fuera de horario de atencion')).toBeInTheDocument();
+  });
+
+  it('explains which contact actions are blocked when profile data is missing', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      display_name: '',
+      direccion: '',
+      informacion_personal_vecino: {
+        nombre: '',
+        telefono: '',
+        email: '',
+        direccion: '',
+        dni: '',
+      },
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const blockers = screen.getByTestId('crm-contact-action-blockers');
+    expect(blockers).toHaveTextContent('Falta telefono para abrir WhatsApp.');
+    expect(blockers).toHaveTextContent('Falta email para enviar correo.');
+    expect(blockers).toHaveTextContent('Falta direccion o coordenadas para abrir mapa.');
+    expect(blockers).toHaveTextContent('Faltan datos del contacto para copiar.');
+  });
 });

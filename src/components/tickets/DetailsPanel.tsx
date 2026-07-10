@@ -124,6 +124,7 @@ type OperationalAction = {
   description?: string;
   href?: string;
   disabled?: boolean;
+  disabledReason?: string;
 };
 
 const normalizeTextValue = (value: unknown): string => {
@@ -184,6 +185,7 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
       let description = '';
       let href = '';
       let disabled = false;
+      let disabledReason = '';
 
       if (typeof item === 'string') {
         id = item.trim();
@@ -195,6 +197,18 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
         description = normalizeTextValue(raw.description || raw.help_text || raw.detail || raw.summary);
         href = normalizeTextValue(raw.href || raw.url || raw.action_url || raw.external_url);
         disabled = raw.enabled === false || raw.disabled === true;
+        disabledReason = normalizeTextValue(
+          raw.disabled_reason ||
+          raw.disabledReason ||
+          raw.unavailable_reason ||
+          raw.unavailableReason ||
+          raw.blocked_reason ||
+          raw.blockedReason ||
+          raw.reason
+        );
+        if (disabled && !disabledReason) {
+          disabledReason = 'No disponible para este estado del ticket.';
+        }
       }
 
       if (!label) return;
@@ -207,6 +221,7 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
         description: description || undefined,
         href: href || undefined,
         disabled,
+        disabledReason: disabledReason || undefined,
       });
     });
   });
@@ -524,6 +539,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     contactCompleteness >= 60 ? 'Perfil util para seguimiento' :
     'Perfil incompleto';
   const avatarPolicyLabel = hasConsentAvatar ? 'Imagen real autorizada' : 'Avatar seguro por identidad';
+  const hasContactCopyTarget = Boolean(displayName || personal.telefono || personal.email || personal.direccion);
+  const contactActionBlockers = [
+    phoneHref ? '' : 'Falta telefono para abrir WhatsApp.',
+    emailHref ? '' : 'Falta email para enviar correo.',
+    hasAddress ? '' : 'Falta direccion o coordenadas para abrir mapa.',
+    hasContactCopyTarget ? '' : 'Faltan datos del contacto para copiar.',
+  ].filter(Boolean);
 
   React.useEffect(() => {
     setImageError(false);
@@ -957,19 +979,25 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     {operationalActions.map((action) => {
                       const canOpen = Boolean(action.href && !action.disabled);
                       return (
-                        <Button
-                          key={action.id}
-                          type="button"
-                          variant={canOpen ? 'outline' : 'secondary'}
-                          size="sm"
-                          className="max-w-full gap-2"
-                          disabled={!canOpen}
-                          title={action.description}
-                          onClick={() => (action.href ? openActionHref(action.href) : undefined)}
-                        >
-                          <span className="truncate">{action.label}</span>
-                          {action.href ? <ExternalLink className="h-3 w-3 shrink-0" /> : <CheckCircle2 className="h-3 w-3 shrink-0" />}
-                        </Button>
+                        <div key={action.id} className="min-w-[11rem] max-w-full space-y-1">
+                          <Button
+                            type="button"
+                            variant={canOpen ? 'outline' : 'secondary'}
+                            size="sm"
+                            className="w-full max-w-full justify-between gap-2"
+                            disabled={!canOpen}
+                            title={action.description}
+                            onClick={() => (action.href ? openActionHref(action.href) : undefined)}
+                          >
+                            <span className="truncate">{action.label}</span>
+                            {action.href ? <ExternalLink className="h-3 w-3 shrink-0" /> : <CheckCircle2 className="h-3 w-3 shrink-0" />}
+                          </Button>
+                          {action.disabled && action.disabledReason ? (
+                            <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                              {action.disabledReason}
+                            </p>
+                          ) : null}
+                        </div>
                       );
                     })}
                   </div>
@@ -1157,7 +1185,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   size="sm"
                   className="h-9 gap-2"
                   onClick={openGoogleMaps}
-                  disabled={!personal.direccion && !locationTicket?.latitud && !locationTicket?.lat_destino}
+                  disabled={!hasAddress}
                 >
                   <MapPin className="h-4 w-4" />
                   Mapa
@@ -1173,12 +1201,22 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       .join(' - '),
                     'Contacto',
                   )}
-                  disabled={!displayName && !personal.telefono && !personal.email && !personal.direccion}
+                  disabled={!hasContactCopyTarget}
                 >
                   <Copy className="h-4 w-4" />
                   Copiar
                 </Button>
               </div>
+              {contactActionBlockers.length ? (
+                <div
+                  className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200"
+                  data-testid="crm-contact-action-blockers"
+                >
+                  {contactActionBlockers.map((reason) => (
+                    <p key={reason}>{reason}</p>
+                  ))}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
           <AiAssistPanel ticket={ticket} />
