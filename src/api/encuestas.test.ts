@@ -559,6 +559,42 @@ describe('postPublicResponse', () => {
     expect(response.live_results_url).toBe('/api/v2/public/surveys/mi-encuesta/live-results?tenant_slug=rio-grande');
   });
 
+  it('sends nested territorial metadata without rewriting the public response payload', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.public_response.v2',
+      ok: true,
+      response_id: 101,
+    });
+    const payload = {
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+      metadata: {
+        demographics: {
+          ubicacion: {
+            provincia: 'Mendoza',
+            ciudad: 'Junin',
+            barrio: 'Centro',
+            lat: -33.0861,
+            lng: -68.4712,
+            precision: 'gps',
+            origen: 'gps',
+          },
+        },
+      },
+    };
+
+    await postPublicResponse('mi-encuesta', payload, 'junin');
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=junin',
+      expect.objectContaining({
+        method: 'POST',
+        body: payload,
+        omitTenant: true,
+        tenantSlug: 'junin',
+      }),
+    );
+  });
+
   it('accepts explicit demo survey response contract', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'demo.survey_response_ack.v1',

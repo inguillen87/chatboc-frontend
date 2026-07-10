@@ -5,11 +5,16 @@ import { SurveyForm } from './SurveyForm';
 import type { SurveyPublic } from '@/types/encuestas';
 
 const envMock = vi.hoisted(() => ({ turnstileSiteKey: '' }));
+const requestLocationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/env', () => ({
   get CLOUDFLARE_TURNSTILE_SITE_KEY() {
     return envMock.turnstileSiteKey;
   },
+}));
+
+vi.mock('@/utils/geolocation', () => ({
+  requestLocation: (...args: unknown[]) => requestLocationMock(...args),
 }));
 
 const baseSurvey: SurveyPublic = {
@@ -56,9 +61,18 @@ const securedSurvey: SurveyPublic = {
   },
 };
 
+const liveSurvey: SurveyPublic = {
+  ...baseSurvey,
+  es_votacion_envivo: true,
+  realtime: {
+    enabled: true,
+  },
+};
+
 describe('SurveyForm security contract', () => {
   beforeEach(() => {
     envMock.turnstileSiteKey = '';
+    requestLocationMock.mockReset();
     delete (window as any).turnstile;
     document.getElementById('chatboc-cloudflare-turnstile')?.remove();
   });
@@ -124,5 +138,68 @@ describe('SurveyForm security contract', () => {
     );
 
     await waitFor(() => expect(resetTurnstile).toHaveBeenCalledWith('survey-widget-1'));
+  });
+
+  it('keeps optional territorial capture available for live voting and submits manual location metadata', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(<SurveyForm survey={liveSurvey} onSubmit={onSubmit} />);
+
+    expect(screen.getByText(/datos demogr/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/provincia/i), { target: { value: 'Mendoza' } });
+    fireEvent.change(screen.getByLabelText(/ciudad/i), { target: { value: 'Junin' } });
+    fireEvent.change(screen.getByLabelText(/barrio/i), { target: { value: 'Centro' } });
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+        metadata: expect.objectContaining({
+          demographics: expect.objectContaining({
+            ubicacion: expect.objectContaining({
+              provincia: 'Mendoza',
+              ciudad: 'Junin',
+              barrio: 'Centro',
+              precision: 'manual',
+              origen: 'usuario',
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('submits gps location metadata for live voting when the user shares current location', async () => {
+    requestLocationMock.mockResolvedValueOnce({ latitud: -33.0861, longitud: -68.4712 });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(<SurveyForm survey={liveSurvey} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /usar mi ubicaci/i }));
+
+    await waitFor(() => expect(requestLocationMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/coordenadas registradas/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          demographics: expect.objectContaining({
+            ubicacion: expect.objectContaining({
+              lat: -33.0861,
+              lng: -68.4712,
+              precision: 'gps',
+              origen: 'gps',
+            }),
+          }),
+        }),
+      }),
+    );
   });
 });

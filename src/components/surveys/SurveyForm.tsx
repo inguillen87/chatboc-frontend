@@ -934,7 +934,7 @@ export const SurveyForm = ({
             {identityError && <p className="text-sm text-destructive">{identityError}</p>}
           </div>
         )}
-        {!survey.es_votacion_envivo && (
+        {!readOnly && (
         <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
