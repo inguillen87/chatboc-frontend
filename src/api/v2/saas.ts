@@ -181,6 +181,23 @@ export interface OmnichannelTimelineEvent {
   payload: UnknownRecord;
 }
 
+export interface OmnichannelLiveChatStatus {
+  contract_version?: string;
+  channel_state?: string;
+  base_channel_state?: string;
+  enabled?: boolean;
+  available?: boolean;
+  description?: string;
+  timezone?: string;
+  schedule_label?: string;
+  offline_fallback_message?: string;
+  offline_message?: UnknownRecord;
+  availability?: UnknownRecord;
+  queue?: UnknownRecord;
+  frontend_contract?: UnknownRecord;
+  raw?: unknown;
+}
+
 export interface OmnichannelInboxItem {
   id: string;
   legacy_id?: string;
@@ -219,6 +236,7 @@ export interface OmnichannelInboxItem {
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
   source_metadata?: UnknownRecord;
+  live_chat?: OmnichannelLiveChatStatus;
   frontend_contract?: UnknownRecord;
   raw?: unknown;
 }
@@ -226,6 +244,7 @@ export interface OmnichannelInboxItem {
 export interface OmnichannelInboxV2 {
   contract_version?: string;
   request_id?: string;
+  live_chat?: OmnichannelLiveChatStatus;
   items: OmnichannelInboxItem[];
   summary: UnknownRecord;
   raw: unknown;
@@ -234,6 +253,7 @@ export interface OmnichannelInboxV2 {
 export interface OmnichannelInboxDetailV2 {
   contract_version?: string;
   request_id?: string;
+  live_chat?: OmnichannelLiveChatStatus;
   item: OmnichannelInboxItem;
   raw: unknown;
 }
@@ -268,6 +288,7 @@ export interface OmnichannelInboxActionV2 {
   request_id?: string;
   action?: string;
   delivery?: OmnichannelActionDelivery;
+  live_chat?: OmnichannelLiveChatStatus;
   ticket: OmnichannelInboxItem;
   raw: unknown;
 }
@@ -1068,6 +1089,33 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
     };
   });
 
+const normalizeLiveChatStatus = (value: unknown): OmnichannelLiveChatStatus | undefined => {
+  if (!isRecord(value)) return undefined;
+  const availability = asRecord(value.availability);
+  const offlineMessage = asRecord(value.offline_message);
+  const queue = asRecord(value.queue);
+  return {
+    contract_version: asString(value.contract_version),
+    channel_state: asString(getFirst(value, ['channel_state', 'state'])) ?? asString(availability.state),
+    base_channel_state: asString(getFirst(value, ['base_channel_state', 'base_state'])) ?? asString(availability.base_state),
+    enabled: asBoolean(value.enabled),
+    available: asBoolean(value.available),
+    description: asString(value.description),
+    timezone: asString(getFirst(value, ['timezone'])) ?? asString(availability.timezone),
+    schedule_label: asString(getFirst(value, ['schedule_label'])) ?? asString(availability.schedule_label),
+    offline_fallback_message:
+      asString(value.offline_fallback_message) ??
+      asString(availability.offline_fallback_message) ??
+      asString(offlineMessage.message) ??
+      asString(offlineMessage.fallback_message),
+    offline_message: Object.keys(offlineMessage).length ? offlineMessage : undefined,
+    availability: Object.keys(availability).length ? availability : undefined,
+    queue: Object.keys(queue).length ? queue : undefined,
+    frontend_contract: value.frontend_contract ? asRecord(value.frontend_contract) : undefined,
+    raw: value,
+  };
+};
+
 const normalizeInboxAttachment = (value: unknown): UnknownRecord | null => {
   if (typeof value === 'string' && value.trim()) {
     return { url: value.trim(), name: 'Adjunto' };
@@ -1224,6 +1272,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
     source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
+    live_chat: normalizeLiveChatStatus(value.live_chat),
     frontend_contract: value.frontend_contract ? asRecord(value.frontend_contract) : undefined,
     raw: value,
   };
@@ -1236,6 +1285,7 @@ export const normalizeOmnichannelInboxV2 = (response: unknown): OmnichannelInbox
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
+    live_chat: normalizeLiveChatStatus(record.live_chat),
     items: itemsSource.map(normalizeOmnichannelInboxItemV2).filter((item): item is OmnichannelInboxItem => Boolean(item)),
     summary: asRecord(record.summary),
     raw: response,
@@ -1253,6 +1303,7 @@ export const normalizeOmnichannelInboxDetailV2 = (response: unknown): Omnichanne
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
+    live_chat: normalizeLiveChatStatus(record.live_chat),
     item,
     raw: response,
   };
@@ -1298,6 +1349,7 @@ export const normalizeOmnichannelInboxActionV2 = (
     request_id: asString(record.request_id),
     action: asString(record.action),
     delivery: normalizeOmnichannelActionDelivery(record.delivery),
+    live_chat: normalizeLiveChatStatus(record.live_chat),
     ticket: normalized,
     raw: response,
   };

@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Clock3, ExternalLink, Image as ImageIcon, MapPin, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
+import { Clock3, ExternalLink, Image as ImageIcon, MapPin, MessageCircle, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
 import {
   getOmnichannelInboxDetailV2,
   postOmnichannelInboxActionV2,
   type OmnichannelActionDelivery,
   type OmnichannelInboxItem,
+  type OmnichannelLiveChatStatus,
   type SaasAction,
 } from '@/api/v2/saas';
 import { ViewState } from '@/components/app-shell/ViewState';
@@ -81,6 +82,20 @@ const isImageAttachment = (attachment: Record<string, unknown>) => {
 
 const normalizeChannelLabel = (value?: string | null) =>
   value?.trim().toLowerCase() === 'whatsapp' ? 'WhatsApp' : value?.trim() || null;
+
+const liveChatLabel = (liveChat?: OmnichannelLiveChatStatus) => {
+  const state = liveChat?.channel_state;
+  if (state === 'queued') return 'Mensaje en cola';
+  if (state === 'online') return 'Chat en vivo disponible';
+  if (state === 'offline') return 'Fuera de horario';
+  return null;
+};
+
+const liveChatClassName = (state?: string) => {
+  if (state === 'queued') return 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-200';
+  if (state === 'online') return 'border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+  return 'border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200';
+};
 
 const deliveryTone = (delivery?: OmnichannelActionDelivery | null) => {
   if (delivery?.mode === 'real_message' || delivery?.external_dispatch) return 'sent';
@@ -303,8 +318,20 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     detailQuery.isFetching ? ['Estado', 'Actualizando'] as [string, string] : null,
     detailQuery.isError ? ['Estado', 'No disponible'] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row));
+  const liveChat = detailTicket.live_chat;
+  const liveChatStateLabel = liveChatLabel(liveChat);
+  const liveChatSchedule =
+    asText(liveChat?.schedule_label) ||
+    asText(liveChat?.availability?.schedule_label) ||
+    asText(liveChat?.description);
+  const liveChatOfflineMessage =
+    asText(liveChat?.offline_fallback_message) ||
+    asText(liveChat?.availability?.offline_fallback_message) ||
+    asText(liveChat?.offline_message?.message);
+  const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const statusTiles = [
     channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
+    liveChatStateLabel ? { icon: MessageCircle, label: 'Live chat', value: liveChatStateLabel } : null,
     assigneeLabel ? { icon: UserRound, label: 'Responsable', value: assigneeLabel } : null,
     slaLabel ? { icon: Clock3, label: 'SLA', value: slaLabel } : null,
     locationPoint ? { icon: MapPin, label: 'Ubicacion', value: 'Con coordenadas' } : null,
@@ -319,6 +346,15 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
             <h3 className="truncate text-sm font-medium">#{detailTicket.nro_ticket || detailTicket.ticket_id || detailTicket.id}</h3>
             <Badge variant="outline">{detailTicket.status}</Badge>
             {channelLabel ? <Badge variant="secondary">{channelLabel}</Badge> : null}
+            {liveChatStateLabel ? (
+              <Badge
+                variant="outline"
+                className={liveChatClassName(liveChat?.channel_state)}
+                data-testid="omnichannel-live-chat-state"
+              >
+                {liveChatStateLabel}
+              </Badge>
+            ) : null}
             {detailTicket.priority ? <Badge variant="outline">{detailTicket.priority}</Badge> : null}
           </div>
           {contactLabel ? <p className="mt-1 truncate text-xs text-muted-foreground">{contactLabel}</p> : null}
@@ -331,6 +367,31 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           {statusTiles.map((tile) => (
             <StatusTile key={`${tile.label}-${tile.value}`} icon={tile.icon} label={tile.label} value={tile.value} />
           ))}
+        </div>
+      ) : null}
+
+      {liveChatStateLabel ? (
+        <div
+          className={`mx-4 mt-3 rounded-[8px] border px-3 py-2 text-xs ${liveChatClassName(liveChat?.channel_state)}`}
+          data-testid="omnichannel-live-chat-card"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <MessageCircle className="h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold">{liveChatStateLabel}</p>
+                {liveChatSchedule ? <p className="truncate opacity-80">{liveChatSchedule}</p> : null}
+              </div>
+            </div>
+            {liveChatPendingMessages > 0 ? (
+              <Badge variant="outline" className="border-current text-current">
+                {liveChatPendingMessages} pendiente{liveChatPendingMessages === 1 ? '' : 's'}
+              </Badge>
+            ) : null}
+          </div>
+          {liveChat?.channel_state !== 'online' && liveChatOfflineMessage ? (
+            <p className="mt-2 leading-5 opacity-90">{liveChatOfflineMessage}</p>
+          ) : null}
         </div>
       ) : null}
 

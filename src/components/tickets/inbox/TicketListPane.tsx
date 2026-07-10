@@ -2,7 +2,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { OmnichannelInboxItem } from '@/api/v2/saas';
+import type { OmnichannelInboxItem, OmnichannelLiveChatStatus } from '@/api/v2/saas';
 import { MapPin, Paperclip, ShieldCheck } from 'lucide-react';
 
 interface TicketListPaneProps {
@@ -23,6 +23,20 @@ const getSchoolCaseLabel = (ticket: OmnichannelInboxItem) =>
   ticket.school_case?.status ||
   ticket.school_case?.school_name ||
   null;
+
+const liveChatLabel = (liveChat?: OmnichannelLiveChatStatus) => {
+  const state = liveChat?.channel_state;
+  if (state === 'queued') return 'En cola';
+  if (state === 'online') return 'En vivo';
+  if (state === 'offline') return 'Fuera de horario';
+  return null;
+};
+
+const liveChatClassName = (state?: string) => {
+  if (state === 'queued') return 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-200';
+  if (state === 'online') return 'border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+  return 'border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200';
+};
 
 export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
   return (
@@ -45,6 +59,7 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
           <ul className="divide-y">
             {tickets.map((ticket) => {
               const schoolCaseLabel = getSchoolCaseLabel(ticket);
+              const liveLabel = liveChatLabel(ticket.live_chat);
 
               return (
                 <li
@@ -67,6 +82,15 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                     <div className="flex min-w-0 flex-wrap gap-1.5">
                        <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{ticket.status}</Badge>
                        {ticket.channel && <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{ticket.channel}</Badge>}
+                       {liveLabel ? (
+                         <Badge
+                           variant="outline"
+                           className={`h-5 px-1.5 text-[10px] font-semibold ${liveChatClassName(ticket.live_chat?.channel_state)}`}
+                           data-testid={`ticket-live-chat-state-${ticket.id}`}
+                         >
+                           {liveLabel}
+                         </Badge>
+                       ) : null}
                        {ticket.category && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">{ticket.category}</Badge>}
                        {schoolCaseLabel ? (
                          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">

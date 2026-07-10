@@ -5,6 +5,7 @@ import {
   normalizeEmployeeRoutingV2,
   normalizeOmnichannelInboxActionV2,
   normalizeOmnichannelInboxDetailV2,
+  normalizeOmnichannelInboxV2,
   normalizeProductionSmokeV2,
   normalizeTenantAdminExperienceV2,
 } from "./saas";
@@ -207,6 +208,64 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.item.allowed_actions[0].id).toBe("reply");
     expect(normalized.item.attachments[0].name).toBe("certificado.pdf");
     expect(normalized.item.frontend_contract?.render_as).toBe("inbox_360_drawer");
+  });
+
+  it("normalizes live chat channel state for inbox, detail and actions", () => {
+    const inbox = normalizeOmnichannelInboxV2({
+      contract_version: "inbox.omnichannel.v1",
+      live_chat: {
+        contract_version: "inbox.live_chat_channel.v1",
+        channel_state: "offline",
+        availability: {
+          schedule_label: "Lunes a viernes de 09:00 a 13:00",
+          offline_fallback_message: "Deja tu mensaje y queda asociado al ticket.",
+        },
+      },
+      summary: { queued_live_chat: 1 },
+      items: [
+        {
+          id: "municipio:378430",
+          title: "Arreglo de calle",
+          status: "nuevo",
+          live_chat: {
+            contract_version: "inbox.live_chat_channel.v1",
+            channel_state: "queued",
+            base_channel_state: "offline",
+            queue: {
+              state: "waiting_team_response",
+              pending_customer_messages: 2,
+            },
+            offline_message: {
+              message: "Deja tu mensaje y queda asociado al ticket.",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(inbox.live_chat?.channel_state).toBe("offline");
+    expect(inbox.live_chat?.schedule_label).toBe("Lunes a viernes de 09:00 a 13:00");
+    expect(inbox.live_chat?.offline_fallback_message).toBe("Deja tu mensaje y queda asociado al ticket.");
+    expect(inbox.items[0].live_chat?.channel_state).toBe("queued");
+    expect(inbox.items[0].live_chat?.queue?.pending_customer_messages).toBe(2);
+
+    const detail = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      live_chat: inbox.live_chat,
+      item: inbox.items[0],
+    });
+    expect(detail.live_chat?.channel_state).toBe("offline");
+    expect(detail.item.live_chat?.offline_fallback_message).toBe("Deja tu mensaje y queda asociado al ticket.");
+
+    const action = normalizeOmnichannelInboxActionV2({
+      contract_version: "inbox.omnichannel.action.v1",
+      live_chat: {
+        channel_state: "online",
+      },
+      ticket: inbox.items[0],
+    });
+    expect(action.live_chat?.channel_state).toBe("online");
+    expect(action.ticket.live_chat?.channel_state).toBe("queued");
   });
 
   it("preserves legacy claim action endpoints and payload defaults", () => {
