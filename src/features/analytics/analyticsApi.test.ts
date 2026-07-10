@@ -33,7 +33,7 @@ describe('operations heatmap v2 contract', () => {
         point_format: { lat: 'lat', lng: 'lng' },
         can_render_heatmap: 'false',
         recommended_views: ['interactive_globe', null, 'geocoding_queue'],
-        premium_metadata: { source: 'backend_contract' },
+        premium_metadata: ['geo_layers', null, 'map_layers', 'source_quality'],
       },
       facets: [
         {
@@ -84,6 +84,60 @@ describe('operations heatmap v2 contract', () => {
       },
       legend: {
         mode: 'category_source_quality',
+      },
+      geo_layers: {
+        contract_version: 'operations.heatmap_geo_layers.v1',
+        provider: 'geojson',
+        coordinate_order: 'lng_lat',
+        points: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [-60.94, -34.58] },
+              properties: { id: 'tenant_ticket:10', category: 'alumbrado', weight: 2 },
+            },
+            null,
+          ],
+        },
+        cells: { type: 'FeatureCollection', features: [] },
+        hotspots: { type: 'FeatureCollection', features: [] },
+        categories: {
+          alumbrado: {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [-60.94, -34.58] },
+                properties: { category: 'alumbrado' },
+              },
+            ],
+          },
+        },
+      },
+      map_layers: {
+        contract_version: 'operations.heatmap_map_layers.v1',
+        engine: 'maplibre',
+        format: 'geojson',
+        layers: [
+          { id: 'base_heatmap', label: 'Actividad territorial', source: 'geo_layers.points', type: 'heatmap' },
+          { id: 'hotspots', label: 'Zonas criticas', source: 'geo_layers.hotspots', type: 'symbol' },
+        ],
+        telemetry: {
+          event_endpoint: '/api/analytics/event',
+          events: ['map_layer_toggled', 'heatmap_bbox_changed'],
+        },
+      },
+      source_quality: {
+        contract_version: 'operations.heatmap_source_quality.v1',
+        sources: {
+          ticket: { label: 'Reclamos', points: 1, pending_geocode: 2 },
+        },
+        summary: { points: 1, pending_geocode: 2 },
+      },
+      spatial_filter: {
+        applied: 'true',
+        bbox: { west: '-60.95', south: '-34.59', east: '-60.93', north: '-34.57' },
       },
       map_experience: {
         contract_version: 'operations.map_experience.v1',
@@ -311,7 +365,7 @@ describe('operations heatmap v2 contract', () => {
       layers: ['base_heatmap', 'ai_risk_layers'],
       can_render_heatmap: false,
       recommended_views: ['interactive_globe', 'geocoding_queue'],
-      premium_metadata: { source: 'backend_contract' },
+      premium_metadata: ['geo_layers', 'map_layers', 'source_quality'],
     });
     expect(response.facets[0].items[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
     expect(response.segments?.gender?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
@@ -336,6 +390,31 @@ describe('operations heatmap v2 contract', () => {
       latest_event_at: '2026-06-27T10:00:00Z',
     });
     expect(response.legend?.mode).toBe('category_source_quality');
+    expect(response.geo_layers).toMatchObject({
+      contract_version: 'operations.heatmap_geo_layers.v1',
+      provider: 'geojson',
+      coordinate_order: 'lng_lat',
+    });
+    expect(response.geo_layers?.points?.features).toHaveLength(1);
+    expect(response.geo_layers?.categories?.alumbrado?.features).toHaveLength(1);
+    expect(response.map_layers).toMatchObject({
+      contract_version: 'operations.heatmap_map_layers.v1',
+      engine: 'maplibre',
+      telemetry: {
+        event_endpoint: '/api/analytics/event',
+        events: ['map_layer_toggled', 'heatmap_bbox_changed'],
+      },
+    });
+    expect(response.source_quality).toMatchObject({
+      contract_version: 'operations.heatmap_source_quality.v1',
+      sources: {
+        ticket: { label: 'Reclamos', points: 1, pending_geocode: 2 },
+      },
+    });
+    expect(response.spatial_filter).toMatchObject({
+      applied: true,
+      bbox: { west: '-60.95', south: '-34.59', east: '-60.93', north: '-34.57' },
+    });
     expect(response.map_experience).toMatchObject({
       contract_version: 'operations.map_experience.v1',
       preferred_visualization: 'interactive_globe_heatmap',

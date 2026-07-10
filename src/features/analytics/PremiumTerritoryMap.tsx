@@ -25,7 +25,12 @@ import { Button } from '@/components/ui/button';
 import LazyMapLibreMap from '@/components/LazyMapLibreMap';
 import { cn } from '@/lib/utils';
 
-import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from './analyticsTypes';
+import type {
+  OperationsHeatmapGeoFeatureCollection,
+  OperationsHeatmapPoint,
+  OperationsHeatmapV1,
+  PublicMapConfigV1,
+} from './analyticsTypes';
 import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
 import {
@@ -319,6 +324,57 @@ const readStringArray = (...values: unknown[]) => {
 
 const uniqueStrings = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
+const isFeatureCollection = (value: unknown): value is OperationsHeatmapGeoFeatureCollection => {
+  const record = asRecord(value);
+  return record?.type === 'FeatureCollection' && Array.isArray(record.features);
+};
+
+const featureCollectionFromHeatmap = (heatmap?: OperationsHeatmapV1): OperationsHeatmapGeoFeatureCollection | undefined => {
+  const collection = heatmap?.geo_layers?.points;
+  return isFeatureCollection(collection) && collection.features.length > 0 ? collection : undefined;
+};
+
+const operationsPointsFromFeatureCollection = (
+  collection: OperationsHeatmapGeoFeatureCollection | undefined,
+): OperationsHeatmapPoint[] => {
+  if (!collection) return [];
+  return collection.features.reduce<OperationsHeatmapPoint[]>((acc, feature, index) => {
+    const geometry = asRecord(feature.geometry);
+    const properties = asRecord(feature.properties) ?? {};
+    const coordinates = Array.isArray(geometry?.coordinates) ? geometry.coordinates : [];
+    const lng = readNumber(coordinates[0]);
+    const lat = readNumber(coordinates[1]);
+    if (lat === undefined || lng === undefined) return acc;
+    const id = readStringOrNumber(feature.id, properties.id, properties.ticket_id, properties.record_id) ?? `geo-layer-${index}`;
+    acc.push({
+      ...properties,
+      id,
+      lat,
+      lng,
+      weight: readNumber(properties.weight, properties.count, properties.total) ?? 1,
+      category: readString(properties.category, properties.categoria),
+      categoria: readString(properties.categoria, properties.category),
+      channel: readString(properties.channel, properties.canal),
+      canal: readString(properties.canal, properties.channel),
+      status: readString(properties.status, properties.estado),
+      estado: readString(properties.estado, properties.status),
+      source: readString(properties.source, properties.fuente),
+      label: readString(properties.label, properties.title, properties.name),
+      feature: { raw: properties, geojson: feature },
+    });
+    return acc;
+  }, []);
+};
+
+const findMapLayerRecord = (mapLayers: Record<string, unknown> | undefined, fragments: string[]) => {
+  const layers = asRecordArray(mapLayers?.layers);
+  return layers.find((layer) => {
+    const id = readString(layer.id, layer.key);
+    const type = readString(layer.type);
+    return fragments.some((fragment) => id?.includes(fragment) || type?.includes(fragment));
+  });
+};
+
 const buildOperationsGeoLayerConfig = ({
   heatmap,
   points,
@@ -338,13 +394,17 @@ const buildOperationsGeoLayerConfig = ({
   showQualityLayer: boolean;
   showRealtimeLayer: boolean;
 }): OperationsGeoLayerConfig | null => {
-  if (!heatmap || points.length === 0) return null;
+  if (!heatmap) return null;
 
   const mapLayers = asRecord(heatmap.map_layers);
+  const geoLayerSource = featureCollectionFromHeatmap(heatmap);
   const provider = asRecord(mapLayers?.provider);
   const categoryHeatmap = asRecord(mapLayers?.category_heatmap);
   const hotspots = asRecord(mapLayers?.hotspots);
   const telemetry = asRecord(mapLayers?.telemetry);
+  const backendHeatLayer = findMapLayerRecord(mapLayers, ['base_heatmap', 'heatmap']);
+  const backendCellLayer = findMapLayerRecord(mapLayers, ['cells', 'cell']);
+  const backendHotspotLayer = findMapLayerRecord(mapLayers, ['hotspots', 'hotspot', 'symbol']);
   const layerStyle = asRecord(heatmap.layer_style_contract);
   const styleTokens = asRecord(layerStyle?.style_tokens);
   const layerIds = asRecord(styleTokens?.layer_ids);
@@ -360,7 +420,7 @@ const buildOperationsGeoLayerConfig = ({
     'time_slider_changed',
   ]).slice(0, 12);
 
-  const features = points
+  const localFeatures = points
     .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
     .map((point, index) => {
       const featureRecord = asRecord(point.feature);
@@ -405,22 +465,27 @@ const buildOperationsGeoLayerConfig = ({
       };
     });
 
+  const features = geoLayerSource?.features ?? localFeatures;
   if (features.length === 0) return null;
 
   return {
-    contract_version: 'operations.heatmap.geo_layers.v1',
+    contract_version: readString(heatmap.geo_layers?.contract_version) ?? 'operations.heatmap.geo_layers.v1',
     style_url: readString(mapStyleUrl, provider?.style_url, provider?.styleUrl),
     source: {
+      ...(geoLayerSource ?? {}),
       type: 'FeatureCollection',
       features,
       metadata: {
+        ...(asRecord(geoLayerSource?.metadata) ?? {}),
         backend_contract_version: heatmap.contract_version,
+        geo_layer_contract_version: readString(heatmap.geo_layers?.contract_version),
         map_layer_contract_version: readString(mapLayers?.contract_version),
         layer_style_contract_version: readString(layerStyle?.contract_version),
         viewport_contract_version: readString(viewportPresets?.contract_version),
         legend_contract_version: readString(legend?.contract_version),
         enabled_layers: enabledLayerIds,
         operational_hotspots: heatmap.operational_hotspots?.length ?? 0,
+        backend_geojson_source: Boolean(geoLayerSource),
       },
     },
     source_options: {
@@ -428,8 +493,10 @@ const buildOperationsGeoLayerConfig = ({
       clusterMaxZoom: 14,
       clusterRadius: 54,
       backend_contract_version: heatmap.contract_version,
+      geo_layer_contract_version: readString(heatmap.geo_layers?.contract_version),
       map_layer_contract_version: readString(mapLayers?.contract_version),
       layer_style_contract_version: readString(layerStyle?.contract_version),
+      source_quality_contract_version: readString(heatmap.source_quality?.contract_version),
       default_viewport_id: readString(viewportPresets?.default_preset_id),
       enabled_layers: enabledLayerIds,
       active_layers: {
@@ -448,13 +515,13 @@ const buildOperationsGeoLayerConfig = ({
     },
     layers: {
       heatmap: {
-        id: readString(layerIds?.heatmap, categoryHeatmap?.layer_id, categoryHeatmap?.id) ?? 'operations-heatmap-layer',
+        id: readString(layerIds?.heatmap, backendHeatLayer?.id, categoryHeatmap?.layer_id, categoryHeatmap?.id) ?? 'operations-heatmap-layer',
       },
       clusters: {
-        id: readString(layerIds?.clusters, hotspots?.cluster_layer_id, hotspots?.cluster_id) ?? 'operations-hotspot-clusters',
+        id: readString(layerIds?.clusters, backendCellLayer?.id, hotspots?.cluster_layer_id, hotspots?.cluster_id) ?? 'operations-hotspot-clusters',
       },
       points: {
-        id: readString(layerIds?.points, hotspots?.point_layer_id, hotspots?.point_id) ?? 'operations-hotspot-points',
+        id: readString(layerIds?.points, backendHotspotLayer?.id, hotspots?.point_layer_id, hotspots?.point_id) ?? 'operations-hotspot-points',
       },
     },
     telemetry: {
@@ -519,6 +586,10 @@ export function PremiumTerritoryHeatmap({
   const [focusMode, setFocusMode] = useState<MapFocusMode>('territory');
   const [layerSelection, setLayerSelection] = useState<string[] | null>(null);
 
+  const backendGeoLayerPoints = useMemo(
+    () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
+    [heatmap],
+  );
   const backendCellPoints = useMemo<OperationsHeatmapPoint[]>(
     () =>
       (heatmap?.cells ?? [])
@@ -549,11 +620,19 @@ export function PremiumTerritoryHeatmap({
         .filter((point): point is OperationsHeatmapPoint => Boolean(point)),
     [heatmap?.cells],
   );
-  const usesBackendCellPoints = points.length === 0 && backendCellPoints.length > 0;
-  const usesDemoData = allowDemoFallback && points.length === 0 && !usesBackendCellPoints;
+  const usesBackendGeoLayerPoints = points.length === 0 && backendGeoLayerPoints.length > 0;
+  const usesBackendCellPoints = points.length === 0 && !usesBackendGeoLayerPoints && backendCellPoints.length > 0;
+  const usesDemoData = allowDemoFallback && points.length === 0 && !usesBackendGeoLayerPoints && !usesBackendCellPoints;
   const sourcePoints = useMemo(
-    () => (usesDemoData ? getDemoTerritoryHeatmapPoints(demoProfile) : usesBackendCellPoints ? backendCellPoints : points),
-    [backendCellPoints, demoProfile, points, usesBackendCellPoints, usesDemoData],
+    () =>
+      usesDemoData
+        ? getDemoTerritoryHeatmapPoints(demoProfile)
+        : usesBackendGeoLayerPoints
+          ? backendGeoLayerPoints
+          : usesBackendCellPoints
+            ? backendCellPoints
+            : points,
+    [backendCellPoints, backendGeoLayerPoints, demoProfile, points, usesBackendCellPoints, usesBackendGeoLayerPoints, usesDemoData],
   );
   const liveMapPoints = useMemo(
     () => sourcePoints.map(toLiveHeatPoint).filter((point): point is HeatPoint => Boolean(point)),
@@ -760,7 +839,7 @@ export function PremiumTerritoryHeatmap({
     () => {
       const heatmapRecord = asRecord(heatmap);
       return {
-        source: usesDemoData ? 'demo_fallback' : usesBackendCellPoints ? 'backend_cells' : 'operations_heatmap',
+        source: usesDemoData ? 'demo_fallback' : usesBackendGeoLayerPoints ? 'backend_geo_layers' : usesBackendCellPoints ? 'backend_cells' : 'operations_heatmap',
         provider: liveMapProvider,
         contractVersion: readString(heatmap?.contract_version, geoLayerConfig?.contract_version),
         usingSyntheticPoints: usesDemoData,
@@ -793,6 +872,7 @@ export function PremiumTerritoryHeatmap({
       liveMapPoints.length,
       liveMapProvider,
       usesBackendCellPoints,
+      usesBackendGeoLayerPoints,
       usesDemoData,
     ],
   );

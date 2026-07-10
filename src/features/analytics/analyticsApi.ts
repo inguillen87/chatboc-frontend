@@ -16,6 +16,7 @@ import type {
   OperationsFreshnessSource,
   OperationsFreshnessV1,
   OperationsHeatmapFacet,
+  OperationsHeatmapGeoFeatureCollection,
   OperationsHeatmapPoint,
   OperationsHeatmapV1,
   OperationsTrend,
@@ -760,10 +761,65 @@ const normalizeHeatmapHotspotActions = (value: unknown): OperationsHeatmapV1['ho
   };
 };
 
+const normalizeGeoFeatureCollection = (value: unknown): OperationsHeatmapGeoFeatureCollection | undefined => {
+  if (!isRecord(value) || value.type !== 'FeatureCollection' || !Array.isArray(value.features)) return undefined;
+  return {
+    ...value,
+    type: 'FeatureCollection',
+    features: value.features.filter((feature): feature is Record<string, unknown> => isRecord(feature)),
+  };
+};
+
+const normalizeHeatmapGeoLayers = (value: unknown): OperationsHeatmapV1['geo_layers'] => {
+  if (!isRecord(value)) return undefined;
+  const rawCategories = pickRecord(value.categories);
+  const categories = rawCategories
+    ? Object.entries(rawCategories).reduce<Record<string, NonNullable<OperationsHeatmapV1['geo_layers']>['points']>>((acc, [key, raw]) => {
+        const collection = normalizeGeoFeatureCollection(raw);
+        if (collection) acc[key] = collection;
+        return acc;
+      }, {})
+    : undefined;
+
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    provider: asString(value.provider),
+    coordinate_order: asString(value.coordinate_order),
+    points: normalizeGeoFeatureCollection(value.points),
+    cells: normalizeGeoFeatureCollection(value.cells),
+    hotspots: normalizeGeoFeatureCollection(value.hotspots),
+    categories,
+  };
+};
+
+const normalizeHeatmapSourceQuality = (value: unknown): OperationsHeatmapV1['source_quality'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    sources: pickRecord(value.sources) as Record<string, Record<string, unknown>> | undefined,
+    summary: pickRecord(value.summary),
+  };
+};
+
+const normalizeHeatmapSpatialFilter = (value: unknown): OperationsHeatmapV1['spatial_filter'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    bbox: pickRecord(value.bbox) ?? null,
+    applied: asBoolean(value.applied),
+  };
+};
+
 const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
   const rawLayers = Array.isArray(renderContract?.layers) ? renderContract.layers : [];
+  const rawPremiumMetadata = renderContract?.premium_metadata ?? renderContract?.metadata;
+  const premiumMetadata = Array.isArray(rawPremiumMetadata)
+    ? rawPremiumMetadata.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : pickRecord(rawPremiumMetadata);
   const segments = normalizeHeatmapSegments(record.segments);
   const appliedFilters = pickRecord(record.applied_filters ?? record.filters_applied ?? record.segments_filters_applied);
   const facets = [
@@ -786,7 +842,7 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
           point_format: pickRecord(renderContract.point_format) as Record<string, string> | undefined,
           can_render_heatmap: asBoolean(renderContract.can_render_heatmap),
           recommended_views: normalizeStringList(renderContract.recommended_views ?? renderContract.views),
-          premium_metadata: pickRecord(renderContract.premium_metadata ?? renderContract.metadata),
+          premium_metadata: premiumMetadata,
         }
       : undefined,
     summary: pickRecord(record.summary),
@@ -799,7 +855,10 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),
+    geo_layers: normalizeHeatmapGeoLayers(record.geo_layers),
     map_layers: pickRecord(record.map_layers) as OperationsHeatmapV1['map_layers'],
+    source_quality: normalizeHeatmapSourceQuality(record.source_quality),
+    spatial_filter: normalizeHeatmapSpatialFilter(record.spatial_filter),
     ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
     ai_insights: normalizeHeatmapAiInsights(record.ai_insights),
     ai_status: normalizeHeatmapAiStatus(record.ai_status),

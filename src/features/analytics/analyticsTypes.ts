@@ -301,6 +301,33 @@ export interface OperationsHeatmapMapLayersContract {
   hotspots?: Record<string, unknown>;
   visual_system?: Record<string, unknown>;
   operator_metrics?: Record<string, unknown>;
+  layers?: Array<Record<string, unknown>>;
+  telemetry?: Record<string, unknown>;
+  source_quality?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapGeoFeatureCollection {
+  type: 'FeatureCollection';
+  features: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapGeoLayers {
+  contract_version?: string;
+  provider?: string;
+  coordinate_order?: string;
+  points?: OperationsHeatmapGeoFeatureCollection;
+  cells?: OperationsHeatmapGeoFeatureCollection;
+  hotspots?: OperationsHeatmapGeoFeatureCollection;
+  categories?: Record<string, OperationsHeatmapGeoFeatureCollection>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapSourceQuality {
+  contract_version?: string;
+  sources?: Record<string, Record<string, unknown>>;
+  summary?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -426,7 +453,14 @@ export interface OperationsHeatmapV1 {
     [key: string]: unknown;
   };
   legend?: Record<string, unknown>;
+  geo_layers?: OperationsHeatmapGeoLayers;
   map_layers?: OperationsHeatmapMapLayersContract;
+  source_quality?: OperationsHeatmapSourceQuality;
+  spatial_filter?: {
+    bbox?: Record<string, unknown> | null;
+    applied?: boolean;
+    [key: string]: unknown;
+  };
   ai_layers?: OperationsHeatmapAILayers;
   ai_insights?: OperationsHeatmapAIInsights;
   ai_status?: OperationsHeatmapAIStatus;

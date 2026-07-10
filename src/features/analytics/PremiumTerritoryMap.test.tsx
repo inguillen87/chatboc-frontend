@@ -421,4 +421,76 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('alumbrado').length).toBeGreaterThan(0);
     expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
   });
+
+  it('prefers backend geo_layers FeatureCollection before rebuilding local source', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        contract_version: 'operations.heatmap_geo_layers.v1',
+        provider: 'geojson',
+        coordinate_order: 'lng_lat',
+        points: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              id: 'tenant_ticket:10',
+              geometry: { type: 'Point', coordinates: [-60.94, -34.58] },
+              properties: {
+                id: 'tenant_ticket:10',
+                category: 'alumbrado',
+                weight: 3,
+                source: 'ticket',
+                label: 'Luminaria rota',
+              },
+            },
+            {
+              type: 'Feature',
+              id: 'survey:7',
+              geometry: { type: 'Point', coordinates: [-60.93, -34.57] },
+              properties: {
+                id: 'survey:7',
+                category: 'votacion',
+                weight: 1,
+                source: 'survey',
+                label: 'Sondeo barrial',
+              },
+            },
+          ],
+        },
+      },
+      map_layers: {
+        contract_version: 'operations.heatmap_map_layers.v1',
+        layers: [
+          { id: 'base_heatmap', type: 'heatmap' },
+          { id: 'hotspots', type: 'symbol' },
+        ],
+        telemetry: {
+          event_endpoint: '/api/analytics/event',
+          events: ['heatmap_bbox_changed'],
+        },
+      },
+      source_quality: {
+        contract_version: 'operations.heatmap_source_quality.v1',
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} />);
+
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    expect(liveMap.getAttribute('data-points')).toBe('2');
+    expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap_geo_layers.v1');
+    expect(liveMap.getAttribute('data-geo-features')).toBe('2');
+    expect(liveMap.getAttribute('data-geo-heat-layer')).toBe('base_heatmap');
+    expect(liveMap.getAttribute('data-geo-point-layer')).toBe('hotspots');
+    expect(liveMap.getAttribute('data-geo-telemetry-endpoint')).toBe('/api/analytics/event');
+    expect(liveMap.getAttribute('data-geo-telemetry-events')).toContain('heatmap_bbox_changed');
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
+  });
 });
