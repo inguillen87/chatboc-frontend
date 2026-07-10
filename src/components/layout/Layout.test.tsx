@@ -47,7 +47,9 @@ describe('Layout ticket workspace shell', () => {
     expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
 
     const main = screen.getByRole('main');
-    expect(main).toHaveClass('pt-14');
+    expect(main).toHaveClass('mt-14');
+    expect(main).toHaveClass('h-[calc(100dvh-3.5rem)]');
+    expect(main).toHaveClass('overflow-hidden');
     expect(main).not.toHaveClass('max-w-7xl');
   });
 

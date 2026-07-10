@@ -35,6 +35,10 @@ import {
   DEFAULT_CLERK_RUNTIME,
   type ClerkRuntimeValue,
 } from '@/components/auth/ClerkRuntimeContext';
+import {
+  buildClerkBackendUnavailableRuntime,
+  buildClerkRuntimeFromEnv,
+} from '@/components/auth/clerkRuntimeResolver';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
@@ -54,13 +58,15 @@ const RouteLoadingFallback = () => (
 );
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
-  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() => ({
-    ...DEFAULT_CLERK_RUNTIME,
-    enabled: CLERK_AUTH_ENABLED,
-    loading: true,
-    publishableKey: CLERK_PUBLISHABLE_KEY,
-    source: CLERK_AUTH_ENABLED ? 'env' : 'disabled',
-  }));
+  const allowEnvFallback = import.meta.env.DEV;
+  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
+    buildClerkRuntimeFromEnv({
+      allowEnvFallback,
+      envEnabled: CLERK_AUTH_ENABLED,
+      loading: true,
+      publishableKey: CLERK_PUBLISHABLE_KEY,
+    }),
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -92,20 +98,14 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
       } catch (error) {
         if (!cancelled) {
           console.warn('[Clerk] No se pudo cargar la configuracion publica del backend', error);
-          setRuntime({
-            ...DEFAULT_CLERK_RUNTIME,
-            enabled: CLERK_AUTH_ENABLED,
-            loading: false,
-            publishableKey: CLERK_PUBLISHABLE_KEY,
-            source: CLERK_AUTH_ENABLED ? 'env' : 'disabled',
-            readyForSessionSync: CLERK_AUTH_ENABLED,
-            configurationWarnings: [
-              {
-                code: 'backend_config_unavailable',
-                message: 'No se pudo validar el contrato publico de Clerk con el backend.',
-              },
-            ],
-          });
+          setRuntime(
+            buildClerkBackendUnavailableRuntime({
+              allowEnvFallback,
+              envEnabled: CLERK_AUTH_ENABLED,
+              loading: false,
+              publishableKey: CLERK_PUBLISHABLE_KEY,
+            }),
+          );
         }
       }
     };
@@ -114,7 +114,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [allowEnvFallback]);
 
   return runtime;
 };
