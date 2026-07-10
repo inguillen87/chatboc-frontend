@@ -530,6 +530,12 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
+  const assistedEmptyTitle =
+    publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) ||
+    'Catalogo sin productos visibles, solicitud asistida activa.';
+  const assistedEmptyDescription =
+    publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
+    'Podes subir una foto, PDF, boleta o nota manuscrita. El equipo recibe la solicitud ordenada con seguimiento para responderte sin que tengas que navegar el catalogo.';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const trackMarketplaceCta = (eventName: string, source: string, extra: Record<string, unknown> = {}) => {
     trackFrontendEvent(eventName, {
@@ -782,6 +788,47 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           { label: 'Loop', value: `${commerceLoopSteps.length} pasos`, tone: 'default' },
         ]}
       />
+
+      {assistedFirstActive && catalogActuallyEmpty ? (
+        <section
+          data-testid="market-assisted-empty-state"
+          className="overflow-hidden rounded-lg border border-primary/25 bg-card shadow-sm"
+        >
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0 p-4 sm:p-5">
+              <Badge variant="outline" className="mb-3 border-primary/30 bg-primary/5 text-primary">
+                Solicitud sin catalogo
+              </Badge>
+              <h2 className="text-xl font-semibold tracking-normal text-foreground">{assistedEmptyTitle}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{assistedEmptyDescription}</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {EMPTY_FLOW_STEPS.map((step) => (
+                  <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
+                    <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="border-t bg-muted/30 p-4 lg:border-l lg:border-t-0">
+              <p className="text-sm font-semibold text-foreground">Camino recomendado</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Carga tu papel, comprobante, lista o reclamo. Si faltan datos, el equipo puede pedirlos desde el mismo seguimiento.
+              </p>
+              <div className="mt-4 grid gap-2">
+                <Button type="button" onClick={() => activateAssistedUpload('file')} className="w-full">
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  {assistedPrimaryCta}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => activateAssistedUpload('text')} className="w-full">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Escribir solicitud
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {prioritizeAssistedUpload ? (
         <UploadOrderFromFile

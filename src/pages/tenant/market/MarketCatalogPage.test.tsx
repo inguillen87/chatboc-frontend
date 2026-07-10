@@ -179,6 +179,11 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText(/Subi una foto del papel, pega tu lista o manda un documento/i)).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
     expect(screen.getByText(/Chatboc separa articulos, cantidades, direcciones/i)).toBeInTheDocument();
+    const assistedEmptyState = screen.getByTestId('market-assisted-empty-state');
+    expect(assistedEmptyState).toBeInTheDocument();
+    expect(assistedEmptyState).toHaveTextContent('Catalogo sin productos visibles, solicitud asistida activa');
+    expect(assistedEmptyState).toHaveTextContent('Aunque todavia no haya productos publicados, el vecino puede subir documentos.');
+    expect(assistedEmptyState.compareDocumentPosition(screen.getByTestId('assisted-upload-dropzone')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByTestId('market-assisted-public-promise')).toBeInTheDocument();
     expect(screen.getByText('Foto o manuscrito')).toBeInTheDocument();
     expect(screen.getByText('Texto de WhatsApp')).toBeInTheDocument();
@@ -408,6 +413,9 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
     expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-empty-state')).toHaveTextContent(
+      'Catalogo sin productos visibles, pedido asistido disponible.',
+    );
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
     expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nota manuscrita/i })).toBeInTheDocument();
