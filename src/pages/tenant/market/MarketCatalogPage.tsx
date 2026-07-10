@@ -15,7 +15,7 @@ import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { ArrowRight, CheckCircle2, ClipboardList, Copy, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ClipboardList, Copy, FileDown, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -355,6 +355,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     const prefix = tenantSlug ? `Catalogo de ${tenantSlug}` : 'Catalogo';
     return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
   }, [shareMeta?.whatsappShareUrl, shareUrl, tenantSlug]);
+  const catalogDownloadUrl = useMemo(() => {
+    if (!tenantSlug) return '';
+    return `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog/download?format=pdf`;
+  }, [tenantSlug]);
 
   const promotionItems = useMemo(
     () => promotions?.items?.filter((item) => item && promotionTitle(item)) ?? [],
@@ -562,6 +566,14 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     const qrLink = `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=320`;
     window.open(qrLink, '_blank', 'noopener,noreferrer');
   };
+  const openCatalogDownload = (source: string) => {
+    if (!catalogDownloadUrl) return;
+    trackMarketplaceCta('catalog_download_opened', source, {
+      format: 'pdf',
+      download_contract: 'public.catalog_download.v1',
+    });
+    window.open(catalogDownloadUrl, '_blank', 'noopener,noreferrer');
+  };
   const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
@@ -676,6 +688,14 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             disabled={!shareUrl}
           >
             <QrCode className="mr-2 h-4 w-4" /> QR
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openCatalogDownload('desktop_pdf_button')}
+            disabled={!catalogDownloadUrl}
+          >
+            <FileDown className="mr-2 h-4 w-4" /> PDF
           </Button>
         </div>
       </header>
@@ -1058,13 +1078,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </div>
         ) : null}
 
-        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-3 md:hidden">
+        <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 md:hidden">
           <Button
             type="button"
             variant="outline"
             onClick={() => openWhatsappShare('mobile_share_button')}
             disabled={!shareMessage}
-            className="w-full"
+            className="w-full whitespace-normal leading-tight"
           >
             <MessageCircle className="mr-2 h-4 w-4" />
             Continuar por WhatsApp
@@ -1082,7 +1102,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               }
             }}
             disabled={!shareUrl || !canUseClipboard}
-            className="w-full"
+            className="w-full whitespace-normal leading-tight"
           >
             <Copy className="mr-2 h-4 w-4" />
             Copiar enlace
@@ -1092,11 +1112,22 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             variant="outline"
             onClick={() => openQrShare('mobile_qr_button')}
             disabled={!shareUrl}
-            className="w-full"
+            className="w-full whitespace-normal leading-tight"
             data-testid="market-mobile-qr-share"
           >
             <QrCode className="mr-2 h-4 w-4" />
             QR
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => openCatalogDownload('mobile_pdf_button')}
+            disabled={!catalogDownloadUrl}
+            className="w-full whitespace-normal leading-tight"
+            data-testid="market-mobile-download-catalog"
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            PDF
           </Button>
         </div>
       </section>
