@@ -631,7 +631,46 @@ export interface SurveyPublicationAction {
   label?: string;
   ui_hint?: string;
   href?: string | null;
+  frontend_path?: string | null;
+  route?: string | null;
+  share_url?: string | null;
   enabled?: boolean;
+  requires_auth?: boolean;
+  requires_role?: string[];
+  [key: string]: unknown;
+}
+
+export interface SurveyOperationsSurface {
+  id?: string;
+  label?: string;
+  route?: string | null;
+  frontend_path?: string | null;
+  href?: string | null;
+  required_roles?: string[];
+  actions?: SurveyPublicationAction[];
+  [key: string]: unknown;
+}
+
+export interface SurveyOperationsContract {
+  contract_version?: string;
+  survey_id?: number | string | null;
+  public_token?: string | null;
+  tenant_slug?: string | null;
+  status?: string | null;
+  is_live_vote?: boolean;
+  live_results_enabled?: boolean;
+  comments_enabled?: boolean;
+  responses_count?: number;
+  admin_surface?: SurveyOperationsSurface;
+  analytics_surface?: SurveyOperationsSurface & {
+    endpoint?: string | null;
+    heatmap_route?: string | null;
+    heatmap_href?: string | null;
+    moderation_route?: string | null;
+    moderation_href?: string | null;
+  };
+  public_surface?: Record<string, unknown>;
+  realtime?: SurveyRealtimeContract;
   [key: string]: unknown;
 }
 
@@ -652,6 +691,8 @@ export interface SurveyPublicationContract {
   anonymous_allowed?: boolean;
   links?: SurveyPublicationLinks;
   actions?: SurveyPublicationAction[];
+  operations?: SurveyOperationsContract;
+  admin_operations?: SurveyOperationsContract;
   [key: string]: unknown;
 }
 
@@ -717,6 +758,8 @@ export interface SurveyDashboardBundle {
   admin_template?: SurveyAdminTemplate;
   modules?: SurveyDashboardModules;
   survey_publication?: SurveyPublicationContract;
+  operations?: SurveyOperationsContract;
+  admin_operations?: SurveyOperationsContract;
   public_links?: SurveyPublicationLinks;
   kpis?: Record<string, unknown>;
   kpis_executive?: Record<string, SurveyExecutiveKpi>;

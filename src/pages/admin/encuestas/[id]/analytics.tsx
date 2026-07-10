@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Copy, Download, ExternalLink, EyeOff, Gauge, Loader2, MessageCircle, ShieldCheck, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Copy, Download, ExternalLink, EyeOff, Gauge, Loader2, MapPin, MessageCircle, ShieldCheck, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -249,10 +249,13 @@ function publicationStateLabel(value?: unknown) {
   return normalized || 'Sin estado';
 }
 
-type SurveyAnalyticsFocusMode = 'live' | 'comments' | null;
+type SurveyAnalyticsFocusMode = 'live' | 'comments' | 'heatmap' | null;
 
 function normalizeSurveyAnalyticsFocus(value?: string | null): SurveyAnalyticsFocusMode {
   const normalized = (value ?? '').trim().toLowerCase();
+  if (normalized === 'live_results') return 'live';
+  if (normalized === 'moderation') return 'comments';
+  if (['heatmap', 'mapa', 'mapa_calor', 'mapa-de-calor', 'territorio', 'territorial'].includes(normalized)) return 'heatmap';
   if (['live', 'realtime', 'vivo', 'votacion', 'votacion_live', 'votación'].includes(normalized)) return 'live';
   if (['comments', 'comentarios', 'debate', 'moderacion', 'moderación'].includes(normalized)) return 'comments';
   return null;
@@ -276,7 +279,31 @@ const SURVEY_ANALYTICS_FOCUS_COPY: Record<Exclude<SurveyAnalyticsFocusMode, null
     badge: 'Comentarios',
     targetId: 'survey-comments-focus',
   },
+  heatmap: {
+    title: 'Foco operativo: mapa de calor',
+    description: 'Llegaste desde el contrato operativo para revisar zonas calientes, cobertura territorial y calidad geografica.',
+    badge: 'Mapa de calor',
+    targetId: 'survey-analytics-visuals-focus',
+  },
 };
+
+function buildSurveyAnalyticsHref(
+  surveyId: number | null,
+  focus: string,
+  options?: {
+    publicSlug?: string;
+    tenantSlug?: string;
+    includeHeatmap?: boolean;
+  },
+) {
+  if (!surveyId) return '';
+  const query = new URLSearchParams();
+  query.set('focus', focus);
+  if (options?.publicSlug) query.set('survey_slug', options.publicSlug);
+  if (options?.tenantSlug) query.set('tenant_slug', options.tenantSlug);
+  if (options?.includeHeatmap) query.set('include_heatmap', '1');
+  return `/admin/encuestas/${surveyId}/analytics?${query.toString()}`;
+}
 
 function formatCommentDate(value?: string | null) {
   if (!value) return 'Sin fecha';
@@ -668,6 +695,114 @@ export default function SurveyAnalyticsPage() {
   const publicContractVersion = readRecordText(surveyPublication, 'contract_version');
   const publicSlug = readRecordText(surveyPublication, 'slug_publico') || readRecordText(surveyPublication, 'canonical_slug');
   const livePanelSlug = publicSlug || effectiveSurvey?.slug_publico || effectiveSurvey?.canonical_slug || effectiveSurvey?.slug || '';
+  const surveyOperations = useMemo(
+    () =>
+      asRecord(dashboardBundle?.admin_operations) ??
+      asRecord(dashboardBundle?.operations) ??
+      asRecord(surveyPublication?.admin_operations) ??
+      asRecord(surveyPublication?.operations),
+    [
+      dashboardBundle?.admin_operations,
+      dashboardBundle?.operations,
+      surveyPublication?.admin_operations,
+      surveyPublication?.operations,
+    ],
+  );
+  const surveyOperationsVersion = readRecordText(surveyOperations, 'contract_version');
+  const operationAdminSurface = useMemo(
+    () => asRecord(surveyOperations?.admin_surface),
+    [surveyOperations?.admin_surface],
+  );
+  const operationAnalyticsSurface = useMemo(
+    () => asRecord(surveyOperations?.analytics_surface),
+    [surveyOperations?.analytics_surface],
+  );
+  const operationActions = useMemo(
+    () => asRecordList(operationAdminSurface?.actions),
+    [operationAdminSurface?.actions],
+  );
+  const resolveOperationHref = (action: Record<string, unknown> | undefined | null) =>
+    resolveHref(
+      readRecordText(action, 'href') ||
+        readRecordText(action, 'frontend_path') ||
+        readRecordText(action, 'route') ||
+        readRecordText(action, 'share_url'),
+    );
+  const findOperationAction = (ids: string[]) =>
+    operationActions.find((action) => ids.includes(readRecordText(action, 'id')));
+  const operationHrefOptions = useMemo(
+    () => ({
+      publicSlug: livePanelSlug,
+      tenantSlug: effectiveTenantSlug,
+    }),
+    [effectiveTenantSlug, livePanelSlug],
+  );
+  const liveAdminAction = findOperationAction(['open_live_results_admin', 'open_admin_analytics']);
+  const heatmapAdminAction = findOperationAction(['open_heatmap_admin']);
+  const moderationAdminAction = findOperationAction(['moderate_comments']);
+  const qrAdminAction = findOperationAction(['share_whatsapp_qr', 'download_qr']);
+  const adminLiveHref =
+    resolveOperationHref(liveAdminAction) ||
+    readRecordText(operationAdminSurface, 'href') ||
+    readRecordText(operationAdminSurface, 'frontend_path') ||
+    buildSurveyAnalyticsHref(surveyId, 'live_results', operationHrefOptions);
+  const adminHeatmapHref =
+    resolveOperationHref(heatmapAdminAction) ||
+    readRecordText(operationAnalyticsSurface, 'heatmap_href') ||
+    readRecordText(operationAnalyticsSurface, 'heatmap_route') ||
+    buildSurveyAnalyticsHref(surveyId, 'heatmap', { ...operationHrefOptions, includeHeatmap: true });
+  const adminModerationHref =
+    resolveOperationHref(moderationAdminAction) ||
+    readRecordText(operationAnalyticsSurface, 'moderation_href') ||
+    readRecordText(operationAnalyticsSurface, 'moderation_route') ||
+    buildSurveyAnalyticsHref(surveyId, 'moderation', operationHrefOptions);
+  const adminQrHref = resolveOperationHref(qrAdminAction) || qrUrl || '';
+  const operationsActionCards = useMemo(
+    () => [
+      {
+        id: 'open-live-results-admin',
+        label: readRecordText(liveAdminAction, 'label') || 'Monitorear en vivo',
+        description: 'Socket, polling, votos y actividad reciente dentro del CRM.',
+        href: adminLiveHref,
+        icon: <Activity className="h-4 w-4" />,
+        enabled: liveAdminAction?.enabled !== false && Boolean(adminLiveHref),
+      },
+      {
+        id: 'open-heatmap-admin',
+        label: readRecordText(heatmapAdminAction, 'label') || 'Abrir mapa de calor',
+        description: 'Zonas calientes, cobertura territorial y evidencia geografica.',
+        href: adminHeatmapHref,
+        icon: <MapPin className="h-4 w-4" />,
+        enabled: heatmapAdminAction?.enabled !== false && Boolean(adminHeatmapHref),
+      },
+      {
+        id: 'moderate-comments',
+        label: readRecordText(moderationAdminAction, 'label') || 'Moderar comentarios',
+        description: 'Revisar aportes ciudadanos y reportes sin salir del tablero.',
+        href: adminModerationHref,
+        icon: <MessageCircle className="h-4 w-4" />,
+        enabled: moderationAdminAction?.enabled !== false && Boolean(adminModerationHref),
+      },
+      {
+        id: 'share-whatsapp-qr',
+        label: readRecordText(qrAdminAction, 'label') || 'Compartir QR por WhatsApp',
+        description: 'Distribucion rapida para plazas, escuelas, comercios y barrios.',
+        href: adminQrHref,
+        icon: <Download className="h-4 w-4" />,
+        enabled: qrAdminAction?.enabled !== false && Boolean(adminQrHref),
+      },
+    ],
+    [
+      adminHeatmapHref,
+      adminLiveHref,
+      adminModerationHref,
+      adminQrHref,
+      heatmapAdminAction,
+      liveAdminAction,
+      moderationAdminAction,
+      qrAdminAction,
+    ],
+  );
   const publicationActionIds = publicationActions.map((action) => readRecordText(action, 'id')).filter(Boolean);
   const publicationActionLabel =
     publicationActionIds.includes('publish_survey')
@@ -1217,6 +1352,60 @@ export default function SurveyAnalyticsPage() {
           </div>
       </CardContent>
     </Card>
+      <Card data-testid="survey-admin-operations-card" className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Centro operativo de encuesta
+              </CardTitle>
+              <CardDescription>
+                Acciones admin generadas desde el contrato backend para monitoreo live, mapa de calor, moderacion y distribucion.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={surveyOperationsVersion ? 'default' : 'outline'}>
+                {surveyOperationsVersion || 'Fallback local'}
+              </Badge>
+              {operationAdminSurface?.id ? <Badge variant="secondary">{asRenderableText(operationAdminSurface.id)}</Badge> : null}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {operationsActionCards.map((action) => (
+            <div
+              key={action.id}
+              className={`flex min-h-[148px] flex-col justify-between rounded-xl border p-4 ${
+                action.enabled ? 'border-border/70 bg-background/80' : 'border-dashed border-border/60 bg-muted/20 opacity-70'
+              }`}
+            >
+              <div className="space-y-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  {action.icon}
+                </div>
+                <div>
+                  <p className="font-medium">{action.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.description}</p>
+                </div>
+              </div>
+              {action.enabled && action.href ? (
+                <Button variant="outline" size="sm" asChild className="mt-4 justify-between">
+                  <a href={action.href}>
+                    Abrir
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" className="mt-4 justify-between" disabled>
+                  No disponible
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       {liveResultsEnabled ? (
         <div
           id={SURVEY_ANALYTICS_FOCUS_COPY.live.targetId}
@@ -1375,7 +1564,11 @@ export default function SurveyAnalyticsPage() {
         ) : null}
       </div>
 
-      <Card>
+      <Card
+        id="survey-analytics-visuals-focus"
+        data-testid="survey-analytics-visuals-focus"
+        className={focusMode === 'heatmap' ? 'border-primary/30 bg-primary/[0.03] shadow-[0_0_0_1px_rgba(59,130,246,0.20)]' : undefined}
+      >
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +73,47 @@ const surveyFixture = {
 };
 
 const dashboardBundleFixture = {
+  admin_operations: {
+    contract_version: 'surveys.operations.v2',
+    survey_id: 3,
+    public_token: 'voto-plaza-publica',
+    tenant_slug: 'junin',
+    admin_surface: {
+      id: 'survey_live_ops',
+      label: 'Centro operativo de encuesta',
+      href: '/admin/encuestas/3/analytics?focus=live_results&survey_slug=voto-plaza-publica&tenant_slug=junin',
+      actions: [
+        {
+          id: 'open_live_results_admin',
+          label: 'Monitorear en vivo',
+          href: '/admin/encuestas/3/analytics?focus=live_results&survey_slug=voto-plaza-publica&tenant_slug=junin',
+          enabled: true,
+        },
+        {
+          id: 'open_heatmap_admin',
+          label: 'Mapa operativo',
+          href: '/admin/encuestas/3/analytics?focus=heatmap&include_heatmap=1&survey_slug=voto-plaza-publica&tenant_slug=junin',
+          enabled: true,
+        },
+        {
+          id: 'moderate_comments',
+          label: 'Moderar comentarios',
+          href: '/admin/encuestas/3/analytics?focus=moderation&survey_slug=voto-plaza-publica&tenant_slug=junin',
+          enabled: true,
+        },
+        {
+          id: 'share_whatsapp_qr',
+          label: 'Compartir QR por WhatsApp',
+          href: '/api/public/encuestas/v1/voto-plaza-publica/qr?tenant_slug=junin&size=320',
+          enabled: true,
+        },
+      ],
+    },
+    analytics_surface: {
+      heatmap_route: '/admin/encuestas/3/analytics?focus=heatmap&include_heatmap=1&survey_slug=voto-plaza-publica&tenant_slug=junin',
+      moderation_route: '/admin/encuestas/3/analytics?focus=moderation&survey_slug=voto-plaza-publica&tenant_slug=junin',
+    },
+  },
   survey_publication: {
     contract_version: 'survey.publication.v1',
     public_state: 'published',
@@ -206,5 +247,24 @@ describe('SurveyAnalyticsPage operational focus', () => {
         expect.objectContaining({ tenantSlug: 'junin', sendAnonId: true }),
       );
     });
+  });
+
+  it('renders backend admin operations and supports heatmap focus links', async () => {
+    renderPage('/admin/encuestas/3/analytics?focus=heatmap&include_heatmap=1');
+
+    expect(await screen.findByTestId('survey-analytics-focus-banner')).toHaveTextContent('mapa de calor');
+    expect(screen.getByTestId('survey-analytics-visuals-focus')).toBeInTheDocument();
+
+    const operationsCard = screen.getByTestId('survey-admin-operations-card');
+    expect(operationsCard).toHaveTextContent('surveys.operations.v2');
+    expect(operationsCard).toHaveTextContent('survey_live_ops');
+    expect(operationsCard).toHaveTextContent('Monitorear en vivo');
+    expect(operationsCard).toHaveTextContent('Mapa operativo');
+    expect(operationsCard).toHaveTextContent('Moderar comentarios');
+    expect(operationsCard).toHaveTextContent('Compartir QR por WhatsApp');
+
+    const operationLinks = within(operationsCard).getAllByRole('link', { name: /Abrir/i });
+    expect(operationLinks.some((link) => link.getAttribute('href')?.includes('focus=heatmap'))).toBe(true);
+    expect(operationLinks.some((link) => link.getAttribute('href')?.includes('focus=moderation'))).toBe(true);
   });
 });
