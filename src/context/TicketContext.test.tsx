@@ -131,6 +131,20 @@ const AssignedAgentAvatarConsumer = () => {
   );
 };
 
+const FilterOptionsConsumer = () => {
+  const { filterOptions } = useTickets();
+  return (
+    <div>
+      <span data-testid="filter-channels">{filterOptions.channels.join('|')}</span>
+      <span data-testid="filter-areas">{filterOptions.areas.join('|')}</span>
+      <span data-testid="filter-agents">{filterOptions.agents.map((agent) => `${agent.id}:${agent.label}`).join('|')}</span>
+      <span data-testid="filter-statuses">{filterOptions.statuses.map((status) => `${status.value}:${status.label}`).join('|')}</span>
+      <span data-testid="filter-priorities">{filterOptions.priorities.join('|')}</span>
+      <span data-testid="filter-sla">{filterOptions.slaStatuses.join('|')}</span>
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
@@ -562,6 +576,72 @@ describe('TicketContext unread delta reconciliation', () => {
         sla: 'risk',
         unread: 'unread',
       });
+    });
+  });
+
+  it('uses backend facets for global filter options beyond the current ticket page', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'municipio',
+          nro_ticket: 'REC-1',
+          asunto: 'Alumbrado',
+          estado: 'abierto',
+          channel: 'whatsapp',
+          fecha: '2026-03-21T10:00:00.000Z',
+          categoria: 'Luminaria',
+          priority: 'alta',
+          sla_status: 'risk',
+          assignedAgent: {
+            id: 5,
+            nombre_usuario: 'Operador uno',
+            email: 'uno@junin.gob.ar',
+          },
+        },
+      ],
+      facets: {
+        contract_version: 'tickets.facets.v1',
+        channels: [
+          { value: 'whatsapp', label: 'WhatsApp', count: 1 },
+          { value: 'web', label: 'Web', count: 1 },
+        ],
+        areas: [
+          { value: 'Luminaria', label: 'Luminaria', count: 1 },
+          { value: 'Arbolado', label: 'Arbolado', count: 1 },
+        ],
+        agents: [
+          { value: 'unassigned', label: 'Sin responsable', count: 1 },
+          { value: '5', label: 'Operador uno', count: 1 },
+        ],
+        statuses: [
+          { value: 'abierto', label: 'Abierto', count: 1 },
+          { value: 'cerrado', label: 'Cerrado', count: 1 },
+        ],
+        priorities: [
+          { value: 'alta', label: 'Alta', count: 1 },
+          { value: 'media', label: 'Media', count: 1 },
+        ],
+        slaStatuses: [
+          { value: 'risk', label: 'Riesgo', count: 1 },
+          { value: 'ok', label: 'Al dia', count: 1 },
+        ],
+      },
+    });
+
+    render(
+      <TicketProvider>
+        <FilterOptionsConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('filter-channels').textContent).toBe('web|whatsapp');
+      expect(screen.getByTestId('filter-areas').textContent).toBe('Arbolado|Luminaria');
+      expect(screen.getByTestId('filter-agents').textContent).toBe('unassigned:Sin responsable|5:Operador uno');
+      expect(screen.getByTestId('filter-statuses').textContent).toContain('cerrado:Cerrado');
+      expect(screen.getByTestId('filter-priorities').textContent).toBe('alta|media');
+      expect(screen.getByTestId('filter-sla').textContent).toBe('ok|risk');
     });
   });
 

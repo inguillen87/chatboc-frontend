@@ -8,6 +8,7 @@ import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStre
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import DetailsPanel from './DetailsPanel';
+import CaseStrip from './CaseStrip';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
@@ -1188,6 +1189,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           </div>
         </div>
       </header>
+
+      <CaseStrip
+        ticket={selectedTicket}
+        isDetailsVisible={isDetailsVisible}
+        onOpenDetails={showDetailsToggle ? onToggleDetails : undefined}
+      />
 
       {!isMobile && !isDetailsVisible && setDesktopView && (
         <div className="p-2 border-b border-border">

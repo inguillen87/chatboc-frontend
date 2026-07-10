@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Ticket, User } from '@/types/tickets';
-import { getTickets, type TicketInboxPagination } from '@/services/ticketService';
+import { getTickets, type TicketInboxFacetItem, type TicketInboxFacets, type TicketInboxPagination } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
@@ -487,6 +487,27 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
 
 
 const normalizeFilterValue = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+const readFacetValue = (item: TicketInboxFacetItem | null | undefined): string => {
+  const rawValue = item?.value ?? item?.id ?? item?.label ?? '';
+  return String(rawValue).trim();
+};
+const readFacetLabel = (item: TicketInboxFacetItem | null | undefined): string => {
+  const rawLabel = item?.label ?? item?.value ?? item?.id ?? '';
+  return String(rawLabel).trim();
+};
+const normalizeFacetItems = (items?: TicketInboxFacetItem[] | null): TicketInboxFacetItem[] =>
+  Array.isArray(items) ? items.filter((item) => Boolean(readFacetValue(item))) : [];
+const facetValues = (items?: TicketInboxFacetItem[] | null): string[] =>
+  normalizeFacetItems(items)
+    .map(readFacetValue)
+    .filter(Boolean);
+const facetOptions = (items?: TicketInboxFacetItem[] | null): Array<{ value: string; label: string }> =>
+  normalizeFacetItems(items)
+    .map((item) => ({
+      value: readFacetValue(item),
+      label: readFacetLabel(item) || readFacetValue(item),
+    }))
+    .filter((item) => Boolean(item.value));
 const prettifyWorkflowStateLabel = (state: string): string =>
   state
     .split('_')
@@ -619,6 +640,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [errorDetails, setErrorDetails] = useState<TicketInboxErrorDetails | null>(null);
   const [pagination, setPagination] = useState<TicketInboxPagination | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
+  const [serverFacets, setServerFacets] = useState<TicketInboxFacets | null>(null);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
   const workflowMetadataTenantRef = React.useRef<string | null>(null);
   const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
@@ -813,6 +835,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setTickets([]);
       setSelectedTicket(null);
       setPagination(null);
+      setServerFacets(null);
       setLoading(false);
       return;
     }
@@ -857,6 +880,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const filteredTickets = filterTicketsForUser(normalizedTickets);
         const nextOperationalTicket = getNextOperationalTicket(filteredTickets);
         const nextPagination = (apiResponse as any)?.pagination || null;
+        setServerFacets((apiResponse as any)?.facets || null);
         setTickets(filteredTickets);
         setPagination(nextPagination);
         setSelectedTicket((prev) => {
@@ -878,6 +902,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         if (!cacheWasApplied) {
           setTickets([]);
           setPagination(null);
+          setServerFacets(null);
         }
       }
       setError(null);
@@ -895,6 +920,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setErrorDetails(nextErrorDetails);
       setTickets([]);
       setPagination(null);
+      setServerFacets(null);
     } finally {
       setLoading(false);
     }
@@ -919,6 +945,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (Array.isArray(fetchedTickets)) {
         const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
         const filteredTickets = filterTicketsForUser(normalizedTickets);
+        if ((apiResponse as any)?.facets) {
+          setServerFacets((apiResponse as any).facets);
+        }
         setTickets((current) => mergeTicketPages(current, filteredTickets));
         setPagination((apiResponse as any)?.pagination || null);
         setSelectedTicket((prev) => prev || getNextOperationalTicket(filteredTickets));
@@ -1077,30 +1106,67 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
 
   const filterOptions = React.useMemo<TicketFilterOptions>(() => {
-    const channels = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.channel)).filter(Boolean))).sort();
+    const facetStatuses = facetOptions(serverFacets?.statuses).map((status) => {
+      const workflowLabel = workflowStatuses.find(
+        (workflowStatus) => normalizeFilterValue(workflowStatus.value) === normalizeFilterValue(status.value),
+      )?.label;
+      return {
+        value: status.value,
+        label: workflowLabel || status.label,
+      };
+    });
     const discoveredStatuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
-    const statuses = workflowStatuses.length > 0
-      ? workflowStatuses
-      : discoveredStatuses.map((status) => ({ value: status, label: status }));
-    const areas = Array.from(
+    const channels = serverFacets?.channels?.length
+      ? facetValues(serverFacets.channels).map(normalizeFilterValue).filter(Boolean).sort()
+      : Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.channel)).filter(Boolean))).sort();
+    const statuses = facetStatuses.length > 0
+      ? facetStatuses
+      : workflowStatuses.length > 0
+        ? workflowStatuses
+        : discoveredStatuses.map((status) => ({ value: status, label: status }));
+    const areasFromFacets = facetValues(serverFacets?.areas?.length ? serverFacets.areas : serverFacets?.categories);
+    const areas = areasFromFacets.length > 0
+      ? areasFromFacets.sort((a, b) => a.localeCompare(b))
+      : Array.from(
       new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean) as string[]),
     ).sort((a, b) => a.localeCompare(b));
-    const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
-    const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
+    const priorities = serverFacets?.priorities?.length
+      ? facetValues(serverFacets.priorities).map(normalizeFilterValue).filter(Boolean).sort()
+      : Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
+    const slaFacetItems = serverFacets?.slaStatuses?.length ? serverFacets.slaStatuses : serverFacets?.sla;
+    const slaStatuses = slaFacetItems?.length
+      ? facetValues(slaFacetItems).map(normalizeFilterValue).filter(Boolean).sort()
+      : Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
 
     const agentMap = new Map<string, string>();
-    const hasUnassignedTickets = tickets.some((ticket) => !resolveAgentFilterId(ticket));
-    tickets.forEach((ticket) => {
-      const id = resolveAgentFilterId(ticket);
-      if (!id) return;
-      const label =
-        ticket.assignedAgent?.nombre_usuario ||
-        ticket.assignedAgent?.email ||
-        String(ticket.assignedAgentId || ticket.assigned_agent_id || id);
-      if (!agentMap.has(id)) {
-        agentMap.set(id, label);
-      }
-    });
+    let hasUnassignedTickets = false;
+    const facetAgents = normalizeFacetItems(serverFacets?.agents);
+    if (facetAgents.length > 0) {
+      facetAgents.forEach((agent) => {
+        const id = readFacetValue(agent);
+        if (!id) return;
+        if (id === 'unassigned') {
+          hasUnassignedTickets = true;
+          return;
+        }
+        if (!agentMap.has(id)) {
+          agentMap.set(id, readFacetLabel(agent) || id);
+        }
+      });
+    } else {
+      hasUnassignedTickets = tickets.some((ticket) => !resolveAgentFilterId(ticket));
+      tickets.forEach((ticket) => {
+        const id = resolveAgentFilterId(ticket);
+        if (!id) return;
+        const label =
+          ticket.assignedAgent?.nombre_usuario ||
+          ticket.assignedAgent?.email ||
+          String(ticket.assignedAgentId || ticket.assigned_agent_id || id);
+        if (!agentMap.has(id)) {
+          agentMap.set(id, label);
+        }
+      });
+    }
 
     return {
       channels,
@@ -1120,7 +1186,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           .sort((a, b) => a.label.localeCompare(b.label)),
       ],
     };
-  }, [tickets, workflowStatuses]);
+  }, [serverFacets, tickets, workflowStatuses]);
 
   const filteredTickets = React.useMemo(() => {
     return tickets.filter((ticket) => {

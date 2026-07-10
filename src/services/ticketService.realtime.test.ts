@@ -482,6 +482,39 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('preserves backend inbox facets for global filter options', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [],
+      pagination: {
+        page: 1,
+        per_page: 25,
+        total_items: 0,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+      facets: {
+        contract_version: 'tickets.facets.v1',
+        total_scoped: 2,
+        channels: [
+          { value: 'whatsapp', label: 'WhatsApp', count: 1 },
+          { value: 'web', label: 'Web', count: 1 },
+        ],
+      },
+    });
+
+    const result = await getTickets('junin', { page: 1, perPage: 25 });
+
+    expect(result.facets).toMatchObject({
+      contract_version: 'tickets.facets.v1',
+      total_scoped: 2,
+      channels: [
+        { value: 'whatsapp', label: 'WhatsApp', count: 1 },
+        { value: 'web', label: 'Web', count: 1 },
+      ],
+    });
+  });
+
   it('passes unassigned inbox filters as backend query parameters', async () => {
     apiFetchMock.mockResolvedValueOnce({
       tickets: [],

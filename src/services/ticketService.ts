@@ -165,6 +165,38 @@ export interface TicketInboxPagination {
     has_prev: boolean;
 }
 
+export interface TicketInboxFacetItem {
+    value?: string | number | null;
+    id?: string | number | null;
+    label?: string | null;
+    count?: number;
+    category_id?: string | number | null;
+}
+
+export interface TicketInboxFacets {
+    contract_version?: string;
+    mode?: string;
+    ticket_type?: string;
+    total_scoped?: number;
+    total_filtered?: number;
+    statuses?: TicketInboxFacetItem[];
+    categories?: TicketInboxFacetItem[];
+    areas?: TicketInboxFacetItem[];
+    channels?: TicketInboxFacetItem[];
+    agents?: TicketInboxFacetItem[];
+    priorities?: TicketInboxFacetItem[];
+    sla?: TicketInboxFacetItem[];
+    slaStatuses?: TicketInboxFacetItem[];
+    unread?: TicketInboxFacetItem[];
+}
+
+export interface TicketInboxResponse {
+    tickets: Ticket[];
+    pagination: TicketInboxPagination;
+    summary?: Record<string, unknown>;
+    facets?: TicketInboxFacets | null;
+}
+
 export interface GetTicketsOptions {
     page?: number;
     perPage?: number;
@@ -606,7 +638,7 @@ const resolvePublicTicketAccess = (pin?: string) => {
 export const getTickets = async (
   tenantSlug?: string | null,
   options: GetTicketsOptions = {},
-): Promise<{ tickets: Ticket[]; pagination: TicketInboxPagination; summary?: Record<string, unknown> }> => {
+): Promise<TicketInboxResponse> => {
   try {
       const page = Math.max(1, Number(options.page || 1) || 1);
       const perPage = Math.max(1, Number(options.perPage || TICKET_INBOX_INITIAL_PAGE_SIZE) || TICKET_INBOX_INITIAL_PAGE_SIZE);
@@ -633,7 +665,12 @@ export const getTickets = async (
       if (options.unassigned) {
         params.set('unassigned', 'true');
       }
-      const response = await apiFetch<{ tickets: Ticket[]; pagination?: TicketInboxPagination; summary?: Record<string, unknown> }>(ticketApiPath(`/tickets?${params.toString()}`), {
+      const response = await apiFetch<{
+        tickets: Ticket[];
+        pagination?: TicketInboxPagination;
+        summary?: Record<string, unknown>;
+        facets?: TicketInboxFacets | null;
+      }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,
       suppressPanel401Redirect: true,
@@ -661,6 +698,7 @@ export const getTickets = async (
         tickets: ticketsWithAvatars,
         pagination: normalizeTicketPagination(response.pagination, page, perPage, ticketsWithAvatars.length),
         summary: response.summary,
+        facets: response.facets || null,
     };
 
   } catch (error) {
