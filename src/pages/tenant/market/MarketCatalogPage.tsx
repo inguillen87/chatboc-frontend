@@ -599,6 +599,55 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </header>
 
+      {showAssistedIntake ? (
+        <section
+          data-testid="market-assisted-header-rail"
+          className="rounded-lg border border-primary/20 bg-gradient-to-r from-primary/10 via-background to-emerald-500/10 p-3 shadow-sm sm:p-4"
+          aria-label="Carga asistida sin registro"
+        >
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
+                  {catalogActuallyEmpty ? 'No hace falta catalogo' : 'Pedido libre'}
+                </Badge>
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
+                  Sin registro
+                </Badge>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-foreground sm:text-base">
+                Subi una foto, PDF, boleta o lista escrita. El equipo recibe la solicitud ordenada y con seguimiento.
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Pensado para clientes y vecinos que no quieren navegar un catalogo: Chatboc conserva el archivo original,
+                separa articulos o datos clave y deja una respuesta operativa lista para el panel.
+              </p>
+            </div>
+            <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
+              <Button
+                type="button"
+                data-testid="market-assisted-header-upload"
+                className="w-full whitespace-normal leading-tight sm:whitespace-nowrap"
+                onClick={() => activateAssistedUpload('file')}
+              >
+                <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
+                Subir nota o foto
+              </Button>
+              <Button
+                type="button"
+                data-testid="market-assisted-header-text"
+                variant="outline"
+                className="w-full whitespace-normal leading-tight sm:whitespace-nowrap"
+                onClick={() => activateAssistedUpload('text')}
+              >
+                <FileText className="mr-2 h-4 w-4 shrink-0" />
+                Pegar lista
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <OperationalContinuityBar
         testId="market-operational-continuity"
         className={assistedFirstActive ? 'order-last' : undefined}

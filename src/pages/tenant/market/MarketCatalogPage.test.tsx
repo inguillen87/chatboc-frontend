@@ -142,7 +142,11 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       }),
     );
 
-    expect(screen.getByText('Sin registro')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-header-rail')).toBeInTheDocument();
+    expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Subi una foto, PDF, boleta o lista escrita/i)).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-header-upload')).toBeInTheDocument();
+    expect(screen.getByTestId('market-assisted-header-text')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto del papel, pega tu lista o manda un documento/i)).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
@@ -245,7 +249,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Sin registro')).toBeInTheDocument();
+    expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('market-assisted-command')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Subir foto o archivo/i })).toBeInTheDocument();
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
@@ -341,6 +345,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.queryByText('Carga asistida')).not.toBeInTheDocument();
     expect(screen.queryByText('Intake IA sin registro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('assisted-first-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('market-assisted-header-rail')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Subir pedido\/foto\/texto/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('market-assisted-upload-cta')).not.toBeInTheDocument();
   });
@@ -373,7 +378,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     });
 
     expect(screen.getByText('Carga asistida')).toBeInTheDocument();
-    expect(screen.getByText('Sin registro')).toBeInTheDocument();
+    expect(screen.getAllByText('Sin registro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
     expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();
