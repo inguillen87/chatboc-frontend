@@ -172,8 +172,14 @@ const EmptyPanel = ({ label }: { label: string }) => (
   </div>
 );
 
-const readLeadLabel = (lead: AnyRecord, index: number) =>
-  String(first(lead, ["contact", "contact_name", "name", "nombre", "intent", "ticket_id", "id"]) || `Lead ${index + 1}`);
+const readLeadLabel = (lead: AnyRecord, index: number) => {
+  const contact = isRecord(lead.contact) ? lead.contact : {};
+  return String(
+    first(contact, ["name", "nombre", "email", "phone", "telefono"]) ||
+      first(lead, ["contact_name", "name", "nombre", "intent", "ticket_id", "id"]) ||
+      `Lead ${index + 1}`,
+  );
+};
 
 const readLeadTicket = (lead: AnyRecord | null): OmnichannelInboxItem | null =>
   lead ? normalizeOmnichannelInboxItemV2(lead) : null;
@@ -268,6 +274,8 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
   const educationProfile = isRecord(first(education, ["profile", "education_profile"])) ? (first(education, ["profile", "education_profile"]) as AnyRecord) : {};
   const leadCapture = bundle?.lead_capture ?? {};
   const leadItems = asArray(first(leadCapture, ["items", "leads", "tickets"]));
+  const visibleLeadItems = leadItems.slice(0, 6);
+  const hiddenLeadCount = Math.max(0, leadItems.length - visibleLeadItems.length);
   const whatsappExperience = bundle?.whatsapp_experience ?? null;
   const hasWhatsappExperience = Boolean(
     whatsappExperience || (bundle?.whatsapp && Object.keys(bundle.whatsapp).length > 0),
@@ -538,7 +546,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                 <StatePill value={`${leadItems.length} items`} tone="ready" />
               </CardHeader>
               <CardContent className="grid gap-2">
-                {leadItems.slice(0, 6).map((lead, index) => {
+                {visibleLeadItems.map((lead, index) => {
                   const contact = isRecord(lead.contact) ? lead.contact : {};
                   const label = readLeadLabel(lead, index);
                   return (
@@ -564,6 +572,16 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                     </button>
                   );
                 })}
+                {hiddenLeadCount ? (
+                  <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="font-semibold">
+                      {hiddenLeadCount} leads ocultos en esta vista compacta.
+                    </div>
+                    <p className="mt-1 text-xs text-amber-800">
+                      Abrir el pipeline para priorizar por SLA, estado, proximo paso y responsable sin perder casos.
+                    </p>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

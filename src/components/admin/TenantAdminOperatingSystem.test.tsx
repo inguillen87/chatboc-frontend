@@ -1,11 +1,52 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ConversationalFlowReadinessPanel,
   OpsQaCommandCenter,
   TransactionsModulePanel,
+  default as TenantAdminOperatingSystem,
 } from "./TenantAdminOperatingSystem";
+import {
+  getTenantAdminExperienceV2,
+  getTenantOpsQaPlaybookV2,
+} from "@/api/v2/saas";
+
+vi.mock("@/context/TenantContext", () => ({
+  useTenant: () => ({ currentSlug: "junin" }),
+}));
+
+vi.mock("@/api/v2/saas", () => ({
+  getTenantAdminExperienceV2: vi.fn(),
+  getTenantOpsQaPlaybookV2: vi.fn(),
+  runTenantOpsQaCheckV2: vi.fn(),
+  normalizeOmnichannelInboxItemV2: vi.fn((lead: Record<string, unknown>) => ({
+    ...lead,
+    id: lead.ticket_id ?? lead.id,
+    ticket_id: lead.ticket_id ?? lead.id,
+  })),
+}));
+
+const mockedGetTenantAdminExperienceV2 = vi.mocked(getTenantAdminExperienceV2);
+const mockedGetTenantOpsQaPlaybookV2 = vi.mocked(getTenantOpsQaPlaybookV2);
+
+beforeEach(() => {
+  mockedGetTenantAdminExperienceV2.mockReset();
+  mockedGetTenantOpsQaPlaybookV2.mockReset();
+  mockedGetTenantOpsQaPlaybookV2.mockResolvedValue({
+    contract_version: "tenant.ops_qa.playbook.v1",
+    tenant: { slug: "junin" },
+    safe_by_default: true,
+    status: "ready",
+    score: 1,
+    summary: { checks_total: 0, passed: 0, warnings: 0, critical_failed: 0 },
+    checks: [],
+    recommended_next_actions: [],
+    execution: {},
+    frontend_contract: {},
+    raw: {},
+  } as any);
+});
 
 const financeExperience = {
   commerce: {
@@ -135,6 +176,43 @@ const financeExperience = {
     },
   },
 };
+
+describe("TenantAdminOperatingSystem", () => {
+  it("shows when the compact lead inbox hides remaining leads", async () => {
+    const leads = Array.from({ length: 8 }, (_, index) => ({
+      id: `lead-${index + 1}`,
+      ticket_id: index + 1,
+      ticket_type: "tenant",
+      source_model: "TenantTicket",
+      name: `Lead ${index + 1}`,
+      status: "nuevo",
+      contact: { name: `Contacto ${index + 1}` },
+    }));
+
+    mockedGetTenantAdminExperienceV2.mockResolvedValue({
+      tenant: { slug: "junin", tipo: "municipio", plan: "full" },
+      profile: { display_name: "Municipalidad de Junin", readiness: { checks: {} } },
+      health: { score: 0.93 },
+      frontend_contract: { render_as: "tenant_admin_operating_system" },
+      modules: [{ id: "summary", label: "Resumen" }],
+      operations: { dashboard: { summary: {} }, freshness: { status: "ready", summary: {} } },
+      marketplace: {},
+      surveys_votings: {},
+      lead_capture: { items: leads },
+    } as any);
+
+    render(<TenantAdminOperatingSystem tenantSlug="junin" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Lead capture / Inbox 360")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("2 leads ocultos en esta vista compacta.")).toBeInTheDocument();
+    expect(screen.getByText(/Abrir el pipeline para priorizar por SLA/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Contacto 1").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Contacto 8")).not.toBeInTheDocument();
+  });
+});
 
 describe("OpsQaCommandCenter", () => {
   it("renders backend E2E flow readiness with manual steps and criteria", () => {

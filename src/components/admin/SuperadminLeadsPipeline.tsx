@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -49,6 +49,12 @@ interface LeadItem {
   nro_ticket?: string | number;
   ticket_id?: string | number;
   ticket_type?: "municipio" | "pyme" | string;
+  source_model?: string;
+  detail_endpoint?: string;
+  order_endpoint?: string;
+  source_metadata?: Record<string, unknown> | null;
+  order_id?: string | number;
+  market_order_id?: string | number;
   stage?: LeadStage;
   relevance_score?: number;
   created_at?: string;
@@ -80,6 +86,49 @@ const normalizeLeadField = (item: LeadItem, ...keys: Array<keyof LeadItem>) => {
   }
   return "";
 };
+const readLeadMetadataField = (item: LeadItem, keys: string[]) => {
+  const metadata =
+    item.source_metadata &&
+    typeof item.source_metadata === "object" &&
+    !Array.isArray(item.source_metadata)
+      ? item.source_metadata
+      : {};
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return "";
+};
+const extractIdFromEndpoint = (endpoint?: string) => {
+  if (!endpoint) return "";
+  const path = endpoint.split("?")[0].split("#")[0];
+  const lastSegment = path.split("/").filter(Boolean).pop();
+  if (!lastSegment || ["orders", "pedidos", "pedido"].includes(lastSegment.toLowerCase())) {
+    return "";
+  }
+  return decodeURIComponent(lastSegment);
+};
+const getLeadOrderId = (item: LeadItem) =>
+  normalizeLeadField(item, "order_id", "market_order_id") ||
+  readLeadMetadataField(item, [
+    "order_id",
+    "orderId",
+    "market_order_id",
+    "marketOrderId",
+    "pedido_id",
+    "pedidoId",
+  ]) ||
+  extractIdFromEndpoint(item.order_endpoint);
+const getLeadSourceLabel = (item: LeadItem) =>
+  normalizeLeadField(item, "source_model") ||
+  readLeadMetadataField(item, [
+    "source_model",
+    "sourceModel",
+    "source",
+    "origin",
+    "channel",
+  ]);
 const toTimestamp = (value?: string) => {
   const t = value ? new Date(value).getTime() : 0;
   return Number.isFinite(t) ? t : 0;
@@ -107,6 +156,7 @@ const getStageBadgeVariant = (
 };
 
 const SuperadminLeadsPipeline: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tenantSlug, setTenantSlug] = useState(
     () => searchParams.get("tenant_slug") || "",
@@ -344,6 +394,46 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const leadKey = (item: LeadItem) =>
     `${item.ticket_type || "municipio"}:${item.nro_ticket || item.ticket_id || item.id || ""}`;
+  const resolveLeadTenantSlug = (item: LeadItem) =>
+    normalizeLeadField(item, "tenant_slug") ||
+    tenantBoardSlug.trim() ||
+    tenantSlug.trim();
+  const selectedFilteredLeadCount = filteredItems.filter((item) =>
+    selectedLeadKeys.includes(leadKey(item)),
+  ).length;
+  const buildTenantCasePath = (item: LeadItem) => {
+    const slug = resolveLeadTenantSlug(item);
+    const ticketId = item.nro_ticket || item.ticket_id || item.id;
+    const ticketType = item.ticket_type || "municipio";
+    if (!slug || !ticketId) return "";
+    const params = new URLSearchParams({
+      ticket_type: String(ticketType),
+      ticket_id: String(ticketId),
+    });
+    return `/t/${encodeURIComponent(slug)}/tickets?${params.toString()}`;
+  };
+  const buildTenantOrderPath = (item: LeadItem) => {
+    const slug = resolveLeadTenantSlug(item);
+    const orderId = getLeadOrderId(item);
+    if (!slug || !orderId) return "";
+    return `/t/${encodeURIComponent(slug)}/pedidos/${encodeURIComponent(orderId)}`;
+  };
+  const handleOpenTenantCase = (item: LeadItem) => {
+    const path = buildTenantCasePath(item);
+    if (!path) {
+      toast.error("Faltan datos para abrir el caso.");
+      return;
+    }
+    navigate(path);
+  };
+  const handleOpenTenantOrder = (item: LeadItem) => {
+    const path = buildTenantOrderPath(item);
+    if (!path) {
+      toast.error("Este lead no tiene pedido vinculado.");
+      return;
+    }
+    navigate(path);
+  };
   const handleToggleLeadSelection = (item: LeadItem) => {
     const key = leadKey(item);
     setSelectedLeadKeys((prev) =>
@@ -353,14 +443,23 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const handleStageChange = async (item: LeadItem, nextStage: string) => {
     const ticketId = item.nro_ticket || item.ticket_id;
+    const ticketType = item.ticket_type || "municipio";
+    const slug = resolveLeadTenantSlug(item);
     if (!ticketId) return;
     const note =
       window.prompt("Nota de cambio de etapa (opcional):", "") || undefined;
-    await enterpriseService.updateLeadStage(ticketId, {
-      stage: nextStage,
-      note,
-      ticket_type: item.ticket_type || "municipio",
-    });
+    if (slug) {
+      await enterpriseService.updateTenantLeadStage(slug, ticketType, ticketId, {
+        stage: nextStage,
+        note,
+      });
+    } else {
+      await enterpriseService.updateLeadStage(ticketId, {
+        stage: nextStage,
+        note,
+        ticket_type: ticketType,
+      });
+    }
     fetchPipeline();
   };
 
@@ -384,9 +483,12 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const handleOpenTimeline = async (item: LeadItem) => {
     const ticketId = item.nro_ticket || item.ticket_id;
     const ticketType = item.ticket_type || "municipio";
+    const slug = resolveLeadTenantSlug(item);
     if (!ticketId) return;
     setSelectedTimelineLead(item);
-    const resp = await enterpriseService.getLeadTimeline(ticketType, ticketId);
+    const resp = slug
+      ? await enterpriseService.getTenantLeadTimeline(slug, ticketType, ticketId)
+      : await enterpriseService.getLeadTimeline(ticketType, ticketId);
     setTimelineEvents(resp?.items || resp?.timeline || []);
   };
 
@@ -428,10 +530,17 @@ const SuperadminLeadsPipeline: React.FC = () => {
     const ticketId =
       selectedTimelineLead.nro_ticket || selectedTimelineLead.ticket_id;
     const ticketType = selectedTimelineLead.ticket_type || "municipio";
+    const slug = resolveLeadTenantSlug(selectedTimelineLead);
     if (!ticketId) return;
-    await enterpriseService.addLeadTimelineNote(ticketType, ticketId, {
-      note: timelineNote.trim(),
-    });
+    if (slug) {
+      await enterpriseService.addTenantLeadTimelineNote(slug, ticketType, ticketId, {
+        note: timelineNote.trim(),
+      });
+    } else {
+      await enterpriseService.addLeadTimelineNote(ticketType, ticketId, {
+        note: timelineNote.trim(),
+      });
+    }
     setTimelineNote("");
     handleOpenTimeline(selectedTimelineLead);
   };
@@ -925,9 +1034,18 @@ const SuperadminLeadsPipeline: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <Button size="sm" onClick={handleBulkStageUpdate}>
-                  Bulk stage
+                <Button
+                  size="sm"
+                  onClick={handleBulkStageUpdate}
+                  disabled={!selectedFilteredLeadCount}
+                >
+                  Mover {selectedFilteredLeadCount || 0}
                 </Button>
+                {!selectedFilteredLeadCount ? (
+                  <span className="text-xs text-muted-foreground">
+                    Selecciona leads visibles para aplicar bulk stage.
+                  </span>
+                ) : null}
                 <Button
                   size="sm"
                   variant="outline"
@@ -979,6 +1097,16 @@ const SuperadminLeadsPipeline: React.FC = () => {
                                 {normalizeLeadField(item, "ticket_type") ||
                                   "municipio"}
                               </Badge>
+                              {getLeadSourceLabel(item) ? (
+                                <Badge variant="secondary">
+                                  {getLeadSourceLabel(item)}
+                                </Badge>
+                              ) : null}
+                              {getLeadOrderId(item) ? (
+                                <Badge variant="outline">
+                                  Pedido {getLeadOrderId(item)}
+                                </Badge>
+                              ) : null}
                               {item.nro_ticket || item.ticket_id ? (
                                 <Badge variant="outline">
                                   #
@@ -1130,6 +1258,23 @@ const SuperadminLeadsPipeline: React.FC = () => {
                             >
                               Timeline
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenTenantCase(item)}
+                              disabled={!buildTenantCasePath(item)}
+                            >
+                              Abrir caso
+                            </Button>
+                            {buildTenantOrderPath(item) ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenTenantOrder(item)}
+                              >
+                                Abrir pedido
+                              </Button>
+                            ) : null}
                             <Button
                               size="sm"
                               variant="outline"
@@ -1358,6 +1503,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                       <th className="p-2">Etapa</th>
                       <th className="p-2">Timeline</th>
                       <th className="p-2">Delegación</th>
+                      <th className="p-2">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1384,6 +1530,21 @@ const SuperadminLeadsPipeline: React.FC = () => {
                               {normalizeLeadField(lead, "nombre", "name") ||
                                 "Sin nombre"}{" "}
                               #{lead.nro_ticket || lead.ticket_id || "—"}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant="outline">
+                                {normalizeLeadField(lead, "ticket_type") || "ticket"}
+                              </Badge>
+                              {getLeadSourceLabel(lead) ? (
+                                <Badge variant="secondary">
+                                  {getLeadSourceLabel(lead)}
+                                </Badge>
+                              ) : null}
+                              {getLeadOrderId(lead) ? (
+                                <Badge variant="outline">
+                                  Pedido {getLeadOrderId(lead)}
+                                </Badge>
+                              ) : null}
                             </div>
                             {(Number(lead?.collaboration_state?.active_viewers_count || 0) > 0 ||
                               Number(lead?.collaboration_state?.unread_viewer_count || 0) > 0) ? (
@@ -1429,6 +1590,31 @@ const SuperadminLeadsPipeline: React.FC = () => {
                           >
                             Autoasignar empleado
                           </Button>
+                        </td>
+                        <td className="p-2">
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenTenantCase(lead)}
+                              disabled={!buildTenantCasePath(lead)}
+                            >
+                              Abrir caso
+                            </Button>
+                            {buildTenantOrderPath(lead) ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenTenantOrder(lead)}
+                              >
+                                Abrir pedido
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                Sin pedido vinculado
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

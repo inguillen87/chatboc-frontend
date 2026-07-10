@@ -169,6 +169,47 @@ describe('enterpriseService demo endpoints', () => {
     });
   });
 
+  it('normalizes tenant leads with marketplace source endpoints', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      total: 1,
+      items: [
+        {
+          ticketId: 'tt-42',
+          ticketType: 'tenant',
+          sourceModel: 'TenantTicket',
+          sourceMetadata: {
+            origin: 'marketplace_intake',
+            marketOrderId: 'ord-99',
+          },
+          detailEndpoint: '/api/admin/tenants/junin/leads/tenant/tt-42',
+          orderEndpoint: '/api/admin/tenants/junin/orders/ord-99',
+          collaborationState: {
+            unreadCount: 2,
+          },
+        },
+      ],
+    });
+
+    const response = await enterpriseService.getTenantLeads('junin', { limit: 25 });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/leads?limit=25', {
+      tenantSlug: 'junin',
+    });
+    expect(response.items?.[0]).toMatchObject({
+      ticket_id: 'tt-42',
+      ticket_type: 'tenant',
+      source_model: 'TenantTicket',
+      detail_endpoint: '/api/admin/tenants/junin/leads/tenant/tt-42',
+      order_endpoint: '/api/admin/tenants/junin/orders/ord-99',
+      market_order_id: 'ord-99',
+      source_metadata: {
+        origin: 'marketplace_intake',
+        marketOrderId: 'ord-99',
+      },
+    });
+    expect(response.leads?.[0]?.collaboration_state?.unread_count).toBe(2);
+  });
+
 
   it('keeps team collaboration metrics in tenant dashboard bundle', async () => {
     apiFetchMock.mockResolvedValueOnce({

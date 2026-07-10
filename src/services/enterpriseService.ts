@@ -484,6 +484,12 @@ export interface EnterpriseLeadItem {
   ticket_id?: number | string;
   nro_ticket?: number | string;
   ticket_type?: string;
+  source_model?: string;
+  detail_endpoint?: string;
+  order_endpoint?: string;
+  source_metadata?: Record<string, unknown> | null;
+  order_id?: number | string;
+  market_order_id?: number | string;
   tenant_slug?: string;
   nombre?: string;
   name?: string;
@@ -496,6 +502,13 @@ export interface EnterpriseLeadItem {
   created_at?: string;
   updated_at?: string;
   collaboration_state?: TicketCollaborationState | null;
+}
+
+export interface TenantLeadsResponse {
+  total?: number;
+  items?: EnterpriseLeadItem[];
+  leads?: EnterpriseLeadItem[];
+  [key: string]: unknown;
 }
 
 export interface TenantUnreadSummaryItem {
@@ -714,6 +727,11 @@ const normalizeCollaborationState = (raw: unknown): TicketCollaborationState | n
 const normalizeEnterpriseLeadItem = (raw: unknown): EnterpriseLeadItem | null => {
   if (!raw || typeof raw !== "object") return null;
   const item = raw as Record<string, unknown>;
+  const sourceMetadataRaw = item.source_metadata ?? item.sourceMetadata;
+  const sourceMetadata =
+    sourceMetadataRaw && typeof sourceMetadataRaw === "object" && !Array.isArray(sourceMetadataRaw)
+      ? (sourceMetadataRaw as Record<string, unknown>)
+      : null;
   return {
     ...item,
     id: (item.id as string | number | undefined) ?? undefined,
@@ -729,11 +747,57 @@ const normalizeEnterpriseLeadItem = (raw: unknown): EnterpriseLeadItem | null =>
       (item.ticket_type as string | undefined) ??
       (item.ticketType as string | undefined) ??
       undefined,
+    source_model:
+      (item.source_model as string | undefined) ??
+      (item.sourceModel as string | undefined) ??
+      undefined,
+    detail_endpoint:
+      (item.detail_endpoint as string | undefined) ??
+      (item.detailEndpoint as string | undefined) ??
+      undefined,
+    order_endpoint:
+      (item.order_endpoint as string | undefined) ??
+      (item.orderEndpoint as string | undefined) ??
+      undefined,
+    source_metadata: sourceMetadata,
+    order_id:
+      (item.order_id as string | number | undefined) ??
+      (item.orderId as string | number | undefined) ??
+      (sourceMetadata?.order_id as string | number | undefined) ??
+      (sourceMetadata?.orderId as string | number | undefined) ??
+      undefined,
+    market_order_id:
+      (item.market_order_id as string | number | undefined) ??
+      (item.marketOrderId as string | number | undefined) ??
+      (sourceMetadata?.market_order_id as string | number | undefined) ??
+      (sourceMetadata?.marketOrderId as string | number | undefined) ??
+      undefined,
     tenant_slug:
       (item.tenant_slug as string | undefined) ??
       (item.tenantSlug as string | undefined) ??
       undefined,
-    collaboration_state: normalizeCollaborationState(item.collaboration_state),
+    collaboration_state: normalizeCollaborationState(
+      item.collaboration_state ?? item.collaborationState,
+    ),
+  };
+};
+
+const normalizeTenantLeadsResponse = (raw: unknown): TenantLeadsResponse => {
+  if (!raw || typeof raw !== "object") return { items: [], leads: [] };
+  const response = raw as TenantLeadsResponse;
+  const rawItems = Array.isArray(response.items)
+    ? response.items
+    : Array.isArray(response.leads)
+      ? response.leads
+      : [];
+  const items = rawItems
+    .map(normalizeEnterpriseLeadItem)
+    .filter((item): item is EnterpriseLeadItem => Boolean(item));
+
+  return {
+    ...response,
+    items,
+    leads: items,
   };
 };
 
@@ -1135,11 +1199,12 @@ export const enterpriseService = {
   getTenantLeads: async (
     tenantSlug: string,
     filters: { stage?: string; limit?: number } = {},
-  ) => {
+  ): Promise<TenantLeadsResponse> => {
     const query = buildQueryString(filters);
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads?${query}`, {
+    const response = await apiFetch<TenantLeadsResponse>(`/api/admin/tenants/${tenantSlug}/leads?${query}`, {
       tenantSlug,
     });
+    return normalizeTenantLeadsResponse(response);
   },
 
   updateTenantLeadStage: async (
