@@ -42,6 +42,11 @@ import {
 } from "@/components/ui/dialog";
 import IntegrationPreviewDialog from './IntegrationPreviewDialog';
 import { cn } from '@/lib/utils';
+import {
+  buildIntegrationPlanLockView,
+  lockMatchesChannel,
+  type IntegrationPlanLockView,
+} from './integrationPlanLock';
 
 const CHANNEL_GUIDANCE: Record<string, { title: string; detail: string; outcome: string }> = {
   whatsapp: {
@@ -353,6 +358,8 @@ const IntegracionesPage = () => {
   const [sandboxSetupLoading, setSandboxSetupLoading] = useState(false);
   const [sandboxLoading, setSandboxLoading] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<WhatsappSandboxResult | null>(null);
+  const [integrationPlanLock, setIntegrationPlanLock] = useState<IntegrationPlanLockView | null>(null);
+  const [channelPlanLocks, setChannelPlanLocks] = useState<Record<string, IntegrationPlanLockView>>({});
 
   useEffect(() => {
     if (currentSlug) {
@@ -751,9 +758,15 @@ const IntegracionesPage = () => {
       if (!currentSlug) return;
       const data = await apiClient.adminGetIntegrations(currentSlug);
       setIntegrations(data);
+      clearIntegrationPlanLock();
     } catch (error) {
       console.error('Error loading integrations:', error);
+      const lock = rememberIntegrationPlanLock(error, undefined, "marketplace_sync");
       setIntegrations([]);
+      if (lock) {
+        toast.info(`${lock.featureLabel}: requiere plan ${lock.requiredPlan}.`);
+        return;
+      }
       toast.error('No se pudieron cargar las integraciones reales del tenant.');
     } finally {
       setLoading(false);
@@ -764,10 +777,39 @@ const IntegracionesPage = () => {
       return integrations.find(i => i.provider === provider) || { provider, connected: false };
   };
 
+  const rememberIntegrationPlanLock = (source: unknown, provider?: string, fallbackFeatureId = "marketplace_sync") => {
+    const lock = buildIntegrationPlanLockView(source, fallbackFeatureId);
+    if (!lock) return null;
+    setIntegrationPlanLock(lock);
+    if (provider) {
+      setChannelPlanLocks((prev) => ({ ...prev, [provider]: lock }));
+    }
+    return lock;
+  };
+
+  const clearIntegrationPlanLock = (provider?: string) => {
+    if (!provider) {
+      setIntegrationPlanLock(null);
+      setChannelPlanLocks({});
+      return;
+    }
+    setChannelPlanLocks((prev) => {
+      if (!prev[provider]) return prev;
+      const next = { ...prev };
+      delete next[provider];
+      return next;
+    });
+  };
+
+  const selectedChannelPlanLock =
+    channelPlanLocks[selectedChannel] ||
+    (lockMatchesChannel(integrationPlanLock, selectedChannel) ? integrationPlanLock : null);
+
   const handleConnect = async (provider: string) => {
     if (!currentSlug) return;
     try {
       const response = await apiClient.adminConnectIntegration(currentSlug, provider);
+      clearIntegrationPlanLock(provider);
       const connectUrl = response.redirect_url || response.url;
       const isTwilioTechProvider =
         provider === 'whatsapp' &&
@@ -809,7 +851,16 @@ const IntegracionesPage = () => {
           return;
         }
         if (status === 403) {
-          toast.error("Tu plan actual no incluye esta integración. Contactá a ventas para habilitarla.");
+          const lock = rememberIntegrationPlanLock(
+            error,
+            provider,
+            provider === "whatsapp" ? "whatsapp_sender_management" : "marketplace_sync",
+          );
+          toast.error(
+            lock
+              ? `${lock.featureLabel}: requiere plan ${lock.requiredPlan}.`
+              : "Tu plan actual no incluye esta integracion. Contacta a ventas para habilitarla.",
+          );
           return;
         }
         toast.error("Error al conectar con la plataforma.");
@@ -821,10 +872,21 @@ const IntegracionesPage = () => {
     setSyncing(provider);
     try {
        await apiClient.adminSyncIntegration(currentSlug, provider);
+       clearIntegrationPlanLock(provider);
        toast.success("Sincronización iniciada correctamente.");
        await loadIntegrations();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sync failed', error);
+      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+      if (status === 403) {
+        const lock = rememberIntegrationPlanLock(error, provider, "marketplace_sync");
+        toast.error(
+          lock
+            ? `${lock.featureLabel}: requiere plan ${lock.requiredPlan}.`
+            : "Tu plan actual no permite sincronizar marketplaces externos.",
+        );
+        return;
+      }
       toast.error("Error al sincronizar.");
     } finally {
       setSyncing(null);
@@ -1188,6 +1250,61 @@ const IntegracionesPage = () => {
           )}
         </div>
       </div>
+    );
+  };
+
+  const renderIntegrationPlanLockPanel = (lock: IntegrationPlanLockView, scope: "page" | "channel" = "channel") => {
+    const isMarketplaceLock = lock.featureId === "marketplace_sync";
+    const isWhatsappLock = lock.featureId === "whatsapp_sender_management";
+    return (
+      <Alert
+        data-testid={scope === "page" ? "integrations-page-plan-lock" : "integration-channel-plan-lock"}
+        className="border-amber-400/40 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+      >
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle className="flex flex-wrap items-center gap-2">
+          <span>{lock.featureLabel}</span>
+          <Badge variant="secondary">Plan requerido</Badge>
+        </AlertTitle>
+        <AlertDescription className="mt-3 space-y-4">
+            <p className="max-w-3xl text-sm leading-6">{lock.message}</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border bg-background/70 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Actual</p>
+                <p className="text-sm font-semibold text-foreground">{lock.currentPlan}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Requiere</p>
+                <p className="text-sm font-semibold text-foreground">{lock.requiredPlan}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Feature</p>
+                <p className="truncate font-mono text-xs text-foreground">{lock.featureId}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Accion</p>
+                <p className="truncate font-mono text-xs text-foreground">{lock.featureAction}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <a href={lock.upgradeUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" /> {lock.upgradeLabel}
+                </a>
+              </Button>
+              {isMarketplaceLock ? (
+                <Button size="sm" variant="outline" onClick={() => setActiveTab("catalog")}>
+                  <ShoppingBag className="mr-2 h-4 w-4" /> Seguir con catalogo manual
+                </Button>
+              ) : null}
+              {isWhatsappLock ? (
+                <Button size="sm" variant="outline" onClick={() => setSelectedChannel("whatsapp")}>
+                  <MessageCircle className="mr-2 h-4 w-4" /> Probar sandbox WhatsApp
+                </Button>
+              ) : null}
+            </div>
+        </AlertDescription>
+      </Alert>
     );
   };
 
@@ -1584,6 +1701,9 @@ const IntegracionesPage = () => {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-8">
+                {integrationPlanLock && !lockMatchesChannel(integrationPlanLock, selectedChannel)
+                  ? renderIntegrationPlanLockPanel(integrationPlanLock, "page")
+                  : null}
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-8 items-start">
 
                     {/* Left: Settings Panel */}
@@ -1704,6 +1824,7 @@ const IntegracionesPage = () => {
                                         </Badge>
                                     </div>
                                 </div>
+                                {selectedChannelPlanLock ? renderIntegrationPlanLockPanel(selectedChannelPlanLock) : null}
                                 {selectedChannel === 'whatsapp' ? (
                                     <div className="space-y-6">
                                         <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
