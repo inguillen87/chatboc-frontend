@@ -772,25 +772,25 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           className={cn(
             'flex gap-2',
             embedded
-              ? 'flex-col min-[920px]:flex-row min-[920px]:items-center min-[920px]:justify-between'
+              ? 'min-h-10 items-center justify-between overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
               : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
           )}
         >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className={cn('min-w-0', embedded && 'shrink-0')}>
+            <div className={cn('flex items-center gap-2', embedded ? 'flex-nowrap' : 'flex-wrap')}>
               <h2 className="text-base font-semibold tracking-tight text-foreground">
                 {embedded ? (tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets') : 'Mesa operativa'}
               </h2>
-              <Badge variant="outline" className="rounded-full">
+              <Badge variant="outline" className="shrink-0 rounded-full">
                 {filteredTickets.length.toLocaleString('es-AR')} visibles
               </Badge>
               {selectedTicket ? (
-                <Badge variant="secondary" className="rounded-full">
+                <Badge variant="secondary" className="shrink-0 rounded-full">
                   #{selectedTicket.nro_ticket || selectedTicket.id}
                 </Badge>
               ) : null}
               {deepLinkFocus ? (
-                <Badge data-testid="tickets-deeplink-focus" variant="secondary" className="rounded-full capitalize">
+                <Badge data-testid="tickets-deeplink-focus" variant="secondary" className="shrink-0 rounded-full capitalize">
                   Desde {formatDeskDeepLinkFocus(deepLinkFocus)}
                 </Badge>
               ) : null}
@@ -866,11 +866,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </div>
           ) : null}
           {embedded ? (
-            <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 min-[920px]:w-auto min-[920px]:justify-end">
+            <div className="flex min-w-max shrink-0 items-center justify-end gap-1.5">
               <Badge
                 data-testid="tickets-embedded-kpi-summary"
                 variant="outline"
-                className="max-w-full rounded-full bg-background/70 text-[11px] font-medium text-muted-foreground"
+                className="max-w-[13rem] shrink-0 rounded-full bg-background/70 text-[11px] font-medium text-muted-foreground"
                 title={`${openTickets} abiertos | ${unreadTickets} sin leer | ${riskTickets} en riesgo | ${resolvedTickets} resueltos`}
               >
                 <span className="truncate">
@@ -882,7 +882,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {nextPriorityTicket ? (
                 <div
                   data-testid="tickets-next-priority-strip"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary shadow-sm min-[920px]:flex-none"
+                  className="hidden"
                 >
                   <span className="hidden font-semibold uppercase tracking-[0.08em] min-[980px]:inline">
                     Siguiente prioridad
@@ -907,7 +907,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 </div>
               ) : null}
               {loading ? (
-                <Badge variant="secondary" className="rounded-full">
+                <Badge variant="secondary" className="shrink-0 rounded-full">
                   Actualizando
                 </Badge>
               ) : null}
@@ -923,7 +923,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {operationalFilterBadges.length > 0 ? (
                 <div
                   data-testid="tickets-embedded-active-filters"
-                  className="flex min-w-0 flex-wrap items-center gap-1"
+                  className="flex shrink-0 items-center gap-1"
                   title={operationalFilterBadges.join(' | ')}
                 >
                   <Badge variant="secondary" className="rounded-full text-[11px]">

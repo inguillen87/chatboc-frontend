@@ -194,6 +194,8 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-embedded-ops-header')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
+    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('min-h-10');
+    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
@@ -366,7 +368,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
-    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveTextContent('M-2');
+    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveClass('hidden');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Proxima accion');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Responder ahora');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Score 135');

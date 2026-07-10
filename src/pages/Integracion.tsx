@@ -1,7 +1,7 @@
 // src/pages/Integracion.tsx
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiFetch, resolveTenantSlug } from "@/utils/api";
@@ -52,11 +52,17 @@ import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTe
 
 const Integracion = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: userLoading } = useUser();
+  const channelParam = searchParams.get("channel");
+  const focusAction = searchParams.get("action");
+  const requestedTab = ["general", "marketplace", "whatsapp", "widget", "menus", "contacts"].includes(String(channelParam || ""))
+    ? String(channelParam)
+    : "general";
   const [config, setConfig] = useState<TenantConfigBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState(requestedTab);
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [embedSnippet, setEmbedSnippet] = useState("");
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
@@ -154,6 +160,10 @@ const Integracion = () => {
       loadEmbedSnippet();
     }
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
+
+  useEffect(() => {
+    setActiveTab(requestedTab);
+  }, [requestedTab]);
 
   useEffect(() => {
     if (activeTab === "whatsapp" && canManageLegacyWhatsappInventory) {
@@ -445,7 +455,7 @@ const Integracion = () => {
               <CardContent className="space-y-6">
                 <MetaAppReviewApproval />
 
-                <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} />
+                <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} focusAction={focusAction} />
 
                 <Separator />
 
