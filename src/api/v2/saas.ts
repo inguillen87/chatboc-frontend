@@ -194,6 +194,8 @@ export interface OmnichannelLiveChatStatus {
   offline_message?: UnknownRecord;
   availability?: UnknownRecord;
   queue?: UnknownRecord;
+  admin_response_surface?: UnknownRecord;
+  actions?: SaasAction[];
   frontend_contract?: UnknownRecord;
   raw?: unknown;
 }
@@ -1094,6 +1096,10 @@ const normalizeLiveChatStatus = (value: unknown): OmnichannelLiveChatStatus | un
   const availability = asRecord(value.availability);
   const offlineMessage = asRecord(value.offline_message);
   const queue = asRecord(value.queue);
+  const adminResponseSurface = asRecord(value.admin_response_surface);
+  const actions = Array.isArray(value.actions)
+    ? (value.actions.map((item) => normalizeAction(item)).filter(Boolean) as SaasAction[])
+    : [];
   return {
     contract_version: asString(value.contract_version),
     channel_state: asString(getFirst(value, ['channel_state', 'state'])) ?? asString(availability.state),
@@ -1111,6 +1117,8 @@ const normalizeLiveChatStatus = (value: unknown): OmnichannelLiveChatStatus | un
     offline_message: Object.keys(offlineMessage).length ? offlineMessage : undefined,
     availability: Object.keys(availability).length ? availability : undefined,
     queue: Object.keys(queue).length ? queue : undefined,
+    admin_response_surface: Object.keys(adminResponseSurface).length ? adminResponseSurface : undefined,
+    actions,
     frontend_contract: value.frontend_contract ? asRecord(value.frontend_contract) : undefined,
     raw: value,
   };

@@ -329,6 +329,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     asText(liveChat?.availability?.offline_fallback_message) ||
     asText(liveChat?.offline_message?.message);
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
+  const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
   const statusTiles = [
     channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
     liveChatStateLabel ? { icon: MessageCircle, label: 'Live chat', value: liveChatStateLabel } : null,
@@ -387,6 +388,19 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
               <Badge variant="outline" className="border-current text-current">
                 {liveChatPendingMessages} pendiente{liveChatPendingMessages === 1 ? '' : 's'}
               </Badge>
+            ) : null}
+            {liveChatAction ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 border-current text-current hover:bg-background/60"
+                onClick={() => handleAction(liveChatAction)}
+                disabled={actionMutation.isPending}
+              >
+                <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                {liveChatAction.label || 'Abrir hilo'}
+              </Button>
             ) : null}
           </div>
           {liveChat?.channel_state !== 'online' && liveChatOfflineMessage ? (

@@ -238,6 +238,16 @@ describe("tenant admin v2 contracts", () => {
             offline_message: {
               message: "Deja tu mensaje y queda asociado al ticket.",
             },
+            admin_response_surface: {
+              route: "/perfil?tab=tickets&ticket_id=378430&focus=offline_message",
+            },
+            actions: [
+              {
+                id: "open_offline_queue_thread",
+                label: "Responder mensaje en cola",
+                href: "/perfil?tab=tickets&ticket_id=378430&focus=offline_message",
+              },
+            ],
           },
         },
       ],
@@ -248,6 +258,8 @@ describe("tenant admin v2 contracts", () => {
     expect(inbox.live_chat?.offline_fallback_message).toBe("Deja tu mensaje y queda asociado al ticket.");
     expect(inbox.items[0].live_chat?.channel_state).toBe("queued");
     expect(inbox.items[0].live_chat?.queue?.pending_customer_messages).toBe(2);
+    expect(String(inbox.items[0].live_chat?.admin_response_surface?.route)).toContain("ticket_id=378430");
+    expect(inbox.items[0].live_chat?.actions?.[0].href).toContain("focus=offline_message");
 
     const detail = normalizeOmnichannelInboxDetailV2({
       contract_version: "inbox.omnichannel.detail.v1",
