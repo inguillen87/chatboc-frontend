@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Sparkles,
   Upload,
+  X,
 } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -1022,6 +1023,13 @@ const buildWhatsappFollowUpHref = (baseHref: string | null | undefined, requestI
 const isDocumentType = (value?: string | null): value is DocumentType =>
   DOCUMENT_TYPES.some((item) => item.value === value);
 
+const formatPendingFileSize = (size: number) => {
+  if (!Number.isFinite(size) || size <= 0) return '0 KB';
+  const mb = size / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+};
+
 const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   onCartUpdated,
   onProcessed,
@@ -1061,6 +1069,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const [contactEmail, setContactEmail] = useState('');
   const [contactNotes, setContactNotes] = useState('');
   const [orderText, setOrderText] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
@@ -1396,6 +1405,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       if (normalizedText) {
         setOrderText('');
       }
+      if (file) {
+        setPendingFile(null);
+      }
       setStatusMessage(
         responseNeedsManualReview
           ? 'Solicitud recibida: requiere revision manual antes de responder.'
@@ -1445,19 +1457,53 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     await processRequest({ file });
   };
 
+  const stageFileForAssistedSurface = (file: File | null | undefined) => {
+    if (!file) return;
+    if (file && !fileMatchesAcceptedSpec(file, submitAcceptedFileSpec)) {
+      setPendingFile(null);
+      setError(`Formato no aceptado. Usa ${submitAcceptedLabel}.`);
+      return;
+    }
+    if (file.size > submitMaxFileBytes) {
+      const maxMb = Math.max(1, Math.floor(submitMaxFileBytes / (1024 * 1024)));
+      setPendingFile(null);
+      setError(`El archivo supera el limite de ${maxMb} MB para este marketplace.`);
+      return;
+    }
+    setPendingFile(file);
+    setError(null);
+    setSuccessMessage(null);
+    setStatusMessage(null);
+    setMatchSummary(null);
+    setProcessedResponse(null);
+  };
+
   const processText = async () => {
     await processRequest({ text: orderText });
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    await processFile(event.target.files?.[0]);
+    const file = event.target.files?.[0];
+    if (isAssistedSurface) {
+      stageFileForAssistedSurface(file);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+    await processFile(file);
   };
 
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
     if (uploading) return;
-    await processFile(event.dataTransfer.files?.[0]);
+    const file = event.dataTransfer.files?.[0];
+    if (isAssistedSurface) {
+      stageFileForAssistedSurface(file);
+      return;
+    }
+    await processFile(file);
   };
 
   const enabledActions = processedResponse?.next_actions?.filter((action) => action.enabled !== false) ?? [];
@@ -1779,6 +1825,56 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                 Acepta {submitAcceptedLabel}. Maximo {submitMaxFileMbLabel} MB. Si no lo leemos con confianza, igual queda para revision humana.
               </p>
             </div>
+
+            {pendingFile ? (
+              <div className="rounded-lg border border-primary/25 bg-primary/5 p-3" data-testid="assisted-pending-file">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Archivo seleccionado</p>
+                    <p className="mt-1 break-all text-sm text-muted-foreground">
+                      {pendingFile.name} - {formatPendingFileSize(pendingFile.size)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Confirma el tipo de archivo y deja un contacto si queres que el equipo responda mas rapido.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:w-auto">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={submitDisabled || uploading}
+                      onClick={() => processFile(pendingFile)}
+                    >
+                      {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Crear solicitud con archivo
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={uploading}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1"
+                      >
+                        Cambiar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={uploading}
+                        onClick={() => setPendingFile(null)}
+                        className="flex-1"
+                      >
+                        <X className="mr-1 h-4 w-4" />
+                        Quitar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-lg border bg-background p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

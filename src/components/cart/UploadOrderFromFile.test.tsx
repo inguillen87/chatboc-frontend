@@ -838,6 +838,11 @@ describe('UploadOrderFromFile marketplace intake', () => {
       target: { files: [file] },
     });
 
+    expect(await screen.findByTestId('assisted-pending-file')).toBeInTheDocument();
+    expect(screen.getByText(/nota-manuscrita.jpg/i)).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Crear solicitud con archivo/i }));
+
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalled();
     });
