@@ -80,10 +80,15 @@ describe('asset recovery bootstrap', () => {
     expect(runtime.replace).toHaveBeenCalledOnce();
   });
 
-  it('registers resource and dynamic-import failure listeners', () => {
+  it('executes recovery from a failed script resource', async () => {
     const runtime = buildRuntime();
 
-    expect(runtime.listeners.has('error')).toBe(true);
-    expect(runtime.listeners.has('unhandledrejection')).toBe(true);
+    runtime.listeners.get('error')?.({
+      target: { src: 'https://www.chatboc.ar/assets/missing-chunk.js' },
+    });
+
+    await vi.waitFor(() => expect(runtime.replace).toHaveBeenCalledOnce());
+    expect(runtime.unregister).toHaveBeenCalledOnce();
+    expect(runtime.deleteCache).toHaveBeenCalledTimes(2);
   });
 });

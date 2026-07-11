@@ -110,9 +110,11 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
+          importScripts: ['sw-recovery.js'],
           globIgnores: [
             '**/*.html',
             'asset-recovery.js',
+            'sw-recovery.js',
             '**/assets/vendor-maplibre-*',
             '**/assets/vendor-charts-*',
             '**/assets/vendor-xlsx-*',

@@ -10,6 +10,15 @@
       ]
     },
     {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    },
+    {
       "source": "/widget.js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
@@ -34,15 +43,9 @@
       ]
     },
     {
-      "source": "/index.html",
+      "source": "/sw-recovery.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
-    },
-    {
-      "source": "/",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
     },
     {
@@ -94,6 +97,12 @@
     { "source": "/privacidad", "destination": "/privacidad/index.html" },
     { "source": "/terminos", "destination": "/terminos/index.html" },
     { "source": "/eliminacion-datos", "destination": "/eliminacion-datos/index.html" },
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/((?!assets/).*)",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
+      "destination": "/index.html"
+    }
   ]
 }
