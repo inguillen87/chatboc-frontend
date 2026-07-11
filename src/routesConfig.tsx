@@ -172,7 +172,7 @@ const TwilioTicketTemplateRedirect = () => {
   const params = useParams();
   const location = useLocation();
   const ticketId = typeof params.ticketId === 'string' ? params.ticketId.trim() : '';
-  const suffix = `${encodeURIComponent(ticketId)}${location.search || ''}`;
+  const suffix = `${encodeURIComponent(ticketId)}${location.search || ''}${location.hash || ''}`;
   return <Navigate to={`/tracking/claim/${suffix}`} replace />;
 };
 

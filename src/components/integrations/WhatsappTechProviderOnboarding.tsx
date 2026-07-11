@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { tenantService } from "@/services/tenantService";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ type TechProviderContract = {
     messaging_service_sid?: string | null;
     sender_sid?: string | null;
     sender_id?: string | null;
+    requested_phone_number?: string | null;
     sender_status?: string | null;
     waba_id?: string | null;
     phone_number_id?: string | null;
@@ -159,6 +161,14 @@ const extractIntegrationPlanLock = (error: unknown): IntegrationPlanLockPayload 
 };
 
 const normalizeStatus = (value?: string | null) => String(value ?? "").trim().toLowerCase();
+
+const normalizeE164 = (value?: string | null) => {
+  const trimmed = String(value ?? "").trim().replace(/^whatsapp:/i, "");
+  if (!trimmed.startsWith("+")) return trimmed.replace(/\D/g, "");
+  return `+${trimmed.slice(1).replace(/\D/g, "")}`;
+};
+
+const isValidE164 = (value?: string | null) => /^\+[1-9]\d{7,14}$/.test(normalizeE164(value));
 
 const isReadyStatus = (value?: string | null) => {
   const normalized = normalizeStatus(value);
@@ -335,6 +345,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const [opsQaError, setOpsQaError] = useState<string | null>(null);
   const [runningOpsQaCheck, setRunningOpsQaCheck] = useState<string | null>(null);
   const [opsQaResults, setOpsQaResults] = useState<Record<string, TenantOpsQaExecutionV2>>({});
+  const [requestedPhoneNumber, setRequestedPhoneNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [planLock, setPlanLock] = useState<IntegrationPlanLockPayload | null>(null);
 
@@ -389,6 +400,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     : [];
   const embeddedSignup = contract?.embedded_signup ?? null;
   const state = contract?.state ?? null;
+  const normalizedPhoneNumber = normalizeE164(requestedPhoneNumber);
+  const phoneNumberValid = isValidE164(normalizedPhoneNumber);
   const voice = contract?.voice ?? null;
   const setupHealth = contract?.setup_health ?? null;
   const operatorChecklist = Array.isArray(contract?.operator_checklist) ? contract.operator_checklist : [];
@@ -429,8 +442,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const setupBlockers = Array.isArray(setupHealth?.blockers) ? setupHealth.blockers : [];
   const signupUrl = readText(embeddedSignup?.url, embeddedSignup?.start_url);
   const embeddedSignupEnabled = readBoolean(embeddedSignup?.enabled, false);
-  const canStartSignup = envReady && embeddedSignupEnabled && Boolean(signupUrl);
-  const canRegisterSender = envReady && Boolean(state?.waba_id && state?.phone_number_id);
+  const showPhoneChoice = contract?.frontend_contract?.show_phone_choice !== false;
+  const canStartSignup = envReady && embeddedSignupEnabled && Boolean(signupUrl) && phoneNumberValid;
+  const canRegisterSender = envReady && phoneNumberValid && Boolean(state?.waba_id && state?.phone_number_id);
   const canPollSender = envReady && Boolean(state?.sender_sid);
   const showProgressSteps = contract?.frontend_contract?.show_progress_steps !== false;
   const templatesPath = useMemo(() => {
@@ -455,6 +469,11 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     });
     return `${basePath}?${params.toString()}`;
   }, [tenantSlug]);
+
+  useEffect(() => {
+    const savedPhone = normalizeE164(state?.requested_phone_number || state?.sender_id);
+    setRequestedPhoneNumber(savedPhone);
+  }, [tenantSlug, state?.requested_phone_number, state?.sender_id]);
   const planLockFeatureLabel = readText(
     planLock?.feature?.label,
     planLock?.frontend_contract?.feature_label,
@@ -479,7 +498,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
       ? missingEnv.length
         ? `Completa la configuracion de plataforma antes de abrir Meta: ${missingEnv.join(", ")}.`
         : "Completa la configuracion de plataforma antes de abrir Meta."
-      : "Meta Embedded Signup esta habilitado, pero el backend no envio una URL de inicio. Prepara la activacion o actualiza el contrato."
+      : !phoneNumberValid
+        ? "Ingresa el numero de WhatsApp en formato internacional antes de abrir Meta."
+        : "Meta Embedded Signup esta habilitado, pero el backend no envio una URL de inicio. Prepara la activacion o actualiza el contrato."
     : null;
 
   const statusLabel = useMemo(() => {
@@ -667,12 +688,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     : `${progressPercent}% de ruta completada`;
 
   const handleProvision = async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !phoneNumberValid) return;
     setProvisioning(true);
     setError(null);
     try {
       const response = await tenantService.provisionWhatsappTechProvider(tenantSlug, {
         source: "tenant_panel",
+        phone_number: normalizedPhoneNumber,
       });
       setContract(extractContract(response));
     } catch (err) {
@@ -683,12 +705,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   };
 
   const handleRegisterSender = async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !phoneNumberValid) return;
     setRegisteringSender(true);
     setError(null);
     try {
       const response = await tenantService.registerWhatsappSender(tenantSlug, {
         source: "tenant_panel",
+        sender_id: normalizedPhoneNumber,
       });
       setContract(extractContract(response));
     } catch (err) {
@@ -1576,8 +1599,38 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 Paso actual: {currentStep.label}
               </span>
             </div>
+            {showPhoneChoice ? (
+              <div className="mt-3 max-w-md space-y-2">
+                <label htmlFor="whatsapp-sender-number" className="text-sm font-medium text-foreground">
+                  Numero de WhatsApp
+                </label>
+                <Input
+                  id="whatsapp-sender-number"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={requestedPhoneNumber}
+                  onChange={(event) => setRequestedPhoneNumber(event.target.value)}
+                  placeholder="+5492634123456"
+                  aria-invalid={Boolean(requestedPhoneNumber.trim()) && !phoneNumberValid}
+                  aria-describedby="whatsapp-sender-number-help"
+                  disabled={senderReady || provisioning || registeringSender}
+                />
+                <p
+                  id="whatsapp-sender-number-help"
+                  className={cn(
+                    "text-xs leading-5",
+                    requestedPhoneNumber.trim() && !phoneNumberValid ? "text-red-600" : "text-muted-foreground",
+                  )}
+                >
+                  {phoneNumberValid
+                    ? `Numero listo para registrar: ${normalizedPhoneNumber}`
+                    : "Usa formato internacional E.164, por ejemplo +5492634123456."}
+                </p>
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" onClick={handleProvision} disabled={!envReady || provisioning}>
+              <Button type="button" onClick={handleProvision} disabled={!envReady || !phoneNumberValid || provisioning}>
                 {provisioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar activación
               </Button>

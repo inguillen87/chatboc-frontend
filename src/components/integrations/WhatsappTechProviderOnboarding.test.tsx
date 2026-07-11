@@ -353,6 +353,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     await waitFor(() => {
       expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledWith("junin-1", {
         source: "tenant_panel",
+        phone_number: "+18564858589",
       });
     });
 
@@ -433,6 +434,42 @@ describe("WhatsappTechProviderOnboarding", () => {
     await waitFor(() => {
       expect(mockedTenantService.registerWhatsappSender).toHaveBeenCalledWith("junin-1", {
         source: "tenant_panel",
+        sender_id: "+18564858589",
+      });
+    });
+  });
+
+  it("requires and normalizes an E.164 number before starting Meta signup", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({
+      contract: {
+        ...baseContract,
+        state: {
+          sender_status: "pending",
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    const phoneInput = await screen.findByRole("textbox", { name: /numero de whatsapp/i });
+    const prepareButton = screen.getByRole("button", { name: /preparar activaci/i });
+    const signupButton = screen.getByRole("button", { name: /iniciar registro embebido/i });
+
+    expect(prepareButton).toBeDisabled();
+    expect(signupButton).toBeDisabled();
+    expect(screen.getByText(/formato internacional E\.164/i)).toBeInTheDocument();
+
+    fireEvent.change(phoneInput, { target: { value: "+54 9 263 412-3456" } });
+
+    expect(prepareButton).toBeEnabled();
+    expect(signupButton).toBeEnabled();
+    expect(screen.getByText(/\+5492634123456/)).toBeInTheDocument();
+
+    fireEvent.click(prepareButton);
+    await waitFor(() => {
+      expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledWith("junin-1", {
+        source: "tenant_panel",
+        phone_number: "+5492634123456",
       });
     });
   });

@@ -14,9 +14,8 @@ import {
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
-import { apiClient } from '@/api/client';
+import { apiClient, type PortalClaim } from '@/api/client';
 import { getWidgetClaimDetail, type WidgetCommerceRequest } from '@/api/widgetCommerce';
-import { Ticket } from '@/types/unified';
 import {
   mergeWidgetClaimDetail,
   normalizeWidgetClaimDetail,
@@ -38,6 +37,12 @@ const STATUS_MAP: Record<string, string> = {
   closed: 'Cerrado',
   resolved: 'Resuelto',
   in_progress: 'En proceso',
+  nuevo: 'Nuevo',
+  abierto: 'Abierto',
+  pendiente: 'Pendiente',
+  cerrado: 'Cerrado',
+  resuelto: 'Resuelto',
+  en_proceso: 'En proceso',
 };
 
 const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -316,39 +321,27 @@ const PublicClaimCard = ({
   );
 };
 
-const LegacyTicketCard = ({ ticket }: { ticket: Ticket; currentSlug: string | null }) => {
-  const ticketRecord = ticket as Ticket & Record<string, unknown>;
-  const ticketCodeValue = ticketRecord.nro_ticket || ticketRecord.ticket_number || ticketRecord.codigo || ticket.id;
-  const ticketCode = String(ticketCodeValue || ticket.id);
-  const trackingPath =
-    buildPublicClaimPath(ticketCode, ticketRecord.consulta_pin || ticketRecord.pin) ||
-    `/ticket/${encodeURIComponent(ticketCode)}`;
-
+const AuthenticatedClaimCard = ({ claim }: { claim: PortalClaim }) => {
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
-        <div className="flex flex-col gap-4 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="border-b bg-muted/20 p-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="font-bold text-lg">#{ticketCode || ticket.id}</span>
-              <Badge variant={STATUS_VARIANTS[ticket.status] || 'default'} className="capitalize">
-                {STATUS_MAP[ticket.status] || ticket.status}
+              <span className="text-lg font-bold">#{claim.id}</span>
+              <Badge variant={STATUS_VARIANTS[claim.status] || 'default'}>
+                {STATUS_MAP[claim.status] || claim.status}
               </Badge>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
+            {formatDate(claim.date) ? (
+              <p className="mt-1 text-sm text-muted-foreground">{formatDate(claim.date)}</p>
+            ) : null}
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <a href={trackingPath} className="flex items-center gap-1">
-              Ver seguimiento <ExternalLink className="h-3 w-3" />
-            </a>
-          </Button>
         </div>
         <div className="p-4">
-          <h3 className="mb-2 text-lg font-medium">{ticket.subject}</h3>
-          {ticket.messages?.length > 0 ? (
-            <div className="line-clamp-2 rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">
-              {ticket.messages[ticket.messages.length - 1].content}
-            </div>
+          <h3 className="text-lg font-medium">{claim.title}</h3>
+          {claim.description ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{claim.description}</p>
           ) : null}
         </div>
       </CardContent>
@@ -361,29 +354,29 @@ const UserClaimsPage = () => {
   const { user } = useUser();
   const navigate = useNavigate();
   const { commerceSession, publicClaims, isLoading: portalLoading } = usePortalContent();
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [legacyLoading, setLegacyLoading] = useState(false);
+  const [claims, setClaims] = useState<PortalClaim[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
     if (!currentSlug || !user || publicClaims.length > 0) {
-      setTickets([]);
-      setLegacyLoading(false);
+      setClaims([]);
+      setClaimsLoading(false);
       return;
     }
 
-    setLegacyLoading(true);
+    setClaimsLoading(true);
     apiClient
-      .listTickets(currentSlug)
+      .listClaims(currentSlug)
       .then((data) => {
-        if (active) setTickets(Array.isArray(data) ? data : []);
+        if (active) setClaims(Array.isArray(data) ? data : []);
       })
       .catch((error) => {
-        console.error('Error loading tickets:', error);
-        if (active) setTickets([]);
+        console.error('Error loading claims:', error);
+        if (active) setClaims([]);
       })
       .finally(() => {
-        if (active) setLegacyLoading(false);
+        if (active) setClaimsLoading(false);
       });
 
     return () => {
@@ -391,9 +384,9 @@ const UserClaimsPage = () => {
     };
   }, [currentSlug, publicClaims.length, user]);
 
-  const loading = portalLoading || legacyLoading;
+  const loading = portalLoading || claimsLoading;
   const hasPublicClaims = publicClaims.length > 0;
-  const hasLegacyTickets = tickets.length > 0;
+  const hasAuthenticatedClaims = claims.length > 0;
   const claimStartPath = user && currentSlug ? buildTenantPath('/reclamos/nuevo', currentSlug) : null;
   const detailRequest = useMemo<WidgetCommerceRequest | null>(() => {
     if (!currentSlug) return null;
@@ -427,7 +420,7 @@ const UserClaimsPage = () => {
             <div key={item} className="h-32 animate-pulse rounded-lg bg-muted/20" />
           ))}
         </div>
-      ) : !hasPublicClaims && !hasLegacyTickets ? (
+      ) : !hasPublicClaims && !hasAuthenticatedClaims ? (
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <MessageSquare className="mb-4 h-12 w-12 opacity-20" />
           <p>{emptyTitle}</p>
@@ -441,7 +434,7 @@ const UserClaimsPage = () => {
         <div className="space-y-4">
           {hasPublicClaims
             ? publicClaims.map((claim) => <PublicClaimCard key={claim.id} claim={claim} detailRequest={detailRequest} />)
-            : tickets.map((ticket) => <LegacyTicketCard key={ticket.id} ticket={ticket} currentSlug={currentSlug} />)}
+            : claims.map((claim) => <AuthenticatedClaimCard key={claim.id} claim={claim} />)}
         </div>
       )}
     </div>

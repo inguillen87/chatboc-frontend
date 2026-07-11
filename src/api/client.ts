@@ -4,7 +4,6 @@ import {
   AdminOrdersResponse,
   Order,
   Cart,
-  Ticket,
   PortalContent,
   IntegrationStatus,
   PortalLoyaltySummary,
@@ -22,6 +21,15 @@ import {
 
 
 export type IdentityCoverageTargetByChannel = string | Record<string, number>;
+
+export interface PortalClaim {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  date: string | null;
+  updated_at: string | null;
+}
 
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
@@ -647,8 +655,8 @@ export const apiClient = {
     return apiFetch<any[]>(`/api/v1/portal/${tenantSlug}/redeems`, { tenantSlug });
   },
 
-  listTickets: async (tenantSlug: string): Promise<Ticket[]> => {
-    return apiFetch<Ticket[]>(`/api/v1/portal/${tenantSlug}/tickets`, { tenantSlug });
+  listClaims: async (tenantSlug: string): Promise<PortalClaim[]> => {
+    return apiFetch<PortalClaim[]>(`/api/v1/portal/${tenantSlug}/claims`, { tenantSlug });
   },
 
   getLoyalty: async (tenantSlug: string): Promise<PortalLoyaltySummary> => {
