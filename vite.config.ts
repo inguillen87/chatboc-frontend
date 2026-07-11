@@ -102,8 +102,17 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          // The SaaS needs a live backend, so a stale offline HTML shell is more
+          // harmful than a failed offline navigation: it can reference chunks
+          // that no longer exist after a Vercel deployment.
+          globPatterns: ['**/*.{js,css,ico,png,svg}'],
+          navigateFallback: null,
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           globIgnores: [
+            '**/*.html',
+            'asset-recovery.js',
             '**/assets/vendor-maplibre-*',
             '**/assets/vendor-charts-*',
             '**/assets/vendor-xlsx-*',
@@ -123,6 +132,10 @@ export default defineConfig(({ mode }) => {
           // Precache only the app shell. Heavy vendors stay runtime-loaded by route/tool.
           maximumFileSizeToCacheInBytes: 1024 * 1024,
           runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.mode === 'navigate',
+              handler: 'NetworkOnly',
+            },
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/public/'),
               handler: 'NetworkFirst',
