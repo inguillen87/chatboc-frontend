@@ -889,8 +889,16 @@ function StandaloneChatPanel({
           }
           await runRuntimeChat();
         } catch {
-          const errorText = runtimeUnavailableDescription || runtimeUnavailableTitle;
-          if (!errorText) return;
+          const isDemoRuntime = Boolean(
+            readBootstrapDemoSessionId(resolvedChatBootstrap) ||
+              resolvedChatBootstrap?.payload?.demo_mode === true,
+          );
+          const errorText =
+            runtimeUnavailableDescription ||
+            runtimeUnavailableTitle ||
+            (isDemoRuntime
+              ? 'No pudimos enviar la consulta a la demo real. Intenta nuevamente en unos segundos.'
+              : 'No pudimos enviar tu mensaje. Intenta nuevamente en unos segundos.');
           setMessages((prev) => [
             ...prev,
             {

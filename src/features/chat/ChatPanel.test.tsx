@@ -87,4 +87,40 @@ describe('ChatPanel widget assisted orders', () => {
       expect.objectContaining({ lead_id: 77 }),
     );
   });
+
+  it('shows a safe retry message when the demo runtime fails', async () => {
+    sendChatBootstrapMessageMock.mockRejectedValue(new Error('Error 404: Not found'));
+
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'pyme',
+          sector: 'educacion',
+          tenantSlug: 'colegio-demo',
+          chatBootstrap: {
+            contract_version: 'demo.chat_bootstrap.v1',
+            endpoint: '/api/ask/pyme',
+            method: 'POST',
+            payload: {
+              tipo_chat: 'pyme',
+              tenant_slug: 'colegio-demo',
+              demo_mode: true,
+            },
+          },
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mensaje'), {
+      target: { value: 'Necesito justificar una inasistencia' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(
+      await screen.findByText(
+        'No pudimos enviar la consulta a la demo real. Intenta nuevamente en unos segundos.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Error 404/i)).not.toBeInTheDocument();
+  });
 });

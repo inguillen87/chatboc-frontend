@@ -108,7 +108,7 @@ test.describe('Chatboc smoke e2e', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: /Converti conversaciones en casos/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Probar reclamo real/i }).first()).toBeVisible();
     expect(realtimeRequests).toEqual([]);
   });
@@ -123,10 +123,10 @@ test.describe('Chatboc smoke e2e', () => {
     await page.getByRole('button', { name: /Colegios/i }).click();
     await page.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
-    await expect(page.getByRole('heading', { name: /Demo Workspace/i })).toBeVisible();
-    await expect(page.getByText(/Cat[aá]logo demo/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Descargar PDF/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Abrir ficha/i })).toHaveAttribute('href', /colegio-demo\.pdf/);
+    await expect(page.getByText('Demo Workspace', { exact: true })).toBeVisible();
+    await expect(page.getByText('Recorrido listo para probar.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Mensaje' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Rubro: Colegios/i })).toBeVisible();
   });
 
   test('demo degrada sin mostrar error crudo cuando falla el chat backend', async ({ page }) => {
