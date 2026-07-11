@@ -16,4 +16,19 @@ describe('AddressAutocomplete', () => {
 
     expect(handleSelect).toHaveBeenCalledWith('Calle Falsa 123');
   });
+
+  it('cancels the delayed close when the component unmounts', () => {
+    vi.useFakeTimers();
+    const { getByRole, unmount } = render(
+      <AddressAutocomplete onSelect={vi.fn()} />,
+    );
+
+    fireEvent.focus(getByRole('textbox'));
+    fireEvent.blur(getByRole('textbox'));
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });

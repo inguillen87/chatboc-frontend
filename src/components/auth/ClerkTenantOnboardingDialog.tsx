@@ -2,6 +2,7 @@ import React from 'react';
 import { Building2, CheckCircle2, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   onSubmit,
 }) => {
   const [form, setForm] = React.useState(defaultForm);
+  const [termsAccepted, setTermsAccepted] = React.useState(false);
   const modal = onboarding?.modal;
   const verticalOptions = modal?.vertical_options?.length ? modal.vertical_options : fallbackVerticalOptions;
   const goalOptions = modal?.goal_options?.length ? modal.goal_options : fallbackGoalOptions;
@@ -101,6 +103,9 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   const starterModules = modal?.starter_modules?.length ? modal.starter_modules : fallbackStarterModules;
   const whatsappRequirements = modal?.whatsapp_business_requirements;
   const planPolicy = modal?.plan_policy;
+  const terms = modal?.terms;
+  const termsOnly = modal?.mode === 'terms_only';
+  const existingTenant = modal?.existing_tenant;
   const presets = React.useMemo(() => modal?.vertical_presets || {}, [modal?.vertical_presets]);
   const selectedPreset = presets[form.vertical];
   const recommendedIds = new Set(selectedPreset?.recommended_modules || []);
@@ -115,14 +120,19 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
     if (!open) return;
     setForm((current) => ({
       ...current,
-      tenant_name: current.tenant_name || defaultTenantName || '',
-      rubro: current.rubro || presets[current.vertical]?.rubro || '',
+      tenant_name: current.tenant_name || existingTenant?.nombre || defaultTenantName || '',
+      vertical: current.vertical || existingTenant?.tipo || defaultForm.vertical,
+      rubro: current.rubro || existingTenant?.subvertical || presets[current.vertical]?.rubro || '',
       primary_goal:
         current.primary_goal === defaultForm.primary_goal
           ? presets[current.vertical]?.primary_goal || current.primary_goal
           : current.primary_goal,
     }));
-  }, [defaultTenantName, open, presets]);
+  }, [defaultTenantName, existingTenant?.nombre, existingTenant?.subvertical, existingTenant?.tipo, open, presets]);
+
+  React.useEffect(() => {
+    if (open) setTermsAccepted(false);
+  }, [open]);
 
   const update = (field: keyof typeof defaultForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -147,6 +157,8 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
     event.preventDefault();
     await onSubmit({
       ...form,
+      terms_accepted: termsAccepted,
+      terms_version: terms?.version || '2026-07-11',
       user: userProfile,
       preferred_channels: preferredChannels,
     });
@@ -176,6 +188,22 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
         </DialogHeader>
 
         <form className="grid gap-5" onSubmit={submit}>
+          {termsOnly ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-50">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="font-semibold">{existingTenant?.nombre || 'Tu espacio Chatboc'}</p>
+                  <p className="mt-1 text-sm leading-5 text-blue-900/75 dark:text-blue-100/75">
+                    Revisá y aceptá la versión {terms?.version || 'vigente'} para mantener el acceso al CRM y sus canales.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="grid gap-3 sm:grid-cols-4">
             {summaryCards.slice(0, 4).map((card) => (
               <div
@@ -387,6 +415,8 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
               ) : null}
             </aside>
           </div>
+            </>
+          )}
 
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -394,10 +424,43 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
             </p>
           )}
 
+          <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+            <Checkbox
+              id="clerk-onboarding-terms"
+              checked={termsAccepted}
+              onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+              disabled={loading}
+              className="mt-0.5"
+            />
+            <Label htmlFor="clerk-onboarding-terms" className="text-sm leading-5 text-slate-700 dark:text-slate-300">
+              {terms?.label || 'Acepto los Terminos y la Politica de Privacidad'}.{' '}
+              <a
+                href={terms?.terms_url || '/terminos'}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
+              >
+                Ver terminos
+              </a>{' '}
+              y{' '}
+              <a
+                href={terms?.privacy_url || '/privacidad'}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
+              >
+                privacidad
+              </a>
+            </Label>
+          </div>
+
           <DialogFooter>
-            <Button type="submit" disabled={loading || !form.tenant_name || !form.rubro}>
+            <Button
+              type="submit"
+              disabled={loading || !termsAccepted || (!termsOnly && (!form.tenant_name || !form.rubro))}
+            >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Crear tenant
+              {termsOnly ? 'Aceptar y continuar' : 'Crear tenant'}
             </Button>
           </DialogFooter>
         </form>

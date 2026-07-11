@@ -65,6 +65,13 @@ export const resolveLiveChatRealtimeAccess = (...sources: unknown[]) => {
   return { room, accessToken, ticketId, status };
 };
 
+export const resolveLiveChatRealtimeEnvelopeAccess = (payload: unknown) => {
+  const root = asRecord(payload);
+  const data = asRecord(root?.data);
+  const result = asRecord(root?.result);
+  return resolveLiveChatRealtimeAccess(root, data, result);
+};
+
 export const buildLiveChatJoinPayload = (room: string, accessToken?: string | null) => ({
   room,
   ...(accessToken ? { access_token: accessToken } : {}),

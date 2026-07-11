@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { logoutChatbocSession } from '@/utils/sessionLogout';
 import { Order } from '@/types/unified';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -302,10 +303,10 @@ export default function PedidosPage() {
   const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
   const [search, setSearch] = useState('');
 
-  const handleLogout = () => {
-    safeLocalStorage.clear();
-    navigate('/login');
-  };
+  const handleLogout = useCallback(async () => {
+    await logoutChatbocSession();
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
   const fetchPedidos = useCallback(async () => {
     const tenantSlug = safeLocalStorage.getItem('tenantSlug');

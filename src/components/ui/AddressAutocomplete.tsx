@@ -33,6 +33,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const [options, setOptions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const committedRef = useRef(false);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const commit = (val: string) => {
     const trimmed = val.trim();
@@ -98,6 +99,15 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     return () => controller.abort();
   }, [query]);
 
+  useEffect(
+    () => () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   if (readOnly || disabled) {
     return (
       <Input
@@ -124,7 +134,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         placeholder={placeholder}
         className={className}
         autoFocus={autoFocus}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          if (blurTimeoutRef.current) {
+            clearTimeout(blurTimeoutRef.current);
+            blurTimeoutRef.current = null;
+          }
+          setOpen(true);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             commit(query);
@@ -136,7 +152,11 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             commit(query);
           }
           committedRef.current = false;
-          setTimeout(() => setOpen(false), 100);
+          if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+          blurTimeoutRef.current = setTimeout(() => {
+            blurTimeoutRef.current = null;
+            setOpen(false);
+          }, 100);
         }}
       />
       {open && options.length > 0 && (

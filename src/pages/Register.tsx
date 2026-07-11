@@ -167,7 +167,7 @@ const Register = () => {
           </select>
           <div className="flex items-center space-x-2">
             <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading || isPasskeyLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer" />
-            <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
+            <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/terminos" target="_blank" rel="noreferrer" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/privacidad" target="_blank" rel="noreferrer" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
           <Button
@@ -178,7 +178,7 @@ const Register = () => {
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
           <div className="space-y-2">
-            <ClerkAuthButtons mode="register" />
+            <ClerkAuthButtons mode="register" disabled={!accepted || isLoading || isPasskeyLoading} />
             {isPasskeyAvailable && (
               <Button
                 type="button"
@@ -190,7 +190,11 @@ const Register = () => {
                 {isPasskeyLoading ? 'Creando cuenta...' : 'Crear cuenta con Passkey'}
               </Button>
             )}
-            <GoogleLoginButton className="w-full" onLoggedIn={() => navigate('/perfil')} />
+            <GoogleLoginButton
+              className="w-full"
+              onLoggedIn={() => navigate('/perfil')}
+              disabled={!accepted || isLoading || isPasskeyLoading}
+            />
           </div>
         </form>
         <div className="text-center text-sm mt-4 text-muted-foreground">

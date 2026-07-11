@@ -23,7 +23,7 @@ describe("trackingExperience api", () => {
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/public/tracking/experience?kind=claim&code=M-123456&pin=654321&tenant_slug=junin",
+      "/api/public/tracking/experience?kind=claim&code=M-123456&tenant_slug=junin",
       expect.objectContaining({
         skipAuth: true,
         omitCredentials: true,
@@ -43,13 +43,17 @@ describe("trackingExperience api", () => {
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/public/tracking/experience?kind=order&code=pc-77&token=signed-token-123&tenant_slug=junin",
+      "/api/public/tracking/experience?kind=order&code=pc-77&tenant_slug=junin",
       expect.objectContaining({
         skipAuth: true,
         omitCredentials: true,
         omitEntityToken: true,
         omitTenant: true,
         pin: null,
+        headers: {
+          "X-Tenant-Slug": "junin",
+          "X-Tracking-Token": "signed-token-123",
+        },
       }),
     );
   });
@@ -63,7 +67,7 @@ describe("trackingExperience api", () => {
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/public/tracking/claims/42/messages?pin=654321",
+      "/api/public/tracking/claims/42/messages",
       expect.objectContaining({
         method: "POST",
         body: {
@@ -86,7 +90,7 @@ describe("trackingExperience api", () => {
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      "/tracking/api/send-claim-message?pin=654321",
+      "/tracking/api/send-claim-message",
       expect.objectContaining({
         method: "POST",
         body: {

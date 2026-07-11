@@ -67,8 +67,8 @@ const buildPublicClaimPath = (code?: unknown, pin?: unknown) => {
   const params = new URLSearchParams();
   const normalizedPin = String(pin ?? '').trim();
   if (normalizedPin) params.set('pin', normalizedPin);
-  const query = params.toString();
-  return `/tracking/claim/${encodeURIComponent(normalizedCode)}${query ? `?${query}` : ''}`;
+  const fragment = params.toString();
+  return `/tracking/claim/${encodeURIComponent(normalizedCode)}${fragment ? `#${fragment}` : ''}`;
 };
 
 const normalizeClaimTrackingLink = (
@@ -84,7 +84,10 @@ const normalizeClaimTrackingLink = (
     const url = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'https://www.chatboc.ar');
     const path = url.pathname;
     if (path.startsWith('/tracking/claim/')) {
-      return `${path}${url.search}`;
+      const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
+      const pin = fragment.get('pin') || url.searchParams.get('pin') || fallbackPin;
+      const code = decodeURIComponent(path.split('/').filter(Boolean).pop() || '') || fallbackCode;
+      return buildPublicClaimPath(code, pin) ?? fallback;
     }
     if (path === '/api/public/tracking/experience') {
       const kind = url.searchParams.get('kind');
@@ -101,7 +104,7 @@ const normalizeClaimTrackingLink = (
 
 const withClaimSupportHash = (path?: string | null) => {
   if (!path) return null;
-  return path.includes('#') ? path : `${path}#mesa-ayuda`;
+  return path.includes('#') ? `${path}&focus=mesa-ayuda` : `${path}#mesa-ayuda`;
 };
 
 const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment }) => {

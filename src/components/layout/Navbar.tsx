@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
+import { useClerkRuntime } from "@/components/auth/ClerkRuntimeContext";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,7 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
+import { logoutChatbocSession } from "@/utils/sessionLogout";
 
 interface AdminNavLink {
   to: string;
@@ -107,6 +109,7 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
+  const clerkRuntime = useClerkRuntime();
   const { currentSlug } = useTenant();
   const { capabilities, hasAnyCapability } = useCapabilities();
 
@@ -264,8 +267,9 @@ const Navbar: React.FC = () => {
     setMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    safeLocalStorage.removeItem("user");
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    await logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
     window.location.href = "/";
   };
 

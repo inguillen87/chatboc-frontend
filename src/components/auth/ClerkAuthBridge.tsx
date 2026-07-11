@@ -13,6 +13,14 @@ import ClerkTenantOnboardingDialog from '@/components/auth/ClerkTenantOnboarding
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { useUser } from '@/hooks/useUser';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  captureChatbocSessionRevision,
+  hasPersistedClerkSession,
+  isChatbocSessionRevisionCurrent,
+  readPersistedClerkUserId,
+  registerClerkSignOut,
+  resetChatbocSessionForIdentityTransition,
+} from '@/utils/sessionLogout';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 
 export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
@@ -51,10 +59,19 @@ export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
     : [],
 });
 
-const persistChatbocSession = (session: ClerkSessionResponse) => {
+export const persistChatbocSession = (
+  session: ClerkSessionResponse,
+  clerkUserId?: string | null,
+) => {
   if (!session?.token) return;
   safeLocalStorage.setItem('authToken', session.token);
   safeLocalStorage.setItem('chatAuthToken', session.token);
+  safeLocalStorage.setItem('authProvider', 'clerk');
+  if (clerkUserId?.trim()) {
+    safeLocalStorage.setItem('clerkUserId', clerkUserId.trim());
+  } else {
+    safeLocalStorage.removeItem('clerkUserId');
+  }
   usePanelSessionStore.getState().setAuthToken(session.token);
   useWidgetSessionStore.getState().setChatAuthToken(session.token);
 
@@ -66,6 +83,8 @@ const persistChatbocSession = (session: ClerkSessionResponse) => {
   if (session.user) {
     usePanelSessionStore.getState().setUser({
       ...session.user,
+      authProvider: 'clerk',
+      auth_provider: 'clerk',
       tenantSlug: tenantSlug || undefined,
       tenant_slug: tenantSlug || undefined,
     } as any);
@@ -80,7 +99,7 @@ const isAuthEntryPath = (pathname: string) =>
 
 const ClerkAuthBridge: React.FC = () => {
   const clerkRuntime = useClerkRuntime();
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
   const { user: clerkUser } = useClerkUser();
   const { refreshUser } = useUser();
   const location = useLocation();
@@ -92,24 +111,115 @@ const ClerkAuthBridge: React.FC = () => {
   const [onboardingError, setOnboardingError] = React.useState<string | null>(null);
   const [profile, setProfile] = React.useState<ClerkUserProfilePayload | undefined>();
   const syncKeyRef = React.useRef<string | null>(null);
+  const previousSignedInRef = React.useRef<boolean | undefined>(undefined);
+  const activeClerkUserIdRef = React.useRef<string | null | undefined>(undefined);
+  const navigateRef = React.useRef(navigate);
+  const pathnameRef = React.useRef(location.pathname);
+  navigateRef.current = navigate;
+  pathnameRef.current = location.pathname;
+
+  const resetBridgeState = React.useCallback(() => {
+    syncKeyRef.current = null;
+    setProfile(undefined);
+    setOnboardingRequired(false);
+    setOnboardingOpen(false);
+    setOnboardingContract(undefined);
+    setOnboardingError(null);
+  }, []);
+
+  React.useEffect(() => registerClerkSignOut(signOut), [signOut]);
+
+  React.useEffect(() => {
+    if (!isLoaded || typeof isSignedIn !== 'boolean') return;
+
+    const wasSignedIn = previousSignedInRef.current;
+    previousSignedInRef.current = isSignedIn;
+    const signedOutAfterTransition = wasSignedIn === true && isSignedIn === false;
+    const hasActiveClerkIdentity = Boolean(activeClerkUserIdRef.current);
+    const persistedClerkSession = hasPersistedClerkSession();
+    const loadedWithStaleClerkSession =
+      wasSignedIn === undefined && isSignedIn === false && persistedClerkSession;
+    const signedOutFromChatbocClerkSession =
+      signedOutAfterTransition && (hasActiveClerkIdentity || persistedClerkSession);
+    if (!signedOutFromChatbocClerkSession && !loadedWithStaleClerkSession) return;
+
+    const transition = resetChatbocSessionForIdentityTransition();
+    void transition.completion;
+    activeClerkUserIdRef.current = null;
+    resetBridgeState();
+  }, [isLoaded, isSignedIn, resetBridgeState]);
 
   React.useEffect(() => {
     if (!clerkRuntime.enabled || !isLoaded || !isSignedIn || !clerkUser) return;
+
+    const currentClerkUserId = String(clerkUser.id || '').trim();
+    if (!currentClerkUserId) return;
+
+    const persistedClerkSession = hasPersistedClerkSession();
+    if (activeClerkUserIdRef.current === undefined) {
+      activeClerkUserIdRef.current = persistedClerkSession
+        ? readPersistedClerkUserId()
+        : null;
+    }
+
+    const previousClerkUserId = activeClerkUserIdRef.current;
+    const isIdentitySwitch = Boolean(
+      previousClerkUserId && previousClerkUserId !== currentClerkUserId,
+    );
+    const isUnattributedPersistedSession =
+      persistedClerkSession && !previousClerkUserId;
+    let transitionCompletion: Promise<unknown> = Promise.resolve();
+
+    if (isIdentitySwitch || isUnattributedPersistedSession) {
+      const transition = resetChatbocSessionForIdentityTransition();
+      transitionCompletion = transition.completion;
+      resetBridgeState();
+    }
+    activeClerkUserIdRef.current = currentClerkUserId;
 
     const syncKey = `${clerkUser.id}:${(clerkUser as any)?.updatedAt?.getTime?.() ?? ''}`;
     if (syncKeyRef.current === syncKey) return;
     syncKeyRef.current = syncKey;
 
     let cancelled = false;
+    let sessionRevision: number | null = null;
+    const hasCurrentIdentity = () =>
+      !cancelled && activeClerkUserIdRef.current === currentClerkUserId;
+    const isCurrentSync = () =>
+      hasCurrentIdentity() &&
+      sessionRevision !== null &&
+      isChatbocSessionRevisionCurrent(sessionRevision);
     const run = async () => {
       try {
+        await transitionCompletion;
+        if (!hasCurrentIdentity()) return;
+        sessionRevision = captureChatbocSessionRevision();
         const token = await getToken();
-        if (!token || cancelled) return;
+        if (!token || !isCurrentSync()) {
+          if (isCurrentSync()) syncKeyRef.current = null;
+          return;
+        }
         const nextProfile = buildClerkProfile(clerkUser);
-        setProfile(nextProfile);
         const session = await syncClerkSession(token, nextProfile);
-        if (cancelled) return;
-        persistChatbocSession(session);
+        if (!isCurrentSync()) return;
+
+        if (!session.token) {
+          const transition = resetChatbocSessionForIdentityTransition();
+          await transition.completion;
+          if (
+            cancelled ||
+            activeClerkUserIdRef.current !== currentClerkUserId ||
+            !isChatbocSessionRevisionCurrent(transition.revision)
+          ) return;
+          setProfile(nextProfile);
+          setOnboardingContract(session.onboarding);
+          setOnboardingRequired(Boolean(session.onboarding?.required));
+          setOnboardingOpen(Boolean(session.onboarding?.required));
+          return;
+        }
+
+        persistChatbocSession(session, currentClerkUserId);
+        setProfile(nextProfile);
         setOnboardingContract(session.onboarding);
         if (session.onboarding?.required) {
           setOnboardingRequired(true);
@@ -119,10 +229,11 @@ const ClerkAuthBridge: React.FC = () => {
         setOnboardingRequired(false);
         setOnboardingContract(session.onboarding);
         await refreshUser();
-        if (isAuthEntryPath(location.pathname)) {
-          navigate('/perfil', { replace: true });
+        if (isCurrentSync() && isAuthEntryPath(pathnameRef.current)) {
+          navigateRef.current('/perfil', { replace: true });
         }
       } catch (error) {
+        if (!isCurrentSync()) return;
         console.error('[ClerkAuthBridge] No se pudo sincronizar Clerk con Chatboc', error);
         syncKeyRef.current = null;
       }
@@ -132,25 +243,40 @@ const ClerkAuthBridge: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, location.pathname, navigate, refreshUser]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, refreshUser, resetBridgeState]);
 
   if (!clerkRuntime.enabled || !isLoaded || !isSignedIn) return null;
 
   const defaultTenantName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ').trim();
 
   const handleOnboardingSubmit = async (payload: ClerkOnboardingPayload) => {
+    const submitRevision = captureChatbocSessionRevision();
+    const submitClerkUserId = String(clerkUser?.id || '').trim();
+    const isCurrentSubmit = () =>
+      Boolean(submitClerkUserId) &&
+      activeClerkUserIdRef.current === submitClerkUserId &&
+      isChatbocSessionRevisionCurrent(submitRevision);
     setOnboardingLoading(true);
     setOnboardingError(null);
     try {
       const token = await getToken();
-      if (!token) throw new Error('No se pudo obtener la sesion Clerk.');
+      if (!token || !isCurrentSubmit()) {
+        throw new Error('No se pudo obtener la sesion Clerk.');
+      }
       const session = await completeClerkOnboarding(token, {
         ...payload,
         user: profile || buildClerkProfile(clerkUser),
       });
-      persistChatbocSession(session);
+      if (!isCurrentSubmit()) return;
+      if (!session.token) {
+        const transition = resetChatbocSessionForIdentityTransition();
+        await transition.completion;
+        throw new Error(session.message || 'El backend no creo una sesion Chatboc valida.');
+      }
+      persistChatbocSession(session, submitClerkUserId);
       setOnboardingContract(session.onboarding);
       await refreshUser();
+      if (!isCurrentSubmit()) return;
       setOnboardingRequired(false);
       setOnboardingOpen(false);
       navigate('/perfil?setup=channels', { replace: true });

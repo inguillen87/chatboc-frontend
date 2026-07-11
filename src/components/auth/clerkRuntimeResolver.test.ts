@@ -3,9 +3,36 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClerkBackendUnavailableRuntime,
   buildClerkRuntimeFromEnv,
+  isClerkOriginCompatible,
 } from './clerkRuntimeResolver';
 
 describe('clerkRuntimeResolver', () => {
+  it('only mounts live Clerk keys on the Chatboc production domain', () => {
+    expect(isClerkOriginCompatible({
+      environment: 'production',
+      hostname: 'www.chatboc.ar',
+      publishableKey: 'pk_live_example',
+    })).toBe(true);
+    expect(isClerkOriginCompatible({
+      environment: 'production',
+      hostname: '127.0.0.1',
+      publishableKey: 'pk_live_example',
+    })).toBe(false);
+    expect(isClerkOriginCompatible({
+      environment: 'production',
+      hostname: 'chatboc-preview.vercel.app',
+      publishableKey: 'pk_live_example',
+    })).toBe(false);
+  });
+
+  it('allows test Clerk keys on local development origins', () => {
+    expect(isClerkOriginCompatible({
+      environment: 'development',
+      hostname: 'localhost',
+      publishableKey: 'pk_test_example',
+    })).toBe(true);
+  });
+
   it('keeps production fail-closed when the backend contract is unavailable', () => {
     const runtime = buildClerkBackendUnavailableRuntime({
       allowEnvFallback: false,

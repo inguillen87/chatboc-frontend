@@ -38,6 +38,7 @@ import {
 import {
   buildClerkBackendUnavailableRuntime,
   buildClerkRuntimeFromEnv,
+  isClerkOriginCompatible,
 } from '@/components/auth/clerkRuntimeResolver';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
@@ -77,7 +78,19 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
         const publishableKey =
           (typeof config.publishable_key === 'string' ? config.publishable_key.trim() : '') ||
           CLERK_PUBLISHABLE_KEY;
-        const enabled = Boolean(config.enabled && publishableKey && config.ready_for_session_sync);
+        const productionGate = config.environment !== 'production' || config.production_ready === true;
+        const originGate = isClerkOriginCompatible({
+          environment: config.environment,
+          hostname: typeof window !== 'undefined' ? window.location.hostname : '',
+          publishableKey,
+        });
+        const enabled = Boolean(
+          config.enabled &&
+          publishableKey &&
+          config.ready_for_session_sync &&
+          productionGate &&
+          originGate,
+        );
         setRuntime({
           enabled,
           loading: false,
@@ -93,9 +106,15 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
               ? config.oauth_callback_path.trim()
               : DEFAULT_CLERK_RUNTIME.oauthCallbackPath,
           readyForSessionSync: Boolean(config.ready_for_session_sync),
-          configurationWarnings: Array.isArray(config.configuration_warnings)
-            ? config.configuration_warnings
-            : [],
+          configurationWarnings: [
+            ...(Array.isArray(config.configuration_warnings) ? config.configuration_warnings : []),
+            ...(!originGate
+              ? [{
+                  code: 'production_origin_mismatch',
+                  message: 'Clerk de produccion queda deshabilitado fuera de chatboc.ar.',
+                }]
+              : []),
+          ],
           productionRequirements: config.production_requirements,
         });
       } catch (error) {

@@ -20,7 +20,6 @@ import {
   persistDemoRuntimeStorage,
 } from "@/features/demo/demoStorage";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
-import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
@@ -90,7 +89,6 @@ const Login = () => {
   const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
   const [demoSector, setDemoSector] = useState<'gobierno' | 'empresas'>('gobierno');
   const [upgradeBlockedFeature, setUpgradeBlockedFeature] = useState<string | null>(null);
-  const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
@@ -838,29 +836,6 @@ const Login = () => {
             </div>
           ) : null}
         </div>
-
-        {demoAccessProfiles.length > 0 ? (
-          <div className="mt-4 border-t border-border pt-4 space-y-2">
-            <p className="text-xs text-muted-foreground">Accesos demo configurados por entorno</p>
-            <div className="grid gap-2">
-              {demoAccessProfiles.map((profile) => (
-                <Button
-                  key={profile.id}
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setEmail(profile.email);
-                    setPassword(profile.password);
-                    loginWithCredentials(profile.email, profile.password, profile.tenantSlug);
-                  }}
-                  disabled={isLoading || isPasskeyLoading || isDemoLoading}
-                >
-                  {profile.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        ) : null}
 
         {franchisePartner.salesUrl ? (
           <Button

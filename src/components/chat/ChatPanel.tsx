@@ -66,6 +66,7 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
+import { resolveLiveChatRequestAction } from "@/utils/liveChatCta";
 import {
   ArrowRightLeft,
   Loader2,
@@ -966,6 +967,11 @@ interface ChatPanelProps {
       socket_enabled?: boolean | string | number | null;
       socket_url?: string | null;
       fallback_mode?: string | null;
+      offline_message_enabled?: boolean | string | number | null;
+      availability_state?: string | null;
+      offline_message?: Record<string, unknown>;
+      cta?: Record<string, unknown>;
+      ui?: Record<string, unknown>;
       media?: Record<string, boolean>;
       label?: string;
     };
@@ -2093,17 +2099,15 @@ const ChatPanel = (props: ChatPanelProps) => {
   ]);
 
   const handleLiveChatRequest = () => {
-    handleSend({
-      text: "Quisiera hablar con un representante",
-      action: "request_agent",
-    });
+    const requestAction = resolveLiveChatRequestAction(liveChatContract);
+    handleSend(requestAction);
     if (channelMode !== "chat") {
       emitRealtimeAnalytics("business_action_executed", channelMode, {
-        action: "request_agent",
+        action: requestAction.action,
       });
       postRealtimeActionEvent({
         channel: channelMode,
-        action: "request_agent",
+        action: requestAction.action,
       });
     }
   };
@@ -2144,12 +2148,21 @@ const ChatPanel = (props: ChatPanelProps) => {
     !["disabled", "none", "polling_disabled", "socket_io_enabled"].includes(
       liveChatFallbackMode,
     );
+  const liveChatOfflineMessage = asRecord(liveChatContract?.offline_message);
+  const liveChatCta = asRecord(liveChatContract?.cta);
+  const liveChatPrimaryCta = asRecord(liveChatCta.primary);
+  const liveChatSupportsOfflineMessages = Boolean(
+    boolish(liveChatContract?.offline_message_enabled) ||
+      boolish(liveChatOfflineMessage.enabled) ||
+      readFirstString(liveChatPrimaryCta.action) === "queue_offline_message" ||
+      readFirstString(liveChatContract?.availability_state) === "offline_accepting_messages",
+  );
   const liveChatAllowedByBackend =
     (!socketDisabledByBackend || liveChatHasHttpFallback) &&
     (supportChannels?.live_chat?.realtime !== false || liveChatHasHttpFallback) &&
-    supportChannels?.live_chat?.available !== false;
+    (supportChannels?.live_chat?.available !== false || liveChatSupportsOfflineMessages);
   const canRenderLiveChat = Boolean(
-    liveChatAllowedByBackend && isLiveChatEnabled,
+    liveChatAllowedByBackend && (isLiveChatEnabled || liveChatSupportsOfflineMessages),
   );
   const hasWhatsAppAction = Boolean(
     (typeof supportChannels?.whatsapp?.url === "string" && supportChannels.whatsapp.url.trim().length > 0) ||
@@ -2832,7 +2845,12 @@ const ChatPanel = (props: ChatPanelProps) => {
       ? supportChannels.whatsapp.label.trim()
       : "WhatsApp";
   const liveChatConfig = supportChannels?.live_chat as Record<string, unknown> | undefined;
+  const liveChatUi = asRecord(liveChatConfig?.ui);
+  const liveChatConfigCta = asRecord(liveChatConfig?.cta);
+  const liveChatConfigPrimaryCta = asRecord(liveChatConfigCta.primary);
   const liveChatButtonLabel = readFirstString(
+    liveChatUi.primary_cta_label,
+    liveChatConfigPrimaryCta.label,
     liveChatConfig?.cta_label,
     liveChatConfig?.label,
     "Hablar con un representante",

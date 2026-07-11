@@ -244,7 +244,7 @@ const UserOrdersPage = () => {
       ) : !hasPublicOrders && !hasLegacyOrders ? (
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <Package className="mb-4 h-12 w-12 opacity-20" />
-          <p>No tenes pedidos registrados aun.</p>
+          <p>No tenés pedidos registrados aún.</p>
           {catalogEnabled ? (
             <Button variant="link" className="mt-2" asChild><a href={catalogPath}>Explorar catalogo</a></Button>
           ) : null}

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import { io } from "socket.io-client";
 import {
   AlertTriangle,
   ArrowRight,
@@ -30,7 +31,9 @@ import {
 import { Button } from "@/components/ui/button";
 import OperationalContinuityBar from "@/components/operations/OperationalContinuityBar";
 import { Input } from "@/components/ui/input";
+import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { getErrorMessage } from "@/utils/api";
+import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
 
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
@@ -152,6 +155,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
   const adminSurface = isRecord(support?.admin_response_surface) ? support.admin_response_surface : {};
   const operatorQueue = isRecord(support?.operator_queue) ? support.operator_queue : {};
   const polling = isRecord(support?.polling) ? support.polling : {};
+  const socket = isRecord(support?.socket) ? support.socket : {};
   const ui = isRecord(support?.ui) ? support.ui : {};
   const cta = isRecord(support?.cta) ? support.cta : {};
   const primaryCta = isRecord(cta.primary) ? cta.primary : {};
@@ -261,6 +265,10 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     endpoint: readText(endpoints, ["send_message"], fallbackClaimSupport ? "/tracking/api/send-claim-message" : ""),
     ticketId: readText(ticket, ["id"]),
     requiresPin: ticket.requires_pin !== false,
+    socketEnabled: socket.enabled === true,
+    socketRoom: readText(socket, ["room", "socket_room", "socketRoom"]),
+    socketAccessToken: readText(socket, ["access_token", "accessToken", "live_chat_access_token"]),
+    socketEvent: readText(socket, ["event"], "new_chat_message"),
     queueState: readText(
       operatorQueue,
       ["state", "status"],
@@ -328,21 +336,71 @@ const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
 const titleFor = (kind: TrackingKind) =>
   kind === "claim" ? "Seguimiento de reclamo" : "Seguimiento de pedido";
 
+const readTrackingFragment = (hash: string) => {
+  const raw = hash.replace(/^#/, "");
+  if (!raw.includes("=")) return { pin: null, token: null, focus: null };
+  const params = new URLSearchParams(raw);
+  return {
+    pin: params.get("pin"),
+    token: params.get("token") || params.get("access_token"),
+    focus: params.get("focus"),
+  };
+};
+
 export default function TrackingExperiencePage({ kind }: { kind: TrackingKind }) {
   const params = useParams<{ code?: string; nro_ticket?: string; nro_pedido?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const initialFragmentRef = React.useRef(readTrackingFragment(location.hash));
+  const credentialsScrubbedRef = React.useRef(false);
   const code = params.code || params.nro_ticket || params.nro_pedido || searchParams.get("code") || "";
   const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || null;
-  const accessToken = searchParams.get("token") || searchParams.get("access_token") || null;
-  const [pin, setPin] = useState(searchParams.get("pin") || "");
+  const [accessToken] = useState(
+    initialFragmentRef.current.token || searchParams.get("token") || searchParams.get("access_token") || null,
+  );
+  const [pin, setPin] = useState(initialFragmentRef.current.pin || searchParams.get("pin") || "");
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSending, setSupportSending] = useState(false);
   const [supportNotice, setSupportNotice] = useState<string | null>(null);
+  const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "fallback">("idle");
+  const [socketAttempt, setSocketAttempt] = useState(0);
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
   const mapSectionRef = React.useRef<HTMLDivElement | null>(null);
+  const loadRef = React.useRef<(() => Promise<void>) | null>(null);
+  const realtimeRefreshPendingRef = React.useRef(false);
+  const realtimeRefreshQueuedRef = React.useRef(false);
+  const joinRefreshPendingRef = React.useRef(false);
+  const joinFailureCountRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (credentialsScrubbedRef.current) return;
+    const hasQueryCredential =
+      searchParams.has("pin") || searchParams.has("token") || searchParams.has("access_token");
+    const hasFragmentCredential = Boolean(initialFragmentRef.current.pin || initialFragmentRef.current.token);
+    if (!hasQueryCredential && !hasFragmentCredential) return;
+    credentialsScrubbedRef.current = true;
+    const sanitizedParams = new URLSearchParams(searchParams);
+    sanitizedParams.delete("pin");
+    sanitizedParams.delete("token");
+    sanitizedParams.delete("access_token");
+    const focusHash = initialFragmentRef.current.focus
+      ? `#${encodeURIComponent(initialFragmentRef.current.focus)}`
+      : "";
+    if (hasQueryCredential) {
+      setSearchParams(sanitizedParams, { replace: true });
+    }
+    if (typeof window !== "undefined") {
+      const query = sanitizedParams.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${location.pathname}${query ? `?${query}` : ""}${focusHash}`,
+      );
+    }
+  }, [location.pathname, searchParams, setSearchParams]);
 
   const status = normalizeStatus(payload);
   const resource = normalizeResource(payload, code);
@@ -408,11 +466,6 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         tenantSlug,
       });
       setPayload(nextPayload);
-      if (pin.trim()) {
-        const next = new URLSearchParams(searchParams);
-        next.set("pin", pin.trim());
-        setSearchParams(next, { replace: true });
-      }
     } catch (err) {
       setPayload(null);
       setError(getErrorMessage(err, "No se pudo cargar el seguimiento."));
@@ -458,6 +511,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     }
   };
 
+  loadRef.current = load;
+
   React.useEffect(() => {
     if (!code || requiresPinForLoad) return;
     load();
@@ -465,15 +520,145 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   }, [code, kind, accessToken]);
 
   React.useEffect(() => {
+    if (
+      kind !== "claim" ||
+      !payload ||
+      !support.liveAvailable ||
+      !support.socketEnabled ||
+      !support.socketRoom ||
+      !support.socketAccessToken
+    ) {
+      setRealtimeState("idle");
+      return;
+    }
+
+    const socketUrl = getSocketUrl();
+    if (!socketUrl) {
+      setRealtimeState("fallback");
+      return;
+    }
+
+    setRealtimeState("connecting");
+    let effectActive = true;
+    const socket = io(socketUrl, {
+      path: SOCKET_PATH,
+      transports: ["polling", "websocket"],
+      reconnectionAttempts: 3,
+      reconnectionDelay: 1500,
+      timeout: 8000,
+    });
+    const room = support.socketRoom;
+    const ticketId = String(support.ticketId || "");
+    const joinRoom = () => {
+      socket.emit("join", buildLiveChatJoinPayload(room, support.socketAccessToken));
+    };
+    const matchesTicket = (eventPayload: unknown) => {
+      if (!isRecord(eventPayload) || !ticketId) return true;
+      const nestedTicket = isRecord(eventPayload.ticket) ? eventPayload.ticket : {};
+      const eventTicketId = first(eventPayload, ["ticket_id", "ticketId"]) ?? first(nestedTicket, ["id"]);
+      return eventTicketId === undefined || eventTicketId === null || String(eventTicketId) === ticketId;
+    };
+    const runTrackingRefresh = () => {
+      if (realtimeRefreshPendingRef.current) {
+        realtimeRefreshQueuedRef.current = true;
+        return;
+      }
+      realtimeRefreshPendingRef.current = true;
+      const pendingLoad = loadRef.current?.();
+      if (!pendingLoad) {
+        realtimeRefreshPendingRef.current = false;
+        return;
+      }
+      void pendingLoad.finally(() => {
+        realtimeRefreshPendingRef.current = false;
+        if (effectActive && realtimeRefreshQueuedRef.current) {
+          realtimeRefreshQueuedRef.current = false;
+          runTrackingRefresh();
+        }
+      });
+    };
+    const refreshTracking = (eventPayload: unknown) => {
+      if (!matchesTicket(eventPayload)) return;
+      runTrackingRefresh();
+    };
+    const handleJoinAck = (eventPayload: unknown) => {
+      if (isRecord(eventPayload) && readText(eventPayload, ["room"]) !== room) return;
+      joinFailureCountRef.current = 0;
+      setRealtimeState("connected");
+    };
+    const handleRealtimeFailure = () => setRealtimeState("fallback");
+    const handleJoinError = () => {
+      setRealtimeState("fallback");
+      if (joinFailureCountRef.current >= 2 || joinRefreshPendingRef.current) return;
+      joinFailureCountRef.current += 1;
+      joinRefreshPendingRef.current = true;
+      const pendingLoad = loadRef.current?.();
+      if (!pendingLoad) {
+        joinRefreshPendingRef.current = false;
+        return;
+      }
+      void pendingLoad.finally(() => {
+        joinRefreshPendingRef.current = false;
+        if (effectActive) setSocketAttempt((value) => value + 1);
+      });
+    };
+
+    socket.on("connect", joinRoom);
+    socket.on("join_ack", handleJoinAck);
+    socket.on("join_error", handleJoinError);
+    socket.on("connect_error", handleRealtimeFailure);
+    socket.on("disconnect", handleRealtimeFailure);
+    socket.on(support.socketEvent, refreshTracking);
+    if (support.socketEvent !== "new_chat_message") {
+      socket.on("new_chat_message", refreshTracking);
+    }
+    socket.on("conversation.message.created", refreshTracking);
+    socket.on("ticket.status.changed", refreshTracking);
+    socket.on("ticket.assignment.changed", refreshTracking);
+    if (socket.connected) joinRoom();
+
+    return () => {
+      effectActive = false;
+      socket.off("connect", joinRoom);
+      socket.off("join_ack", handleJoinAck);
+      socket.off("join_error", handleJoinError);
+      socket.off("connect_error", handleRealtimeFailure);
+      socket.off("disconnect", handleRealtimeFailure);
+      socket.off(support.socketEvent, refreshTracking);
+      if (support.socketEvent !== "new_chat_message") {
+        socket.off("new_chat_message", refreshTracking);
+      }
+      socket.off("conversation.message.created", refreshTracking);
+      socket.off("ticket.status.changed", refreshTracking);
+      socket.off("ticket.assignment.changed", refreshTracking);
+      socket.disconnect();
+      realtimeRefreshPendingRef.current = false;
+      realtimeRefreshQueuedRef.current = false;
+    };
+  }, [
+    kind,
+    Boolean(payload),
+    support.liveAvailable,
+    support.socketEnabled,
+    support.socketRoom,
+    support.socketEvent,
+    support.ticketId,
+    socketAttempt,
+  ]);
+
+  React.useEffect(() => {
     if (!payload || !supportPollingMs || !support.endpoint || requiresPinForSupport) return;
+    const intervalMs = realtimeState === "connected"
+      ? Math.max(60_000, supportPollingMs * 6)
+      : supportPollingMs;
     const timer = window.setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (supportSending) return;
       void load();
-    }, supportPollingMs);
+    }, intervalMs);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payload, supportPollingMs, support.endpoint, requiresPinForSupport, supportSending]);
+  }, [payload, supportPollingMs, support.endpoint, requiresPinForSupport, supportSending, realtimeState]);
 
   const visibleTimeline = useMemo(
     () =>
@@ -909,7 +1094,13 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                     </span>
                   ) : null}
                   <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5">
-                    {support.operationalStateLabel}
+                    {realtimeState === "connected"
+                      ? "Canal en vivo conectado"
+                      : realtimeState === "connecting"
+                        ? "Conectando canal en vivo"
+                        : realtimeState === "fallback"
+                          ? "Actualizacion automatica de respaldo"
+                          : support.operationalStateLabel}
                   </span>
                 </div>
 

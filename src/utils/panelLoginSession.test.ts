@@ -102,4 +102,35 @@ describe("persistPanelLoginSession", () => {
       rol: "admin_municipio",
     });
   });
+
+  it("removes stale Clerk markers when a legacy panel login replaces the session", () => {
+    safeLocalStorage.setItem("authProvider", "clerk");
+    safeLocalStorage.setItem("clerkUserId", "user_clerk_a");
+    safeLocalStorage.setItem(
+      "user",
+      JSON.stringify({
+        id: 21,
+        email: "old@chatboc.test",
+        authProvider: "clerk",
+        auth_provider: "clerk",
+        clerkUserId: "user_clerk_a",
+      }),
+    );
+
+    const user = persistPanelLoginSession({
+      token: "legacy-token",
+      user: {
+        id: 22,
+        email: "legacy@chatboc.test",
+        rol: "admin",
+        tenant_slug: "junin",
+      },
+    });
+
+    expect(safeLocalStorage.getItem("authProvider")).toBeNull();
+    expect(safeLocalStorage.getItem("clerkUserId")).toBeNull();
+    expect(user).not.toHaveProperty("authProvider");
+    expect(user).not.toHaveProperty("auth_provider");
+    expect(user).not.toHaveProperty("clerkUserId");
+  });
 });

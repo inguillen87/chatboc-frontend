@@ -35,9 +35,11 @@ export async function fetchTrackingExperience({
   const params = new URLSearchParams();
   params.set("kind", kind);
   params.set("code", code);
-  if (pin) params.set("pin", pin);
-  if (token) params.set("token", token);
   if (tenantSlug) params.set("tenant_slug", tenantSlug);
+
+  const headers: Record<string, string> = {};
+  if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+  if (token) headers["X-Tracking-Token"] = token;
 
   return apiFetch<TrackingExperienceResponse>(
     `/api/public/tracking/experience?${params.toString()}`,
@@ -49,7 +51,7 @@ export async function fetchTrackingExperience({
       omitChatSessionId: true,
       omitTenant: true,
       suppressPanel401Redirect: true,
-      headers: tenantSlug ? { "X-Tenant-Slug": tenantSlug } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
       pin: pin || null,
     },
   );
@@ -66,12 +68,9 @@ export async function sendTrackingSupportMessage({
   message: string;
   code?: string | null;
 }): Promise<TrackingRecord> {
-  const params = new URLSearchParams();
-  if (pin) params.set("pin", pin);
-  const suffix = params.toString() ? `?${params.toString()}` : "";
   const normalizedCode = (code || "").replace(/^(M|S)-/i, "");
   const isLegacyClaimEndpoint = endpoint.includes("/tracking/api/send-claim-message");
-  return apiFetch<TrackingRecord>(`${endpoint}${suffix}`, {
+  return apiFetch<TrackingRecord>(endpoint, {
     method: "POST",
     body: isLegacyClaimEndpoint
       ? { nro_ticket: normalizedCode, mensaje: message, comentario: message }

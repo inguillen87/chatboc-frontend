@@ -96,6 +96,7 @@ import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { logoutChatbocSession } from "@/utils/sessionLogout";
 import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
@@ -1949,7 +1950,7 @@ export default function Perfil() {
             isWorkspaceProfileTab && "hidden",
           )}
           onClick={() => {
-            safeLocalStorage.clear();
+            void logoutChatbocSession();
             navigate("/login"); // Usa navigate para la redirección
           }}
         >
@@ -1977,7 +1978,7 @@ export default function Perfil() {
               size="sm"
               className="h-8 shrink-0 rounded-lg border-destructive px-2.5 text-xs text-destructive hover:bg-destructive/10 sm:px-3"
               onClick={() => {
-                safeLocalStorage.clear();
+                void logoutChatbocSession();
                 navigate("/login"); // Usa navigate para la redirecciÃ³n
               }}
             >

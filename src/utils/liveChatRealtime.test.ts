@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildLiveChatJoinPayload, resolveLiveChatRealtimeAccess } from './liveChatRealtime';
+import {
+  buildLiveChatJoinPayload,
+  resolveLiveChatRealtimeAccess,
+  resolveLiveChatRealtimeEnvelopeAccess,
+} from './liveChatRealtime';
 
 describe('liveChatRealtime', () => {
   it('reads a signed ticket room from the live-chat transport contract', () => {
@@ -49,6 +53,25 @@ describe('liveChatRealtime', () => {
       room: 'ticket_pyme_123',
       accessToken: 'nested-signed-token',
       ticketId: 123,
+      status: 'esperando_agente_en_vivo',
+    });
+  });
+
+  it('keeps signed handoff data when the response also contains messages', () => {
+    expect(
+      resolveLiveChatRealtimeEnvelopeAccess({
+        messages: [{ role: 'assistant', content: 'Te conectamos con el equipo.' }],
+        data: {
+          ticket_id: 321,
+          status: 'esperando_agente_en_vivo',
+          socket_room: 'ticket_municipio_321',
+          live_chat_access_token: 'root-envelope-token',
+        },
+      }),
+    ).toEqual({
+      room: 'ticket_municipio_321',
+      accessToken: 'root-envelope-token',
+      ticketId: 321,
       status: 'esperando_agente_en_vivo',
     });
   });

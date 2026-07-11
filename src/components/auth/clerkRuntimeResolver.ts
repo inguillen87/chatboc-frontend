@@ -18,6 +18,24 @@ const resolveClerkEnvironment = (publishableKey: string) => {
   return 'unconfigured';
 };
 
+interface ClerkOriginCompatibilityOptions {
+  environment?: string;
+  hostname?: string;
+  publishableKey: string;
+}
+
+export const isClerkOriginCompatible = ({
+  environment,
+  hostname,
+  publishableKey,
+}: ClerkOriginCompatibilityOptions): boolean => {
+  const liveKey = publishableKey.trim().startsWith('pk_live_');
+  if (environment !== 'production' && !liveKey) return true;
+
+  const normalizedHostname = String(hostname || '').trim().toLowerCase().replace(/\.$/, '');
+  return normalizedHostname === 'chatboc.ar' || normalizedHostname.endsWith('.chatboc.ar');
+};
+
 export const buildClerkRuntimeFromEnv = ({
   allowEnvFallback,
   envEnabled,

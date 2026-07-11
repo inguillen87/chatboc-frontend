@@ -1,21 +1,23 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 import ClerkAuthButtons from './ClerkAuthButtons';
 import { ClerkRuntimeProvider, type ClerkRuntimeValue } from './ClerkRuntimeContext';
 
 const clerkMocks = vi.hoisted(() => ({
+  signedIn: false,
+  logoutChatbocSession: vi.fn(),
   signInAuthenticateWithRedirect: vi.fn(),
   signUpAuthenticateWithRedirect: vi.fn(),
 }));
 
 vi.mock('@clerk/clerk-react', () => ({
-  SignedOut: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SignedIn: () => null,
+  SignedOut: ({ children }: { children: React.ReactNode }) => clerkMocks.signedIn ? null : <>{children}</>,
+  SignedIn: ({ children }: { children: React.ReactNode }) => clerkMocks.signedIn ? <>{children}</> : null,
   SignInButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SignUpButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  UserButton: () => <span data-testid="clerk-user-button" />,
   useSignIn: () => ({
     isLoaded: true,
     signIn: {
@@ -30,24 +32,35 @@ vi.mock('@clerk/clerk-react', () => ({
   }),
 }));
 
-const renderWithRuntime = (runtime: Partial<ClerkRuntimeValue> = {}) =>
+vi.mock('@/utils/sessionLogout', () => ({
+  logoutChatbocSession: clerkMocks.logoutChatbocSession,
+}));
+
+const renderWithRuntime = (
+  runtime: Partial<ClerkRuntimeValue> = {},
+  props: Partial<React.ComponentProps<typeof ClerkAuthButtons>> = {},
+) =>
   render(
-    <ClerkRuntimeProvider
-      value={{
-        enabled: true,
-        loading: false,
-        publishableKey: 'pk_test_local',
-        source: 'backend',
-        socialProviders: ['linkedin', 'google', 'facebook'],
-        ...runtime,
-      }}
-    >
-      <ClerkAuthButtons mode="register" />
-    </ClerkRuntimeProvider>,
+    <MemoryRouter>
+      <ClerkRuntimeProvider
+        value={{
+          enabled: true,
+          loading: false,
+          publishableKey: 'pk_test_local',
+          source: 'backend',
+          socialProviders: ['linkedin', 'google', 'facebook'],
+          ...runtime,
+        }}
+      >
+        <ClerkAuthButtons mode="register" {...props} />
+      </ClerkRuntimeProvider>
+    </MemoryRouter>,
   );
 
 describe('ClerkAuthButtons', () => {
   beforeEach(() => {
+    clerkMocks.signedIn = false;
+    clerkMocks.logoutChatbocSession.mockReset().mockResolvedValue(undefined);
     clerkMocks.signInAuthenticateWithRedirect.mockReset();
     clerkMocks.signUpAuthenticateWithRedirect.mockReset();
   });
@@ -80,5 +93,24 @@ describe('ClerkAuthButtons', () => {
     renderWithRuntime({ enabled: false, publishableKey: '', source: 'disabled', socialProviders: [] });
 
     expect(screen.queryByRole('button', { name: /crear con google/i })).not.toBeInTheDocument();
+  });
+
+  it('blocks social and email registration until consent is available', () => {
+    renderWithRuntime({}, { disabled: true });
+
+    expect(screen.getByRole('button', { name: /crear con google/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /crear con email/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /ya tengo cuenta/i })).toBeDisabled();
+  });
+
+  it('uses the coordinated backend and Clerk logout instead of Clerk UserButton', async () => {
+    clerkMocks.signedIn = true;
+    renderWithRuntime();
+
+    fireEvent.click(screen.getByRole('button', { name: /cerrar sesion/i }));
+
+    await waitFor(() => {
+      expect(clerkMocks.logoutChatbocSession).toHaveBeenCalledTimes(1);
+    });
   });
 });

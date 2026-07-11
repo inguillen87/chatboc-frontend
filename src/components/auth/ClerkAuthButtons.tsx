@@ -4,20 +4,22 @@ import {
   SignedOut,
   SignInButton,
   SignUpButton,
-  UserButton,
   useSignIn,
   useSignUp,
 } from '@clerk/clerk-react';
-import { Facebook, Linkedin, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Facebook, Linkedin, Loader2, LogOut, Mail, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useClerkRuntime, type ClerkRuntimeValue } from '@/components/auth/ClerkRuntimeContext';
 import GoogleIcon from '@/components/auth/GoogleIcon';
 import { cn } from '@/lib/utils';
+import { logoutChatbocSession } from '@/utils/sessionLogout';
 
 interface ClerkAuthButtonsProps {
   mode?: 'login' | 'register';
   className?: string;
+  disabled?: boolean;
 }
 
 const SOCIAL_PROVIDER_LABELS: Record<string, string> = {
@@ -69,11 +71,14 @@ const socialProviderLabel = (providers: string[]) => {
 const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: ClerkRuntimeValue }> = ({
   mode = 'login',
   className,
+  disabled = false,
   clerkRuntime,
 }) => {
   const signInApi = useSignIn();
   const signUpApi = useSignUp();
+  const navigate = useNavigate();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = React.useState(false);
   const [oauthError, setOauthError] = React.useState<string | null>(null);
 
   const providerLabel = socialProviderLabel(clerkRuntime.socialProviders);
@@ -82,6 +87,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   const socialProviders = normalizeSocialProviders(clerkRuntime.socialProviders).filter(isSupportedOAuthProvider);
 
   const runOAuthRedirect = async (provider: ClerkOAuthProvider) => {
+    if (disabled) return;
     const strategy = OAUTH_STRATEGY_BY_PROVIDER[provider];
     if (!strategy) return;
     const authResource = mode === 'register' ? signUpApi.signUp : signInApi.signIn;
@@ -107,6 +113,17 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
     }
   };
 
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logoutChatbocSession();
+      navigate('/login', { replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <div className={cn('space-y-3', className)}>
       <SignedOut>
@@ -122,7 +139,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
                     type="button"
                     className="h-11 w-full justify-center gap-2"
                     variant={provider === 'google' ? 'default' : 'outline'}
-                    disabled={Boolean(loadingProvider)}
+                    disabled={disabled || Boolean(loadingProvider)}
                     onClick={() => {
                       void runOAuthRedirect(provider);
                     }}
@@ -137,14 +154,14 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 
           {mode === 'register' ? (
             <SignUpButton mode="modal">
-              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2">
+              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled}>
                 <Mail className="h-4 w-4" />
                 {emailFallbackLabel}
               </Button>
             </SignUpButton>
           ) : (
             <SignInButton mode="modal">
-              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2">
+              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled}>
                 <Mail className="h-4 w-4" />
                 {emailFallbackLabel}
               </Button>
@@ -153,14 +170,14 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 
           {mode === 'register' ? (
             <SignInButton mode="modal">
-              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground">
+              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled}>
                 <ShieldCheck className="h-4 w-4" />
                 {secondaryLabel}
               </Button>
             </SignInButton>
           ) : (
             <SignUpButton mode="modal">
-              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground">
+              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled}>
                 <ShieldCheck className="h-4 w-4" />
                 {secondaryLabel}
               </Button>
@@ -176,7 +193,23 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
       <SignedIn>
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
           <span className="text-sm font-medium text-foreground">Cuenta conectada</span>
-          <UserButton afterSignOutUrl="/login" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            disabled={loggingOut}
+            onClick={() => {
+              void handleLogout();
+            }}
+          >
+            {loggingOut ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+            )}
+            {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
+          </Button>
         </div>
       </SignedIn>
     </div>

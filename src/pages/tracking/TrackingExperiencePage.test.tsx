@@ -1,10 +1,35 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchTrackingExperienceMock = vi.fn();
 const sendTrackingSupportMessageMock = vi.fn();
+const socketHarness = vi.hoisted(() => {
+  const handlers = new Map<string, (payload?: unknown) => void>();
+  const socket = {
+    connected: false,
+    on: vi.fn((event: string, handler: (payload?: unknown) => void) => {
+      handlers.set(event, handler);
+      return socket;
+    }),
+    off: vi.fn((event: string) => {
+      handlers.delete(event);
+      return socket;
+    }),
+    emit: vi.fn(),
+    disconnect: vi.fn(),
+  };
+  return {
+    handlers,
+    socket,
+    io: vi.fn(() => socket),
+  };
+});
+
+vi.mock("socket.io-client", () => ({
+  io: socketHarness.io,
+}));
 
 vi.mock("@/api/trackingExperience", () => ({
   fetchTrackingExperience: (...args: unknown[]) => fetchTrackingExperienceMock(...args),
@@ -121,6 +146,14 @@ const makeClaimPayload = (mode: "live" | "offline" = "offline") => {
       polling: {
         interval_ms: 15000,
       },
+      socket: {
+        enabled: live,
+        event: "new_chat_message",
+        room: "ticket_municipio_42",
+        access_token: live ? "signed-room-token" : null,
+        access_mode: "signed_ticket_room",
+        fallback_transport: "http_polling",
+      },
       ui: {
         channel_binding_label: "Canal interno del ticket",
         response_expectation_label: live
@@ -176,11 +209,59 @@ const renderTrackingPage = () =>
     </MemoryRouter>,
   );
 
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="tracking-location">{`${location.search}${location.hash}`}</output>;
+};
+
 describe("TrackingExperiencePage support contract", () => {
   beforeEach(() => {
     fetchTrackingExperienceMock.mockReset();
     sendTrackingSupportMessageMock.mockReset();
+    socketHarness.handlers.clear();
+    socketHarness.io.mockClear();
+    socketHarness.socket.on.mockClear();
+    socketHarness.socket.off.mockClear();
+    socketHarness.socket.emit.mockClear();
+    socketHarness.socket.disconnect.mockClear();
+    socketHarness.socket.connected = false;
     HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("uses a claim PIN from the URL fragment once and removes it before API polling", async () => {
+    fetchTrackingExperienceMock.mockResolvedValueOnce(makeClaimPayload("offline"));
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(
+      <MemoryRouter
+        initialEntries={["/tracking/claim?code=M-123456&tenant_slug=junin#pin=654321"]}
+      >
+        <Routes>
+          <Route
+            path="/tracking/claim"
+            element={
+              <>
+                <TrackingExperiencePage kind="claim" />
+                <LocationProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(fetchTrackingExperienceMock).toHaveBeenCalledWith(
+        expect.objectContaining({ pin: "654321" }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        replaceStateSpy.mock.calls.some(
+          (call) => call[2] === "/tracking/claim?code=M-123456&tenant_slug=junin",
+        ),
+      ).toBe(true);
+    });
   });
 
   it("forwards signed order tracking tokens from the public URL", async () => {
@@ -294,7 +375,21 @@ describe("TrackingExperiencePage support contract", () => {
   });
 
   it("uses the backend live CTA when the tenant service window is open", async () => {
-    fetchTrackingExperienceMock.mockResolvedValueOnce(makeClaimPayload("live"));
+    const payload = makeClaimPayload("live");
+    let loadCount = 0;
+    fetchTrackingExperienceMock.mockImplementation(async () => {
+      loadCount += 1;
+      return {
+        ...payload,
+        support: {
+          ...payload.support,
+          socket: {
+            ...payload.support.socket,
+            access_token: `signed-room-token-${loadCount}`,
+          },
+        },
+      };
+    });
 
     renderTrackingPage();
 
@@ -302,6 +397,66 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.getByText("Atencion inmediata")).toBeInTheDocument();
     expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Respuesta esperada en hasta 30 min");
     expect(screen.getByRole("button", { name: /Chatear con un agente/i })).toBeInTheDocument();
+    await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(1));
+
+    act(() => socketHarness.handlers.get("connect")?.());
+    expect(socketHarness.socket.emit).toHaveBeenCalledWith("join", {
+      room: "ticket_municipio_42",
+      access_token: "signed-room-token-1",
+    });
+
+    act(() => socketHarness.handlers.get("join_ack")?.({ room: "ticket_municipio_42" }));
+    expect(await screen.findByText("Canal en vivo conectado")).toBeInTheDocument();
+
+    act(() => socketHarness.handlers.get("new_chat_message")?.({ ticket_id: 42 }));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(2));
+    expect(socketHarness.io).toHaveBeenCalledTimes(1);
+    expect(socketHarness.socket.disconnect).not.toHaveBeenCalled();
+
+    act(() => socketHarness.handlers.get("ticket.assignment.changed")?.({ ticket_id: 42 }));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(3));
+    expect(socketHarness.io).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles again when a newer realtime event arrives during an active refresh", async () => {
+    const payload = makeClaimPayload("live");
+    let resolvePendingRefresh: ((value: ReturnType<typeof makeClaimPayload>) => void) | null = null;
+    fetchTrackingExperienceMock
+      .mockResolvedValueOnce(payload)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolvePendingRefresh = resolve;
+        }),
+      )
+      .mockResolvedValue(payload);
+
+    renderTrackingPage();
+    await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(1));
+
+    act(() => socketHarness.handlers.get("ticket.status.changed")?.({ ticket_id: 42 }));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(2));
+    act(() => socketHarness.handlers.get("ticket.assignment.changed")?.({ ticket_id: 42 }));
+    expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(2);
+
+    act(() => resolvePendingRefresh?.(payload));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(3));
+  });
+
+  it("restores the signed-room refresh budget after a successful rejoin", async () => {
+    const payload = makeClaimPayload("live");
+    fetchTrackingExperienceMock.mockResolvedValue(payload);
+
+    renderTrackingPage();
+    await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(1));
+
+    act(() => socketHarness.handlers.get("join_error")?.({ error: "expired_access_token" }));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(2));
+
+    act(() => socketHarness.handlers.get("join_ack")?.({ room: "ticket_municipio_42" }));
+    act(() => socketHarness.handlers.get("join_error")?.({ error: "expired_access_token" }));
+    await waitFor(() => expect(fetchTrackingExperienceMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(3));
   });
 
   it("keeps a legacy claim support fallback when the tracking payload has no support contract yet", async () => {

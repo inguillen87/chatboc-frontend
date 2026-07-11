@@ -14,8 +14,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu as MenuIconLucide, Settings, LogOut, Building, ChevronDown, Moon, Sun } from 'lucide-react';
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { useUser } from '@/hooks/useUser';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { usePortalTheme } from '@/hooks/usePortalTheme';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
@@ -24,13 +24,15 @@ import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
 import { isSafeAvatarUrl, resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { logoutChatbocSession } from '@/utils/sessionLogout';
 
 
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const routeParams = useParams();
-  const { user, setUser } = useUser();
+  const { user } = useUser();
+  const clerkRuntime = useClerkRuntime();
   const { currentSlug, tenant } = useTenant();
   const portalContent = usePortalContent();
   const { content, commerceSession, publicProfile } = portalContent;
@@ -69,23 +71,15 @@ const UserPortalLayout: React.FC = () => {
     }
   }, [active]);
 
-  const handleLogout = () => {
-    console.log("Cerrar Sesión");
+  const handleLogout = async () => {
+    const redirectTenantSlug = user?.tenantSlug || user?.tenant_slug || effectiveSlug;
+    setMobileMenuOpen(false);
+    await logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
 
-    // Limpiar tokens y sesión
-    safeLocalStorage.removeItem('authToken');
-    safeLocalStorage.removeItem('chatAuthToken');
-    safeLocalStorage.removeItem('user');
-
-    // Actualizar contexto
-    setUser(null);
-
-    // Redirigir
-    const tenantSlug = user?.tenantSlug;
-    if (tenantSlug) {
-      navigate(buildTenantPath('/user/login', tenantSlug));
+    if (redirectTenantSlug) {
+      navigate(buildTenantPath('/user/login', redirectTenantSlug), { replace: true });
     } else {
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
   };
 

@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import ClerkTenantOnboardingDialog from './ClerkTenantOnboardingDialog';
 
+vi.stubGlobal(
+  'ResizeObserver',
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
+
 const renderDialog = (props: Partial<React.ComponentProps<typeof ClerkTenantOnboardingDialog>> = {}) => {
   const onOpenChange = props.onOpenChange || vi.fn();
   const onSubmit = props.onSubmit || vi.fn();
@@ -52,6 +61,13 @@ describe('ClerkTenantOnboardingDialog', () => {
           ],
           vertical_options: [{ value: 'pyme', label: 'Empresa / comercio' }],
           goal_options: [{ value: 'ventas', label: 'Vender y tomar pedidos' }],
+          terms: {
+            required: true,
+            version: '2026-07-11',
+            terms_url: '/terminos',
+            privacy_url: '/privacidad',
+            label: 'Acepto los Terminos y la Politica de Privacidad',
+          },
           vertical_presets: {
             pyme: {
               rubro: 'ventas y atencion',
@@ -70,6 +86,8 @@ describe('ClerkTenantOnboardingDialog', () => {
     await waitFor(() => expect(screen.getByDisplayValue('Ferreteria Modelo')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByDisplayValue('ventas y atencion')).toBeInTheDocument());
 
+    expect(screen.getByRole('button', { name: /crear tenant/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: /crear tenant/i }));
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -79,6 +97,8 @@ describe('ClerkTenantOnboardingDialog', () => {
         rubro: 'ventas y atencion',
         primary_goal: 'ventas',
         preferred_channels: ['whatsapp', 'webchat', 'instagram'],
+        terms_accepted: true,
+        terms_version: '2026-07-11',
       }),
     );
   });
@@ -141,6 +161,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     expect(screen.getByTestId('clerk-plan-policy')).toHaveTextContent('Productivo full');
     await waitFor(() => expect(screen.getByDisplayValue('Municipalidad Demo')).toBeInTheDocument());
 
+    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: /crear tenant/i }));
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -154,5 +175,50 @@ describe('ClerkTenantOnboardingDialog', () => {
         preferred_channels: ['whatsapp', 'webchat'],
       }),
     );
+  });
+
+  it('shows a focused consent renewal for an existing tenant', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderDialog({
+      onSubmit,
+      onboarding: {
+        required: true,
+        status: 'terms_pending',
+        title: 'Actualiza tu consentimiento',
+        modal: {
+          mode: 'terms_only',
+          existing_tenant: {
+            id: 7,
+            slug: 'junin',
+            nombre: 'Municipalidad de Junin',
+          },
+          terms: {
+            required: true,
+            version: '2026-08-01',
+            terms_url: '/terminos',
+            privacy_url: '/privacidad',
+          },
+        },
+      },
+      required: true,
+    });
+
+    expect(screen.getByText('Municipalidad de Junin')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Nombre de organizacion/i)).not.toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: /Aceptar y continuar/i });
+    expect(submit).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenant_name: 'Municipalidad de Junin',
+          terms_accepted: true,
+          terms_version: '2026-08-01',
+        }),
+      );
+    });
   });
 });

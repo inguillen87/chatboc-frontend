@@ -1,4 +1,5 @@
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { advanceChatbocSessionRevision } from "@/utils/sessionLogout";
 
 export interface PanelLoginUser {
   id?: string | number;
@@ -55,14 +56,20 @@ export const persistPanelLoginSession = ({
   tenantSlugHint,
   setUser,
 }: PersistPanelLoginSessionInput): PanelLoginUser | null => {
+  safeLocalStorage.removeItem("authProvider");
+  safeLocalStorage.removeItem("clerkUserId");
   if (token) {
+    advanceChatbocSessionRevision();
     safeLocalStorage.setItem("authToken", token);
   }
   if (entityToken) {
     safeLocalStorage.setItem("entityToken", entityToken);
   }
 
-  const storedUser = parseStoredUser();
+  const storedUser = { ...parseStoredUser() };
+  delete storedUser.authProvider;
+  delete storedUser.auth_provider;
+  delete storedUser.clerkUserId;
   const resolvedTenantSlug = firstText(
     user?.tenant_slug,
     user?.tenantSlug,

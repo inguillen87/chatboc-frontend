@@ -24,11 +24,13 @@ interface LoginResponse {
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onLoggedIn?: (role?: string) => void;
   hideWhenClerkEnabled?: boolean;
+  disabled?: boolean;
 }
 
 const GoogleLoginButton: React.FC<Props> = ({
   onLoggedIn,
   hideWhenClerkEnabled = true,
+  disabled = false,
   className,
   ...props
 }) => {
@@ -46,6 +48,7 @@ const GoogleLoginButton: React.FC<Props> = ({
   }
 
   const handleSuccess = async (cred: CredentialResponse) => {
+    if (disabled) return;
     console.log('Google login success:', cred);
     if (!cred || !cred.credential) return;
     try {
@@ -65,7 +68,11 @@ const GoogleLoginButton: React.FC<Props> = ({
   };
 
   return (
-    <div className={cn('flex justify-center', className)} {...props}>
+    <div
+      className={cn('flex justify-center', disabled && 'pointer-events-none opacity-50', className)}
+      aria-disabled={disabled || undefined}
+      {...props}
+    >
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={() => console.error('Google OAuth error')}

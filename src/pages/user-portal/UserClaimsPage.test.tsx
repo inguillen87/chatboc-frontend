@@ -65,8 +65,8 @@ describe('UserClaimsPage public claim actions', () => {
     const commentLink = screen.getByRole('link', { name: /agregar comentario/i });
     const photoLink = screen.getByRole('link', { name: /agregar foto/i });
 
-    expect(commentLink).toHaveAttribute('href', '/tracking/claim/378430?pin=900144#mesa-ayuda');
-    expect(photoLink).toHaveAttribute('href', '/tracking/claim/378430?pin=900144#mesa-ayuda');
+    expect(commentLink).toHaveAttribute('href', '/tracking/claim/378430#pin=900144&focus=mesa-ayuda');
+    expect(photoLink).toHaveAttribute('href', '/tracking/claim/378430#pin=900144&focus=mesa-ayuda');
     expect(commentLink).not.toHaveAttribute('href', '/chat');
     expect(commentLink).not.toHaveAttribute('target', '_blank');
     expect(photoLink).not.toHaveAttribute('target', '_blank');

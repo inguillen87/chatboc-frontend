@@ -1,5 +1,5 @@
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
-import React, { useContext, useState, useCallback, useEffect } from 'react';
+import React, { useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
@@ -10,6 +10,10 @@ import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
+import {
+  captureChatbocSessionRevision,
+  isChatbocSessionRevisionCurrent,
+} from '@/utils/sessionLogout';
 
 interface UserData {
   id?: number;
@@ -122,9 +126,17 @@ const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, setUser } = usePanelSessionStore();
   const [loading, setLoading] = useState(false);
+  const rejectedAuthTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (user) return;
+    if (rejectedAuthTokenRef.current) {
+      const storedToken =
+        getValidStoredToken('authToken') ||
+        getValidStoredToken('chatAuthToken');
+      if (!storedToken || storedToken === rejectedAuthTokenRef.current) return;
+      rejectedAuthTokenRef.current = null;
+    }
     usePanelSessionStore.getState().loadFromStorage();
   }, [user]);
 
@@ -138,9 +150,24 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? 'chatAuthToken'
         : null;
     if (!activeToken) return;
+    if (rejectedAuthTokenRef.current === activeToken) return;
+    const requestRevision = captureChatbocSessionRevision();
+    const isCurrentRequest = () => {
+      const currentToken =
+        getValidStoredToken('authToken') ||
+        getValidStoredToken('chatAuthToken');
+      return (
+        currentToken === activeToken &&
+        isChatbocSessionRevisionCurrent(requestRevision)
+      );
+    };
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/api/me');
+      const data = await apiFetch<any>('/api/me', {
+        preserveAuthOn401: true,
+        suppressPanel401Redirect: true,
+      });
+      if (!isCurrentRequest()) return;
       const rubroNorm = parseRubro(data.rubro) || '';
       const resolvedRole = typeof data.rol === 'string' ? data.rol : typeof data.role === 'string' ? data.role : undefined;
       if (!data.tipo_chat) {
@@ -297,12 +324,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resolvedTenantSlug) {
         safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);
       }
+      rejectedAuthTokenRef.current = null;
       setUser(updated as any);
     } catch (e) {
+      if (!isCurrentRequest()) return;
       const status = e instanceof ApiError ? e.status : (e as any)?.status;
 
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         console.error('Auth error fetching user profile, logging out.', e);
+        rejectedAuthTokenRef.current = activeToken;
         // If fetching the user fails due to auth, clear session to force re-login.
         setUser(null);
         usePanelSessionStore.getState().setAuthToken(null);

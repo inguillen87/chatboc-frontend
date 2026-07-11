@@ -40,7 +40,10 @@ import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
-import { resolveLiveChatRealtimeAccess } from "@/utils/liveChatRealtime";
+import {
+  resolveLiveChatRealtimeAccess,
+  resolveLiveChatRealtimeEnvelopeAccess,
+} from "@/utils/liveChatRealtime";
 import {
   filterLegacyDemoSelectorSections,
   isLegacyDemoSelectorMenu,
@@ -1395,6 +1398,27 @@ export function useChatLogic({
         .toLowerCase()
         .replace(/[\s-]+/g, "_");
     };
+
+    // The API can return display messages and signed handoff data in the same
+    // envelope. Capture the room before iterating messages so it is not lost.
+    const envelopeAccess = resolveLiveChatRealtimeEnvelopeAccess(rawPayload);
+    if (envelopeAccess.room) {
+      setLiveChatSocketRoom(envelopeAccess.room);
+    }
+    if (envelopeAccess.accessToken) {
+      setLiveChatAccessToken(envelopeAccess.accessToken);
+    }
+    const envelopeTicketId = Number(envelopeAccess.ticketId);
+    const envelopeStatus = normalizeStatusCandidate(envelopeAccess.status);
+    if (
+      Number.isFinite(envelopeTicketId) &&
+      envelopeTicketId > 0 &&
+      (LIVE_CHAT_STATUSES.has(envelopeStatus) ||
+        (envelopeStatus === "en_proceso" && Boolean(envelopeAccess.room)))
+    ) {
+      setLiveChatTicketId(envelopeTicketId);
+      setLiveChatStatus(envelopeStatus);
+    }
 
     asArray.forEach((data: any) => {
       if (!data || typeof data !== "object") {

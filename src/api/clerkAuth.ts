@@ -36,6 +36,8 @@ export interface ClerkOnboardingPayload {
   tenant_name: string;
   vertical: string;
   rubro: string;
+  terms_accepted: boolean;
+  terms_version: string;
   telefono?: string;
   website?: string;
   ciudad?: string;
@@ -68,6 +70,8 @@ export interface ClerkOnboardingVerticalPreset {
 }
 
 export interface ClerkOnboardingModalContract {
+  mode?: 'tenant_setup' | 'terms_only' | string;
+  existing_tenant?: ClerkSessionResponse['tenant'];
   summary_cards?: ClerkOnboardingModule[];
   starter_modules?: ClerkOnboardingModule[];
   vertical_presets?: Record<string, ClerkOnboardingVerticalPreset>;
@@ -93,13 +97,20 @@ export interface ClerkOnboardingModalContract {
     upgrade_requires?: string;
     message?: string;
   };
+  terms?: {
+    required?: boolean;
+    version?: string;
+    terms_url?: string;
+    privacy_url?: string;
+    label?: string;
+  };
   profile_picture_policy?: string;
   steps?: Array<Record<string, unknown>>;
 }
 
 export interface ClerkSessionResponse {
   contract_version: 'auth.clerk.v1';
-  token: string;
+  token: string | null;
   auth_provider: 'clerk';
   user: {
     id: number | string;
@@ -151,6 +162,7 @@ export interface ClerkFrontendConfigResponse {
   session_sync_endpoint?: string;
   onboarding_endpoint?: string;
   webhook_endpoint?: string;
+  webhook_required_events?: string[];
   oauth_callback_path?: string;
   publishable_key?: string | null;
   publishable_key_configured?: boolean;
@@ -162,10 +174,16 @@ export interface ClerkFrontendConfigResponse {
   production_requirements?: {
     live_publishable_key?: boolean;
     session_verification?: boolean;
+    backend_identity_api?: boolean;
     webhook_secret?: boolean;
+    authorized_parties?: boolean;
+    authorized_party_required?: boolean;
     superadmin_allowlist?: boolean;
     custom_domain_or_production_instance?: boolean;
   };
+  backend_identity_api_configured?: boolean;
+  authorized_parties_configured?: boolean;
+  authorized_party_required?: boolean;
   social_providers?: string[];
   superadmin_policy?: {
     mode?: 'email_allowlist' | string;
