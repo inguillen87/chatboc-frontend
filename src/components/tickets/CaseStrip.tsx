@@ -26,16 +26,34 @@ const readText = (...values: unknown[]): string => {
   return '';
 };
 
-const resolveContactName = (ticket: Ticket): string =>
-  readText(
+const CONTACT_NAME_PLACEHOLDERS = new Set([
+  'asistente virtual',
+  'demo municipio',
+  'municipio',
+  'municipio inteligente',
+  'no especificado',
+  'sin nombre',
+  'tu municipio',
+]);
+
+const resolveContactName = (ticket: Ticket): string => {
+  const candidates = [
     (ticket as any).display_name,
     (ticket as any).name,
     ticket.informacion_personal_vecino?.nombre,
     (ticket as any).contact?.name,
     ticket.user?.nombre_usuario,
     ticket.email,
-    'Contacto sin nombre',
-  );
+  ];
+
+  for (const candidate of candidates) {
+    const value = readText(candidate);
+    if (!value || CONTACT_NAME_PLACEHOLDERS.has(value.toLocaleLowerCase('es-AR'))) continue;
+    return value;
+  }
+
+  return 'Contacto sin nombre';
+};
 
 const resolveAssignedLabel = (ticket: Ticket): string =>
   readText(
@@ -106,7 +124,7 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5 min-[920px]:justify-end">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5 pr-1">
           <Badge variant="outline" className="shrink-0 gap-1.5 text-[11px]">
             <UserRound className="h-3 w-3" />
             <span className="max-w-[9rem] truncate" title={contactName}>

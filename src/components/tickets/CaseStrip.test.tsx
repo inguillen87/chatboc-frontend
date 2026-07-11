@@ -50,6 +50,21 @@ describe('CaseStrip', () => {
     expect(screen.queryByTestId('ticket-case-strip')).not.toBeInTheDocument();
   });
 
+  it('does not present a demo municipality label as the citizen identity', () => {
+    render(
+      <CaseStrip
+        ticket={{
+          ...baseTicket,
+          display_name: 'Municipio Inteligente',
+          informacion_personal_vecino: undefined,
+        } as Ticket}
+      />,
+    );
+
+    expect(screen.getByText('Contacto sin nombre')).toBeInTheDocument();
+    expect(screen.queryByText('Municipio Inteligente')).not.toBeInTheDocument();
+  });
+
   it('delegates to the details action when requested', () => {
     const onOpenDetails = vi.fn();
 
