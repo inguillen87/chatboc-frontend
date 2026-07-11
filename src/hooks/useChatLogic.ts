@@ -40,6 +40,7 @@ import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
+import { resolveLiveChatRealtimeAccess } from "@/utils/liveChatRealtime";
 import {
   filterLegacyDemoSelectorSections,
   isLegacyDemoSelectorMenu,
@@ -292,6 +293,7 @@ export function useChatLogic({
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
   const [liveChatSocketRoom, setLiveChatSocketRoom] = useState<string | null>(null);
+  const [liveChatAccessToken, setLiveChatAccessToken] = useState<string | null>(null);
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<
     string | null
@@ -467,6 +469,7 @@ export function useChatLogic({
         setActiveTicketId(null);
         setLiveChatTicketId(null);
         setLiveChatSocketRoom(null);
+        setLiveChatAccessToken(null);
         setLiveChatStatus(null);
         seenMessageFingerprintsRef.current.clear();
       }
@@ -1727,16 +1730,6 @@ export function useChatLogic({
         return;
       }
 
-      const ticketCandidate =
-        data.ticket_id ?? data.ticketId ?? data.ticket?.id;
-      const statusCandidate = pickFirstString(
-        data.status,
-        data.estado,
-        data.ticket?.status,
-        data.ticket?.estado,
-        data.ticket_status,
-      );
-      const normalizedStatus = normalizeStatusCandidate(statusCandidate);
       const hasLiveChatMeta = Boolean(
         data.live_chat ||
         data.liveChat ||
@@ -1753,18 +1746,33 @@ export function useChatLogic({
         (dataPayload as any)?.live_chat ||
         (dataPayload as any)?.liveChat ||
         null;
-      const socketRoomCandidate = pickFirstString(
-        data.socket_room,
-        data.socketRoom,
-        data.metadata?.socket_room,
-        data.metadata?.socketRoom,
-        (dataPayload as any)?.socket_room,
-        (dataPayload as any)?.socketRoom,
-        liveChatMeta?.socket_room,
-        liveChatMeta?.socketRoom,
+      const liveChatRealtimeAccess = resolveLiveChatRealtimeAccess(
+        data,
+        dataPayload,
+        liveChatMeta,
       );
+      const ticketCandidate =
+        data.ticket_id ??
+        data.ticketId ??
+        data.ticket?.id ??
+        liveChatRealtimeAccess.ticketId;
+      const statusCandidate = pickFirstString(
+        data.status,
+        data.estado,
+        data.ticket?.status,
+        data.ticket?.estado,
+        data.ticket_status,
+        liveChatRealtimeAccess.status,
+      );
+      const normalizedStatus = normalizeStatusCandidate(statusCandidate);
+      const socketRoomCandidate = liveChatRealtimeAccess.room;
       if (socketRoomCandidate) {
         setLiveChatSocketRoom(socketRoomCandidate);
+        setLiveChatAccessToken(liveChatRealtimeAccess.accessToken);
+      }
+      const liveChatAccessTokenCandidate = liveChatRealtimeAccess.accessToken;
+      if (!socketRoomCandidate && liveChatAccessTokenCandidate) {
+        setLiveChatAccessToken(liveChatAccessTokenCandidate);
       }
       let ticketId: number | undefined;
       if (
@@ -2925,7 +2933,11 @@ export function useChatLogic({
           tipo_chat: tipoChatFinal,
           ...(rubro && { rubro_clave: rubro }),
           ...(liveChatTicketId
-            ? { ticket_id: liveChatTicketId, tipo_ticket: tipoChatFinal }
+            ? {
+                ticket_id: liveChatTicketId,
+                tipo_ticket: tipoChatFinal,
+                live_chat_access_token: liveChatAccessToken,
+              }
             : {}),
           ...(attachmentInfo && { attachment_info: attachmentInfo }),
           ...(location && { location: location }),
@@ -3139,6 +3151,7 @@ export function useChatLogic({
       contexto,
       activeTicketId,
       liveChatTicketId,
+      liveChatAccessToken,
       isTyping,
       isAnonimo,
       currentClaimIdempotencyKey,
@@ -3203,6 +3216,7 @@ export function useChatLogic({
     activeTicketId,
     liveChatTicketId,
     liveChatSocketRoom,
+    liveChatAccessToken,
     liveChatStatus,
     isLiveChatActive,
     setMessages,

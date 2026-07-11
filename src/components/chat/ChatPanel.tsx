@@ -65,6 +65,7 @@ import {
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
+import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
 import {
   ArrowRightLeft,
   Loader2,
@@ -1211,6 +1212,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     activeTicketId,
     liveChatTicketId,
     liveChatSocketRoom,
+    liveChatAccessToken,
     isLiveChatActive,
     setMessages,
     setContexto,
@@ -1963,8 +1965,9 @@ const ChatPanel = (props: ChatPanelProps) => {
 
       const room = liveChatSocketRoom || `ticket_${tipoChat}_${liveChatTicketId}`;
       let hasJoinedRealtimeRoom = false;
+      let hasReportedJoinError = false;
       const joinLiveChatRoom = () => {
-        socket.emit("join", { room });
+        socket.emit("join", buildLiveChatJoinPayload(room, liveChatAccessToken));
         if (hasJoinedRealtimeRoom) {
           trackFrontendEvent("socket_reconnect", {
             room,
@@ -1973,6 +1976,20 @@ const ChatPanel = (props: ChatPanelProps) => {
           });
         }
         hasJoinedRealtimeRoom = true;
+      };
+      const handleJoinError = (payload: { room?: string; error?: string } | null) => {
+        if (payload?.room && payload.room !== room) return;
+        if (hasReportedJoinError) return;
+        hasReportedJoinError = true;
+        addSystemMessage(
+          "La actualizacion en vivo no pudo conectarse. Podes seguir enviando mensajes; el equipo los vera en el ticket.",
+          "info",
+        );
+        trackFrontendEvent("socket_ticket_join_rejected", {
+          room,
+          ticket_id: liveChatTicketId,
+          reason: payload?.error || "unknown",
+        });
       };
       joinLiveChatRoom();
 
@@ -2041,6 +2058,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       );
       safeOn(socket, "connect", joinLiveChatRoom);
       safeOn(socket, "connect_error", handleConnectError);
+      safeOn(socket, "join_error", handleJoinError);
 
       return () => {
         socket?.off?.("new_chat_message", handleIncoming);
@@ -2055,6 +2073,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         );
         socket?.off?.("connect", joinLiveChatRoom);
         socket?.off?.("connect_error", handleConnectError);
+        socket?.off?.("join_error", handleJoinError);
         socket?.disconnect?.();
       };
     }
@@ -2063,6 +2082,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     isLiveChatActive,
     liveChatTicketId,
     liveChatSocketRoom,
+    liveChatAccessToken,
     tipoChat,
     setMessages,
     tenantSlug,
