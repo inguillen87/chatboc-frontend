@@ -29,11 +29,11 @@ const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
-const EMBEDDED_DETAIL_MIN_WIDTH = 1800;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1440;
 const DESKTOP_TICKET_LIST_COLUMN = 'minmax(340px, 420px)';
-const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(360px, 440px)';
+const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(310px, 320px)';
 const DESKTOP_DETAIL_COLUMN = 'minmax(300px, 360px)';
-const EMBEDDED_DETAIL_COLUMN = 'minmax(300px, 340px)';
+const EMBEDDED_DETAIL_COLUMN = 'minmax(300px, 310px)';
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
@@ -752,7 +752,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }
 
   const panelCardClass = cn(
-    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
+    'relative flex h-full max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
     embedded ? 'rounded-none border-x-0 border-b-0 bg-transparent shadow-none' : 'rounded-lg shadow-2xl',
     isMobile && !embedded && 'h-[calc(100dvh-8rem)]',
   );
@@ -836,15 +836,15 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
         className={cn(
-          'border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95',
-          embedded ? 'px-2.5 py-1 sm:px-3' : 'px-3 py-2 sm:px-4',
+          'shrink-0 border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95',
+          embedded ? 'px-2 py-0 sm:px-3 sm:py-1' : 'px-3 py-2 sm:px-4',
         )}
       >
         <div
           className={cn(
             'flex gap-2',
             embedded
-              ? 'min-h-10 items-center justify-between overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              ? 'min-h-8 items-center justify-between overflow-x-auto sm:min-h-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
               : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
           )}
         >
@@ -954,12 +954,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {nextPriorityTicket ? (
                 <div
                   data-testid="tickets-next-priority-strip"
-                  className="hidden"
+                  className="flex shrink-0 items-center gap-1 md:hidden"
                 >
                   <span className="hidden font-semibold uppercase tracking-[0.08em] min-[980px]:inline">
                     Siguiente prioridad
                   </span>
-                  <span className="max-w-[10rem] truncate font-semibold text-foreground min-[920px]:max-w-[11rem]">
+                  <span className="hidden max-w-[10rem] truncate font-semibold text-foreground min-[480px]:block min-[920px]:max-w-[11rem]">
                     #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityLabel}
                   </span>
                   <Button
@@ -1145,7 +1145,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </div>
       ) : null}
       {embedded && nextPriorityTicket && nextPriorityCrmQueue ? (
-        <div className="border-b border-border/70 bg-background/70 px-2.5 py-1.5 sm:px-3" data-testid="tickets-queue-command-card">
+        <div className="hidden shrink-0 border-b border-border/70 bg-background/70 px-2.5 py-1.5 sm:px-3 md:block" data-testid="tickets-queue-command-card">
           <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2 shadow-sm min-[860px]:flex-row min-[860px]:items-center min-[860px]:justify-between">
             <div className="flex min-w-0 items-start gap-2">
               <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-background/90 text-primary">
@@ -1189,8 +1189,8 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </div>
       ) : null}
       {isMobile ? (
-        <div className="flex h-full min-h-0 flex-1 flex-col">
-          <div className="border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
+          <div className="shrink-0 border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -1223,7 +1223,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               </button>
             </div>
           </div>
-          <div className="relative flex-1 overflow-hidden min-h-0">
+          <div className="relative min-h-0 flex-1 overflow-hidden" data-testid="tickets-mobile-viewport">
             <AnimatePresence
               initial={false}
               custom={mobileTransitionDirection}
@@ -1238,7 +1238,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0"
+                  className="absolute inset-0 flex min-h-0 overflow-hidden"
                 >
                   <Sidebar
                     compact={embedded}
@@ -1258,7 +1258,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0"
+                  className="absolute inset-0 flex min-h-0 overflow-hidden"
                 >
                   <ConversationPanel
                     isMobile={true}
@@ -1280,7 +1280,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0"
+                  className="absolute inset-0 flex min-h-0 overflow-hidden"
                 >
                   <DetailsPanel onClose={() => setActiveMobileView('chat')} />
                 </motion.div>
@@ -1295,7 +1295,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
           {isSidebarVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70">
+            <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70" data-testid="tickets-list-region">
               <Sidebar
                 compact={embedded}
                 showFilterControl={isMobile && !embedded}
@@ -1305,7 +1305,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </div>
           )}
 
-          <div className="min-h-0 min-w-0 overflow-hidden">
+          <div className="min-h-0 min-w-0 overflow-hidden" data-testid="tickets-conversation-region">
             <ConversationPanel
               isMobile={false}
               isSidebarVisible={isSidebarVisible}
@@ -1320,7 +1320,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           </div>
 
           {isDetailsVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-l border-border/70">
+            <div className="min-h-0 min-w-0 overflow-hidden border-l border-border/70" data-testid="tickets-detail-region">
               <DetailsPanel className="h-full w-full" />
             </div>
           )}

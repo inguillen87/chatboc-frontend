@@ -156,4 +156,62 @@ describe('IncidentsMap', () => {
     expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'points');
     expect(screen.getByText('Solo puntos')).toBeInTheDocument();
   });
+
+  it('keeps draft filters local until the operator applies them', async () => {
+    render(<IncidentsMap />);
+
+    await waitFor(() => {
+      expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.change(screen.getByLabelText('Edad mínima'), { target: { value: '18' } });
+    expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
+
+    await waitFor(() => {
+      expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.getHeatmapDataset).toHaveBeenLastCalledWith(
+      expect.objectContaining({ edad_min: '18', tipo: 'municipio' }),
+    );
+  });
+
+  it('replaces an empty map with one actionable empty state', async () => {
+    mocks.getHeatmapDataset.mockResolvedValue({ points: [] });
+    mocks.getTicketStats.mockResolvedValue({ charts: [], heatmap: [] });
+
+    render(<IncidentsMap />);
+
+    expect(await screen.findByTestId('incidents-map-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-incidents-map')).not.toBeInTheDocument();
+    expect(screen.queryByText('No pudimos cargar el mapa')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ampliar a 90 dias' }));
+
+    await waitFor(() => {
+      expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.getHeatmapDataset).toHaveBeenLastCalledWith(
+      expect.objectContaining({ fecha_inicio: expect.any(String), fecha_fin: expect.any(String) }),
+    );
+  });
+
+  it('shows a retryable error without rendering the empty map', async () => {
+    mocks.getHeatmapDataset
+      .mockRejectedValueOnce(new Error('No se pudo consultar el mapa'))
+      .mockResolvedValue({ points: heatmapPoints });
+
+    render(<IncidentsMap />);
+
+    const errorState = await screen.findByTestId('incidents-map-error');
+    expect(errorState).toHaveAttribute('role', 'alert');
+    expect(screen.queryByTestId('mock-incidents-map')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-points', '2');
+    });
+  });
 });

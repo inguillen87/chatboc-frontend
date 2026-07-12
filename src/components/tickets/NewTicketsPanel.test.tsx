@@ -7,6 +7,7 @@ import NewTicketsPanel from './NewTicketsPanel';
 const searchParamsState = vi.hoisted(() => ({
   value: new URLSearchParams(),
 }));
+const mobileState = vi.hoisted(() => ({ value: false }));
 
 const useTicketsMock = vi.fn();
 
@@ -29,7 +30,7 @@ vi.mock('@/context/TicketContext', () => ({
 }));
 
 vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mobileState.value,
 }));
 
 vi.mock('@/context/TenantContext', () => ({
@@ -78,6 +79,7 @@ vi.mock('@/components/ui/sonner', () => ({
 describe('NewTicketsPanel CRM layout', () => {
   beforeEach(() => {
     searchParamsState.value = new URLSearchParams();
+    mobileState.value = false;
     useTicketsMock.mockReset();
     useTicketsMock.mockReturnValue({
       loading: true,
@@ -284,8 +286,10 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel embedded />);
 
     expect(screen.getByTestId('tickets-embedded-ops-header')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveClass('shrink-0');
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
-    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('min-h-10');
+    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('min-h-8');
+    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('sm:min-h-10');
     expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('overflow-x-auto');
     expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
@@ -293,8 +297,10 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-embedded-kpi-summary')).toHaveTextContent('0 abiertos');
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
     });
+    expect(screen.getByTestId('tickets-list-region')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('tickets-conversation-region')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
   });
@@ -356,7 +362,7 @@ describe('NewTicketsPanel CRM layout', () => {
     });
   });
 
-  it('opens the details column by default only on wide embedded desks', () => {
+  it('opens the independent details column on standard 1440-class embedded desks', () => {
     const originalInnerWidth = window.innerWidth;
     const ticket = {
       id: 1,
@@ -384,32 +390,76 @@ describe('NewTicketsPanel CRM layout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
       const narrow = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
       });
       narrow.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
       const commonDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
       });
       commonDesktop.unmount();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
       const mediumDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
       });
+      expect(screen.getByTestId('tickets-detail-region')).toHaveClass('min-h-0', 'overflow-hidden');
       mediumDesktop.unmount();
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
+      const wideDesktop = render(<NewTicketsPanel embedded />);
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
+      });
+      wideDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(360px, 440px) minmax(0, 1fr) minmax(300px, 340px)',
+        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
       });
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
     }
+  });
+
+  it('keeps the mobile navigator and active pane inside a clipped full-height viewport', () => {
+    mobileState.value = true;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+
+    expect(screen.getByTestId('tickets-mobile-layout')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('tickets-mobile-viewport')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(screen.getByRole('button', { name: 'Tickets' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+
+    expect(screen.getByTestId('tickets-conversation')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('offers a compact action for the next operational priority in embedded mode', () => {
@@ -459,7 +509,9 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
-    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveClass('hidden');
+    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveClass('md:hidden');
+    expect(screen.getByTestId('tickets-next-priority-strip')).not.toHaveClass('hidden');
+    expect(screen.getByTestId('tickets-queue-command-card')).toHaveClass('hidden', 'md:block');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Proxima accion');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Responder ahora');
     expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Score 135');

@@ -34,6 +34,40 @@ import {
 
 const HEATMAP_CACHE_LIMIT = 20;
 
+type IncidentTimeRange = 'custom' | '7d' | '30d' | '90d';
+
+type IncidentMapFilters = {
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  categoria: string[];
+  estado: string[];
+  distrito?: string;
+  barrio?: string;
+  genero?: string;
+  edad_min?: string;
+  edad_max?: string;
+};
+
+const dateValuesForRange = (range: IncidentTimeRange, now = new Date()) => {
+  if (range === 'custom') return { start: '', end: '' };
+
+  const end = now.toISOString().slice(0, 10);
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+  const startDate = new Date(now);
+  startDate.setDate(now.getDate() - days);
+  return { start: startDate.toISOString().slice(0, 10), end };
+};
+
+const defaultIncidentMapFilters = (): IncidentMapFilters => {
+  const dates = dateValuesForRange('30d');
+  return {
+    fecha_inicio: dates.start,
+    fecha_fin: dates.end,
+    categoria: [],
+    estado: [],
+  };
+};
+
 const normalizeValue = (value: unknown): string => {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value.trim();
@@ -334,17 +368,28 @@ export default function IncidentsMap() {
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [center, setCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const initialDateRange = useMemo(() => dateValuesForRange('30d'), []);
+  const [startDate, setStartDate] = useState(initialDateRange.start);
+  const [endDate, setEndDate] = useState(initialDateRange.end);
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedBarrio, setSelectedBarrio] = useState('');
+  const [selectedGender, setSelectedGender] = useState('');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState<IncidentMapFilters>(() =>
+    defaultIncidentMapFilters(),
+  );
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [availableDistritos, setAvailableDistritos] = useState<string[]>([]);
   const [disableClustering, setDisableClustering] = useState(false);
-  const [timeRange, setTimeRange] = useState<'custom' | '7d' | '30d' | '90d'>('30d');
+  const [timeRange, setTimeRange] = useState<IncidentTimeRange>('30d');
   const { provider, setProvider } = useMapProvider();
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -485,32 +530,76 @@ export default function IncidentsMap() {
     [adminCoords, computeDisableClustering],
   );
 
-  const startDateRef = useRef<HTMLInputElement>(null);
-  const endDateRef = useRef<HTMLInputElement>(null);
-  const districtRef = useRef<HTMLSelectElement>(null);
-  const barrioRef = useRef<HTMLSelectElement>(null);
-  const genderRef = useRef<HTMLSelectElement>(null);
-  const ageMinRef = useRef<HTMLInputElement>(null);
-  const ageMaxRef = useRef<HTMLInputElement>(null);
-
-  const setDateRange = useCallback((range: 'custom' | '7d' | '30d' | '90d') => {
+  const setDateRange = useCallback((range: IncidentTimeRange) => {
     setTimeRange(range);
-    if (!startDateRef.current || !endDateRef.current) return;
+    const dates = dateValuesForRange(range);
+    setStartDate(dates.start);
+    setEndDate(dates.end);
+  }, []);
 
-    if (range === 'custom') {
-      startDateRef.current.value = '';
-      endDateRef.current.value = '';
-      return;
-    }
+  const draftFilters = useMemo<IncidentMapFilters>(
+    () => ({
+      fecha_inicio: sanitizeFilterValue(startDate),
+      fecha_fin: sanitizeFilterValue(endDate),
+      categoria: selectedCategories,
+      estado: selectedStates,
+      distrito: sanitizeFilterValue(selectedDistrict),
+      barrio: sanitizeFilterValue(selectedBarrio),
+      genero: sanitizeFilterValue(selectedGender),
+      edad_min: sanitizeFilterValue(ageMin),
+      edad_max: sanitizeFilterValue(ageMax),
+    }),
+    [
+      ageMax,
+      ageMin,
+      endDate,
+      selectedBarrio,
+      selectedCategories,
+      selectedDistrict,
+      selectedGender,
+      selectedStates,
+      startDate,
+    ],
+  );
 
-    const today = new Date();
-    const end = today.toISOString().slice(0, 10);
-    const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - days);
-    const start = startDate.toISOString().slice(0, 10);
-    startDateRef.current.value = start;
-    endDateRef.current.value = end;
+  const applyDraftFilters = useCallback(() => {
+    setAppliedFilters({
+      ...draftFilters,
+      categoria: [...draftFilters.categoria],
+      estado: [...draftFilters.estado],
+    });
+  }, [draftFilters]);
+
+  const clearFilters = useCallback(() => {
+    const dates = dateValuesForRange('30d');
+    setTimeRange('30d');
+    setStartDate(dates.start);
+    setEndDate(dates.end);
+    setSelectedCategories([]);
+    setSelectedStates([]);
+    setSelectedDistrict('');
+    setSelectedBarrio('');
+    setSelectedGender('');
+    setAgeMin('');
+    setAgeMax('');
+    setAppliedFilters({
+      fecha_inicio: dates.start,
+      fecha_fin: dates.end,
+      categoria: [],
+      estado: [],
+    });
+  }, []);
+
+  const expandToNinetyDays = useCallback(() => {
+    const dates = dateValuesForRange('90d');
+    setTimeRange('90d');
+    setStartDate(dates.start);
+    setEndDate(dates.end);
+    setAppliedFilters((current) => ({
+      ...current,
+      fecha_inicio: dates.start,
+      fecha_fin: dates.end,
+    }));
   }, []);
 
   const ticketType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipio'), [user]);
@@ -520,21 +609,7 @@ export default function IncidentsMap() {
     setError(null);
 
     try {
-      if (timeRange !== 'custom') {
-        setDateRange(timeRange);
-      }
-
-      const filters = {
-        fecha_inicio: sanitizeFilterValue(startDateRef.current?.value),
-        fecha_fin: sanitizeFilterValue(endDateRef.current?.value),
-        categoria: selectedCategories,
-        estado: selectedStates,
-        distrito: sanitizeFilterValue(districtRef.current?.value),
-        barrio: sanitizeFilterValue(barrioRef.current?.value),
-        genero: sanitizeFilterValue(genderRef.current?.value),
-        edad_min: sanitizeFilterValue(ageMinRef.current?.value),
-        edad_max: sanitizeFilterValue(ageMaxRef.current?.value),
-      };
+      const filters = appliedFilters;
 
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
@@ -563,12 +638,8 @@ export default function IncidentsMap() {
 
       const heatmapPoints = heatmapDatasetResult.points ?? [];
       const statsDataset = stats.heatmapDataset;
-      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsDataset?.points ?? stats.heatmap ?? [];
+      const combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsDataset?.points ?? stats.heatmap ?? [];
       const usedFallback = combinedHeatmap.length === 0;
-
-      if (usedFallback) {
-        setError('No hay puntos de mapa disponibles con los filtros actuales.');
-      }
 
       applyHeatmapDataset(
         heatmapPoints.length > 0
@@ -591,15 +662,11 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset, setDateRange, timeRange]);
+  }, [appliedFilters, applyHeatmapDataset, ticketType]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  useEffect(() => {
-    setDateRange(timeRange);
-  }, [setDateRange, timeRange]);
 
   useEffect(() => {
     const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
@@ -645,11 +712,11 @@ export default function IncidentsMap() {
   };
 
   const legendText = [
-    selectedCategories.length
-      ? `Categorías: ${selectedCategories.join(', ')}`
+    appliedFilters.categoria.length
+      ? `Categorías: ${appliedFilters.categoria.join(', ')}`
       : 'Todas las categorías',
-    selectedStates.length
-      ? `Estados: ${selectedStates.join(', ')}`
+    appliedFilters.estado.length
+      ? `Estados: ${appliedFilters.estado.join(', ')}`
       : 'Todos los estados',
   ].join(' | ');
 
@@ -677,12 +744,12 @@ export default function IncidentsMap() {
   }, [heatmapData]);
 
   const activeFilterCount = [
-    selectedCategories.length,
-    selectedStates.length,
-    sanitizeFilterValue(districtRef.current?.value) ? 1 : 0,
-    sanitizeFilterValue(barrioRef.current?.value) ? 1 : 0,
-    sanitizeFilterValue(genderRef.current?.value) ? 1 : 0,
-    sanitizeFilterValue(ageMinRef.current?.value) || sanitizeFilterValue(ageMaxRef.current?.value) ? 1 : 0,
+    appliedFilters.categoria.length,
+    appliedFilters.estado.length,
+    appliedFilters.distrito ? 1 : 0,
+    appliedFilters.barrio ? 1 : 0,
+    appliedFilters.genero ? 1 : 0,
+    appliedFilters.edad_min || appliedFilters.edad_max ? 1 : 0,
   ].reduce((sum, value) => sum + value, 0);
 
   const mapKpis = [
@@ -786,7 +853,7 @@ export default function IncidentsMap() {
               <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[160px_1fr_1fr_auto_auto] xl:min-w-[720px]">
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[180px_auto_auto] xl:min-w-[520px]">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Rango rápido</label>
                 <select
@@ -801,14 +868,12 @@ export default function IncidentsMap() {
                 </select>
               </div>
             <Button
-              onClick={() => {
-                void fetchData(true);
-              }}
+              onClick={applyDraftFilters}
               disabled={isLoading}
               className="h-10 gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              {isLoading ? 'Actualizando' : 'Actualizar'}
+              {isLoading ? 'Aplicando' : 'Aplicar'}
             </Button>
             <Button onClick={handleLocate} disabled={isLoading} variant="outline" className="h-10 gap-2">
               <LocateFixed className="h-4 w-4" />
@@ -838,7 +903,8 @@ export default function IncidentsMap() {
                 <input
                   type="date"
                   id="startDate"
-                  ref={startDateRef}
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   disabled={timeRange !== 'custom'}
                 />
@@ -850,7 +916,8 @@ export default function IncidentsMap() {
                 <input
                   type="date"
                   id="endDate"
-                  ref={endDateRef}
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   disabled={timeRange !== 'custom'}
                 />
@@ -907,7 +974,8 @@ export default function IncidentsMap() {
                 </label>
                 <select
                   id="barrio"
-                  ref={barrioRef}
+                  value={selectedBarrio}
+                  onChange={(event) => setSelectedBarrio(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 >
                   <option value="">Todos</option>
@@ -924,7 +992,8 @@ export default function IncidentsMap() {
                 </label>
                 <select
                   id="district"
-                  ref={districtRef}
+                  value={selectedDistrict}
+                  onChange={(event) => setSelectedDistrict(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 >
                   <option value="">Todos</option>
@@ -941,7 +1010,8 @@ export default function IncidentsMap() {
                 </label>
                 <select
                   id="gender"
-                  ref={genderRef}
+                  value={selectedGender}
+                  onChange={(event) => setSelectedGender(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 >
                   <option value="">Todos</option>
@@ -957,7 +1027,8 @@ export default function IncidentsMap() {
                 <input
                   type="number"
                   id="ageMin"
-                  ref={ageMinRef}
+                  value={ageMin}
+                  onChange={(event) => setAgeMin(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
@@ -968,43 +1039,66 @@ export default function IncidentsMap() {
                 <input
                   type="number"
                   id="ageMax"
-                  ref={ageMaxRef}
+                  value={ageMax}
+                  onChange={(event) => setAgeMax(event.target.value)}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
-              <div className="hidden">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    onClick={() => {
-                      void fetchData(true);
-                    }}
-                    disabled={isLoading}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    {isLoading ? 'Actualizando...' : 'Aplicar Filtros y Actualizar Mapa'}
-                  </Button>
-                  <Button
-                    onClick={handleLocate}
-                    disabled={isLoading}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    Centrar en mi ubicación
-                  </Button>
-                </div>
+              <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:col-span-2 sm:flex-row sm:justify-end lg:col-span-4">
+                <Button type="button" variant="ghost" onClick={clearFilters} disabled={isLoading}>
+                  Limpiar filtros
+                </Button>
+                <Button type="button" onClick={applyDraftFilters} disabled={isLoading} className="gap-2">
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  {isLoading ? 'Aplicando filtros' : 'Aplicar filtros'}
+                </Button>
               </div>
             </div>
         </details>
       </section>
 
-      {error && (
-        <Alert variant="default" className="border-destructive/30 bg-destructive/10 text-destructive">
+      {error ? (
+        <Alert
+          role="alert"
+          data-testid="incidents-map-error"
+          variant="default"
+          className="border-destructive/30 bg-destructive/10 text-destructive"
+        >
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Datos de mapa limitados</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertTitle>No pudimos cargar el mapa</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{error}</p>
+            <Button type="button" variant="outline" onClick={() => void fetchData(true)}>
+              Reintentar
+            </Button>
+          </AlertDescription>
         </Alert>
-      )}
-
+      ) : !isLoading && heatmapData.length === 0 ? (
+        <Alert
+          data-testid="incidents-map-empty"
+          variant="default"
+          className="border-border/60 bg-muted/30"
+        >
+          <MapPin className="h-4 w-4" />
+          <AlertTitle>No hay ubicaciones para esta vista</AlertTitle>
+          <AlertDescription className="space-y-4">
+            <p>
+              No encontramos reclamos geocodificados con los filtros aplicados. Amplia el periodo o limpia la segmentacion para recuperar cobertura.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" onClick={expandToNinetyDays}>
+                Ampliar a 90 dias
+              </Button>
+              <Button type="button" variant="outline" onClick={clearFilters}>
+                Limpiar filtros
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => void fetchData(true)}>
+                Reintentar
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative min-h-[560px] overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-xl">
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:44px_44px]" />
@@ -1113,14 +1207,6 @@ export default function IncidentsMap() {
           </div>
         </aside>
       </section>
-      {!isLoading && heatmapData.length === 0 && (
-        <Alert variant="default" className="mb-6 border-border/60 border-dashed bg-muted/40">
-          <AlertTitle>No hay puntos para mostrar</AlertTitle>
-          <AlertDescription>
-            No recibimos ubicaciones con los filtros seleccionados. Probá ampliar el rango de fechas o quitar filtros.
-            Si el problema persiste, avisa al equipo de soporte para revisar los datos enviados.
-          </AlertDescription>
-        </Alert>
       )}
       <TicketStatsCharts charts={charts} />
     </div>

@@ -5,15 +5,16 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   Clipboard,
   Clock3,
-  FileText,
+  Eye,
+  EyeOff,
+  Info,
   Loader2,
   MapPinned,
   MapPin,
   MessageCircle,
-  MessagesSquare,
-  PackageCheck,
   Radio,
   RefreshCw,
   Route,
@@ -29,7 +30,6 @@ import {
   type TrackingKind,
 } from "@/api/trackingExperience";
 import { Button } from "@/components/ui/button";
-import OperationalContinuityBar from "@/components/operations/OperationalContinuityBar";
 import { Input } from "@/components/ui/input";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { getErrorMessage } from "@/utils/api";
@@ -359,15 +359,24 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     initialFragmentRef.current.token || searchParams.get("token") || searchParams.get("access_token") || null,
   );
   const [pin, setPin] = useState(initialFragmentRef.current.pin || searchParams.get("pin") || "");
+  const [showPin, setShowPin] = useState(false);
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTarget, setErrorTarget] = useState<"pin" | "tracking" | null>(null);
+  const [pageNotice, setPageNotice] = useState<{ message: string; tone: "status" | "error" } | null>(null);
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSending, setSupportSending] = useState(false);
-  const [supportNotice, setSupportNotice] = useState<string | null>(null);
+  const [supportNotice, setSupportNotice] = useState<{
+    message: string;
+    tone: "success" | "error";
+  } | null>(null);
   const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "fallback">("idle");
   const [socketAttempt, setSocketAttempt] = useState(0);
+  const pinInputRef = React.useRef<HTMLInputElement | null>(null);
+  const trackingErrorRef = React.useRef<HTMLDivElement | null>(null);
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const supportNoticeRef = React.useRef<HTMLDivElement | null>(null);
   const mapSectionRef = React.useRef<HTMLDivElement | null>(null);
   const loadRef = React.useRef<(() => Promise<void>) | null>(null);
   const realtimeRefreshPendingRef = React.useRef(false);
@@ -412,7 +421,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     0,
     milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase()),
   );
-  const nextMilestone = milestones[Math.min(currentIndex + 1, Math.max(milestones.length - 1, 0))] ?? null;
+  const nextMilestone = currentIndex < milestones.length - 1 ? milestones[currentIndex + 1] : null;
   const progress = milestones.length > 1 ? Math.round((currentIndex / (milestones.length - 1)) * 100) : 0;
   const requiresPinForLoad = kind === "claim" && !payload && !pin.trim();
   const requiresPinForSupport = kind === "claim" && support.requiresPin && !pin.trim();
@@ -429,6 +438,9 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
       (mapState.origin || mapState.destination || mapState.current),
   );
   const trackingCodeLabel = resource.code || code || "-";
+  const focusAfterRender = (target: React.RefObject<HTMLElement>) => {
+    window.setTimeout(() => target.current?.focus({ preventScroll: true }), 0);
+  };
   const focusSupportComposer = () => {
     const target = supportComposerRef.current;
     if (!target) return;
@@ -442,9 +454,12 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     if (!trackingCodeLabel || trackingCodeLabel === "-" || typeof navigator === "undefined" || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(trackingCodeLabel);
-      setSupportNotice(`Codigo ${trackingCodeLabel} copiado.`);
+      setPageNotice({ message: `Codigo ${trackingCodeLabel} copiado.`, tone: "status" });
     } catch {
-      setSupportNotice(`No se pudo copiar el codigo. Referencia: ${trackingCodeLabel}`);
+      setPageNotice({
+        message: `No se pudo copiar el codigo. Referencia: ${trackingCodeLabel}`,
+        tone: "error",
+      });
     }
   };
 
@@ -452,11 +467,14 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     if (!code) return;
     if (requiresPinForLoad) {
       setError("Ingresa el PIN para consultar el estado del reclamo.");
+      setErrorTarget("pin");
+      focusAfterRender(pinInputRef);
       return;
     }
 
     setLoading(true);
     setError(null);
+    setErrorTarget(null);
     try {
       const nextPayload = await fetchTrackingExperience({
         kind,
@@ -469,6 +487,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     } catch (err) {
       setPayload(null);
       setError(getErrorMessage(err, "No se pudo cargar el seguimiento."));
+      setErrorTarget("tracking");
+      focusAfterRender(trackingErrorRef);
     } finally {
       setLoading(false);
     }
@@ -492,20 +512,27 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         setPayload(updatedTracking as TrackingExperienceResponse);
       }
       setSupportMessage("");
-      setSupportNotice(
-        readText(reply, ["message"]) ||
-        (support.liveAvailable
-          ? "Mensaje enviado al canal en vivo del reclamo."
-          : "Mensaje guardado en el reclamo para la mesa de entrada."),
-      );
+      setSupportNotice({
+        tone: "success",
+        message:
+          readText(reply, ["message"]) ||
+          (support.liveAvailable
+            ? "Mensaje enviado al canal en vivo del reclamo."
+            : "Mensaje guardado en el reclamo para la mesa de entrada."),
+      });
       if (crmWriteback?.unread_for_team || crmWriteback?.inbox_increment) {
-        setSupportNotice(
-          `${readText(reply, ["message"], "Mensaje guardado en el reclamo.")} El equipo lo ve como pendiente en el CRM.`,
-        );
+        setSupportNotice({
+          tone: "success",
+          message: `${readText(reply, ["message"], "Mensaje guardado en el reclamo.")} El equipo lo ve como pendiente en el CRM.`,
+        });
       }
       if (!updatedTracking) await load();
     } catch (err) {
-      setSupportNotice(getErrorMessage(err, "No se pudo enviar el mensaje."));
+      setSupportNotice({
+        tone: "error",
+        message: getErrorMessage(err, "No se pudo enviar el mensaje."),
+      });
+      focusAfterRender(supportNoticeRef);
     } finally {
       setSupportSending(false);
     }
@@ -674,351 +701,235 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   );
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))] px-4 py-6 text-foreground md:py-10">
+    <div className="min-h-screen bg-muted/30 px-3 py-4 text-foreground sm:px-4 md:py-6">
       <section className="mx-auto max-w-6xl">
-        <div className="mb-6 overflow-hidden rounded-[20px] border border-border/70 bg-card/95 shadow-sm">
-          <div className="flex flex-col gap-5 border-b border-border/70 p-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-normal text-primary">
-                {resource.tenantName}
-              </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">{titleFor(kind)}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {kind === "claim" ? "Codigo de reclamo" : "Codigo de pedido"}: <span className="font-semibold text-foreground">{resource.code || code || "-"}</span>
+        <header
+          data-testid="tracking-summary-header"
+          className="mb-4 overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm"
+        >
+          <div className="flex items-start justify-between gap-3 p-4 md:px-5">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold uppercase text-primary">{resource.tenantName}</p>
+              <h1 className="mt-1 text-xl font-black md:text-2xl">{titleFor(kind)}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {kind === "claim" ? "Reclamo" : "Pedido"}{" "}
+                <span className="font-mono font-semibold text-foreground">#{trackingCodeLabel}</span>
               </p>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={copyTrackingCode}
+              disabled={trackingCodeLabel === "-"}
+              aria-label="Copiar codigo de seguimiento"
+              title="Copiar codigo de seguimiento"
+            >
+              <Clipboard />
+            </Button>
+          </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {kind === "claim" ? (
-                <Input
-                  value={pin}
-                  onChange={(event) => setPin(event.target.value)}
-                  placeholder="PIN"
-                  className="h-11 rounded-[8px] bg-background/90 text-center font-mono tracking-[0.18em] sm:w-40"
-                />
-              ) : null}
-              <Button onClick={load} disabled={loading || !code} className="h-11 rounded-[8px] font-semibold">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Actualizar
-              </Button>
+          <div className="border-t border-border/70 p-4 md:px-5">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
+              <div className="col-span-2 border-l-2 border-primary pl-3 md:col-span-1">
+                <p className="text-xs font-semibold text-muted-foreground">Estado actual</p>
+                <p className="mt-1 text-lg font-black capitalize">{status.label}</p>
+                {status.detail ? <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{status.detail}</p> : null}
+              </div>
+              <div className="border-l border-border pl-3">
+                <p className="text-xs font-semibold text-muted-foreground">Proxima etapa</p>
+                <p className="mt-1 text-sm font-bold capitalize">
+                  {nextMilestone?.label || "Seguimiento finalizado"}
+                </p>
+              </div>
+              <div className="border-l border-border pl-3">
+                <p className="text-xs font-semibold text-muted-foreground">Ultima actualizacion</p>
+                <p className="mt-1 text-sm font-bold">{resource.updatedAt || resource.createdAt || "Sin datos"}</p>
+              </div>
+            </div>
+
+            <div data-testid="tracking-delivery-rail" className="mt-4">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Avance del seguimiento</span>
+                <span className="font-semibold text-foreground">{progress}%</span>
+              </div>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label="Avance del seguimiento"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+              >
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+              </div>
             </div>
           </div>
 
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Estado", value: status.label, icon: PackageCheck },
-              { label: "Categoria", value: resource.category, icon: FileText },
-              { label: "Canal", value: resource.channel, icon: MessagesSquare },
-              { label: "Acceso", value: kind === "claim" ? "PIN seguro" : "Link seguro", icon: ShieldCheck },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="rounded-[14px] border border-border/70 bg-background/70 p-4">
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 truncate text-sm font-bold capitalize text-foreground">{item.value || "-"}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-border/70 bg-background/70 p-4">
-            <OperationalContinuityBar
-              testId="tracking-operational-continuity"
-              icon={kind === "claim" ? MessageCircle : PackageCheck}
-              tone={support.liveAvailable ? "live" : support.enabled ? "warning" : "default"}
-              title={kind === "claim" ? "Seguimiento ciudadano activo" : "Pedido con trazabilidad activa"}
-              subtitle={
-                kind === "claim"
-                  ? "El estado, la mesa de ayuda y el historial quedan vinculados al mismo reclamo publico."
-                  : "El pedido conserva referencia, estado y proxima accion para continuar sin perder contexto."
-              }
-              reference={trackingCodeLabel}
-              statusLabel={status.label}
-              channelLabel={resource.channel || "web"}
-              liveLabel={support.enabled ? (support.liveAvailable ? "Atencion en vivo" : "Mesa offline") : "Seguimiento web"}
-              slaLabel={support.schedule || (resource.updatedAt ? `Actualizado ${resource.updatedAt}` : "Actualizado")}
-              nextActionLabel={
-                kind === "claim" && support.enabled
-                  ? support.liveAvailable
-                    ? "Escribir a mesa de ayuda"
-                    : "Dejar mensaje offline"
-                  : nextMilestone
-                    ? `Siguiente: ${nextMilestone.label}`
-                    : "Consultar estado"
-              }
-              primaryActionLabel={kind === "claim" && support.enabled ? "Ir a mesa de ayuda" : "Actualizar estado"}
-              onPrimaryAction={kind === "claim" && support.enabled ? focusSupportComposer : load}
-              secondaryActionLabel="Copiar codigo"
-              onSecondaryAction={copyTrackingCode}
-              metrics={[
-                { label: "Estado", value: status.label, tone: "default" },
-                { label: "Avance", value: `${progress}%`, tone: progress >= 80 ? "success" : "muted" },
-                { label: "Eventos", value: visibleTimeline.length, tone: "muted" },
-                { label: "Acceso", value: kind === "claim" ? "PIN" : "Link", tone: "success" },
-              ]}
-            />
-          </div>
-
-          <div
-            data-testid="tracking-delivery-rail"
-            className="border-t border-border/70 bg-muted/20 p-4"
-          >
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                    Estado tipo delivery
-                  </span>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Actual: <span className="capitalize text-foreground">{status.label}</span>
-                  </span>
-                  {nextMilestone ? (
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      Siguiente: <span className="capitalize text-foreground">{nextMilestone.label}</span>
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {milestones.slice(0, 6).map((item, index) => {
-                    const done = index <= currentIndex;
-                    const active = index === currentIndex;
-                    return (
-                      <div
-                        key={`${item.key}-rail`}
-                        className={`min-w-0 rounded-[12px] border px-3 py-2 ${
-                          active
-                            ? "border-primary/35 bg-primary/10 text-primary"
-                            : done
-                              ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700"
-                              : "border-border/70 bg-background/70 text-muted-foreground"
-                        }`}
+          <div className="border-t border-border/70 bg-background/50 p-4 md:px-5">
+            <form
+              className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void load();
+              }}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                {kind === "claim" ? (
+                  <div className="w-full sm:w-56">
+                    <label htmlFor="tracking-pin" className="mb-1.5 block text-sm font-semibold">
+                      PIN del reclamo
+                    </label>
+                    <div className="relative">
+                      <Input
+                        id="tracking-pin"
+                        ref={pinInputRef}
+                        type={showPin ? "text" : "password"}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="one-time-code"
+                        value={pin}
+                        onChange={(event) => {
+                          setPin(event.target.value);
+                          if (errorTarget === "pin") {
+                            setError(null);
+                            setErrorTarget(null);
+                          }
+                        }}
+                        aria-invalid={errorTarget === "pin"}
+                        aria-describedby={`tracking-pin-help${errorTarget === "pin" ? " tracking-page-error" : ""}`}
+                        className="h-10 bg-background pr-10 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 shadow-none"
+                        onClick={() => setShowPin((value) => !value)}
+                        aria-label={showPin ? "Ocultar PIN" : "Mostrar PIN"}
+                        aria-controls="tracking-pin"
+                        aria-pressed={showPin}
+                        title={showPin ? "Ocultar PIN" : "Mostrar PIN"}
                       >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                              done ? "bg-current/10" : "bg-muted"
-                            }`}
-                          >
-                            {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
-                          </span>
-                          <span className="truncate text-xs font-bold capitalize">{item.label}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-                </div>
+                        {showPin ? <EyeOff /> : <Eye />}
+                      </Button>
+                    </div>
+                    <p id="tracking-pin-help" className="mt-1 text-xs text-muted-foreground">
+                      Solo se usa para validar este seguimiento.
+                    </p>
+                  </div>
+                ) : null}
+                <Button type="submit" disabled={loading || !code} className="h-10 font-semibold">
+                  {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                  Actualizar estado
+                </Button>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-3 lg:w-[420px]">
-                <Button type="button" variant="outline" className="h-10 rounded-[8px]" onClick={copyTrackingCode}>
-                  <Clipboard className="mr-2 h-4 w-4" />
-                  Copiar codigo
-                </Button>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
                 {kind === "claim" && support.enabled ? (
-                  <Button type="button" className="h-10 rounded-[8px]" onClick={focusSupportComposer}>
-                    <MessageCircle className="mr-2 h-4 w-4" />
+                  <Button type="button" variant="outline" onClick={focusSupportComposer}>
+                    <MessageCircle />
                     Escribir mensaje
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-[8px]"
-                  onClick={focusMap}
-                  disabled={!canShowMap}
-                >
-                  <MapPinned className="mr-2 h-4 w-4" />
+                <Button type="button" variant="outline" onClick={focusMap} disabled={!canShowMap}>
+                  <MapPinned />
                   Ver mapa
                 </Button>
               </div>
-            </div>
+            </form>
           </div>
-        </div>
+        </header>
+
+        {pageNotice ? (
+          <div
+            className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              pageNotice.tone === "error"
+                ? "border-destructive/30 bg-destructive/10 text-destructive"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+            role={pageNotice.tone === "error" ? "alert" : "status"}
+            aria-live={pageNotice.tone === "error" ? "assertive" : "polite"}
+          >
+            {pageNotice.message}
+          </div>
+        ) : null}
 
         {error ? (
-          <div className="mb-6 rounded-[12px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div
+            id="tracking-page-error"
+            ref={trackingErrorRef}
+            className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            role="alert"
+            aria-live="assertive"
+            tabIndex={-1}
+          >
             <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4" />
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
           </div>
         ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="space-y-5">
-            <div ref={mapSectionRef} className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-muted-foreground">Estado actual</p>
-                  <h2 className="mt-2 text-2xl font-black capitalize tracking-tight">{status.label}</h2>
-                  {status.detail ? <p className="mt-2 text-sm text-muted-foreground">{status.detail}</p> : null}
-                </div>
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
-                  <PackageCheck className="h-6 w-6" />
-                </span>
+        <div
+          data-testid="tracking-priority-content"
+          className={`grid gap-4 ${kind === "claim" && support.enabled ? "lg:grid-cols-[0.9fr_1.1fr]" : "lg:grid-cols-1"}`}
+        >
+          <section
+            aria-labelledby="tracking-timeline-title"
+            className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground">Actividad del caso</p>
+                <h2 id="tracking-timeline-title" className="mt-1 text-lg font-black">Timeline</h2>
               </div>
-
-              <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Inicio</span>
-                <span>{progress}%</span>
-                <span>Final</span>
-              </div>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                {visibleTimeline.length} {visibleTimeline.length === 1 ? "evento" : "eventos"}
+              </span>
             </div>
-
-            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-2">
-                <Clipboard className="h-4 w-4 text-primary" />
-                <h2 className="font-bold">Resumen</h2>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="rounded-[12px] bg-muted/30 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Motivo</p>
-                  <p className="mt-1 font-semibold text-foreground">{resource.subject || status.label}</p>
-                </div>
-                {(resource.address || resource.district) ? (
-                  <div className="rounded-[12px] bg-muted/30 p-3">
-                    <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      Ubicacion
+            <ol className="max-h-[340px] space-y-3 overflow-y-auto pr-1">
+              {visibleTimeline.map((event) => (
+                <li key={event.id} className="grid grid-cols-[16px_1fr] gap-3">
+                  <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/10" />
+                  <div className="min-w-0 border-b border-border/60 pb-3 last:border-b-0">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-semibold">{event.label}</p>
+                      {event.timestamp ? <time className="text-xs text-muted-foreground">{event.timestamp}</time> : null}
                     </div>
-                    <p className="mt-1 font-semibold text-foreground">{resource.address || "Sin direccion"}</p>
-                    {resource.district ? <p className="mt-1 text-xs text-muted-foreground">{resource.district}</p> : null}
+                    {event.detail ? <p className="mt-1 text-sm leading-5 text-muted-foreground">{event.detail}</p> : null}
                   </div>
-                ) : null}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[12px] bg-muted/30 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Creado</p>
-                    <p className="mt-1 font-semibold text-foreground">{resource.createdAt || "-"}</p>
-                  </div>
-                  <div className="rounded-[12px] bg-muted/30 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Actualizado</p>
-                    <p className="mt-1 font-semibold text-foreground">{resource.updatedAt || "Hace instantes"}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
-              <div className="mb-5 flex items-center gap-2">
-                <Route className="h-4 w-4 text-primary" />
-                <h2 className="font-bold">Hitos</h2>
-              </div>
-              <div className="space-y-3">
-                {milestones.map((item, index) => {
-                  const done = index <= currentIndex;
-                  const active = index === currentIndex;
-                  return (
-                    <div key={item.key} className="grid grid-cols-[28px_1fr] gap-3">
-                      <span
-                        className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border ${
-                          active
-                            ? "border-primary bg-primary text-primary-foreground shadow-[0_0_0_6px_hsl(var(--primary)/0.12)]"
-                            : done
-                              ? "border-emerald-500 bg-emerald-500 text-white"
-                              : "border-border bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                      </span>
-                      <div className="min-w-0 pb-2">
-                        <p className="truncate text-sm font-semibold capitalize">{item.label}</p>
-                        {active ? <p className="text-xs text-muted-foreground">Paso actual</p> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                </li>
+              ))}
+            </ol>
           </section>
 
-          <section className="space-y-5">
-            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <MapPinned className="h-4 w-4 text-primary" />
-                  <h2 className="font-bold">Mapa y recorrido</h2>
-                </div>
-                <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
-                  {canShowMap ? "mapa activo" : "timeline"}
-                </span>
-              </div>
-
-              {canShowMap ? (
-                <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-slate-950 p-1">
-                  <React.Suspense fallback={<div className="flex h-[340px] items-center justify-center rounded-[14px] bg-muted/30 text-sm text-muted-foreground">Cargando mapa...</div>}>
-                    <TrackingMap
-                      className="h-[340px] border-0"
-                      status={status.key}
-                      storeLocation={mapState.origin}
-                      customerLocation={mapState.destination}
-                      driverLocation={mapState.current || undefined}
-                    />
-                  </React.Suspense>
-                  <div className="pointer-events-none absolute inset-1 rounded-[14px] bg-[linear-gradient(90deg,rgba(59,130,246,0.12)_1px,transparent_1px),linear-gradient(180deg,rgba(59,130,246,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
-                  <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/25 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur">
-                    Trazabilidad activa
-                  </div>
-                </div>
-              ) : (
-                <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[14px] border border-dashed border-border/70 bg-muted/30 p-6 text-center">
-                  <ShieldCheck className="mb-3 h-8 w-8 text-primary" />
-                  <p className="font-semibold">Seguimiento por timeline</p>
-                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    No hay coordenadas renderizables para este caso.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-[20px] border border-border/70 bg-card/90 p-5 shadow-sm">
-              <h2 className="mb-4 font-bold">Timeline</h2>
-              <div className="space-y-4">
-                {visibleTimeline.map((event) => (
-                  <div key={event.id} className="grid grid-cols-[20px_1fr] gap-3">
-                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_0_5px_hsl(var(--primary)/0.12)]" />
-                    <div className="min-w-0 border-b border-border/60 pb-3 last:border-b-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold">{event.label}</p>
-                        {event.timestamp ? <span className="text-xs text-muted-foreground">{event.timestamp}</span> : null}
-                      </div>
-                      {event.detail ? <p className="mt-1 text-sm text-muted-foreground">{event.detail}</p> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <section className={kind === "claim" && support.enabled ? "min-w-0" : "hidden"}>
 
             {kind === "claim" && support.enabled ? (
-              <div id="mesa-ayuda" className="rounded-[20px] border border-border/70 bg-card/95 p-5 shadow-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div
+                id="mesa-ayuda"
+                data-testid="tracking-helpdesk"
+                className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
                           support.liveAvailable ? "bg-emerald-500/12 text-emerald-600" : "bg-amber-500/12 text-amber-600"
                         }`}
                       >
                         {support.liveAvailable ? <Radio className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
                       </span>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                          Mesa de ayuda
-                        </p>
-                        <h2 className="text-xl font-black tracking-tight">{support.label}</h2>
+                        <p className="text-xs font-semibold text-muted-foreground">Mesa de ayuda</p>
+                        <h2 className="text-lg font-black">{support.label}</h2>
                       </div>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{support.description}</p>
+                    <p className="mt-2 text-sm leading-5 text-muted-foreground">{support.description}</p>
                     {support.schedule ? (
-                      <p className="mt-2 text-xs font-semibold text-foreground/75">Horario: {support.schedule}</p>
+                      <p className="mt-1 text-xs font-semibold text-foreground/75">Horario: {support.schedule}</p>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -1037,86 +948,20 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
-                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                      <ShieldCheck className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-bold">Sin salir del seguimiento</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {support.stayInsideTracking
-                        ? "La conversacion queda dentro de este reclamo y mantiene el PIN seguro."
-                        : "Puede requerir una accion externa configurada por el tenant."}
-                    </p>
-                  </div>
-                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
-                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                      {support.liveAvailable ? <Radio className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                    </div>
-                    <p className="text-sm font-bold">{support.liveAvailable ? "Atencion inmediata" : "Cola offline activa"}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {support.offlineQueue
-                        ? "El mensaje queda en la bandeja del reclamo para respuesta administrativa."
-                        : "Un operador puede tomar esta conversacion en tiempo real."}
-                    </p>
-                  </div>
-                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
-                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                      <MessageCircle className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-bold">{support.adminSurfaceLabel}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      El equipo responde desde el CRM del municipio, asociado a este ticket.
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  data-testid="tracking-helpdesk-operational-state"
-                  className="mt-5 flex flex-wrap items-center gap-2 rounded-[14px] border border-border/70 bg-background/70 p-3 text-xs font-semibold text-muted-foreground"
-                >
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                    {support.noExternalRedirectLabel}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
-                    <MessageCircle className="h-3.5 w-3.5 text-primary" />
-                    {support.channelBindingLabel}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
-                    {support.liveAvailable ? <Radio className="h-3.5 w-3.5 text-primary" /> : <Clock3 className="h-3.5 w-3.5 text-amber-500" />}
-                    {support.responseExpectationLabel}
-                  </span>
-                  {support.pollingLabel ? (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-foreground">
-                      <RefreshCw className="h-3.5 w-3.5 text-sky-500" />
-                      {support.pollingLabel}
-                    </span>
-                  ) : null}
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5">
-                    {realtimeState === "connected"
-                      ? "Canal en vivo conectado"
-                      : realtimeState === "connecting"
-                        ? "Conectando canal en vivo"
-                        : realtimeState === "fallback"
-                          ? "Actualizacion automatica de respaldo"
-                          : support.operationalStateLabel}
-                  </span>
-                </div>
-
                 <div
                   data-testid="tracking-helpdesk-queue"
-                  className={`mt-5 rounded-[16px] border p-4 ${
+                  className={`mt-4 border-y px-1 py-3 ${
                     support.hasPendingCustomerMessage
-                      ? "border-amber-500/30 bg-amber-500/10"
-                      : "border-emerald-500/25 bg-emerald-500/10"
+                      ? "border-amber-500/30"
+                      : "border-emerald-500/25"
                   }`}
+                  aria-live="polite"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
                             support.hasPendingCustomerMessage
                               ? "bg-amber-500/15 text-amber-700"
                               : "bg-emerald-500/15 text-emerald-700"
@@ -1150,79 +995,294 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   </div>
                 </div>
 
-                <div className="mt-5 space-y-3">
+                <div className="mt-4">
+                  <h3 className="text-sm font-bold">Conversacion</h3>
+                  <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
                   {support.messages.length ? (
                     support.messages.map((item) => (
                       <div
                         key={item.id}
-                        className={`max-w-[86%] rounded-[14px] px-4 py-3 text-sm shadow-sm ${
+                        className={`max-w-[92%] rounded-md px-3 py-2 text-sm ${
                           item.isTeam
                             ? "mr-auto border border-border/70 bg-muted/50 text-foreground"
                             : "ml-auto bg-primary text-primary-foreground"
                         }`}
                       >
-                        <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-75">
+                        <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase opacity-75">
                           <MessageCircle className="h-3.5 w-3.5" />
                           <span>{item.isTeam ? "Equipo" : "Tu mensaje"}</span>
                         </div>
-                        <p className="leading-6">{item.message}</p>
+                        <p className="leading-5">{item.message}</p>
                         {item.createdAt ? <p className="mt-2 text-xs opacity-70">{item.createdAt}</p> : null}
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-[14px] border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
+                    <div className="border-l-2 border-border px-3 py-2 text-sm text-muted-foreground">
                       Todavia no hay mensajes publicos en este reclamo.
                     </div>
                   )}
+                  </div>
                 </div>
 
-                <div className="mt-5 rounded-[16px] border border-border/70 bg-background/80 p-3">
+                <form
+                  className="mt-4 border-t border-border/70 pt-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSendSupportMessage();
+                  }}
+                >
+                  <label htmlFor="tracking-support-message" className="block text-sm font-semibold">
+                    Mensaje para la mesa de ayuda
+                  </label>
                   <textarea
+                    id="tracking-support-message"
                     ref={supportComposerRef}
                     value={supportMessage}
                     onChange={(event) => setSupportMessage(event.target.value)}
                     placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja tu mensaje offline para este reclamo..."}
-                    className="min-h-[96px] w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
+                    className="mt-1.5 min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     disabled={supportSending || !support.endpoint}
+                    aria-describedby={`tracking-support-message-help${supportNotice ? " tracking-support-message-notice" : ""}`}
                   />
-                  <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-muted-foreground">
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p id="tracking-support-message-help" className="text-xs text-muted-foreground">
                       {support.requiresPin ? "El PIN mantiene la conversacion asociada a este reclamo." : "Mensaje asociado al seguimiento."}
-                      {support.pollingInterval ? ` Actualizacion cada ${Number(support.pollingInterval) / 1000 || support.pollingInterval}s.` : ""}
                     </p>
                     <Button
-                      onClick={handleSendSupportMessage}
+                      type="submit"
                       disabled={supportSending || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
-                      className="h-10 rounded-[8px] font-semibold"
+                      className="h-10 font-semibold"
                     >
-                      {supportSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {supportSending ? <Loader2 className="animate-spin" /> : <Send />}
                       {support.primaryCtaLabel}
                     </Button>
                   </div>
-                </div>
+                </form>
                 {supportNotice ? (
-                  <div className="mt-3 rounded-[12px] border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                    {supportNotice}
+                  <div
+                    id="tracking-support-message-notice"
+                    ref={supportNoticeRef}
+                    className={`mt-3 rounded-lg border px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      supportNotice.tone === "error"
+                        ? "border-destructive/30 bg-destructive/10 text-destructive"
+                        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-800"
+                    }`}
+                    role={supportNotice.tone === "error" ? "alert" : "status"}
+                    aria-live={supportNotice.tone === "error" ? "assertive" : "polite"}
+                    tabIndex={supportNotice.tone === "error" ? -1 : undefined}
+                  >
+                    {supportNotice.message}
                   </div>
                 ) : null}
               </div>
             ) : null}
 
-            {requestId ? (
-              <div className="rounded-[12px] border border-border/70 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-                Request ID: <span className="font-mono text-foreground">{requestId}</span>
-              </div>
-            ) : null}
           </section>
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <Button variant="outline" className="rounded-[8px]" onClick={() => window.history.back()}>
-            <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+          <section
+            ref={mapSectionRef}
+            aria-labelledby="tracking-map-title"
+            className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MapPinned className="h-4 w-4 text-primary" />
+                <h2 id="tracking-map-title" className="font-bold">Mapa y recorrido</h2>
+              </div>
+              <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
+                {canShowMap ? "Mapa activo" : "Sin coordenadas"}
+              </span>
+            </div>
+
+            {canShowMap ? (
+              <div className="overflow-hidden rounded-md border border-border/70 bg-slate-950">
+                <React.Suspense
+                  fallback={(
+                    <div className="flex h-[240px] items-center justify-center bg-muted/30 text-sm text-muted-foreground md:h-[300px]">
+                      Cargando mapa...
+                    </div>
+                  )}
+                >
+                  <TrackingMap
+                    className="h-[240px] border-0 md:h-[300px]"
+                    status={status.key}
+                    storeLocation={mapState.origin}
+                    customerLocation={mapState.destination}
+                    driverLocation={mapState.current || undefined}
+                  />
+                </React.Suspense>
+              </div>
+            ) : (
+              <div className="flex min-h-40 flex-col items-center justify-center border-y border-dashed border-border/70 px-4 py-6 text-center">
+                <ShieldCheck className="mb-2 h-7 w-7 text-primary" />
+                <p className="font-semibold">Seguimiento por timeline</p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  No hay coordenadas renderizables para este caso.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section
+            aria-labelledby="tracking-milestones-title"
+            className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <Route className="h-4 w-4 text-primary" />
+              <h2 id="tracking-milestones-title" className="font-bold">Hitos</h2>
+            </div>
+            <ol className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {milestones.map((item, index) => {
+                const done = index <= currentIndex;
+                const active = index === currentIndex;
+                return (
+                  <li
+                    key={item.key}
+                    className={`min-w-0 border-l-2 py-2 pl-3 ${
+                      active ? "border-primary" : done ? "border-emerald-500" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                          active
+                            ? "bg-primary text-primary-foreground"
+                            : done
+                              ? "bg-emerald-500 text-white"
+                              : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="break-words text-xs font-semibold capitalize">{item.label}</p>
+                        {active ? <p className="mt-0.5 text-[11px] text-muted-foreground">Actual</p> : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        </div>
+
+        <details
+          data-testid="tracking-details-disclosure"
+          className="group mt-4 overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:px-5">
+            <span className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-primary" />
+              Detalles y diagnostico
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+
+          <div className="border-t border-border/70 p-4 md:p-5">
+            <h2 className="text-sm font-bold">Datos del seguimiento</h2>
+            <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Motivo", resource.subject || status.label],
+                ["Categoria", resource.category || "-"],
+                ["Canal", resource.channel || "-"],
+                ["Acceso", kind === "claim" ? "PIN seguro" : "Link seguro"],
+                ["Creado", resource.createdAt || "-"],
+                ["Actualizado", resource.updatedAt || "-"],
+                ["Avance", `${progress}%`],
+                ["Eventos", String(visibleTimeline.length)],
+              ].map(([label, value]) => (
+                <div key={label} className="border-b border-border/60 pb-2">
+                  <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 break-words font-semibold">{value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {resource.address || resource.district ? (
+              <div className="mt-4 flex items-start gap-2 text-sm">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <p className="font-semibold">Ubicacion</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {[resource.address, resource.district].filter(Boolean).join(" - ")}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {kind === "claim" && support.enabled ? (
+              <div className="mt-5 border-t border-border/70 pt-4">
+                <h2 className="text-sm font-bold">Diagnostico de la mesa de ayuda</h2>
+                <div
+                  data-testid="tracking-helpdesk-operational-state"
+                  className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-muted-foreground"
+                >
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    {support.noExternalRedirectLabel}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">
+                    <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                    {support.channelBindingLabel}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">
+                    {support.liveAvailable ? <Radio className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+                    {support.responseExpectationLabel}
+                  </span>
+                  {support.pollingLabel ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      {support.pollingLabel}
+                    </span>
+                  ) : null}
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">
+                    {realtimeState === "connected"
+                      ? "Canal en vivo conectado"
+                      : realtimeState === "connecting"
+                        ? "Conectando canal en vivo"
+                        : realtimeState === "fallback"
+                          ? "Actualizacion automatica de respaldo"
+                          : support.operationalStateLabel}
+                  </span>
+                </div>
+
+                <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ["Superficie del equipo", support.adminSurfaceLabel],
+                    ["Modo", support.liveAvailable ? "En vivo" : "Offline"],
+                    ["Mensajes offline", support.offlineQueue ? "Habilitados" : "No habilitados"],
+                    ["Permanencia", support.stayInsideTracking ? "Dentro del seguimiento" : "Puede requerir salida"],
+                    ["Estado de cola", support.queueState],
+                    ["Mensajes pendientes", String(support.pendingCustomerMessages)],
+                    ["Proxima accion", support.nextTeamActionLabel],
+                    ["Accion del canal", support.nextAction || support.primaryCtaAction],
+                  ].map(([label, value]) => (
+                    <div key={label} className="border-b border-border/60 pb-2">
+                      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                      <dd className="mt-1 break-words font-semibold">{value || "-"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
+
+            {requestId ? (
+              <p className="mt-4 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+                Request ID: <span className="break-all font-mono text-foreground">{requestId}</span>
+              </p>
+            ) : null}
+          </div>
+        </details>
+
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" onClick={() => window.history.back()}>
+            <ArrowRight className="rotate-180" />
             Volver
           </Button>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

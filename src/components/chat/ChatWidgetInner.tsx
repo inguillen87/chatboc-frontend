@@ -3,6 +3,7 @@
 import { useWidgetSessionStore } from '@/stores';
 import { MobileTicketForm } from '@/components/widget/MobileTicketForm';
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,48 @@ import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 
 // Alias for backward compatibility if needed locally, though direct usage is preferred
 const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
+
+const MOBILE_PORTAL_NAV_BREAKPOINT_PX = 768;
+const MOBILE_PORTAL_NAV_HEIGHT = "4rem";
+
+export const isUserPortalSurfacePath = (pathname: string) => {
+  const segments = pathname
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => segment.toLowerCase());
+  const portalIndex = segments.indexOf('portal');
+
+  if (portalIndex === 0 || portalIndex === 1) return true;
+  return (
+    portalIndex === 2 &&
+    TENANT_ROUTE_PREFIXES.some((prefix) => prefix === segments[0])
+  );
+};
+
+export const resolveStandaloneLauncherBottom = ({
+  pathname,
+  viewportWidth,
+  isMobileView,
+  closedOffsetBottom,
+}: {
+  pathname: string;
+  viewportWidth: number;
+  isMobileView: boolean;
+  closedOffsetBottom: number;
+}) => {
+  const hasMobilePortalNavigation =
+    viewportWidth > 0 &&
+    viewportWidth < MOBILE_PORTAL_NAV_BREAKPOINT_PX &&
+    isUserPortalSurfacePath(pathname);
+
+  if (hasMobilePortalNavigation) {
+    return `calc(env(safe-area-inset-bottom) + ${MOBILE_PORTAL_NAV_HEIGHT} + ${closedOffsetBottom}px)`;
+  }
+
+  return isMobileView
+    ? `calc(env(safe-area-inset-bottom) + ${closedOffsetBottom}px)`
+    : `${closedOffsetBottom}px`;
+};
 
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
@@ -423,6 +466,7 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
+  const location = useLocation();
   const CHATBOC_WIDGET_STATIC = CHATBOC_AGENT_LAUNCHER_STATIC;
   const CHATBOC_WIDGET_PNG_FALLBACK = CHATBOC_AGENT_MARK;
   const CHATBOC_WIDGET_FALLBACK = CHATBOC_AGENT_AVATAR;
@@ -1994,6 +2038,12 @@ function ChatWidgetInner({
   const closedOffsetRight = isMobileView ? 16 : isTabletView ? 20 : initialPosition.right;
   const launcherSize = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedWidth;
   const launcherHeight = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedHeight;
+  const avoidsPortalBottomNavigation =
+    mode === "standalone" &&
+    !isOpen &&
+    viewport.width > 0 &&
+    viewport.width < MOBILE_PORTAL_NAV_BREAKPOINT_PX &&
+    isUserPortalSurfacePath(location.pathname);
 
   const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
@@ -2706,9 +2756,12 @@ function ChatWidgetInner({
         right: isMobileView
           ? `calc(env(safe-area-inset-right) + ${closedOffsetRight}px)`
           : `${closedOffsetRight}px`,
-        bottom: isMobileView
-          ? `calc(env(safe-area-inset-bottom) + ${closedOffsetBottom}px)`
-          : `${closedOffsetBottom}px`,
+        bottom: resolveStandaloneLauncherBottom({
+          pathname: location.pathname,
+          viewportWidth: viewport.width,
+          isMobileView,
+          closedOffsetBottom,
+        }),
         width: isOpen ? finalOpenWidth : launcherSize,
         height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,
@@ -2755,7 +2808,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width]);
 
   const panelAnimation = prefersReducedMotion
     ? {
@@ -2886,6 +2939,7 @@ function ChatWidgetInner({
         data-avatar-state-source={realtimeConfig.avatarStateSource || ''}
         data-realtime-voice-label={realtimeConfig.voiceLabel || ''}
         data-realtime-video-label={realtimeConfig.videoLabel || ''}
+        data-avoids-portal-bottom-nav={String(avoidsPortalBottomNavigation)}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"

@@ -148,6 +148,13 @@ const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
 
 const TicketDeskRedirect = () => <Navigate to="/perfil?tab=tickets" replace />;
 
+const TenantTicketWorkspaceRoute = () => {
+  const params = useParams();
+  const tenantSlug = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+
+  return <TicketsPanel tenantSlugOverride={tenantSlug || null} embedded />;
+};
+
 const TenantHomeRoute = () => {
   const params = useParams();
   const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
@@ -352,17 +359,17 @@ const routes: RouteConfig[] = [
 
   // Explicit aliases to match user mental model
   ...withTenantPrefixes('/:tenant/reclamos', {
-    element: <TicketsPanel />,
+    element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
   ...withTenantPrefixes('/:tenant/tickets', {
-    element: <TicketsPanel />,
+    element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
   ...withTenantPrefixes('/:tenant/inbox', {
-    element: <TicketsPanel />,
+    element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),

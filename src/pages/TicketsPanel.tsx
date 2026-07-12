@@ -80,7 +80,7 @@ const TicketsIdentityCoverageAlert = ({
   };
 
   return (
-    <div className="mb-1 flex flex-col gap-2 rounded-lg border border-border/70 bg-card/80 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-1 flex shrink-0 flex-col gap-2 rounded-lg border border-border/70 bg-card/80 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge variant="outline" className="shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
           Identidad parcial
@@ -119,10 +119,10 @@ const TicketsPanelPage = ({
     (isOperationalRole && !hasDeclaredCapabilities);
 
   const rootClassName = embedded
-    ? 'flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground'
+    ? 'flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-background text-foreground'
     : 'flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5';
   const shellClassName = embedded
-    ? 'relative flex h-full min-h-0 w-full flex-1 flex-col'
+    ? 'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden'
     : 'relative mx-auto flex min-h-0 w-full max-w-[min(2400px,calc(100vw-2rem))] flex-1 flex-col';
 
   return (
@@ -158,17 +158,20 @@ const TicketsPanelPage = ({
               tenantSlugOverride={tenantSlugOverride}
               deferMs={identityCoverageDelayMs}
             />
-        <div className="relative flex h-full min-h-0 w-full flex-1">
-          <SectionErrorBoundary
-            title="Ocurrio un problema al cargar reclamos"
-            description="Recarga la pagina o vuelve a la seccion principal del panel."
-            onRetry={() => window.location.reload()}
-          >
-            <TicketProvider tenantSlugOverride={tenantSlugOverride}>
-              <NewTicketsPanel embedded={embedded} />
-            </TicketProvider>
-          </SectionErrorBoundary>
-        </div>
+            <div
+              className="relative flex min-h-0 w-full flex-1 overflow-hidden"
+              data-testid="tickets-panel-viewport"
+            >
+              <SectionErrorBoundary
+                title="Ocurrio un problema al cargar reclamos"
+                description="Recarga la pagina o vuelve a la seccion principal del panel."
+                onRetry={() => window.location.reload()}
+              >
+                <TicketProvider tenantSlugOverride={tenantSlugOverride}>
+                  <NewTicketsPanel embedded={embedded} />
+                </TicketProvider>
+              </SectionErrorBoundary>
+            </div>
           </>
         )}
       </div>

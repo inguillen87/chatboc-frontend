@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,6 +57,8 @@ const makeClaimPayload = (mode: "live" | "offline" = "offline") => {
       subject: "Arreglo de calle",
       category: "Arreglo de calle",
       channel: "WhatsApp",
+      created_at: "6 de junio, 00:03",
+      updated_at: "6 de junio, 00:04",
     },
     status: {
       current_stage: "recibido",
@@ -228,6 +230,37 @@ describe("TrackingExperiencePage support contract", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
+  it("masks the numeric claim PIN, exposes a toggle, and focuses the field when it is missing", async () => {
+    render(
+      <MemoryRouter initialEntries={["/tracking/claim?code=M-123456&tenant_slug=junin"]}>
+        <Routes>
+          <Route path="/tracking/claim" element={<TrackingExperiencePage kind="claim" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const pinInput = screen.getByLabelText("PIN del reclamo");
+    expect(pinInput).toHaveAttribute("type", "password");
+    expect(pinInput).toHaveAttribute("inputmode", "numeric");
+    expect(pinInput).toHaveAttribute("aria-describedby", "tracking-pin-help");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar PIN" }));
+    expect(pinInput).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "Ocultar PIN" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Ingresa el PIN");
+    await waitFor(() => expect(pinInput).toHaveFocus());
+    expect(pinInput).toHaveAttribute("aria-invalid", "true");
+    expect(pinInput).toHaveAttribute("aria-describedby", "tracking-pin-help tracking-page-error");
+
+    fireEvent.change(pinInput, { target: { value: "654321" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(pinInput).toHaveAttribute("aria-invalid", "false");
+  });
+
   it("uses a claim PIN from the URL fragment once and removes it before API polling", async () => {
     fetchTrackingExperienceMock.mockResolvedValueOnce(makeClaimPayload("offline"));
     const replaceStateSpy = vi.spyOn(window.history, "replaceState");
@@ -264,6 +297,17 @@ describe("TrackingExperiencePage support contract", () => {
     });
   });
 
+  it("announces tracking load failures and focuses the alert", async () => {
+    fetchTrackingExperienceMock.mockRejectedValueOnce(new Error("El reclamo no pudo consultarse."));
+
+    renderTrackingPage();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("El reclamo no pudo consultarse.");
+    expect(alert).toHaveAttribute("aria-live", "assertive");
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
   it("forwards signed order tracking tokens from the public URL", async () => {
     fetchTrackingExperienceMock.mockResolvedValueOnce(makeOrderPayload());
 
@@ -286,6 +330,23 @@ describe("TrackingExperiencePage support contract", () => {
       );
     });
     expect((await screen.findAllByText("Pedido recibido")).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the map available when the tracking contract provides coordinates", async () => {
+    const payload = makeClaimPayload("offline");
+    fetchTrackingExperienceMock.mockResolvedValueOnce({
+      ...payload,
+      map: {
+        can_render: true,
+        origin: { lat: -34.588, lng: -60.949, name: "Base operativa" },
+        destination: { lat: -34.593, lng: -60.944, name: "Reclamo" },
+      },
+    });
+
+    renderTrackingPage();
+
+    expect(await screen.findByTestId("tracking-map")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver mapa" })).toBeEnabled();
   });
 
   it("keeps offline helpdesk messages inside the public claim tracking contract", async () => {
@@ -329,11 +390,34 @@ describe("TrackingExperiencePage support contract", () => {
     const { container } = renderTrackingPage();
 
     expect(await screen.findByText("Mesa de ayuda offline")).toBeInTheDocument();
-    expect(screen.getByTestId("tracking-delivery-rail")).toBeInTheDocument();
-    expect(screen.getByText("Estado tipo delivery")).toBeInTheDocument();
-    expect(screen.getByText(/Siguiente:/i)).toHaveTextContent("Validando");
-    expect(screen.getByText("Sin salir del seguimiento")).toBeInTheDocument();
-    expect(screen.getByText("Cola offline activa")).toBeInTheDocument();
+    const summaryHeader = screen.getByTestId("tracking-summary-header");
+    expect(within(summaryHeader).getByText("Estado actual")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("Proxima etapa")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("Ultima actualizacion")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("Validando")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("6 de junio, 00:04")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Avance del seguimiento" })).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
+
+    const priorityContent = screen.getByTestId("tracking-priority-content");
+    const timelineHeading = within(priorityContent).getByRole("heading", { name: "Timeline" });
+    const helpdesk = within(priorityContent).getByTestId("tracking-helpdesk");
+    const mapHeading = screen.getByRole("heading", { name: "Mapa y recorrido" });
+    expect(timelineHeading).toBeInTheDocument();
+    expect(helpdesk).toBeInTheDocument();
+    expect(priorityContent.compareDocumentPosition(mapHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const details = screen.getByTestId("tracking-details-disclosure") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(within(details).getByText("Detalles y diagnostico"));
+    expect(details.open).toBe(true);
+    expect(within(details).getByText("Dentro del seguimiento")).toBeInTheDocument();
+    expect(within(details).getByText("Habilitados")).toBeInTheDocument();
+    expect(within(details).getByText("Bandeja de reclamos")).toBeInTheDocument();
+    expect(within(details).getByText("req-track-123")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hitos" })).toBeInTheDocument();
     expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Sin redireccion externa");
     expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Canal interno del ticket");
     expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("SLA objetivo 240 min");
@@ -348,11 +432,13 @@ describe("TrackingExperiencePage support contract", () => {
     ).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: /Escribir mensaje/i }));
+    const composer = screen.getByLabelText("Mensaje para la mesa de ayuda");
+    expect(composer).toHaveAttribute("aria-describedby", "tracking-support-message-help");
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/mensaje offline/i)).toHaveFocus();
+      expect(composer).toHaveFocus();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/mensaje offline/i), {
+    fireEvent.change(composer, {
       target: { value: "hola, puedo hablar con alguien?" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i }));
@@ -372,6 +458,26 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Tu mensaje quedo pendiente para el equipo");
     expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Pendientes: 1");
     expect(screen.getByTestId("tracking-helpdesk-queue")).toHaveTextContent("Responder desde la bandeja de reclamos");
+  });
+
+  it("announces support send errors and moves focus to the actionable alert", async () => {
+    fetchTrackingExperienceMock.mockResolvedValueOnce(makeClaimPayload("offline"));
+    sendTrackingSupportMessageMock.mockRejectedValueOnce(new Error("La mesa de ayuda no esta disponible."));
+
+    renderTrackingPage();
+
+    const composer = await screen.findByLabelText("Mensaje para la mesa de ayuda");
+    fireEvent.change(composer, { target: { value: "Necesito sumar informacion" } });
+    fireEvent.click(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("La mesa de ayuda no esta disponible.");
+    expect(alert).toHaveAttribute("aria-live", "assertive");
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(composer).toHaveAttribute(
+      "aria-describedby",
+      "tracking-support-message-help tracking-support-message-notice",
+    );
   });
 
   it("uses the backend live CTA when the tenant service window is open", async () => {
@@ -394,7 +500,7 @@ describe("TrackingExperiencePage support contract", () => {
     renderTrackingPage();
 
     expect(await screen.findByText("Atencion en vivo disponible")).toBeInTheDocument();
-    expect(screen.getByText("Atencion inmediata")).toBeInTheDocument();
+    expect(within(screen.getByTestId("tracking-helpdesk")).getByText("En vivo")).toBeInTheDocument();
     expect(screen.getByTestId("tracking-helpdesk-operational-state")).toHaveTextContent("Respuesta esperada en hasta 30 min");
     expect(screen.getByRole("button", { name: /Chatear con un agente/i })).toBeInTheDocument();
     await waitFor(() => expect(socketHarness.io).toHaveBeenCalledTimes(1));
@@ -471,10 +577,11 @@ describe("TrackingExperiencePage support contract", () => {
 
     expect(await screen.findByText("Mesa de ayuda del reclamo")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Escribir mensaje/i }));
+    const composer = screen.getByLabelText("Mensaje para la mesa de ayuda");
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/mensaje offline/i)).toHaveFocus();
+      expect(composer).toHaveFocus();
     });
-    fireEvent.change(screen.getByPlaceholderText(/mensaje offline/i), {
+    fireEvent.change(composer, {
       target: { value: "sumo informacion" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Dejar mensaje para el equipo/i }));

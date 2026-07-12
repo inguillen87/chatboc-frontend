@@ -61,7 +61,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
       {
         path: buildTenantPath('/portal/dashboard', effectiveSlug),
         label: actionLabels.home || 'Inicio',
-        icon: <Home className="h-5 w-5" />,
+        icon: <Home aria-hidden="true" className="h-5 w-5" />,
         exact: true,
       },
       ...(catalogEnabled
@@ -69,7 +69,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
             {
               path: buildTenantPath('/portal/catalogo', effectiveSlug),
               label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
-              icon: <ShoppingBag className="h-5 w-5" />,
+              icon: <ShoppingBag aria-hidden="true" className="h-5 w-5" />,
             },
           ]
         : []),
@@ -78,7 +78,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
             {
               path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', effectiveSlug),
               label: actionLabels.history || commerceSession?.history?.label || 'Historial',
-              icon: <ListChecks className="h-5 w-5" />,
+              icon: <ListChecks aria-hidden="true" className="h-5 w-5" />,
             },
           ]
         : []),
@@ -97,7 +97,9 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
     return morePaths.some((path) => location.pathname.startsWith(path));
   };
 
-  const bottomButtonBaseClasses = 'flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150';
+  const moreLabel = actionLabels.more || 'Mas';
+  const bottomButtonBaseClasses =
+    'flex h-full min-h-11 w-full flex-col items-center justify-center p-1 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary';
   const moreButtonClasses = `${bottomButtonBaseClasses} ${
     isMoreSectionActive()
       ? 'text-primary scale-105 opacity-100'
@@ -105,8 +107,11 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
   }`;
 
   return (
-    <nav className="md:hidden bg-card border-t border-border shadow-t-lg fixed bottom-0 left-0 right-0 z-30 h-16">
-      <ul className="flex justify-around items-center h-full max-w-full mx-auto">
+    <nav
+      aria-label="Navegacion principal del portal"
+      className="fixed bottom-0 left-0 right-0 z-30 h-[calc(4rem+env(safe-area-inset-bottom))] border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-t-lg md:hidden"
+    >
+      <ul className="mx-auto flex h-16 max-w-full items-center justify-around">
         {bottomNavItems.map((item) => (
           <li key={item.path} className="flex-1 min-w-0">
             <NavLink
@@ -125,9 +130,15 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
           </li>
         ))}
         <li className="flex-1 min-w-0">
-          <button onClick={onOpenMobileMenu} className={moreButtonClasses}>
-            <MenuIcon className="h-5 w-5" />
-            <span className="mt-0.5 text-[0.65rem] leading-tight">{actionLabels.more || 'Mas'}</span>
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className={moreButtonClasses}
+            aria-haspopup="dialog"
+            aria-label={moreLabel}
+          >
+            <MenuIcon aria-hidden="true" className="h-5 w-5" />
+            <span className="mt-0.5 text-[0.65rem] leading-tight">{moreLabel}</span>
           </button>
         </li>
       </ul>

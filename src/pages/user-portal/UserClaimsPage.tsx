@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   ExternalLink,
   Image as ImageIcon,
+  Link2,
   MapPin,
   MessageSquare,
   Paperclip,
@@ -25,7 +26,9 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { getTenantPublicNavigation } from '@/api/tenant';
+import type { TenantPublicNavigationItem } from '@/types/tenant';
+import { buildTenantPath, resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import { getOrCreateAnonId } from '@/utils/anonId';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
 
@@ -356,6 +359,7 @@ const UserClaimsPage = () => {
   const { commerceSession, publicClaims, isLoading: portalLoading } = usePortalContent();
   const [claims, setClaims] = useState<PortalClaim[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
+  const [publicNavigationItems, setPublicNavigationItems] = useState<TenantPublicNavigationItem[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -384,10 +388,56 @@ const UserClaimsPage = () => {
     };
   }, [currentSlug, publicClaims.length, user]);
 
+  useEffect(() => {
+    let active = true;
+    setPublicNavigationItems([]);
+
+    if (user || !currentSlug || publicClaims.length > 0) {
+      return () => {
+        active = false;
+      };
+    }
+
+    getTenantPublicNavigation(currentSlug)
+      .then((contract) => {
+        if (active) setPublicNavigationItems(contract.items);
+      })
+      .catch(() => {
+        if (active) setPublicNavigationItems([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentSlug, publicClaims.length, user]);
+
   const loading = portalLoading || claimsLoading;
   const hasPublicClaims = publicClaims.length > 0;
   const hasAuthenticatedClaims = claims.length > 0;
-  const claimStartPath = user && currentSlug ? buildTenantPath('/reclamos/nuevo', currentSlug) : null;
+  const authenticatedClaimStartPath = user && currentSlug ? buildTenantPath('/reclamos/nuevo', currentSlug) : null;
+  const guestNewClaimItem = useMemo(
+    () => publicNavigationItems.find((item) => item.id.toLowerCase() === 'new_claim') ?? null,
+    [publicNavigationItems],
+  );
+  const guestClaimStartPath = useMemo(() => {
+    if (
+      user ||
+      !currentSlug ||
+      !guestNewClaimItem ||
+      guestNewClaimItem.enabled === false ||
+      guestNewClaimItem.visible === false
+    ) {
+      return null;
+    }
+
+    return resolveTenantPublicNavigationTarget(
+      guestNewClaimItem,
+      `/t/${encodeURIComponent(currentSlug)}`,
+      'reclamos/nuevo',
+    );
+  }, [currentSlug, guestNewClaimItem, user]);
+  const emptyClaimStartPath = authenticatedClaimStartPath || guestClaimStartPath;
+  const linkTrackingPath = buildTenantPath('/portal/cuenta', currentSlug);
   const detailRequest = useMemo<WidgetCommerceRequest | null>(() => {
     if (!currentSlug) return null;
     return {
@@ -407,9 +457,9 @@ const UserClaimsPage = () => {
     <div className="container mx-auto max-w-4xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Mis reclamos y solicitudes</h1>
-        {claimStartPath ? (
-          <Button onClick={() => navigate(claimStartPath)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Nuevo reclamo
+        {authenticatedClaimStartPath ? (
+          <Button onClick={() => navigate(authenticatedClaimStartPath)}>
+            <PlusCircle aria-hidden="true" className="mr-2 h-4 w-4" /> Nuevo reclamo
           </Button>
         ) : null}
       </div>
@@ -422,13 +472,26 @@ const UserClaimsPage = () => {
         </div>
       ) : !hasPublicClaims && !hasAuthenticatedClaims ? (
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
-          <MessageSquare className="mb-4 h-12 w-12 opacity-20" />
+          <MessageSquare aria-hidden="true" className="mb-4 h-12 w-12 opacity-20" />
           <p>{emptyTitle}</p>
-          {claimStartPath ? (
-            <Button variant="link" className="mt-2" onClick={() => navigate(claimStartPath)}>
-              Iniciar un nuevo reclamo
-            </Button>
-          ) : null}
+          <div className="mt-4 flex w-full max-w-sm flex-col gap-2 sm:w-auto sm:flex-row">
+            {!user ? (
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link to={linkTrackingPath}>
+                  <Link2 aria-hidden="true" className="mr-2 h-4 w-4" />
+                  Vincular seguimiento
+                </Link>
+              </Button>
+            ) : null}
+            {emptyClaimStartPath ? (
+              <Button asChild className="w-full sm:w-auto">
+                <Link to={emptyClaimStartPath}>
+                  <PlusCircle aria-hidden="true" className="mr-2 h-4 w-4" />
+                  Nuevo reclamo
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

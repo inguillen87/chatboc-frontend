@@ -5,7 +5,6 @@ import { fetchMarketCatalog } from '@/api/market';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import ProductCard from '@/components/market/ProductCard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,7 @@ import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { ArrowRight, CheckCircle2, ClipboardList, Copy, FileDown, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ChevronDown, ClipboardList, Copy, FileDown, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -71,39 +70,6 @@ const promotionBadge = (promotion: PromotionItem): string | null => {
 
 const ASSISTED_UPLOAD_ANCHOR_ID = 'market-assisted-upload';
 
-const ASSISTED_FIRST_MODES = [
-  {
-    title: 'Foto o manuscrito',
-    description: 'Lista escrita a mano, mostrador, ferreteria, supermercado o pedido de materiales.',
-    icon: FileText,
-  },
-  {
-    title: 'Texto de WhatsApp',
-    description: 'El cliente copia texto suelto y Chatboc separa articulos, cantidades y faltantes.',
-    icon: MessageCircle,
-  },
-  {
-    title: 'Documento o reclamo',
-    description: 'Gobiernos y colegios reciben documentos, comprobantes o solicitudes trazables.',
-    icon: ClipboardList,
-  },
-];
-
-const EMPTY_FLOW_STEPS = [
-  {
-    label: 'Subir foto o manuscrito',
-    description: 'Nota de mostrador, lista escrita, boleta, comprobante o PDF.',
-  },
-  {
-    label: 'Escribir lista',
-    description: 'Pegas el pedido desde WhatsApp o lo cargas como texto simple.',
-  },
-  {
-    label: 'Continuar por WhatsApp',
-    description: 'El equipo responde con seguimiento si faltan datos, stock o precio.',
-  },
-];
-
 const DEFAULT_COMMERCE_LOOP_STEPS = [
   { stage: 'catalog', event: 'catalog_viewed', label: 'Catalogo visto' },
   { stage: 'assist', event: 'assisted_upload_submitted', label: 'Pedido asistido' },
@@ -111,12 +77,6 @@ const DEFAULT_COMMERCE_LOOP_STEPS = [
   { stage: 'checkout', event: 'checkout_session_created', label: 'Checkout creado' },
   { stage: 'order', event: 'order_created', label: 'Pedido generado' },
   { stage: 'tracking', event: 'order_tracking_opened', label: 'Seguimiento abierto' },
-];
-
-const ASSISTED_ENTRY_PROMISES = [
-  'Foto de papel, boleta, certificado o comprobante',
-  'Pedido escrito, lista de materiales o texto de WhatsApp',
-  'Reclamo, tramite o consulta con seguimiento publico',
 ];
 
 type AssistedUseCaseCard = {
@@ -339,16 +299,17 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [totalUnfiltered, setTotalUnfiltered] = useState<number | null>(null);
   const [heroSubtitle, setHeroSubtitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [promotionOnly, setPromotionOnly] = useState(false);
   const [selectedSort, setSelectedSort] = useState('promo_first');
+  const [isAssistedPanelOpen, setIsAssistedPanelOpen] = useState(false);
   const [assistedDraftRequest, setAssistedDraftRequest] = useState<{ text: string; key: number } | null>(null);
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
-  const { addItem, items: cartItems, totalAmount: cartTotalAmount, isLoading: isCartLoading } = useMarketCart();
+  const { addItem, items: cartItems, isLoading: isCartLoading } = useMarketCart();
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const shareUrl = useMemo(() => {
@@ -485,10 +446,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     totalUnfiltered === 0 ||
     (products.length === 0 && effectiveAssistedIntake?.show_on_empty_catalog !== false)
   );
-  const prioritizeAssistedUpload = showAssistedIntake && !isLoading && (assistedFirstActive || emptyState);
-  const showCatalogFilters = !assistedFirstActive || !catalogActuallyEmpty || hasActiveFilters;
   const cartItemCount = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-  const cartTotalLabel = typeof cartTotalAmount === 'number' ? moneyFormatter.format(cartTotalAmount) : '-';
 
   useEffect(() => {
     setIsLoading(true);
@@ -544,6 +502,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       .finally(() => setIsLoading(false));
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
 
+  useEffect(() => {
+    if (assistedFirstActive && catalogActuallyEmpty) setIsAssistedPanelOpen(true);
+  }, [assistedFirstActive, catalogActuallyEmpty]);
+
   const assistedPrimaryCta = effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o documento';
   const assistedDisplayName =
     publicProductName(effectiveAssistedIntake?.display_name) ||
@@ -590,6 +552,15 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     });
     window.open(catalogDownloadUrl, '_blank', 'noopener,noreferrer');
   };
+  const copyShareUrl = async () => {
+    try {
+      if (!shareUrl || !canUseClipboard) return;
+      await navigator.clipboard.writeText(shareUrl);
+      toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
+    } catch {
+      toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
+    }
+  };
   const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
@@ -614,6 +585,14 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       }, 450);
     }
   };
+  const revealAssistedUpload = (preferredMode: 'file' | 'text') => {
+    if (isAssistedPanelOpen) {
+      scrollToAssistedUpload(preferredMode);
+      return;
+    }
+    setIsAssistedPanelOpen(true);
+    window.setTimeout(() => scrollToAssistedUpload(preferredMode), 0);
+  };
   const activateAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     trackMarketplaceCta('assisted_upload_started', preferredMode === 'text' ? 'write_list_cta' : 'upload_file_cta', {
       preferred_mode: preferredMode,
@@ -627,10 +606,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         text: buildNoResultsSearchDraft(resolvedSearchTerm),
         key: (current?.key ?? 0) + 1,
       }));
-      scrollToAssistedUpload('text');
+      revealAssistedUpload('text');
       return;
     }
-    scrollToAssistedUpload(preferredMode);
+    revealAssistedUpload(preferredMode);
   };
   const activateProductConsult = (product: MarketProduct, reason?: string | null) => {
     const draft = buildProductConsultDraft(product, reason);
@@ -645,7 +624,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         text: draft,
         key: (current?.key ?? 0) + 1,
       }));
-      scrollToAssistedUpload('text');
+      revealAssistedUpload('text');
       return;
     }
     const fallbackUrl =
@@ -656,618 +635,151 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:py-6 md:py-8">
-      <header className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 overflow-x-hidden px-4 py-4 sm:py-5">
+      <header
+        data-testid="market-catalog-header"
+        className="flex min-w-0 flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between"
+      >
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary">
-            <ShoppingBag className="h-6 w-6" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ShoppingBag className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold sm:text-2xl">Marketplace asistido</h1>
-            <p className="line-clamp-2 text-sm text-muted-foreground sm:text-base">
-              {assistedFirstActive
-                ? 'Atencion sin registro para pedidos, reclamos, boletas y documentos. El equipo recibe todo ordenado para responder.'
-                : heroSubtitle ?? 'Explora catalogo, promociones o subi una nota anonima para que el equipo reciba una solicitud ordenada.'}
+            <h1 className="text-xl font-semibold sm:text-2xl">Marketplace</h1>
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              {heroSubtitle ?? 'Busca productos o envia una nota, foto o texto para recibir una respuesta.'}
             </p>
           </div>
         </div>
 
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              try {
-                if (!shareUrl || !canUseClipboard) return;
-                await navigator.clipboard.writeText(shareUrl);
-                toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
-              } catch (copyError) {
-                toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
-              }
-            }}
-            disabled={!shareUrl || !canUseClipboard}
-          >
-            <Copy className="mr-2 h-4 w-4" /> Copiar enlace
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openWhatsappShare('desktop_share_button')}
-            disabled={!shareMessage}
-          >
-            <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openQrShare('desktop_qr_button')}
-            disabled={!shareUrl}
-          >
-            <QrCode className="mr-2 h-4 w-4" /> QR
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openCatalogDownload('desktop_pdf_button')}
-            disabled={!catalogDownloadUrl}
-          >
-            <FileDown className="mr-2 h-4 w-4" /> PDF
-          </Button>
-        </div>
-      </header>
-
-      {showAssistedIntake ? (
-        <section
-          data-testid="market-assisted-header-rail"
-          className="rounded-lg border border-primary/20 bg-gradient-to-r from-primary/10 via-background to-emerald-500/10 p-3 shadow-sm sm:p-4"
-          aria-label="Carga asistida sin registro"
-        >
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  {assistedDisplayName}
-                </Badge>
-                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  {catalogActuallyEmpty ? 'No hace falta catalogo' : 'Pedido libre'}
-                </Badge>
-                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
-                  Sin registro
-                </Badge>
-              </div>
-              <p className="mt-2 text-sm font-semibold text-foreground sm:text-base">
-                Subi una foto, PDF, boleta o lista escrita. El equipo recibe la solicitud ordenada y con seguimiento.
-              </p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Pensado para clientes y vecinos que no quieren navegar un catalogo: Chatboc conserva el archivo original,
-                separa articulos o datos clave y deja una respuesta operativa lista para el panel.
-              </p>
-              <div
-                data-testid="market-assisted-use-cases"
-                className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
-              >
-                {assistedUseCases.map((useCase) => {
-                  const Icon = useCase.icon;
-                  return (
-                    <div key={useCase.id} className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                        <Icon className="h-4 w-4 shrink-0 text-primary" />
-                        <span className="truncate">{useCase.title}</span>
-                      </div>
-                      {useCase.description ? (
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                          {useCase.description}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
-              <Button
-                type="button"
-                data-testid="market-assisted-header-upload"
-                className="w-full whitespace-normal leading-tight sm:whitespace-nowrap"
-                onClick={() => activateAssistedUpload('file')}
-              >
-                <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
-                Subir nota o foto
-              </Button>
-              <Button
-                type="button"
-                data-testid="market-assisted-header-text"
-                variant="outline"
-                className="w-full whitespace-normal leading-tight sm:whitespace-nowrap"
-                onClick={() => activateAssistedUpload('text')}
-              >
-                <FileText className="mr-2 h-4 w-4 shrink-0" />
-                Pegar lista
-              </Button>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <OperationalContinuityBar
-        testId="market-operational-continuity"
-        className={assistedFirstActive ? 'order-last' : undefined}
-        icon={ShoppingBag}
-        tone={cartItemCount > 0 ? 'success' : assistedFirstActive ? 'warning' : 'default'}
-        title="Operacion comercial conectada"
-        subtitle={
-          assistedFirstActive
-            ? 'El cliente puede subir una nota, foto o documento y el equipo recibe una solicitud ordenada en el panel operativo.'
-            : 'Catalogo, promociones, carrito, WhatsApp y seguimiento quedan unidos en el mismo recorrido de compra.'
-        }
-        reference={tenantSlug}
-        statusLabel={isLoading ? 'Actualizando catalogo' : catalogActuallyEmpty ? 'Solicitud abierta' : `${products.length} visibles`}
-        channelLabel="Webview / WhatsApp"
-        liveLabel={shareMessage ? 'WhatsApp listo' : 'Canal web'}
-        slaLabel={publicApi?.analytics?.contract_version ?? 'Analytics operativo'}
-        nextActionLabel={
-          cartItemCount > 0
-            ? 'Revisar carrito y checkout'
-            : assistedFirstActive
-              ? 'Subir pedido o documento'
-              : 'Explorar catalogo'
-        }
-        primaryActionLabel={cartItemCount > 0 ? 'Ver carrito' : assistedPrimaryCta}
-        onPrimaryAction={() => {
-          if (cartItemCount > 0) {
-            window.location.href = buildTenantPath('/cart', tenantSlug);
-            return;
-          }
-          activateAssistedUpload('file');
-        }}
-        secondaryActionLabel="WhatsApp"
-        onSecondaryAction={() => openWhatsappShare('continuity_bar')}
-        metrics={[
-          { label: 'Carrito', value: cartItemCount, tone: cartItemCount > 0 ? 'success' : 'muted' },
-          { label: 'Total', value: cartTotalLabel, tone: cartItemCount > 0 ? 'success' : 'muted' },
-          { label: 'Promos', value: promotionItems.length, tone: promotionItems.length > 0 ? 'live' : 'muted' },
-          { label: 'Loop', value: `${commerceLoopSteps.length} pasos`, tone: 'default' },
-        ]}
-      />
-
-      {assistedFirstActive && catalogActuallyEmpty ? (
-        <section
-          data-testid="market-assisted-empty-state"
-          className="overflow-hidden rounded-lg border border-primary/25 bg-card shadow-sm"
-        >
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0 p-4 sm:p-5">
-              <Badge variant="outline" className="mb-3 border-primary/30 bg-primary/5 text-primary">
-                Solicitud sin catalogo
-              </Badge>
-              <h2 className="text-xl font-semibold tracking-normal text-foreground">{assistedEmptyTitle}</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{assistedEmptyDescription}</p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                {EMPTY_FLOW_STEPS.map((step) => (
-                  <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
-                    <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border-t bg-muted/30 p-4 lg:border-l lg:border-t-0">
-              <p className="text-sm font-semibold text-foreground">Camino recomendado</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Carga tu papel, comprobante, lista o reclamo. Si faltan datos, el equipo puede pedirlos desde el mismo seguimiento.
-              </p>
-              <div className="mt-4 grid gap-2">
-                <Button type="button" onClick={() => activateAssistedUpload('file')} className="w-full">
-                  <UploadIcon className="mr-2 h-4 w-4" />
-                  {assistedPrimaryCta}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => activateAssistedUpload('text')} className="w-full">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Escribir solicitud
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {prioritizeAssistedUpload ? (
-        <UploadOrderFromFile
-          id={ASSISTED_UPLOAD_ANCHOR_ID}
-          tenantSlug={tenantSlug}
-          variant="marketplace"
-          compactMarketplaceHeader
-          intakeEntry={effectiveAssistedIntake}
-          securityContract={publicApi?.security ?? null}
-          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
-          suggestedTextDraft={assistedDraftRequest?.text ?? null}
-          suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
-          suggestedDocumentType={assistedDraftRequest?.text ? 'quote_request' : null}
-          onProcessed={(response) => {
-            const requestId = response?.pedido_id ?? response?.lead_id;
-            toast({
-              title: 'Solicitud recibida',
-              description: requestId
-                ? `Solicitud #${requestId}. El equipo puede revisarla desde el panel.`
-                : 'El equipo puede revisarla desde el panel.',
-            });
-          }}
-        />
-      ) : null}
-
-      <section
-        data-testid="market-primary-actions"
-        className="rounded-lg border bg-card p-3 shadow-sm sm:p-4"
-      >
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
-            {assistedFirstActive ? (
-              <UploadIcon className="h-5 w-5 shrink-0 text-primary" />
-            ) : (
-              <SlidersHorizontal className="h-5 w-5 shrink-0 text-primary" />
-            )}
-            <span className="min-w-0 truncate">
-              {assistedFirstActive ? 'Cargar pedido, reclamo o documento' : 'Buscar o cargar pedido'}
-            </span>
-          </h2>
-          <p className="text-sm text-muted-foreground">{catalogStatusLine}</p>
-        </div>
-
-        {assistedFirstActive ? (
-          <div
-            data-testid="market-assisted-command"
-            className="mt-3 overflow-hidden rounded-lg border border-primary/25 bg-primary/5 p-3 sm:p-4"
-          >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  Sin registro
-                </Badge>
-                <h3 className="mt-2 text-lg font-semibold tracking-normal">
-                  Subi una foto del papel, pega tu lista o manda un documento. El equipo recibe una solicitud lista para responder.
-                </h3>
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  No hace falta saber usar un catalogo ni escribir perfecto: Chatboc separa articulos, cantidades, direcciones, comprobantes o datos faltantes y deja todo en el panel con seguimiento publico.
-                </p>
-              </div>
-              <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:w-auto">
-                <Button type="button" className="w-full" onClick={() => activateAssistedUpload('file')}>
-                  <UploadIcon className="mr-2 h-4 w-4" />
-                  Subir foto o archivo
-                </Button>
-                <Button type="button" variant="outline" className="w-full" onClick={() => activateAssistedUpload('text')}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Escribir lista
-                </Button>
-              </div>
-            </div>
-            <div
-              data-testid="market-assisted-public-promise"
-              className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"
-            >
-              {ASSISTED_FIRST_MODES.map((mode) => {
-                const Icon = mode.icon;
-                return (
-                  <div key={mode.title} className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
-                    <div className="flex items-center gap-2 font-semibold text-foreground">
-                      <Icon className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="truncate">{mode.title}</span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{mode.description}</p>
-                  </div>
-                );
-              })}
-              <div className="min-w-0 rounded-md border bg-background/85 px-3 py-2">
-                <div className="flex items-center gap-2 font-semibold text-foreground">
-                  <ClipboardList className="h-4 w-4 shrink-0 text-primary" />
-                  <span className="truncate">Seguimiento seguro</span>
-                </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                  Referencia publica para consultar estado o continuar por WhatsApp.
-                </p>
-              </div>
-            </div>
-            <div
-              data-testid="market-assisted-public-flow"
-              className="mt-3 grid gap-2 rounded-lg border border-primary/20 bg-background/80 p-2 md:grid-cols-4"
-            >
-              {ASSISTED_PUBLIC_FLOW_STEPS.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.title} className="relative min-w-0 rounded-md border bg-card/90 px-3 py-2">
-                    {index < ASSISTED_PUBLIC_FLOW_STEPS.length - 1 ? (
-                      <ArrowRight className="pointer-events-none absolute -right-3 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 text-primary/60 md:block" />
-                    ) : null}
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="truncate">{step.title}</span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div
-              data-testid="market-assisted-team-handoff"
-              className="mt-3 grid gap-2 rounded-lg border border-background/70 bg-background/80 p-2 sm:grid-cols-3"
-            >
-              {ASSISTED_TEAM_HANDOFFS.map((handoff) => {
-                const Icon = handoff.icon;
-                return (
-                  <div key={handoff.title} className="min-w-0 rounded-md border bg-muted/30 px-3 py-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <Icon className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="truncate">{handoff.title}</span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{handoff.description}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : showAssistedIntake ? (
-          <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <Badge variant="outline" className="border-primary/30 bg-background/80 text-primary">
-                  Ingreso sin registro
-                </Badge>
-                <p className="mt-2 text-sm font-semibold">
-                  {catalogActuallyEmpty
-                    ? 'Aunque no haya productos visibles, el cliente puede iniciar una solicitud completa.'
-                    : 'Si el cliente no encuentra el producto, puede subir su pedido como lo tiene.'}
-                </p>
-                <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                  {ASSISTED_ENTRY_PROMISES.map((promise) => (
-                    <span key={promise} className="rounded-md border bg-background/85 px-2.5 py-2 leading-5">
-                      {promise}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  El equipo recibe archivo/texto original, datos ordenados, candidatos de catalogo, datos faltantes y respuesta sugerida.
-                </p>
-              </div>
-              <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => activateAssistedUpload('file')}>
-                <UploadIcon className="mr-2 h-4 w-4" />
-                {assistedPrimaryCta}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {showCatalogFilters ? (
-          <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_190px_190px_auto]">
-            <div className="relative min-w-0 md:col-span-2 lg:col-span-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Buscar producto, marca o promo..."
-                className="w-full min-w-0 pl-9"
-              />
-            </div>
-            {showAssistedIntake ? (
+        <div className="flex w-full min-w-0 items-center gap-2 md:w-auto md:justify-end">
+          {showAssistedIntake ? (
+            <div data-testid="market-assisted-header-rail" className="min-w-0 flex-1 md:flex-none">
               <Button
                 type="button"
                 data-testid="market-assisted-upload-cta"
+                className="w-full whitespace-normal leading-tight md:w-auto md:whitespace-nowrap"
                 onClick={() => activateAssistedUpload('file')}
-                className="w-full whitespace-normal text-left leading-tight sm:whitespace-nowrap lg:w-auto"
               >
                 <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
-                Subir pedido/foto/texto
+                {assistedPrimaryCta}
               </Button>
-            ) : null}
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-full min-w-0">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las categorias</SelectItem>
-                {categoryOptions.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedSort} onValueChange={setSelectedSort}>
-              <SelectTrigger className="w-full min-w-0">
-                <SelectValue placeholder="Orden" />
-              </SelectTrigger>
-              <SelectContent>
-                {effectiveSortOptions.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.label ?? item.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>
+          ) : null}
+          {cartItemCount > 0 ? (
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link to={buildTenantPath('/cart', tenantSlug)}>
+                <ShoppingBag className="mr-2 h-4 w-4" />
+                Carrito ({cartItemCount})
+              </Link>
+            </Button>
+          ) : null}
+          <div className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Compartir catalogo">
             <Button
               type="button"
-              variant={promotionOnly ? 'default' : 'outline'}
-              onClick={() => setPromotionOnly((prev) => !prev)}
-              className="w-full whitespace-normal leading-tight sm:whitespace-nowrap lg:w-auto"
+              variant="ghost"
+              size="icon"
+              onClick={copyShareUrl}
+              disabled={!shareUrl || !canUseClipboard}
+              aria-label="Copiar enlace del catalogo"
+              title="Copiar enlace"
             >
-              <Sparkles className="mr-2 h-4 w-4 shrink-0" />
-              En promocion
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => openWhatsappShare('desktop_share_button')}
+              disabled={!shareMessage}
+              aria-label="Compartir por WhatsApp"
+              title="WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => openQrShare('desktop_qr_button')}
+              disabled={!shareUrl}
+              aria-label="Abrir codigo QR"
+              title="Codigo QR"
+            >
+              <QrCode className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => openCatalogDownload('desktop_pdf_button')}
+              disabled={!catalogDownloadUrl}
+              aria-label="Descargar catalogo PDF"
+              title="Descargar PDF"
+            >
+              <FileDown className="h-4 w-4" />
             </Button>
           </div>
-        ) : null}
+        </div>
+      </header>
 
-        <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 md:hidden">
+      <section data-testid="market-primary-actions" className="border-b pb-4" aria-label="Buscar y filtrar productos">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+          <h2 className="flex shrink-0 items-center gap-2 text-sm font-semibold">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            Productos
+          </h2>
+          <p data-testid="market-catalog-status" className="min-w-0 truncate text-right text-xs text-muted-foreground sm:text-sm">
+            {catalogStatusLine}
+          </p>
+        </div>
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_190px_auto]">
+          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar producto, marca o promo..."
+              className="w-full min-w-0 pl-9"
+            />
+          </div>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full min-w-0" aria-label="Filtrar por categoria">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorias</SelectItem>
+              {categoryOptions.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedSort} onValueChange={setSelectedSort}>
+            <SelectTrigger className="w-full min-w-0" aria-label="Ordenar productos">
+              <SelectValue placeholder="Orden" />
+            </SelectTrigger>
+            <SelectContent>
+              {effectiveSortOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label ?? item.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             type="button"
-            variant="outline"
-            onClick={() => openWhatsappShare('mobile_share_button')}
-            disabled={!shareMessage}
-            className="w-full whitespace-normal leading-tight"
+            variant={promotionOnly ? 'default' : 'outline'}
+            onClick={() => setPromotionOnly((current) => !current)}
+            className="w-full whitespace-nowrap lg:w-auto"
+            aria-pressed={promotionOnly}
           >
-            <MessageCircle className="mr-2 h-4 w-4" />
-            Continuar por WhatsApp
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={async () => {
-              try {
-                if (!shareUrl || !canUseClipboard) return;
-                await navigator.clipboard.writeText(shareUrl);
-                toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
-              } catch (copyError) {
-                toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
-              }
-            }}
-            disabled={!shareUrl || !canUseClipboard}
-            className="w-full whitespace-normal leading-tight"
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Copiar enlace
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => openQrShare('mobile_qr_button')}
-            disabled={!shareUrl}
-            className="w-full whitespace-normal leading-tight"
-            data-testid="market-mobile-qr-share"
-          >
-            <QrCode className="mr-2 h-4 w-4" />
-            QR
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => openCatalogDownload('mobile_pdf_button')}
-            disabled={!catalogDownloadUrl}
-            className="w-full whitespace-normal leading-tight"
-            data-testid="market-mobile-download-catalog"
-          >
-            <FileDown className="mr-2 h-4 w-4" />
-            PDF
+            <Sparkles className="mr-2 h-4 w-4 shrink-0" />
+            En promocion
           </Button>
         </div>
       </section>
-
-      {commerceLoopSteps.length ? (
-        <section
-          data-testid="market-commerce-loop"
-          className="overflow-hidden rounded-lg border bg-card shadow-sm"
-          aria-label="Seguimiento operativo del pedido"
-        >
-          <div className="flex flex-col gap-3 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                <span>Pedido trazable de punta a punta</span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Catalogo, pedido asistido, carrito, checkout y seguimiento quedan conectados al panel.
-              </p>
-            </div>
-            <Badge variant="outline" className="w-fit border-primary/25 bg-primary/5 text-primary">
-              {publicApi?.analytics?.write_mode === 'frontend_signal_plus_server_reconciliation'
-                ? 'Frontend + servidor'
-                : publicApi?.analytics?.contract_version ?? 'Loop operativo'}
-            </Badge>
-          </div>
-          <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            {commerceLoopSteps.map((step, index) => (
-              <div key={`${step.id}-${index}`} className="relative min-w-0 border-b p-4 last:border-b-0 sm:border-r lg:border-b-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </div>
-                  {index < commerceLoopSteps.length - 1 ? (
-                    <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground xl:block" />
-                  ) : null}
-                </div>
-                <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{step.label}</p>
-                <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {showAssistedIntake && !prioritizeAssistedUpload ? (
-        <UploadOrderFromFile
-          id={ASSISTED_UPLOAD_ANCHOR_ID}
-          tenantSlug={tenantSlug}
-          variant="marketplace"
-          intakeEntry={effectiveAssistedIntake}
-          securityContract={publicApi?.security ?? null}
-          fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
-          suggestedTextDraft={assistedDraftRequest?.text ?? null}
-          suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
-          suggestedDocumentType={assistedDraftRequest?.text ? 'quote_request' : null}
-          onProcessed={(response) => {
-            const requestId = response?.pedido_id ?? response?.lead_id;
-            toast({
-              title: 'Solicitud recibida',
-              description: requestId
-                ? `Solicitud #${requestId}. El equipo puede revisarla desde el panel.`
-                : 'El equipo puede revisarla desde el panel.',
-            });
-          }}
-        />
-      ) : null}
-
-      {promotionItems.length ? (
-        <section className="overflow-hidden rounded-lg border bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="max-w-2xl">
-              <Badge variant="outline" className="mb-3 border-emerald-200 bg-white text-emerald-700">
-                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                Promociones activas
-              </Badge>
-              <h2 className="text-xl font-semibold text-slate-950">Ofertas listas para comprar</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Descuentos configurados por el operador y aplicables desde catalogo, WhatsApp o checkout.
-              </p>
-            </div>
-            <Button asChild className="w-full md:w-auto">
-              <Link to={buildTenantPath('/cart', tenantSlug)}>
-                <ShoppingBag className="mr-2 h-4 w-4" />
-                Ver carrito
-              </Link>
-            </Button>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {promotionItems.slice(0, 6).map((promotion) => {
-              const detail = promotionDetail(promotion);
-              const badge = promotionBadge(promotion);
-              return (
-                <div key={promotion.id} className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                      <Percent className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="line-clamp-2 font-semibold text-slate-950">{promotionTitle(promotion)}</h3>
-                      {promotionDescription(promotion) ? (
-                        <p className="mt-1 line-clamp-2 text-sm text-slate-600">{promotionDescription(promotion)}</p>
-                      ) : null}
-                      {detail ? (
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                          {detail}
-                        </p>
-                      ) : null}
-                      {badge ? (
-                        <Badge variant="outline" className="mt-2 border-emerald-200 bg-emerald-50 text-emerald-700">
-                          {badge}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
 
       {error ? (
         <Alert variant="destructive">
@@ -1276,109 +788,370 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         </Alert>
       ) : null}
 
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Cargando catalogo">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="min-h-[260px] animate-pulse rounded-lg border bg-card p-4 shadow-sm">
-              <div className="h-32 rounded-md bg-muted" />
-              <div className="mt-4 h-4 w-3/4 rounded bg-muted" />
-              <div className="mt-3 h-3 w-1/2 rounded bg-muted" />
-              <div className="mt-6 h-10 rounded bg-muted" />
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <main
+        data-testid="market-products-region"
+        className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+        aria-label="Productos del catalogo"
+      >
+        {isLoading
+          ? [0, 1, 2].map((item) => (
+              <div key={item} className="order-1 min-h-[260px] animate-pulse rounded-lg border bg-card p-4 shadow-sm">
+                <div className="h-32 rounded-md bg-muted" />
+                <div className="mt-4 h-4 w-3/4 rounded bg-muted" />
+                <div className="mt-3 h-3 w-1/2 rounded bg-muted" />
+                <div className="mt-6 h-10 rounded bg-muted" />
+              </div>
+            ))
+          : null}
 
-      {emptyState && !(assistedFirstActive && catalogActuallyEmpty) ? (
-        <div data-testid="market-empty-state" className="rounded-lg border border-dashed bg-card p-4 shadow-sm sm:p-6">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
-            <div className="max-w-2xl">
-              <Badge variant="secondary" className="mb-3">
-                {showAssistedIntake ? 'Compra asistida activa' : 'Catalogo pendiente'}
-              </Badge>
-              <h3 className="text-xl font-semibold">
-                {hasActiveFilters && !catalogActuallyEmpty
-                  ? 'No hay productos para esos filtros, pero podes cargar el pedido igual.'
-                  : showAssistedIntake
-                    ? publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) || 'Catalogo sin productos visibles, pedido asistido disponible.'
-                    : 'No hay productos disponibles en este catalogo.'}
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {hasActiveFilters && !catalogActuallyEmpty
-                  ? 'Limpia filtros para volver al catalogo o subi una nota/foto: Chatboc la transforma en pedido, reclamo o consulta para que el equipo responda.'
-                  : showAssistedIntake
-                    ? publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
-                      'El catalogo puede estar en preparacion. Igual podes subir una foto, PDF, boleta o nota manuscrita: Chatboc separa articulos, cantidades, rubro o tramite y genera seguimiento publico.'
-                    : 'El tenant todavia no publico productos ni habilito carga asistida para visitantes. Usa los canales disponibles para pedir informacion.'}
-              </p>
-              {showAssistedIntake ? (
-                <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                  {EMPTY_FLOW_STEPS.map((step) => (
-                    <div key={step.label} className="min-w-0 rounded-md border bg-background px-3 py-2">
-                      <p className="break-words font-semibold text-foreground">{step.label}</p>
-                      <p className="mt-1 break-words text-xs leading-5">{step.description}</p>
+        {emptyState ? (
+          <section
+            data-testid={assistedFirstActive && catalogActuallyEmpty ? 'market-assisted-empty-state' : 'market-empty-state'}
+            className="order-1 border-y border-dashed py-5 md:col-span-2 lg:col-span-3"
+          >
+            <Badge variant="secondary" className="mb-2">
+              {showAssistedIntake ? 'Sin productos' : 'Catalogo pendiente'}
+            </Badge>
+            <h2 className="max-w-3xl text-lg font-semibold sm:text-xl">
+              {hasActiveFilters && !catalogActuallyEmpty
+                ? 'No hay productos para esos filtros.'
+                : showAssistedIntake
+                  ? assistedEmptyTitle
+                  : 'No hay productos disponibles en este catalogo.'}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              {hasActiveFilters && !catalogActuallyEmpty
+                ? 'Limpia los filtros o usa la carga asistida para consultar disponibilidad, precio o una alternativa.'
+                : showAssistedIntake
+                  ? assistedEmptyDescription
+                  : 'El tenant todavia no publico productos. Usa los canales disponibles para pedir informacion.'}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedCategory('all');
+                    setPromotionOnly(false);
+                  }}
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  Limpiar filtros
+                </Button>
+              ) : null}
+              {!showAssistedIntake && shareMeta?.whatsappShareUrl ? (
+                <Button asChild variant="outline" size="sm">
+                  <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Continuar por WhatsApp
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {!isLoading
+          ? products.map((product, index) => {
+              const responsiveOrder = index === 0
+                ? 'order-1'
+                : index === 1
+                  ? 'order-3 md:order-1'
+                  : index === 2
+                    ? 'order-3 lg:order-1'
+                    : 'order-3';
+              return (
+                <article
+                  key={product.id}
+                  data-testid={`market-product-${product.id}`}
+                  className={`flex min-w-0 flex-col gap-3 ${responsiveOrder}`}
+                >
+                  <ProductCard
+                    product={product}
+                    onAdd={(id) => addItem(id)}
+                    onConsult={activateProductConsult}
+                    isAdding={isCartLoading}
+                  />
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={buildTenantPath(`/product/${encodeURIComponent(product.id)}`, tenantSlug)}>
+                      Ver detalle
+                    </Link>
+                  </Button>
+                </article>
+              );
+            })
+          : null}
+
+        {showAssistedIntake ? (
+          <details
+            data-testid="market-assisted-command"
+            className="group order-2 overflow-hidden border-y bg-primary/5 md:col-span-2 lg:col-span-3"
+            open={isAssistedPanelOpen}
+          >
+            <summary
+              className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 sm:px-4"
+              onClick={(event) => {
+                event.preventDefault();
+                setIsAssistedPanelOpen((current) => !current);
+              }}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <UploadIcon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Enviar nota, foto o texto</span>
+                  <span className="block truncate text-xs text-muted-foreground sm:text-sm">
+                    Nota manuscrita, foto, PDF o texto, sin registro.
+                  </span>
+                </span>
+              </span>
+              <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t p-3 sm:p-4">
+              <UploadOrderFromFile
+                id={ASSISTED_UPLOAD_ANCHOR_ID}
+                tenantSlug={tenantSlug}
+                variant="marketplace"
+                compactMarketplaceHeader
+                className="rounded-none border-0 bg-transparent p-0 shadow-none"
+                intakeEntry={effectiveAssistedIntake}
+                securityContract={publicApi?.security ?? null}
+                fallbackWhatsappHref={shareMeta?.whatsappShareUrl ?? null}
+                suggestedTextDraft={assistedDraftRequest?.text ?? null}
+                suggestedTextDraftKey={assistedDraftRequest?.key ?? null}
+                suggestedDocumentType={assistedDraftRequest?.text ? 'quote_request' : null}
+                onProcessed={(response) => {
+                  const requestId = response?.pedido_id ?? response?.lead_id;
+                  toast({
+                    title: 'Solicitud recibida',
+                    description: requestId
+                      ? `Solicitud #${requestId}. El equipo puede revisarla desde el panel.`
+                      : 'El equipo puede revisarla desde el panel.',
+                  });
+                }}
+              />
+            </div>
+          </details>
+        ) : null}
+
+        <details
+          data-testid="market-assisted-details"
+          className="group order-2 overflow-hidden border-y bg-muted/20 md:col-span-2 lg:col-span-3"
+        >
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 sm:px-4">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Como funciona y como compartir</span>
+              <span className="block truncate text-xs text-muted-foreground sm:text-sm">
+                Proceso, seguimiento y canales del pedido.
+              </span>
+            </span>
+            <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="divide-y border-t px-3 sm:px-4">
+            {showAssistedIntake ? (
+              <section className="py-4" aria-label="Alcance de la carga asistida">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <Badge variant="outline" className="mb-2 border-primary/30 bg-background text-primary">
+                      {assistedDisplayName}
+                    </Badge>
+                    <h3 className="text-sm font-semibold">Que podes enviar</h3>
+                  </div>
+                  <span data-testid="market-assisted-public-promise" className="text-xs text-muted-foreground">
+                    Foto o manuscrito - texto de WhatsApp - documento o reclamo
+                  </span>
+                </div>
+                <div data-testid="market-assisted-use-cases" className="mt-3 grid gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {assistedUseCases.map((useCase) => {
+                    const Icon = useCase.icon;
+                    return (
+                      <div key={useCase.id} className="min-w-0 border-l-2 border-primary/30 pl-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Icon className="h-4 w-4 shrink-0 text-primary" />
+                          <span>{useCase.title}</span>
+                        </div>
+                        {useCase.description ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{useCase.description}</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {showAssistedIntake ? (
+              <section data-testid="market-assisted-public-flow" className="py-4" aria-label="Circuito de carga asistida">
+                <h3 className="text-sm font-semibold">Circuito asistido</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {ASSISTED_PUBLIC_FLOW_STEPS.map((step, index) => {
+                    const Icon = step.icon;
+                    return (
+                      <div key={step.title} className="relative min-w-0 pr-3">
+                        {index < ASSISTED_PUBLIC_FLOW_STEPS.length - 1 ? (
+                          <ArrowRight className="absolute -right-1 top-2 hidden h-4 w-4 text-muted-foreground lg:block" />
+                        ) : null}
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span>{step.title}</span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {showAssistedIntake ? (
+              <section data-testid="market-assisted-team-handoff" className="py-4" aria-label="Informacion para el equipo">
+                <h3 className="text-sm font-semibold">Lo que recibe el equipo</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {ASSISTED_TEAM_HANDOFFS.map((handoff) => {
+                    const Icon = handoff.icon;
+                    return (
+                      <div key={handoff.title} className="min-w-0 border-l-2 border-border pl-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Icon className="h-4 w-4 shrink-0 text-primary" />
+                          <span>{handoff.title}</span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{handoff.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {commerceLoopSteps.length ? (
+              <section data-testid="market-commerce-loop" className="py-4" aria-label="Seguimiento operativo del pedido">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Pedido trazable de punta a punta
+                  </h3>
+                  <Badge variant="outline">
+                    {publicApi?.analytics?.write_mode === 'frontend_signal_plus_server_reconciliation'
+                      ? 'Frontend + servidor'
+                      : publicApi?.analytics?.contract_version ?? 'Loop operativo'}
+                  </Badge>
+                </div>
+                <div className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  {commerceLoopSteps.map((step, index) => (
+                    <div key={`${step.id}-${index}`} className="min-w-0 border-l-2 border-border pl-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                        <p className="text-sm font-semibold">{step.label}</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
                     </div>
                   ))}
                 </div>
-              ) : null}
-            </div>
-            {showAssistedIntake ? (
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="font-semibold">Camino recomendado</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Si tenes una lista de ferreteria, supermercado, bebidas, un comprobante o una foto de papel, cargala para generar referencia, seguimiento y respuesta del equipo.
-                </p>
-              </div>
+              </section>
             ) : null}
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedCategory('all');
-                setPromotionOnly(false);
-              }}
-            >
-              <Search className="mr-2 h-4 w-4" />
-              Limpiar filtros
-            </Button>
-            {showAssistedIntake ? (
-              <Button type="button" onClick={() => activateAssistedUpload('file')}>
-                <UploadIcon className="mr-2 h-4 w-4" />
-                {effectiveAssistedIntake?.empty_state?.primary_cta ?? 'Subir pedido o comprobante'}
-              </Button>
-            ) : null}
-            {shareMeta?.whatsappShareUrl ? (
-              <Button asChild variant="outline">
-                <a href={shareMeta.whatsappShareUrl} target="_blank" rel="noreferrer">
+
+            <section className="py-4 md:hidden" aria-label="Compartir catalogo desde el celular">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openWhatsappShare('mobile_share_button')}
+                  disabled={!shareMessage}
+                  className="w-full whitespace-normal leading-tight"
+                >
                   <MessageCircle className="mr-2 h-4 w-4" />
                   Continuar por WhatsApp
-                </a>
-              </Button>
-            ) : null}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={copyShareUrl}
+                  disabled={!shareUrl || !canUseClipboard}
+                  className="w-full whitespace-normal leading-tight"
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar enlace
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openQrShare('mobile_qr_button')}
+                  disabled={!shareUrl}
+                  className="w-full"
+                  data-testid="market-mobile-qr-share"
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  QR
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openCatalogDownload('mobile_pdf_button')}
+                  disabled={!catalogDownloadUrl}
+                  className="w-full"
+                  data-testid="market-mobile-download-catalog"
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  PDF
+                </Button>
+              </div>
+            </section>
           </div>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <div key={product.id} className="flex flex-col gap-3">
-              <ProductCard
-                product={product}
-                onAdd={(id) => addItem(id)}
-                onConsult={activateProductConsult}
-                isAdding={isCartLoading}
-              />
-              <Button asChild variant="outline" size="sm">
-                <Link to={buildTenantPath(`/product/${encodeURIComponent(product.id)}`, tenantSlug)}>
-                  Ver detalle
+        </details>
+
+        {promotionItems.length ? (
+          <section className="order-4 border-t pt-5 md:col-span-2 lg:col-span-3" aria-label="Promociones activas">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <Badge variant="outline" className="mb-2 border-emerald-200 bg-emerald-50 text-emerald-700">
+                  <Sparkles className="mr-1 h-3.5 w-3.5" />
+                  Promociones activas
+                </Badge>
+                <h2 className="text-lg font-semibold">Ofertas listas para comprar</h2>
+              </div>
+              <Button asChild size="sm" className="w-full sm:w-auto">
+                <Link to={buildTenantPath('/cart', tenantSlug)}>
+                  <ShoppingBag className="mr-2 h-4 w-4" />
+                  Ver carrito
                 </Link>
               </Button>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {promotionItems.slice(0, 6).map((promotion) => {
+                const detail = promotionDetail(promotion);
+                const badge = promotionBadge(promotion);
+                return (
+                  <div key={promotion.id} className="rounded-lg border bg-card p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                        <Percent className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="line-clamp-2 font-semibold">{promotionTitle(promotion)}</h3>
+                        {promotionDescription(promotion) ? (
+                          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{promotionDescription(promotion)}</p>
+                        ) : null}
+                        {detail ? <p className="mt-2 text-xs font-semibold text-emerald-700">{detail}</p> : null}
+                        {badge ? (
+                          <Badge variant="outline" className="mt-2 border-emerald-200 bg-emerald-50 text-emerald-700">
+                            {badge}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+      </main>
     </div>
   );
 }

@@ -109,13 +109,17 @@ describe('routesConfig route capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
 
+    expect(content).toMatch(
+      /const TenantTicketWorkspaceRoute[\s\S]*?<TicketsPanel tenantSlugOverride=\{tenantSlug \|\| null\} embedded \/>/,
+    );
+
     for (const tenantTicketPath of ['/:tenant/reclamos', '/:tenant/tickets', '/:tenant/inbox']) {
       const pattern = new RegExp(
         `\\.\\.\\.withTenantPrefixes\\('${tenantTicketPath.replace(/\//g, '\\/')}', \\{[\\s\\S]*?\\}\\),`,
       );
       const routeBlock = content.match(pattern)?.[0] ?? '';
 
-      expect(routeBlock).toContain('element: <TicketsPanel />');
+      expect(routeBlock).toContain('element: <TenantTicketWorkspaceRoute />');
       expect(routeBlock).toContain("roles: ['tenant_admin', 'employee', 'superadmin']");
       expect(routeBlock).toContain('requiredCapabilities: TICKET_READ_CAPABILITIES');
     }

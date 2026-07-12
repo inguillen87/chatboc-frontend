@@ -32,11 +32,19 @@ vi.mock('@/utils/frontendTelemetry', () => ({
 }));
 
 vi.mock('@/components/tickets/NewTicketsPanel', () => ({
-  default: () => <div>tickets-panel-body</div>,
+  default: ({ embedded }: { embedded?: boolean }) => (
+    <div data-embedded={embedded ? 'true' : 'false'}>tickets-panel-body</div>
+  ),
 }));
 
 vi.mock('@/context/TicketContext', () => ({
-  TicketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TicketProvider: ({
+    children,
+    tenantSlugOverride,
+  }: {
+    children: React.ReactNode;
+    tenantSlugOverride?: string | null;
+  }) => <div data-testid="ticket-provider" data-tenant={tenantSlugOverride || ''}>{children}</div>,
 }));
 
 vi.mock('@/components/errors/SectionErrorBoundary', () => ({
@@ -117,6 +125,11 @@ describe('TicketsPanel request_id support surface', () => {
     expect(screen.queryByText('top-nav')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-panel-root')).toHaveClass('h-full');
     expect(screen.getByTestId('tickets-panel-root')).toHaveClass('min-h-0');
+    expect(screen.getByTestId('tickets-panel-root')).toHaveClass('overflow-hidden');
+    expect(screen.getByTestId('tickets-panel-viewport')).toHaveClass('min-h-0');
+    expect(screen.getByTestId('tickets-panel-viewport')).toHaveClass('overflow-hidden');
+    expect(screen.getByTestId('ticket-provider')).toHaveAttribute('data-tenant', 'municipio-demo');
+    expect(screen.getByText('tickets-panel-body')).toHaveAttribute('data-embedded', 'true');
   });
 
   it('does not mount ticket data when an employee lacks ticket capabilities', async () => {
