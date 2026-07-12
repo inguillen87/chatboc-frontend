@@ -743,6 +743,12 @@ export const getPublicSurveyLiveResults = (
   tenantSlug?: string,
   params?: {
     include_heatmap?: 0 | 1;
+    range_preset?: 'last_60m' | 'today' | 'last_24h';
+    range_timezone?: string;
+    desde?: string;
+    hasta?: string;
+    momentum_window_minutes?: number;
+    /** @deprecated Use momentum_window_minutes. */
     window_minutes?: number;
     max_points?: number;
     max_cells?: number;

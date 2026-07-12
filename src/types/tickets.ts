@@ -112,6 +112,10 @@ export interface TicketTimelineEvent {
 
 export interface TicketRealtimeViewer {
   viewer_id?: string | null;
+  viewer_key?: string | null;
+  viewer_user_id?: string | number | null;
+  viewer_anon_id?: string | null;
+  viewer_role?: string | null;
   viewer_label?: string | null;
   viewer_name?: string | null;
   session_id?: string | null;

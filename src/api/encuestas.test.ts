@@ -382,7 +382,12 @@ describe('public survey tenant query contract', () => {
       .mockResolvedValueOnce({ id: 12, texto: 'Buen punto' });
 
     await getPublicSurvey('consulta-barrial', 'junin');
-    await getPublicSurveyLiveResults('consulta-barrial', 'junin', { include_heatmap: 0, window_minutes: 20 });
+    await getPublicSurveyLiveResults('consulta-barrial', 'junin', {
+      include_heatmap: 0,
+      range_preset: 'today',
+      range_timezone: 'America/Argentina/Buenos_Aires',
+      momentum_window_minutes: 20,
+    });
     await getSurveyComments('consulta-barrial', 'junin', 25, 10);
     await postSurveyComment('consulta-barrial', { texto: 'Buen punto' }, 'junin');
 
@@ -393,7 +398,7 @@ describe('public survey tenant query contract', () => {
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
-      '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=0&window_minutes=20&tenant_slug=junin',
+      '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=0&range_preset=today&range_timezone=America%2FArgentina%2FBuenos_Aires&momentum_window_minutes=20&tenant_slug=junin',
       expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
@@ -421,6 +426,26 @@ describe('public survey tenant query contract', () => {
       expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
     );
   });
+
+  it('serializes an explicit custom analytics range without a preset', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.live_results.v2',
+      total_respuestas: 1,
+    });
+
+    await getPublicSurveyLiveResults('consulta-barrial', 'junin', {
+      include_heatmap: 1,
+      desde: '2026-07-12T14:00:00.000Z',
+      hasta: '2026-07-12T15:00:00.000Z',
+      range_timezone: 'America/Argentina/Buenos_Aires',
+      momentum_window_minutes: 10,
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/consulta-barrial/live-results?include_heatmap=1&desde=2026-07-12T14%3A00%3A00.000Z&hasta=2026-07-12T15%3A00%3A00.000Z&range_timezone=America%2FArgentina%2FBuenos_Aires&momentum_window_minutes=10&tenant_slug=junin',
+      expect.objectContaining({ omitTenant: true, tenantSlug: 'junin' }),
+    );
+  });
 });
 
 describe('normalizePublicSurveyLiveResults', () => {
@@ -442,6 +467,16 @@ describe('normalizePublicSurveyLiveResults', () => {
         points: [{ latitude: '-33.079', lon: '-68.47', respuestas: '7', barrio: 'Centro' }],
         cells: [{ centroid_lat: '-33.08', centroid_lon: '-68.472', count: '11', barrio: 'Centro' }],
         metadata: { points_count: 40, cells_count: 12, truncated_points: true },
+      },
+      analytics_range: {
+        contract_version: 'surveys.analytics_range.v1',
+        mode: 'preset',
+        preset: 'last_24h',
+        label: 'Últimas 24 horas',
+        timezone: 'America/Argentina/Buenos_Aires',
+        desde: '2026-07-11T15:00:00Z',
+        hasta: '2026-07-12T15:00:00Z',
+        duration_minutes: 1440,
       },
       realtime: {
         contract_version: 'surveys.realtime.v2',
@@ -468,6 +503,7 @@ describe('normalizePublicSurveyLiveResults', () => {
     expect(normalized.heatmap?.points?.[0]).toMatchObject({ lat: -33.079, lng: -68.47, value: 7 });
     expect(normalized.heatmap?.cells?.[0]).toMatchObject({ lat: -33.08, lng: -68.472, value: 11 });
     expect(normalized.heatmap?.metadata).toMatchObject({ points_count: 40, truncated_points: true });
+    expect(normalized.analytics_range).toMatchObject({ preset: 'last_24h', duration_minutes: 1440 });
     expect(normalized.realtime?.rooms).toEqual(['contract-primary', 'contract-legacy']);
     expect(normalized.realtime?.socket?.events?.[0]).toMatchObject({ name: 'survey.vote.created' });
   });

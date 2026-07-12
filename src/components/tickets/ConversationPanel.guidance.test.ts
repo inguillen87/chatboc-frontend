@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyPublicRecipientReadConfirmation,
   formatReplyDeliveryChannel,
   getComposerChannelView,
   getReplyDeliveryView,
+  hasPublicRecipientPresence,
   shouldShowOperationalTimelineInChat,
 } from './ConversationPanel';
 import { buildOperationalReplyDraft } from './ticketOperationalGuidance';
 import type { Ticket } from '@/types/tickets';
+import {
+  normalizeTicketReplyDelivery,
+  type TicketReplyDeliveryStatus,
+} from '@/services/ticketService';
 
 const baseTicket: Ticket = {
   id: 378430,
@@ -18,6 +24,33 @@ const baseTicket: Ticket = {
   fecha: '2026-06-06T00:03:00Z',
   categoria: 'Arreglo de calle',
 };
+
+const deliveryStatus = (
+  overrides: Partial<TicketReplyDeliveryStatus> = {},
+): TicketReplyDeliveryStatus => ({
+  contract_version: 'tickets.agent_reply_delivery.v2',
+  legacy_contract_version: 'tickets.agent_reply_delivery.v1',
+  mode: 'timeline_only',
+  channel: 'crm',
+  status: 'queued',
+  reason: 'recipient_presence_not_confirmed',
+  external_dispatch: false,
+  socket_emitted: false,
+  recipient_room_emitted: false,
+  recipient_presence_confirmed: false,
+  recipient_read_confirmed: false,
+  reply_comment_ids: [41],
+  latest_reply_comment_id: 41,
+  timeline_updated: true,
+  reply_status: 'saved_to_timeline',
+  delivery_results: {
+    email: false,
+    sms: false,
+    whatsapp: false,
+    socket: false,
+  },
+  ...overrides,
+});
 
 describe('buildOperationalReplyDraft', () => {
   it('asks for exact location when guidance requires it', () => {
@@ -83,12 +116,11 @@ describe('shouldShowOperationalTimelineInChat', () => {
 });
 
 describe('reply delivery evidence', () => {
-  it('previews whether the composer will use WhatsApp, live socket or offline CRM', () => {
+  it('uses public presence instead of the admin socket to describe the web composer', () => {
     expect(
       getComposerChannelView({
         channel: 'whatsapp',
-        realtimeOnline: false,
-        hasSocketRoom: false,
+        recipientPresenceConfirmed: false,
       }),
     ).toEqual(
       expect.objectContaining({
@@ -100,52 +132,68 @@ describe('reply delivery evidence', () => {
     expect(
       getComposerChannelView({
         channel: 'web_demo_widget',
-        realtimeOnline: true,
-        hasSocketRoom: true,
+        recipientPresenceConfirmed: true,
       }),
     ).toEqual(
       expect.objectContaining({
         tone: 'success',
-        label: 'Chat en vivo conectado',
+        label: 'Ciudadano activo en el ticket',
       }),
     );
 
     expect(
       getComposerChannelView({
         channel: 'web_demo_widget',
-        realtimeOnline: false,
-        hasSocketRoom: true,
+        recipientPresenceConfirmed: false,
       }),
     ).toEqual(
       expect.objectContaining({
-        tone: 'warning',
-        label: 'Modo offline del reclamo',
+        tone: 'muted',
+        label: 'Entrega web por confirmar',
       }),
     );
+  });
+
+  it('does not count admin presence as recipient presence', () => {
+    expect(hasPublicRecipientPresence(null)).toBe(false);
+    expect(
+      hasPublicRecipientPresence({
+        viewers: [],
+        read_states: [],
+        active_viewers: [
+          {
+            viewer_key: 'user:10',
+            viewer_role: 'admin',
+            presence_status: 'active',
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      hasPublicRecipientPresence({
+        viewers: [],
+        read_states: [],
+        active_viewers: [
+          {
+            viewer_key: 'user:22',
+            viewer_role: 'usuario',
+            presence_status: 'active',
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 
   it('prioritizes failed delivery evidence over the nominal channel', () => {
     const view = getComposerChannelView({
       channel: 'whatsapp',
-      realtimeOnline: true,
-      hasSocketRoom: true,
-      lastReplyDelivery: {
-        contract_version: 'tickets.agent_reply_delivery.v1',
+      recipientPresenceConfirmed: true,
+      lastReplyDelivery: deliveryStatus({
         mode: 'timeline_only',
         channel: 'crm',
         status: 'error',
         reason: 'notification_dispatch_failed',
-        external_dispatch: false,
-        socket_emitted: false,
-        timeline_updated: true,
-        reply_status: 'saved_to_timeline',
-        delivery_results: {
-          email: false,
-          sms: false,
-          whatsapp: false,
-          socket: false,
-        },
-      },
+      }),
     });
 
     expect(view.tone).toBe('warning');
@@ -153,15 +201,13 @@ describe('reply delivery evidence', () => {
   });
 
   it('labels confirmed WhatsApp delivery as an external message', () => {
-    const view = getReplyDeliveryView({
-      contract_version: 'tickets.agent_reply_delivery.v1',
+    const view = getReplyDeliveryView(deliveryStatus({
       mode: 'real_message',
       channel: 'whatsapp',
       status: 'sent',
       reason: 'external_dispatch_confirmed',
       external_dispatch: true,
       socket_emitted: true,
-      timeline_updated: true,
       reply_status: 'sent_to_contact',
       delivery_results: {
         email: false,
@@ -169,7 +215,7 @@ describe('reply delivery evidence', () => {
         whatsapp: true,
         socket: true,
       },
-    });
+    }));
 
     expect(formatReplyDeliveryChannel('whatsapp')).toBe('WhatsApp');
     expect(view.tone).toBe('success');
@@ -177,16 +223,25 @@ describe('reply delivery evidence', () => {
     expect(view.detail).toContain('WhatsApp');
   });
 
-  it('distinguishes live chat socket delivery from timeline-only CRM saves', () => {
-    const liveView = getReplyDeliveryView({
-      contract_version: 'tickets.agent_reply_delivery.v1',
+  it('distinguishes socket emission, recipient presence and recipient read', () => {
+    const emittedView = getReplyDeliveryView(deliveryStatus({
+      socket_emitted: true,
+      delivery_results: {
+        email: false,
+        sms: false,
+        whatsapp: false,
+        socket: true,
+      },
+      operator_message: 'Emitido por socket y guardado, sin presencia publica confirmada.',
+    }));
+    const deliveredView = getReplyDeliveryView(deliveryStatus({
       mode: 'real_message',
       channel: 'live_socket',
       status: 'sent',
-      reason: 'socket_dispatch_confirmed',
-      external_dispatch: false,
+      reason: 'recipient_presence_confirmed',
       socket_emitted: true,
-      timeline_updated: true,
+      recipient_room_emitted: true,
+      recipient_presence_confirmed: true,
       reply_status: 'sent_to_live_chat',
       delivery_results: {
         email: false,
@@ -194,52 +249,93 @@ describe('reply delivery evidence', () => {
         whatsapp: false,
         socket: true,
       },
-    });
+    }));
+    const readView = getReplyDeliveryView(deliveryStatus({
+      mode: 'real_message',
+      channel: 'live_socket',
+      status: 'sent',
+      reason: 'recipient_read_confirmed',
+      socket_emitted: true,
+      recipient_room_emitted: true,
+      recipient_presence_confirmed: true,
+      recipient_read_confirmed: true,
+      reply_status: 'sent_to_live_chat',
+    }));
 
-    const crmView = getReplyDeliveryView({
-      contract_version: 'tickets.agent_reply_delivery.v1',
-      mode: 'timeline_only',
-      channel: 'crm',
-      status: 'saved_to_crm',
-      reason: 'external_dispatch_no_channel_confirmed',
-      external_dispatch: false,
-      socket_emitted: false,
-      timeline_updated: true,
-      reply_status: 'saved_to_timeline',
-      delivery_results: {
-        email: false,
-        sms: false,
-        whatsapp: false,
-        socket: false,
-      },
+    const crmView = getReplyDeliveryView(deliveryStatus({
       operator_message: 'Guardado en CRM sin canal externo confirmado.',
-    });
+    }));
 
-    expect(liveView.title).toBe('Entregado en chat en vivo');
-    expect(liveView.tone).toBe('success');
+    expect(emittedView.title).toBe('Emitido y guardado');
+    expect(emittedView.tone).toBe('muted');
+    expect(deliveredView.title).toBe('Entregado en chat en vivo');
+    expect(deliveredView.tone).toBe('success');
+    expect(readView.title).toBe('Leido por el ciudadano');
+    expect(readView.tone).toBe('success');
     expect(crmView.title).toBe('Guardado en CRM');
     expect(crmView.tone).toBe('muted');
   });
 
-  it('warns operators when delivery failed after saving the CRM timeline', () => {
-    const view = getReplyDeliveryView({
-      contract_version: 'tickets.agent_reply_delivery.v1',
-      mode: 'timeline_only',
-      channel: 'crm',
-      status: 'saved_to_crm',
-      reason: 'notification_dispatch_failed',
-      external_dispatch: false,
-      socket_emitted: false,
-      timeline_updated: true,
-      reply_status: 'saved_to_timeline',
-      delivery_results: {
-        email: false,
-        sms: false,
-        whatsapp: false,
-        socket: false,
-      },
-      operator_message: 'El mensaje quedo guardado, pero fallo la entrega externa.',
+  it('normalizes socket emission without inferring recipient presence or read', () => {
+    const normalized = normalizeTicketReplyDelivery({
+      contract_version: 'tickets.agent_reply_delivery.v2',
+      status: 'queued',
+      socket_emitted: true,
+      recipient_room_emitted: true,
+      recipient_presence_confirmed: 'false',
+      recipient_read_confirmed: false,
+      reply_comment_ids: ['40', 41],
+      latest_reply_comment_id: '41',
+      delivery_results: { socket: true },
     });
+
+    expect(normalized).toMatchObject({
+      socket_emitted: true,
+      recipient_room_emitted: true,
+      recipient_presence_confirmed: false,
+      recipient_read_confirmed: false,
+      reply_comment_ids: [40, 41],
+      latest_reply_comment_id: 41,
+      reply_status: 'saved_to_timeline',
+    });
+  });
+
+  it('accepts only a public ACK that covers the latest reply comment', () => {
+    const queued = deliveryStatus({
+      socket_emitted: true,
+      recipient_room_emitted: true,
+    });
+    const adminAck = applyPublicRecipientReadConfirmation(
+      queued,
+      { viewer_role: 'admin', viewer_key: 'user:10' },
+      41,
+    );
+    const staleCitizenAck = applyPublicRecipientReadConfirmation(
+      queued,
+      { viewer_role: 'usuario', viewer_key: 'user:22' },
+      40,
+    );
+    const currentCitizenAck = applyPublicRecipientReadConfirmation(
+      queued,
+      { viewer_role: 'usuario', viewer_key: 'user:22' },
+      41,
+    );
+
+    expect(adminAck).toBe(queued);
+    expect(staleCitizenAck).toBe(queued);
+    expect(currentCitizenAck).toMatchObject({
+      status: 'sent',
+      reply_status: 'sent_to_live_chat',
+      recipient_presence_confirmed: true,
+      recipient_read_confirmed: true,
+    });
+  });
+
+  it('warns operators when delivery failed after saving the CRM timeline', () => {
+    const view = getReplyDeliveryView(deliveryStatus({
+      reason: 'notification_dispatch_failed',
+      operator_message: 'El mensaje quedo guardado, pero fallo la entrega externa.',
+    }));
 
     expect(view.tone).toBe('warning');
     expect(view.title).toBe('Guardado, entrega sin confirmar');

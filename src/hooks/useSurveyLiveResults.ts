@@ -20,8 +20,16 @@ export interface SurveyLiveStatusView {
   description: string;
 }
 
+export type SurveyAnalyticsRangePreset = 'last_60m' | 'today' | 'last_24h';
+
 export interface SurveyLiveRequestParams {
   include_heatmap?: 0 | 1;
+  range_preset?: SurveyAnalyticsRangePreset;
+  range_timezone?: string;
+  desde?: string;
+  hasta?: string;
+  momentum_window_minutes?: number;
+  /** @deprecated Use momentum_window_minutes. This never defines the analytics range. */
   window_minutes?: number;
   max_points?: number;
   max_cells?: number;

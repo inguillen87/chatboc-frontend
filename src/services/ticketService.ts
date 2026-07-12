@@ -348,6 +348,10 @@ const normalizeRealtimeViewer = (raw: any): TicketRealtimeViewer | null => {
 
     return {
         viewer_id: raw.viewer_id ?? raw.viewerId ?? raw.viewer_key ?? raw.viewerKey ?? raw.user_id ?? null,
+        viewer_key: raw.viewer_key ?? raw.viewerKey ?? null,
+        viewer_user_id: raw.viewer_user_id ?? raw.viewerUserId ?? raw.user_id ?? raw.userId ?? null,
+        viewer_anon_id: raw.viewer_anon_id ?? raw.viewerAnonId ?? raw.anon_id ?? raw.anonId ?? null,
+        viewer_role: raw.viewer_role ?? raw.viewerRole ?? raw.role ?? null,
         viewer_label: raw.viewer_label ?? raw.viewerLabel ?? raw.viewer_name ?? raw.viewerName ?? raw.viewer_key ?? null,
         viewer_name: raw.viewer_name ?? raw.viewerName ?? raw.viewer_label ?? raw.viewerLabel ?? null,
         session_id: raw.session_id ?? raw.sessionId ?? raw.active_session_id ?? raw.activeSessionId ?? null,
@@ -1013,12 +1017,18 @@ export const isTicketHistoryDeliveryErrorResult = (
 
 export type TicketReplyDeliveryStatus = {
     contract_version: string;
+    legacy_contract_version?: string;
     mode: 'real_message' | 'timeline_only' | 'internal_event' | string;
     channel: string;
     status: string;
     reason: string;
     external_dispatch: boolean;
     socket_emitted: boolean;
+    recipient_room_emitted: boolean;
+    recipient_presence_confirmed: boolean;
+    recipient_read_confirmed: boolean;
+    reply_comment_ids: number[];
+    latest_reply_comment_id?: number;
     timeline_updated: boolean;
     reply_status: string;
     admin_surface?: string;
@@ -1031,6 +1041,12 @@ export type TicketReplyDeliveryStatus = {
     };
 };
 
+const normalizeDeliveryBoolean = (value: unknown): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    return ['1', 'true'].includes(String(value ?? '').trim().toLowerCase());
+};
+
 export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryStatus | null => {
     if (!raw || typeof raw !== 'object') {
         return null;
@@ -1041,25 +1057,41 @@ export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryS
         ? payload.delivery_results as Record<string, any>
         : {};
 
-    const socketDelivered = Boolean(payload.socket_emitted || rawResults.socket);
+    const socketEmitted = normalizeDeliveryBoolean(payload.socket_emitted) || normalizeDeliveryBoolean(rawResults.socket);
+    const replyCommentIds = Array.isArray(payload.reply_comment_ids)
+        ? payload.reply_comment_ids
+            .map((value: unknown) => Number(value))
+            .filter((value: number) => Number.isInteger(value) && value > 0)
+        : [];
+    const latestReplyCommentId = Number(payload.latest_reply_comment_id || 0);
 
     return {
         contract_version: String(payload.contract_version || 'tickets.agent_reply_delivery.v1'),
+        legacy_contract_version: payload.legacy_contract_version
+            ? String(payload.legacy_contract_version)
+            : undefined,
         mode: String(payload.mode || 'timeline_only') as TicketReplyDeliveryStatus['mode'],
         channel: String(payload.channel || 'crm'),
         status: String(payload.status || 'saved_to_crm'),
         reason: String(payload.reason || 'unknown'),
-        external_dispatch: Boolean(payload.external_dispatch),
-        socket_emitted: socketDelivered,
-        timeline_updated: Boolean(payload.timeline_updated),
+        external_dispatch: normalizeDeliveryBoolean(payload.external_dispatch),
+        socket_emitted: socketEmitted,
+        recipient_room_emitted: normalizeDeliveryBoolean(payload.recipient_room_emitted),
+        recipient_presence_confirmed: normalizeDeliveryBoolean(payload.recipient_presence_confirmed),
+        recipient_read_confirmed: normalizeDeliveryBoolean(payload.recipient_read_confirmed),
+        reply_comment_ids: replyCommentIds,
+        latest_reply_comment_id: Number.isInteger(latestReplyCommentId) && latestReplyCommentId > 0
+            ? latestReplyCommentId
+            : replyCommentIds.at(-1),
+        timeline_updated: normalizeDeliveryBoolean(payload.timeline_updated),
         reply_status: String(payload.reply_status || 'saved_to_timeline'),
         admin_surface: payload.admin_surface ? String(payload.admin_surface) : undefined,
         operator_message: payload.operator_message ? String(payload.operator_message) : undefined,
         delivery_results: {
-            email: Boolean(rawResults.email),
-            sms: Boolean(rawResults.sms),
-            whatsapp: Boolean(rawResults.whatsapp),
-            socket: socketDelivered,
+            email: normalizeDeliveryBoolean(rawResults.email),
+            sms: normalizeDeliveryBoolean(rawResults.sms),
+            whatsapp: normalizeDeliveryBoolean(rawResults.whatsapp),
+            socket: socketEmitted,
         },
     };
 };

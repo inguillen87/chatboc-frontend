@@ -28,8 +28,17 @@ import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/Su
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
 import { safeSessionStorage } from '@/utils/safeLocalStorage';
 import { resolveSurveyLiveSlug } from '@/utils/surveyLiveSlug';
+import {
+  SURVEY_ANALYTICS_RANGE_OPTIONS,
+  createDefaultSurveyLiveRequestParams,
+  fromLocalDateTimeInputValue,
+  normalizeStoredSurveyLiveRequestParams,
+  selectSurveyAnalyticsRange,
+  toLocalDateTimeInputValue,
+  type SurveyAnalyticsRangeSelection,
+} from './surveyAnalyticsRange';
 
-const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v1';
+const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v2';
 
 const appendDemoVoteToLiveResults = (
   source: SurveyLiveResults | undefined,
@@ -108,22 +117,12 @@ const getLivePayloadVersion = (payload?: SurveyLivePublicResultsPayload) => {
 
 const parseLiveRequestParams = (): SurveyLiveRequestParams => {
   const raw = safeSessionStorage.getItem(LIVE_FILTERS_STORAGE_KEY);
-  if (!raw) return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
+  if (!raw) return createDefaultSurveyLiveRequestParams();
 
   try {
-    const parsed = JSON.parse(raw) as SurveyLiveRequestParams;
-    return {
-      include_heatmap: parsed.include_heatmap === 0 ? 0 : 1,
-      window_minutes: typeof parsed.window_minutes === 'number' ? parsed.window_minutes : 60,
-      max_points: typeof parsed.max_points === 'number' ? parsed.max_points : 800,
-      max_cells: typeof parsed.max_cells === 'number' ? parsed.max_cells : 120,
-      canal: parsed.canal,
-      barrio: parsed.barrio,
-      ciudad: parsed.ciudad,
-      provincia: parsed.provincia,
-    };
+    return normalizeStoredSurveyLiveRequestParams(JSON.parse(raw));
   } catch {
-    return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
+    return createDefaultSurveyLiveRequestParams();
   }
 };
 
@@ -185,7 +184,10 @@ const PublicSurveyPage = () => {
     liveRequestParams,
   );
   const hasActiveLiveFilters = Boolean(
-    liveRequestParams.canal ||
+    liveRequestParams.range_preset ||
+      liveRequestParams.desde ||
+      liveRequestParams.hasta ||
+      liveRequestParams.canal ||
       liveRequestParams.barrio ||
       liveRequestParams.ciudad ||
       liveRequestParams.provincia,
@@ -905,7 +907,7 @@ const PublicSurveyPage = () => {
                   ) : null}
 
                   {shouldRevealLiveResults ? (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <select
                         aria-label={textOr(liveResultsUi?.filter_heatmap_label, 'Mapa de calor')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -918,17 +920,60 @@ const PublicSurveyPage = () => {
                         <option value="0">{textOr(liveResultsUi?.filter_heatmap_off_label, 'Mapa desactivado')}</option>
                       </select>
                       <select
-                        aria-label={textOr(liveResultsUi?.filter_window_label, 'Ventana de tiempo')}
+                        aria-label={textOr(liveResultsUi?.filter_window_label, 'Rango analítico')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
-                        value={String(liveRequestParams.window_minutes ?? 60)}
+                        value={liveRequestParams.range_preset ?? 'custom'}
                         onChange={(event) =>
-                          setLiveRequestParams((prev) => ({ ...prev, window_minutes: Number(event.target.value) || 60 }))
+                          setLiveRequestParams((prev) =>
+                            selectSurveyAnalyticsRange(
+                              prev,
+                              event.target.value as SurveyAnalyticsRangeSelection,
+                            ),
+                          )
                         }
                       >
-                        <option value="60">{textOr(liveResultsUi?.preset_last_hour_label, 'Última hora')}</option>
-                        <option value="1440">{textOr(liveResultsUi?.preset_today_label, 'Hoy')}</option>
-                        <option value="1440">{textOr(liveResultsUi?.preset_last_24h_label, 'Últimas 24 horas')}</option>
+                        {SURVEY_ANALYTICS_RANGE_OPTIONS.map((option) => {
+                          const copyKey = option.value === 'last_60m'
+                            ? 'preset_last_hour_label'
+                            : option.value === 'today'
+                              ? 'preset_today_label'
+                              : 'preset_last_24h_label';
+                          return (
+                            <option key={option.value} value={option.value}>
+                              {textOr(liveResultsUi?.[copyKey], option.label)}
+                            </option>
+                          );
+                        })}
+                        <option value="custom">
+                          {textOr(liveResultsUi?.preset_custom_label, 'Rango personalizado')}
+                        </option>
                       </select>
+                      {!liveRequestParams.range_preset ? (
+                        <>
+                          <input
+                            type="datetime-local"
+                            aria-label={textOr(liveResultsUi?.filter_from_label, 'Desde')}
+                            className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                            value={toLocalDateTimeInputValue(liveRequestParams.desde)}
+                            max={toLocalDateTimeInputValue(liveRequestParams.hasta)}
+                            onChange={(event) => {
+                              const desde = fromLocalDateTimeInputValue(event.target.value);
+                              if (desde) setLiveRequestParams((prev) => ({ ...prev, desde }));
+                            }}
+                          />
+                          <input
+                            type="datetime-local"
+                            aria-label={textOr(liveResultsUi?.filter_to_label, 'Hasta')}
+                            className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                            value={toLocalDateTimeInputValue(liveRequestParams.hasta)}
+                            min={toLocalDateTimeInputValue(liveRequestParams.desde)}
+                            onChange={(event) => {
+                              const hasta = fromLocalDateTimeInputValue(event.target.value);
+                              if (hasta) setLiveRequestParams((prev) => ({ ...prev, hasta }));
+                            }}
+                          />
+                        </>
+                      ) : null}
                       <input
                         aria-label={textOr(liveResultsUi?.filter_channel_label, 'Canal')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -954,7 +999,7 @@ const PublicSurveyPage = () => {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setLiveRequestParams({ include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 })}
+                        onClick={() => setLiveRequestParams(createDefaultSurveyLiveRequestParams())}
                       >
                         {textOr(liveResultsUi?.filters_reset_label, 'Limpiar filtros')}
                       </Button>

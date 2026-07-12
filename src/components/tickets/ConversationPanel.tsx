@@ -4,7 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
+import {
+  Ticket,
+  TicketStatus,
+  Message as TicketMessage,
+  TicketRealtimeState,
+  TicketRealtimeViewer,
+  UnifiedConversationStreamItem,
+} from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import DetailsPanel from './DetailsPanel';
@@ -122,9 +129,100 @@ export const formatReplyDeliveryChannel = (channel: string) => {
   return 'CRM';
 };
 
+const BACKOFFICE_VIEWER_ROLES = new Set([
+  'admin',
+  'agent',
+  'empleado',
+  'employee',
+  'manager',
+  'operator',
+  'operador',
+  'platform_admin',
+  'super_admin',
+  'superadmin',
+  'supervisor',
+  'tenant_admin',
+]);
+const PUBLIC_RECIPIENT_VIEWER_ROLES = new Set([
+  'anonymous',
+  'citizen',
+  'ciudadano',
+  'cliente',
+  'customer',
+  'lead',
+  'neighbor',
+  'public_pin',
+  'user',
+  'usuario',
+]);
+
+export const isPublicTicketRecipientViewer = (viewer?: TicketRealtimeViewer | null) => {
+  if (!viewer) return false;
+
+  const role = String(viewer.viewer_role || '').trim().toLowerCase().replaceAll('-', '_');
+  if (BACKOFFICE_VIEWER_ROLES.has(role) || role.startsWith('admin_')) return false;
+  if (PUBLIC_RECIPIENT_VIEWER_ROLES.has(role)) return true;
+
+  const viewerKey = String(viewer.viewer_key || viewer.viewer_id || '').trim().toLowerCase();
+  return Boolean(viewer.viewer_anon_id) || viewerKey.startsWith('anon:') || viewerKey.startsWith('pin:');
+};
+
+export const hasPublicRecipientPresence = (state?: TicketRealtimeState | null) =>
+  Boolean(
+    state?.active_viewers?.some((viewer) => {
+      const effectiveStatus = String(
+        viewer.effective_presence_status || viewer.presence_status || 'active',
+      ).toLowerCase();
+      return effectiveStatus === 'active' && isPublicTicketRecipientViewer(viewer);
+    }),
+  );
+
+export const applyPublicRecipientReadConfirmation = (
+  delivery: TicketReplyDeliveryStatus | null,
+  viewer: TicketRealtimeViewer | null | undefined,
+  lastReadCommentIdInput: unknown,
+): TicketReplyDeliveryStatus | null => {
+  if (!delivery || !isPublicTicketRecipientViewer(viewer)) return delivery;
+
+  const lastReadCommentId = Number(lastReadCommentIdInput || 0);
+  const latestReplyCommentId = delivery.latest_reply_comment_id ?? delivery.reply_comment_ids.at(-1);
+  if (
+    !Number.isInteger(lastReadCommentId) ||
+    lastReadCommentId <= 0 ||
+    !latestReplyCommentId ||
+    lastReadCommentId < latestReplyCommentId
+  ) {
+    return delivery;
+  }
+
+  return {
+    ...delivery,
+    recipient_presence_confirmed: true,
+    recipient_read_confirmed: true,
+    ...(delivery.external_dispatch
+      ? {}
+      : {
+          mode: 'real_message',
+          channel: 'live_socket',
+          status: 'sent',
+          reason: 'recipient_read_confirmed',
+          reply_status: 'sent_to_live_chat',
+        }),
+    operator_message: 'Lectura del ciudadano confirmada para el ultimo mensaje.',
+  };
+};
+
 export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
   const channel = formatReplyDeliveryChannel(delivery.channel);
   const failed = delivery.reason.includes('failed') || delivery.status.includes('error');
+
+  if (delivery.recipient_read_confirmed && delivery.status === 'sent') {
+    return {
+      tone: 'success' as const,
+      title: 'Leido por el ciudadano',
+      detail: 'El read-state publico confirma lectura del ultimo mensaje enviado.',
+    };
+  }
 
   if (delivery.external_dispatch) {
     return {
@@ -134,11 +232,23 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
     };
   }
 
-  if (delivery.socket_emitted) {
+  if (
+    delivery.recipient_room_emitted &&
+    delivery.recipient_presence_confirmed &&
+    delivery.reply_status === 'sent_to_live_chat'
+  ) {
     return {
       tone: 'success' as const,
       title: 'Entregado en chat en vivo',
-      detail: 'El mensaje fue emitido por socket y quedo registrado en el reclamo.',
+      detail: 'Habia presencia publica activa en la sala del ticket; la lectura aun no fue confirmada.',
+    };
+  }
+
+  if (delivery.socket_emitted) {
+    return {
+      tone: failed ? 'warning' as const : 'muted' as const,
+      title: failed ? 'Emitido y guardado, entrega sin confirmar' : 'Emitido y guardado',
+      detail: delivery.operator_message || 'El socket emitio el evento, pero no habia presencia publica activa confirmada.',
     };
   }
 
@@ -159,13 +269,11 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
 
 export const getComposerChannelView = ({
   channel,
-  realtimeOnline,
-  hasSocketRoom,
+  recipientPresenceConfirmed,
   lastReplyDelivery,
 }: {
   channel?: string | null;
-  realtimeOnline: boolean;
-  hasSocketRoom: boolean;
+  recipientPresenceConfirmed: boolean;
   lastReplyDelivery?: TicketReplyDeliveryStatus | null;
 }) => {
   const normalized = (channel || '').trim().toLowerCase();
@@ -191,18 +299,18 @@ export const getComposerChannelView = ({
   }
 
   if (['web', 'widget', 'web_demo_widget', 'live_socket', 'socket'].includes(normalized)) {
-    if (realtimeOnline && hasSocketRoom) {
+    if (recipientPresenceConfirmed) {
       return {
         tone: 'success' as const,
-        label: 'Chat en vivo conectado',
-        detail: 'La respuesta entra al canal socket del reclamo y queda en historial.',
+        label: 'Ciudadano activo en el ticket',
+        detail: 'La presencia publica esta activa; la respuesta se emite y queda en el historial.',
       };
     }
 
     return {
-      tone: 'warning' as const,
-      label: 'Modo offline del reclamo',
-      detail: 'No hay socket activo; el mensaje se guarda para seguimiento y recontacto.',
+      tone: 'muted' as const,
+      label: 'Entrega web por confirmar',
+      detail: 'No hay presencia publica activa confirmada; el mensaje quedara guardado aunque el socket emita.',
     };
   }
 
@@ -487,6 +595,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [timelinePartial, setTimelinePartial] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [lastReplyDelivery, setLastReplyDelivery] = useState<TicketReplyDeliveryStatus | null>(null);
+  const [recipientPresenceActive, setRecipientPresenceActive] = useState(
+    hasPublicRecipientPresence(selectedTicket?.realtime_state),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
@@ -656,6 +767,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         if (Array.isArray(timeline.unified_conversation_stream)) {
           setTimelineItems(timeline.unified_conversation_stream);
         }
+        if (timeline.realtime_state) {
+          setRecipientPresenceActive(hasPublicRecipientPresence(timeline.realtime_state));
+        }
         setTimelinePartial(false);
         if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
           setMessages(dedupeChatMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket))));
@@ -752,6 +866,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
     lastReadStateSyncRef.current = null;
+    setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
   }, [selectedTicket?.id]);
 
   useEffect(() => {
@@ -776,6 +891,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     updateTicketReadState(selectedTicket.id, selectedTicket.tipo, latestMessageId)
       .then((state) => {
+        if (state) {
+          setRecipientPresenceActive(hasPublicRecipientPresence(state));
+        }
         updateTicket(selectedTicket.id, {
           hasUnreadMessages: false,
           realtime_state: state || selectedTicket.realtime_state,
@@ -810,8 +928,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     // If the backend handles 'subscribe_ticket_updates' globally for the tenant, this might be redundant but safe.
     socket.emit('join', { room: ticketRoom });
 
+    const unwrapSocketPayload = (data: any) =>
+      data?.payload && typeof data.payload === 'object' ? data.payload : data;
+    const eventMatchesSelectedTicket = (payload: any) => {
+      const incomingTicketId =
+        payload?.ticket_id ??
+        payload?.ticketId ??
+        payload?.ticket?.id ??
+        payload?.comment?.ticket_id ??
+        payload?.message?.ticket_id;
+      return Number(incomingTicketId) === Number(selectedTicket.id);
+    };
+
     const handleNewComment = (data: any) => {
-       const payload = data?.payload && typeof data.payload === 'object' ? data.payload : data;
+       const payload = unwrapSocketPayload(data);
        const incomingTicketId =
          payload?.ticket_id ??
          payload?.ticketId ??
@@ -835,16 +965,51 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
        }
     };
 
+    const handlePresenceChanged = (data: any) => {
+      const payload = unwrapSocketPayload(data);
+      if (!eventMatchesSelectedTicket(payload)) return;
+
+      const activeViewers = Array.isArray(payload?.summary?.active_viewers)
+        ? payload.summary.active_viewers
+        : [];
+      setRecipientPresenceActive(
+        hasPublicRecipientPresence({
+          viewers: [],
+          active_viewers: activeViewers,
+          read_states: [],
+        }),
+      );
+    };
+
+    const handleMessageRead = (data: any) => {
+      const payload = unwrapSocketPayload(data);
+      if (!eventMatchesSelectedTicket(payload) || !isPublicTicketRecipientViewer(payload?.viewer)) return;
+
+      const lastReadCommentId = Number(
+        payload?.last_read_comment_id ?? payload?.viewer?.last_read_comment_id ?? 0,
+      );
+      if (!Number.isInteger(lastReadCommentId) || lastReadCommentId <= 0) return;
+
+      setRecipientPresenceActive(true);
+      setLastReplyDelivery((current) =>
+        applyPublicRecipientReadConfirmation(current, payload.viewer, lastReadCommentId),
+      );
+    };
+
     safeOn(socket, 'new_comment', handleNewComment);
     safeOn(socket, 'new_chat_message', handleNewComment);
     safeOn(socket, 'conversation.message.created', handleNewComment);
     safeOn(socket, 'legacy.new_chat_message', handleNewComment);
+    safeOn(socket, 'ticket.presence.changed', handlePresenceChanged);
+    safeOn(socket, 'conversation.message.read', handleMessageRead);
 
     return () => {
         socket.off('new_comment', handleNewComment);
         socket.off('new_chat_message', handleNewComment);
         socket.off('conversation.message.created', handleNewComment);
         socket.off('legacy.new_chat_message', handleNewComment);
+        socket.off('ticket.presence.changed', handlePresenceChanged);
+        socket.off('conversation.message.read', handleMessageRead);
         socket.emit('leave', { room: ticketRoom });
     };
   }, [socket, selectedTicket]);
@@ -971,7 +1136,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           tenantSlug: selectedTicket.tenant_slug,
         },
       );
-      setLastReplyDelivery(normalizeTicketReplyDelivery((response as any)?.delivery));
+      const replyDelivery = normalizeTicketReplyDelivery((response as any)?.delivery);
+      setLastReplyDelivery(replyDelivery);
+      if (replyDelivery) {
+        setRecipientPresenceActive(replyDelivery.recipient_presence_confirmed);
+      }
       const responseMessages = extractResponseTicketMessages(response)
         .map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket));
       setMessages((prev) => {
@@ -1089,11 +1258,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const conversationAvatarSource =
     conversationAvatar.source || selectedTicket.avatar_source || (conversationAvatarUrl ? 'imagen consentida' : 'iniciales');
   const replyDeliveryView = lastReplyDelivery ? getReplyDeliveryView(lastReplyDelivery) : null;
-  const hasLiveSocketRoom = typeof selectedTicket.socket_room === 'string' && selectedTicket.socket_room.trim().length > 0;
   const composerChannelView = getComposerChannelView({
     channel: activeChannel,
-    realtimeOnline,
-    hasSocketRoom: hasLiveSocketRoom,
+    recipientPresenceConfirmed: recipientPresenceActive,
     lastReplyDelivery,
   });
 
@@ -1416,8 +1583,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             <div className="flex min-w-0 items-start gap-2">
               {replyDeliveryView.tone === 'success' ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              ) : (
+              ) : replyDeliveryView.tone === 'warning' ? (
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
               )}
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1425,9 +1594,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">
                     {formatReplyDeliveryChannel(lastReplyDelivery.channel)}
                   </Badge>
-                  {lastReplyDelivery.socket_emitted ? (
+                  {lastReplyDelivery.recipient_read_confirmed ? (
                     <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                      socket activo
+                      leido
+                    </Badge>
+                  ) : lastReplyDelivery.recipient_presence_confirmed ? (
+                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                      entregado
+                    </Badge>
+                  ) : lastReplyDelivery.socket_emitted ? (
+                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                      socket emitido
                     </Badge>
                   ) : null}
                 </div>

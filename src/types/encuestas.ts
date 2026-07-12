@@ -68,6 +68,9 @@ export interface SurveyLiveTimelineMinute {
 }
 
 export interface SurveyLiveMomentum {
+  window_minutes?: number;
+  last_window?: number;
+  previous_window?: number;
   last_10m?: number;
   previous_10m?: number;
   trend?: 'subiendo' | 'estable' | 'bajando' | string;
@@ -166,6 +169,17 @@ export interface SurveyLiveHeatmap {
   metadata?: Record<string, unknown>;
 }
 
+export interface SurveyLiveAnalyticsRange {
+  contract_version?: 'surveys.analytics_range.v1' | string;
+  mode?: 'preset' | 'custom' | 'all_time' | string;
+  preset?: 'last_60m' | 'today' | 'last_24h' | null;
+  label?: string;
+  timezone?: string;
+  desde?: string | null;
+  hasta?: string | null;
+  duration_minutes?: number | null;
+}
+
 export interface SurveyProductSurface {
   name?: string;
   scope?: string;
@@ -228,6 +242,7 @@ export interface SurveyLivePublicResultsPayload {
   slug?: string;
   slug_publico?: string;
   total_respuestas?: number;
+  analytics_range?: SurveyLiveAnalyticsRange;
   preguntas?: SurveyLivePublicQuestion[];
   timeline_minute?: SurveyLiveTimelineMinute[];
   momentum?: SurveyLiveMomentum;
