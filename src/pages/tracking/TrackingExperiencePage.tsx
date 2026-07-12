@@ -347,6 +347,23 @@ const readTrackingFragment = (hash: string) => {
   };
 };
 
+const TRACKING_CREDENTIAL_MEMORY_LIMIT = 24;
+const trackingCredentialMemory = new Map<string, { pin: string; token: string | null }>();
+
+const rememberTrackingCredential = (
+  key: string,
+  credential: { pin: string; token: string | null },
+) => {
+  if (!key || (!credential.pin && !credential.token)) return;
+  trackingCredentialMemory.delete(key);
+  trackingCredentialMemory.set(key, credential);
+  while (trackingCredentialMemory.size > TRACKING_CREDENTIAL_MEMORY_LIMIT) {
+    const oldestKey = trackingCredentialMemory.keys().next().value;
+    if (!oldestKey) break;
+    trackingCredentialMemory.delete(oldestKey);
+  }
+};
+
 export default function TrackingExperiencePage({ kind }: { kind: TrackingKind }) {
   const params = useParams<{ code?: string; nro_ticket?: string; nro_pedido?: string }>();
   const [searchParams] = useSearchParams();
@@ -355,10 +372,23 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const credentialsScrubbedRef = React.useRef(false);
   const code = params.code || params.nro_ticket || params.nro_pedido || searchParams.get("code") || "";
   const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || null;
-  const [accessToken] = useState(
-    initialFragmentRef.current.token || searchParams.get("token") || searchParams.get("access_token") || null,
-  );
-  const [pin, setPin] = useState(initialFragmentRef.current.pin || searchParams.get("pin") || "");
+  const credentialMemoryKey = `${kind}:${code || "unknown"}`;
+  const [initialCredential] = useState(() => {
+    const remembered = trackingCredentialMemory.get(credentialMemoryKey);
+    const credential = {
+      pin: initialFragmentRef.current.pin || searchParams.get("pin") || remembered?.pin || "",
+      token:
+        initialFragmentRef.current.token ||
+        searchParams.get("token") ||
+        searchParams.get("access_token") ||
+        remembered?.token ||
+        null,
+    };
+    rememberTrackingCredential(credentialMemoryKey, credential);
+    return credential;
+  });
+  const [accessToken] = useState(initialCredential.token);
+  const [pin, setPin] = useState(initialCredential.pin);
   const [showPin, setShowPin] = useState(false);
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);

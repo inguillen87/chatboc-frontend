@@ -317,6 +317,40 @@ describe("TrackingExperiencePage support contract", () => {
     expect(await screen.findByTestId("tracking-helpdesk")).toBeInTheDocument();
   });
 
+  it("survives an application-provider remount after the query credential is scrubbed", async () => {
+    fetchTrackingExperienceMock.mockResolvedValue(makeClaimPayload("offline"));
+    const firstRender = render(
+      <MemoryRouter initialEntries={["/tracking/claim?code=M-REMOUNT-1&pin=112233&tenant_slug=junin"]}>
+        <Routes>
+          <Route path="/tracking/claim" element={<TrackingExperiencePage kind="claim" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(fetchTrackingExperienceMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "M-REMOUNT-1", pin: "112233" }),
+      );
+    });
+    firstRender.unmount();
+    fetchTrackingExperienceMock.mockClear();
+
+    render(
+      <MemoryRouter initialEntries={["/tracking/claim?code=M-REMOUNT-1&tenant_slug=junin"]}>
+        <Routes>
+          <Route path="/tracking/claim" element={<TrackingExperiencePage kind="claim" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(fetchTrackingExperienceMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "M-REMOUNT-1", pin: "112233" }),
+      );
+    });
+    expect(screen.getByLabelText("PIN del reclamo")).toHaveValue("112233");
+  });
+
   it("announces tracking load failures and focuses the alert", async () => {
     fetchTrackingExperienceMock.mockRejectedValueOnce(new Error("El reclamo no pudo consultarse."));
 
