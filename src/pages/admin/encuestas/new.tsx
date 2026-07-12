@@ -19,6 +19,7 @@ const uniquenessLabels: Record<NonNullable<SurveyDraftPayload['politica_unicidad
   por_ip: 'Una respuesta por IP',
   por_phone: 'Validación por teléfono',
   por_dni: 'Validación por documento',
+  por_usuario: 'Una respuesta por cuenta verificada',
 };
 
 const typeLabels: Record<SurveyDraftPayload['tipo'], string> = {

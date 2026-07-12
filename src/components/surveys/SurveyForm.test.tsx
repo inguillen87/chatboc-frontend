@@ -6,8 +6,10 @@ import type { SurveyPublic } from '@/types/encuestas';
 
 const envMock = vi.hoisted(() => ({ turnstileSiteKey: '' }));
 const requestLocationMock = vi.hoisted(() => vi.fn());
+const userMock = vi.hoisted(() => ({ user: null as null | { id: number }, loading: false }));
 
 vi.mock('@/env', () => ({
+  CLERK_PUBLISHABLE_KEY: '',
   get CLOUDFLARE_TURNSTILE_SITE_KEY() {
     return envMock.turnstileSiteKey;
   },
@@ -15,6 +17,15 @@ vi.mock('@/env', () => ({
 
 vi.mock('@/utils/geolocation', () => ({
   requestLocation: (...args: unknown[]) => requestLocationMock(...args),
+}));
+
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => ({
+    user: userMock.user,
+    loading: userMock.loading,
+    setUser: vi.fn(),
+    refreshUser: vi.fn(),
+  }),
 }));
 
 const baseSurvey: SurveyPublic = {
@@ -69,12 +80,48 @@ const liveSurvey: SurveyPublic = {
   },
 };
 
+const authenticatedSurvey: SurveyPublic = {
+  ...baseSurvey,
+  politica_unicidad: 'por_usuario',
+  auth_mode: 'required',
+  anonimo_permitido: false,
+};
+
 describe('SurveyForm security contract', () => {
   beforeEach(() => {
     envMock.turnstileSiteKey = '';
+    userMock.user = null;
+    userMock.loading = false;
     requestLocationMock.mockReset();
     delete (window as any).turnstile;
     document.getElementById('chatboc-cloudflare-turnstile')?.remove();
+  });
+
+  it('gates one-person voting behind account authentication', () => {
+    render(<SurveyForm survey={authenticatedSurvey} onSubmit={vi.fn()} />);
+
+    expect(screen.getByTestId('survey-auth-gate')).toHaveTextContent('Identifica tu participacion');
+    expect(screen.getByRole('link', { name: /iniciar sesion para participar/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/login?return_to='),
+    );
+    expect(screen.queryByLabelText('Luminaria')).not.toBeInTheDocument();
+  });
+
+  it('submits an authenticated vote without copying user identifiers into the payload', async () => {
+    userMock.user = { id: 77 };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(<SurveyForm survey={authenticatedSurvey} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('user_id');
+    expect(payload).not.toHaveProperty('userId');
+    expect(payload.respuestas).toEqual([{ pregunta_id: 101, opcion_ids: [1] }]);
   });
 
   it('renders Turnstile and submits the token when the public survey requires it', async () => {

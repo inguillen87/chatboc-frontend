@@ -127,6 +127,12 @@ export interface SurveyFrontendContract {
   contract_version?: string;
   render_as?: string;
   security_provider?: string;
+  auth_mode?: 'anonymous' | 'optional' | 'required';
+  identity?: {
+    mode?: 'anonymous' | 'optional' | 'required';
+    provider?: string;
+    [key: string]: unknown;
+  };
   turnstile?: {
     enabled?: boolean;
     required?: boolean;
@@ -285,7 +291,9 @@ export interface SurveyPublic {
   tipo: SurveyTipo;
   inicio_at: string;
   fin_at: string;
-  politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'libre';
+  politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'por_usuario' | 'libre';
+  auth_mode?: 'anonymous' | 'optional' | 'required';
+  anonimo_permitido?: boolean;
   requiere_datos_contacto?: boolean;
   preguntas: SurveyPregunta[];
   portada_url?: string | null;

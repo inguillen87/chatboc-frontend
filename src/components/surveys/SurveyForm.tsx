@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 
+import ClerkAuthButtons from '@/components/auth/ClerkAuthButtons';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +39,7 @@ import {
   GENDER_OPTIONS,
 } from '@/components/surveys/demographicOptions';
 import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
+import { useUser } from '@/hooks/useUser';
 
 const SURVEY_DRAFT_TTL_MS = 30 * 60 * 1000;
 
@@ -76,6 +80,25 @@ const getSurveyTurnstileConfig = (survey: SurveyPublic) => {
     required: Boolean(required),
     status: typeof turnstile.status === 'string' ? turnstile.status : security.status,
   };
+};
+
+type SurveyAuthMode = 'anonymous' | 'optional' | 'required';
+
+const getSurveyAuthMode = (survey: SurveyPublic): SurveyAuthMode => {
+  const frontendContract = isRecord(survey.frontend_contract) ? survey.frontend_contract : {};
+  const identity = isRecord(frontendContract.identity) ? frontendContract.identity : {};
+  const explicitMode = [survey.auth_mode, frontendContract.auth_mode, identity.mode]
+    .find((value) => typeof value === 'string')
+    ?.trim()
+    .toLowerCase();
+
+  if (explicitMode === 'required' || explicitMode === 'optional' || explicitMode === 'anonymous') {
+    return explicitMode;
+  }
+  if (survey.politica_unicidad === 'por_usuario' || readBool(survey.anonimo_permitido) === false) {
+    return 'required';
+  }
+  return 'anonymous';
 };
 
 const shouldResetTurnstileFromError = (details?: Record<string, unknown> | null): boolean => {
@@ -170,7 +193,16 @@ export const SurveyForm = ({
   variant = 'default',
   submitLabel,
 }: SurveyFormProps) => {
+  const { user, loading: authLoading } = useUser();
+  const clerkRuntime = useClerkRuntime();
   const isVotingVariant = variant === 'votacion';
+  const authMode = useMemo(() => getSurveyAuthMode(survey), [survey]);
+  const requiresAuthenticatedParticipant = authMode === 'required';
+  const loginHref = useMemo(() => {
+    if (typeof window === 'undefined') return '/login';
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    return `/login?return_to=${encodeURIComponent(returnTo || '/')}`;
+  }, []);
   const initialState = useMemo(() => {
     const state: Record<number, AnswerState> = {};
     survey.preguntas.forEach((pregunta) => {
@@ -706,6 +738,11 @@ export const SurveyForm = ({
   const handleSubmit = async () => {
     if (readOnly) return;
     if (submitting) return;
+    if (requiresAuthenticatedParticipant && !user) {
+      setSubmissionErrorTitle('Necesitas identificarte para participar');
+      setSubmissionErrorDetails('Inicia sesion con tu cuenta para que el voto quede asociado de forma segura.');
+      return;
+    }
     if (!validate()) return;
     if (turnstileUnavailable) {
       setSubmissionErrorTitle('No pudimos enviar tu respuesta');
@@ -829,6 +866,40 @@ export const SurveyForm = ({
       setSubmitting(false);
     }
   };
+
+  if (!readOnly && requiresAuthenticatedParticipant && !user) {
+    return (
+      <Card className="w-full border border-border/70 bg-background shadow-sm" data-testid="survey-auth-gate">
+        <CardHeader className="space-y-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="space-y-1">
+            <CardTitle className="text-xl">Identifica tu participacion</CardTitle>
+            <CardDescription>
+              Esta consulta registra un voto por persona. Tu cuenta valida la participacion sin enviar tu identificador dentro de la respuesta.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {authLoading ? (
+            <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+              Verificando tu cuenta...
+            </p>
+          ) : clerkRuntime.enabled ? (
+            <ClerkAuthButtons mode="login" />
+          ) : (
+            <Button asChild className="w-full sm:w-auto">
+              <a href={loginHref}>
+                <LogIn className="mr-2 h-4 w-4" aria-hidden="true" />
+                Iniciar sesion para participar
+              </a>
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className={isVotingVariant ? 'w-full border border-border/70 bg-background/80 shadow-sm' : 'w-full'}>
