@@ -31,6 +31,7 @@ interface BusinessHours {
 
 interface UseBusinessHoursOptions {
   enabled?: boolean;
+  scheduleEndpoint?: string | null;
 }
 
 const DEFAULT_BUSINESS_HOURS: BusinessHours = {
@@ -38,6 +39,30 @@ const DEFAULT_BUSINESS_HOURS: BusinessHours = {
   horariosAtencion: '',
   availabilityLabel: '',
   timezone: '',
+};
+
+const RELATIVE_URL_BASE = 'http://chatboc.local';
+
+const normalizeRelativeScheduleEndpoint = (value?: string | null) => {
+  const endpoint = value?.trim();
+  if (
+    !endpoint ||
+    endpoint.includes('\\') ||
+    endpoint.startsWith('//') ||
+    /^[a-z][a-z\d+.-]*:/i.test(endpoint)
+  ) {
+    return null;
+  }
+
+  try {
+    const url = new URL(endpoint, `${RELATIVE_URL_BASE}/`);
+    if (url.origin !== RELATIVE_URL_BASE || url.pathname === '/') {
+      return null;
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
 };
 
 export const useBusinessHours = (
@@ -50,28 +75,35 @@ export const useBusinessHours = (
   });
 
   useEffect(() => {
+    setBusinessHours({ ...DEFAULT_BUSINESS_HOURS });
+
     if (options?.enabled === false) {
-      setBusinessHours({ ...DEFAULT_BUSINESS_HOURS });
       return;
     }
 
+    if (!tenantSlug) {
+      return;
+    }
+
+    const normalizedTenantSlug = tenantSlug.trim();
+    if (!normalizedTenantSlug) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    let isCurrentRequest = true;
+    const canApplyResponse = () => isCurrentRequest && !abortController.signal.aborted;
+
     const fetchProfile = async () => {
       try {
-        if (!tenantSlug) {
-          return;
-        }
-
-        const normalizedTenantSlug = tenantSlug.trim();
-        if (!normalizedTenantSlug) {
-          return;
-        }
-
         const encodedTenantSlug = encodeURIComponent(normalizedTenantSlug);
         const params = new URLSearchParams({
           tenant_slug: normalizedTenantSlug,
           tenant: normalizedTenantSlug,
         });
-        const schedulePath = `/api/${encodedTenantSlug}/live-chat/schedule?${params.toString()}`;
+        const schedulePath =
+          normalizeRelativeScheduleEndpoint(options?.scheduleEndpoint) ??
+          `/api/${encodedTenantSlug}/live-chat/schedule?${params.toString()}`;
         const headers: Record<string, string> = {
           Accept: 'application/json',
           'X-Tenant-Slug': normalizedTenantSlug,
@@ -86,7 +118,12 @@ export const useBusinessHours = (
           headers,
           credentials: 'omit',
           cache: 'no-store',
+          signal: abortController.signal,
         });
+
+        if (!canApplyResponse()) {
+          return;
+        }
 
         if (!response.ok) {
           if (import.meta.env.DEV) {
@@ -99,6 +136,9 @@ export const useBusinessHours = (
         }
 
         const schedule = (await response.json()) as LiveChatSchedule;
+        if (!canApplyResponse()) {
+          return;
+        }
 
         const description =
           typeof schedule?.description === 'string' && schedule.description.trim()
@@ -120,7 +160,7 @@ export const useBusinessHours = (
             ? schedule.socket_transport_hint
             : null;
         if (transportHint) {
-          safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), transportHint);
+          safeLocalStorage.setItem(resolveTransportHintKey(normalizedTenantSlug), transportHint);
         }
 
         const transportList = Array.isArray(schedule?.socket_transports)
@@ -130,12 +170,15 @@ export const useBusinessHours = (
             )
           : [];
         if (transportList.length > 0) {
-          safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(transportList));
+          safeLocalStorage.setItem(
+            resolveTransportListKey(normalizedTenantSlug),
+            JSON.stringify(transportList),
+          );
         }
 
         if (typeof schedule?.socket_fallback_enabled === 'boolean') {
           safeLocalStorage.setItem(
-            resolveTransportFallbackEnabledKey(tenantSlug),
+            resolveTransportFallbackEnabledKey(normalizedTenantSlug),
             schedule.socket_fallback_enabled ? '1' : '0',
           );
         }
@@ -147,6 +190,10 @@ export const useBusinessHours = (
           timezone: typeof schedule?.timezone === 'string' ? schedule.timezone : '',
         });
       } catch (error) {
+        if (!canApplyResponse()) {
+          return;
+        }
+        setBusinessHours({ ...DEFAULT_BUSINESS_HOURS });
         if (import.meta.env.DEV) {
           console.debug('Live chat schedule disabled or unavailable', error);
         }
@@ -154,7 +201,12 @@ export const useBusinessHours = (
     };
 
     fetchProfile();
-  }, [entityToken, tenantSlug, options?.enabled]);
+
+    return () => {
+      isCurrentRequest = false;
+      abortController.abort();
+    };
+  }, [entityToken, tenantSlug, options?.enabled, options?.scheduleEndpoint]);
 
   return businessHours;
 };

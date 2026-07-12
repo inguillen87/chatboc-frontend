@@ -964,6 +964,8 @@ interface ChatPanelProps {
     live_chat?: {
       realtime?: boolean;
       available?: boolean;
+      schedule_enabled?: boolean | string | number | null;
+      schedule_endpoint?: string | null;
       socket_enabled?: boolean | string | number | null;
       socket_url?: string | null;
       fallback_mode?: string | null;
@@ -1141,15 +1143,21 @@ const ChatPanel = (props: ChatPanelProps) => {
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
-  const liveChatContract = supportChannels?.live_chat as Record<string, unknown> | undefined;
+  const liveChatContract = supportChannels?.live_chat;
+  const scheduleEndpoint =
+    typeof liveChatContract?.schedule_endpoint === "string"
+      ? liveChatContract.schedule_endpoint.trim()
+      : null;
   const shouldFetchBusinessHours = Boolean(
     readBackendFlag(liveChatContract?.schedule_enabled, false) ||
       readBackendFlag(liveChatContract?.socket_enabled, false) ||
-      (typeof liveChatContract?.schedule_endpoint === "string" &&
-        liveChatContract.schedule_endpoint.trim().length > 0),
+      scheduleEndpoint,
   );
   const { isLiveChatEnabled, horariosAtencion, availabilityLabel, timezone } =
-    useBusinessHours(propEntityToken, tenantSlug, { enabled: shouldFetchBusinessHours });
+    useBusinessHours(propEntityToken, tenantSlug, {
+      enabled: shouldFetchBusinessHours,
+      scheduleEndpoint,
+    });
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";

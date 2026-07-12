@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Reorder } from 'framer-motion';
 import { CalendarDays, Copy, GripVertical, Plus, Trash2, UploadCloud } from 'lucide-react';
 
@@ -16,6 +16,7 @@ import type {
   SurveyDraftPayload,
   SurveyTipo,
 } from '@/types/encuestas';
+import { getErrorMessage } from '@/utils/api';
 import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 
 interface SurveyEditorProps {
@@ -205,6 +206,9 @@ export const SurveyEditor = ({
 }: SurveyEditorProps) => {
   const [formValues, setFormValues] = useState<SurveyDraftPayload>(() => buildInitialDraft(survey, initialDraft));
   const [questions, setQuestions] = useState<LocalQuestion[]>(() => buildInitialQuestions(survey, initialDraft));
+  const [submissionAction, setSubmissionAction] = useState<'save' | 'publish' | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const submissionLockRef = useRef(false);
 
   useEffect(() => {
     if (survey) {
@@ -340,22 +344,62 @@ export const SurveyEditor = ({
     })),
   }), [formValues, questions]);
 
-  const handleSave = async () => {
+  const runSubmission = async (
+    action: 'save' | 'publish',
+    submit: () => Promise<void>,
+    fallbackError: string,
+  ) => {
+    if (submissionLockRef.current || isSaving || isPublishing) return;
+
+    submissionLockRef.current = true;
+    setSubmissionAction(action);
+    setSubmissionError(null);
+
+    try {
+      await submit();
+    } catch (error) {
+      setSubmissionError(getErrorMessage(error, fallbackError));
+    } finally {
+      submissionLockRef.current = false;
+      setSubmissionAction(null);
+    }
+  };
+
+  const validatePayload = () => {
     if (!formValues.titulo.trim()) {
+      setSubmissionError('El título es obligatorio.');
       toast({ title: 'El título es obligatorio', variant: 'destructive' });
-      return;
+      return false;
     }
     if (!preparedPayload.preguntas.length) {
+      setSubmissionError('Agregá al menos una pregunta.');
       toast({ title: 'Agregá al menos una pregunta', variant: 'destructive' });
-      return;
+      return false;
     }
-    await onSave(preparedPayload);
+
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validatePayload()) return;
+
+    await runSubmission('save', () => onSave(preparedPayload), 'No pudimos guardar la encuesta.');
   };
 
   const handlePublish = async () => {
-    if (!onPublish) return;
-    await onPublish();
+    if (!onPublish || !validatePayload()) return;
+
+    await runSubmission(
+      'publish',
+      async () => {
+        await onSave(preparedPayload);
+        await onPublish();
+      },
+      'No pudimos guardar y publicar la encuesta.',
+    );
   };
+
+  const isSubmissionPending = submissionAction !== null || Boolean(isSaving) || Boolean(isPublishing);
 
   const publicUrl = useMemo(
     () => getPublicSurveyUrlFromRecord(survey),
@@ -365,7 +409,11 @@ export const SurveyEditor = ({
   const qrUrl = getPublicSurveyQrUrlFromRecord(survey, { size: 512 });
 
   return (
-    <div className="space-y-6">
+    <fieldset
+      className="min-w-0 space-y-6 border-0 p-0"
+      disabled={isSubmissionPending}
+      aria-busy={isSubmissionPending}
+    >
       {structureLocked && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
           Esta encuesta ya esta publicada. Podes corregir textos, fechas y configuracion, pero para agregar o quitar
@@ -727,15 +775,28 @@ export const SurveyEditor = ({
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" onClick={handleSave} disabled={isSaving} className="inline-flex items-center gap-2">
-          <UploadCloud className="h-4 w-4" /> {isSaving ? 'Guardando…' : 'Guardar cambios'}
+        <Button type="button" onClick={handleSave} disabled={isSubmissionPending} className="inline-flex items-center gap-2">
+          <UploadCloud className="h-4 w-4" />{' '}
+          {submissionAction === 'save' || (isSaving && submissionAction !== 'publish')
+            ? 'Guardando...'
+            : 'Guardar cambios'}
         </Button>
         {onPublish && (
-          <Button type="button" variant="secondary" onClick={handlePublish} disabled={isPublishing}>
-            {isPublishing ? 'Publicando…' : 'Publicar'}
+          <Button type="button" variant="secondary" onClick={handlePublish} disabled={isSubmissionPending}>
+            {submissionAction === 'publish'
+              ? 'Guardando y publicando...'
+              : isPublishing
+                ? 'Publicando...'
+                : 'Publicar'}
           </Button>
         )}
       </div>
+
+      {submissionError && (
+        <p role="alert" className="text-sm text-destructive">
+          {submissionError}
+        </p>
+      )}
 
       {survey?.estado === 'publicada' && (
         <Card>
@@ -778,6 +839,6 @@ export const SurveyEditor = ({
           </CardContent>
         </Card>
       )}
-    </div>
+    </fieldset>
   );
 };

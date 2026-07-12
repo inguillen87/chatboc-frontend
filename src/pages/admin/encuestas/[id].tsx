@@ -48,6 +48,7 @@ const SurveyDetailPage = () => {
         setLockedEditMessage(description);
       }
       toast({ title: 'Error al guardar', description, variant: 'destructive' });
+      throw error;
     }
   };
 
