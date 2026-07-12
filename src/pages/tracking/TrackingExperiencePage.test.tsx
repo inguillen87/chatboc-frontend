@@ -351,6 +351,39 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.getByLabelText("PIN del reclamo")).toHaveValue("112233");
   });
 
+  it("humanizes real API status keys and ISO timestamps", async () => {
+    const payload = makeClaimPayload("offline");
+    fetchTrackingExperienceMock.mockResolvedValueOnce({
+      ...payload,
+      status: {
+        current_stage: "en_proceso",
+        raw_status: "en_proceso",
+        milestones: ["recibido", "en_proceso", "resuelto"],
+      },
+      resource: {
+        ...payload.resource,
+        updated_at: "2026-06-06T03:11:29.310634+00:00",
+      },
+      timeline: [
+        {
+          id: "created",
+          label: "estado_actual",
+          message: "Caso actualizado.",
+          created_at: "2026-06-06T03:11:29.310634+00:00",
+        },
+      ],
+    });
+
+    renderTrackingPage();
+
+    const summary = await screen.findByTestId("tracking-summary-header");
+    expect(summary).toHaveTextContent("En proceso");
+    expect(summary).not.toHaveTextContent("En_proceso");
+    expect(summary).not.toHaveTextContent("2026-06-06T03:11:29.310634+00:00");
+    expect((await screen.findAllByText("Estado actual")).length).toBeGreaterThan(0);
+    expect(document.body).not.toHaveTextContent("2026-06-06T03:11:29.310634+00:00");
+  });
+
   it("announces tracking load failures and focuses the alert", async () => {
     fetchTrackingExperienceMock.mockRejectedValueOnce(new Error("El reclamo no pudo consultarse."));
 

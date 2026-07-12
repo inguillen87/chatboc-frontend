@@ -58,6 +58,23 @@ const readText = (record: AnyRecord | undefined | null, keys: string[], fallback
   return fallback;
 };
 
+const humanizeTrackingLabel = (value: string) => {
+  const normalized = value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+};
+
+const formatTrackingDateTime = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return "";
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return normalized;
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
+};
+
 const asArray = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
   if (isRecord(value)) {
@@ -71,14 +88,15 @@ const normalizeStatus = (payload: TrackingExperienceResponse | null) => {
   const status = payload?.status;
   if (isRecord(status)) {
     const key = readText(status, ["current_stage", "key", "id", "status", "state"], "recibido");
+    const rawLabel = readText(status, ["label", "title", "name", "raw_status"], key);
     return {
       key,
-      label: readText(status, ["label", "title", "name", "raw_status"], key.replace(/_/g, " ")),
+      label: humanizeTrackingLabel(rawLabel),
       detail: readText(status, ["detail", "description", "summary"]),
     };
   }
   if (typeof status === "string" && status.trim()) {
-    return { key: status, label: status.replace(/_/g, " "), detail: "" };
+    return { key: status, label: humanizeTrackingLabel(status), detail: "" };
   }
   return { key: "recibido", label: "Recibido", detail: "" };
 };
@@ -95,19 +113,19 @@ const normalizeMilestones = (payload: TrackingExperienceResponse | null, kind: T
     : asArray(statusRecord?.milestones);
   const items = raw
     .map((item) => {
-      if (typeof item === "string") return { key: item, label: item.replace(/_/g, " ") };
+      if (typeof item === "string") return { key: item, label: humanizeTrackingLabel(item) };
       if (isRecord(item)) {
         const key = readText(item, ["key", "id", "status", "state"]);
         return {
           key: key || readText(item, ["label", "title", "name"]),
-          label: readText(item, ["label", "title", "name"], key.replace(/_/g, " ")),
+          label: humanizeTrackingLabel(readText(item, ["label", "title", "name"], key)),
         };
       }
       return null;
     })
     .filter(Boolean) as Array<{ key: string; label: string }>;
 
-  return items.length ? items : defaults.map((key) => ({ key, label: key.replace(/_/g, " ") }));
+  return items.length ? items : defaults.map((key) => ({ key, label: humanizeTrackingLabel(key) }));
 };
 
 const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
@@ -116,9 +134,11 @@ const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
       if (!isRecord(item)) return null;
       return {
         id: readText(item, ["id", "key"], `event_${index}`),
-        label: readText(item, ["label", "title", "event", "status"], `Evento ${index + 1}`),
+        label: humanizeTrackingLabel(
+          readText(item, ["label", "title", "event", "status"], `Evento ${index + 1}`),
+        ),
         detail: readText(item, ["detail", "description", "message", "summary"]),
-        timestamp: readText(item, ["timestamp", "created_at", "ts", "date"]),
+        timestamp: formatTrackingDateTime(readText(item, ["timestamp", "created_at", "ts", "date"])),
       };
     })
     .filter(Boolean) as Array<{ id: string; label: string; detail: string; timestamp: string }>;
@@ -132,8 +152,8 @@ const normalizeResource = (payload: TrackingExperienceResponse | null, code: str
     subject: readText(resource, ["subject", "title", "name"], readText(resource, ["category"], "Seguimiento")),
     category: readText(resource, ["category", "rubro", "type"], "General"),
     channel: readText(resource, ["channel"], "whatsapp"),
-    createdAt: readText(resource, ["created_at", "createdAt", "fecha"]),
-    updatedAt: readText(resource, ["updated_at", "updatedAt", "ultima_actividad"]),
+    createdAt: formatTrackingDateTime(readText(resource, ["created_at", "createdAt", "fecha"])),
+    updatedAt: formatTrackingDateTime(readText(resource, ["updated_at", "updatedAt", "ultima_actividad"])),
     tenantName: readText(tenant, ["nombre", "name"], "Chatboc"),
     tenantSlug: readText(tenant, ["slug"]),
     address: readText(location, ["address", "direccion"]),
@@ -167,7 +187,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
         id: readText(item, ["id", "key"], `support_${index}`),
         message: readText(item, ["message", "body", "text", "comentario"]),
         author,
-        createdAt: readText(item, ["created_at", "timestamp", "date"]),
+        createdAt: formatTrackingDateTime(readText(item, ["created_at", "timestamp", "date"])),
         isTeam: ["team", "admin", "agent", "municipio", "pyme"].includes(author.toLowerCase()),
       };
     })
@@ -287,7 +307,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
     ),
     pendingCustomerMessages,
     hasPendingCustomerMessage,
-    pendingSince: readText(operatorQueue, ["pending_since", "pendingSince"]),
+    pendingSince: formatTrackingDateTime(readText(operatorQueue, ["pending_since", "pendingSince"])),
     slaTargetMinutes,
     nextTeamActionLabel: readText(
       operatorQueue,
