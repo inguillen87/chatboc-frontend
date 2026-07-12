@@ -297,6 +297,26 @@ describe("TrackingExperiencePage support contract", () => {
     });
   });
 
+  it("keeps a query PIN in memory while removing it from browser history", async () => {
+    fetchTrackingExperienceMock.mockResolvedValueOnce(makeClaimPayload("offline"));
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    renderTrackingPage();
+
+    await waitFor(() => {
+      expect(fetchTrackingExperienceMock).toHaveBeenCalledWith(
+        expect.objectContaining({ pin: "654321", tenantSlug: "junin" }),
+      );
+    });
+    expect(screen.getByLabelText("PIN del reclamo")).toHaveValue("654321");
+    expect(
+      replaceStateSpy.mock.calls.some(
+        (call) => call[2] === "/tracking/claim?code=M-123456&tenant_slug=junin",
+      ),
+    ).toBe(true);
+    expect(await screen.findByTestId("tracking-helpdesk")).toBeInTheDocument();
+  });
+
   it("announces tracking load failures and focuses the alert", async () => {
     fetchTrackingExperienceMock.mockRejectedValueOnce(new Error("El reclamo no pudo consultarse."));
 

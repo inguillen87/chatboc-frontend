@@ -349,7 +349,7 @@ const readTrackingFragment = (hash: string) => {
 
 export default function TrackingExperiencePage({ kind }: { kind: TrackingKind }) {
   const params = useParams<{ code?: string; nro_ticket?: string; nro_pedido?: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const location = useLocation();
   const initialFragmentRef = React.useRef(readTrackingFragment(location.hash));
   const credentialsScrubbedRef = React.useRef(false);
@@ -398,9 +398,6 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     const focusHash = initialFragmentRef.current.focus
       ? `#${encodeURIComponent(initialFragmentRef.current.focus)}`
       : "";
-    if (hasQueryCredential) {
-      setSearchParams(sanitizedParams, { replace: true });
-    }
     if (typeof window !== "undefined") {
       const query = sanitizedParams.toString();
       window.history.replaceState(
@@ -409,7 +406,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         `${location.pathname}${query ? `?${query}` : ""}${focusHash}`,
       );
     }
-  }, [location.pathname, searchParams, setSearchParams]);
+  }, [location.pathname, searchParams]);
 
   const status = normalizeStatus(payload);
   const resource = normalizeResource(payload, code);
