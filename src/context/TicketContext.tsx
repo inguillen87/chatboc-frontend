@@ -1,6 +1,12 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Ticket, User } from '@/types/tickets';
-import { getTickets, type TicketInboxFacetItem, type TicketInboxFacets, type TicketInboxPagination } from '@/services/ticketService';
+import {
+  getInboxTicketById,
+  getTickets,
+  type TicketInboxFacetItem,
+  type TicketInboxFacets,
+  type TicketInboxPagination,
+} from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
@@ -38,6 +44,21 @@ interface TicketRealtimeActivity {
   pending: number;
   lastLabel: string | null;
   lastAt: string | null;
+}
+
+export type TicketTargetResolutionStatus =
+  | 'idle'
+  | 'resolving'
+  | 'resolved'
+  | 'not_found'
+  | 'forbidden'
+  | 'error';
+
+export interface TicketTargetResolution {
+  ticketId: number | null;
+  status: TicketTargetResolutionStatus;
+  ticket: Ticket | null;
+  message: string | null;
 }
 
 const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
@@ -115,6 +136,13 @@ const TICKET_INBOX_CACHE_VERSION = 1;
 const TICKET_INBOX_CACHE_TTL_MS = 10 * 60 * 1000;
 const TICKET_INBOX_RECENT_LIVE_TTL_MS = 15 * 1000;
 const TICKET_WORKFLOW_METADATA_DEFER_MS = 1200;
+
+const IDLE_TICKET_TARGET_RESOLUTION: TicketTargetResolution = {
+  ticketId: null,
+  status: 'idle',
+  ticket: null,
+  message: null,
+};
 
 interface TicketInboxCachePayload {
   version: number;
@@ -387,6 +415,9 @@ interface TicketContextType {
   tickets: Ticket[];
   selectedTicket: Ticket | null;
   selectTicket: (ticketId: number | null) => void;
+  ticketTargetResolution: TicketTargetResolution;
+  resolveTicketTarget: (ticketId: number) => Promise<Ticket | null>;
+  clearTicketTarget: () => void;
   updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
   loading: boolean;
   error: string | null;
@@ -644,6 +675,26 @@ const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
   } as Ticket;
 };
 
+const normalizeTicketTargetId = (value: unknown): number | null => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim().replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const ticketMatchesTarget = (ticket: Ticket | null | undefined, ticketId: number): boolean => {
+  if (!ticket) return false;
+  return [ticket.id, (ticket as any).ticket_id]
+    .map(normalizeTicketTargetId)
+    .some((candidateId) => candidateId === ticketId);
+};
+
+const isTicketTargetSelectionLocked = (resolution: TicketTargetResolution): boolean =>
+  resolution.ticketId !== null &&
+  resolution.status !== 'idle' &&
+  resolution.status !== 'resolved';
+
 export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?: string | null }> = ({
   children,
   tenantSlugOverride,
@@ -659,6 +710,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [serverFacets, setServerFacets] = useState<TicketInboxFacets | null>(null);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
   const workflowMetadataTenantRef = React.useRef<string | null>(null);
+  const [ticketTargetResolution, setTicketTargetResolutionState] =
+    useState<TicketTargetResolution>(IDLE_TICKET_TARGET_RESOLUTION);
+  const ticketTargetResolutionRef = React.useRef<TicketTargetResolution>(IDLE_TICKET_TARGET_RESOLUTION);
+  const ticketTargetRequestSequenceRef = React.useRef(0);
+  const ticketTargetInflightRef = React.useRef<{
+    ticketId: number;
+    promise: Promise<Ticket | null>;
+  } | null>(null);
   const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
     pending: 0,
     lastLabel: null,
@@ -743,6 +802,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       lastLabel: null,
       lastAt: null,
     });
+  }, []);
+
+  const updateTicketTargetResolution = useCallback((next: TicketTargetResolution) => {
+    ticketTargetResolutionRef.current = next;
+    setTicketTargetResolutionState(next);
   }, []);
 
   const filterTicketsForUser = useCallback(
@@ -839,6 +903,133 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     [userAccessProfile]
   );
 
+  const clearTicketTarget = useCallback(() => {
+    ticketTargetRequestSequenceRef.current += 1;
+    ticketTargetInflightRef.current = null;
+    updateTicketTargetResolution(IDLE_TICKET_TARGET_RESOLUTION);
+  }, [updateTicketTargetResolution]);
+
+  const resolveTicketTarget = useCallback((ticketId: number): Promise<Ticket | null> => {
+    const normalizedTicketId = normalizeTicketTargetId(ticketId);
+    if (normalizedTicketId === null) {
+      updateTicketTargetResolution({
+        ticketId: null,
+        status: 'not_found',
+        ticket: null,
+        message: 'El identificador del reclamo solicitado no es valido.',
+      });
+      setSelectedTicket(null);
+      return Promise.resolve(null);
+    }
+
+    const currentResolution = ticketTargetResolutionRef.current;
+    if (
+      currentResolution.ticketId === normalizedTicketId &&
+      currentResolution.status === 'resolved' &&
+      currentResolution.ticket
+    ) {
+      setSelectedTicket(currentResolution.ticket);
+      return Promise.resolve(currentResolution.ticket);
+    }
+
+    const currentInflight = ticketTargetInflightRef.current;
+    if (currentInflight?.ticketId === normalizedTicketId) {
+      return currentInflight.promise;
+    }
+
+    const requestSequence = ticketTargetRequestSequenceRef.current + 1;
+    ticketTargetRequestSequenceRef.current = requestSequence;
+    updateTicketTargetResolution({
+      ticketId: normalizedTicketId,
+      status: 'resolving',
+      ticket: null,
+      message: null,
+    });
+    setSelectedTicket(null);
+
+    const promise = (async (): Promise<Ticket | null> => {
+      const loadedTicket = tickets.find((ticket) => ticketMatchesTarget(ticket, normalizedTicketId));
+
+      try {
+        const targetTicket = loadedTicket || await withTimeout(
+          getInboxTicketById(normalizedTicketId, { tenantSlug: activeTenantSlug }),
+          TICKET_FETCH_TIMEOUT_MS,
+          'La apertura del reclamo solicitado tardo demasiado en responder.',
+        );
+
+        if (ticketTargetRequestSequenceRef.current !== requestSequence) {
+          return null;
+        }
+
+        const normalizedTicket = normalizeTicketForInbox(targetTicket);
+        const scopedTicket = filterTicketsForUser([normalizedTicket])[0];
+        if (!scopedTicket) {
+          updateTicketTargetResolution({
+            ticketId: normalizedTicketId,
+            status: 'forbidden',
+            ticket: null,
+            message: 'Tu usuario no tiene permisos para abrir el reclamo solicitado.',
+          });
+          setSelectedTicket(null);
+          return null;
+        }
+
+        setTickets((current) => mergeTicketPages(current, [scopedTicket]));
+        setSelectedTicket(scopedTicket);
+        updateTicketTargetResolution({
+          ticketId: normalizedTicketId,
+          status: 'resolved',
+          ticket: scopedTicket,
+          message: null,
+        });
+        return scopedTicket;
+      } catch (error) {
+        if (ticketTargetRequestSequenceRef.current !== requestSequence) {
+          return null;
+        }
+
+        const status = error instanceof ApiError ? error.status : null;
+        const nextResolution: TicketTargetResolution = status === 401 || status === 403
+          ? {
+              ticketId: normalizedTicketId,
+              status: 'forbidden',
+              ticket: null,
+              message: status === 401
+                ? 'La sesion del panel no esta activa para abrir el reclamo solicitado.'
+                : 'Tu usuario no tiene permisos para abrir el reclamo solicitado.',
+            }
+          : status === 404
+            ? {
+                ticketId: normalizedTicketId,
+                status: 'not_found',
+                ticket: null,
+                message: 'El reclamo solicitado no existe o no esta disponible para este tenant.',
+              }
+            : {
+                ticketId: normalizedTicketId,
+                status: 'error',
+                ticket: null,
+                message: 'No pudimos abrir el reclamo solicitado. Reintenta en unos segundos.',
+              };
+
+        if (nextResolution.status === 'error') {
+          console.error('Error resolving requested ticket:', error);
+        }
+        updateTicketTargetResolution(nextResolution);
+        setSelectedTicket(null);
+        return null;
+      }
+    })();
+
+    ticketTargetInflightRef.current = { ticketId: normalizedTicketId, promise };
+    void promise.finally(() => {
+      if (ticketTargetInflightRef.current?.promise === promise) {
+        ticketTargetInflightRef.current = null;
+      }
+    });
+    return promise;
+  }, [activeTenantSlug, filterTicketsForUser, tickets, updateTicketTargetResolution]);
+
   const fetchTickets = useCallback(async (options: { force?: boolean } = {}) => {
     const tenantSlug = activeTenantSlug;
     const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
@@ -870,6 +1061,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         setTickets((current) => (current.length > 0 ? current : cachedTickets));
         setPagination((current) => current || cachedInbox.pagination || null);
         setSelectedTicket((current) => {
+          if (isTicketTargetSelectionLocked(ticketTargetResolutionRef.current)) return null;
           if (current) return current;
           const cachedSelected = cachedTickets.find(
             (ticket) => String(ticket.id) === String(cachedInbox.selected_ticket_id),
@@ -896,12 +1088,27 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const filteredTickets = filterTicketsForUser(normalizedTickets);
         const nextOperationalTicket = getNextOperationalTicket(filteredTickets);
         const nextPagination = (apiResponse as any)?.pagination || null;
+        const activeTarget = ticketTargetResolutionRef.current;
+        const resolvedTarget = activeTarget.status === 'resolved' ? activeTarget.ticket : null;
+        const nextTickets = resolvedTarget && filterTicketsForUser([resolvedTarget]).length > 0
+          ? mergeTicketPages(filteredTickets, [resolvedTarget])
+          : filteredTickets;
         setServerFacets((apiResponse as any)?.facets || null);
-        setTickets(filteredTickets);
+        setTickets(nextTickets);
         setPagination(nextPagination);
         setSelectedTicket((prev) => {
+          const targetResolution = ticketTargetResolutionRef.current;
+          if (isTicketTargetSelectionLocked(targetResolution)) return null;
+          if (
+            targetResolution.status === 'resolved' &&
+            targetResolution.ticketId !== null &&
+            (!prev || ticketMatchesTarget(prev, targetResolution.ticketId))
+          ) {
+            return nextTickets.find((ticket) => ticketMatchesTarget(ticket, targetResolution.ticketId!))
+              || targetResolution.ticket;
+          }
           if (prev) {
-            const refreshed = filteredTickets.find((ticket) => ticket.id === prev.id);
+            const refreshed = nextTickets.find((ticket) => ticket.id === prev.id);
             if (refreshed) return refreshed;
           }
           return nextOperationalTicket;
@@ -909,9 +1116,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         writeCachedTicketInbox(cacheKey, {
           tenant_slug: tenantSlug,
           viewer_key: viewerKey,
-          tickets: filteredTickets.slice(0, 50),
+          tickets: nextTickets.slice(0, 50),
           pagination: nextPagination,
-          selected_ticket_id: nextOperationalTicket?.id ?? null,
+          selected_ticket_id: resolvedTarget?.id ?? nextOperationalTicket?.id ?? null,
         });
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
@@ -966,7 +1173,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         }
         setTickets((current) => mergeTicketPages(current, filteredTickets));
         setPagination((apiResponse as any)?.pagination || null);
-        setSelectedTicket((prev) => prev || getNextOperationalTicket(filteredTickets));
+        setSelectedTicket((prev) => {
+          if (isTicketTargetSelectionLocked(ticketTargetResolutionRef.current)) return null;
+          return prev || getNextOperationalTicket(filteredTickets);
+        });
       }
     } catch (err) {
       console.error('Error loading more tickets:', err);
@@ -1024,6 +1234,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {
+        setSelectedTicket(null);
+        return;
+    }
+    if (isTicketTargetSelectionLocked(ticketTargetResolutionRef.current)) {
         setSelectedTicket(null);
         return;
     }
@@ -1242,13 +1456,22 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   useEffect(() => {
     setSelectedTicket((current) => {
+      if (isTicketTargetSelectionLocked(ticketTargetResolution)) return null;
+      if (
+        ticketTargetResolution.status === 'resolved' &&
+        ticketTargetResolution.ticketId !== null &&
+        (!current || ticketMatchesTarget(current, ticketTargetResolution.ticketId))
+      ) {
+        return tickets.find((ticket) => ticketMatchesTarget(ticket, ticketTargetResolution.ticketId!))
+          || ticketTargetResolution.ticket;
+      }
       if (!current) return current;
       const visibleTicket = filteredTickets.find((ticket) => ticket.id === current.id);
       if (visibleTicket) return visibleTicket;
       if (loading && filteredTickets.length === 0) return current;
       return getNextOperationalTicket(filteredTickets);
     });
-  }, [filteredTickets, loading, tickets]);
+  }, [filteredTickets, loading, ticketTargetResolution, tickets]);
 
   const ticketsByCategory = groupTicketsByCategory(filteredTickets);
 
@@ -1256,6 +1479,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     tickets,
     selectedTicket,
     selectTicket,
+    ticketTargetResolution,
+    resolveTicketTarget,
+    clearTicketTarget,
     updateTicket,
     loading,
     error,

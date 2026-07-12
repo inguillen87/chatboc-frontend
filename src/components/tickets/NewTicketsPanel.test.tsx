@@ -15,7 +15,17 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/context/TicketContext', () => ({
-  useTickets: () => useTicketsMock(),
+  useTickets: () => ({
+    ticketTargetResolution: {
+      ticketId: null,
+      status: 'idle',
+      ticket: null,
+      message: null,
+    },
+    resolveTicketTarget: vi.fn().mockResolvedValue(null),
+    clearTicketTarget: vi.fn(),
+    ...useTicketsMock(),
+  }),
 }));
 
 vi.mock('@/hooks/use-mobile', () => ({
@@ -108,6 +118,87 @@ describe('NewTicketsPanel CRM layout', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not mount a composer for another ticket while the deep-link target is resolving', () => {
+    const otherTicket = {
+      id: 1,
+      nro_ticket: 'REC-1',
+      asunto: 'Otro reclamo',
+      estado: 'abierto',
+      fecha: '2026-07-11T09:00:00.000Z',
+      tipo: 'municipio',
+    };
+    const resolveTicketTarget = vi.fn().mockReturnValue(new Promise(() => {}));
+    searchParamsState.value = new URLSearchParams('tab=tickets&ticket_id=99');
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [otherTicket],
+      filteredTickets: [otherTicket],
+      selectedTicket: otherTicket,
+      selectTicket: vi.fn(),
+      ticketTargetResolution: {
+        ticketId: 99,
+        status: 'resolving',
+        ticket: null,
+        message: null,
+      },
+      resolveTicketTarget,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.getByTestId('tickets-target-resolution')).toHaveTextContent('Abriendo reclamo #99');
+    expect(screen.queryByTestId('tickets-conversation')).not.toBeInTheDocument();
+    expect(resolveTicketTarget).toHaveBeenCalledWith(99);
+  });
+
+  it.each([
+    ['forbidden', 'Tu usuario no tiene permisos para abrir el reclamo solicitado.', 'No tenes acceso a este reclamo'],
+    ['not_found', 'El reclamo solicitado no existe o no esta disponible para este tenant.', 'No encontramos el reclamo solicitado'],
+  ])('shows an explicit %s target state without exposing another conversation', (status, message, title) => {
+    const otherTicket = {
+      id: 1,
+      nro_ticket: 'REC-1',
+      asunto: 'Otro reclamo',
+      estado: 'abierto',
+      fecha: '2026-07-11T09:00:00.000Z',
+      tipo: 'municipio',
+    };
+    searchParamsState.value = new URLSearchParams('tab=tickets&ticket_id=99');
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [otherTicket],
+      filteredTickets: [otherTicket],
+      selectedTicket: otherTicket,
+      selectTicket: vi.fn(),
+      ticketTargetResolution: {
+        ticketId: 99,
+        status,
+        ticket: null,
+        message,
+      },
+      resolveTicketTarget: vi.fn().mockResolvedValue(null),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(title);
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByTestId('tickets-conversation')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reintentar apertura/i })).toBeInTheDocument();
   });
 
   it('renders a repair contract when ticket access fails because tenant scope is incomplete', () => {
@@ -420,38 +511,34 @@ describe('NewTicketsPanel CRM layout', () => {
   it('opens CRM desk from heatmap query links with filters and selected ticket', async () => {
     const setFilters = vi.fn();
     const selectTicket = vi.fn();
+    const targetTicket = {
+      id: 378430,
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo de calle',
+      categoria: 'Arreglo De Calle',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+      channel: 'whatsapp',
+    };
+    const resolveTicketTarget = vi.fn().mockResolvedValue(targetTicket);
     searchParamsState.value = new URLSearchParams(
       'tab=tickets&focus=open_geocoding_queue&ticket_id=378430&categoria=Arreglo_De_Calle&canal=whatsapp',
     );
     useTicketsMock.mockReturnValue({
       loading: false,
       error: null,
-      tickets: [
-        {
-          id: 378430,
-          nro_ticket: 'M-378430',
-          asunto: 'Arreglo de calle',
-          categoria: 'Arreglo De Calle',
-          estado: 'nuevo',
-          fecha: '2026-06-01T10:00:00.000Z',
-          tipo: 'municipio',
-          channel: 'whatsapp',
-        },
-      ],
-      filteredTickets: [
-        {
-          id: 378430,
-          nro_ticket: 'M-378430',
-          asunto: 'Arreglo de calle',
-          categoria: 'Arreglo De Calle',
-          estado: 'nuevo',
-          fecha: '2026-06-01T10:00:00.000Z',
-          tipo: 'municipio',
-          channel: 'whatsapp',
-        },
-      ],
-      selectedTicket: null,
+      tickets: [targetTicket],
+      filteredTickets: [targetTicket],
+      selectedTicket: targetTicket,
       selectTicket,
+      ticketTargetResolution: {
+        ticketId: 378430,
+        status: 'resolved',
+        ticket: targetTicket,
+        message: null,
+      },
+      resolveTicketTarget,
       filters: {
         channel: 'all',
         status: 'all',
@@ -471,7 +558,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     await waitFor(() => {
       expect(setFilters).toHaveBeenCalledWith(expect.any(Function));
-      expect(selectTicket).toHaveBeenCalledWith(378430);
+      expect(resolveTicketTarget).toHaveBeenCalledWith(378430);
     });
 
     const filterUpdater = setFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;

@@ -3,12 +3,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getTicketsMock = vi.fn();
+const getInboxTicketByIdMock = vi.fn();
 const useTicketUpdatesMock = vi.fn();
 const getTicketWorkflowMetadataMock = vi.fn();
 const mockUser: Record<string, any> = { tenantSlug: 'demo', rol: 'admin', id: 1 };
 
 vi.mock('@/services/ticketService', () => ({
   getTickets: (...args: unknown[]) => getTicketsMock(...args),
+  getInboxTicketById: (...args: unknown[]) => getInboxTicketByIdMock(...args),
 }));
 
 vi.mock('@/hooks/useTicketUpdates', () => ({
@@ -152,6 +154,30 @@ const FilterOptionsConsumer = () => {
   );
 };
 
+const TicketTargetConsumer = () => {
+  const {
+    tickets,
+    selectedTicket,
+    selectTicket,
+    ticketTargetResolution,
+    resolveTicketTarget,
+  } = useTickets();
+  return (
+    <div>
+      <span data-testid="target-ticket-count">{tickets.length}</span>
+      <span data-testid="target-selected-ticket">{selectedTicket?.nro_ticket ?? 'none'}</span>
+      <span data-testid="target-resolution-status">{ticketTargetResolution.status}</span>
+      <span data-testid="target-resolution-message">{ticketTargetResolution.message ?? 'none'}</span>
+      <button type="button" onClick={() => void resolveTicketTarget(99)}>
+        abrir objetivo
+      </button>
+      <button type="button" onClick={() => selectTicket(1)}>
+        seleccionar primero
+      </button>
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
@@ -163,6 +189,7 @@ describe('TicketContext unread delta reconciliation', () => {
     window.sessionStorage.clear();
     ticketUpdateHandlers = {};
     getTicketsMock.mockReset();
+    getInboxTicketByIdMock.mockReset();
     __resetTicketInboxRuntimeDedupeForTests();
     useTicketUpdatesMock.mockReset();
     getTicketWorkflowMetadataMock.mockReset();
@@ -376,6 +403,103 @@ describe('TicketContext unread delta reconciliation', () => {
       'Tu usuario no tiene permisos para abrir la bandeja de reclamos de este tenant.',
     );
     expect(screen.getByTestId('cached-error').textContent).toContain('Mostrando datos guardados');
+  });
+
+  it('resolves and selects a requested ticket that is absent from the initial inbox page', async () => {
+    let resolveTarget: (value: unknown) => void = () => {};
+    getInboxTicketByIdMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTarget = resolve;
+        }),
+    );
+
+    render(
+      <TicketProvider>
+        <TicketTargetConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('REC-1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir objetivo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-resolution-status').textContent).toBe('resolving');
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('none');
+    });
+
+    act(() => {
+      resolveTarget({
+        id: 99,
+        tipo: 'municipio',
+        nro_ticket: 'REC-99',
+        asunto: 'Objetivo fuera de pagina',
+        estado: 'abierto',
+        fecha: '2026-07-11T10:00:00.000Z',
+        categoria: 'General',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-resolution-status').textContent).toBe('resolved');
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('REC-99');
+      expect(screen.getByTestId('target-ticket-count').textContent).toBe('2');
+    });
+    expect(getInboxTicketByIdMock).toHaveBeenCalledWith(99, {
+      tenantSlug: 'demo',
+    });
+  });
+
+  it('clears and locks selection when the requested ticket is not authorized', async () => {
+    getInboxTicketByIdMock.mockRejectedValueOnce(
+      new ApiError('Acceso prohibido', 403, { error: 'forbidden' }),
+    );
+
+    render(
+      <TicketProvider>
+        <TicketTargetConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('REC-1');
+    });
+    fireEvent.click(screen.getByRole('button', { name: /abrir objetivo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-resolution-status').textContent).toBe('forbidden');
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('none');
+      expect(screen.getByTestId('target-resolution-message').textContent).toContain('no tiene permisos');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /seleccionar primero/i }));
+    expect(screen.getByTestId('target-selected-ticket').textContent).toBe('none');
+  });
+
+  it('keeps selection empty when the requested ticket does not exist', async () => {
+    getInboxTicketByIdMock.mockRejectedValueOnce(
+      new ApiError('No encontrado', 404, { error: 'not_found' }),
+    );
+
+    render(
+      <TicketProvider>
+        <TicketTargetConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('REC-1');
+    });
+    fireEvent.click(screen.getByRole('button', { name: /abrir objetivo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-resolution-status').textContent).toBe('not_found');
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('none');
+      expect(screen.getByTestId('target-resolution-message').textContent).toContain('no existe');
+    });
   });
 
   it('updates ticket unread badges from ticket.unread.changed without refetch', async () => {

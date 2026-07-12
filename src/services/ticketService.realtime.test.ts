@@ -22,6 +22,7 @@ vi.mock('@/utils/anonIdGenerator', () => ({
 
 import {
   getAssignableAgents,
+  getInboxTicketById,
   getTenantTicketAiEnrichment,
   getTickets,
   getTicketById,
@@ -30,6 +31,7 @@ import {
   normalizeTicketReplyDelivery,
   sendMessage,
 } from '@/services/ticketService';
+import { ApiError } from '@/utils/api';
 
 describe('ticketService realtime normalization', () => {
   beforeEach(() => {
@@ -399,6 +401,129 @@ describe('ticketService realtime normalization', () => {
       id: 9,
       content: 'Necesito presupuesto',
     });
+  });
+
+  it('resolves an inbox deep-link target through the canonical v2 detail endpoint', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 99,
+          tipo: 'municipio',
+          nro_ticket: 'M-99',
+          asunto: 'Objetivo focal',
+          estado: 'nuevo',
+          fecha: '2026-07-11T10:00:00.000Z',
+          source_model: 'TenantTicket',
+          ticket_type: 'tenant_ticket',
+          detail_endpoint: '/api/v2/tickets/99',
+        },
+      ],
+      pagination: {
+        page: 1,
+        per_page: 50,
+        total_items: 1,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+    });
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.v2.detail',
+      source_model: 'TenantTicket',
+      ticket_type: 'tenant_ticket',
+      ticket: {
+        id: 99,
+        tipo: 'municipio',
+        nro_ticket: 'M-99',
+        asunto: 'Objetivo focal',
+        estado: 'nuevo',
+        fecha: '2026-07-11T10:00:00.000Z',
+        messages: [{ id: 1, body: 'Mensaje', actor_type: 'citizen' }],
+      },
+    });
+
+    const ticket = await getInboxTicketById(99, {
+      tenantSlug: 'junin',
+    });
+
+    expect(ticket.id).toBe(99);
+    expect(apiFetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/tickets?page=1&per_page=50&include=compact&q=99',
+      '/api/v2/tickets/99',
+    ]);
+  });
+
+  it('paginates the scoped inbox until it finds the exact legacy target', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 1,
+          tipo: 'pyme',
+          nro_ticket: 'P-1',
+          asunto: 'Otro ticket',
+          estado: 'nuevo',
+          fecha: '2026-07-11T09:00:00.000Z',
+        },
+      ],
+      pagination: {
+        page: 1,
+        per_page: 50,
+        total_items: 2,
+        total_pages: 2,
+        has_next: true,
+        has_prev: false,
+      },
+    });
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 99,
+          tipo: 'pyme',
+          nro_ticket: 'P-99',
+          asunto: 'Objetivo legacy',
+          estado: 'nuevo',
+          fecha: '2026-07-11T10:00:00.000Z',
+        },
+      ],
+      pagination: {
+        page: 2,
+        per_page: 50,
+        total_items: 2,
+        total_pages: 2,
+        has_next: false,
+        has_prev: true,
+      },
+    });
+    apiFetchMock.mockResolvedValueOnce({
+      id: 99,
+      tipo: 'pyme',
+      nro_ticket: 'P-99',
+      asunto: 'Objetivo legacy',
+      estado: 'nuevo',
+      fecha: '2026-07-11T10:00:00.000Z',
+      mensajes: [{ id: 2, mensaje: 'Mensaje legacy', es_admin: false }],
+    });
+
+    const ticket = await getInboxTicketById(99, {
+      tenantSlug: 'bodega',
+    });
+
+    expect(ticket.tipo).toBe('pyme');
+    expect(apiFetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/tickets?page=1&per_page=50&include=compact&q=99',
+      '/api/tickets?page=2&per_page=50&include=compact&q=99',
+      '/api/tickets/pyme/99',
+    ]);
+  });
+
+  it('does not continue to another detail contract after an inbox authorization error', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Prohibido', 403));
+
+    await expect(
+      getInboxTicketById(99, { tenantSlug: 'junin' }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/tickets?page=1&per_page=50&include=compact&q=99');
   });
 
   it('sends authenticated quick replies with comentario for the backend responder contract', async () => {

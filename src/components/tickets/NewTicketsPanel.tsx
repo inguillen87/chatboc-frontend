@@ -261,6 +261,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     filteredTickets,
     selectedTicket,
     selectTicket,
+    ticketTargetResolution,
+    resolveTicketTarget,
+    clearTicketTarget,
     filters,
     setFilters,
     refreshTickets,
@@ -465,24 +468,29 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [setFilters, ticketDeskQuery, filters]);
 
   React.useEffect(() => {
-    if (!ticketDeskQuery.ticketId || !tickets.length) return;
+    if (!ticketDeskQuery.ticketId) {
+      selectedDeskQueryTicketRef.current = '';
+      clearTicketTarget();
+      return;
+    }
+
     const querySelectionKey = `${ticketDeskQuery.key}:${ticketDeskQuery.ticketId}`;
     if (selectedDeskQueryTicketRef.current === querySelectionKey) return;
-
-    const matchedTicket = tickets.find((ticket) => {
-      const candidateIds = [ticket.id, ticket.nro_ticket, ticket.ticket_id].filter((value) => value !== undefined && value !== null);
-      return candidateIds.some((value) => {
-        const normalized = normalizeTicketQueryNumber(String(value));
-        return normalized === ticketDeskQuery.ticketId;
-      });
-    });
-
-    if (!matchedTicket) return;
-    selectTicket(matchedTicket.id);
     selectedDeskQueryTicketRef.current = querySelectionKey;
-    if (isMobile) setActiveMobileView('chat');
-    else setDesktopView('chat');
-  }, [isMobile, selectTicket, setActiveMobileView, ticketDeskQuery, tickets]);
+    void resolveTicketTarget(ticketDeskQuery.ticketId).then((ticket) => {
+      if (!ticket) return;
+      if (isMobile) setActiveMobileView('chat');
+      else setDesktopView('chat');
+    });
+  }, [clearTicketTarget, isMobile, resolveTicketTarget, setActiveMobileView, ticketDeskQuery]);
+
+  React.useEffect(
+    () => () => {
+      selectedDeskQueryTicketRef.current = '';
+      clearTicketTarget();
+    },
+    [clearTicketTarget],
+  );
 
   const resetOperationalFilters = React.useCallback(() => {
     setFilters((current) => ({
@@ -683,6 +691,64 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </div>
       </Card>
     )
+  }
+
+  const requestedTicketId = ticketDeskQuery.ticketId;
+  const targetResolutionMatches =
+    requestedTicketId !== null && ticketTargetResolution.ticketId === requestedTicketId;
+  const requestedTicketResolved =
+    targetResolutionMatches && ticketTargetResolution.status === 'resolved';
+  const blockRequestedTicket = requestedTicketId !== null && !requestedTicketResolved;
+
+  if (blockRequestedTicket) {
+    const isResolving =
+      !targetResolutionMatches ||
+      ticketTargetResolution.status === 'idle' ||
+      ticketTargetResolution.status === 'resolving';
+    const isForbidden = targetResolutionMatches && ticketTargetResolution.status === 'forbidden';
+    const title = isResolving
+      ? `Abriendo reclamo #${requestedTicketId}`
+      : isForbidden
+        ? 'No tenes acceso a este reclamo'
+        : ticketTargetResolution.status === 'not_found'
+          ? 'No encontramos el reclamo solicitado'
+          : 'No pudimos abrir el reclamo solicitado';
+    const message = isResolving
+      ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversacion.'
+      : ticketTargetResolution.message || 'Reintenta en unos segundos.';
+
+    return (
+      <Card
+        data-testid="tickets-target-resolution"
+        className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md"
+        role={isResolving ? 'status' : 'alert'}
+        aria-live="polite"
+      >
+        <span
+          className={cn(
+            'mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg border',
+            isResolving
+              ? 'border-primary/30 bg-primary/10 text-primary'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+          )}
+        >
+          {isResolving ? <RefreshCw className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
+        </span>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
+        {!isResolving ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-5 gap-2 rounded-lg"
+            onClick={() => void resolveTicketTarget(requestedTicketId)}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reintentar apertura
+          </Button>
+        ) : null}
+      </Card>
+    );
   }
 
   const panelCardClass = cn(

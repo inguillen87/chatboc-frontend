@@ -210,6 +210,7 @@ export interface GetTicketsOptions {
     priority?: string;
     sla?: string;
     unread?: string;
+    quiet?: boolean;
 }
 
 const normalizeTicketPagination = (
@@ -702,7 +703,9 @@ export const getTickets = async (
     };
 
   } catch (error) {
-    console.error('Error fetching tickets:', error);
+    if (!options.quiet) {
+      console.error('Error fetching tickets:', error);
+    }
     throw error;
   }
 };
@@ -748,6 +751,12 @@ export const getAssignableAgents = async (
 export interface TicketDetailOptions {
     ticket?: TicketEndpointContext | null;
     tenantSlug?: string | null;
+    quiet?: boolean;
+}
+
+export interface TicketInboxTargetOptions {
+    tenantSlug?: string | null;
+    perPage?: number;
 }
 
 export const getTicketById = async (id: string, opts?: TicketDetailOptions): Promise<Ticket> => {
@@ -813,9 +822,76 @@ export const getTicketById = async (id: string, opts?: TicketDetailOptions): Pro
             collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
         };
     } catch (error) {
-        console.error(`Error fetching ticket ${id}:`, error);
+        if (!opts?.quiet) {
+            console.error(`Error fetching ticket ${id}:`, error);
+        }
         throw error;
     }
+};
+
+export const getInboxTicketById = async (
+    id: string | number,
+    options: TicketInboxTargetOptions = {},
+): Promise<Ticket> => {
+    const normalizedId = String(id).trim();
+    const numericId = Number(normalizedId);
+    if (!normalizedId || !Number.isFinite(numericId)) {
+        throw new ApiError('El identificador del ticket no es valido', 400);
+    }
+
+    const normalizeCandidateId = (value: unknown): number | null => {
+        if (value === undefined || value === null) return null;
+        const candidate = String(value).trim().replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
+        if (!candidate) return null;
+        const parsed = Number(candidate);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const matchesTarget = (ticket: Ticket) =>
+        [ticket.id, (ticket as any).ticket_id]
+            .map(normalizeCandidateId)
+            .some((candidateId) => candidateId === numericId);
+
+    const findAcrossInboxPages = async (q?: string): Promise<Ticket | null> => {
+        const perPage = Math.max(1, Number(options.perPage || 50) || 50);
+        const visitedPages = new Set<number>();
+        let page = 1;
+
+        while (!visitedPages.has(page)) {
+            visitedPages.add(page);
+            const response = await getTickets(options.tenantSlug, {
+                page,
+                perPage,
+                quiet: true,
+                ...(q ? { q } : {}),
+            });
+            const match = response.tickets.find(matchesTarget);
+            if (match) return match;
+
+            const pagination = response.pagination;
+            if (!pagination?.has_next) return null;
+            const nextPage = Math.max(page + 1, Number(pagination.page || page) + 1);
+            page = nextPage;
+        }
+
+        return null;
+    };
+
+    const matchedTicket =
+        await findAcrossInboxPages(normalizedId) ||
+        await findAcrossInboxPages();
+
+    if (!matchedTicket) {
+        throw new ApiError('El ticket solicitado no existe o no esta disponible', 404, {
+            code: 'ticket_not_found',
+        });
+    }
+
+    return getTicketById(String(matchedTicket.id), {
+        tenantSlug: options.tenantSlug,
+        quiet: true,
+        ticket: matchedTicket,
+    });
 };
 
 export const getTicketByNumber = async (
