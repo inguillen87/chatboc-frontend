@@ -426,7 +426,7 @@ describe('NewTicketsPanel CRM layout', () => {
     }
   });
 
-  it('keeps the mobile navigator and active pane inside a clipped full-height viewport', () => {
+  it('keeps the mobile tabs and active panel inside a clipped full-height viewport', () => {
     mobileState.value = true;
     const ticket = {
       id: 1,
@@ -454,12 +454,36 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-mobile-layout')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.getByTestId('tickets-mobile-viewport')).toHaveClass('min-h-0', 'overflow-hidden');
-    expect(screen.getByRole('button', { name: 'Tickets' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tablist', { name: 'Vistas de tickets' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    const ticketsTab = screen.getByRole('tab', { name: 'Tickets' });
+    const chatTab = screen.getByRole('tab', { name: 'Chat' });
+    const detailsTab = screen.getByRole('tab', { name: 'Info' });
+
+    expect(ticketsTab).toHaveAttribute('aria-selected', 'true');
+    expect(ticketsTab).toHaveAttribute('aria-controls', 'tickets-mobile-panel-tickets');
+    expect(screen.getByRole('tabpanel', { name: 'Tickets' })).toHaveAttribute(
+      'id',
+      'tickets-mobile-panel-tickets',
+    );
+
+    fireEvent.click(chatTab);
 
     expect(screen.getByTestId('tickets-conversation')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-pressed', 'true');
+    expect(chatTab).toHaveAttribute('aria-selected', 'true');
+    expect(chatTab).toHaveAttribute('tabindex', '0');
+    expect(ticketsTab).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('tabpanel', { name: 'Chat' })).toHaveAttribute(
+      'aria-labelledby',
+      'tickets-mobile-tab-chat',
+    );
+
+    fireEvent.keyDown(chatTab, { key: 'ArrowRight' });
+
+    expect(detailsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'Info' })).toContainElement(
+      screen.getByTestId('tickets-details'),
+    );
   });
 
   it('offers a compact action for the next operational priority in embedded mode', () => {

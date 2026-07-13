@@ -88,6 +88,68 @@ describe('ChatPanel widget assisted orders', () => {
     );
   });
 
+  it('renders the public claim tracking CTA without offering the admin panel', async () => {
+    sendChatBootstrapMessageMock.mockResolvedValue({
+      message_body: 'Listo: cree el reclamo demo. Ticket #123456, PIN 654321.',
+      fuente: 'demo_municipio_runtime',
+      accion_backend: 'demo_crear_reclamo',
+      ticket_id: 42,
+      ticket: {
+        id: 42,
+        nro_ticket: '123456',
+        consulta_pin: '654321',
+        status: 'nuevo',
+        category: 'Baches y calzada',
+        detail_endpoint: '/api/v2/inbox/omnichannel/42',
+        public_status_hint: { ticket: '123456', pin: '654321' },
+      },
+      lead: {
+        created: true,
+        ticket_id: 42,
+        detail_endpoint: '/api/v2/inbox/omnichannel/42',
+      },
+      next_actions: [
+        {
+          id: 'track_claim',
+          label: 'Ver seguimiento',
+          endpoint: '/tracking/claim/123456#pin=654321',
+          method: 'GET',
+          ui_hint: 'link',
+        },
+      ],
+    });
+
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          sector: 'gobierno',
+          tenantSlug: 'muni-demo',
+          chatBootstrap: {
+            contract_version: 'demo.chat_bootstrap.v1',
+            endpoint: '/api/ask/municipio',
+            method: 'POST',
+            payload: {
+              tipo_chat: 'municipio',
+              tenant_slug: 'muni-demo',
+              demo_mode: true,
+            },
+          },
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mensaje'), {
+      target: { value: 'Hay un bache peligroso frente a la plaza' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    const trackingLink = await screen.findByRole('link', { name: /Ver seguimiento/i });
+    expect(trackingLink).toHaveAttribute('href', '/tracking/claim/123456#pin=654321');
+    expect(trackingLink.getAttribute('href')).not.toContain('/api/v2/inbox/omnichannel');
+    expect(screen.queryByText('Ver en panel')).not.toBeInTheDocument();
+  });
+
   it('shows a safe retry message when the demo runtime fails', async () => {
     sendChatBootstrapMessageMock.mockRejectedValue(new Error('Error 404: Not found'));
 

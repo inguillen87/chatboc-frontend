@@ -164,6 +164,7 @@ const normalizeBucketItem = (value: unknown, keyFallback?: string): OperationsBu
     const numericFields = [
       'value',
       'count',
+      'amount',
       'total',
       'current',
       'previous',
@@ -350,7 +351,9 @@ const normalizeCommerce = (value: unknown): OperationsCommerce => {
     summary: pickRecord(record.summary),
     by_state: normalizeBucketItems(record.by_state),
     by_origin: normalizeBucketItems(record.by_origin),
+    by_source_model: normalizeBucketItems(record.by_source_model),
     by_request_kind: normalizeBucketItems(record.by_request_kind),
+    totals_by_currency: normalizeBucketItems(record.totals_by_currency),
     review_items: normalizeBucketItemsWithActions(record.review_items),
     frontend_contract: pickRecord(record.frontend_contract),
   };

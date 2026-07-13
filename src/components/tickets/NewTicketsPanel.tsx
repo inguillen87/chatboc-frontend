@@ -26,6 +26,8 @@ type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
 
 const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
+const getMobileTabId = (view: MobileView) => `tickets-mobile-tab-${view}`;
+const getMobilePanelId = (view: MobileView) => `tickets-mobile-panel-${view}`;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
 const DESKTOP_DETAIL_MIN_WIDTH = 1536;
@@ -277,6 +279,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   // Mobile-specific state
   const [mobileView, setMobileViewState] = React.useState<MobileView>('tickets');
   const mobileViewRef = React.useRef<MobileView>('tickets');
+  const mobileTabRefs = React.useRef<Record<MobileView, HTMLButtonElement | null>>({
+    tickets: null,
+    chat: null,
+    details: null,
+  });
   const [mobileTransitionDirection, setMobileTransitionDirection] =
     React.useState<MobileTransitionDirection>(0);
   const setActiveMobileView = React.useCallback(
@@ -510,12 +517,40 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     disabled?: boolean,
   ) =>
     cn(
-      'flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
+      'flex h-11 items-center justify-center gap-1.5 rounded-[8px] border px-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
       mobileView === value
         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
         : 'border-border/70 bg-muted/60 text-muted-foreground hover:border-primary/40 hover:text-foreground',
       disabled && 'hover:border-border/70 hover:text-muted-foreground',
     );
+
+  const handleMobileTabKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentView: MobileView,
+  ) => {
+    const availableViews: readonly MobileView[] = selectedTicket
+      ? MOBILE_VIEW_SEQUENCE
+      : ['tickets'];
+    const currentIndex = availableViews.indexOf(currentView);
+    let nextIndex: number | null = null;
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (currentIndex + 1) % availableViews.length;
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (currentIndex - 1 + availableViews.length) % availableViews.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = availableViews.length - 1;
+    }
+
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextView = availableViews[nextIndex];
+    setActiveMobileView(nextView);
+    window.requestAnimationFrame(() => mobileTabRefs.current[nextView]?.focus());
+  };
 
   const hasLoadedInboxData = tickets.length > 0 || filteredTickets.length > 0 || selectedTicket !== null;
   const showInitialLoading = loading && !hasLoadedInboxData;
@@ -1190,32 +1225,55 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       ) : null}
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
-          <div className="shrink-0 border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
-            <div className="grid grid-cols-3 gap-2">
+          <div className="shrink-0 border-b border-border/70 bg-card/80 px-2 py-1.5 shadow-sm">
+            <div
+              className="grid grid-cols-3 gap-1.5"
+              role="tablist"
+              aria-label="Vistas de tickets"
+              aria-orientation="horizontal"
+            >
               <button
+                ref={(node) => { mobileTabRefs.current.tickets = node; }}
                 type="button"
+                role="tab"
+                id={getMobileTabId('tickets')}
                 onClick={() => setActiveMobileView('tickets')}
+                onKeyDown={(event) => handleMobileTabKeyDown(event, 'tickets')}
                 className={mobileNavButtonClass('tickets')}
-                aria-pressed={mobileView === 'tickets'}
+                aria-selected={mobileView === 'tickets'}
+                aria-controls={getMobilePanelId('tickets')}
+                tabIndex={mobileView === 'tickets' ? 0 : -1}
               >
                 <PanelLeft className="h-4 w-4" />
                 <span>Tickets</span>
               </button>
               <button
+                ref={(node) => { mobileTabRefs.current.chat = node; }}
                 type="button"
+                role="tab"
+                id={getMobileTabId('chat')}
                 onClick={() => setActiveMobileView('chat')}
+                onKeyDown={(event) => handleMobileTabKeyDown(event, 'chat')}
                 className={mobileNavButtonClass('chat', !selectedTicket)}
-                aria-pressed={mobileView === 'chat'}
+                aria-selected={mobileView === 'chat'}
+                aria-controls={getMobilePanelId('chat')}
+                tabIndex={mobileView === 'chat' ? 0 : -1}
                 disabled={!selectedTicket}
               >
                 <MessageSquare className="h-4 w-4" />
                 <span>Chat</span>
               </button>
               <button
+                ref={(node) => { mobileTabRefs.current.details = node; }}
                 type="button"
+                role="tab"
+                id={getMobileTabId('details')}
                 onClick={() => setActiveMobileView('details')}
+                onKeyDown={(event) => handleMobileTabKeyDown(event, 'details')}
                 className={mobileNavButtonClass('details', !selectedTicket)}
-                aria-pressed={mobileView === 'details'}
+                aria-selected={mobileView === 'details'}
+                aria-controls={getMobilePanelId('details')}
+                tabIndex={mobileView === 'details' ? 0 : -1}
                 disabled={!selectedTicket}
               >
                 <Info className="h-4 w-4" />
@@ -1238,7 +1296,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0 overflow-hidden"
+                  className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
+                  role="tabpanel"
+                  id={getMobilePanelId('tickets')}
+                  aria-labelledby={getMobileTabId('tickets')}
+                  tabIndex={0}
                 >
                   <Sidebar
                     compact={embedded}
@@ -1258,7 +1320,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0 overflow-hidden"
+                  className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
+                  role="tabpanel"
+                  id={getMobilePanelId('chat')}
+                  aria-labelledby={getMobileTabId('chat')}
+                  tabIndex={0}
                 >
                   <ConversationPanel
                     isMobile={true}
@@ -1280,7 +1346,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0 flex min-h-0 overflow-hidden"
+                  className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
+                  role="tabpanel"
+                  id={getMobilePanelId('details')}
+                  aria-labelledby={getMobileTabId('details')}
+                  tabIndex={0}
                 >
                   <DetailsPanel onClose={() => setActiveMobileView('chat')} />
                 </motion.div>

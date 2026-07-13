@@ -193,4 +193,26 @@ describe('premium territory heatmap aggregation', () => {
     ]);
     expect(layers.find((layer) => layer.id === 'whatsapp_activity')?.tone).toBe('realtime');
   });
+
+  it('publishes commerce activity as a dedicated privacy-safe map layer', () => {
+    const layers = resolveTerritoryLayerDescriptors({
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: {
+        layers: ['base_heatmap', 'commerce_activity'],
+      },
+    } as any);
+
+    const commerce = layers.find((layer) => layer.id === 'commerce_activity');
+    expect(commerce).toMatchObject({
+      label: 'Pedidos y ventas',
+      tone: 'commerce',
+      source: 'backend',
+    });
+    expect(commerce?.description).toContain('sin datos personales');
+  });
 });

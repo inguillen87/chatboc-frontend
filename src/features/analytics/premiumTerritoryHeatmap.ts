@@ -70,7 +70,7 @@ export interface TerritoryLayerDescriptor {
   id: string;
   label: string;
   description: string;
-  tone: 'heat' | 'ai' | 'quality' | 'realtime' | 'neutral';
+  tone: 'heat' | 'ai' | 'quality' | 'realtime' | 'commerce' | 'neutral';
   source: 'backend' | 'derived';
 }
 
@@ -229,6 +229,15 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
       label: id.includes('whatsapp') ? 'WhatsApp' : 'Tiempo real',
       description: 'Actividad reciente y telemetria de canales activos.',
       tone: 'realtime',
+      source,
+    };
+  }
+  if (id.includes('commerce') || id.includes('order') || id.includes('pedido') || id.includes('venta')) {
+    return {
+      id,
+      label: 'Pedidos y ventas',
+      description: 'Actividad comercial agregada sin datos personales ni direcciones exactas.',
+      tone: 'commerce',
       source,
     };
   }

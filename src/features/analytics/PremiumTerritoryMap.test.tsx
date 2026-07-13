@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PremiumTerritoryHeatmap } from './PremiumTerritoryMap';
@@ -59,6 +59,51 @@ const buildPoints = (count: number): OperationsHeatmapPoint[] =>
   }));
 
 describe('PremiumTerritoryHeatmap', () => {
+  it('toggles commerce geo features without exposing customer fields', () => {
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'ticket:1', lat: -34.61, lng: -60.91, source: 'ticket', label: 'Reclamo' },
+      { id: 'order:1', lat: -34.62, lng: -60.92, source: 'commerce', label: 'Pedido comercial' },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { layers: ['base_heatmap', 'commerce_activity'] },
+      geo_layers: {
+        contract_version: 'operations.heatmap_geo_layers.v1',
+        provider: 'geojson',
+        coordinate_order: 'lng_lat',
+        points: {
+          type: 'FeatureCollection',
+          features: points.map((point) => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [point.lng, point.lat] },
+            properties: { id: point.id, source: point.source, label: point.label },
+          })),
+        },
+      },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    const commerceToggle = screen.getByRole('button', { name: 'Pedidos y ventas' });
+    expect(map.getAttribute('data-geo-features')).toBe('2');
+    expect(map.getAttribute('data-points')).toBe('2');
+    expect(commerceToggle.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(commerceToggle);
+
+    expect(map.getAttribute('data-geo-features')).toBe('1');
+    expect(map.getAttribute('data-points')).toBe('1');
+    expect(commerceToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(document.body.textContent).not.toContain('cliente privado');
+  });
+
   it('renders contract-driven layers, quality state and geocoding action', () => {
     const heatmap = {
       contract_version: 'operations.heatmap.v1',

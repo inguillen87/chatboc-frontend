@@ -122,6 +122,17 @@ const formatNumber = (value: unknown, suffix = '') => {
   return `${numberFormatter.format(parsed)}${suffix}`;
 };
 
+const formatCurrency = (value: unknown, currency = 'ARS') => {
+  const parsed = asNumber(value);
+  if (parsed === undefined) return '--';
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'ARS';
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: safeCurrency,
+    maximumFractionDigits: 0,
+  }).format(parsed);
+};
+
 const readNumber = (...values: unknown[]) => {
   for (const value of values) {
     const parsed = asNumber(value);
@@ -494,7 +505,15 @@ const OPERATIONS_DASHBOARD_FALLBACK: OperationsDashboardV1 = {
   tickets: { summary: {} },
   surveys: { summary: {} },
   chats: { summary: {} },
-  commerce: { summary: {}, by_state: [], by_origin: [], by_request_kind: [], review_items: [] },
+  commerce: {
+    summary: {},
+    by_state: [],
+    by_origin: [],
+    by_source_model: [],
+    by_request_kind: [],
+    totals_by_currency: [],
+    review_items: [],
+  },
   live_chat: { summary: {}, items: [] },
   employees: { summary: {}, items: [], coverage: { uncovered_categories: [], uncovered_channels: [] } },
   maps: { heatmap: { hotspots: [], points: [] } },
@@ -1274,6 +1293,17 @@ function AIProviderStatusPanel({
   );
 }
 
+const commerceSourceLabel = (item: OperationsBucketItem) => {
+  const raw = asString(item.label) ?? asString(item.key) ?? '';
+  const labels: Record<string, string> = {
+    PedidoConversacional: 'Pedidos asistidos',
+    MarketOrder: 'Marketplace',
+    PymePedido: 'WhatsApp y pedidos historicos',
+    Order: 'Widget y checkout',
+  };
+  return labels[raw] ?? raw.replace(/([a-z])([A-Z])/g, '$1 $2');
+};
+
 function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
   const commerce = data.commerce;
   const summary = commerce?.summary ?? {};
@@ -1281,54 +1311,78 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
   const assistedOrders = readNumber(data.summary.assisted_orders, summary.assisted_orders);
   const reviewCount = readNumber(data.summary.orders_needing_review, summary.orders_needing_review);
   const unmatchedItems = readNumber(data.summary.unmatched_order_items, summary.unmatched_items);
+  const sourceRecords = readNumber(summary.source_records, totalOrders);
+  const deduplicatedMirrors = readNumber(summary.deduplicated_mirrors, 0);
+  const totalMonetary = readNumber(summary.total_monetary);
+  const currency = asString(summary.currency) ?? 'ARS';
+  const currencyCount = readNumber(summary.currencies, 0) ?? 0;
   const reviewItems = commerce?.review_items ?? [];
   const origins = commerce?.by_origin ?? [];
+  const sourceModels = commerce?.by_source_model ?? [];
   const requestKinds = commerce?.by_request_kind ?? [];
+  const currencyTotals = commerce?.totals_by_currency ?? [];
   const hasSignal =
     (totalOrders ?? 0) > 0 ||
     (assistedOrders ?? 0) > 0 ||
     (reviewCount ?? 0) > 0 ||
     reviewItems.length > 0 ||
-    origins.length > 0;
+    origins.length > 0 ||
+    sourceModels.length > 0;
 
   return (
     <Card id="operations-commerce" data-testid="operations-commerce" className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-emerald-500/5">
       <CardHeader className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-4 w-4 text-primary" />
-              Pedidos asistidos
+              Pedidos y ventas
             </CardTitle>
             <CardDescription>
-              Notas, fotos, PDFs y pedidos de WhatsApp o marketplace que requieren validacion operativa.
+              Pipeline unificado de WhatsApp, widget, marketplace e integraciones, con cola asistida y deduplicacion.
             </CardDescription>
           </div>
-          <Badge variant={reviewCount ? 'secondary' : 'outline'}>
-            {reviewCount ? `${formatNumber(reviewCount)} a revisar` : 'sin cola critica'}
-          </Badge>
+          <div className="flex flex-wrap gap-1.5">
+            {deduplicatedMirrors ? (
+              <Badge variant="outline">
+                {formatNumber(deduplicatedMirrors)} {deduplicatedMirrors === 1 ? 'espejo unificado' : 'espejos unificados'}
+              </Badge>
+            ) : null}
+            <Badge variant={reviewCount ? 'secondary' : 'outline'}>
+              {reviewCount ? `${formatNumber(reviewCount)} a revisar` : 'sin cola critica'}
+            </Badge>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Pedidos</p>
             <p className="mt-1 text-lg font-semibold">{formatNumber(totalOrders)}</p>
+            <p className="text-[11px] text-muted-foreground">{formatNumber(sourceRecords)} registros fuente</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ventas</p>
+            <p className="mt-1 text-lg font-semibold">
+              {currencyCount > 1 ? `${formatNumber(currencyCount)} monedas` : formatCurrency(totalMonetary, currency)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">importe del periodo</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Asistidos</p>
             <p className="mt-1 text-lg font-semibold">{formatNumber(assistedOrders)}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Items</p>
-            <p className="mt-1 text-lg font-semibold">{formatNumber(unmatchedItems)}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">A revisar</p>
+            <p className="mt-1 text-lg font-semibold">{formatNumber(reviewCount)}</p>
+            <p className="text-[11px] text-muted-foreground">{formatNumber(unmatchedItems)} items sin resolver</p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {!hasSignal ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
-            <p className="text-sm font-semibold text-foreground">Sin pedidos asistidos en este periodo</p>
+            <p className="text-sm font-semibold text-foreground">Sin pedidos ni ventas en este periodo</p>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              Cuando un cliente suba una nota, foto o PDF desde WhatsApp o marketplace, aparece aca con cola y origen.
+              Los pedidos de WhatsApp, widget, marketplace e integraciones aparecen aca con estado, origen y trazabilidad.
             </p>
           </div>
         ) : null}
@@ -1373,8 +1427,8 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
           </div>
         ) : null}
 
-        {origins.length || requestKinds.length ? (
-          <div className="grid gap-2 text-xs sm:grid-cols-2">
+        {origins.length || requestKinds.length || sourceModels.length ? (
+          <div className="grid gap-2 text-xs">
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
               <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Origen</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1395,6 +1449,30 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
                 ))}
               </div>
             </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Fuentes</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {sourceModels.slice(0, 4).map((item, index) => (
+                  <Badge key={bucketItemKey(item, index)} variant="outline">
+                    {commerceSourceLabel(item)} {formatNumber(itemValue(item))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {currencyTotals.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background/70 p-3 text-xs">
+            <span className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ventas por moneda</span>
+            {currencyTotals.slice(0, 4).map((item, index) => {
+              const itemCurrency = asString(item.currency) ?? asString(item.key) ?? 'ARS';
+              return (
+                <Badge key={bucketItemKey(item, index)} variant="secondary">
+                  {formatCurrency(item.amount, itemCurrency)} · {formatNumber(item.count)} pedidos
+                </Badge>
+              );
+            })}
           </div>
         ) : null}
       </CardContent>

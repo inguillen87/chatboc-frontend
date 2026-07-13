@@ -127,6 +127,30 @@ const isApiNavigationEndpoint = (endpoint?: string | null) => {
   return pathname.startsWith('/api/') || /^\/v\d+\//.test(pathname);
 };
 
+const isPublicClaimTicket = (ticket: OperationalTicketResult) => {
+  const raw = isRecord(ticket.raw) ? ticket.raw : {};
+  return (
+    endpointPathname(ticket.detail_endpoint).startsWith('/tracking/claim/') ||
+    isRecord(raw.public_status_hint)
+  );
+};
+
+const resolveTicketTrackingEndpoint = (ticket: OperationalTicketResult) => {
+  const suppliedEndpoint = ticket.detail_endpoint?.trim();
+  if (suppliedEndpoint && !isApiNavigationEndpoint(suppliedEndpoint)) return suppliedEndpoint;
+
+  const raw = isRecord(ticket.raw) ? ticket.raw : {};
+  const publicStatusHint = isRecord(raw.public_status_hint) ? raw.public_status_hint : null;
+  if (!publicStatusHint) return null;
+
+  const ticketCode = readFirstString(publicStatusHint.ticket, raw.nro_ticket, ticket.nro_ticket)
+    .replace(/^(M|S)-/i, '');
+  const pin = readFirstString(publicStatusHint.pin, raw.consulta_pin);
+  if (!ticketCode || !pin) return null;
+
+  return `/tracking/claim/${encodeURIComponent(ticketCode)}#pin=${encodeURIComponent(pin)}`;
+};
+
 const readBootstrapSession = (bootstrap?: ChatBootstrapConfig | null) =>
   bootstrap && isRecord(bootstrap.session) ? bootstrap.session : undefined;
 
@@ -1187,9 +1211,11 @@ function LeadCaptureResult({
     result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
     result.status ? { label: 'Estado', value: result.status } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const ticketTrackingEndpoint = result.ticket ? resolveTicketTrackingEndpoint(result.ticket) : null;
   const visibleActions = (result.next_actions ?? []).filter((action) => {
     if (!result.ticket) return true;
     const normalized = `${action.id ?? ''} ${action.label ?? ''}`.toLowerCase();
+    if (ticketTrackingEndpoint && action.endpoint?.trim() === ticketTrackingEndpoint) return false;
     return !(
       normalized.includes('crear ticket') ||
       normalized.includes('create ticket') ||
@@ -1281,6 +1307,8 @@ function OperationalTicketCard({
   const whatsappCase = ticket.canal_ingreso?.trim().toLowerCase() === 'whatsapp';
   const attachments = ticket.archivos ?? [];
   const attachmentCount = ticket.archivos_count ?? attachments.length;
+  const trackingEndpoint = resolveTicketTrackingEndpoint(ticket);
+  const publicClaimTicket = isPublicClaimTicket(ticket);
   const isSchoolCase = (() => {
     const raw = ticket.raw && typeof ticket.raw === 'object' ? ticket.raw as Record<string, unknown> : {};
     const source = `${ticket.ticket_type ?? ''} ${raw.fuente ?? ''} ${raw.alias ?? ''}`.toLowerCase();
@@ -1303,14 +1331,14 @@ function OperationalTicketCard({
             {ticket.canal_ingreso}
           </span>
         ) : null}
-        {ticket.detail_endpoint && !isApiNavigationEndpoint(ticket.detail_endpoint) ? (
+        {trackingEndpoint ? (
           <a
-            href={ticket.detail_endpoint}
+            href={trackingEndpoint}
             className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
             Ver seguimiento <ExternalLink className="h-3 w-3" />
           </a>
-        ) : ticket.detail_endpoint || onOpenResult ? (
+        ) : !publicClaimTicket && (ticket.detail_endpoint || onOpenResult) ? (
           <button
             type="button"
             onClick={onOpenResult}

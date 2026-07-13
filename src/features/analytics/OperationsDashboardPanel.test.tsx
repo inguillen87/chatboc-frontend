@@ -125,12 +125,22 @@ const dashboardFixture = (): OperationsDashboardV1 => ({
     contract_version: 'operations.commerce.v1',
     summary: {
       orders: 4,
+      source_records: 5,
+      deduplicated_mirrors: 1,
       assisted_orders: 2,
       orders_needing_review: 1,
       unmatched_items: 3,
+      total_monetary: 52500,
+      currency: 'ARS',
+      currencies: 1,
     },
     by_origin: [{ key: 'marketplace_upload', label: 'marketplace_upload', count: 2 }],
+    by_source_model: [
+      { key: 'Order', label: 'Order', count: 2 },
+      { key: 'PedidoConversacional', label: 'PedidoConversacional', count: 2 },
+    ],
     by_request_kind: [{ key: 'order_note', label: 'order_note', count: 2 }],
+    totals_by_currency: [{ key: 'ARS', label: 'ARS', currency: 'ARS', amount: 52500, count: 4 }],
     review_items: [
       {
         id: 'assisted_order:2',
@@ -140,7 +150,7 @@ const dashboardFixture = (): OperationsDashboardV1 => ({
         detected: 5,
         matched: 2,
         unmatched: 3,
-        frontend_path: '/t/junin/pedidos/2',
+        frontend_path: '/perfil?tab=pedidos&order_id=conversational%3A2&focus=assisted_order_queue',
       },
     ],
   },
@@ -501,12 +511,17 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     const commercePanel = screen.getByTestId('operations-commerce');
-    expect(commercePanel).toHaveTextContent('Pedidos asistidos');
+    expect(commercePanel).toHaveTextContent('Pedidos y ventas');
     expect(commercePanel).toHaveTextContent('1 a revisar');
+    expect(commercePanel).toHaveTextContent('1 espejo unificado');
+    expect(commercePanel).toHaveTextContent('52.500');
+    expect(commercePanel).toHaveTextContent('Pedidos asistidos 2');
     expect(commercePanel).toHaveTextContent('Pedido asistido requiere revision');
     expect(commercePanel).toHaveTextContent('5 detectados');
     expect(commercePanel).toHaveTextContent('3 sin resolver');
-    expect(commercePanel.querySelector('a')?.getAttribute('href')).toBe('/t/junin/pedidos/2');
+    expect(commercePanel.querySelector('a')?.getAttribute('href')).toBe(
+      '/perfil?tab=pedidos&order_id=conversational%3A2&focus=assisted_order_queue',
+    );
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
     const decisionBrief = screen.getByTestId('territorial-decision-brief');
     expect(decisionBrief).toHaveTextContent('Mesa territorial inteligente');

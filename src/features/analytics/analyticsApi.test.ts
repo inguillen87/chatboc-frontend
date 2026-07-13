@@ -740,6 +740,11 @@ describe('operations heatmap v2 contract', () => {
       trends: {},
       alerts: [],
       next_best_actions: [],
+      commerce: {
+        summary: { orders: 3, source_records: 4, deduplicated_mirrors: 1, total_monetary: 4000, currency: 'ARS' },
+        by_source_model: [{ key: 'Order', label: 'Order', count: '2' }],
+        totals_by_currency: [{ key: 'ARS', currency: 'ARS', amount: '4000', count: '3' }],
+      },
       heatmap: { contract_version: 'operations.heatmap.v1', points: [] },
       realtime: {},
       survey_analytics: {},
@@ -780,5 +785,9 @@ describe('operations heatmap v2 contract', () => {
       },
     });
     expect(response.ai_brief?.focus_items.map((item) => item.label)).toEqual(['Encuestas']);
+    expect(response.commerce?.by_source_model).toEqual([{ key: 'Order', label: 'Order', count: 2 }]);
+    expect(response.commerce?.totals_by_currency).toEqual([
+      { key: 'ARS', label: 'ARS', currency: 'ARS', amount: 4000, count: 3 },
+    ]);
   });
 });

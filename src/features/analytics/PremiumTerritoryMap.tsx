@@ -186,6 +186,7 @@ const layerToneClass: Record<TerritoryLayerDescriptor['tone'], string> = {
   ai: 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200',
   quality: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
   realtime: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200',
+  commerce: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200',
   neutral: 'border-border bg-background/80 text-foreground',
 };
 
@@ -384,6 +385,7 @@ const buildOperationsGeoLayerConfig = ({
   showAiLayer,
   showQualityLayer,
   showRealtimeLayer,
+  showCommerceLayer,
 }: {
   heatmap?: OperationsHeatmapV1;
   points: HeatPoint[];
@@ -393,6 +395,7 @@ const buildOperationsGeoLayerConfig = ({
   showAiLayer: boolean;
   showQualityLayer: boolean;
   showRealtimeLayer: boolean;
+  showCommerceLayer: boolean;
 }): OperationsGeoLayerConfig | null => {
   if (!heatmap) return null;
 
@@ -465,7 +468,11 @@ const buildOperationsGeoLayerConfig = ({
       };
     });
 
-  const features = geoLayerSource?.features ?? localFeatures;
+  const features = (geoLayerSource?.features ?? localFeatures).filter((feature) => {
+    const properties = asRecord(feature.properties);
+    const source = readString(properties?.source, properties?.fuente);
+    return source !== 'commerce' || showCommerceLayer;
+  });
   if (features.length === 0) return null;
 
   return {
@@ -504,6 +511,7 @@ const buildOperationsGeoLayerConfig = ({
         ai: showAiLayer,
         quality: showQualityLayer,
         realtime: showRealtimeLayer,
+        commerce: showCommerceLayer,
       },
     },
     interactions: {
@@ -638,10 +646,6 @@ export function PremiumTerritoryHeatmap({
     () => sourcePoints.map(toLiveHeatPoint).filter((point): point is HeatPoint => Boolean(point)),
     [sourcePoints],
   );
-  const liveMapBounds = useMemo(
-    () => liveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
-    [liveMapPoints],
-  );
   const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
   const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
 
@@ -665,7 +669,7 @@ export function PremiumTerritoryHeatmap({
     () =>
       displayLayers
         .filter((layer) => layer.tone !== 'neutral' || layer.source === 'backend')
-        .slice(0, 5)
+        .slice(0, 6)
         .map((layer) => layer.id),
     [displayLayerKey, displayLayers],
   );
@@ -812,6 +816,19 @@ export function PremiumTerritoryHeatmap({
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
   const showQualityLayer = layerIsEnabled(enabledLayerIds, ['quality', 'coverage', 'geo']);
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
+  const hasCommerceLayer = displayLayers.some((layer) => layer.tone === 'commerce');
+  const showCommerceLayer = hasCommerceLayer && layerIsEnabled(enabledLayerIds, ['commerce', 'order', 'pedido', 'venta']);
+  const visibleLiveMapPoints = useMemo(
+    () =>
+      showCommerceLayer
+        ? liveMapPoints
+        : liveMapPoints.filter((point) => readString(point.fuente) !== 'commerce'),
+    [liveMapPoints, showCommerceLayer],
+  );
+  const liveMapBounds = useMemo(
+    () => visibleLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
+    [visibleLiveMapPoints],
+  );
   const geoLayerConfig = useMemo(
     () =>
       buildOperationsGeoLayerConfig({
@@ -823,6 +840,7 @@ export function PremiumTerritoryHeatmap({
         showAiLayer,
         showQualityLayer,
         showRealtimeLayer,
+        showCommerceLayer,
       }),
     [
       heatmap,
@@ -833,6 +851,7 @@ export function PremiumTerritoryHeatmap({
       showHeatLayer,
       showQualityLayer,
       showRealtimeLayer,
+      showCommerceLayer,
     ],
   );
   const liveMapEvidence = useMemo(
@@ -1075,6 +1094,7 @@ export function PremiumTerritoryHeatmap({
     showHeatLayer ? 'calor' : null,
     showAiLayer ? 'IA' : null,
     showRealtimeLayer ? 'realtime' : null,
+    showCommerceLayer ? 'comercio' : null,
   ].filter(Boolean).join(' - ');
   const liveLegendCards = [
     { label: 'Señal viva', value: liveSignalValue, detail: liveSignalDetail, icon: Activity },
@@ -1351,7 +1371,7 @@ export function PremiumTerritoryHeatmap({
             <div data-testid="live-territory-map" className="relative z-10 h-[450px] w-full overflow-hidden sm:h-[540px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
-                heatmapData={liveMapPoints}
+                heatmapData={visibleLiveMapPoints}
                 showHeatmap={showHeatLayer}
                 provider={liveMapProvider}
                 mapStyleUrl={mapConfig?.style_url}

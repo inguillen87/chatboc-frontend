@@ -1271,6 +1271,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+        data-testid="ticket-conversation-panel"
     >
       <header className="shrink-0 border-b border-border px-3 py-2">
         <div className="flex min-h-12 flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
@@ -1420,12 +1421,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 bg-muted/20">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-muted/20">
         {desktopView === 'details' && !isMobile ? (
           <DetailsPanel />
         ) : (
           <>
-            <div className="h-full overflow-y-auto p-4 pb-8" ref={scrollAreaRef} onScroll={handleScroll}>
+            <div
+              className="h-full min-h-0 overflow-y-auto overscroll-contain p-3 pb-4 [scrollbar-gutter:stable] sm:p-4 sm:pb-8"
+              ref={scrollAreaRef}
+              onScroll={handleScroll}
+              data-testid="ticket-message-scroll"
+            >
               {timelinePartial && (
                 <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
@@ -1493,131 +1499,156 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-border/80 bg-card/95 p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)]">
-        <div
-          data-testid="ticket-composer-channel-status"
-          className={cn(
-            'mb-2 flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between',
-            composerChannelView.tone === 'success'
-              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
-              : composerChannelView.tone === 'warning'
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                : 'border-border/70 bg-muted/40 text-muted-foreground',
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            {composerChannelView.tone === 'warning' ? (
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-            ) : (
-              <MessageCircle className="h-4 w-4 shrink-0" />
-            )}
-            <div className="min-w-0">
-              <p className="font-semibold uppercase tracking-wide">{composerChannelView.label}</p>
-              <p className="mt-0.5 truncate leading-5 sm:max-w-[44rem]" title={composerChannelView.detail}>
-                {composerChannelView.detail}
-              </p>
-            </div>
-          </div>
-          <Badge variant="outline" className="w-fit shrink-0 rounded-full px-2 text-[11px]">
-            {formatReplyDeliveryChannel(activeChannel)}
-          </Badge>
-        </div>
-        {attachmentPreview && (
-          <div className="relative mb-2 flex w-full items-center gap-3 rounded-lg bg-muted p-2">
-            {attachmentPreview.previewUrl ? (
-              <img src={attachmentPreview.previewUrl} alt="Preview" className="w-14 h-14 rounded-md object-cover" />
-            ) : (
-              <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-secondary rounded-md">
-                <FileText className="w-7 h-7 text-secondary-foreground" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{attachmentPreview.file.name}</p>
-              <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
-            </div>
-            <Button variant="ghost" size="icon" className="absolute top-1 right-1 w-6 h-6" onClick={() => setAttachmentPreview(null)}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+      <footer
+        className={cn(
+          'shrink-0 overflow-hidden border-t border-border/80 bg-card/95 shadow-[0_-10px_28px_rgba(15,23,42,0.08)]',
+          isMobile ? 'px-2.5 py-2' : 'p-3',
         )}
-        {operationalGuidance && replyDraft ? (
-          <div className="mb-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
-            <div className="flex flex-col gap-2 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Borrador asistido</p>
-                  <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'} className="h-5 rounded-full px-2 text-[11px]">
-                    {operationalGuidance.source === 'backend' ? 'backend' : 'operativo'}
-                  </Badge>
-                </div>
-                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{replyDraft}</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 shrink-0 rounded-[8px] px-3 text-xs font-semibold"
-                onClick={applyReplyDraft}
-                disabled={!canApplyReplyDraft}
-              >
-                Usar sugerencia
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        {lastReplyDelivery && replyDeliveryView ? (
+        data-testid="ticket-reply-footer"
+      >
+        <div
+          className={cn(
+            'min-h-0',
+            isMobile && 'max-h-[8.5rem] overflow-y-auto overscroll-contain pr-0.5 [scrollbar-gutter:stable]',
+          )}
+          data-testid="ticket-composer-context"
+        >
           <div
-            data-testid="ticket-reply-delivery-status"
-            role="status"
-            aria-live="polite"
+            data-testid="ticket-composer-channel-status"
             className={cn(
-              'mb-2 rounded-lg border p-2.5',
-              replyDeliveryView.tone === 'success'
+              'mb-1.5 flex flex-row items-center justify-between gap-2 rounded-[8px] border text-xs sm:mb-2',
+              isMobile ? 'px-2 py-1.5' : 'px-2.5 py-2',
+              composerChannelView.tone === 'success'
                 ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
-                : replyDeliveryView.tone === 'warning'
+                : composerChannelView.tone === 'warning'
                   ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
                   : 'border-border/70 bg-muted/40 text-muted-foreground',
             )}
           >
-            <div className="flex min-w-0 items-start gap-2">
-              {replyDeliveryView.tone === 'success' ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              ) : replyDeliveryView.tone === 'warning' ? (
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex min-w-0 items-center gap-2">
+              {composerChannelView.tone === 'warning' ? (
+                <AlertTriangle className="h-4 w-4 shrink-0" />
               ) : (
-                <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <MessageCircle className="h-4 w-4 shrink-0" />
               )}
               <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide">{replyDeliveryView.title}</p>
-                  <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">
-                    {formatReplyDeliveryChannel(lastReplyDelivery.channel)}
-                  </Badge>
-                  {lastReplyDelivery.recipient_read_confirmed ? (
-                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                      leido
-                    </Badge>
-                  ) : lastReplyDelivery.recipient_presence_confirmed ? (
-                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                      entregado
-                    </Badge>
-                  ) : lastReplyDelivery.socket_emitted ? (
-                    <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                      socket emitido
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-xs leading-5">{replyDeliveryView.detail}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide sm:text-xs">{composerChannelView.label}</p>
+                <p className="truncate text-[11px] leading-4 sm:max-w-[44rem] sm:text-xs sm:leading-5" title={composerChannelView.detail}>
+                  {composerChannelView.detail}
+                </p>
               </div>
             </div>
+            <Badge variant="outline" className="h-5 w-fit shrink-0 rounded-full px-2 text-[10px] sm:text-[11px]">
+              {formatReplyDeliveryChannel(activeChannel)}
+            </Badge>
           </div>
-        ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end" data-testid="ticket-composer">
+          {attachmentPreview && (
+            <div className="relative mb-1.5 flex w-full items-center gap-2 rounded-[8px] bg-muted p-1.5 sm:mb-2 sm:gap-3 sm:p-2">
+              {attachmentPreview.previewUrl ? (
+                <img src={attachmentPreview.previewUrl} alt="Preview" className="h-10 w-10 rounded-md object-cover sm:h-14 sm:w-14" />
+              ) : (
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-secondary sm:h-14 sm:w-14">
+                  <FileText className="h-6 w-6 text-secondary-foreground sm:h-7 sm:w-7" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{attachmentPreview.file.name}</p>
+                <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
+              </div>
+              <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6" onClick={() => setAttachmentPreview(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {operationalGuidance && replyDraft ? (
+            <div className="mb-1.5 rounded-[8px] border border-primary/20 bg-primary/5 p-2 sm:mb-2 sm:p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 space-y-0.5 sm:space-y-1">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-primary sm:text-xs">Borrador asistido</p>
+                    <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'} className="h-5 shrink-0 rounded-full px-1.5 text-[10px] sm:px-2 sm:text-[11px]">
+                      {operationalGuidance.source === 'backend' ? 'backend' : 'operativo'}
+                    </Badge>
+                  </div>
+                  <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground sm:line-clamp-2 sm:text-xs sm:leading-5">{replyDraft}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 rounded-[8px] px-2 text-[11px] font-semibold sm:h-8 sm:px-3 sm:text-xs"
+                  onClick={applyReplyDraft}
+                  disabled={!canApplyReplyDraft}
+                >
+                  Usar
+                  <span className="sr-only sm:not-sr-only"> sugerencia</span>
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {lastReplyDelivery && replyDeliveryView ? (
+            <div
+              data-testid="ticket-reply-delivery-status"
+              role="status"
+              aria-live="polite"
+              className={cn(
+                'mb-1.5 rounded-[8px] border p-2 sm:mb-2 sm:p-2.5',
+                replyDeliveryView.tone === 'success'
+                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                  : replyDeliveryView.tone === 'warning'
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                    : 'border-border/70 bg-muted/40 text-muted-foreground',
+              )}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                {replyDeliveryView.tone === 'success' ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                ) : replyDeliveryView.tone === 'warning' ? (
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                ) : (
+                  <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide">{replyDeliveryView.title}</p>
+                    <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">
+                      {formatReplyDeliveryChannel(lastReplyDelivery.channel)}
+                    </Badge>
+                    {lastReplyDelivery.recipient_read_confirmed ? (
+                      <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                        leido
+                      </Badge>
+                    ) : lastReplyDelivery.recipient_presence_confirmed ? (
+                      <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                        entregado
+                      </Badge>
+                    ) : lastReplyDelivery.socket_emitted ? (
+                      <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
+                        socket emitido
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs leading-5">{replyDeliveryView.detail}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            'gap-2',
+            isMobile ? 'grid grid-cols-[minmax(0,1fr)_auto] items-end pt-1.5' : 'flex flex-col sm:flex-row sm:items-end',
+          )}
+          data-testid="ticket-composer"
+        >
           <Textarea
             ref={composerRef}
             placeholder={composerPlaceholder}
-            className="min-h-[52px] max-h-36 flex-1 resize-none rounded-[8px] border-border/80 bg-background pr-3 text-sm leading-5 shadow-sm focus-visible:ring-primary/40"
+            className={cn(
+              'flex-1 resize-none rounded-[8px] border-border/80 bg-background pr-3 text-sm leading-5 shadow-sm focus-visible:ring-primary/40',
+              isMobile ? 'min-h-11 max-h-24' : 'min-h-[52px] max-h-36',
+            )}
             rows={1}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -1631,7 +1662,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             maxLength={1000}
             aria-label="Responder ticket"
           />
-          <div className="flex w-full shrink-0 items-center justify-between gap-1 rounded-[8px] border border-border/70 bg-muted/30 p-1 sm:w-auto sm:justify-end">
+          <div
+            className={cn(
+              'flex shrink-0 items-center rounded-[8px] border border-border/70 bg-muted/30',
+              isMobile
+                ? 'w-auto justify-end gap-0.5 p-0.5 [&_button]:!h-9 [&_button]:!w-9 [&_button]:!rounded-[8px]'
+                : 'w-full justify-between gap-1 p-1 sm:w-auto sm:justify-end',
+            )}
+          >
             <div className="flex items-center gap-1">
               {selectedTicket && (
                 <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
@@ -1647,8 +1685,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               )}
               <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
             </div>
-            <Button className="h-10 min-w-10 rounded-[8px] px-3" onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
-              {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
+            <Button className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')} onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
+              {isSending ? (
+                isMobile ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="sr-only">Enviando</span>
+                  </>
+                ) : (
+                  'Enviando...'
+                )
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
             </Button>
           </div>
         </div>

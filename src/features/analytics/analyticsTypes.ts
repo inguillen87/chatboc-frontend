@@ -143,7 +143,9 @@ export interface OperationsCommerce {
   summary?: Record<string, unknown>;
   by_state?: OperationsBucketItem[];
   by_origin?: OperationsBucketItem[];
+  by_source_model?: OperationsBucketItem[];
   by_request_kind?: OperationsBucketItem[];
+  totals_by_currency?: OperationsBucketItem[];
   review_items?: OperationsBucketItem[];
   frontend_contract?: Record<string, unknown>;
   [key: string]: unknown;
