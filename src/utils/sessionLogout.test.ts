@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
+  hasAuthenticatedChatbocSession,
   hasPersistedClerkSession,
   logoutChatbocSession,
   registerClerkSignOut,
@@ -122,6 +123,15 @@ describe('logoutChatbocSession', () => {
 
     expect(signOut).toHaveBeenCalledTimes(1);
     delete clerkWindow.Clerk;
+  });
+
+  it('recognizes a cookie-backed Clerk identity as an authenticated Chatboc session', () => {
+    safeLocalStorage.setItem('authProvider', 'clerk');
+    safeLocalStorage.setItem('clerkUserId', 'user_cookie_1');
+    safeLocalStorage.setItem('clerkSessionTransport', 'cookie');
+
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(hasAuthenticatedChatbocSession()).toBe(true);
   });
 
   it('resets an identity transition without signing the user out of Clerk', async () => {

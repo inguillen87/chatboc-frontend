@@ -37,20 +37,22 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   const [profileSyncGrace, setProfileSyncGrace] = useState(true);
   const storedUser = readStoredUser();
   const effectiveUser = user ?? storedUser;
-  const hasToken = Boolean(
-    safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
+  const hasSession = Boolean(
+    safeLocalStorage.getItem('authToken') ||
+    safeLocalStorage.getItem('chatAuthToken') ||
+    safeLocalStorage.getItem('authProvider')?.trim().toLowerCase() === 'clerk',
   );
 
   useEffect(() => {
-    if (!hasToken || effectiveUser) {
+    if (!hasSession || effectiveUser) {
       setProfileSyncGrace(false);
       return;
     }
     const timer = window.setTimeout(() => setProfileSyncGrace(false), 8000);
     return () => window.clearTimeout(timer);
-  }, [effectiveUser, hasToken]);
+  }, [effectiveUser, hasSession]);
 
-  if ((loading && !effectiveUser) || (hasToken && !effectiveUser && profileSyncGrace)) {
+  if ((loading && !effectiveUser) || (hasSession && !effectiveUser && profileSyncGrace)) {
     return <ViewState status="loading" title="Validando acceso" />;
   }
 

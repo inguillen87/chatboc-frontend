@@ -4,7 +4,23 @@ import ChatUserLoginPanel from "@/components/chat/ChatUserLoginPanel";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import type { Role } from "@/utils/roles";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { getSafeAuthNextPath } from "@/utils/authRedirect";
+import { resolvePortalAuthTenantSlug, sanitizeClerkReturnPath } from "@/utils/clerkAuthContext";
+
+const sanitizePortalReturnTo = (value?: string | null) => {
+  const safePath = sanitizeClerkReturnPath(value);
+  if (!safePath) return null;
+
+  const pathOnly = safePath.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+  const isPortalAuthRoute =
+    /^\/user\/(?:login|register)$/i.test(pathOnly) ||
+    /^\/(?:t|portal)\/[^/]+\/user\/(?:login|register)$/i.test(pathOnly);
+
+  return isPortalAuthRoute ? null : safePath;
+};
+
+const appendNext = (path: string, next: string | null) =>
+  next ? `${path}?next=${encodeURIComponent(next)}` : path;
 
 const UserLogin = () => {
   const navigate = useNavigate();
@@ -12,35 +28,52 @@ const UserLogin = () => {
   const { widgetToken, currentSlug } = useTenant();
 
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
-    [currentSlug]
+    () => resolvePortalAuthTenantSlug({
+      pathname: location.pathname,
+      search: location.search,
+      currentSlug,
+      hasWidgetToken: Boolean(widgetToken),
+    }),
+    [currentSlug, location.pathname, location.search, widgetToken],
   );
 
-  const redirectTo = (location.state as { redirectTo?: string } | null)?.redirectTo;
+  const requestedStateRedirect = (location.state as { redirectTo?: string } | null)?.redirectTo;
+  const redirectTo = useMemo(
+    () =>
+      sanitizePortalReturnTo(requestedStateRedirect) ||
+      sanitizePortalReturnTo(getSafeAuthNextPath(location.search)),
+    [location.search, requestedStateRedirect],
+  );
 
   const defaultDashboard = buildTenantPath("/portal/dashboard", effectiveTenantSlug);
-  const registerPath = buildTenantPath("/register", effectiveTenantSlug);
+  const returnTo = redirectTo || defaultDashboard;
+  const registerPath = appendNext(
+    buildTenantPath("/user/register", effectiveTenantSlug),
+    redirectTo,
+  );
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <ChatUserLoginPanel
-        onSuccess={(rol: Role) => {
+        onSuccess={(rol?: Role) => {
           if (redirectTo) {
-             navigate(redirectTo);
-             return;
+            navigate(redirectTo);
+            return;
           }
           if (rol === "admin" || rol === "empleado") {
-            // Admins go to internal panel
-            // TODO: Ensure this uses tenant prefix too if needed, e.g. /:tenant/perfil?
-            // Currently /perfil is global for logged in user usually?
             navigate("/perfil");
           } else {
-            // End users go to Portal Dashboard
             navigate(defaultDashboard);
           }
         }}
-        onShowRegister={() => navigate(registerPath)}
+        onShowRegister={() =>
+          navigate(registerPath, {
+            state: redirectTo ? { redirectTo } : undefined,
+          })
+        }
         entityToken={widgetToken ?? undefined}
+        tenantSlug={effectiveTenantSlug}
+        returnTo={returnTo}
       />
     </div>
   );

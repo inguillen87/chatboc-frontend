@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth, useUser as useClerkUser } from '@clerk/clerk-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Loader2, LogOut, RefreshCw } from 'lucide-react';
 
 import {
   completeClerkOnboarding,
@@ -11,8 +12,19 @@ import {
 } from '@/api/clerkAuth';
 import ClerkTenantOnboardingDialog from '@/components/auth/ClerkTenantOnboardingDialog';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
+import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/useUser';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  clearClerkAuthContext,
+  readClerkAuthContext,
+  sanitizeClerkReturnPath,
+  type ClerkAuthContext,
+  type ClerkAuthIntent,
+} from '@/utils/clerkAuthContext';
+import { getSafeAuthNextPath } from '@/utils/authRedirect';
+import { buildTenantPath } from '@/utils/tenantPaths';
+import { resolveTenantSlug } from '@/utils/api';
 import {
   captureChatbocSessionRevision,
   hasPersistedClerkSession,
@@ -20,6 +32,7 @@ import {
   readPersistedClerkUserId,
   registerClerkSignOut,
   resetChatbocSessionForIdentityTransition,
+  logoutChatbocSession,
 } from '@/utils/sessionLogout';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 
@@ -62,19 +75,27 @@ export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
 export const persistChatbocSession = (
   session: ClerkSessionResponse,
   clerkUserId?: string | null,
+  authIntent: ClerkAuthIntent = session.auth_intent === 'tenant_portal' ? 'tenant_portal' : 'tenant_owner',
 ) => {
-  if (!session?.token) return;
-  safeLocalStorage.setItem('authToken', session.token);
-  safeLocalStorage.setItem('chatAuthToken', session.token);
+  if (!session?.user) return;
+  const sessionToken = typeof session.token === 'string' && session.token.trim()
+    ? session.token.trim()
+    : null;
+
+  usePanelSessionStore.getState().setAuthToken(sessionToken);
+  if (authIntent === 'tenant_portal') {
+    useWidgetSessionStore.getState().setChatAuthToken(sessionToken);
+  } else {
+    useWidgetSessionStore.getState().setChatAuthToken(null);
+  }
   safeLocalStorage.setItem('authProvider', 'clerk');
+  safeLocalStorage.setItem('clerkAuthIntent', authIntent);
+  safeLocalStorage.setItem('clerkSessionTransport', session.session_transport || (sessionToken ? 'bearer' : 'cookie'));
   if (clerkUserId?.trim()) {
     safeLocalStorage.setItem('clerkUserId', clerkUserId.trim());
   } else {
     safeLocalStorage.removeItem('clerkUserId');
   }
-  usePanelSessionStore.getState().setAuthToken(session.token);
-  useWidgetSessionStore.getState().setChatAuthToken(session.token);
-
   const tenantSlug = session.user?.tenantSlug || session.user?.tenant_slug || session.tenant?.slug;
   if (tenantSlug) {
     safeLocalStorage.setItem('tenantSlug', tenantSlug);
@@ -85,6 +106,8 @@ export const persistChatbocSession = (
       ...session.user,
       authProvider: 'clerk',
       auth_provider: 'clerk',
+      authIntent,
+      auth_intent: authIntent,
       tenantSlug: tenantSlug || undefined,
       tenant_slug: tenantSlug || undefined,
     } as any);
@@ -92,10 +115,36 @@ export const persistChatbocSession = (
 };
 
 const isAuthEntryPath = (pathname: string) =>
-  pathname === '/login' ||
-  pathname === '/register' ||
-  pathname === '/login/' ||
-  pathname === '/register/';
+  /\/(?:user\/)?(?:login|register)\/?$/i.test(pathname);
+
+const resolveBridgeAuthContext = (location: { pathname: string; search: string }): ClerkAuthContext => {
+  const stored = readClerkAuthContext();
+  if (stored) return stored;
+
+  if (hasPersistedClerkSession()) {
+    const persistedIntent: ClerkAuthIntent =
+      safeLocalStorage.getItem('clerkAuthIntent') === 'tenant_portal'
+        ? 'tenant_portal'
+        : 'tenant_owner';
+    return {
+      intent: persistedIntent,
+      tenantSlug:
+        persistedIntent === 'tenant_portal'
+          ? safeLocalStorage.getItem('tenantSlug')
+          : null,
+      returnTo: null,
+      createdAt: Date.now(),
+    };
+  }
+
+  const portalEntry = /\/user\/(?:login|register)\/?$/i.test(location.pathname);
+  return {
+    intent: portalEntry ? 'tenant_portal' : 'tenant_owner',
+    tenantSlug: portalEntry ? resolveTenantSlug() : null,
+    returnTo: sanitizeClerkReturnPath(getSafeAuthNextPath(location.search)),
+    createdAt: Date.now(),
+  };
+};
 
 const ClerkAuthBridge: React.FC = () => {
   const clerkRuntime = useClerkRuntime();
@@ -110,6 +159,8 @@ const ClerkAuthBridge: React.FC = () => {
   const [onboardingLoading, setOnboardingLoading] = React.useState(false);
   const [onboardingError, setOnboardingError] = React.useState<string | null>(null);
   const [profile, setProfile] = React.useState<ClerkUserProfilePayload | undefined>();
+  const [syncError, setSyncError] = React.useState<string | null>(null);
+  const [syncRetryNonce, setSyncRetryNonce] = React.useState(0);
   const syncKeyRef = React.useRef<string | null>(null);
   const previousSignedInRef = React.useRef<boolean | undefined>(undefined);
   const activeClerkUserIdRef = React.useRef<string | null | undefined>(undefined);
@@ -125,6 +176,7 @@ const ClerkAuthBridge: React.FC = () => {
     setOnboardingOpen(false);
     setOnboardingContract(undefined);
     setOnboardingError(null);
+    setSyncError(null);
   }, []);
 
   React.useEffect(() => registerClerkSignOut(signOut), [signOut]);
@@ -177,7 +229,14 @@ const ClerkAuthBridge: React.FC = () => {
     }
     activeClerkUserIdRef.current = currentClerkUserId;
 
-    const syncKey = `${clerkUser.id}:${(clerkUser as any)?.updatedAt?.getTime?.() ?? ''}`;
+    const authContext = resolveBridgeAuthContext(location);
+    const syncKey = [
+      clerkUser.id,
+      (clerkUser as any)?.updatedAt?.getTime?.() ?? '',
+      authContext.intent,
+      authContext.tenantSlug || '',
+      syncRetryNonce,
+    ].join(':');
     if (syncKeyRef.current === syncKey) return;
     syncKeyRef.current = syncKey;
 
@@ -200,10 +259,16 @@ const ClerkAuthBridge: React.FC = () => {
           return;
         }
         const nextProfile = buildClerkProfile(clerkUser);
-        const session = await syncClerkSession(token, nextProfile);
+        const session = await syncClerkSession(token, nextProfile, {
+          intent: authContext.intent,
+          tenant_slug: authContext.tenantSlug,
+        });
         if (!isCurrentSync()) return;
 
-        if (!session.token) {
+        if (session.onboarding?.required) {
+          if (authContext.intent === 'tenant_portal') {
+            throw new Error('El acceso de vecino o cliente no puede crear una organizacion. Volve a intentarlo desde el portal del tenant.');
+          }
           const transition = resetChatbocSessionForIdentityTransition();
           await transition.completion;
           if (
@@ -218,23 +283,28 @@ const ClerkAuthBridge: React.FC = () => {
           return;
         }
 
-        persistChatbocSession(session, currentClerkUserId);
+        persistChatbocSession(session, currentClerkUserId, authContext.intent);
+        setSyncError(null);
         setProfile(nextProfile);
         setOnboardingContract(session.onboarding);
-        if (session.onboarding?.required) {
-          setOnboardingRequired(true);
-          setOnboardingOpen(true);
-          return;
-        }
         setOnboardingRequired(false);
-        setOnboardingContract(session.onboarding);
         await refreshUser();
-        if (isCurrentSync() && isAuthEntryPath(pathnameRef.current)) {
-          navigateRef.current('/perfil', { replace: true });
+        if (!isCurrentSync()) return;
+
+        const tenantSlug = session.user?.tenantSlug || session.user?.tenant_slug || session.tenant?.slug || authContext.tenantSlug;
+        const destination = authContext.returnTo || (
+          authContext.intent === 'tenant_portal'
+            ? buildTenantPath('/portal/dashboard', tenantSlug || undefined)
+            : '/perfil'
+        );
+        clearClerkAuthContext();
+        if (isAuthEntryPath(pathnameRef.current) || authContext.returnTo) {
+          navigateRef.current(destination, { replace: true });
         }
       } catch (error) {
         if (!isCurrentSync()) return;
         console.error('[ClerkAuthBridge] No se pudo sincronizar Clerk con Chatboc', error);
+        setSyncError(error instanceof Error ? error.message : 'No se pudo completar el acceso seguro.');
         syncKeyRef.current = null;
       }
     };
@@ -243,7 +313,7 @@ const ClerkAuthBridge: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, refreshUser, resetBridgeState]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, location, refreshUser, resetBridgeState, syncRetryNonce]);
 
   if (!clerkRuntime.enabled || !isLoaded || !isSignedIn) return null;
 
@@ -268,17 +338,16 @@ const ClerkAuthBridge: React.FC = () => {
         user: profile || buildClerkProfile(clerkUser),
       });
       if (!isCurrentSubmit()) return;
-      if (!session.token) {
-        const transition = resetChatbocSessionForIdentityTransition();
-        await transition.completion;
-        throw new Error(session.message || 'El backend no creo una sesion Chatboc valida.');
+      if (session.onboarding?.required) {
+        throw new Error(session.message || 'El backend no completo el alta del espacio.');
       }
-      persistChatbocSession(session, submitClerkUserId);
+      persistChatbocSession(session, submitClerkUserId, 'tenant_owner');
       setOnboardingContract(session.onboarding);
       await refreshUser();
       if (!isCurrentSubmit()) return;
       setOnboardingRequired(false);
       setOnboardingOpen(false);
+      clearClerkAuthContext();
       navigate('/perfil?setup=channels', { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo completar el onboarding.';
@@ -289,17 +358,64 @@ const ClerkAuthBridge: React.FC = () => {
   };
 
   return (
-    <ClerkTenantOnboardingDialog
-      open={onboardingOpen}
-      onOpenChange={setOnboardingOpen}
-      userProfile={profile}
-      defaultTenantName={defaultTenantName}
-      onboarding={onboardingContract}
-      required={onboardingRequired}
-      loading={onboardingLoading}
-      error={onboardingError}
-      onSubmit={handleOnboardingSubmit}
-    />
+    <>
+      <ClerkTenantOnboardingDialog
+        open={onboardingOpen}
+        onOpenChange={setOnboardingOpen}
+        userProfile={profile}
+        defaultTenantName={defaultTenantName}
+        onboarding={onboardingContract}
+        required={onboardingRequired}
+        loading={onboardingLoading}
+        error={onboardingError}
+        onSubmit={handleOnboardingSubmit}
+      />
+      {syncError ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-4 right-4 z-[100] w-[min(92vw,28rem)] rounded-lg border border-amber-300 bg-background p-4 text-foreground shadow-2xl"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">No pudimos completar el acceso</p>
+              <p className="mt-1 text-sm text-muted-foreground">{syncError}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    setSyncError(null);
+                    syncKeyRef.current = null;
+                    setSyncRetryNonce((value) => value + 1);
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Reintentar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    void logoutChatbocSession({ clerkEnabled: true }).then(() => navigate('/login', { replace: true }));
+                  }}
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Cambiar cuenta
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {onboardingLoading && !onboardingOpen ? (
+        <span className="sr-only" role="status"><Loader2 className="h-4 w-4 animate-spin" /> Procesando acceso</span>
+      ) : null}
+    </>
   );
 };
 

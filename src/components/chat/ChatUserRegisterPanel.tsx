@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -26,10 +25,18 @@ interface RegisterResponse {
 interface Props {
   onSuccess: (rol?: string) => void;
   onShowLogin: () => void;
-  entityToken?: string; // Added entityToken prop
+  entityToken?: string;
+  tenantSlug?: string | null;
+  returnTo?: string | null;
 }
 
-const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entityToken }) => {
+const ChatUserRegisterPanel: React.FC<Props> = ({
+  onSuccess,
+  onShowLogin,
+  entityToken,
+  tenantSlug,
+  returnTo,
+}) => {
   const { refreshUser } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -41,6 +48,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
   const [resolvedEntityToken, setResolvedEntityToken] = useState<string | null>(null);
   const [resolvingToken, setResolvingToken] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const effectiveTenantSlug = resolveTenantSlug(tenantSlug);
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -77,12 +85,11 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
 
       setResolvingToken(true);
       try {
-        const tenantSlug = resolveTenantSlug();
         const info = await apiFetch<Record<string, unknown>>("/pwa/tenant-info", {
           skipAuth: true,
           sendAnonId: true,
           isWidgetRequest: true,
-          tenantSlug,
+          tenantSlug: effectiveTenantSlug,
           omitCredentials: true,
         });
         if (!active) return;
@@ -93,9 +100,9 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         }
       } catch (err) {
         if (active) {
-          console.warn("[ChatUserRegisterPanel] No se pudo recuperar el token de la entidad, usando fallback demo", err);
-          // Fallback demo for development/integration testing
-          setResolvedEntityToken("demo-entity-token");
+          console.warn("[ChatUserRegisterPanel] No se pudo recuperar el token de la entidad", err);
+          setResolvedEntityToken(null);
+          setError("No pudimos validar la organización. Volvé a abrir el registro desde su portal e intentá nuevamente.");
         }
       } finally {
         if (active) setResolvingToken(false);
@@ -107,7 +114,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
     return () => {
       active = false;
     };
-  }, [entityToken]);
+  }, [effectiveTenantSlug, entityToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +123,21 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       setError("Debés aceptar los Términos y Condiciones.");
       return;
     }
+
+    const finalEntityToken =
+      normalizeEntityToken(entityToken) ||
+      resolvedEntityToken ||
+      normalizeEntityToken(safeLocalStorage.getItem("entityToken"));
+
+    if (!finalEntityToken) {
+      setError(
+        resolvingToken
+          ? "Estamos validando la organización. Esperá unos segundos e intentá nuevamente."
+          : "No pudimos validar la organización para crear tu cuenta. Abrí el registro desde su portal.",
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const payload: Record<string, any> = {
@@ -123,82 +145,42 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         email: email.trim(),
         password,
         acepto_terminos: accepted,
+        empresa_token: finalEntityToken,
       };
       if (phone.trim()) payload.telefono = phone.trim();
-
-      const currentEntityToken =
-        resolvedEntityToken ||
-        normalizeEntityToken(entityToken) ||
-        normalizeEntityToken(safeLocalStorage.getItem("entityToken"));
-
-      // Prioritize the actual entity token if it exists (e.g. from context or URL), otherwise use existing logic
-      const finalEntityToken =
-        (normalizeEntityToken(entityToken) && normalizeEntityToken(entityToken) !== 'demo-entity-token')
-          ? normalizeEntityToken(entityToken)!
-          : (currentEntityToken || "demo-entity-token");
-
-      payload.empresa_token = finalEntityToken;
 
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
 
-      const currentTenantSlug = resolveTenantSlug();
-
-      // Ensure tenant slug is explicitly sent in the payload
-      if (currentTenantSlug) {
-        payload.tenant_slug = currentTenantSlug;
+      if (effectiveTenantSlug) {
+        payload.tenant_slug = effectiveTenantSlug;
       }
 
-      // Explicitly send X-Tenant header for registration to ensure correct context binding
-      const headers: Record<string, string> = {};
-      if (currentTenantSlug) {
-        headers['X-Tenant'] = currentTenantSlug;
-      }
-
-      let data;
-      try {
-        data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
-          method: "POST",
-          body: payload,
-          skipAuth: true,
-          sendAnonId: true,
-          isWidgetRequest: true,
-          tenantSlug: currentTenantSlug,
-          entityToken: finalEntityToken,
-        });
-      } catch (apiErr) {
-        // Fallback for Demo/Integration when backend is missing or 404s
-        if (apiErr instanceof ApiError && (apiErr.status === 404 || apiErr.status >= 500)) {
-           console.warn("[Register] API failed, creating Demo Session", apiErr);
-           const demoToken = `demo-token-${Date.now()}`;
-           data = {
-             token: demoToken,
-             user: {
-               id: 999,
-               name: name.trim(),
-               email: email.trim(),
-               rol: 'user',
-               tenantSlug: resolveTenantSlug() || 'municipio-demo',
-               token: demoToken
-             }
-           };
-        } else {
-           throw apiErr;
-        }
-      }
+      const data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
+        method: "POST",
+        body: payload,
+        skipAuth: true,
+        sendAnonId: true,
+        isWidgetRequest: true,
+        tenantSlug: effectiveTenantSlug,
+        entityToken: finalEntityToken,
+      });
 
       const token = (data as any)?.token;
       const userData = (data as any)?.user ?? data;
       const tenantSlug = (userData as any)?.tenantSlug || (userData as any)?.tenant_slug;
 
+      if (!token) {
+        setError("El servidor no devolvió una sesión válida. Intentá nuevamente.");
+        return;
+      }
+
       // Update the resolved token from response if available
       const confirmedEntityToken =
         (userData as any)?.entityToken || (userData as any)?.entity_token || finalEntityToken;
 
-      if (token) {
-        safeLocalStorage.setItem("authToken", token);
-        safeLocalStorage.setItem("chatAuthToken", token);
-      }
+      safeLocalStorage.setItem("authToken", token);
+      safeLocalStorage.setItem("chatAuthToken", token);
       if (tenantSlug) {
         safeLocalStorage.setItem("tenantSlug", tenantSlug);
       }
@@ -290,7 +272,9 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
           </label>
         </div>
         {error && (
-          <div className="text-destructive text-sm animate-pulse px-2">{error}</div>
+          <div role="alert" aria-live="assertive" className="text-destructive text-sm px-2">
+            {error}
+          </div>
         )}
         <Button type="submit" className="w-full mt-2" disabled={loading}>
           {loading ? (
@@ -303,8 +287,18 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
           )}
         </Button>
         <div className="space-y-2 pt-1">
-          <ClerkAuthButtons mode="register" />
-          <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+          <ClerkAuthButtons
+            mode="register"
+            authIntent="tenant_portal"
+            tenantSlug={effectiveTenantSlug}
+            returnTo={returnTo}
+            disabled={loading || !effectiveTenantSlug || !accepted}
+          />
+          {!effectiveTenantSlug ? (
+            <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              Para continuar con una red social, abrí este formulario desde el portal de la organización.
+            </p>
+          ) : null}
         </div>
       </form>
       <div className="text-center text-sm">

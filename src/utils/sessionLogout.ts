@@ -2,6 +2,7 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { clearCachedWidgetToken } from '@/utils/widgetTokenScope';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
+import { clearClerkAuthContext } from '@/utils/clerkAuthContext';
 
 type ClerkSignOut = () => Promise<unknown> | unknown;
 type JwtClaims = Record<string, unknown>;
@@ -43,6 +44,9 @@ export const hasPersistedClerkSession = () => {
   );
 };
 
+export const hasAuthenticatedChatbocSession = () =>
+  Boolean(readActiveStoredToken() || hasPersistedClerkSession());
+
 export const readPersistedClerkUserId = () => {
   const value = safeLocalStorage.getItem('clerkUserId');
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -77,6 +81,9 @@ export const clearLocalChatbocSession = () => {
   clearCachedWidgetToken();
   safeLocalStorage.removeItem('authProvider');
   safeLocalStorage.removeItem('clerkUserId');
+  safeLocalStorage.removeItem('clerkAuthIntent');
+  safeLocalStorage.removeItem('clerkSessionTransport');
+  clearClerkAuthContext();
   return sessionRevision;
 };
 

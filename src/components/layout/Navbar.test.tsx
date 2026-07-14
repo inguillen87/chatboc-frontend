@@ -176,6 +176,28 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('keeps the account menu available for a Clerk session transported only by cookie', () => {
+    useUserMock.mockReturnValue({ user: null });
+    window.localStorage.setItem('authProvider', 'clerk');
+    window.localStorage.setItem('clerkUserId', 'user_cookie_navbar');
+    window.localStorage.setItem(
+      'user',
+      JSON.stringify({ rol: 'admin', tipo_chat: 'municipio', name: 'Operador Junin' }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets',
+    );
+  });
+
   it('does not expose claims to backoffice profiles without ticket role or capability', () => {
     useUserMock.mockReturnValue({
       user: {

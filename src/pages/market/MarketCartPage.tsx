@@ -30,6 +30,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
+import { hasPersistedClerkSession } from '@/utils/sessionLogout';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
@@ -451,7 +452,7 @@ export default function MarketCartPage() {
   const hasSession = useMemo(() => {
     const authToken = getValidStoredToken('authToken');
     const chatToken = getValidStoredToken('chatAuthToken');
-    return Boolean(user?.token || authToken || chatToken);
+    return Boolean(user && (user.token || authToken || chatToken || hasPersistedClerkSession()));
   }, [user]);
 
   const filteredProducts = useMemo(() => {

@@ -96,7 +96,7 @@ import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { logoutChatbocSession } from "@/utils/sessionLogout";
+import { hasAuthenticatedChatbocSession, logoutChatbocSession } from "@/utils/sessionLogout";
 import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
@@ -509,8 +509,7 @@ export default function Perfil() {
       return;
     }
 
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
+    if (!hasAuthenticatedChatbocSession()) {
       return;
     }
 
@@ -1087,8 +1086,7 @@ export default function Perfil() {
 
 
   useEffect(() => {
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
+    if (!hasAuthenticatedChatbocSession()) {
       navigate(buildLoginPathWithNext(location.pathname, location.search), { replace: true });
       return;
     }
@@ -1102,8 +1100,7 @@ export default function Perfil() {
       return;
     }
 
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
+    if (!hasAuthenticatedChatbocSession()) {
       return;
     }
 

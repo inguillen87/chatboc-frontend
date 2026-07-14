@@ -1,12 +1,49 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!iframe(?:$|/|\\.html$)).*)",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
       "headers": [
-        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*, clipboard-write=*, camera=*"},
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "microphone=(self), geolocation=(self), clipboard-write=(self), camera=(self)" },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" },
-        { "key": "Cross-Origin-Embedder-Policy", "value": "unsafe-none" },
-        { "key": "X-Frame-Options", "value": "ALLOWALL" }
+        { "key": "Cross-Origin-Embedder-Policy", "value": "unsafe-none" }
+      ]
+    },
+    {
+      "source": "/iframe",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *; base-uri 'self'; object-src 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*, clipboard-write=*, camera=*" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "unsafe-none" }
+      ]
+    },
+    {
+      "source": "/iframe/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *; base-uri 'self'; object-src 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*, clipboard-write=*, camera=*" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "unsafe-none" }
+      ]
+    },
+    {
+      "source": "/iframe.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *; base-uri 'self'; object-src 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*, clipboard-write=*, camera=*" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "unsafe-none" }
       ]
     },
     {

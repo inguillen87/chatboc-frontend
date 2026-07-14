@@ -46,7 +46,7 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
-import { logoutChatbocSession } from "@/utils/sessionLogout";
+import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionLogout";
 
 interface AdminNavLink {
   to: string;
@@ -116,7 +116,8 @@ const Navbar: React.FC = () => {
   const isLanding = location.pathname === "/";
   const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
-  const isLoggedIn = Boolean(user || (hasValidStoredToken && safeLocalStorage.getItem("user")));
+  const hasPersistedSession = hasValidStoredToken || hasPersistedClerkSession();
+  const isLoggedIn = Boolean(user || (hasPersistedSession && safeLocalStorage.getItem("user")));
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const resolvedLandingNavItems = useMemo(
     () => readLandingNavItems(landingExperience?.navigation),

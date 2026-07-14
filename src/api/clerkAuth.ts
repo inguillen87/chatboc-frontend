@@ -1,5 +1,6 @@
 import { apiFetch } from '@/utils/api';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
+import type { ClerkAuthIntent } from '@/utils/clerkAuthContext';
 
 export interface ClerkEmailAddressPayload {
   id?: string | null;
@@ -110,8 +111,11 @@ export interface ClerkOnboardingModalContract {
 
 export interface ClerkSessionResponse {
   contract_version: 'auth.clerk.v1';
-  token: string | null;
+  token?: string | null;
   auth_provider: 'clerk';
+  auth_intent?: ClerkAuthIntent;
+  audience?: 'tenant_owner' | 'tenant_portal' | string;
+  session_transport?: 'cookie' | 'bearer' | 'cookie_and_body' | 'pending_onboarding' | string;
   user: {
     id: number | string;
     name?: string | null;
@@ -208,14 +212,18 @@ export const fetchClerkFrontendConfig = () =>
     suppressInvalidJsonWarning: true,
   });
 
-export const syncClerkSession = (token: string, user: ClerkUserProfilePayload) =>
+export const syncClerkSession = (
+  token: string,
+  user: ClerkUserProfilePayload,
+  context: { intent?: ClerkAuthIntent; tenant_slug?: string | null } = {},
+) =>
   apiFetch<ClerkSessionResponse>('/auth/clerk/session', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,
-    omitCredentials: true,
+    omitCredentials: false,
     headers: clerkHeaders(token),
-    body: { user },
+    body: { user, ...context },
   });
 
 export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingPayload) =>
@@ -223,7 +231,7 @@ export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingP
     method: 'POST',
     skipAuth: true,
     omitTenant: true,
-    omitCredentials: true,
+    omitCredentials: false,
     headers: clerkHeaders(token),
-    body: payload,
+    body: { ...payload, intent: 'tenant_owner' },
   });

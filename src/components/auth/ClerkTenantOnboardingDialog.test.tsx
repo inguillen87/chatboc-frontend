@@ -17,19 +17,110 @@ const renderDialog = (props: Partial<React.ComponentProps<typeof ClerkTenantOnbo
   const onOpenChange = props.onOpenChange || vi.fn();
   const onSubmit = props.onSubmit || vi.fn();
 
-  render(
-    <ClerkTenantOnboardingDialog
-      open
-      onOpenChange={onOpenChange}
-      onSubmit={onSubmit}
-      {...props}
-    />,
-  );
+  render(<ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} {...props} />);
 
   return { onOpenChange, onSubmit };
 };
 
 describe('ClerkTenantOnboardingDialog', () => {
+  it('keeps one bounded scroll region while the footer CTA remains reachable on mobile and desktop', () => {
+    renderDialog();
+
+    const dialog = screen.getByRole('dialog');
+    const scrollRegion = screen.getByTestId('clerk-onboarding-scroll-region');
+    const footer = screen.getByTestId('clerk-onboarding-footer');
+    const submit = screen.getByRole('button', { name: /crear tenant/i });
+
+    expect(dialog).toHaveClass(
+      'flex',
+      'flex-col',
+      'overflow-hidden',
+      'max-h-[calc(100dvh-1rem)]',
+      'w-[calc(100%-1rem)]',
+      'sm:max-h-[calc(100dvh-2rem)]',
+      'sm:w-[calc(100%-2rem)]',
+    );
+    expect(scrollRegion).toHaveClass('min-h-0', 'flex-1', 'overflow-x-hidden', 'overflow-y-auto', 'overscroll-contain', '[scrollbar-gutter:stable]');
+    expect(footer).toHaveClass('shrink-0');
+    expect(scrollRegion).not.toContainElement(footer);
+    expect(footer).toContainElement(submit);
+    expect(submit).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
+  });
+
+  it('resets the draft and consent when the Clerk user id or primary email changes', async () => {
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn();
+    const renderForIdentity = (userProfile: NonNullable<React.ComponentProps<typeof ClerkTenantOnboardingDialog>['userProfile']>) => (
+      <ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} defaultTenantName="Organizacion Clerk" userProfile={userProfile} />
+    );
+    const firstIdentity = {
+      id: 'user_a',
+      primary_email_address_id: 'email_primary',
+      email_addresses: [{ id: 'email_primary', email_address: 'owner-a@example.com' }],
+    };
+    const { rerender } = render(renderForIdentity(firstIdentity));
+
+    const tenantName = await screen.findByLabelText(/Nombre de organizacion/i);
+    const rubro = screen.getByLabelText(/Rubro/i);
+    const consent = screen.getByRole('checkbox');
+    await waitFor(() => expect(tenantName).toHaveValue('Organizacion Clerk'));
+
+    fireEvent.change(tenantName, {
+      target: { value: 'Borrador de otra persona' },
+    });
+    fireEvent.change(rubro, { target: { value: 'Rubro privado' } });
+    fireEvent.click(consent);
+
+    rerender(
+      renderForIdentity({
+        ...firstIdentity,
+        id: 'user_b',
+        email_addresses: [{ id: 'email_primary', email_address: 'owner-b@example.com' }],
+      }),
+    );
+
+    await waitFor(() => expect(tenantName).toHaveValue('Organizacion Clerk'));
+    expect(rubro).toHaveValue('');
+    expect(consent).not.toBeChecked();
+
+    fireEvent.change(tenantName, {
+      target: { value: 'Segundo borrador privado' },
+    });
+    fireEvent.change(rubro, { target: { value: 'Segundo rubro privado' } });
+    fireEvent.click(consent);
+
+    rerender(
+      renderForIdentity({
+        ...firstIdentity,
+        id: 'user_b',
+        email_addresses: [{ id: 'email_primary', email_address: 'new-owner-b@example.com' }],
+      }),
+    );
+
+    await waitFor(() => expect(tenantName).toHaveValue('Organizacion Clerk'));
+    expect(rubro).toHaveValue('');
+    expect(consent).not.toBeChecked();
+  });
+
+  it('labels custom selects and moves focus to an announced backend error', async () => {
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn();
+    const { rerender } = render(<ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} />);
+
+    const tenantName = screen.getByLabelText(/Nombre de organizacion/i);
+    expect(screen.getByLabelText('Vertical')).toHaveAttribute('id', 'clerk-onboarding-vertical');
+    expect(screen.getByLabelText('Objetivo principal')).toHaveAttribute('id', 'clerk-onboarding-primary-goal');
+    await waitFor(() => expect(tenantName).toHaveFocus());
+
+    rerender(<ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} error="No se pudo crear el tenant." />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('aria-live', 'assertive');
+    expect(alert).toHaveAttribute('aria-atomic', 'true');
+    expect(screen.getByRole('button', { name: /crear tenant/i })).toHaveAttribute('aria-describedby', 'clerk-onboarding-error');
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
   it('keeps mandatory tenant onboarding from being dismissed', () => {
     renderDialog({ required: true });
 
@@ -54,10 +145,24 @@ describe('ClerkTenantOnboardingDialog', () => {
         title: 'Completa tu espacio Chatboc',
         description: 'Setup guiado por rubro.',
         modal: {
-          summary_cards: [{ id: 'workspace', label: 'Tenant y CRM', description: 'Listo para operar.' }],
+          summary_cards: [
+            {
+              id: 'workspace',
+              label: 'Tenant y CRM',
+              description: 'Listo para operar.',
+            },
+          ],
           starter_modules: [
-            { id: 'crm_operativo', label: 'CRM operativo', description: 'Tickets y pedidos.' },
-            { id: 'marketplace_catalogo', label: 'Catalogo / marketplace', description: 'Productos y promos.' },
+            {
+              id: 'crm_operativo',
+              label: 'CRM operativo',
+              description: 'Tickets y pedidos.',
+            },
+            {
+              id: 'marketplace_catalogo',
+              label: 'Catalogo / marketplace',
+              description: 'Productos y promos.',
+            },
           ],
           vertical_options: [{ value: 'pyme', label: 'Empresa / comercio' }],
           goal_options: [{ value: 'ventas', label: 'Vender y tomar pedidos' }],

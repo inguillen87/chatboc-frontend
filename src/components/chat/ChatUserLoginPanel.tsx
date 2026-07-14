@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -31,9 +30,17 @@ interface Props {
   onSuccess: (rol?: string) => void;
   onShowRegister: () => void;
   entityToken?: string;
+  tenantSlug?: string | null;
+  returnTo?: string | null;
 }
 
-const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entityToken }) => {
+const ChatUserLoginPanel: React.FC<Props> = ({
+  onSuccess,
+  onShowRegister,
+  entityToken,
+  tenantSlug,
+  returnTo,
+}) => {
   const { refreshUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +49,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
   const [resolvedEntityToken, setResolvedEntityToken] = useState<string | null>(null);
   const [resolvingToken, setResolvingToken] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
+  const effectiveTenantSlug = resolveTenantSlug(tenantSlug);
 
   useEffect(() => {
     emailRef.current?.focus();
@@ -88,12 +96,11 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
 
       setResolvingToken(true);
       try {
-        const tenantSlug = resolveTenantSlug();
         const info = await apiFetch<Record<string, unknown>>("/pwa/tenant-info", {
           skipAuth: true,
           sendAnonId: true,
           isWidgetRequest: true,
-          tenantSlug,
+          tenantSlug: effectiveTenantSlug,
           omitCredentials: true,
         });
         if (!active) return;
@@ -116,7 +123,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
     return () => {
       active = false;
     };
-  }, [entityToken]);
+  }, [effectiveTenantSlug, entityToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,16 +150,8 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
 
-      const currentTenantSlug = resolveTenantSlug();
-
-      if (currentTenantSlug) {
-        payload.tenant_slug = currentTenantSlug;
-      }
-
-      // Explicitly send X-Tenant header for login to ensure correct context binding if applicable
-      const headers: Record<string, string> = {};
-      if (currentTenantSlug) {
-        headers['X-Tenant'] = currentTenantSlug;
+      if (effectiveTenantSlug) {
+        payload.tenant_slug = effectiveTenantSlug;
       }
 
       const data = await apiFetch<LoginResponse | { token: string; user?: LoginResponse }>("/auth/login", {
@@ -160,7 +159,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
         body: payload,
         sendAnonId: true,
         isWidgetRequest: true,
-        tenantSlug: currentTenantSlug,
+        tenantSlug: effectiveTenantSlug,
         entityToken: currentEntityToken,
       });
 
@@ -170,11 +169,14 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
         (userData as any)?.entityToken || (userData as any)?.entity_token || safeLocalStorage.getItem("entityToken");
       const tenantSlug = (userData as any)?.tenantSlug || (userData as any)?.tenant_slug;
 
-      if (token) {
-        safeLocalStorage.setItem("authToken", token);
-        safeLocalStorage.setItem("chatAuthToken", token);
-        broadcastAuthTokenToHost(token, tenantSlug ?? resolveTenantSlug(), "login-panel");
+      if (!token) {
+        setError("El servidor no devolvió una sesión válida. Intentá nuevamente.");
+        return;
       }
+
+      safeLocalStorage.setItem("authToken", token);
+      safeLocalStorage.setItem("chatAuthToken", token);
+      broadcastAuthTokenToHost(token, tenantSlug ?? effectiveTenantSlug, "login-panel");
       if (tenantSlug) {
         safeLocalStorage.setItem("tenantSlug", tenantSlug);
       }
@@ -218,13 +220,27 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
           required
           disabled={loading}
         />
-        {error && <div className="text-destructive text-sm px-2">{error}</div>}
+        {error && (
+          <div role="alert" aria-live="assertive" className="text-destructive text-sm px-2">
+            {error}
+          </div>
+        )}
         <Button type="submit" className="w-full mt-2" disabled={loading}>
           {loading ? "Ingresando..." : "Ingresar"}
         </Button>
         <div className="space-y-2 pt-1">
-          <ClerkAuthButtons mode="login" />
-          <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+          <ClerkAuthButtons
+            mode="login"
+            authIntent="tenant_portal"
+            tenantSlug={effectiveTenantSlug}
+            returnTo={returnTo}
+            disabled={loading || !effectiveTenantSlug}
+          />
+          {!effectiveTenantSlug ? (
+            <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              Para continuar con una red social, abrí este formulario desde el portal de la organización.
+            </p>
+          ) : null}
         </div>
       </form>
       <div className="text-center text-sm">

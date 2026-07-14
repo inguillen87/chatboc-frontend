@@ -8,6 +8,7 @@ import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { hasPersistedClerkSession } from "@/utils/sessionLogout";
 import { extractRubroKey } from "@/utils/rubros";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
@@ -1605,7 +1606,7 @@ function ChatWidgetInner({
         true,
       );
       const requiresAuth = (target === "cart" && !guestCartAllowed) || requireCatalogAuth;
-      const hasSession = Boolean(authToken && user);
+      const hasSession = Boolean(user && (authToken || hasPersistedClerkSession()));
 
       if (requiresAuth && !hasSession) {
         setPendingRedirect("cart");
@@ -1653,7 +1654,7 @@ function ChatWidgetInner({
     const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
     const slug = sanitizeTenantSlug(commerceTenantSlug) ?? activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
     const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
-    const hasSession = Boolean(authToken && user);
+    const hasSession = Boolean(user && (authToken || hasPersistedClerkSession()));
     const portalUrl = readFirstString(widgetCommerceSession?.portal?.url, widgetCommerceSession?.portal?.view_url);
     const portalHistoryEndpoint = readFirstString(
       widgetCommerceSession?.portal?.history_endpoint,

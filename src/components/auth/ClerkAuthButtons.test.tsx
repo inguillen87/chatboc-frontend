@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ClerkAuthButtons from './ClerkAuthButtons';
 import { ClerkRuntimeProvider, type ClerkRuntimeValue } from './ClerkRuntimeContext';
+import { readClerkAuthContext } from '@/utils/clerkAuthContext';
+import { safeSessionStorage } from '@/utils/safeLocalStorage';
 
 const clerkMocks = vi.hoisted(() => ({
   signedIn: false,
@@ -59,6 +61,7 @@ const renderWithRuntime = (
 
 describe('ClerkAuthButtons', () => {
   beforeEach(() => {
+    safeSessionStorage.clear();
     clerkMocks.signedIn = false;
     clerkMocks.logoutChatbocSession.mockReset().mockResolvedValue(undefined);
     clerkMocks.signInAuthenticateWithRedirect.mockReset();
@@ -76,7 +79,11 @@ describe('ClerkAuthButtons', () => {
   });
 
   it('starts the direct Google OAuth redirect for sign up', async () => {
-    renderWithRuntime();
+    renderWithRuntime({}, {
+      authIntent: 'tenant_portal',
+      tenantSlug: 'junin',
+      returnTo: '/t/junin/portal/dashboard',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /crear con google/i }));
 
@@ -86,6 +93,11 @@ describe('ClerkAuthButtons', () => {
         redirectUrl: 'http://localhost:3000/sso-callback',
         redirectUrlComplete: 'http://localhost:3000/',
       });
+    });
+    expect(readClerkAuthContext()).toMatchObject({
+      intent: 'tenant_portal',
+      tenantSlug: 'junin',
+      returnTo: '/t/junin/portal/dashboard',
     });
   });
 

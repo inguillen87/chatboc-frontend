@@ -24,6 +24,12 @@ vi.mock('../src/utils/safeLocalStorage', () => ({
     setItem: vi.fn(),
     removeItem: vi.fn(),
   },
+  safeSessionStorage: {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  },
 }));
 
 vi.mock('../src/utils/config', () => ({

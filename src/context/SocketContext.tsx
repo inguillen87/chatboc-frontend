@@ -6,6 +6,7 @@ import { getSocketUrl, SOCKET_PATH } from '@/config';
 import { resolveTenantSlug } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
 import { isGlobalSocketExplicitlyEnabled } from '@/utils/socketPolicy';
+import { hasPersistedClerkSession } from '@/utils/sessionLogout';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -123,9 +124,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token =
       safeLocalStorage.getItem('authToken') ||
       safeLocalStorage.getItem('chatAuthToken');
+    const hasAuthenticatedSession = Boolean(token || hasPersistedClerkSession());
 
     const pathname = location.pathname || '';
-    if (!shouldEnableGlobalSocket(pathname, Boolean(token))) {
+    if (!shouldEnableGlobalSocket(pathname, hasAuthenticatedSession)) {
       setSocket(null);
       setIsConnected(false);
       return;
@@ -165,9 +167,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setIsConnected(true);
 
-      // Subscribe to ticket updates if we have a token
-      if (token) {
-        newSocket.emit('subscribe_ticket_updates', tenantSlug ? { token, tenant_slug: tenantSlug } : { token });
+      // The backend accepts either the bearer token or the HttpOnly Clerk session cookie.
+      if (hasAuthenticatedSession) {
+        newSocket.emit('subscribe_ticket_updates', {
+          ...(token ? { token } : {}),
+          ...(tenantSlug ? { tenant_slug: tenantSlug } : {}),
+        });
       }
     });
 

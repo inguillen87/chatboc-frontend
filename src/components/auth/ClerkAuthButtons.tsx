@@ -15,11 +15,20 @@ import { useClerkRuntime, type ClerkRuntimeValue } from '@/components/auth/Clerk
 import GoogleIcon from '@/components/auth/GoogleIcon';
 import { cn } from '@/lib/utils';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import {
+  persistClerkAuthContext,
+  sanitizeClerkReturnPath,
+  type ClerkAuthIntent,
+} from '@/utils/clerkAuthContext';
+import { getSafeAuthNextPath } from '@/utils/authRedirect';
 
 interface ClerkAuthButtonsProps {
   mode?: 'login' | 'register';
   className?: string;
   disabled?: boolean;
+  authIntent?: ClerkAuthIntent;
+  tenantSlug?: string | null;
+  returnTo?: string | null;
 }
 
 const SOCIAL_PROVIDER_LABELS: Record<string, string> = {
@@ -72,6 +81,9 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   mode = 'login',
   className,
   disabled = false,
+  authIntent = 'tenant_owner',
+  tenantSlug,
+  returnTo,
   clerkRuntime,
 }) => {
   const signInApi = useSignIn();
@@ -86,6 +98,16 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   const secondaryLabel = mode === 'register' ? 'Ya tengo cuenta' : 'Crear cuenta nueva';
   const socialProviders = normalizeSocialProviders(clerkRuntime.socialProviders).filter(isSupportedOAuthProvider);
 
+  const rememberAuthContext = React.useCallback(() => {
+    const requestedNext = getSafeAuthNextPath(window.location.search);
+    const normalizedIntent: ClerkAuthIntent = authIntent === 'tenant_portal' ? 'tenant_portal' : 'tenant_owner';
+    return persistClerkAuthContext({
+      intent: normalizedIntent,
+      tenantSlug,
+      returnTo: sanitizeClerkReturnPath(returnTo) || requestedNext,
+    });
+  }, [authIntent, returnTo, tenantSlug]);
+
   const runOAuthRedirect = async (provider: ClerkOAuthProvider) => {
     if (disabled) return;
     const strategy = OAUTH_STRATEGY_BY_PROVIDER[provider];
@@ -97,6 +119,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
     setOauthError(null);
     setLoadingProvider(provider);
     try {
+      rememberAuthContext();
       const origin = window.location.origin;
       const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/perfil';
       const callbackPath = clerkRuntime.oauthCallbackPath || '/sso-callback';
@@ -154,14 +177,14 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 
           {mode === 'register' ? (
             <SignUpButton mode="modal">
-              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled}>
+              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled} onClick={rememberAuthContext}>
                 <Mail className="h-4 w-4" />
                 {emailFallbackLabel}
               </Button>
             </SignUpButton>
           ) : (
             <SignInButton mode="modal">
-              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled}>
+              <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled} onClick={rememberAuthContext}>
                 <Mail className="h-4 w-4" />
                 {emailFallbackLabel}
               </Button>
@@ -170,14 +193,14 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 
           {mode === 'register' ? (
             <SignInButton mode="modal">
-              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled}>
+              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled} onClick={rememberAuthContext}>
                 <ShieldCheck className="h-4 w-4" />
                 {secondaryLabel}
               </Button>
             </SignInButton>
           ) : (
             <SignUpButton mode="modal">
-              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled}>
+              <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled} onClick={rememberAuthContext}>
                 <ShieldCheck className="h-4 w-4" />
                 {secondaryLabel}
               </Button>

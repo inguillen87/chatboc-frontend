@@ -1,4 +1,4 @@
-import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
+import { usePanelSessionStore } from '@/stores';
 import React, { useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -12,8 +12,15 @@ import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import {
   captureChatbocSessionRevision,
+  clearLocalChatbocSession,
   isChatbocSessionRevisionCurrent,
 } from '@/utils/sessionLogout';
+
+const readClerkCookieSessionIdentity = () => {
+  if (safeLocalStorage.getItem('authProvider')?.trim().toLowerCase() !== 'clerk') return null;
+  const clerkUserId = safeLocalStorage.getItem('clerkUserId')?.trim();
+  return clerkUserId ? `clerk-cookie:${clerkUserId}` : null;
+};
 
 interface UserData {
   id?: number;
@@ -131,10 +138,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (user) return;
     if (rejectedAuthTokenRef.current) {
-      const storedToken =
+      const storedIdentity =
         getValidStoredToken('authToken') ||
-        getValidStoredToken('chatAuthToken');
-      if (!storedToken || storedToken === rejectedAuthTokenRef.current) return;
+        getValidStoredToken('chatAuthToken') ||
+        readClerkCookieSessionIdentity();
+      if (!storedIdentity || storedIdentity === rejectedAuthTokenRef.current) return;
       rejectedAuthTokenRef.current = null;
     }
     usePanelSessionStore.getState().loadFromStorage();
@@ -144,20 +152,23 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const panelToken = getValidStoredToken('authToken');
     const chatToken = getValidStoredToken('chatAuthToken');
     const activeToken = panelToken ?? chatToken;
+    const clerkCookieIdentity = readClerkCookieSessionIdentity();
+    const sessionIdentity = activeToken || clerkCookieIdentity;
     const tokenKey: 'authToken' | 'chatAuthToken' | null = panelToken
       ? 'authToken'
       : chatToken
         ? 'chatAuthToken'
         : null;
-    if (!activeToken) return;
-    if (rejectedAuthTokenRef.current === activeToken) return;
+    if (!sessionIdentity) return;
+    if (rejectedAuthTokenRef.current === sessionIdentity) return;
     const requestRevision = captureChatbocSessionRevision();
     const isCurrentRequest = () => {
-      const currentToken =
+      const currentIdentity =
         getValidStoredToken('authToken') ||
-        getValidStoredToken('chatAuthToken');
+        getValidStoredToken('chatAuthToken') ||
+        readClerkCookieSessionIdentity();
       return (
-        currentToken === activeToken &&
+        currentIdentity === sessionIdentity &&
         isChatbocSessionRevisionCurrent(requestRevision)
       );
     };
@@ -166,6 +177,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await apiFetch<any>('/api/me', {
         preserveAuthOn401: true,
         suppressPanel401Redirect: true,
+        omitEntityToken: true,
+        omitTenant: true,
       });
       if (!isCurrentRequest()) return;
       const rubroNorm = parseRubro(data.rubro) || '';
@@ -297,7 +310,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
         capabilities: Array.isArray(data.capabilities) ? data.capabilities : undefined,
         scopes: Array.isArray(data.scopes) ? data.scopes : undefined,
-        token: activeToken,
+        token: activeToken || undefined,
         entityToken: normalizedEntityToken || storedEntityToken || undefined,
         tenantSlug: resolvedTenantSlug || undefined,
         tenant_slug: resolvedTenantSlug || undefined,
@@ -332,11 +345,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (status === 401) {
         console.error('Auth error fetching user profile, logging out.', e);
-        rejectedAuthTokenRef.current = activeToken;
+        rejectedAuthTokenRef.current = sessionIdentity;
         // If fetching the user fails due to auth, clear session to force re-login.
-        setUser(null);
-        usePanelSessionStore.getState().setAuthToken(null);
-        useWidgetSessionStore.getState().setChatAuthToken(null);
+        clearLocalChatbocSession();
       } else {
         // Network or server errors shouldn't drop an otherwise valid session.
         if (shouldLogUserWarnings()) {
@@ -352,7 +363,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token =
       getValidStoredToken('authToken') ||
       getValidStoredToken('chatAuthToken');
-    if (token && (!user || !user.rubro)) {
+    const hasClerkCookieSession = Boolean(readClerkCookieSessionIdentity());
+    if ((token || hasClerkCookieSession) && (!user || !user.rubro)) {
       refreshUser();
     }
   }, [refreshUser, user]);

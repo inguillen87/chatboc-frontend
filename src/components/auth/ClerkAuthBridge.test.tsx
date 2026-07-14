@@ -3,8 +3,9 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import { persistClerkAuthContext } from '@/utils/clerkAuthContext';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import ClerkAuthBridge from './ClerkAuthBridge';
 import { ClerkRuntimeProvider } from './ClerkRuntimeContext';
@@ -46,6 +47,7 @@ vi.mock('@/hooks/useUser', () => ({
 
 vi.mock('@/utils/api', () => ({
   apiFetch: clerkMocks.backendLogout,
+  resolveTenantSlug: vi.fn(() => 'junin'),
 }));
 
 vi.mock('./ClerkTenantOnboardingDialog', () => ({
@@ -71,9 +73,9 @@ const jwtWithClaims = (claims: Record<string, unknown>) => {
   return `header.${payload}.signature`;
 };
 
-const renderBridge = () =>
+const renderBridge = (initialEntry = '/login') =>
   render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <ClerkRuntimeProvider
         value={{
           enabled: true,
@@ -91,6 +93,7 @@ const renderBridge = () =>
 describe('ClerkAuthBridge session lifecycle', () => {
   beforeEach(() => {
     safeLocalStorage.clear();
+    safeSessionStorage.clear();
     usePanelSessionStore.setState({ authToken: null, user: null });
     useWidgetSessionStore.setState({
       status: 'idle',
@@ -140,12 +143,77 @@ describe('ClerkAuthBridge session lifecycle', () => {
     });
 
     expect(safeLocalStorage.getItem('authToken')).toBe('chatboc-token');
-    expect(safeLocalStorage.getItem('chatAuthToken')).toBe('chatboc-token');
+    expect(safeLocalStorage.getItem('chatAuthToken')).toBeNull();
     expect(safeLocalStorage.getItem('clerkUserId')).toBe('user_clerk_1');
     expect(usePanelSessionStore.getState().user).toMatchObject({
       authProvider: 'clerk',
       auth_provider: 'clerk',
+      authIntent: 'tenant_owner',
     });
+  });
+
+  it('persists a cookie-backed Clerk session without exposing a JWT in storage', async () => {
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1',
+      token: null,
+      auth_provider: 'clerk',
+      auth_intent: 'tenant_owner',
+      session_transport: 'cookie',
+      user: {
+        id: 42,
+        email: 'lucia@chatboc.test',
+        rol: 'tenant_admin',
+        tenant_slug: 'lucia-tenant',
+      },
+      tenant: { id: 7, slug: 'lucia-tenant' },
+      onboarding: { required: false },
+    });
+
+    renderBridge();
+
+    await waitFor(() => expect(safeLocalStorage.getItem('authProvider')).toBe('clerk'));
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(safeLocalStorage.getItem('chatAuthToken')).toBeNull();
+    expect(safeLocalStorage.getItem('clerkSessionTransport')).toBe('cookie');
+    expect(usePanelSessionStore.getState().user).toMatchObject({ id: 42 });
+    expect(clerkMocks.refreshUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a portal cookie session scoped after dashboard navigation', async () => {
+    persistClerkAuthContext({
+      intent: 'tenant_portal',
+      tenantSlug: 'junin',
+      returnTo: '/t/junin/portal/dashboard',
+    });
+    clerkMocks.syncClerkSession.mockResolvedValue({
+      contract_version: 'auth.clerk.v1',
+      token: null,
+      auth_provider: 'clerk',
+      auth_intent: 'tenant_portal',
+      session_transport: 'cookie',
+      user: {
+        id: 42,
+        email: 'vecina@chatboc.test',
+        rol: 'user',
+        tenant_slug: 'junin',
+      },
+      tenant: { id: 7, slug: 'junin' },
+      onboarding: { required: false },
+    });
+
+    renderBridge('/t/junin/user/login');
+
+    await waitFor(() => expect(clerkMocks.refreshUser).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledTimes(1);
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledWith(
+      'clerk-jwt',
+      expect.any(Object),
+      { intent: 'tenant_portal', tenant_slug: 'junin' },
+    );
+    expect(safeLocalStorage.getItem('clerkAuthIntent')).toBe('tenant_portal');
   });
 
   it('clears local tokens and stores only after Clerk signs out', async () => {

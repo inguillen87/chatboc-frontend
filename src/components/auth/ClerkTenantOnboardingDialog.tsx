@@ -24,6 +24,7 @@ import type {
   ClerkOnboardingModule,
   ClerkOnboardingPayload,
   ClerkOnboardingOption,
+  ClerkOnboardingVerticalPreset,
   ClerkSessionResponse,
   ClerkUserProfilePayload,
 } from '@/api/clerkAuth';
@@ -48,6 +49,38 @@ const defaultForm = {
   website: '',
   ciudad: '',
   primary_goal: 'whatsapp_ai',
+};
+
+type OnboardingForm = typeof defaultForm;
+
+const normalizeIdentityValue = (value?: string | null) => value?.trim().toLowerCase() || '';
+
+const getClerkIdentityKey = (profile?: ClerkUserProfilePayload) => {
+  const emails = (profile?.email_addresses || [])
+    .map((email) => [normalizeIdentityValue(email.id), normalizeIdentityValue(email.email_address)])
+    .sort(([leftId, leftEmail], [rightId, rightEmail]) => `${leftId}:${leftEmail}`.localeCompare(`${rightId}:${rightEmail}`));
+  const externalAccounts = (profile?.external_accounts || [])
+    .map((account) => [normalizeIdentityValue(account.id), normalizeIdentityValue(account.provider), normalizeIdentityValue(account.strategy)])
+    .sort(([leftId, leftProvider], [rightId, rightProvider]) => `${leftId}:${leftProvider}`.localeCompare(`${rightId}:${rightProvider}`));
+
+  return JSON.stringify([normalizeIdentityValue(profile?.id), normalizeIdentityValue(profile?.primary_email_address_id), emails, externalAccounts]);
+};
+
+const getInitialForm = (
+  defaultTenantName: string | undefined,
+  existingTenant: ClerkSessionResponse['tenant'] | undefined,
+  presets: Record<string, ClerkOnboardingVerticalPreset>,
+): OnboardingForm => {
+  const vertical = existingTenant?.tipo || existingTenant?.vertical || defaultForm.vertical;
+  const preset = presets[vertical];
+
+  return {
+    ...defaultForm,
+    tenant_name: existingTenant?.nombre || defaultTenantName || '',
+    vertical,
+    rubro: existingTenant?.subvertical || preset?.rubro || '',
+    primary_goal: preset?.primary_goal || defaultForm.primary_goal,
+  };
 };
 
 const fallbackVerticalOptions: ClerkOnboardingOption[] = [
@@ -96,6 +129,9 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
 }) => {
   const [form, setForm] = React.useState(defaultForm);
   const [termsAccepted, setTermsAccepted] = React.useState(false);
+  const tenantNameInputRef = React.useRef<HTMLInputElement>(null);
+  const termsCheckboxRef = React.useRef<HTMLButtonElement>(null);
+  const errorRef = React.useRef<HTMLParagraphElement>(null);
   const modal = onboarding?.modal;
   const verticalOptions = modal?.vertical_options?.length ? modal.vertical_options : fallbackVerticalOptions;
   const goalOptions = modal?.goal_options?.length ? modal.goal_options : fallbackGoalOptions;
@@ -107,32 +143,51 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   const termsOnly = modal?.mode === 'terms_only';
   const existingTenant = modal?.existing_tenant;
   const presets = React.useMemo(() => modal?.vertical_presets || {}, [modal?.vertical_presets]);
+  const initialForm = React.useMemo(
+    () => getInitialForm(defaultTenantName, existingTenant, presets),
+    [defaultTenantName, existingTenant?.nombre, existingTenant?.subvertical, existingTenant?.tipo, existingTenant?.vertical, presets],
+  );
+  const clerkIdentityKey = getClerkIdentityKey(userProfile);
+  const formScopeKey = `${clerkIdentityKey}:${existingTenant?.id ?? ''}`;
+  const previousFormScopeRef = React.useRef(formScopeKey);
   const selectedPreset = presets[form.vertical];
   const recommendedIds = new Set(selectedPreset?.recommended_modules || []);
-  const recommendedModules = recommendedIds.size
-    ? starterModules.filter((module) => recommendedIds.has(module.id))
-    : starterModules.slice(0, 3);
-  const preferredChannels = selectedPreset?.preferred_channels?.length
-    ? selectedPreset.preferred_channels
-    : ['whatsapp', 'webchat'];
+  const recommendedModules = recommendedIds.size ? starterModules.filter((module) => recommendedIds.has(module.id)) : starterModules.slice(0, 3);
+  const preferredChannels = selectedPreset?.preferred_channels?.length ? selectedPreset.preferred_channels : ['whatsapp', 'webchat'];
+
+  const focusInitialControl = React.useCallback(() => {
+    const initialControl = termsOnly ? termsCheckboxRef.current : tenantNameInputRef.current;
+    initialControl?.focus();
+  }, [termsOnly]);
 
   React.useEffect(() => {
     if (!open) return;
+    const formScopeChanged = previousFormScopeRef.current !== formScopeKey;
+    previousFormScopeRef.current = formScopeKey;
+
+    if (formScopeChanged) {
+      setForm(initialForm);
+      setTermsAccepted(false);
+      focusInitialControl();
+      return;
+    }
+
     setForm((current) => ({
       ...current,
-      tenant_name: current.tenant_name || existingTenant?.nombre || defaultTenantName || '',
-      vertical: current.vertical || existingTenant?.tipo || defaultForm.vertical,
-      rubro: current.rubro || existingTenant?.subvertical || presets[current.vertical]?.rubro || '',
-      primary_goal:
-        current.primary_goal === defaultForm.primary_goal
-          ? presets[current.vertical]?.primary_goal || current.primary_goal
-          : current.primary_goal,
+      tenant_name: current.tenant_name || initialForm.tenant_name,
+      vertical: current.vertical === defaultForm.vertical ? initialForm.vertical : current.vertical,
+      rubro: current.rubro || initialForm.rubro,
+      primary_goal: current.primary_goal === defaultForm.primary_goal ? initialForm.primary_goal : current.primary_goal,
     }));
-  }, [defaultTenantName, existingTenant?.nombre, existingTenant?.subvertical, existingTenant?.tipo, open, presets]);
+  }, [focusInitialControl, formScopeKey, initialForm, open]);
 
   React.useEffect(() => {
     if (open) setTermsAccepted(false);
   }, [open]);
+
+  React.useEffect(() => {
+    if (open && error) errorRef.current?.focus();
+  }, [error, open]);
 
   const update = (field: keyof typeof defaultForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -172,294 +227,316 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="max-w-4xl border-slate-200 bg-white text-slate-950 shadow-2xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50"
+        className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl flex-col gap-0 overflow-hidden border-slate-200 bg-white p-0 text-slate-950 shadow-2xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"
         showCloseButton={!required}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          focusInitialControl();
+        }}
         onEscapeKeyDown={required ? (event) => event.preventDefault() : undefined}
         onPointerDownOutside={required ? (event) => event.preventDefault() : undefined}
       >
-        <DialogHeader>
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/25">
-            <Building2 className="h-6 w-6" aria-hidden="true" />
+        <DialogHeader className="shrink-0 border-b border-slate-200 px-4 py-4 pr-12 text-left dark:border-slate-800 sm:px-6 sm:pr-14">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg shadow-blue-600/25">
+              <Building2 className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="break-words leading-6">{onboarding?.title || 'Crear tu espacio Chatboc'}</DialogTitle>
+              <DialogDescription className="mt-1 break-words leading-5">
+                {onboarding?.description || 'Configuramos el tenant, CRM, plantillas iniciales y canales con estos datos.'}
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle>{onboarding?.title || 'Crear tu espacio Chatboc'}</DialogTitle>
-          <DialogDescription>
-            {onboarding?.description || 'Configuramos el tenant, CRM, plantillas iniciales y canales con estos datos.'}
-          </DialogDescription>
         </DialogHeader>
 
-        <form className="grid gap-5" onSubmit={submit}>
-          {termsOnly ? (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-50">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="font-semibold">{existingTenant?.nombre || 'Tu espacio Chatboc'}</p>
-                  <p className="mt-1 text-sm leading-5 text-blue-900/75 dark:text-blue-100/75">
-                    Revisá y aceptá la versión {terms?.version || 'vigente'} para mantener el acceso al CRM y sus canales.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-          <div className="grid gap-3 sm:grid-cols-4">
-            {summaryCards.slice(0, 4).map((card) => (
-              <div
-                key={card.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70"
-              >
-                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <p className="text-sm font-semibold">{card.label}</p>
-                {card.description ? (
-                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{card.description}</p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="tenant_name">Nombre de organizacion</Label>
-                <Input
-                  id="tenant_name"
-                  value={form.tenant_name}
-                  onChange={(event) => update('tenant_name', event.target.value)}
-                  placeholder="Ej. Municipalidad de Junin"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Vertical</Label>
-                <Select value={form.vertical} onValueChange={handleVerticalChange} disabled={loading}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona vertical" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verticalOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="rubro">Rubro</Label>
-                <Input
-                  id="rubro"
-                  value={form.rubro}
-                  onChange={(event) => update('rubro', event.target.value)}
-                  placeholder="Reclamos, ventas, cuotas..."
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="telefono">WhatsApp / telefono</Label>
-                <Input
-                  id="telefono"
-                  value={form.telefono}
-                  onChange={(event) => update('telefono', event.target.value)}
-                  placeholder="+54..."
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ciudad">Ciudad</Label>
-                <Input
-                  id="ciudad"
-                  value={form.ciudad}
-                  onChange={(event) => update('ciudad', event.target.value)}
-                  placeholder="Junin, Mendoza"
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="website">Sitio web</Label>
-                <Input
-                  id="website"
-                  value={form.website}
-                  onChange={(event) => update('website', event.target.value)}
-                  placeholder="https://..."
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Objetivo principal</Label>
-                <Select
-                  value={form.primary_goal}
-                  onValueChange={(value) => update('primary_goal', value)}
-                  disabled={loading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona objetivo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {goalOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <aside className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-50">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                  <Sparkles className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
-                    Setup sugerido
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold">
-                    {selectedPreset?.headline || 'Atencion omnicanal, CRM y analitica inicial'}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {recommendedModules.map((module) => (
-                  <div key={module.id} className="rounded-xl bg-white/80 p-3 shadow-sm dark:bg-slate-950/50">
-                    <p className="text-sm font-semibold">{module.label}</p>
-                    {module.description ? (
-                      <p className="mt-1 text-xs leading-5 text-blue-900/70 dark:text-blue-100/70">
-                        {module.description}
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          aria-busy={loading || undefined}
+          aria-describedby={error ? 'clerk-onboarding-error' : undefined}
+          onSubmit={submit}
+        >
+          <div
+            className="min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain break-words px-4 py-4 [scrollbar-gutter:stable] sm:px-6 sm:py-5"
+            data-testid="clerk-onboarding-scroll-region"
+          >
+            <div className="grid min-w-0 gap-5">
+              {termsOnly ? (
+                <div className="min-w-0 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-50">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                      <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold">{existingTenant?.nombre || 'Tu espacio Chatboc'}</p>
+                      <p className="mt-1 text-sm leading-5 text-blue-900/75 dark:text-blue-100/75">
+                        Revisá y aceptá la versión {terms?.version || 'vigente'} para mantener el acceso al CRM y sus canales.
                       </p>
-                    ) : null}
+                    </div>
                   </div>
-                ))}
+                </div>
+              ) : (
+                <>
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-4">
+                    {summaryCards.slice(0, 4).map((card) => (
+                      <div key={card.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+                        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        </div>
+                        <p className="break-words text-sm font-semibold">{card.label}</p>
+                        {card.description ? <p className="mt-1 break-words text-xs leading-5 text-slate-500 dark:text-slate-400">{card.description}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                    <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="tenant_name">Nombre de organizacion</Label>
+                        <Input
+                          ref={tenantNameInputRef}
+                          id="tenant_name"
+                          value={form.tenant_name}
+                          onChange={(event) => update('tenant_name', event.target.value)}
+                          placeholder="Ej. Municipalidad de Junin"
+                          required
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="clerk-onboarding-vertical">Vertical</Label>
+                        <Select value={form.vertical} onValueChange={handleVerticalChange} disabled={loading}>
+                          <SelectTrigger id="clerk-onboarding-vertical" className="min-w-0">
+                            <SelectValue placeholder="Selecciona vertical" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {verticalOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="rubro">Rubro</Label>
+                        <Input
+                          id="rubro"
+                          value={form.rubro}
+                          onChange={(event) => update('rubro', event.target.value)}
+                          placeholder="Reclamos, ventas, cuotas..."
+                          required
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="telefono">WhatsApp / telefono</Label>
+                        <Input
+                          id="telefono"
+                          value={form.telefono}
+                          onChange={(event) => update('telefono', event.target.value)}
+                          placeholder="+54..."
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="ciudad">Ciudad</Label>
+                        <Input
+                          id="ciudad"
+                          value={form.ciudad}
+                          onChange={(event) => update('ciudad', event.target.value)}
+                          placeholder="Junin, Mendoza"
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="website">Sitio web</Label>
+                        <Input
+                          id="website"
+                          value={form.website}
+                          onChange={(event) => update('website', event.target.value)}
+                          placeholder="https://..."
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="clerk-onboarding-primary-goal">Objetivo principal</Label>
+                        <Select value={form.primary_goal} onValueChange={(value) => update('primary_goal', value)} disabled={loading}>
+                          <SelectTrigger id="clerk-onboarding-primary-goal" className="min-w-0">
+                            <SelectValue placeholder="Selecciona objetivo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {goalOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <aside className="min-w-0 border-t border-slate-200 pt-5 text-slate-900 dark:border-slate-800 dark:text-slate-100 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                          <Sparkles className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold uppercase tracking-normal text-blue-600 dark:text-blue-300">Setup sugerido</p>
+                          <h3 className="mt-1 break-words text-base font-semibold leading-6">
+                            {selectedPreset?.headline || 'Atencion omnicanal, CRM y analitica inicial'}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <ul className="mt-4 divide-y divide-slate-200 border-y border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+                        {recommendedModules.map((module) => (
+                          <li key={module.id} className="min-w-0 py-3">
+                            <p className="break-words text-sm font-semibold">{module.label}</p>
+                            {module.description ? (
+                              <p className="mt-1 break-words text-xs leading-5 text-slate-600 dark:text-slate-400">{module.description}</p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {whatsappRequirements ? (
+                        <div
+                          className="mt-4 min-w-0 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-50"
+                          data-testid="clerk-whatsapp-requirements"
+                        >
+                          <p className="text-sm font-semibold">WhatsApp productivo</p>
+                          <p className="mt-1 break-words text-xs leading-5">
+                            {whatsappRequirements.message ||
+                              'El tenant se crea ahora. WhatsApp productivo requiere plan Full y sender Meta/Twilio configurado.'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
+                            {whatsappRequirements.required_plan ? (
+                              <span className="max-w-full break-all rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
+                                Plan {whatsappRequirements.required_plan}
+                              </span>
+                            ) : null}
+                            {(whatsappRequirements.required_provider_setup || []).slice(0, 3).map((item) => (
+                              <span key={item} className="max-w-full break-all rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
+                                {item.replace(/_/g, ' ')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {planPolicy ? (
+                        <div
+                          className="mt-4 min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-50"
+                          data-testid="clerk-plan-policy"
+                        >
+                          <p className="text-sm font-semibold">Plan inicial seguro</p>
+                          <p className="mt-1 break-words text-xs leading-5">
+                            {planPolicy.message || 'El registro publico crea un espacio Free. Los planes productivos se activan desde administracion.'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
+                            {planPolicy.self_service_plan ? (
+                              <span className="max-w-full break-all rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
+                                Alta {planPolicy.self_service_plan}
+                              </span>
+                            ) : null}
+                            {planPolicy.productive_plan ? (
+                              <span className="max-w-full break-all rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
+                                Productivo {planPolicy.productive_plan}
+                              </span>
+                            ) : null}
+                            {planPolicy.upgrade_requires ? (
+                              <span className="max-w-full break-all rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
+                                {planPolicy.upgrade_requires.replace(/_/g, ' ')}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {selectedPreset?.starter_questions?.length ? (
+                        <div className="mt-4 min-w-0 border-t border-slate-200 pt-4 dark:border-slate-800">
+                          <p className="mb-2 text-sm font-semibold">Preguntas iniciales para el agente</p>
+                          <ul className="space-y-2 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                            {selectedPreset.starter_questions.slice(0, 3).map((question) => (
+                              <li key={question} className="flex min-w-0 gap-2">
+                                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                <span className="min-w-0 break-words">{question}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </aside>
+                  </div>
+                </>
+              )}
+
+              {error ? (
+                <p
+                  ref={errorRef}
+                  id="clerk-onboarding-error"
+                  role="alert"
+                  aria-live="assertive"
+                  aria-atomic="true"
+                  tabIndex={-1}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+                >
+                  {error}
+                </p>
+              ) : null}
+
+              <div className="flex min-w-0 items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+                <Checkbox
+                  ref={termsCheckboxRef}
+                  id="clerk-onboarding-terms"
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                  disabled={loading}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="clerk-onboarding-terms" className="min-w-0 break-words text-sm leading-5 text-slate-700 dark:text-slate-300">
+                  {terms?.label || 'Acepto los Terminos y la Politica de Privacidad'}.{' '}
+                  <a
+                    href={terms?.terms_url || '/terminos'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
+                  >
+                    Ver terminos
+                  </a>{' '}
+                  y{' '}
+                  <a
+                    href={terms?.privacy_url || '/privacidad'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
+                  >
+                    privacidad
+                  </a>
+                </Label>
               </div>
-
-              {whatsappRequirements ? (
-                <div
-                  className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-50"
-                  data-testid="clerk-whatsapp-requirements"
-                >
-                  <p className="text-sm font-semibold">WhatsApp productivo</p>
-                  <p className="mt-1 text-xs leading-5">
-                    {whatsappRequirements.message ||
-                      'El tenant se crea ahora. WhatsApp productivo requiere plan Full y sender Meta/Twilio configurado.'}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
-                    {whatsappRequirements.required_plan ? (
-                      <span className="rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
-                        Plan {whatsappRequirements.required_plan}
-                      </span>
-                    ) : null}
-                    {(whatsappRequirements.required_provider_setup || []).slice(0, 3).map((item) => (
-                      <span key={item} className="rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
-                        {item.replace(/_/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {planPolicy ? (
-                <div
-                  className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-50"
-                  data-testid="clerk-plan-policy"
-                >
-                  <p className="text-sm font-semibold">Plan inicial seguro</p>
-                  <p className="mt-1 text-xs leading-5">
-                    {planPolicy.message ||
-                      'El registro publico crea un espacio Free. Los planes productivos se activan desde administracion.'}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
-                    {planPolicy.self_service_plan ? (
-                      <span className="rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
-                        Alta {planPolicy.self_service_plan}
-                      </span>
-                    ) : null}
-                    {planPolicy.productive_plan ? (
-                      <span className="rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
-                        Productivo {planPolicy.productive_plan}
-                      </span>
-                    ) : null}
-                    {planPolicy.upgrade_requires ? (
-                      <span className="rounded-full bg-white/75 px-2 py-1 dark:bg-slate-950/40">
-                        {planPolicy.upgrade_requires.replace(/_/g, ' ')}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {selectedPreset?.starter_questions?.length ? (
-                <div className="mt-4 rounded-xl border border-blue-200 bg-white/70 p-3 dark:border-blue-400/20 dark:bg-slate-950/40">
-                  <p className="mb-2 text-sm font-semibold">Preguntas iniciales para el agente</p>
-                  <ul className="space-y-2 text-xs leading-5 text-blue-900/75 dark:text-blue-100/75">
-                    {selectedPreset.starter_questions.slice(0, 3).map((question) => (
-                      <li key={question} className="flex gap-2">
-                        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                        <span>{question}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </aside>
-          </div>
-            </>
-          )}
-
-          {error && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </p>
-          )}
-
-          <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
-            <Checkbox
-              id="clerk-onboarding-terms"
-              checked={termsAccepted}
-              onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-              disabled={loading}
-              className="mt-0.5"
-            />
-            <Label htmlFor="clerk-onboarding-terms" className="text-sm leading-5 text-slate-700 dark:text-slate-300">
-              {terms?.label || 'Acepto los Terminos y la Politica de Privacidad'}.{' '}
-              <a
-                href={terms?.terms_url || '/terminos'}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
-              >
-                Ver terminos
-              </a>{' '}
-              y{' '}
-              <a
-                href={terms?.privacy_url || '/privacidad'}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-blue-600 underline underline-offset-4 dark:text-blue-300"
-              >
-                privacidad
-              </a>
-            </Label>
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter
+            className="shrink-0 border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 sm:px-6"
+            data-testid="clerk-onboarding-footer"
+          >
             <Button
               type="submit"
+              className="min-h-11 w-full sm:w-auto"
+              aria-busy={loading || undefined}
+              aria-describedby={error ? 'clerk-onboarding-error' : undefined}
               disabled={loading || !termsAccepted || (!termsOnly && (!form.tenant_name || !form.rubro))}
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
               {termsOnly ? 'Aceptar y continuar' : 'Crear tenant'}
             </Button>
           </DialogFooter>

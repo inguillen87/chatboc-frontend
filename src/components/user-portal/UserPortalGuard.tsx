@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { isBackofficeRole } from '@/utils/roles';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface Props {
   children: React.ReactElement;
@@ -35,17 +36,19 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
   const location = useLocation();
   const [hasAttemptedRefresh, setHasAttemptedRefresh] = useState(false);
 
-  const hasAnyToken = Boolean(
-    getValidStoredToken('authToken') || getValidStoredToken('chatAuthToken'),
+  const hasAnySession = Boolean(
+    getValidStoredToken('authToken') ||
+    getValidStoredToken('chatAuthToken') ||
+    safeLocalStorage.getItem('authProvider')?.trim().toLowerCase() === 'clerk',
   );
 
   useEffect(() => {
-    if (user || loading || !hasAnyToken || hasAttemptedRefresh) return;
+    if (user || loading || !hasAnySession || hasAttemptedRefresh) return;
     setHasAttemptedRefresh(true);
     refreshUser().catch((err) => {
       console.warn('[UserPortalGuard] refreshUser failed', err);
     });
-  }, [hasAnyToken, hasAttemptedRefresh, loading, refreshUser, user]);
+  }, [hasAnySession, hasAttemptedRefresh, loading, refreshUser, user]);
 
   // Use matchPath to check if current location matches any allowed guest route (handling params like :tenant)
   const isGuestAllowed = allowGuestPaths?.some((pathPattern) => {
@@ -53,7 +56,7 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
     return match;
   });
 
-  const canBypassAuth = isGuestAllowed && !hasAnyToken;
+  const canBypassAuth = isGuestAllowed && !hasAnySession;
 
   if (loading && !canBypassAuth) {
     return (
