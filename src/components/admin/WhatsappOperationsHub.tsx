@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -14,10 +14,12 @@ import {
   RefreshCw,
   Route,
   Search,
+  Send,
   Settings2,
   ShieldCheck,
   Sparkles,
   Video,
+  Workflow,
 } from "lucide-react";
 
 import {
@@ -27,6 +29,7 @@ import {
 } from "@/api/v2/saas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 
@@ -118,6 +121,14 @@ const appendTenantToEndpoint = (endpoint: string, tenantSlug?: string | null) =>
   }
   const separator = endpoint.includes("?") ? "&" : "?";
   return `${endpoint}${separator}tenant_slug=${encodeURIComponent(tenantSlug)}`;
+};
+
+const newFlowIdempotencyKey = () => {
+  const randomId =
+    typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `flow-test-${randomId}`;
 };
 
 const readLatLng = (...sources: unknown[]) => {
@@ -1139,6 +1150,498 @@ const toneForQaStatus = (status: unknown): "ready" | "warning" | "danger" | "neu
   if (value.includes("blocked")) return "danger";
   if (value.includes("review") || value.includes("pending") || value.includes("needs")) return "warning";
   return "neutral";
+};
+
+const metaCapabilityState = (capability: AnyRecord) => {
+  const status = readText(capability.status).toLowerCase();
+  if (boolish(capability.active) || status === "active") {
+    return { label: "Activo", tone: "ready" as const };
+  }
+  if (status.includes("error") || status.includes("rejected")) {
+    return { label: "Revisar", tone: "danger" as const };
+  }
+  if (boolish(capability.configured) || status === "configured" || status === "sender_pending") {
+    return { label: "Configurado", tone: "warning" as const };
+  }
+  if (capability.supported_by_provider === false) {
+    return { label: "No disponible", tone: "neutral" as const };
+  }
+  return { label: "Configuracion pendiente", tone: "warning" as const };
+};
+
+const MetaCapabilityRow = ({
+  icon: Icon,
+  title,
+  capability,
+  detail,
+  metrics,
+}: {
+  icon: React.ElementType;
+  title: string;
+  capability: AnyRecord;
+  detail: string;
+  metrics?: string[];
+}) => {
+  const state = metaCapabilityState(capability);
+  return (
+    <div className="grid gap-3 border-b border-border/60 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+          {metrics?.length ? (
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
+              {metrics.map((metric) => (
+                <span key={metric}>{metric}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <StatusPill tone={state.tone}>{state.label}</StatusPill>
+    </div>
+  );
+};
+
+const MetaPlatformPanel = ({
+  experience,
+  tenantSlug,
+}: {
+  experience: WhatsappExperienceV2;
+  tenantSlug?: string | null;
+}) => {
+  const platform = asRecord(experience.meta_platform);
+  const nativeFlows = asRecord(platform.native_flows);
+  const businessCalling = asRecord(platform.business_calling);
+  const catalog = asRecord(platform.catalog);
+  const embeddedSignup = asRecord(platform.embedded_signup);
+  const integrationAccess = asRecord(platform.integration_access);
+  const candidates = asArray(nativeFlows.flows).map(asRecord);
+  const initialFlow = candidates.find((item) => !boolish(item.active)) || candidates[0] || {};
+  const initialFlowId = readText(initialFlow.id);
+  const initialMetaFlowId = readText(initialFlow.meta_flow_id);
+  const flowStateKey = candidates
+    .map((item) => `${readText(item.id)}:${readText(item.meta_flow_id)}:${readText(item.registry_status)}`)
+    .join("|");
+  const [selectedFlowId, setSelectedFlowId] = useState(() => initialFlowId);
+  const [metaFlowId, setMetaFlowId] = useState(() => initialMetaFlowId);
+  const [operation, setOperation] = useState<"dry" | "execute" | null>(null);
+  const [resultMessage, setResultMessage] = useState("");
+  const [executeConfirmation, setExecuteConfirmation] = useState("");
+  const [runtimeLocked, setRuntimeLocked] = useState(false);
+  const [testRecipient, setTestRecipient] = useState("");
+  const [sendOperation, setSendOperation] = useState<"dry" | "execute" | null>(null);
+  const [sendResultMessage, setSendResultMessage] = useState("");
+  const [sendConfirmation, setSendConfirmation] = useState("");
+  const [sendIdempotencyKey, setSendIdempotencyKey] = useState(newFlowIdempotencyKey);
+  const requestSequence = useRef(0);
+  const sendRequestSequence = useRef(0);
+
+  useEffect(() => {
+    requestSequence.current += 1;
+    setSelectedFlowId(initialFlowId);
+    setMetaFlowId(initialMetaFlowId);
+    setOperation(null);
+    setResultMessage("");
+    setExecuteConfirmation("");
+    setRuntimeLocked(false);
+    sendRequestSequence.current += 1;
+    setTestRecipient("");
+    setSendOperation(null);
+    setSendResultMessage("");
+    setSendConfirmation("");
+    setSendIdempotencyKey(newFlowIdempotencyKey());
+  }, [tenantSlug, flowStateKey, initialFlowId, initialMetaFlowId]);
+
+  if (!Object.keys(platform).length) return null;
+
+  const selectedFlow = candidates.find((item) => readText(item.id) === selectedFlowId) || initialFlow;
+  const accessKnown = Object.prototype.hasOwnProperty.call(integrationAccess, "enabled");
+  const accessLocked = accessKnown && !boolish(integrationAccess.enabled);
+  const executionLocked = accessLocked || runtimeLocked;
+  const normalizedMetaFlowId = metaFlowId.trim();
+  const validMetaFlowId = /^\d{6,32}$/.test(normalizedMetaFlowId);
+  const syncEndpoint = readText(nativeFlows.sync_endpoint) || "/api/admin/whatsapp/flows/twilio-content/sync";
+  const sendEndpoint = readText(nativeFlows.send_endpoint) || "/api/admin/whatsapp/flows/send";
+  const nativeFlowSecurity = asRecord(nativeFlows.security);
+  const testRecipientDigits = testRecipient.replace(/\D/g, "");
+  const validTestRecipient = testRecipientDigits.length >= 8 && testRecipientDigits.length <= 15;
+
+  const selectFlow = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    requestSequence.current += 1;
+    const nextId = event.target.value;
+    const nextFlow = candidates.find((item) => readText(item.id) === nextId);
+    setSelectedFlowId(nextId);
+    setMetaFlowId(readText(nextFlow?.meta_flow_id));
+    setExecuteConfirmation("");
+    setRuntimeLocked(false);
+    setResultMessage("");
+    sendRequestSequence.current += 1;
+    setTestRecipient("");
+    setSendOperation(null);
+    setSendResultMessage("");
+    setSendConfirmation("");
+    setSendIdempotencyKey(newFlowIdempotencyKey());
+  };
+
+  const syncFlow = async (mode: "dry" | "execute") => {
+    if (!selectedFlowId || !validMetaFlowId) {
+      setResultMessage("Ingresa el Flow ID numerico publicado por Meta antes de validar.");
+      return;
+    }
+    if (mode === "execute" && !executeConfirmation) {
+      setResultMessage("Valida el Flow primero para obtener la confirmacion de ejecucion.");
+      return;
+    }
+
+    setOperation(mode);
+    setResultMessage("");
+    const requestId = ++requestSequence.current;
+    try {
+      const response = await apiFetch<unknown>(appendTenantToEndpoint(syncEndpoint, tenantSlug), {
+        method: "POST",
+        tenantSlug: tenantSlug || undefined,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow_id: selectedFlowId,
+          meta_flow_id: normalizedMetaFlowId,
+          dry_run: mode === "dry",
+          submit_for_approval: true,
+          ...(mode === "execute" ? { execute_confirmation: executeConfirmation } : {}),
+        }),
+      });
+      if (requestId !== requestSequence.current) return;
+      const record = asRecord(response);
+      const frontendContract = asRecord(record.frontend_contract);
+      const guardrails = asRecord(record.operator_guardrails);
+      const responseLocked =
+        boolish(record.blocked) ||
+        boolish(frontendContract.render_locked_state) ||
+        boolish(frontendContract.hide_execute_controls) ||
+        boolish(guardrails.requires_full_plan);
+      setRuntimeLocked(responseLocked);
+
+      if (mode === "dry") {
+        const confirmation = responseLocked ? "" : readText(record.execute_confirmation);
+        setExecuteConfirmation(confirmation);
+        setResultMessage(
+          responseLocked
+            ? readText(asRecord(record.integration_access).message) ||
+                "El payload es valido, pero la ejecucion requiere plan Full y sender configurado."
+            : confirmation
+              ? "Flow validado. La confirmacion real ya esta lista."
+              : "El backend valido el Flow, pero no habilito su ejecucion.",
+        );
+      } else {
+        const registry = asRecord(record.registry);
+        const contentSid = readText(record.content_sid) || readText(registry.content_sid);
+        setExecuteConfirmation("");
+        setResultMessage(
+          contentSid
+            ? `Flow registrado en Twilio: ${contentSid}`
+            : readText(record.reason) === "already_registered"
+              ? "El Flow ya estaba registrado para este tenant."
+              : "Flow enviado a Twilio para aprobacion.",
+        );
+      }
+    } catch (err) {
+      if (requestId !== requestSequence.current) return;
+      if (err instanceof ApiError) {
+        const body = asRecord(err.body);
+        const frontendContract = asRecord(body.frontend_contract);
+        const guardrails = asRecord(body.operator_guardrails);
+        const locked =
+          boolish(body.blocked) ||
+          boolish(frontendContract.render_locked_state) ||
+          boolish(frontendContract.hide_execute_controls) ||
+          boolish(guardrails.requires_full_plan);
+        if (locked) {
+          setRuntimeLocked(true);
+          setExecuteConfirmation("");
+        }
+      }
+      setResultMessage(getErrorMessage(err, "No se pudo sincronizar el Flow nativo."));
+    } finally {
+      if (requestId === requestSequence.current) setOperation(null);
+    }
+  };
+
+  const sendTestFlow = async (mode: "dry" | "execute") => {
+    if (!selectedFlowId || !validTestRecipient) {
+      setSendResultMessage("Ingresa un numero internacional valido antes de probar el Flow.");
+      return;
+    }
+    if (mode === "execute" && !sendConfirmation) {
+      setSendResultMessage("Valida el envio primero; la confirmacion es de corta duracion.");
+      return;
+    }
+
+    setSendOperation(mode);
+    setSendResultMessage("");
+    const requestId = ++sendRequestSequence.current;
+    try {
+      const response = await apiFetch<unknown>(appendTenantToEndpoint(sendEndpoint, tenantSlug), {
+        method: "POST",
+        tenantSlug: tenantSlug || undefined,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow_id: selectedFlowId,
+          recipient: `+${testRecipientDigits}`,
+          idempotency_key: sendIdempotencyKey,
+          dry_run: mode === "dry",
+          ...(mode === "execute" ? { execute_confirmation: sendConfirmation } : {}),
+        }),
+      });
+      if (requestId !== sendRequestSequence.current) return;
+      const record = asRecord(response);
+      if (mode === "dry") {
+        const blockers = asArray(record.blockers).map(String);
+        const confirmation = boolish(record.ready_to_send) ? readText(record.execute_confirmation) : "";
+        setSendConfirmation(confirmation);
+        setSendResultMessage(
+          confirmation
+            ? `Envio validado para ${readText(record.recipient_hint) || "el destino indicado"}.`
+            : blockers.length
+              ? `Envio bloqueado: ${blockers.map(formatKey).join(", ")}.`
+              : "El backend no habilito el envio real.",
+        );
+      } else {
+        const interaction = asRecord(record.interaction);
+        const messageSid = readText(interaction.external_message_sid);
+        setSendConfirmation("");
+        setSendResultMessage(
+          messageSid
+            ? `Flow enviado y trazado: ${messageSid}.`
+            : boolish(record.idempotent_replay)
+              ? `Operacion ya registrada con estado ${formatKey(readText(interaction.status) || "desconocido")}.`
+              : "Flow enviado; el estado quedo registrado en el backend.",
+        );
+        setSendIdempotencyKey(newFlowIdempotencyKey());
+      }
+    } catch (err) {
+      if (requestId !== sendRequestSequence.current) return;
+      setSendConfirmation("");
+      setSendResultMessage(getErrorMessage(err, "No se pudo enviar el Flow de prueba."));
+    } finally {
+      if (requestId === sendRequestSequence.current) setSendOperation(null);
+    }
+  };
+
+  const platformState = metaCapabilityState(platform);
+  const callingModes = [
+    boolish(businessCalling.user_initiated_enabled) ? "Entrantes habilitadas" : "Entrantes pendientes",
+    boolish(businessCalling.business_initiated_enabled) ? "Salientes habilitadas" : "Salientes pendientes",
+  ];
+
+  return (
+    <Card className="border-border/60" data-testid="meta-platform-operations">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Meta Business Platform
+            </CardTitle>
+            <CardDescription>Flows, llamadas, catalogo y alta de senders con estados verificables.</CardDescription>
+          </div>
+          <StatusPill tone={platformState.tone}>{platformState.label}</StatusPill>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="border-y border-border/60">
+          <MetaCapabilityRow
+            icon={Workflow}
+            title="WhatsApp Flows nativos"
+            capability={nativeFlows}
+            detail="Formularios multistep dentro de WhatsApp con respuesta estructurada al backend."
+            metrics={[
+              `${formatNumber(nativeFlows.candidate_count)} candidatos`,
+              `${formatNumber(nativeFlows.configured_count)} configurados`,
+              `${formatNumber(nativeFlows.active_count)} activos`,
+            ]}
+          />
+          <MetaCapabilityRow
+            icon={PhoneCall}
+            title="WhatsApp Business Calling"
+            capability={businessCalling}
+            detail="Solo se habilita con sender aprobado, consentimiento registrado y sin puente a telefonia PSTN."
+            metrics={callingModes}
+          />
+          <MetaCapabilityRow
+            icon={PackageCheck}
+            title="Catalogo de productos"
+            capability={catalog}
+            detail="Sincronizacion del catalogo Chatboc con mensajes de producto de Meta."
+            metrics={[
+              `${formatNumber(catalog.chatboc_catalog_items)} articulos Chatboc`,
+              boolish(catalog.catalog_id_present) ? "Catalog ID vinculado" : "Catalog ID pendiente",
+            ]}
+          />
+          <MetaCapabilityRow
+            icon={Link2}
+            title="Embedded Signup"
+            capability={embeddedSignup}
+            detail="Onboarding guiado del WABA y numero del tenant sin copiar credenciales manualmente."
+            metrics={[
+              boolish(embeddedSignup.platform_configured) ? "Plataforma configurada" : "Config Meta pendiente",
+              boolish(embeddedSignup.tenant_completed) ? "Tenant vinculado" : "Tenant sin vincular",
+            ]}
+          />
+        </div>
+
+        {candidates.length ? (
+          <div className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Activar Flow nativo</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Primero valida el ID publicado por Meta. La creacion real exige confirmacion del backend.
+                </p>
+              </div>
+              <StatusPill tone={boolish(selectedFlow.active) ? "ready" : boolish(selectedFlow.configured) ? "warning" : "neutral"}>
+                {formatKey(readText(selectedFlow.activation_state) || "meta_flow_id_required")}
+              </StatusPill>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)_auto] lg:items-end">
+              <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-candidate">
+                Flujo Chatboc
+                <select
+                  id="meta-flow-candidate"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={selectedFlowId}
+                  onChange={selectFlow}
+                >
+                  {candidates.map((flow) => (
+                    <option key={readText(flow.id)} value={readText(flow.id)}>
+                      {readText(flow.flow_name) || formatKey(readText(flow.id))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-id">
+                Meta Flow ID publicado
+                <Input
+                  id="meta-flow-id"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="1232445823264765"
+                  value={metaFlowId}
+                  onChange={(event) => {
+                    requestSequence.current += 1;
+                    setMetaFlowId(event.target.value.replace(/\D/g, "").slice(0, 32));
+                    setExecuteConfirmation("");
+                    setRuntimeLocked(false);
+                    setResultMessage("");
+                  }}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={!selectedFlowId || !validMetaFlowId || operation !== null}
+                  onClick={() => syncFlow("dry")}
+                >
+                  {operation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                  Validar Flow
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={!executeConfirmation || executionLocked || operation !== null}
+                  onClick={() => syncFlow("execute")}
+                >
+                  {operation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  Crear Flow en Twilio
+                </Button>
+              </div>
+            </div>
+
+            {accessLocked ? (
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                La validacion esta disponible; la ejecucion real requiere plan {readText(integrationAccess.required_plan) || "full"}.
+              </p>
+            ) : null}
+            {resultMessage ? (
+              <p className="rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground" role="status">
+                {resultMessage}
+              </p>
+            ) : null}
+
+            <div className="border-t border-primary/15 pt-4" data-testid="native-flow-test-send">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Probar en un WhatsApp real</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    El backend genera un token de un solo uso y registra la entrega sin mostrar datos sensibles.
+                  </p>
+                </div>
+                <StatusPill tone={boolish(nativeFlowSecurity.dedicated_token_key_ready) ? "ready" : "warning"}>
+                  {boolish(nativeFlowSecurity.dedicated_token_key_ready) ? "Seguridad lista" : "Clave pendiente"}
+                </StatusPill>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(240px,0.8fr)_auto] lg:items-end">
+                <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-test-recipient">
+                  Numero destino
+                  <Input
+                    id="meta-flow-test-recipient"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="+54 9 11 2345 6789"
+                    value={testRecipient}
+                    onChange={(event) => {
+                      sendRequestSequence.current += 1;
+                      setTestRecipient(event.target.value.slice(0, 32));
+                      setSendConfirmation("");
+                      setSendResultMessage("");
+                    }}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    disabled={!selectedFlowId || !validTestRecipient || sendOperation !== null || operation !== null}
+                    onClick={() => sendTestFlow("dry")}
+                  >
+                    {sendOperation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                    Validar envio
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="rounded-xl"
+                    disabled={!sendConfirmation || sendOperation !== null || operation !== null}
+                    onClick={() => sendTestFlow("execute")}
+                  >
+                    {sendOperation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar Flow de prueba
+                  </Button>
+                </div>
+              </div>
+              {sendResultMessage ? (
+                <p className="mt-3 rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground" role="status">
+                  {sendResultMessage}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <EmptyState reason="No hay blueprints seguros disponibles para convertir en WhatsApp Flows." />
+        )}
+      </CardContent>
+    </Card>
+  );
 };
 
 const FlowRuntimePanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
@@ -2289,6 +2792,7 @@ export default function WhatsappOperationsHub({
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
+      <MetaPlatformPanel experience={experience} tenantSlug={tenantSlug} />
       <TemplateBlueprintPanel experience={experience} tenantSlug={tenantSlug} />
       <FlowRuntimePanel experience={experience} />
       <TrackingContract experience={experience} tenantSlug={tenantSlug} />

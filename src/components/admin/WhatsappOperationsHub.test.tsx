@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappOperationsHub from "./WhatsappOperationsHub";
@@ -75,6 +75,7 @@ const baseExperience = {
       },
     ],
   },
+  meta_platform: {},
   finance_transactional: {},
   qa_playbook: {},
   message_ux_policy: {},
@@ -112,6 +113,45 @@ const templateExperience = (access: Record<string, unknown>) => ({
         },
       ],
     },
+  },
+});
+
+const metaFlowExperience = (flowId: string, metaFlowId = "") => ({
+  ...baseExperience,
+  meta_platform: {
+    contract_version: "whatsapp.meta_platform.v1",
+    configured: true,
+    active: false,
+    status: "sender_pending",
+    native_flows: {
+      supported_by_provider: true,
+      configured: Boolean(metaFlowId),
+      active: false,
+      candidate_count: 1,
+      configured_count: metaFlowId ? 1 : 0,
+      active_count: 0,
+      sync_endpoint: "/api/admin/whatsapp/flows/twilio-content/sync",
+      send_endpoint: "/api/admin/whatsapp/flows/send",
+      security: {
+        dedicated_token_key_ready: true,
+        durable_single_use_invocation: true,
+      },
+      flows: [
+        {
+          id: flowId,
+          flow_name: flowId === "claim_intake" ? "Reclamo ciudadano" : "Pedido comercial",
+          meta_flow_id: metaFlowId || undefined,
+          registry_status: metaFlowId ? "pending_approval" : "not_configured",
+          activation_state: metaFlowId ? "awaiting_meta_approval" : "meta_flow_id_required",
+          configured: Boolean(metaFlowId),
+          active: false,
+        },
+      ],
+    },
+    business_calling: { supported_by_provider: true, configured: false, active: false },
+    catalog: { configured: false, active: false, chatboc_catalog_items: 0 },
+    embedded_signup: { platform_configured: true, tenant_completed: false, active: false },
+    integration_access: { enabled: true, required_plan: "full" },
   },
 });
 
@@ -270,6 +310,227 @@ describe("WhatsappOperationsHub", () => {
       }),
     );
     expect(await screen.findByText(/ContentSid registrado: HXcreatedtemplate/i)).toBeInTheDocument();
+  });
+
+  it("validates and creates a native Meta Flow without claiming it active first", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        dry_run: true,
+        blocked: false,
+        ready_to_create: true,
+        execute_confirmation: "sync_twilio_flow:claim_intake:1232445823264765",
+      })
+      .mockResolvedValueOnce({
+        created: true,
+        content_sid: "HXnativeflowcreated",
+        approval_status: "pending",
+      });
+
+    const experience = {
+      ...baseExperience,
+      meta_platform: {
+        contract_version: "whatsapp.meta_platform.v1",
+        configured: true,
+        active: false,
+        status: "sender_pending",
+        native_flows: {
+          supported_by_provider: true,
+          configured: false,
+          active: false,
+          candidate_count: 1,
+          configured_count: 0,
+          active_count: 0,
+          sync_endpoint: "/api/admin/whatsapp/flows/twilio-content/sync",
+          flows: [
+            {
+              id: "claim_intake",
+              flow_name: "Reclamo ciudadano",
+              activation_state: "meta_flow_id_required",
+              configured: false,
+              active: false,
+            },
+          ],
+        },
+        business_calling: {
+          supported_by_provider: true,
+          configured: false,
+          active: false,
+          user_initiated_enabled: false,
+          business_initiated_enabled: false,
+        },
+        catalog: {
+          configured: true,
+          active: false,
+          catalog_id_present: true,
+          chatboc_catalog_items: 42,
+        },
+        embedded_signup: {
+          platform_configured: true,
+          tenant_completed: true,
+          active: false,
+          status: "sender_pending",
+        },
+        integration_access: { enabled: true, required_plan: "full" },
+      },
+    };
+
+    render(<WhatsappOperationsHub initialExperience={experience} />);
+
+    const panel = screen.getByTestId("meta-platform-operations");
+    expect(panel).toHaveTextContent("Meta Business Platform");
+    expect(panel).toHaveTextContent("WhatsApp Flows nativos");
+    expect(panel).toHaveTextContent("WhatsApp Business Calling");
+    expect(panel).toHaveTextContent("42 articulos Chatboc");
+    expect(panel).not.toHaveTextContent("Entrantes habilitadas");
+
+    const validateButton = screen.getByRole("button", { name: /Validar Flow/i });
+    const executeButton = screen.getByRole("button", { name: /Crear Flow en Twilio/i });
+    expect(validateButton).toBeDisabled();
+    expect(executeButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Meta Flow ID publicado/i), {
+      target: { value: "1232445823264765" },
+    });
+    expect(validateButton).toBeEnabled();
+    fireEvent.click(validateButton);
+
+    expect(await screen.findByText(/Flow validado/i)).toBeInTheDocument();
+    expect(apiFetchMock.mock.calls[0]).toEqual([
+      "/api/admin/whatsapp/flows/twilio-content/sync",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          flow_id: "claim_intake",
+          meta_flow_id: "1232445823264765",
+          dry_run: true,
+          submit_for_approval: true,
+        }),
+      }),
+    ]);
+
+    expect(executeButton).toBeEnabled();
+    fireEvent.click(executeButton);
+    expect(await screen.findByText(/HXnativeflowcreated/i)).toBeInTheDocument();
+    expect(apiFetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          flow_id: "claim_intake",
+          meta_flow_id: "1232445823264765",
+          dry_run: false,
+          submit_for_approval: true,
+          execute_confirmation: "sync_twilio_flow:claim_intake:1232445823264765",
+        }),
+      }),
+    );
+  });
+
+  it("prevalidates and sends a native Flow without exposing its one-time token", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        dry_run: true,
+        ready_to_send: true,
+        blocked: false,
+        blockers: [],
+        recipient_hint: "***6789",
+        execute_confirmation: "signed-short-lived-send-confirmation",
+        security: { token_exposed: false },
+      })
+      .mockResolvedValueOnce({
+        sent: true,
+        idempotent_replay: false,
+        interaction: {
+          status: "sent",
+          recipient_hint: "***6789",
+          external_message_sid: "SMNATIVEFLOW001",
+        },
+      });
+
+    render(
+      <WhatsappOperationsHub
+        initialExperience={metaFlowExperience("catalog_order_builder", "1232445823264765")}
+      />,
+    );
+
+    const testPanel = screen.getByTestId("native-flow-test-send");
+    expect(testPanel).toHaveTextContent("Seguridad lista");
+    const validateSend = screen.getByRole("button", { name: /Validar envio/i });
+    const executeSend = screen.getByRole("button", { name: /Enviar Flow de prueba/i });
+    expect(validateSend).toBeDisabled();
+    expect(executeSend).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Numero destino/i), {
+      target: { value: "+54 9 11 2345-6789" },
+    });
+    expect(validateSend).toBeEnabled();
+    fireEvent.click(validateSend);
+
+    expect(await screen.findByText(/Envio validado para \*\*\*6789/i)).toBeInTheDocument();
+    const previewBody = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    expect(apiFetchMock.mock.calls[0][0]).toBe("/api/admin/whatsapp/flows/send");
+    expect(previewBody).toEqual(
+      expect.objectContaining({
+        flow_id: "catalog_order_builder",
+        recipient: "+5491123456789",
+        dry_run: true,
+      }),
+    );
+    expect(previewBody.idempotency_key).toMatch(/^flow-test-/);
+    expect(JSON.stringify(apiFetchMock.mock.calls[0])).not.toContain("flow_token");
+
+    expect(executeSend).toBeEnabled();
+    fireEvent.click(executeSend);
+    expect(await screen.findByText(/SMNATIVEFLOW001/i)).toBeInTheDocument();
+    const executeBody = JSON.parse(String(apiFetchMock.mock.calls[1][1]?.body));
+    expect(executeBody).toEqual({
+      flow_id: "catalog_order_builder",
+      recipient: "+5491123456789",
+      idempotency_key: previewBody.idempotency_key,
+      dry_run: false,
+      execute_confirmation: "signed-short-lived-send-confirmation",
+    });
+    expect(testPanel).not.toHaveTextContent("signed-short-lived-send-confirmation");
+    expect(testPanel).not.toHaveTextContent("flow_token");
+  });
+
+  it("resets Flow controls and ignores a stale response when the tenant contract changes", async () => {
+    let resolveRequest: (value: unknown) => void = () => undefined;
+    apiFetchMock.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    const { rerender } = render(
+      <WhatsappOperationsHub initialExperience={metaFlowExperience("claim_intake")} />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Meta Flow ID publicado/i), {
+      target: { value: "1232445823264765" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Validar Flow/i }));
+
+    rerender(
+      <WhatsappOperationsHub
+        initialExperience={metaFlowExperience("order_checkout", "987654321012345")}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Meta Flow ID publicado/i)).toHaveValue("987654321012345");
+    });
+
+    await act(async () => {
+      resolveRequest({
+        dry_run: true,
+        blocked: false,
+        execute_confirmation: "stale-confirmation-from-previous-tenant",
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(/Flow validado/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Crear Flow en Twilio/i })).toBeDisabled();
+    expect(screen.getByLabelText(/Flujo Chatboc/i)).toHaveValue("order_checkout");
+    expect(screen.getByLabelText(/Numero destino/i)).toHaveValue("");
+    expect(screen.getByRole("button", { name: /Enviar Flow de prueba/i })).toBeDisabled();
   });
 
   it("removes stale Twilio execution confirmation when backend returns a runtime plan lock", async () => {
