@@ -1209,9 +1209,11 @@ const MetaCapabilityRow = ({
 const MetaPlatformPanel = ({
   experience,
   tenantSlug,
+  canManageFlows,
 }: {
   experience: WhatsappExperienceV2;
   tenantSlug?: string | null;
+  canManageFlows: boolean;
 }) => {
   const platform = asRecord(experience.meta_platform);
   const nativeFlows = asRecord(platform.native_flows);
@@ -1267,8 +1269,10 @@ const MetaPlatformPanel = ({
   const syncEndpoint = readText(nativeFlows.sync_endpoint) || "/api/admin/whatsapp/flows/twilio-content/sync";
   const sendEndpoint = readText(nativeFlows.send_endpoint) || "/api/admin/whatsapp/flows/send";
   const nativeFlowSecurity = asRecord(nativeFlows.security);
-  const testRecipientDigits = testRecipient.replace(/\D/g, "");
-  const validTestRecipient = testRecipientDigits.length >= 8 && testRecipientDigits.length <= 15;
+  const normalizedTestRecipient = testRecipient.replace(/[()\s.\-]/g, "");
+  const validTestRecipient = /^\+[1-9]\d{7,14}$/.test(normalizedTestRecipient);
+  const hasTestRecipient = testRecipient.trim().length > 0;
+  const recipientHelpId = "meta-flow-test-recipient-help";
 
   const selectFlow = (event: React.ChangeEvent<HTMLSelectElement>) => {
     requestSequence.current += 1;
@@ -1389,7 +1393,7 @@ const MetaPlatformPanel = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           flow_id: selectedFlowId,
-          recipient: `+${testRecipientDigits}`,
+          recipient: normalizedTestRecipient,
           idempotency_key: sendIdempotencyKey,
           dry_run: mode === "dry",
           ...(mode === "execute" ? { execute_confirmation: sendConfirmation } : {}),
@@ -1492,7 +1496,14 @@ const MetaPlatformPanel = ({
           />
         </div>
 
-        {candidates.length ? (
+        {!canManageFlows ? (
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+            <p className="text-sm font-semibold text-foreground">Administracion protegida</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Podes consultar el estado del canal. La activacion y los envios de prueba requieren una cuenta administradora del tenant.
+            </p>
+          </div>
+        ) : candidates.length ? (
           <div className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1595,6 +1606,8 @@ const MetaPlatformPanel = ({
                     type="tel"
                     inputMode="tel"
                     autoComplete="tel"
+                    aria-describedby={recipientHelpId}
+                    aria-invalid={hasTestRecipient && !validTestRecipient}
                     placeholder="+54 9 11 2345 6789"
                     value={testRecipient}
                     onChange={(event) => {
@@ -1604,6 +1617,14 @@ const MetaPlatformPanel = ({
                       setSendResultMessage("");
                     }}
                   />
+                  <span
+                    id={recipientHelpId}
+                    className={hasTestRecipient && !validTestRecipient ? "text-destructive" : "text-muted-foreground"}
+                  >
+                    {hasTestRecipient && !validTestRecipient
+                      ? "Usa formato E.164: signo +, codigo de pais y numero, sin 0 inicial."
+                      : "Formato E.164, por ejemplo +5491123456789."}
+                  </span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -1761,9 +1782,11 @@ const FlowRuntimePanel = ({ experience }: { experience: WhatsappExperienceV2 }) 
 const TemplateBlueprintPanel = ({
   experience,
   tenantSlug,
+  canManageFlows,
 }: {
   experience: WhatsappExperienceV2;
   tenantSlug?: string | null;
+  canManageFlows: boolean;
 }) => {
   const access = asRecord(experience.access);
   const accessKnown = Object.prototype.hasOwnProperty.call(access, "enabled");
@@ -1799,7 +1822,7 @@ const TemplateBlueprintPanel = ({
   const [templateRuntimeGuards, setTemplateRuntimeGuards] = useState<Record<string, AnyRecord>>({});
 
   const handleTemplateSync = async (templateId: string, mode: "dry" | "execute" | "refresh") => {
-    if (!templateId) return;
+    if (!templateId || !canManageFlows) return;
     if (mode === "execute" && !templateConfirmations[templateId]) {
       setSyncResults((current) => ({
         ...current,
@@ -2026,6 +2049,14 @@ const TemplateBlueprintPanel = ({
                 </div>
               </div>
             ) : null}
+            {!canManageFlows ? (
+              <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <p className="text-sm font-semibold text-foreground">Administracion protegida</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Podes revisar el manifiesto y los estados. Validar, crear o refrescar plantillas requiere una cuenta administradora del tenant.
+                </p>
+              </div>
+            ) : null}
             {creationItems.length ? (
               <div className="grid gap-2 lg:grid-cols-2">
                 {creationItems.slice(0, 4).map((item, index) => {
@@ -2076,44 +2107,46 @@ const TemplateBlueprintPanel = ({
                           {boolish(metaBusiness.outside_24h_requires_approval) ? ". Requiere aprobacion para recontacto fuera de 24h." : "."}
                         </p>
                       ) : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl"
-                          disabled={!templateId || Boolean(syncingTemplateId)}
-                          onClick={() => handleTemplateSync(templateId, "dry")}
-                        >
-                          {syncingTemplateId === dryKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                          Validar payload
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="rounded-xl"
-                          disabled={!canExecuteTemplate}
-                          onClick={() => handleTemplateSync(templateId, "execute")}
-                        >
-                          {syncingTemplateId === executeKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                          Crear en Twilio
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl"
-                          disabled={!canRefreshTemplate}
-                          onClick={() => handleTemplateSync(templateId, "refresh")}
-                        >
-                          {syncingTemplateId === `${templateId}:refresh` ? (
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                          )}
-                          Refrescar estado
-                        </Button>
-                      </div>
+                      {canManageFlows ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl"
+                            disabled={!templateId || Boolean(syncingTemplateId)}
+                            onClick={() => handleTemplateSync(templateId, "dry")}
+                          >
+                            {syncingTemplateId === dryKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Validar payload
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="rounded-xl"
+                            disabled={!canExecuteTemplate}
+                            onClick={() => handleTemplateSync(templateId, "execute")}
+                          >
+                            {syncingTemplateId === executeKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                            Crear en Twilio
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl"
+                            disabled={!canRefreshTemplate}
+                            onClick={() => handleTemplateSync(templateId, "refresh")}
+                          >
+                            {syncingTemplateId === `${templateId}:refresh` ? (
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            Refrescar estado
+                          </Button>
+                        </div>
+                      ) : null}
                       {runtimeLocked ? (
                         <p className="mt-2 rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-50">
                           {readText(runtimeGuard.message) ||
@@ -2701,9 +2734,11 @@ const MilestoneRail = ({ label, items }: { label: string; items: string[] }) => 
 export default function WhatsappOperationsHub({
   tenantSlug,
   initialExperience,
+  canManageFlows = false,
 }: {
   tenantSlug?: string | null;
   initialExperience?: WhatsappExperienceV2 | AnyRecord | null;
+  canManageFlows?: boolean;
 }) {
   const initial = useMemo(
     () => (initialExperience ? normalizeWhatsappExperienceV2(initialExperience) : null),
@@ -2792,8 +2827,8 @@ export default function WhatsappOperationsHub({
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
-      <MetaPlatformPanel experience={experience} tenantSlug={tenantSlug} />
-      <TemplateBlueprintPanel experience={experience} tenantSlug={tenantSlug} />
+      <MetaPlatformPanel experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />
+      <TemplateBlueprintPanel experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />
       <FlowRuntimePanel experience={experience} />
       <TrackingContract experience={experience} tenantSlug={tenantSlug} />
     </section>

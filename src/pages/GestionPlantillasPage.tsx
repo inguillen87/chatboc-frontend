@@ -33,9 +33,11 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
+import { useUser } from "@/hooks/useUser";
 import { useTenantStore } from "@/stores/tenantStore";
 import type { GestionResponseTemplate } from "@/types";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import { hasRequiredRole } from "@/utils/roles";
 import { buildTenantPath } from "@/utils/tenantPaths";
 
 type TemplateDraft = Partial<GestionResponseTemplate> & {
@@ -72,6 +74,7 @@ const EmptyLegacyTemplates = ({ onCreate }: { onCreate: () => void }) => (
 
 const GestionPlantillasPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { user } = useUser();
   const storeTenantSlug = useTenantStore((state) => state.slug);
   const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || storeTenantSlug || null;
 
@@ -84,6 +87,7 @@ const GestionPlantillasPage: React.FC = () => {
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [plantillaAEliminar, setPlantillaAEliminar] = useState<GestionResponseTemplate | null>(null);
   const whatsappOnboardingHref = `${buildTenantPath("/integracion", tenantSlug)}?channel=whatsapp&action=twilio-content`;
+  const canManageWhatsappFlows = hasRequiredRole(user?.rol, ["tenant_admin", "superadmin"]);
 
   const fetchPlantillas = useCallback(async () => {
     setIsLoading(true);
@@ -308,7 +312,7 @@ const GestionPlantillasPage: React.FC = () => {
             </div>
           </section>
 
-          <WhatsappOperationsHub tenantSlug={tenantSlug} />
+          <WhatsappOperationsHub tenantSlug={tenantSlug} canManageFlows={canManageWhatsappFlows} />
 
           <Card className="border-border/70">
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

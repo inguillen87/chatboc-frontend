@@ -40,7 +40,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTenant } from "@/context/TenantContext";
+import { useUser } from "@/hooks/useUser";
 import { ApiError, getErrorMessage } from "@/utils/api";
+import { hasRequiredRole } from "@/utils/roles";
 
 type AnyRecord = Record<string, any>;
 
@@ -201,7 +203,9 @@ const cleanOperationalError = (error: unknown) => {
 
 export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?: string | null }) {
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const effectiveSlug = tenantSlug || currentSlug;
+  const canManageWhatsappFlows = hasRequiredRole(user?.rol, ["tenant_admin", "superadmin"]);
   const [bundle, setBundle] = useState<TenantAdminExperienceV2 | null>(null);
   const [opsQa, setOpsQa] = useState<TenantOpsQaPlaybookV2 | null>(null);
   const [opsQaError, setOpsQaError] = useState<string | null>(null);
@@ -435,6 +439,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             <WhatsappOperationsHub
               tenantSlug={effectiveSlug}
               initialExperience={whatsappExperience ?? bundle.whatsapp}
+              canManageFlows={canManageWhatsappFlows}
             />
           ) : null}
 

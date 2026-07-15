@@ -244,6 +244,7 @@ describe("WhatsappOperationsHub", () => {
 
     render(
       <WhatsappOperationsHub
+        canManageFlows
         initialExperience={templateExperience({
           enabled: false,
           required_plan: "full",
@@ -288,7 +289,12 @@ describe("WhatsappOperationsHub", () => {
         registry: { status: "pending_approval" },
       });
 
-    render(<WhatsappOperationsHub initialExperience={templateExperience({ enabled: true })} />);
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={templateExperience({ enabled: true })}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /Validar payload/i }));
     expect(await screen.findByText(/Confirmacion lista para crear/i)).toBeInTheDocument();
@@ -374,7 +380,7 @@ describe("WhatsappOperationsHub", () => {
       },
     };
 
-    render(<WhatsappOperationsHub initialExperience={experience} />);
+    render(<WhatsappOperationsHub canManageFlows initialExperience={experience} />);
 
     const panel = screen.getByTestId("meta-platform-operations");
     expect(panel).toHaveTextContent("Meta Business Platform");
@@ -447,6 +453,7 @@ describe("WhatsappOperationsHub", () => {
 
     render(
       <WhatsappOperationsHub
+        canManageFlows
         initialExperience={metaFlowExperience("catalog_order_builder", "1232445823264765")}
       />,
     );
@@ -500,7 +507,10 @@ describe("WhatsappOperationsHub", () => {
       }),
     );
     const { rerender } = render(
-      <WhatsappOperationsHub initialExperience={metaFlowExperience("claim_intake")} />,
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("claim_intake")}
+      />,
     );
 
     fireEvent.change(screen.getByLabelText(/Meta Flow ID publicado/i), {
@@ -510,6 +520,7 @@ describe("WhatsappOperationsHub", () => {
 
     rerender(
       <WhatsappOperationsHub
+        canManageFlows
         initialExperience={metaFlowExperience("order_checkout", "987654321012345")}
       />,
     );
@@ -562,7 +573,12 @@ describe("WhatsappOperationsHub", () => {
         },
       });
 
-    render(<WhatsappOperationsHub initialExperience={templateExperience({ enabled: true })} />);
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={templateExperience({ enabled: true })}
+      />,
+    );
 
     const validateButton = screen.getByRole("button", { name: /Validar payload/i });
     const createButton = screen.getByRole("button", { name: /Crear en Twilio/i });
@@ -579,5 +595,34 @@ describe("WhatsappOperationsHub", () => {
       expect(createButton).toBeDisabled();
     });
     expect(screen.getByText("Las integraciones productivas requieren plan Full activo.")).toBeInTheDocument();
+  });
+
+  it("requires explicit E.164 and hides administrative Flow controls from operators", () => {
+    const { rerender } = render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("claim_intake")}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Numero destino/i), {
+      target: { value: "5491123456789" },
+    });
+    expect(screen.getByLabelText(/Numero destino/i)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/Usa formato E\.164/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Validar envio/i })).toBeDisabled();
+
+    rerender(
+      <WhatsappOperationsHub
+        initialExperience={metaFlowExperience("claim_intake")}
+        canManageFlows={false}
+      />,
+    );
+    expect(screen.getAllByText(/Administracion protegida/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Validar envio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Crear Flow en Twilio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Validar payload/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Crear en Twilio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Refrescar estado/i })).not.toBeInTheDocument();
   });
 });
