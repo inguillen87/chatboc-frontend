@@ -468,10 +468,17 @@ describe("WhatsappOperationsHub", () => {
     fireEvent.change(screen.getByLabelText(/Numero destino/i), {
       target: { value: "+54 9 11 2345-6789" },
     });
+    const recipientInput = screen.getByLabelText(/Numero destino/i);
+    const recipientHelp = screen.getByText(/Todavia no fue validada por el backend/i);
+    expect(recipientInput).not.toHaveAttribute("aria-invalid");
+    expect(recipientHelp).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByTestId("native-flow-test-controls")).not.toContainElement(recipientHelp);
     expect(validateSend).toBeEnabled();
     fireEvent.click(validateSend);
 
-    expect(await screen.findByText(/Envio validado para \*\*\*6789/i)).toBeInTheDocument();
+    expect(await screen.findByText(/backend habilito el envio para \*\*\*6789/i)).toBeInTheDocument();
+    expect(recipientInput).toHaveAttribute("aria-invalid", "false");
+    expect(screen.getByText(/Dry-run aprobado por el backend/i)).toBeInTheDocument();
     const previewBody = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
     expect(apiFetchMock.mock.calls[0][0]).toBe("/api/admin/whatsapp/flows/send");
     expect(previewBody).toEqual(
@@ -597,24 +604,80 @@ describe("WhatsappOperationsHub", () => {
     expect(screen.getByText("Las integraciones productivas requieren plan Full activo.")).toBeInTheDocument();
   });
 
-  it("requires explicit E.164 and hides administrative Flow controls from operators", () => {
+  it("marks a recipient as rejected only after the backend dry-run blocks it", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      dry_run: true,
+      ready_to_send: false,
+      blocked: true,
+      blockers: ["recipient_not_allowed"],
+    });
+
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("claim_intake", "1232445823264765")}
+      />,
+    );
+
+    const recipientInput = screen.getByLabelText(/Numero destino/i);
+    fireEvent.change(recipientInput, { target: { value: "+54 9 11 2345 6789" } });
+    expect(recipientInput).not.toHaveAttribute("aria-invalid");
+
+    fireEvent.click(screen.getByRole("button", { name: /Validar envio/i }));
+
+    const backendError = await screen.findByText(/Envio bloqueado: Recipient Not Allowed/i);
+    expect(backendError).toHaveAttribute("aria-live", "polite");
+    expect(recipientInput).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/backend no autorizo el envio/i)).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("does not mark the recipient as invalid when the dry-run cannot reach the backend", async () => {
+    apiFetchMock.mockRejectedValueOnce(new Error("network unavailable"));
+
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("claim_intake", "1232445823264765")}
+      />,
+    );
+
+    const recipientInput = screen.getByLabelText(/Numero destino/i);
+    fireEvent.change(recipientInput, { target: { value: "+54 9 11 2345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: /Validar envio/i }));
+
+    const transportError = await screen.findByText(/network unavailable/i);
+    expect(transportError).toHaveAttribute("aria-live", "polite");
+    expect(recipientInput).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByText(/Todavia no fue validada por el backend/i)).toBeInTheDocument();
+  });
+
+  it("requires explicit E.164 and hides administrative controls from operators", () => {
+    const experience = {
+      ...metaFlowExperience("claim_intake"),
+      channel: {
+        enabled: true,
+        test_endpoint: "/api/admin/whatsapp/channel/test",
+      },
+    };
     const { rerender } = render(
       <WhatsappOperationsHub
         canManageFlows
-        initialExperience={metaFlowExperience("claim_intake")}
+        initialExperience={experience}
       />,
     );
+
+    expect(screen.getByRole("button", { name: /Probar canal/i })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Numero destino/i), {
       target: { value: "5491123456789" },
     });
     expect(screen.getByLabelText(/Numero destino/i)).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByText(/Usa formato E\.164/i)).toBeInTheDocument();
+    expect(screen.getByText(/Revisa la estructura E\.164/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Validar envio/i })).toBeDisabled();
 
     rerender(
       <WhatsappOperationsHub
-        initialExperience={metaFlowExperience("claim_intake")}
+        initialExperience={experience}
         canManageFlows={false}
       />,
     );
@@ -624,5 +687,6 @@ describe("WhatsappOperationsHub", () => {
     expect(screen.queryByRole("button", { name: /Validar payload/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Crear en Twilio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Refrescar estado/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Probar canal/i })).not.toBeInTheDocument();
   });
 });

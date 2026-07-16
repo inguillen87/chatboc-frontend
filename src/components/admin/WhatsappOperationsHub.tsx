@@ -741,9 +741,11 @@ const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) =>
 const ChannelHealth = ({
   experience,
   tenantSlug,
+  canManageFlows,
 }: {
   experience: WhatsappExperienceV2;
   tenantSlug?: string | null;
+  canManageFlows: boolean;
 }) => {
   const channel = experience.channel;
   const enabled = boolish(channel.enabled);
@@ -785,7 +787,7 @@ const ChannelHealth = ({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={tone}>{enabled ? "Conectado" : "Configurar"}</StatusPill>
-            {testEndpoint ? (
+            {canManageFlows && testEndpoint ? (
               <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={handleTestChannel} disabled={testing}>
                 {testing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                 {testLabel || "Probar canal"}
@@ -802,7 +804,12 @@ const ChannelHealth = ({
           <EndpointLine label="Reason code" value={channel.reason_code} />
         </div>
         {testResult ? (
-          <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <div
+            className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {testResult}
           </div>
         ) : null}
@@ -1238,6 +1245,7 @@ const MetaPlatformPanel = ({
   const [sendOperation, setSendOperation] = useState<"dry" | "execute" | null>(null);
   const [sendResultMessage, setSendResultMessage] = useState("");
   const [sendConfirmation, setSendConfirmation] = useState("");
+  const [recipientValidation, setRecipientValidation] = useState<"idle" | "accepted" | "rejected">("idle");
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(newFlowIdempotencyKey);
   const requestSequence = useRef(0);
   const sendRequestSequence = useRef(0);
@@ -1255,6 +1263,7 @@ const MetaPlatformPanel = ({
     setSendOperation(null);
     setSendResultMessage("");
     setSendConfirmation("");
+    setRecipientValidation("idle");
     setSendIdempotencyKey(newFlowIdempotencyKey());
   }, [tenantSlug, flowStateKey, initialFlowId, initialMetaFlowId]);
 
@@ -1270,9 +1279,20 @@ const MetaPlatformPanel = ({
   const sendEndpoint = readText(nativeFlows.send_endpoint) || "/api/admin/whatsapp/flows/send";
   const nativeFlowSecurity = asRecord(nativeFlows.security);
   const normalizedTestRecipient = testRecipient.replace(/[()\s.\-]/g, "");
-  const validTestRecipient = /^\+[1-9]\d{7,14}$/.test(normalizedTestRecipient);
+  const recipientHasE164Shape = /^\+[1-9]\d{7,14}$/.test(normalizedTestRecipient);
   const hasTestRecipient = testRecipient.trim().length > 0;
+  const recipientRejected = (hasTestRecipient && !recipientHasE164Shape) || recipientValidation === "rejected";
+  const recipientApproved = recipientValidation === "accepted";
   const recipientHelpId = "meta-flow-test-recipient-help";
+  const recipientHelpText = !hasTestRecipient
+    ? "Formato E.164, por ejemplo +5491123456789. El backend confirma si el envio puede ejecutarse."
+    : !recipientHasE164Shape
+      ? "Revisa la estructura E.164: signo +, codigo de pais y numero, sin 0 inicial."
+      : recipientApproved
+        ? "Dry-run aprobado por el backend para el destino enmascarado."
+        : recipientValidation === "rejected"
+          ? "El backend no autorizo el envio a este destino. Revisa el detalle operativo."
+          : "Estructura lista para consultar. Todavia no fue validada por el backend.";
 
   const selectFlow = (event: React.ChangeEvent<HTMLSelectElement>) => {
     requestSequence.current += 1;
@@ -1288,6 +1308,7 @@ const MetaPlatformPanel = ({
     setSendOperation(null);
     setSendResultMessage("");
     setSendConfirmation("");
+    setRecipientValidation("idle");
     setSendIdempotencyKey(newFlowIdempotencyKey());
   };
 
@@ -1374,8 +1395,8 @@ const MetaPlatformPanel = ({
   };
 
   const sendTestFlow = async (mode: "dry" | "execute") => {
-    if (!selectedFlowId || !validTestRecipient) {
-      setSendResultMessage("Ingresa un numero internacional valido antes de probar el Flow.");
+    if (!selectedFlowId || !recipientHasE164Shape) {
+      setSendResultMessage("Ingresa un destino con estructura E.164 antes de consultar al backend.");
       return;
     }
     if (mode === "execute" && !sendConfirmation) {
@@ -1385,6 +1406,7 @@ const MetaPlatformPanel = ({
 
     setSendOperation(mode);
     setSendResultMessage("");
+    if (mode === "dry") setRecipientValidation("idle");
     const requestId = ++sendRequestSequence.current;
     try {
       const response = await apiFetch<unknown>(appendTenantToEndpoint(sendEndpoint, tenantSlug), {
@@ -1405,9 +1427,10 @@ const MetaPlatformPanel = ({
         const blockers = asArray(record.blockers).map(String);
         const confirmation = boolish(record.ready_to_send) ? readText(record.execute_confirmation) : "";
         setSendConfirmation(confirmation);
+        setRecipientValidation(confirmation ? "accepted" : "rejected");
         setSendResultMessage(
           confirmation
-            ? `Envio validado para ${readText(record.recipient_hint) || "el destino indicado"}.`
+            ? `El backend habilito el envio para ${readText(record.recipient_hint) || "el destino indicado"}.`
             : blockers.length
               ? `Envio bloqueado: ${blockers.map(formatKey).join(", ")}.`
               : "El backend no habilito el envio real.",
@@ -1416,6 +1439,7 @@ const MetaPlatformPanel = ({
         const interaction = asRecord(record.interaction);
         const messageSid = readText(interaction.external_message_sid);
         setSendConfirmation("");
+        setRecipientValidation("idle");
         setSendResultMessage(
           messageSid
             ? `Flow enviado y trazado: ${messageSid}.`
@@ -1428,6 +1452,7 @@ const MetaPlatformPanel = ({
     } catch (err) {
       if (requestId !== sendRequestSequence.current) return;
       setSendConfirmation("");
+      setRecipientValidation("idle");
       setSendResultMessage(getErrorMessage(err, "No se pudo enviar el Flow de prueba."));
     } finally {
       if (requestId === sendRequestSequence.current) setSendOperation(null);
@@ -1581,7 +1606,12 @@ const MetaPlatformPanel = ({
               </p>
             ) : null}
             {resultMessage ? (
-              <p className="rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground" role="status">
+              <p
+                className="rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 {resultMessage}
               </p>
             ) : null}
@@ -1598,60 +1628,73 @@ const MetaPlatformPanel = ({
                   {boolish(nativeFlowSecurity.dedicated_token_key_ready) ? "Seguridad lista" : "Clave pendiente"}
                 </StatusPill>
               </div>
-              <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(240px,0.8fr)_auto] lg:items-end">
-                <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-test-recipient">
-                  Numero destino
-                  <Input
-                    id="meta-flow-test-recipient"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    aria-describedby={recipientHelpId}
-                    aria-invalid={hasTestRecipient && !validTestRecipient}
-                    placeholder="+54 9 11 2345 6789"
-                    value={testRecipient}
-                    onChange={(event) => {
-                      sendRequestSequence.current += 1;
-                      setTestRecipient(event.target.value.slice(0, 32));
-                      setSendConfirmation("");
-                      setSendResultMessage("");
-                    }}
-                  />
-                  <span
-                    id={recipientHelpId}
-                    className={hasTestRecipient && !validTestRecipient ? "text-destructive" : "text-muted-foreground"}
-                  >
-                    {hasTestRecipient && !validTestRecipient
-                      ? "Usa formato E.164: signo +, codigo de pais y numero, sin 0 inicial."
-                      : "Formato E.164, por ejemplo +5491123456789."}
-                  </span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl"
-                    disabled={!selectedFlowId || !validTestRecipient || sendOperation !== null || operation !== null}
-                    onClick={() => sendTestFlow("dry")}
-                  >
-                    {sendOperation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                    Validar envio
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="rounded-xl"
-                    disabled={!sendConfirmation || sendOperation !== null || operation !== null}
-                    onClick={() => sendTestFlow("execute")}
-                  >
-                    {sendOperation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Enviar Flow de prueba
-                  </Button>
+              <div className="mt-3 grid gap-2">
+                <div
+                  className="grid gap-3 lg:grid-cols-[minmax(240px,0.8fr)_auto] lg:items-end"
+                  data-testid="native-flow-test-controls"
+                >
+                  <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-test-recipient">
+                    Numero destino
+                    <Input
+                      id="meta-flow-test-recipient"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      aria-describedby={recipientHelpId}
+                      aria-invalid={recipientApproved ? false : recipientRejected ? true : undefined}
+                      placeholder="+54 9 11 2345 6789"
+                      value={testRecipient}
+                      onChange={(event) => {
+                        sendRequestSequence.current += 1;
+                        setTestRecipient(event.target.value.slice(0, 32));
+                        setSendConfirmation("");
+                        setSendResultMessage("");
+                        setRecipientValidation("idle");
+                      }}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={!selectedFlowId || !recipientHasE164Shape || sendOperation !== null || operation !== null}
+                      onClick={() => sendTestFlow("dry")}
+                    >
+                      {sendOperation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                      Validar envio
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={!sendConfirmation || sendOperation !== null || operation !== null}
+                      onClick={() => sendTestFlow("execute")}
+                    >
+                      {sendOperation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      Enviar Flow de prueba
+                    </Button>
+                  </div>
                 </div>
+                <p
+                  id={recipientHelpId}
+                  className={`min-h-5 text-xs ${
+                    recipientApproved ? "text-emerald-700 dark:text-emerald-300" : recipientRejected ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {recipientHelpText}
+                </p>
               </div>
               {sendResultMessage ? (
-                <p className="mt-3 rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground" role="status">
+                <p
+                  className="mt-3 rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   {sendResultMessage}
                 </p>
               ) : null}
@@ -2823,7 +2866,7 @@ export default function WhatsappOperationsHub({
 
       <OperationalReadinessPanel experience={experience} />
       {!channelEnabled ? <SetupChecklist experience={experience} /> : null}
-      <ChannelHealth experience={experience} tenantSlug={tenantSlug} />
+      <ChannelHealth experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />

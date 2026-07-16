@@ -285,9 +285,11 @@ const GestionPlantillasPage: React.FC = () => {
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Actualizar
                   </Button>
-                  <Button asChild type="button" variant="ghost" className="rounded-[8px]">
-                    <Link to={whatsappOnboardingHref}>Onboarding WhatsApp</Link>
-                  </Button>
+                  {canManageWhatsappFlows ? (
+                    <Button asChild type="button" variant="ghost" className="rounded-[8px]">
+                      <Link to={whatsappOnboardingHref}>Onboarding WhatsApp</Link>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
               <div className="border-t border-border/70 bg-muted/20 p-6 lg:border-l lg:border-t-0">
