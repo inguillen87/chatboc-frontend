@@ -282,6 +282,37 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     );
   });
 
+  it('cancels delayed assisted-upload alignment when the catalog unmounts', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/t/junin/market']}>
+        <Routes>
+          <Route path="/t/:tenant/market" element={<MarketCatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const uploadCta = await screen.findByTestId('market-assisted-upload-cta');
+    const callsBeforeClick = setTimeoutSpy.mock.calls.length;
+    fireEvent.click(uploadCta);
+
+    const scheduledIds = setTimeoutSpy.mock.results
+      .slice(callsBeforeClick)
+      .map((result, index) => ({
+        delay: setTimeoutSpy.mock.calls[callsBeforeClick + index]?.[1],
+        value: result.value,
+      }))
+      .filter(({ delay, value }) => (delay === 0 || delay === 450) && value !== undefined && value !== null)
+      .map(({ value }) => value);
+    expect(scheduledIds.length).toBeGreaterThan(0);
+
+    const clearCallsBeforeUnmount = clearTimeoutSpy.mock.calls.length;
+    unmount();
+
+    expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(clearCallsBeforeUnmount);
+  });
+
   it('keeps assisted intake available when a disabled backend flag would leave an empty catalog dead-ended', async () => {
     fetchMarketCatalogMock.mockResolvedValueOnce({
       products: [],

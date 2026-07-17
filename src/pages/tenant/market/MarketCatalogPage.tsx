@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { fetchMarketCatalog } from '@/api/market';
@@ -306,11 +306,28 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [selectedSort, setSelectedSort] = useState('promo_first');
   const [isAssistedPanelOpen, setIsAssistedPanelOpen] = useState(false);
   const [assistedDraftRequest, setAssistedDraftRequest] = useState<{ text: string; key: number } | null>(null);
+  const assistedScrollTimeoutsRef = useRef<Set<number>>(new Set());
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
   const { addItem, items: cartItems, isLoading: isCartLoading } = useMarketCart();
   const deferredSearchTerm = useDeferredValue(searchTerm);
+
+  useEffect(
+    () => () => {
+      assistedScrollTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      assistedScrollTimeoutsRef.current.clear();
+    },
+    [],
+  );
+
+  const scheduleAssistedScroll = (callback: () => void, delay: number) => {
+    const timeoutId = window.setTimeout(() => {
+      assistedScrollTimeoutsRef.current.delete(timeoutId);
+      callback();
+    }, delay);
+    assistedScrollTimeoutsRef.current.add(timeoutId);
+  };
 
   const shareUrl = useMemo(() => {
     if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
@@ -570,16 +587,19 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       const firstInteractive = preferredInteractive ?? uploadDropzone ?? target.querySelector<HTMLElement>('textarea, input, button');
       const scrollTarget = firstInteractive ?? target;
       const alignTarget = () => {
+        if (!scrollTarget.isConnected) return;
         const rect = scrollTarget.getBoundingClientRect();
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
         const desiredTop = Math.max(72, Math.min(180, (viewportHeight - rect.height) / 2));
         const nextTop = Math.max(0, window.scrollY + rect.top - desiredTop);
         window.scrollTo({ top: nextTop, behavior: 'smooth' });
       };
-      const focusTarget = () => firstInteractive?.focus({ preventScroll: true });
+      const focusTarget = () => {
+        if (firstInteractive?.isConnected) firstInteractive.focus({ preventScroll: true });
+      };
       alignTarget();
       focusTarget();
-      window.setTimeout(() => {
+      scheduleAssistedScroll(() => {
         alignTarget();
         focusTarget();
       }, 450);
@@ -591,7 +611,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       return;
     }
     setIsAssistedPanelOpen(true);
-    window.setTimeout(() => scrollToAssistedUpload(preferredMode), 0);
+    scheduleAssistedScroll(() => scrollToAssistedUpload(preferredMode), 0);
   };
   const activateAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     trackMarketplaceCta('assisted_upload_started', preferredMode === 'text' ? 'write_list_cta' : 'upload_file_cta', {
