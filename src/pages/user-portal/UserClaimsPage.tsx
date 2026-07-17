@@ -4,12 +4,14 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   ExternalLink,
+  FileText,
   Image as ImageIcon,
   Link2,
   MapPin,
   MessageSquare,
   Paperclip,
   PlusCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
@@ -126,29 +128,75 @@ const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment })
     );
   }
 
-  if (failed) {
-    return null;
-  }
+  const isImage = !failed && (
+    attachment.kind?.toLowerCase().includes('image') ||
+    attachment.mimeType?.startsWith('image/') ||
+    /\.(png|jpe?g|webp|gif)$/i.test(attachment.url)
+  );
+  const source = String(attachment.source || '').toLowerCase();
+  const sourceLabel = source === 'whatsapp_flow'
+    ? 'Enviado por WhatsApp'
+    : source === 'public_tracking'
+      ? 'Portal ciudadano'
+      : source === 'claim_attachment'
+        ? 'Carga inicial'
+        : null;
+  const sizeLabel = attachment.size
+    ? attachment.size < 1024 * 1024
+      ? `${Math.round(attachment.size / 1024)} KB`
+      : `${(attachment.size / (1024 * 1024)).toFixed(1)} MB`
+    : null;
+  const metadata = [sourceLabel, sizeLabel].filter(Boolean).join(' · ');
 
-  const isImage = attachment.kind?.toLowerCase().includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(attachment.url);
   if (isImage) {
     return (
-      <a href={attachment.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border bg-muted/20">
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block overflow-hidden rounded-lg border bg-muted/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Abrir ${attachment.label || 'imagen adjunta'}`}
+      >
         <img
-          src={attachment.url}
+          src={attachment.previewUrl || attachment.url}
           alt={attachment.label || 'Adjunto'}
           className="h-36 w-full object-cover"
           onError={() => setFailed(true)}
         />
-        {attachment.label ? <span className="block px-3 py-2 text-xs text-muted-foreground">{attachment.label}</span> : null}
+        <span className="block px-3 py-2">
+          <span className="block truncate text-sm font-medium text-foreground">{attachment.label || 'Imagen adjunta'}</span>
+          {metadata ? <span className="mt-0.5 block text-xs text-muted-foreground">{metadata}</span> : null}
+          {attachment.securityLabel ? (
+            <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ShieldCheck className="h-3 w-3" /> {attachment.securityLabel}
+            </span>
+          ) : null}
+        </span>
       </a>
     );
   }
 
   return (
-    <a href={attachment.url} target="_blank" rel="noreferrer" className="rounded-lg border bg-muted/20 p-3 text-sm text-primary hover:underline">
-      <Paperclip className="mb-2 h-4 w-4" />
-      {attachment.label || attachment.url}
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex min-h-24 items-center gap-3 rounded-lg border bg-muted/20 p-3 text-sm hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Abrir ${attachment.label || 'archivo adjunto'}`}
+    >
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-background text-primary">
+        <FileText className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-foreground">{attachment.label || attachment.url}</span>
+        {metadata ? <span className="mt-0.5 block text-xs text-muted-foreground">{metadata}</span> : null}
+        {attachment.securityLabel ? (
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <ShieldCheck className="h-3 w-3" /> {attachment.securityLabel}
+          </span>
+        ) : null}
+      </span>
+      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
     </a>
   );
 };

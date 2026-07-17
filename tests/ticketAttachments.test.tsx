@@ -31,7 +31,7 @@ describe('TicketAttachments', () => {
     expect(screen.getByAltText('photo.jpg')).toBeInTheDocument();
 
     // Non-image attachment renders as a link with filename
-    const link = screen.getByRole('link', { name: 'report.pdf' });
+    const link = screen.getByRole('link', { name: /^report\.pdf/i });
     expect(link).toHaveAttribute('href', 'https://example.com/report.pdf');
   });
 
@@ -39,11 +39,11 @@ describe('TicketAttachments', () => {
     render(<TicketAttachments attachments={attachments} />);
 
     // Open modal by clicking the image button
-    const button = screen.getByRole('button', { name: /abrir imagen adjunta/i });
+    const button = screen.getByRole('button', { name: /abrir photo\.jpg/i });
     fireEvent.click(button);
 
     const dialog = screen.getByRole('dialog');
-    const modalImage = within(dialog).getByAltText('Adjunto ampliado');
+    const modalImage = within(dialog).getByAltText('photo.jpg');
     expect(modalImage).toHaveAttribute('src', 'https://example.com/photo.jpg');
 
     // Close modal by clicking the overlay
@@ -82,8 +82,8 @@ describe('TicketAttachments', () => {
       'https://signed.chatboc.ar/reclamos/vereda-thumb.jpg?sig=abc',
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /abrir imagen adjunta/i }));
-    expect(within(screen.getByRole('dialog')).getByAltText('Adjunto ampliado')).toHaveAttribute(
+    fireEvent.click(screen.getByRole('button', { name: /abrir vereda\.jpg/i }));
+    expect(within(screen.getByRole('dialog')).getByAltText('vereda.jpg')).toHaveAttribute(
       'src',
       'https://signed.chatboc.ar/reclamos/vereda.jpg?sig=abc',
     );

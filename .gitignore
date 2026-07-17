@@ -40,6 +40,8 @@ dist-ssr/
 .out/
 .cache/
 .vercel/
+playwright-report/
+test-results/
 
 # Env files
 .env

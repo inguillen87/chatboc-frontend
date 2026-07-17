@@ -171,4 +171,39 @@ describe('widgetPortal public contract normalizers', () => {
     expect(merged.attachments[0].url).toBe('https://cdn.example/foto-1.jpg');
     expect(merged.timeline.map((event) => event.label)).toEqual(['Recibido', 'Zona asignada']);
   });
+
+  it('prefers signed attachment delivery and keeps evidence metadata', () => {
+    const detail = normalizeWidgetClaimDetail({
+      ticket: {
+        id: 88,
+        attachments: [
+          {
+            id: 'flow-88',
+            name: 'acta.pdf',
+            url: 'tenant/junin/private/acta.pdf',
+            download_url: 'https://signed.example/acta.pdf?token=safe',
+            mime_type: 'application/pdf',
+            source: 'whatsapp_flow',
+            status: 'ready',
+            storage_access: 'signed',
+            size: 4096,
+          },
+        ],
+      },
+    });
+
+    expect(detail?.attachments[0]).toEqual(
+      expect.objectContaining({
+        id: 'flow-88',
+        label: 'acta.pdf',
+        url: 'https://signed.example/acta.pdf?token=safe',
+        previewUrl: 'https://signed.example/acta.pdf?token=safe',
+        mimeType: 'application/pdf',
+        source: 'whatsapp_flow',
+        status: 'ready',
+        securityLabel: 'Acceso seguro',
+        size: 4096,
+      }),
+    );
+  });
 });

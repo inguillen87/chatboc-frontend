@@ -62,17 +62,39 @@ export type AttachmentLike = {
 const cleanUrl = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
 
+export function sanitizeAttachmentUrl(value: unknown): string | null {
+  const candidate = cleanUrl(value);
+  if (!candidate || /[\u0000-\u001f\u007f]/.test(candidate)) return null;
+  if (candidate.startsWith('//')) return `https:${candidate}`;
+  if (candidate.startsWith('/') && !candidate.startsWith('//')) return candidate;
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(candidate);
+  if (!hasScheme) {
+    return candidate.startsWith('\\') ? null : candidate;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+      return null;
+    }
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
 export function getAttachmentDeliveryUrl(attachment: AttachmentLike | null | undefined): string | null {
   if (!attachment) return null;
   return (
-    cleanUrl(attachment.downloadUrl) ||
-    cleanUrl(attachment.download_url) ||
-    cleanUrl(attachment.url) ||
-    cleanUrl(attachment.file_url) ||
-    cleanUrl(attachment.media_url) ||
-    cleanUrl(attachment.foto_url_directa) ||
-    cleanUrl(attachment.href) ||
-    cleanUrl(attachment.storage_url) ||
+    sanitizeAttachmentUrl(attachment.downloadUrl) ||
+    sanitizeAttachmentUrl(attachment.download_url) ||
+    sanitizeAttachmentUrl(attachment.url) ||
+    sanitizeAttachmentUrl(attachment.file_url) ||
+    sanitizeAttachmentUrl(attachment.media_url) ||
+    sanitizeAttachmentUrl(attachment.foto_url_directa) ||
+    sanitizeAttachmentUrl(attachment.href) ||
+    sanitizeAttachmentUrl(attachment.storage_url) ||
     null
   );
 }
@@ -80,11 +102,11 @@ export function getAttachmentDeliveryUrl(attachment: AttachmentLike | null | und
 export function getAttachmentPreviewUrl(attachment: AttachmentLike | null | undefined): string | null {
   if (!attachment) return null;
   return (
-    cleanUrl(attachment.thumbUrl) ||
-    cleanUrl(attachment.thumb_url) ||
-    cleanUrl(attachment.thumbnail_url) ||
-    cleanUrl(attachment.thumbnailUrl) ||
-    cleanUrl(attachment.thumb_storage_url) ||
+    sanitizeAttachmentUrl(attachment.thumbUrl) ||
+    sanitizeAttachmentUrl(attachment.thumb_url) ||
+    sanitizeAttachmentUrl(attachment.thumbnail_url) ||
+    sanitizeAttachmentUrl(attachment.thumbnailUrl) ||
+    sanitizeAttachmentUrl(attachment.thumb_storage_url) ||
     getAttachmentDeliveryUrl(attachment)
   );
 }

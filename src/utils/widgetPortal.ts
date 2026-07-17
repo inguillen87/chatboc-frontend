@@ -11,6 +11,12 @@ import type {
   WidgetCommerceHistory,
   WidgetCommerceSession,
 } from "@/types/widgetCommerce";
+import {
+  getAttachmentDeliveryUrl,
+  getAttachmentPreviewUrl,
+  getAttachmentSecurityLabel,
+  type AttachmentLike,
+} from "@/utils/attachment";
 
 type RawRecord = Record<string, unknown>;
 
@@ -18,7 +24,13 @@ export interface WidgetPortalAttachment {
   id?: string;
   label?: string;
   url?: string;
+  previewUrl?: string;
   kind?: string;
+  mimeType?: string;
+  source?: string;
+  status?: string;
+  securityLabel?: string;
+  size?: number;
 }
 
 export interface WidgetPortalTimelineEvent {
@@ -154,14 +166,21 @@ const normalizeAttachments = (item: RawRecord): WidgetPortalAttachment[] => {
   const normalized = raw
     .map<WidgetPortalAttachment | null>((entry, index) => {
       if (!isRecord(entry)) return null;
-      const url = readString(entry.url, entry.href, entry.file_url, entry.download_url, entry.foto_url_directa);
+      const url = getAttachmentDeliveryUrl(entry as AttachmentLike) || undefined;
       const id = readString(entry.id, entry.archivo_adjunto_id, url, `attachment-${index}`);
       if (!url && !id) return null;
+      const rawSize = readNumber(entry.size, entry.bytes, entry.file_size);
       return {
         id,
         label: readString(entry.label, entry.name, entry.filename, entry.type, entry.kind),
         url,
+        previewUrl: getAttachmentPreviewUrl(entry as AttachmentLike) || url,
         kind: readString(entry.kind, entry.type, entry.mime_type),
+        mimeType: readString(entry.mimeType, entry.mime_type, entry.content_type),
+        source: readString(entry.origin, entry.source),
+        status: readString(entry.status),
+        securityLabel: getAttachmentSecurityLabel(entry as AttachmentLike) || undefined,
+        size: rawSize,
       };
     })
     .filter((entry): entry is WidgetPortalAttachment => Boolean(entry));
@@ -172,7 +191,10 @@ const normalizeAttachments = (item: RawRecord): WidgetPortalAttachment[] => {
       id: readString(item.archivo_adjunto_id, directPhoto),
       label: readString(item.foto_label, item.image_label),
       url: directPhoto,
+      previewUrl: directPhoto,
       kind: "image",
+      source: "claim_attachment",
+      status: "ready",
     });
   }
 

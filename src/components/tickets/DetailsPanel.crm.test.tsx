@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import DetailsPanel from './DetailsPanel';
+import DetailsPanel, { collectAttachmentsFromTicket } from './DetailsPanel';
 import type { Ticket } from '@/types/tickets';
 
 const detailsMocks = vi.hoisted(() => ({
@@ -209,5 +209,39 @@ describe('DetailsPanel CRM contact priority', () => {
     expect(blockers).toHaveTextContent('Falta email para enviar correo.');
     expect(blockers).toHaveTextContent('Falta direccion o coordenadas para abrir mapa.');
     expect(blockers).toHaveTextContent('Faltan datos del contacto para copiar.');
+  });
+
+  it('keeps signed delivery, origin and status when merging ticket evidence', () => {
+    const attachments = collectAttachmentsFromTicket({
+      ...baseTicket,
+      attachments: [
+        {
+          id: 55,
+          filename: 'evidencia.pdf',
+          url: 'tenant/junin/private/evidencia.pdf',
+          download_url: 'https://signed.example/evidencia.pdf?token=safe',
+          mime_type: 'application/pdf',
+          storage_access: 'signed',
+          source: 'whatsapp_flow',
+          origin: 'whatsapp_flow',
+          status: 'ready',
+          flow_id: 'claim_evidence',
+        },
+      ],
+    } as Ticket);
+
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]).toEqual(
+      expect.objectContaining({
+        id: 55,
+        url: 'https://signed.example/evidencia.pdf?token=safe',
+        download_url: 'https://signed.example/evidencia.pdf?token=safe',
+        storage_access: 'signed',
+        source: 'whatsapp_flow',
+        origin: 'whatsapp_flow',
+        status: 'ready',
+        flow_id: 'claim_evidence',
+      }),
+    );
   });
 });

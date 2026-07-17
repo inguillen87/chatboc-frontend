@@ -8,8 +8,11 @@ import {
   ChevronDown,
   Clipboard,
   Clock3,
+  ExternalLink,
   Eye,
   EyeOff,
+  FileText,
+  Image as ImageIcon,
   Info,
   Loader2,
   MapPinned,
@@ -34,6 +37,12 @@ import { Input } from "@/components/ui/input";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { getErrorMessage } from "@/utils/api";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
+import {
+  getAttachmentDeliveryUrl,
+  getAttachmentPreviewUrl,
+  getAttachmentSecurityLabel,
+  type AttachmentLike,
+} from "@/utils/attachment";
 
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
@@ -142,6 +151,119 @@ const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
       };
     })
     .filter(Boolean) as Array<{ id: string; label: string; detail: string; timestamp: string }>;
+
+type TrackingAttachment = {
+  id: string;
+  name: string;
+  url: string;
+  previewUrl: string;
+  mimeType: string;
+  kind: string;
+  source: string;
+  status: string;
+  size: number | undefined;
+  securityLabel: string;
+};
+
+const normalizeTrackingAttachments = (
+  payload: TrackingExperienceResponse | null,
+): TrackingAttachment[] => {
+  const seen = new Set<string>();
+  return asArray(payload?.attachments)
+    .map((item, index) => {
+      if (!isRecord(item)) return null;
+      const deliveryUrl = getAttachmentDeliveryUrl(item as AttachmentLike);
+      if (!deliveryUrl) return null;
+      const name = readText(
+        item,
+        ["name", "filename", "original_filename", "file_name"],
+        `Archivo ${index + 1}`,
+      );
+      const mimeType = readText(item, ["mimeType", "mime_type", "content_type"]);
+      const rawSize = first(item, ["size", "bytes", "file_size"]);
+      const parsedSize = Number(rawSize);
+      const normalized = {
+        id: readText(item, ["id", "attachment_id"], `${deliveryUrl}-${index}`),
+        name,
+        url: deliveryUrl,
+        previewUrl: getAttachmentPreviewUrl(item as AttachmentLike) || deliveryUrl,
+        mimeType,
+        kind: readText(item, ["kind"], mimeType.startsWith("image/") ? "image" : "file"),
+        source: readText(item, ["origin", "source"]),
+        status: readText(item, ["status"], "ready"),
+        size: Number.isFinite(parsedSize) && parsedSize > 0 ? parsedSize : undefined,
+        securityLabel: getAttachmentSecurityLabel(item as AttachmentLike) || "",
+      } satisfies TrackingAttachment;
+      const dedupeKey = `${normalized.url}|${normalized.name}`;
+      if (seen.has(dedupeKey)) return null;
+      seen.add(dedupeKey);
+      return normalized;
+    })
+    .filter((item): item is TrackingAttachment => Boolean(item));
+};
+
+const trackingAttachmentSourceLabel = (source: string) => {
+  const normalized = source.toLowerCase();
+  if (normalized === "whatsapp_flow") return "Enviado por WhatsApp";
+  if (normalized === "public_tracking") return "Portal ciudadano";
+  if (normalized === "claim_attachment") return "Carga inicial";
+  return source ? humanizeTrackingLabel(source) : "Evidencia del reclamo";
+};
+
+const formatAttachmentSize = (size?: number) => {
+  if (!size) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const TrackingEvidenceItem = ({ attachment }: { attachment: TrackingAttachment }) => {
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const isImage = attachment.kind.toLowerCase().includes("image") ||
+    attachment.mimeType.startsWith("image/") ||
+    /\.(png|jpe?g|webp)$/i.test(attachment.name);
+  const metadata = [
+    trackingAttachmentSourceLabel(attachment.source),
+    formatAttachmentSize(attachment.size),
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group grid min-h-20 grid-cols-[48px_1fr_auto] items-center gap-3 rounded-lg border border-border/70 bg-background p-3 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Abrir ${attachment.name}`}
+    >
+      <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-muted text-primary">
+        {isImage && !previewFailed ? (
+          <img
+            src={attachment.previewUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={() => setPreviewFailed(true)}
+          />
+        ) : isImage ? (
+          <ImageIcon className="h-5 w-5" />
+        ) : (
+          <FileText className="h-5 w-5" />
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-foreground">{attachment.name}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{metadata}</span>
+        {attachment.securityLabel ? (
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+            <ShieldCheck className="h-3 w-3" />
+            {attachment.securityLabel}
+          </span>
+        ) : null}
+      </span>
+      <ExternalLink className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+    </a>
+  );
+};
 
 const normalizeResource = (payload: TrackingExperienceResponse | null, code: string) => {
   const resource = isRecord(payload?.resource) ? payload.resource : {};
@@ -462,6 +584,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const resource = normalizeResource(payload, code);
   const milestones = normalizeMilestones(payload, kind);
   const timeline = normalizeTimeline(payload);
+  const attachments = normalizeTrackingAttachments(payload);
   const mapState = normalizeMapLocations(payload);
   const support = normalizeSupport(payload, kind);
   const currentIndex = Math.max(
@@ -916,6 +1039,29 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
               <span>{error}</span>
             </div>
           </div>
+        ) : null}
+
+        {attachments.length > 0 ? (
+          <section
+            data-testid="tracking-evidence"
+            aria-labelledby="tracking-evidence-title"
+            className="mb-4 rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground">Documentacion vinculada</p>
+                <h2 id="tracking-evidence-title" className="mt-1 text-lg font-black">Evidencia del reclamo</h2>
+              </div>
+              <span className="text-xs font-semibold text-muted-foreground">
+                {attachments.length} {attachments.length === 1 ? "archivo" : "archivos"}
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {attachments.map((attachment) => (
+                <TrackingEvidenceItem key={attachment.id} attachment={attachment} />
+              ))}
+            </div>
+          </section>
         ) : null}
 
         <div

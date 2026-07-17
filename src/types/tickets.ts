@@ -53,6 +53,14 @@ export interface Attachment {
   storage_provider?: string;
   storage_access?: "public" | "signed" | "external" | string;
   is_private?: boolean;
+  isPrivate?: boolean;
+  securityLabel?: string;
+  source?: string;
+  origin?: string;
+  status?: string;
+  kind?: string;
+  flow_id?: string;
+  interaction_id?: string | number;
   size?: number;
   mime_type?: string;
   mimeType?: string;

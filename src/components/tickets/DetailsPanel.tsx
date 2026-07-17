@@ -51,7 +51,12 @@ import { cn } from '@/lib/utils';
 import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
 import { fmtARWithOffset } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
-import { deriveAttachmentInfo } from '@/utils/attachment';
+import {
+  deriveAttachmentInfo,
+  getAttachmentDeliveryUrl,
+  getAttachmentPreviewUrl,
+  sanitizeAttachmentUrl,
+} from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
@@ -59,39 +64,7 @@ import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  let result = value.trim();
-
-  if (!result) {
-    return undefined;
-  }
-
-  if (result.startsWith('//')) {
-    result = `https:${result}`;
-  }
-
-  if (result.startsWith('http://')) {
-    result = `https://${result.slice('http://'.length)}`;
-  }
-
-  const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(result);
-
-  if (hasScheme) {
-    return result;
-  }
-
-  if (typeof window !== 'undefined') {
-    try {
-      return new URL(result, window.location.origin).toString();
-    } catch {
-      return undefined;
-    }
-  }
-
-  return result;
+  return sanitizeAttachmentUrl(value) || undefined;
 };
 
 const pickFirstString = (...values: unknown[]): string | undefined => {
@@ -230,14 +203,11 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
 };
 
 const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null => {
-  const rawUrl = pickFirstString(
-    raw?.url,
+  const rawUrl = getAttachmentDeliveryUrl(raw) || pickFirstString(
     raw?.archivo_url,
     raw?.attachment_url,
-    raw?.file_url,
     raw?.fileUrl,
-    raw?.media_url,
-    raw?.location_url
+    raw?.location_url,
   );
 
   const url = sanitizeMediaUrl(rawUrl);
@@ -253,11 +223,7 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
 
   const size = pickFirstNumber(raw?.size, raw?.size_bytes, raw?.bytes);
   const mimeType = pickFirstString(raw?.mime_type, raw?.mimeType, raw?.tipo_mime, raw?.content_type);
-  const thumbUrl = sanitizeMediaUrl(pickFirstString(
-    raw?.thumbUrl,
-    raw?.thumb_url,
-    raw?.thumbnail_url,
-    raw?.thumbnailUrl,
+  const thumbUrl = sanitizeMediaUrl(getAttachmentPreviewUrl(raw) || pickFirstString(
     raw?.analisis?.datos_estructurados?.thumbnail_url,
     raw?.analisis?.datos_estructurados?.url,
     raw?.analysis?.datos_estructurados?.thumbnail_url,
@@ -276,6 +242,20 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
     id,
     filename,
     url,
+    downloadUrl: sanitizeMediaUrl(raw?.downloadUrl) || undefined,
+    download_url: sanitizeMediaUrl(raw?.download_url) || undefined,
+    storage_url: sanitizeMediaUrl(raw?.storage_url) || undefined,
+    storage_provider: pickFirstString(raw?.storage_provider),
+    storage_access: pickFirstString(raw?.storage_access) as Attachment['storage_access'],
+    is_private: Boolean(raw?.is_private ?? raw?.isPrivate),
+    isPrivate: Boolean(raw?.isPrivate ?? raw?.is_private),
+    securityLabel: pickFirstString(raw?.securityLabel),
+    source: pickFirstString(raw?.source),
+    origin: pickFirstString(raw?.origin, raw?.source),
+    status: pickFirstString(raw?.status),
+    kind: pickFirstString(raw?.kind),
+    flow_id: pickFirstString(raw?.flow_id),
+    interaction_id: pickFirstString(raw?.interaction_id),
     size,
     mime_type: mimeType,
     mimeType,
@@ -434,6 +414,16 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     () => getPrimaryImageUrl(ticket, attachments),
     [attachments, ticket]
   );
+  const standalonePrimaryImageUrl = React.useMemo(() => {
+    if (!primaryImageUrl) return undefined;
+    const normalizedPrimary = sanitizeMediaUrl(primaryImageUrl);
+    const representedInAttachments = attachments.some((attachment) => {
+      const delivery = sanitizeMediaUrl(getAttachmentDeliveryUrl(attachment));
+      const preview = sanitizeMediaUrl(getAttachmentPreviewUrl(attachment));
+      return Boolean(normalizedPrimary && (delivery === normalizedPrimary || preview === normalizedPrimary));
+    });
+    return representedInAttachments ? undefined : normalizedPrimary;
+  }, [attachments, primaryImageUrl]);
   const neighborAvatar = React.useMemo(() => resolveConsentedAvatar(
     ticket as unknown as Record<string, unknown> | null | undefined,
     ticket?.user as unknown as Record<string, unknown> | null | undefined,
@@ -550,7 +540,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   React.useEffect(() => {
     setImageError(false);
     setIsImageModalOpen(false);
-  }, [primaryImageUrl]);
+  }, [standalonePrimaryImageUrl]);
 
   const renderSpecialContact = (withSeparator = false) => {
     if (!specialContact) {
@@ -1491,7 +1481,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               </AccordionContent>
             </AccordionItem>
 
-            {(attachments.length > 0 || primaryImageUrl) && (
+            {(attachments.length > 0 || standalonePrimaryImageUrl) && (
               <AccordionItem value="archivos">
                 <AccordionTrigger className="text-base font-semibold">
                   Archivos Adjuntos
@@ -1499,7 +1489,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 <AccordionContent className="space-y-4 pt-2">
                   {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
 
-                  {primaryImageUrl && (
+                  {standalonePrimaryImageUrl && (
                     <div className="space-y-3 text-sm">
                       <h4 className="font-semibold">Imagen del reclamo</h4>
                       {imageError ? (
@@ -1514,7 +1504,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                           aria-label="Ampliar imagen del reclamo"
                         >
                           <img
-                            src={primaryImageUrl}
+                            src={standalonePrimaryImageUrl}
                             alt="Foto enviada en el reclamo"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                             loading="lazy"
@@ -1556,7 +1546,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             </AccordionItem>
           </Accordion>
 
-          {isImageModalOpen && primaryImageUrl && !imageError && (
+          {isImageModalOpen && standalonePrimaryImageUrl && !imageError && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
               onClick={() => setIsImageModalOpen(false)}
@@ -1565,7 +1555,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             >
               <div className="relative" onClick={(event) => event.stopPropagation()}>
                 <img
-                  src={primaryImageUrl}
+                  src={standalonePrimaryImageUrl}
                   alt="Foto ampliada del reclamo"
                   className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
                 />

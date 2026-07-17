@@ -384,6 +384,45 @@ describe("TrackingExperiencePage support contract", () => {
     expect(document.body).not.toHaveTextContent("2026-06-06T03:11:29.310634+00:00");
   });
 
+  it("renders claim evidence through signed delivery URLs with source context", async () => {
+    const payload = makeClaimPayload("offline");
+    fetchTrackingExperienceMock.mockResolvedValueOnce({
+      ...payload,
+      attachments: [
+        {
+          id: 91,
+          name: "bache.jpg",
+          url: "tenant/junin/private/bache.jpg",
+          download_url: "https://signed.example/bache.jpg?token=safe",
+          thumbUrl: "https://signed.example/bache-thumb.webp?token=safe",
+          mimeType: "image/jpeg",
+          size: 2048,
+          source: "whatsapp_flow",
+          storage_access: "signed",
+          status: "ready",
+        },
+      ],
+    });
+
+    renderTrackingPage();
+
+    const evidence = await screen.findByTestId("tracking-evidence");
+    expect(evidence).toHaveTextContent("Evidencia del reclamo");
+    expect(evidence).toHaveTextContent("bache.jpg");
+    expect(evidence).toHaveTextContent("Enviado por WhatsApp");
+    expect(evidence).toHaveTextContent("2 KB");
+    expect(evidence).toHaveTextContent("Acceso seguro");
+    expect(within(evidence).getByRole("link", { name: "Abrir bache.jpg" })).toHaveAttribute(
+      "href",
+      "https://signed.example/bache.jpg?token=safe",
+    );
+    expect(evidence.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://signed.example/bache-thumb.webp?token=safe",
+    );
+    expect(evidence).not.toHaveTextContent("tenant/junin/private/bache.jpg");
+  });
+
   it("announces tracking load failures and focuses the alert", async () => {
     fetchTrackingExperienceMock.mockRejectedValueOnce(new Error("El reclamo no pudo consultarse."));
 
