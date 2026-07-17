@@ -3,6 +3,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  Download,
+  ExternalLink,
+  FileJson2,
   FileText,
   ImageIcon,
   Link2,
@@ -18,6 +21,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  UploadCloud,
   Video,
   Workflow,
 } from "lucide-react";
@@ -102,6 +106,16 @@ const formatPercent = (value: unknown) => {
   return `${percent.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 };
 
+const formatBytes = (value: unknown) => {
+  const numeric = asNumber(value);
+  if (numeric === null || numeric < 0) return "-";
+  if (numeric < 1024) return `${numeric.toLocaleString("es-AR")} B`;
+  if (numeric < 1024 * 1024) {
+    return `${(numeric / 1024).toLocaleString("es-AR", { maximumFractionDigits: 1 })} KB`;
+  }
+  return `${(numeric / (1024 * 1024)).toLocaleString("es-AR", { maximumFractionDigits: 1 })} MB`;
+};
+
 const formatKey = (value: string) =>
   value
     .replace(/_/g, " ")
@@ -114,6 +128,30 @@ const labelFrom = (record: AnyRecord, fallback: string) =>
 
 const readText = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : "";
+
+const stableJsonStringify = (value: unknown): string => {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJsonStringify(item)).join(",")}]`;
+  }
+  return `{${Object.keys(value as AnyRecord)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJsonStringify((value as AnyRecord)[key])}`)
+    .join(",")}}`;
+};
+
+const sha256Hex = async (value: string) => {
+  if (!globalThis.crypto?.subtle) return "";
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
 
 const appendTenantToEndpoint = (endpoint: string, tenantSlug?: string | null) => {
   if (!tenantSlug || endpoint.includes("tenant_slug=") || endpoint.includes("tenant=")) {
@@ -585,7 +623,10 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
 
           <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Audio inclusivo</p>
-            <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-6">
+            <div
+              data-testid="whatsapp-audio-cache-metrics"
+              className="mt-3 grid grid-cols-2 gap-2 2xl:grid-cols-3"
+            >
               <Metric label="Cache" value={audioCacheReady ? "Activo" : "Revisar"} tone={audioCacheReady ? "ready" : "warning"} />
               <Metric label="Menus" value={fixedMenuScopes.length || (fixedMenuAudioCache.enabled ? 1 : 0)} tone={fixedMenuAudioCache.enabled ? "ready" : "neutral"} />
               <Metric label="Requests" value={formatNumber(audioCacheRequests)} />
@@ -1213,6 +1254,38 @@ const MetaCapabilityRow = ({
   );
 };
 
+const FlowLifecycleStep = ({
+  index,
+  title,
+  detail,
+  ready,
+  current,
+}: {
+  index: number;
+  title: string;
+  detail: string;
+  ready: boolean;
+  current?: boolean;
+}) => (
+  <div className="min-w-0 border-l border-border/70 pl-3 first:border-l-0 first:pl-0">
+    <div className="flex items-center gap-2">
+      <span
+        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+          ready
+            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+            : current
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
+        }`}
+      >
+        {ready ? <CheckCircle2 className="h-3.5 w-3.5" /> : index}
+      </span>
+      <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+    </div>
+    <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+  </div>
+);
+
 const MetaPlatformPanel = ({
   experience,
   tenantSlug,
@@ -1224,6 +1297,10 @@ const MetaPlatformPanel = ({
 }) => {
   const platform = asRecord(experience.meta_platform);
   const nativeFlows = asRecord(platform.native_flows);
+  const flowJsonProfile = asRecord(nativeFlows.flow_json_profile);
+  const dataExchange = asRecord(nativeFlows.data_exchange);
+  const flowManagement = asRecord(nativeFlows.management);
+  const graphManagement = asRecord(flowManagement.graph);
   const businessCalling = asRecord(platform.business_calling);
   const catalog = asRecord(platform.catalog);
   const embeddedSignup = asRecord(platform.embedded_signup);
@@ -1233,7 +1310,10 @@ const MetaPlatformPanel = ({
   const initialFlowId = readText(initialFlow.id);
   const initialMetaFlowId = readText(initialFlow.meta_flow_id);
   const flowStateKey = candidates
-    .map((item) => `${readText(item.id)}:${readText(item.meta_flow_id)}:${readText(item.registry_status)}`)
+    .map(
+      (item) =>
+        `${readText(item.id)}:${readText(item.meta_flow_id)}:${readText(item.registry_status)}:${readText(item.flow_json_sha256)}:${String(boolish(item.meta_flow_publication_verified))}`,
+    )
     .join("|");
   const [selectedFlowId, setSelectedFlowId] = useState(() => initialFlowId);
   const [metaFlowId, setMetaFlowId] = useState(() => initialMetaFlowId);
@@ -1241,6 +1321,13 @@ const MetaPlatformPanel = ({
   const [resultMessage, setResultMessage] = useState("");
   const [executeConfirmation, setExecuteConfirmation] = useState("");
   const [runtimeLocked, setRuntimeLocked] = useState(false);
+  const [metaOperation, setMetaOperation] = useState<"dry" | "execute" | null>(null);
+  const [metaResultMessage, setMetaResultMessage] = useState("");
+  const [metaExecuteConfirmation, setMetaExecuteConfirmation] = useState("");
+  const [metaPublicationAttestation, setMetaPublicationAttestation] = useState("");
+  const [publishAcknowledged, setPublishAcknowledged] = useState(false);
+  const [downloadOperation, setDownloadOperation] = useState(false);
+  const [downloadResultMessage, setDownloadResultMessage] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
   const [sendOperation, setSendOperation] = useState<"dry" | "execute" | null>(null);
   const [sendResultMessage, setSendResultMessage] = useState("");
@@ -1258,6 +1345,13 @@ const MetaPlatformPanel = ({
     setResultMessage("");
     setExecuteConfirmation("");
     setRuntimeLocked(false);
+    setMetaOperation(null);
+    setMetaResultMessage("");
+    setMetaExecuteConfirmation("");
+    setMetaPublicationAttestation("");
+    setPublishAcknowledged(false);
+    setDownloadOperation(false);
+    setDownloadResultMessage("");
     sendRequestSequence.current += 1;
     setTestRecipient("");
     setSendOperation(null);
@@ -1276,6 +1370,15 @@ const MetaPlatformPanel = ({
   const normalizedMetaFlowId = metaFlowId.trim();
   const validMetaFlowId = /^\d{6,32}$/.test(normalizedMetaFlowId);
   const syncEndpoint = readText(nativeFlows.sync_endpoint) || "/api/admin/whatsapp/flows/twilio-content/sync";
+  const managementEndpoint =
+    readText(flowManagement.sync_endpoint) || "/api/admin/whatsapp/flows/meta/sync";
+  const flowJsonDownloadTemplate =
+    readText(nativeFlows.flow_json_download_endpoint_template) ||
+    "/api/admin/whatsapp/flows/{flow_id}/flow-json";
+  const flowJsonDownloadEndpoint = flowJsonDownloadTemplate.replace(
+    "{flow_id}",
+    encodeURIComponent(selectedFlowId),
+  );
   const sendEndpoint = readText(nativeFlows.send_endpoint) || "/api/admin/whatsapp/flows/send";
   const nativeFlowSecurity = asRecord(nativeFlows.security);
   const normalizedTestRecipient = testRecipient.replace(/[()\s.\-]/g, "");
@@ -1293,6 +1396,53 @@ const MetaPlatformPanel = ({
         : recipientValidation === "rejected"
           ? "El backend no autorizo el envio a este destino. Revisa el detalle operativo."
           : "Estructura lista para consultar. Todavia no fue validada por el backend.";
+  const selectedFlowBlockers = asArray(selectedFlow.blockers).map(String);
+  const dataExchangeBlockers = asArray(dataExchange.blockers).map(String);
+  const graphBlockers = asArray(flowManagement.blockers ?? graphManagement.blockers).map(String);
+  const lifecycleBlockers = Array.from(
+    new Set([...selectedFlowBlockers, ...dataExchangeBlockers, ...graphBlockers]),
+  );
+  const artifactReady = Boolean(
+    readText(selectedFlow.flow_json_sha256) &&
+      readText(selectedFlow.flow_json_version) &&
+      asNumber(selectedFlow.screens_count),
+  );
+  const metaPublished = boolish(selectedFlow.meta_flow_publication_verified);
+  const dataExchangeReady = boolish(dataExchange.ready);
+  const wrapperReady = Boolean(
+    readText(selectedFlow.content_sid).startsWith("HX") &&
+      boolish(selectedFlow.artifact_identity_verified),
+  );
+  const effectiveMetaPublished = metaPublished || Boolean(metaPublicationAttestation);
+  const graphReady = boolish(flowManagement.ready) || boolish(graphManagement.ready);
+  const selectedFlowHash = readText(selectedFlow.flow_json_sha256);
+  const selectedFlowScreens = asArray(selectedFlow.screen_ids).map(String);
+  const selectedFlowEndpointMode = readText(selectedFlow.endpoint_mode) || "static";
+  const flowJsonVersion =
+    readText(selectedFlow.flow_json_version) || readText(flowJsonProfile.version) || "-";
+  const dataApiVersion =
+    readText(selectedFlow.data_api_version) || readText(flowJsonProfile.data_api_version) || "-";
+  const effectiveLifecycleBlockers = lifecycleBlockers.filter((blocker) => {
+    if (blocker === "meta_flow_id_required" && validMetaFlowId) return false;
+    if (blocker === "meta_publication_not_verified" && effectiveMetaPublished) return false;
+    if (blocker === "data_exchange_not_ready" && dataExchangeReady) return false;
+    if (blocker === "twilio_content_sid_required" && wrapperReady) return false;
+    if (blocker === "flow_json_artifact_not_verified" && wrapperReady) return false;
+    return true;
+  });
+  const lifecycleState = boolish(selectedFlow.active)
+    ? "active"
+    : wrapperReady && effectiveMetaPublished
+      ? "awaiting_meta_approval"
+      : wrapperReady
+        ? "publication_verification_required"
+        : effectiveMetaPublished && dataExchangeReady
+          ? "ready_for_twilio_wrapper"
+          : effectiveMetaPublished
+            ? "awaiting_data_exchange"
+            : artifactReady
+              ? "ready_for_meta_publication"
+              : readText(selectedFlow.activation_state) || "artifact_required";
 
   const selectFlow = (event: React.ChangeEvent<HTMLSelectElement>) => {
     requestSequence.current += 1;
@@ -1303,6 +1453,13 @@ const MetaPlatformPanel = ({
     setExecuteConfirmation("");
     setRuntimeLocked(false);
     setResultMessage("");
+    setMetaOperation(null);
+    setMetaResultMessage("");
+    setMetaExecuteConfirmation("");
+    setMetaPublicationAttestation("");
+    setPublishAcknowledged(false);
+    setDownloadOperation(false);
+    setDownloadResultMessage("");
     sendRequestSequence.current += 1;
     setTestRecipient("");
     setSendOperation(null);
@@ -1310,6 +1467,128 @@ const MetaPlatformPanel = ({
     setSendConfirmation("");
     setRecipientValidation("idle");
     setSendIdempotencyKey(newFlowIdempotencyKey());
+  };
+
+  const downloadFlowJson = async () => {
+    if (!selectedFlowId) return;
+    setDownloadOperation(true);
+    setDownloadResultMessage("");
+    try {
+      const flowDocument = await apiFetch<unknown>(
+        appendTenantToEndpoint(flowJsonDownloadEndpoint, tenantSlug),
+        {
+          tenantSlug: tenantSlug || undefined,
+          headers: { Accept: "application/json" },
+        },
+      );
+      const canonical = stableJsonStringify(flowDocument);
+      const expectedSha256 = readText(selectedFlow.flow_json_sha256);
+      const downloadedSha256 = await sha256Hex(canonical);
+      if (
+        expectedSha256 &&
+        downloadedSha256 &&
+        expectedSha256 !== downloadedSha256
+      ) {
+        throw new Error("El archivo descargado no coincide con el hash del artefacto.");
+      }
+      const blob = new Blob([canonical], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${selectedFlowId}.flow.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setDownloadResultMessage(
+        downloadedSha256
+          ? `Flow JSON descargado y verificado: ${downloadedSha256.slice(0, 12)}...`
+          : "Flow JSON descargado desde el artefacto validado por el backend.",
+      );
+    } catch (err) {
+      setDownloadResultMessage(
+        getErrorMessage(err, "No se pudo descargar el Flow JSON validado."),
+      );
+    } finally {
+      setDownloadOperation(false);
+    }
+  };
+
+  const syncMetaFlow = async (mode: "dry" | "execute") => {
+    if (!selectedFlowId) return;
+    if (normalizedMetaFlowId && !validMetaFlowId) {
+      setMetaResultMessage("El Meta Flow ID debe ser numerico o quedar vacio para crear uno nuevo.");
+      return;
+    }
+    if (mode === "execute" && (!metaExecuteConfirmation || !publishAcknowledged)) {
+      setMetaResultMessage(
+        "Primero prepara la publicacion y confirma que el Flow quedara inmutable.",
+      );
+      return;
+    }
+
+    setMetaOperation(mode);
+    setMetaResultMessage("");
+    const requestId = ++requestSequence.current;
+    try {
+      const response = await apiFetch<unknown>(
+        appendTenantToEndpoint(managementEndpoint, tenantSlug),
+        {
+          method: "POST",
+          tenantSlug: tenantSlug || undefined,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flow_id: selectedFlowId,
+            ...(normalizedMetaFlowId ? { meta_flow_id: normalizedMetaFlowId } : {}),
+            dry_run: mode === "dry",
+            publish: true,
+            ...(mode === "execute"
+              ? { execute_confirmation: metaExecuteConfirmation }
+              : {}),
+          }),
+        },
+      );
+      if (requestId !== requestSequence.current) return;
+      const record = asRecord(response);
+      if (mode === "dry") {
+        const blockers = asArray(record.blockers).map(String);
+        const confirmation = boolish(record.ready_to_sync)
+          ? readText(record.execute_confirmation)
+          : "";
+        setMetaExecuteConfirmation(confirmation);
+        setMetaPublicationAttestation("");
+        setPublishAcknowledged(false);
+        setMetaResultMessage(
+          confirmation
+            ? "Contrato listo. Revisa la inmutabilidad antes de publicar o verificar en Meta."
+            : blockers.length
+              ? `Publicacion bloqueada: ${blockers.map(formatKey).join(", ")}.`
+              : "Meta no habilito la publicacion.",
+        );
+      } else {
+        const publishedMetaFlowId = readText(record.meta_flow_id);
+        const attestation = readText(record.meta_publication_attestation);
+        if (publishedMetaFlowId) setMetaFlowId(publishedMetaFlowId);
+        setMetaPublicationAttestation(attestation);
+        setMetaExecuteConfirmation("");
+        setPublishAcknowledged(false);
+        setExecuteConfirmation("");
+        setResultMessage("");
+        setMetaResultMessage(
+          attestation
+            ? `Meta publico y verifico el Flow ${publishedMetaFlowId}. Ya podes crear el wrapper de Twilio.`
+            : "Meta completo la operacion, pero no emitio una verificacion utilizable.",
+        );
+      }
+    } catch (err) {
+      if (requestId !== requestSequence.current) return;
+      setMetaResultMessage(
+        getErrorMessage(err, "No se pudo completar el ciclo oficial del Flow en Meta."),
+      );
+      if (mode === "execute") setMetaPublicationAttestation("");
+    } finally {
+      if (requestId === requestSequence.current) setMetaOperation(null);
+    }
   };
 
   const syncFlow = async (mode: "dry" | "execute") => {
@@ -1335,6 +1614,9 @@ const MetaPlatformPanel = ({
           meta_flow_id: normalizedMetaFlowId,
           dry_run: mode === "dry",
           submit_for_approval: true,
+          ...(metaPublicationAttestation
+            ? { meta_publication_attestation: metaPublicationAttestation }
+            : {}),
           ...(mode === "execute" ? { execute_confirmation: executeConfirmation } : {}),
         }),
       });
@@ -1357,8 +1639,8 @@ const MetaPlatformPanel = ({
             ? readText(asRecord(record.integration_access).message) ||
                 "El payload es valido, pero la ejecucion requiere plan Full y sender configurado."
             : confirmation
-              ? "Flow validado. La confirmacion real ya esta lista."
-              : "El backend valido el Flow, pero no habilito su ejecucion.",
+              ? "Wrapper validado. La confirmacion real ya esta lista."
+              : "El backend valido el wrapper, pero no habilito su ejecucion.",
         );
       } else {
         const registry = asRecord(record.registry);
@@ -1366,10 +1648,10 @@ const MetaPlatformPanel = ({
         setExecuteConfirmation("");
         setResultMessage(
           contentSid
-            ? `Flow registrado en Twilio: ${contentSid}`
+            ? `Wrapper registrado en Twilio: ${contentSid}`
             : readText(record.reason) === "already_registered"
-              ? "El Flow ya estaba registrado para este tenant."
-              : "Flow enviado a Twilio para aprobacion.",
+              ? "El wrapper ya estaba registrado para este tenant."
+              : "Wrapper enviado a Twilio para aprobacion.",
         );
       }
     } catch (err) {
@@ -1388,7 +1670,7 @@ const MetaPlatformPanel = ({
           setExecuteConfirmation("");
         }
       }
-      setResultMessage(getErrorMessage(err, "No se pudo sincronizar el Flow nativo."));
+      setResultMessage(getErrorMessage(err, "No se pudo sincronizar el wrapper de Twilio."));
     } finally {
       if (requestId === requestSequence.current) setOperation(null);
     }
@@ -1529,94 +1811,254 @@ const MetaPlatformPanel = ({
             </p>
           </div>
         ) : candidates.length ? (
-          <div className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-5 border-t border-border/60 pt-5" data-testid="native-flow-lifecycle">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-foreground">Activar Flow nativo</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Primero valida el ID publicado por Meta. La creacion real exige confirmacion del backend.
+                <p className="text-sm font-semibold text-foreground">Ciclo operativo del Flow</p>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+                  Artefacto Chatboc, publicacion oficial en Meta, Data Exchange y wrapper de Twilio se verifican por separado.
                 </p>
               </div>
-              <StatusPill tone={boolish(selectedFlow.active) ? "ready" : boolish(selectedFlow.configured) ? "warning" : "neutral"}>
-                {formatKey(readText(selectedFlow.activation_state) || "meta_flow_id_required")}
-              </StatusPill>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill
+                  tone={
+                    boolish(selectedFlow.active)
+                      ? "ready"
+                      : effectiveMetaPublished || wrapperReady
+                        ? "warning"
+                        : "neutral"
+                  }
+                >
+                  {formatKey(lifecycleState)}
+                </StatusPill>
+                <a
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
+                  href="https://developers.facebook.com/documentation/business-messaging/whatsapp/flows/guides/flowjson"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Guia oficial
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)_auto] lg:items-end">
-              <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-candidate">
-                Flujo Chatboc
-                <select
-                  id="meta-flow-candidate"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={selectedFlowId}
-                  onChange={selectFlow}
-                >
-                  {candidates.map((flow) => (
-                    <option key={readText(flow.id)} value={readText(flow.id)}>
-                      {readText(flow.flow_name) || formatKey(readText(flow.id))}
-                    </option>
+            <label className="grid max-w-xl gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-candidate">
+              Flow de Chatboc
+              <select
+                id="meta-flow-candidate"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={selectedFlowId}
+                onChange={selectFlow}
+              >
+                {candidates.map((flow) => (
+                  <option key={readText(flow.id)} value={readText(flow.id)}>
+                    {readText(flow.flow_name) || formatKey(readText(flow.id))}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-4 border-y border-border/60 py-4 sm:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Estado del ciclo del Flow">
+              <FlowLifecycleStep
+                index={1}
+                title="Artefacto"
+                detail={`Flow JSON ${flowJsonVersion} - ${formatNumber(selectedFlow.screens_count)} pantallas`}
+                ready={artifactReady}
+                current={!artifactReady}
+              />
+              <FlowLifecycleStep
+                index={2}
+                title="Meta"
+                detail={effectiveMetaPublished ? `Publicado - ID ${normalizedMetaFlowId || "verificado"}` : "Carga, validacion y publicacion pendientes"}
+                ready={effectiveMetaPublished}
+                current={artifactReady && !effectiveMetaPublished}
+              />
+              <FlowLifecycleStep
+                index={3}
+                title="Data Exchange"
+                detail={dataExchangeReady ? `API ${dataApiVersion} - cifrado listo` : `API ${dataApiVersion} - configuracion pendiente`}
+                ready={dataExchangeReady}
+                current={effectiveMetaPublished && !dataExchangeReady}
+              />
+              <FlowLifecycleStep
+                index={4}
+                title="Wrapper Twilio"
+                detail={wrapperReady ? readText(selectedFlow.content_sid) : "Referencia y aprobacion pendientes"}
+                ready={wrapperReady}
+                current={effectiveMetaPublished && dataExchangeReady && !wrapperReady}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <FileJson2 className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Artefacto validado por Chatboc</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {selectedFlowEndpointMode === "data_exchange" ? "Data Exchange" : "Estatico"} -{" "}
+                    {formatBytes(selectedFlow.flow_json_byte_size)} - primera pantalla{" "}
+                    {readText(selectedFlow.first_screen_id) || "-"}
+                  </p>
+                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={selectedFlowHash}>
+                    SHA-256 {selectedFlowHash || "pendiente"}
+                  </p>
+                  {selectedFlowScreens.length ? (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {selectedFlowScreens.join(" - ")}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!artifactReady || downloadOperation}
+                onClick={downloadFlowJson}
+              >
+                {downloadOperation ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Descargar Flow JSON
+              </Button>
+            </div>
+            {downloadResultMessage ? (
+              <p className="border-l-2 border-primary px-3 py-1 text-xs text-muted-foreground" role="status" aria-live="polite">
+                {downloadResultMessage}
+              </p>
+            ) : null}
+
+            {effectiveLifecycleBlockers.length ? (
+              <div className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2">
+                <p className="text-xs font-semibold text-foreground">Pendientes operativos</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {effectiveLifecycleBlockers.map((blocker) => (
+                    <span key={blocker} className="rounded-md border border-amber-500/30 px-2 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                      {formatKey(blocker)}
+                    </span>
                   ))}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-id">
-                Meta Flow ID publicado
-                <Input
-                  id="meta-flow-id"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="1232445823264765"
-                  value={metaFlowId}
-                  onChange={(event) => {
-                    requestSequence.current += 1;
-                    setMetaFlowId(event.target.value.replace(/\D/g, "").slice(0, 32));
-                    setExecuteConfirmation("");
-                    setRuntimeLocked(false);
-                    setResultMessage("");
-                  }}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="space-y-3 border-t border-border/60 pt-5" data-testid="meta-flow-publication">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Publicacion oficial en Meta</p>
+                  <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+                    El backend crea o reutiliza el borrador, carga este artefacto exacto, valida, publica y compara el hash remoto.
+                  </p>
+                </div>
+                <StatusPill tone={effectiveMetaPublished ? "ready" : graphReady ? "warning" : "neutral"}>
+                  {effectiveMetaPublished ? "Publicacion verificada" : graphReady ? "Graph listo" : "Graph pendiente"}
+                </StatusPill>
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1fr)] lg:items-end">
+                <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-id">
+                  Meta Flow ID publicado o borrador existente
+                  <Input
+                    id="meta-flow-id"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Vacio para crear uno nuevo"
+                    value={metaFlowId}
+                    onChange={(event) => {
+                      requestSequence.current += 1;
+                      setMetaFlowId(event.target.value.replace(/\D/g, "").slice(0, 32));
+                      setExecuteConfirmation("");
+                      setRuntimeLocked(false);
+                      setResultMessage("");
+                      setMetaExecuteConfirmation("");
+                      setMetaPublicationAttestation("");
+                      setPublishAcknowledged(false);
+                      setMetaResultMessage("");
+                    }}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!artifactReady || !graphReady || metaOperation !== null}
+                    onClick={() => syncMetaFlow("dry")}
+                  >
+                    {metaOperation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                    Preparar publicacion
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!metaExecuteConfirmation || !publishAcknowledged || executionLocked || metaOperation !== null}
+                    onClick={() => syncMetaFlow("execute")}
+                  >
+                    {metaOperation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+                    Publicar o verificar en Meta
+                  </Button>
+                </div>
+              </div>
+
+              <label className="flex max-w-2xl items-start gap-2 text-xs leading-5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                  checked={publishAcknowledged}
+                  disabled={!metaExecuteConfirmation || metaOperation !== null}
+                  onChange={(event) => setPublishAcknowledged(event.target.checked)}
                 />
+                Confirmo que Meta vuelve inmutable un Flow despues de publicarlo y que los cambios futuros requieren una nueva version.
               </label>
+
+              {metaResultMessage ? (
+                <p className="border-l-2 border-primary px-3 py-1 text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
+                  {metaResultMessage}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-3 border-t border-border/60 pt-5" data-testid="twilio-flow-wrapper">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Wrapper y aprobacion de Twilio</p>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+                  El wrapper referencia el Meta Flow publicado; no carga ni publica el Flow JSON en Meta.
+                </p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded-xl"
-                  disabled={!selectedFlowId || !validMetaFlowId || operation !== null}
+                  disabled={!selectedFlowId || !validMetaFlowId || operation !== null || metaOperation !== null}
                   onClick={() => syncFlow("dry")}
                 >
                   {operation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Validar Flow
+                  Validar wrapper
                 </Button>
                 <Button
                   type="button"
                   size="sm"
-                  className="rounded-xl"
-                  disabled={!executeConfirmation || executionLocked || operation !== null}
+                  disabled={!executeConfirmation || executionLocked || operation !== null || metaOperation !== null}
                   onClick={() => syncFlow("execute")}
                 >
                   {operation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                  Crear Flow en Twilio
+                  Crear wrapper en Twilio
                 </Button>
               </div>
+              {accessLocked ? (
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                  La validacion esta disponible; la ejecucion real requiere plan {readText(integrationAccess.required_plan) || "full"}.
+                </p>
+              ) : null}
+              {resultMessage ? (
+                <p className="border-l-2 border-primary px-3 py-1 text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
+                  {resultMessage}
+                </p>
+              ) : null}
             </div>
 
-            {accessLocked ? (
-              <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
-                La validacion esta disponible; la ejecucion real requiere plan {readText(integrationAccess.required_plan) || "full"}.
-              </p>
-            ) : null}
-            {resultMessage ? (
-              <p
-                className="rounded-xl border border-border/60 bg-background/85 px-3 py-2 text-xs text-muted-foreground"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                {resultMessage}
-              </p>
-            ) : null}
-
-            <div className="border-t border-primary/15 pt-4" data-testid="native-flow-test-send">
+            <div className="border-t border-border/60 pt-5" data-testid="native-flow-test-send">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Probar en un WhatsApp real</p>
@@ -1658,7 +2100,6 @@ const MetaPlatformPanel = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-xl"
                       disabled={!selectedFlowId || !recipientHasE164Shape || sendOperation !== null || operation !== null}
                       onClick={() => sendTestFlow("dry")}
                     >
@@ -1668,7 +2109,6 @@ const MetaPlatformPanel = ({
                     <Button
                       type="button"
                       size="sm"
-                      className="rounded-xl"
                       disabled={!sendConfirmation || sendOperation !== null || operation !== null}
                       onClick={() => sendTestFlow("execute")}
                     >

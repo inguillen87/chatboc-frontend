@@ -130,7 +130,27 @@ const metaFlowExperience = (flowId: string, metaFlowId = "") => ({
       candidate_count: 1,
       configured_count: metaFlowId ? 1 : 0,
       active_count: 0,
+      flow_json_profile: {
+        version: "7.3",
+        data_api_version: "3.0",
+        max_asset_bytes: 10 * 1024 * 1024,
+        null_values_allowed: false,
+      },
+      data_exchange: {
+        ready: true,
+        endpoint_url: "https://api.chatboc.ar/api/public/whatsapp/flows/data-exchange",
+        blockers: [],
+      },
+      management: {
+        ready: true,
+        status: "ready",
+        sync_endpoint: "/api/admin/whatsapp/flows/meta/sync",
+        irreversible_publish: true,
+        blockers: [],
+        graph: { ready: true, blockers: [] },
+      },
       sync_endpoint: "/api/admin/whatsapp/flows/twilio-content/sync",
+      flow_json_download_endpoint_template: "/api/admin/whatsapp/flows/{flow_id}/flow-json",
       send_endpoint: "/api/admin/whatsapp/flows/send",
       security: {
         dedicated_token_key_ready: true,
@@ -143,6 +163,19 @@ const metaFlowExperience = (flowId: string, metaFlowId = "") => ({
           meta_flow_id: metaFlowId || undefined,
           registry_status: metaFlowId ? "pending_approval" : "not_configured",
           activation_state: metaFlowId ? "awaiting_meta_approval" : "meta_flow_id_required",
+          endpoint_mode: "data_exchange",
+          first_screen_id: "START",
+          screens_count: 2,
+          screen_ids: ["START", "CONFIRM"],
+          flow_json_version: "7.3",
+          data_api_version: "3.0",
+          flow_json_sha256: "a".repeat(64),
+          flow_json_byte_size: 4096,
+          artifact_identity_verified: false,
+          meta_flow_publication_verified: false,
+          blockers: metaFlowId
+            ? ["twilio_content_sid_required", "meta_publication_not_verified"]
+            : ["meta_flow_id_required", "twilio_content_sid_required"],
           configured: Boolean(metaFlowId),
           active: false,
         },
@@ -219,6 +252,9 @@ describe("WhatsappOperationsHub", () => {
     render(<WhatsappOperationsHub initialExperience={experience} />);
 
     const publication = screen.getByTestId("whatsapp-audio-cache-publication");
+    const metrics = screen.getByTestId("whatsapp-audio-cache-metrics");
+    expect(metrics).toHaveClass("grid-cols-2", "2xl:grid-cols-3");
+    expect(metrics).not.toHaveClass("xl:grid-cols-6");
     expect(publication).toHaveTextContent("CDN activo");
     expect(publication).toHaveTextContent("Cloudflare ready");
     expect(publication).toHaveTextContent("Sin PII");
@@ -389,8 +425,8 @@ describe("WhatsappOperationsHub", () => {
     expect(panel).toHaveTextContent("42 articulos Chatboc");
     expect(panel).not.toHaveTextContent("Entrantes habilitadas");
 
-    const validateButton = screen.getByRole("button", { name: /Validar Flow/i });
-    const executeButton = screen.getByRole("button", { name: /Crear Flow en Twilio/i });
+    const validateButton = screen.getByRole("button", { name: /Validar wrapper/i });
+    const executeButton = screen.getByRole("button", { name: /Crear wrapper en Twilio/i });
     expect(validateButton).toBeDisabled();
     expect(executeButton).toBeDisabled();
 
@@ -400,7 +436,7 @@ describe("WhatsappOperationsHub", () => {
     expect(validateButton).toBeEnabled();
     fireEvent.click(validateButton);
 
-    expect(await screen.findByText(/Flow validado/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Wrapper validado/i)).toBeInTheDocument();
     expect(apiFetchMock.mock.calls[0]).toEqual([
       "/api/admin/whatsapp/flows/twilio-content/sync",
       expect.objectContaining({
@@ -428,6 +464,108 @@ describe("WhatsappOperationsHub", () => {
         }),
       }),
     );
+  });
+
+  it("publishes and verifies the Meta artifact before creating its Twilio wrapper", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        dry_run: true,
+        ready_to_sync: true,
+        blockers: [],
+        execute_confirmation: "signed-meta-publication-preview",
+      })
+      .mockResolvedValueOnce({
+        published: true,
+        meta_flow_id: "1232445823264765",
+        meta_publication_attestation: "signed-meta-publication-attestation",
+      })
+      .mockResolvedValueOnce({
+        dry_run: true,
+        blocked: false,
+        ready_to_create: true,
+        execute_confirmation: "signed-twilio-wrapper-preview",
+      })
+      .mockResolvedValueOnce({
+        created: true,
+        content_sid: "HXverifiedflowwrapper",
+        approval_status: "pending",
+      });
+
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("claim_intake")}
+      />,
+    );
+
+    const lifecycle = screen.getByTestId("native-flow-lifecycle");
+    expect(lifecycle).toHaveTextContent("Flow JSON 7.3");
+    expect(lifecycle).toHaveTextContent("API 3.0");
+    expect(lifecycle).toHaveTextContent("SHA-256");
+    expect(screen.getByRole("button", { name: /Descargar Flow JSON/i })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Preparar publicacion/i }));
+    expect(
+      await screen.findByText(/Contrato listo.*inmutabilidad/i),
+    ).toBeInTheDocument();
+
+    const acknowledgement = screen.getByRole("checkbox", {
+      name: /Confirmo que Meta vuelve inmutable/i,
+    });
+    const publishButton = screen.getByRole("button", {
+      name: /Publicar o verificar en Meta/i,
+    });
+    expect(acknowledgement).toBeEnabled();
+    expect(publishButton).toBeDisabled();
+    fireEvent.click(acknowledgement);
+    expect(publishButton).toBeEnabled();
+    fireEvent.click(publishButton);
+
+    expect(
+      await screen.findByText(/Meta publico y verifico el Flow 1232445823264765/i),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Meta Flow ID publicado/i)).toHaveValue(
+      "1232445823264765",
+    );
+
+    const metaPreviewBody = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    const metaExecuteBody = JSON.parse(String(apiFetchMock.mock.calls[1][1]?.body));
+    expect(apiFetchMock.mock.calls[0][0]).toBe("/api/admin/whatsapp/flows/meta/sync");
+    expect(metaPreviewBody).toEqual({
+      flow_id: "claim_intake",
+      dry_run: true,
+      publish: true,
+    });
+    expect(metaExecuteBody).toEqual({
+      flow_id: "claim_intake",
+      dry_run: false,
+      publish: true,
+      execute_confirmation: "signed-meta-publication-preview",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Validar wrapper/i }));
+    expect(await screen.findByText(/Wrapper validado/i)).toBeInTheDocument();
+    const wrapperPreviewBody = JSON.parse(String(apiFetchMock.mock.calls[2][1]?.body));
+    expect(wrapperPreviewBody).toEqual({
+      flow_id: "claim_intake",
+      meta_flow_id: "1232445823264765",
+      dry_run: true,
+      submit_for_approval: true,
+      meta_publication_attestation: "signed-meta-publication-attestation",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Crear wrapper en Twilio/i }));
+    expect(await screen.findByText(/HXverifiedflowwrapper/i)).toBeInTheDocument();
+    const wrapperExecuteBody = JSON.parse(String(apiFetchMock.mock.calls[3][1]?.body));
+    expect(wrapperExecuteBody).toEqual({
+      flow_id: "claim_intake",
+      meta_flow_id: "1232445823264765",
+      dry_run: false,
+      submit_for_approval: true,
+      meta_publication_attestation: "signed-meta-publication-attestation",
+      execute_confirmation: "signed-twilio-wrapper-preview",
+    });
+    expect(lifecycle).not.toHaveTextContent("signed-meta-publication-attestation");
   });
 
   it("prevalidates and sends a native Flow without exposing its one-time token", async () => {
@@ -523,7 +661,7 @@ describe("WhatsappOperationsHub", () => {
     fireEvent.change(screen.getByLabelText(/Meta Flow ID publicado/i), {
       target: { value: "1232445823264765" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Validar Flow/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Validar wrapper/i }));
 
     rerender(
       <WhatsappOperationsHub
@@ -544,9 +682,9 @@ describe("WhatsappOperationsHub", () => {
       await Promise.resolve();
     });
 
-    expect(screen.queryByText(/Flow validado/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Crear Flow en Twilio/i })).toBeDisabled();
-    expect(screen.getByLabelText(/Flujo Chatboc/i)).toHaveValue("order_checkout");
+    expect(screen.queryByText(/Wrapper validado/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Crear wrapper en Twilio/i })).toBeDisabled();
+    expect(screen.getByLabelText(/Flow de Chatboc/i)).toHaveValue("order_checkout");
     expect(screen.getByLabelText(/Numero destino/i)).toHaveValue("");
     expect(screen.getByRole("button", { name: /Enviar Flow de prueba/i })).toBeDisabled();
   });
@@ -683,7 +821,7 @@ describe("WhatsappOperationsHub", () => {
     );
     expect(screen.getAllByText(/Administracion protegida/i).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Validar envio/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Crear Flow en Twilio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Crear wrapper en Twilio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Validar payload/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Crear en Twilio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Refrescar estado/i })).not.toBeInTheDocument();
