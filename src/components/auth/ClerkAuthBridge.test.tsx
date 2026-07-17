@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,7 @@ import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
 import { persistClerkAuthContext } from '@/utils/clerkAuthContext';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
+import { completeClerkOnboarding } from '@/api/clerkAuth';
 import ClerkAuthBridge from './ClerkAuthBridge';
 import { ClerkRuntimeProvider } from './ClerkRuntimeContext';
 
@@ -51,9 +52,47 @@ vi.mock('@/utils/api', () => ({
 }));
 
 vi.mock('./ClerkTenantOnboardingDialog', () => ({
-  default: ({ open, userProfile }: { open: boolean; userProfile?: { id?: string | null } }) =>
-    open ? <div data-testid="clerk-onboarding-user">{userProfile?.id}</div> : null,
+  default: ({
+    open,
+    userProfile,
+    completion,
+    onSubmit,
+    onCompletionPrimary,
+  }: {
+    open: boolean;
+    userProfile?: { id?: string | null };
+    completion?: { primaryActionLabel?: string } | null;
+    onSubmit: (payload: Record<string, unknown>) => Promise<void> | void;
+    onCompletionPrimary?: () => void;
+  }) =>
+    open ? (
+      <div>
+        <div data-testid="clerk-onboarding-user">{userProfile?.id}</div>
+        {completion ? (
+          <div data-testid="clerk-onboarding-completion">
+            <button type="button" onClick={onCompletionPrimary}>{completion.primaryActionLabel}</button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void onSubmit({
+                tenant_name: 'Ferreteria Modelo',
+                vertical: 'pyme',
+                rubro: 'ventas',
+                terms_accepted: true,
+                terms_version: '2026-07-11',
+              });
+            }}
+          >
+            Completar onboarding
+          </button>
+        )}
+      </div>
+    ) : null,
 }));
+
+const mockedCompleteClerkOnboarding = vi.mocked(completeClerkOnboarding);
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -129,6 +168,19 @@ describe('ClerkAuthBridge session lifecycle', () => {
         tenant_slug: 'lucia-tenant',
       },
       tenant: { id: 7, slug: 'lucia-tenant' },
+      onboarding: { required: false },
+    });
+    mockedCompleteClerkOnboarding.mockReset().mockResolvedValue({
+      contract_version: 'auth.clerk.v1',
+      token: 'chatboc-token',
+      auth_provider: 'clerk',
+      user: {
+        id: 42,
+        email: 'lucia@chatboc.test',
+        rol: 'tenant_admin',
+        tenant_slug: 'lucia-tenant',
+      },
+      tenant: { id: 7, slug: 'lucia-tenant', nombre: 'Ferreteria Modelo' },
       onboarding: { required: false },
     });
     clerkMocks.refreshUser.mockReset().mockResolvedValue(undefined);
@@ -214,6 +266,48 @@ describe('ClerkAuthBridge session lifecycle', () => {
       { intent: 'tenant_portal', tenant_slug: 'junin' },
     );
     expect(safeLocalStorage.getItem('clerkAuthIntent')).toBe('tenant_portal');
+  });
+
+  it('preserves the WhatsApp return path until the completed tenant handoff is confirmed', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    persistClerkAuthContext({
+      intent: 'tenant_owner',
+      returnTo: '/t/lucia-tenant/integracion?channel=whatsapp&action=register-whatsapp',
+    });
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1',
+      token: null,
+      auth_provider: 'clerk',
+      user: {
+        id: 42,
+        email: 'lucia@chatboc.test',
+        rol: 'tenant_admin',
+      },
+      tenant: null,
+      onboarding: {
+        required: true,
+        status: 'pending',
+        modal: { mode: 'tenant_setup' },
+      },
+    });
+
+    renderBridge('/register');
+
+    fireEvent.click(await screen.findByRole('button', { name: /completar onboarding/i }));
+
+    const continueButton = await screen.findByRole('button', { name: /continuar con whatsapp/i });
+    expect(consoleLogSpy).not.toHaveBeenCalledWith(
+      'Mocked navigate to: /t/lucia-tenant/integracion?channel=whatsapp&action=register-whatsapp',
+    );
+    expect(safeSessionStorage.getItem('chatboc.clerk.auth-context.v1')).not.toBeNull();
+
+    fireEvent.click(continueButton);
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Mocked navigate to: /t/lucia-tenant/integracion?channel=whatsapp&action=register-whatsapp',
+    );
+    expect(safeSessionStorage.getItem('chatboc.clerk.auth-context.v1')).toBeNull();
+    consoleLogSpy.mockRestore();
   });
 
   it('clears local tokens and stores only after Clerk signs out', async () => {

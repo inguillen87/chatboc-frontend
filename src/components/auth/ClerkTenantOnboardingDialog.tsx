@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, CheckCircle2, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -38,7 +38,19 @@ interface ClerkTenantOnboardingDialogProps {
   required?: boolean;
   loading?: boolean;
   error?: string | null;
+  completion?: ClerkTenantOnboardingCompletion | null;
   onSubmit: (payload: ClerkOnboardingPayload) => Promise<void> | void;
+  onCompletionPrimary?: () => void;
+  onCompletionPanel?: () => void;
+}
+
+export interface ClerkTenantOnboardingCompletion {
+  title: string;
+  description: string;
+  statusLabel?: string;
+  tenantName?: string | null;
+  primaryActionLabel: string;
+  showPanelAction?: boolean;
 }
 
 const defaultForm = {
@@ -125,13 +137,17 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   required = false,
   loading,
   error,
+  completion,
   onSubmit,
+  onCompletionPrimary,
+  onCompletionPanel,
 }) => {
   const [form, setForm] = React.useState(defaultForm);
   const [termsAccepted, setTermsAccepted] = React.useState(false);
   const tenantNameInputRef = React.useRef<HTMLInputElement>(null);
   const termsCheckboxRef = React.useRef<HTMLButtonElement>(null);
   const errorRef = React.useRef<HTMLParagraphElement>(null);
+  const completionTitleRef = React.useRef<HTMLHeadingElement>(null);
   const modal = onboarding?.modal;
   const verticalOptions = modal?.vertical_options?.length ? modal.vertical_options : fallbackVerticalOptions;
   const goalOptions = modal?.goal_options?.length ? modal.goal_options : fallbackGoalOptions;
@@ -154,11 +170,16 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   const recommendedIds = new Set(selectedPreset?.recommended_modules || []);
   const recommendedModules = recommendedIds.size ? starterModules.filter((module) => recommendedIds.has(module.id)) : starterModules.slice(0, 3);
   const preferredChannels = selectedPreset?.preferred_channels?.length ? selectedPreset.preferred_channels : ['whatsapp', 'webchat'];
+  const preventDismiss = required || Boolean(completion);
 
   const focusInitialControl = React.useCallback(() => {
-    const initialControl = termsOnly ? termsCheckboxRef.current : tenantNameInputRef.current;
+    const initialControl = completion
+      ? completionTitleRef.current
+      : termsOnly
+        ? termsCheckboxRef.current
+        : tenantNameInputRef.current;
     initialControl?.focus();
-  }, [termsOnly]);
+  }, [completion, termsOnly]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -188,6 +209,10 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   React.useEffect(() => {
     if (open && error) errorRef.current?.focus();
   }, [error, open]);
+
+  React.useEffect(() => {
+    if (open && completion) completionTitleRef.current?.focus();
+  }, [completion, open]);
 
   const update = (field: keyof typeof defaultForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -220,7 +245,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (required && !nextOpen) return;
+    if (preventDismiss && !nextOpen) return;
     onOpenChange(nextOpen);
   };
 
@@ -228,13 +253,13 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl flex-col gap-0 overflow-hidden border-slate-200 bg-white p-0 text-slate-950 shadow-2xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"
-        showCloseButton={!required}
+        showCloseButton={!preventDismiss}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           focusInitialControl();
         }}
-        onEscapeKeyDown={required ? (event) => event.preventDefault() : undefined}
-        onPointerDownOutside={required ? (event) => event.preventDefault() : undefined}
+        onEscapeKeyDown={preventDismiss ? (event) => event.preventDefault() : undefined}
+        onPointerDownOutside={preventDismiss ? (event) => event.preventDefault() : undefined}
       >
         <DialogHeader className="shrink-0 border-b border-slate-200 px-4 py-4 pr-12 text-left dark:border-slate-800 sm:px-6 sm:pr-14">
           <div className="flex min-w-0 items-start gap-3">
@@ -242,14 +267,76 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
               <Building2 className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <DialogTitle className="break-words leading-6">{onboarding?.title || 'Crear tu espacio Chatboc'}</DialogTitle>
+              <DialogTitle
+                ref={completion ? completionTitleRef : undefined}
+                tabIndex={completion ? -1 : undefined}
+                className="break-words leading-6 outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+              >
+                {completion?.title || onboarding?.title || 'Crear tu espacio Chatboc'}
+              </DialogTitle>
               <DialogDescription className="mt-1 break-words leading-5">
-                {onboarding?.description || 'Configuramos el tenant, CRM, plantillas iniciales y canales con estos datos.'}
+                {completion?.description || onboarding?.description || 'Configuramos el tenant, CRM, plantillas iniciales y canales con estos datos.'}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
+        {completion ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              className="min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 sm:py-8"
+              data-testid="clerk-onboarding-completion"
+            >
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="mx-auto flex max-w-xl flex-col items-center text-center"
+              >
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
+                </span>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-normal text-emerald-700 dark:text-emerald-300">
+                  {completion.statusLabel || 'Alta completada'}
+                </p>
+                {completion.tenantName ? (
+                  <p className="mt-2 max-w-full break-words text-xl font-semibold leading-7 sm:text-2xl">
+                    {completion.tenantName}
+                  </p>
+                ) : null}
+                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  Tu acceso ya está activo. Podés continuar con la configuración pendiente o entrar al panel.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter
+              className="shrink-0 gap-2 border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 sm:px-6"
+              data-testid="clerk-onboarding-completion-footer"
+            >
+              {completion.showPanelAction ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 w-full sm:w-auto"
+                  onClick={onCompletionPanel}
+                  disabled={!onCompletionPanel}
+                >
+                  Ir al panel
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                className="min-h-11 w-full sm:w-auto"
+                onClick={onCompletionPrimary}
+                disabled={!onCompletionPrimary}
+              >
+                {completion.primaryActionLabel}
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
         <form
           className="flex min-h-0 flex-1 flex-col"
           aria-busy={loading || undefined}
@@ -541,6 +628,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

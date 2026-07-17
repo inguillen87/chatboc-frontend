@@ -10,13 +10,16 @@ import {
   type ClerkSessionResponse,
   type ClerkUserProfilePayload,
 } from '@/api/clerkAuth';
-import ClerkTenantOnboardingDialog from '@/components/auth/ClerkTenantOnboardingDialog';
+import ClerkTenantOnboardingDialog, {
+  type ClerkTenantOnboardingCompletion,
+} from '@/components/auth/ClerkTenantOnboardingDialog';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/useUser';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   clearClerkAuthContext,
+  persistClerkAuthContext,
   readClerkAuthContext,
   sanitizeClerkReturnPath,
   type ClerkAuthContext,
@@ -117,6 +120,38 @@ export const persistChatbocSession = (
 const isAuthEntryPath = (pathname: string) =>
   /\/(?:user\/)?(?:login|register)\/?$/i.test(pathname);
 
+const CLERK_ONBOARDING_PANEL_PATH = '/perfil?setup=channels';
+
+export const resolveClerkOnboardingHandoff = (
+  session: ClerkSessionResponse,
+  authContext?: ClerkAuthContext | null,
+) => {
+  const requestedDestination = sanitizeClerkReturnPath(authContext?.returnTo);
+  const primaryAction = session.channel_activation?.summary?.primary_next_action;
+  const actionKind = String(primaryAction?.kind || 'link').trim().toLowerCase();
+  const backendDestination = actionKind === 'api'
+    ? null
+    : sanitizeClerkReturnPath(primaryAction?.href);
+  const destination = requestedDestination || backendDestination || CLERK_ONBOARDING_PANEL_PATH;
+  const requestedWhatsapp = Boolean(
+    requestedDestination &&
+      /(?:[?&]channel=whatsapp(?:&|$)|\/whatsapp(?:\/|$)|[?&]action=[^&#]*whatsapp)/i.test(requestedDestination),
+  );
+  const backendLabel = backendDestination && typeof primaryAction?.label === 'string'
+    ? primaryAction.label.trim()
+    : '';
+
+  return {
+    destination,
+    actionLabel: requestedDestination
+      ? requestedWhatsapp
+        ? 'Continuar con WhatsApp'
+        : 'Continuar donde estabas'
+      : backendLabel || 'Revisar activacion',
+    showPanelAction: destination !== CLERK_ONBOARDING_PANEL_PATH,
+  };
+};
+
 const resolveBridgeAuthContext = (location: { pathname: string; search: string }): ClerkAuthContext => {
   const stored = readClerkAuthContext();
   if (stored) return stored;
@@ -158,12 +193,15 @@ const ClerkAuthBridge: React.FC = () => {
   const [onboardingContract, setOnboardingContract] = React.useState<ClerkSessionResponse['onboarding']>();
   const [onboardingLoading, setOnboardingLoading] = React.useState(false);
   const [onboardingError, setOnboardingError] = React.useState<string | null>(null);
+  const [onboardingCompletion, setOnboardingCompletion] = React.useState<ClerkTenantOnboardingCompletion | null>(null);
+  const [onboardingDestination, setOnboardingDestination] = React.useState(CLERK_ONBOARDING_PANEL_PATH);
   const [profile, setProfile] = React.useState<ClerkUserProfilePayload | undefined>();
   const [syncError, setSyncError] = React.useState<string | null>(null);
   const [syncRetryNonce, setSyncRetryNonce] = React.useState(0);
   const syncKeyRef = React.useRef<string | null>(null);
   const previousSignedInRef = React.useRef<boolean | undefined>(undefined);
   const activeClerkUserIdRef = React.useRef<string | null | undefined>(undefined);
+  const onboardingAuthContextRef = React.useRef<ClerkAuthContext | null>(null);
   const navigateRef = React.useRef(navigate);
   const pathnameRef = React.useRef(location.pathname);
   navigateRef.current = navigate;
@@ -176,6 +214,9 @@ const ClerkAuthBridge: React.FC = () => {
     setOnboardingOpen(false);
     setOnboardingContract(undefined);
     setOnboardingError(null);
+    setOnboardingCompletion(null);
+    setOnboardingDestination(CLERK_ONBOARDING_PANEL_PATH);
+    onboardingAuthContextRef.current = null;
     setSyncError(null);
   }, []);
 
@@ -276,8 +317,11 @@ const ClerkAuthBridge: React.FC = () => {
             activeClerkUserIdRef.current !== currentClerkUserId ||
             !isChatbocSessionRevisionCurrent(transition.revision)
           ) return;
+          persistClerkAuthContext(authContext);
           setProfile(nextProfile);
           setOnboardingContract(session.onboarding);
+          setOnboardingCompletion(null);
+          onboardingAuthContextRef.current = authContext;
           setOnboardingRequired(Boolean(session.onboarding?.required));
           setOnboardingOpen(Boolean(session.onboarding?.required));
           return;
@@ -287,6 +331,7 @@ const ClerkAuthBridge: React.FC = () => {
         setSyncError(null);
         setProfile(nextProfile);
         setOnboardingContract(session.onboarding);
+        onboardingAuthContextRef.current = null;
         setOnboardingRequired(false);
         await refreshUser();
         if (!isCurrentSync()) return;
@@ -328,6 +373,8 @@ const ClerkAuthBridge: React.FC = () => {
       isChatbocSessionRevisionCurrent(submitRevision);
     setOnboardingLoading(true);
     setOnboardingError(null);
+    const authContext = onboardingAuthContextRef.current || readClerkAuthContext();
+    const termsOnly = onboardingContract?.modal?.mode === 'terms_only';
     try {
       const token = await getToken();
       if (!token || !isCurrentSubmit()) {
@@ -345,16 +392,34 @@ const ClerkAuthBridge: React.FC = () => {
       setOnboardingContract(session.onboarding);
       await refreshUser();
       if (!isCurrentSubmit()) return;
-      setOnboardingRequired(false);
-      setOnboardingOpen(false);
-      clearClerkAuthContext();
-      navigate('/perfil?setup=channels', { replace: true });
+      const handoff = resolveClerkOnboardingHandoff(session, authContext);
+      setOnboardingDestination(handoff.destination);
+      setOnboardingCompletion({
+        title: termsOnly ? 'Consentimiento actualizado' : 'Tu espacio está listo',
+        description: termsOnly
+          ? 'Tus condiciones de acceso quedaron actualizadas. Podés retomar la tarea pendiente.'
+          : 'La organización se creó correctamente. Elegí el siguiente paso sin perder el contexto del registro.',
+        statusLabel: termsOnly ? 'Consentimiento confirmado' : 'Alta completada',
+        tenantName: session.tenant?.nombre || payload.tenant_name,
+        primaryActionLabel: handoff.actionLabel,
+        showPanelAction: handoff.showPanelAction,
+      });
+      setOnboardingOpen(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo completar el onboarding.';
       setOnboardingError(message);
     } finally {
       setOnboardingLoading(false);
     }
+  };
+
+  const finishOnboardingHandoff = (destination: string) => {
+    clearClerkAuthContext();
+    onboardingAuthContextRef.current = null;
+    setOnboardingCompletion(null);
+    setOnboardingRequired(false);
+    setOnboardingOpen(false);
+    navigate(destination, { replace: true });
   };
 
   return (
@@ -368,7 +433,10 @@ const ClerkAuthBridge: React.FC = () => {
         required={onboardingRequired}
         loading={onboardingLoading}
         error={onboardingError}
+        completion={onboardingCompletion}
         onSubmit={handleOnboardingSubmit}
+        onCompletionPrimary={() => finishOnboardingHandoff(onboardingDestination)}
+        onCompletionPanel={() => finishOnboardingHandoff(CLERK_ONBOARDING_PANEL_PATH)}
       />
       {syncError ? (
         <div

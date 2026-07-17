@@ -47,6 +47,44 @@ describe('ClerkTenantOnboardingDialog', () => {
     expect(submit).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
   });
 
+  it('announces the completed tenant and keeps both handoff actions reachable on mobile', async () => {
+    const onCompletionPrimary = vi.fn();
+    const onCompletionPanel = vi.fn();
+    renderDialog({
+      completion: {
+        title: 'Tu espacio está listo',
+        description: 'La organización se creó correctamente.',
+        statusLabel: 'Alta completada',
+        tenantName: 'Ferreteria Modelo',
+        primaryActionLabel: 'Continuar con WhatsApp',
+        showPanelAction: true,
+      },
+      onCompletionPrimary,
+      onCompletionPanel,
+    });
+
+    const title = screen.getByRole('heading', { name: /tu espacio está listo/i });
+    const status = screen.getByRole('status');
+    const primary = screen.getByRole('button', { name: /continuar con whatsapp/i });
+    const panel = screen.getByRole('button', { name: /ir al panel/i });
+
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status).toHaveAttribute('aria-atomic', 'true');
+    expect(status).toHaveTextContent('Ferreteria Modelo');
+    expect(status).toHaveTextContent('Alta completada');
+    expect(primary).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
+    expect(panel).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
+    expect(screen.queryByRole('button', { name: /crear tenant/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(title).toHaveFocus());
+
+    fireEvent.click(primary);
+    fireEvent.click(panel);
+
+    expect(onCompletionPrimary).toHaveBeenCalledTimes(1);
+    expect(onCompletionPanel).toHaveBeenCalledTimes(1);
+  });
+
   it('resets the draft and consent when the Clerk user id or primary email changes', async () => {
     const onOpenChange = vi.fn();
     const onSubmit = vi.fn();
