@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils';
 import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { resolveTenantSlug } from '@/utils/api';
 import {
   getQueueScore,
   getQueueTimestamp,
@@ -71,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   showFilterControl = true,
   showListSummaryBar = true,
 }) => {
-  const { tenant } = useTenant();
+  const { currentSlug, tenant } = useTenant();
   const {
     tickets,
     filteredTickets,
@@ -105,6 +106,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const searchInputId = React.useId();
   const contextSearchTerm = typeof (filters as any).search === 'string' ? (filters as any).search : '';
   const previousContextSearchRef = React.useRef(contextSearchTerm);
+  const categoryTenantSlug = React.useMemo(
+    () => resolveTenantSlug(currentSlug || tenant?.slug, undefined, { persist: false }),
+    [currentSlug, tenant?.slug],
+  );
 
   React.useEffect(() => {
     if (previousContextSearchRef.current !== contextSearchTerm && contextSearchTerm !== searchTerm) {
@@ -133,9 +138,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   React.useEffect(() => {
     const fetchCategories = async () => {
-      if (tenant?.slug) {
+      if (categoryTenantSlug) {
         try {
-          const cats = await apiClient.adminGetTicketCategories(tenant.slug);
+          const cats = await apiClient.adminGetTicketCategories(categoryTenantSlug);
           setBackendCategories(cats.map((c: any) => c.nombre));
         } catch (e) {
           console.error('Failed to load ticket categories', e);
@@ -143,7 +148,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       }
     };
     fetchCategories();
-  }, [tenant?.slug]);
+  }, [categoryTenantSlug]);
 
   const selectedCategory = React.useMemo(() => {
     if (!selectedTicket) {

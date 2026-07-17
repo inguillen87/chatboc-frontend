@@ -8,9 +8,10 @@ const useTicketsMock = vi.fn();
 const adminGetTicketCategoriesMock = vi.fn();
 const selectTicketMock = vi.fn();
 const setFiltersMock = vi.fn();
+const useTenantMock = vi.fn();
 
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ tenant: { slug: 'junin', tipo: 'municipio' } }),
+  useTenant: () => useTenantMock(),
 }));
 
 vi.mock('@/context/TicketContext', () => ({
@@ -88,6 +89,10 @@ describe('Tickets Sidebar category density', () => {
     selectTicketMock.mockReset();
     setFiltersMock.mockReset();
     adminGetTicketCategoriesMock.mockResolvedValue([]);
+    useTenantMock.mockReturnValue({
+      currentSlug: 'junin',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+    });
 
     const ticket = {
       id: 378430,
@@ -114,6 +119,20 @@ describe('Tickets Sidebar category density', () => {
       setFilters: setFiltersMock,
       filterOptions: defaultFilterOptions,
     });
+  });
+
+  it('uses the authenticated tenant while public tenant data is still default', async () => {
+    useTenantMock.mockReturnValue({
+      currentSlug: 'junin',
+      tenant: { slug: 'default', tipo: 'pyme' },
+    });
+
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+    expect(adminGetTicketCategoriesMock).not.toHaveBeenCalledWith('default');
   });
 
   it('hides empty categories by default and lets operators reveal them', async () => {
