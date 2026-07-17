@@ -56,18 +56,21 @@ vi.mock('./ClerkTenantOnboardingDialog', () => ({
     open,
     userProfile,
     completion,
+    continuationLabel,
     onSubmit,
     onCompletionPrimary,
   }: {
     open: boolean;
     userProfile?: { id?: string | null };
     completion?: { primaryActionLabel?: string } | null;
+    continuationLabel?: string | null;
     onSubmit: (payload: Record<string, unknown>) => Promise<void> | void;
     onCompletionPrimary?: () => void;
   }) =>
     open ? (
       <div>
         <div data-testid="clerk-onboarding-user">{userProfile?.id}</div>
+        {continuationLabel ? <div data-testid="clerk-onboarding-continuation">{continuationLabel}</div> : null}
         {completion ? (
           <div data-testid="clerk-onboarding-completion">
             <button type="button" onClick={onCompletionPrimary}>{completion.primaryActionLabel}</button>
@@ -293,6 +296,7 @@ describe('ClerkAuthBridge session lifecycle', () => {
 
     renderBridge('/register');
 
+    expect(await screen.findByTestId('clerk-onboarding-continuation')).toHaveTextContent('Continuar con WhatsApp');
     fireEvent.click(await screen.findByRole('button', { name: /completar onboarding/i }));
 
     const continueButton = await screen.findByRole('button', { name: /continuar con whatsapp/i });

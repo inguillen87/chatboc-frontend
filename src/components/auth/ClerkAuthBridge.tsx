@@ -195,6 +195,7 @@ const ClerkAuthBridge: React.FC = () => {
   const [onboardingError, setOnboardingError] = React.useState<string | null>(null);
   const [onboardingCompletion, setOnboardingCompletion] = React.useState<ClerkTenantOnboardingCompletion | null>(null);
   const [onboardingDestination, setOnboardingDestination] = React.useState(CLERK_ONBOARDING_PANEL_PATH);
+  const [onboardingContinuationLabel, setOnboardingContinuationLabel] = React.useState<string | null>(null);
   const [profile, setProfile] = React.useState<ClerkUserProfilePayload | undefined>();
   const [syncError, setSyncError] = React.useState<string | null>(null);
   const [syncRetryNonce, setSyncRetryNonce] = React.useState(0);
@@ -216,6 +217,7 @@ const ClerkAuthBridge: React.FC = () => {
     setOnboardingError(null);
     setOnboardingCompletion(null);
     setOnboardingDestination(CLERK_ONBOARDING_PANEL_PATH);
+    setOnboardingContinuationLabel(null);
     onboardingAuthContextRef.current = null;
     setSyncError(null);
   }, []);
@@ -321,6 +323,9 @@ const ClerkAuthBridge: React.FC = () => {
           setProfile(nextProfile);
           setOnboardingContract(session.onboarding);
           setOnboardingCompletion(null);
+          const pendingHandoff = resolveClerkOnboardingHandoff(session, authContext);
+          setOnboardingDestination(pendingHandoff.destination);
+          setOnboardingContinuationLabel(authContext.returnTo ? pendingHandoff.actionLabel : null);
           onboardingAuthContextRef.current = authContext;
           setOnboardingRequired(Boolean(session.onboarding?.required));
           setOnboardingOpen(Boolean(session.onboarding?.required));
@@ -417,6 +422,7 @@ const ClerkAuthBridge: React.FC = () => {
     clearClerkAuthContext();
     onboardingAuthContextRef.current = null;
     setOnboardingCompletion(null);
+    setOnboardingContinuationLabel(null);
     setOnboardingRequired(false);
     setOnboardingOpen(false);
     navigate(destination, { replace: true });
@@ -434,6 +440,7 @@ const ClerkAuthBridge: React.FC = () => {
         loading={onboardingLoading}
         error={onboardingError}
         completion={onboardingCompletion}
+        continuationLabel={onboardingContinuationLabel}
         onSubmit={handleOnboardingSubmit}
         onCompletionPrimary={() => finishOnboardingHandoff(onboardingDestination)}
         onCompletionPanel={() => finishOnboardingHandoff(CLERK_ONBOARDING_PANEL_PATH)}

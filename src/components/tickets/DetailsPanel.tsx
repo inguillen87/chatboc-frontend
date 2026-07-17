@@ -510,6 +510,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     ? `https://wa.me/${phoneDigits}`
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
+  const ticketSubject = String(
+    ticket?.asunto || ticket?.title || ticket?.categoria || 'Detalle del ticket',
+  ).trim();
   const contactRoleLabel = ticket.tipo === 'pyme' ? 'Cliente' : 'Vecino/a';
   const hasAddress = Boolean(personal.direccion || locationTicket?.latitud || locationTicket?.lat_destino);
   const hasConsentAvatar = Boolean(neighborAvatarUrl && neighborAvatar.consented);
@@ -879,7 +882,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             </Button>
           )}
           <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold md:text-lg">Detalle</h3>
+            <h3 className="truncate text-base font-semibold md:text-lg" title={ticketSubject}>
+              {ticketSubject}
+            </h3>
             <p className="truncate text-xs text-muted-foreground">#{ticket.nro_ticket || ticket.id}</p>
           </div>
         </div>
@@ -1409,6 +1414,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Creado:</span>
                   <span>{formatDate(ticket.fecha)}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Asunto:</span>
+                  <p className="font-medium">{ticketSubject}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-muted-foreground">Categoría:</span>

@@ -14,9 +14,9 @@ vi.mock("@/services/tenantService", () => ({
 
 const mockedTenantService = vi.mocked(tenantService);
 
-const renderPage = () =>
+const renderPage = (entry = "/integracion/whatsapp/connect?tenant=junin-1&app_id=meta-app&config_id=cfg-123") =>
   render(
-    <MemoryRouter initialEntries={["/integracion/whatsapp/connect?tenant=junin-1&app_id=meta-app&config_id=cfg-123"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/integracion/whatsapp/connect" element={<WhatsappEmbeddedSignupPage />} />
         <Route path="/t/:tenant/integracion" element={<div>Integraciones tenant</div>} />
@@ -47,6 +47,10 @@ describe("WhatsappEmbeddedSignupPage", () => {
 
     const startButton = await screen.findByRole("button", { name: /iniciar registro con meta/i });
     await waitFor(() => expect(startButton).not.toBeDisabled());
+    expect(startButton).toHaveClass("w-full", "sm:w-auto");
+    expect(screen.getByRole("progressbar", { name: /autorizacion de whatsapp/i })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: /pasos del registro con meta/i })).toBeInTheDocument();
+    expect(screen.getByText("Autorizar con Meta").closest("li")).toHaveAttribute("aria-current", "step");
 
     fireEvent.click(startButton);
 
@@ -94,6 +98,17 @@ describe("WhatsappEmbeddedSignupPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /continuar activacion/i }));
 
     expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /t/junin-1/integracion?channel=whatsapp&action=register-sender");
+    consoleLogSpy.mockRestore();
+  });
+
+  it("keeps a recoverable return path when the Meta configuration is incomplete", async () => {
+    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    renderPage("/integracion/whatsapp/connect");
+
+    expect(await screen.findByText(/la plataforma no envio todos los datos necesarios/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /volver a integraciones/i }));
+
+    expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /integracion?channel=whatsapp");
     consoleLogSpy.mockRestore();
   });
 });

@@ -199,6 +199,13 @@ const PublicSurveyPage = () => {
       ? socketLiveDashboard
       : polledLiveDashboard;
   }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
+  const renderedLiveResults = useMemo(() => {
+    const dashboardResults = toLegacyLiveResults(liveDashboard);
+    if (!dashboardResults) return liveResults;
+    return isDemoParticipationSurvey && submitted && lastSubmission
+      ? appendDemoVoteToLiveResults(dashboardResults, lastSubmission)
+      : dashboardResults;
+  }, [isDemoParticipationSurvey, lastSubmission, liveDashboard, liveResults, submitted]);
   const surveySocketRooms = useMemo(() => {
     const realtime = survey?.realtime as Record<string, unknown> | undefined;
     const explicitRooms = Array.isArray(realtime?.rooms)
@@ -712,7 +719,7 @@ const PublicSurveyPage = () => {
                   survey={survey}
                   onSubmit={async () => {}}
                   loading={false}
-                  liveResults={liveResults}
+                  liveResults={renderedLiveResults}
                   showLiveResults={true}
                   readOnly={true}
                   showHeader={false}
@@ -768,7 +775,7 @@ const PublicSurveyPage = () => {
                 survey={survey}
                 onSubmit={async () => {}}
                 loading={false}
-                liveResults={liveResults}
+                liveResults={renderedLiveResults}
                 showLiveResults={true}
                 readOnly={true}
                 showHeader={false}
@@ -1171,7 +1178,7 @@ const PublicSurveyPage = () => {
                       ? textOr(votacionUi?.boton_votar, 'Enviar voto')
                       : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }
-                  liveResults={liveResults}
+                  liveResults={renderedLiveResults}
                   showLiveResults={shouldRevealLiveResults}
                 />
               </div>

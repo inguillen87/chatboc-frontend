@@ -283,7 +283,12 @@ function AppRoutes() {
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
         <React.Suspense fallback={null}>
-          <ChatWidget mode="standalone" defaultOpen={false} />
+          <ChatWidget
+            mode="standalone"
+            defaultOpen={false}
+            welcomeTitle="Asistente Virtual"
+            welcomeSubtitle="Consultas, ventas y soporte con Chatboc"
+          />
         </React.Suspense>
       )}
       <ScrollMascotGuide />

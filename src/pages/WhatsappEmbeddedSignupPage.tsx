@@ -205,6 +205,7 @@ export default function WhatsappEmbeddedSignupPage() {
       } catch (err) {
         completedRef.current = false;
         setError(getErrorMessage(err, "No se pudo guardar el registro de WhatsApp Business."));
+        setStatus("No se guardaron los cambios. Revisa el error e intenta nuevamente.");
       } finally {
         setSaving(false);
       }
@@ -229,6 +230,7 @@ export default function WhatsappEmbeddedSignupPage() {
       .catch((err) => {
         if (!mounted) return;
         setError(getErrorMessage(err, "No se pudo cargar el SDK de Meta."));
+        setStatus("No pudimos preparar el registro con Meta.");
       });
     return () => {
       mounted = false;
@@ -320,9 +322,9 @@ export default function WhatsappEmbeddedSignupPage() {
     {
       id: "meta",
       label: "Autorizar con Meta",
-      detail: "El cliente selecciona WABA y número dentro del flujo oficial.",
+      detail: "La organización selecciona su cuenta y número dentro del flujo oficial.",
       done: Boolean(result?.waba_id && result?.phone_number_id),
-      active: starting,
+      active: sdkReady && !result && !saving,
       icon: ShieldCheck,
     },
     {
@@ -338,11 +340,10 @@ export default function WhatsappEmbeddedSignupPage() {
   const progress = Math.round((completedStages / stages.length) * 100);
   const integrationsPath = useMemo(() => {
     const basePath = tenant ? buildTenantPath("/integracion", tenant) : "/integracion";
-    if (!result) return basePath;
     const params = new URLSearchParams({
       channel: "whatsapp",
-      action: "register-sender",
     });
+    if (result) params.set("action", "register-sender");
     return `${basePath}?${params.toString()}`;
   }, [result, tenant]);
   const waitingForSdk = !sdkReady && missingConfig.length === 0;
@@ -355,12 +356,12 @@ export default function WhatsappEmbeddedSignupPage() {
       : "Iniciar registro con Meta";
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground">
+    <main aria-labelledby="whatsapp-signup-title" className="min-h-screen bg-background px-4 py-6 text-foreground sm:py-8">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-        <div className="flex flex-col gap-4 rounded-2xl border bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-              <MessageSquareText className="h-5 w-5" />
+              <MessageSquareText className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -369,9 +370,9 @@ export default function WhatsappEmbeddedSignupPage() {
                   Meta Tech Provider
                 </span>
               </div>
-              <h1 className="mt-1 text-2xl font-semibold">Autorizar WhatsApp Business</h1>
+              <h1 id="whatsapp-signup-title" className="mt-1 text-2xl font-semibold">Autorizar WhatsApp Business</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Conecta la cuenta del cliente desde Meta. Chatboc guarda la autorizacion, registra el canal y deja listo el sender para operar en WhatsApp Business Platform.
+                Conecta la cuenta de la organizacion desde Meta. Chatboc guarda la autorizacion y te devuelve al siguiente paso de activacion.
               </p>
             </div>
           </div>
@@ -379,7 +380,7 @@ export default function WhatsappEmbeddedSignupPage() {
             <p className="font-semibold text-foreground">Flujo oficial</p>
             <p>Meta Embedded Signup</p>
           </div>
-        </div>
+        </header>
 
         <div className="rounded-2xl border bg-card/70 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -387,16 +388,17 @@ export default function WhatsappEmbeddedSignupPage() {
               <p className="text-sm font-semibold text-foreground">Progreso de autorizacion</p>
               <p className="mt-1 text-xs text-muted-foreground">{completedStages}/{stages.length} pasos completados</p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ArrowRight className="h-4 w-4 text-primary" />
+            <div role="status" aria-live="polite" aria-atomic="true" className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               <span>{status}</span>
             </div>
           </div>
-          <Progress value={progress} className="mt-3 h-2" />
-          <div className="mt-4 grid gap-2 md:grid-cols-3">
+          <Progress value={progress} aria-label={`Autorizacion de WhatsApp: ${progress}% completado`} className="mt-3 h-2" />
+          <ol aria-label="Pasos del registro con Meta" className="mt-4 grid gap-2 md:grid-cols-3">
             {stages.map((stage) => (
-              <div
+              <li
                 key={stage.id}
+                aria-current={stage.active ? "step" : undefined}
                 className={cn(
                   "rounded-xl border bg-background/70 p-3",
                   stage.done
@@ -417,23 +419,28 @@ export default function WhatsappEmbeddedSignupPage() {
                           : "border-border bg-muted/30 text-muted-foreground",
                     )}
                   >
-                    {stage.done ? <CheckCircle2 className="h-4 w-4" /> : React.createElement(stage.icon, { className: "h-4 w-4" })}
+                    {stage.done ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : React.createElement(stage.icon, { className: "h-4 w-4", "aria-hidden": true })}
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{stage.label}</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      <span className="sr-only">{stage.done ? "Completado" : stage.active ? "Paso actual" : "Pendiente"}: </span>
+                      {stage.label}
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">{stage.detail}</p>
                   </div>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
 
         {missingConfig.length ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Faltan parametros de inicio</AlertTitle>
-            <AlertDescription>{missingConfig.join(", ")}</AlertDescription>
+            <AlertDescription>
+              La plataforma no envio todos los datos necesarios. Volve a integraciones e inicia el registro nuevamente.
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -488,13 +495,13 @@ export default function WhatsappEmbeddedSignupPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={startSignup} disabled={startDisabled}>
-                {waitingForSdk || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button className="w-full sm:w-auto" type="button" onClick={startSignup} disabled={startDisabled} aria-busy={starting || saving || undefined}>
+                {waitingForSdk || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
                 {startLabel}
               </Button>
-              <Button type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
-                {result ? <ArrowRight className="mr-2 h-4 w-4" /> : null}
+              <Button className="w-full sm:w-auto" type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
+                {result ? <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" /> : null}
                 {integrationsLabel}
               </Button>
             </div>

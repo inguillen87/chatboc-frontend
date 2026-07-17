@@ -233,7 +233,26 @@ function normalizeCtaMessages(rawMessages: any): string[] {
 }
 
 function buildPlatformWidgetFallbackConfig() {
-  const quickMenu: any[] = [];
+  const quickMenu = [
+    {
+      id: "gobierno",
+      sector: "gobierno",
+      label: "Gobiernos",
+      description: "Reclamos, tramites y atencion ciudadana.",
+    },
+    {
+      id: "empresas",
+      sector: "empresas",
+      label: "Empresas",
+      description: "Ventas, pedidos, catalogos y soporte comercial.",
+    },
+    {
+      id: "educacion",
+      sector: "educacion",
+      label: "Colegios",
+      description: "Familias, cuotas, comprobantes y gestion escolar.",
+    },
+  ];
 
   return {
     contract_version: "public.widget_config.v1",
@@ -246,8 +265,8 @@ function buildPlatformWidgetFallbackConfig() {
     onboarding: {
       contract_version: "public.widget_onboarding.v1",
       mode: "platform_sector_selector",
-      title: "",
-      entry_question: "",
+      title: "Experiencias Chatboc",
+      entry_question: "¿Qué querés probar?",
       required_step: "select_sector",
       autostart_after_selection: true,
       selection_endpoint: "/api/v2/demo/session",
@@ -312,9 +331,9 @@ function normalizePlatformWidgetConfig(rawConfig: any) {
   const fallback = buildPlatformWidgetFallbackConfig();
   if (!isPlatformWidgetConfig(rawConfig)) return null;
 
-  const quickMenu = Array.isArray(rawConfig.quick_menu)
+  const quickMenu = Array.isArray(rawConfig.quick_menu) && rawConfig.quick_menu.length > 0
     ? rawConfig.quick_menu
-    : Array.isArray(rawConfig.onboarding?.quick_menu)
+    : Array.isArray(rawConfig.onboarding?.quick_menu) && rawConfig.onboarding.quick_menu.length > 0
       ? rawConfig.onboarding.quick_menu
       : fallback.quick_menu;
 
@@ -328,7 +347,7 @@ function normalizePlatformWidgetConfig(rawConfig: any) {
     onboarding: {
       ...fallback.onboarding,
       ...(rawConfig.onboarding || {}),
-      quick_menu: Array.isArray(rawConfig.onboarding?.quick_menu)
+      quick_menu: Array.isArray(rawConfig.onboarding?.quick_menu) && rawConfig.onboarding.quick_menu.length > 0
         ? rawConfig.onboarding.quick_menu
         : quickMenu,
     },
@@ -1155,11 +1174,20 @@ function ChatWidgetInner({
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
     const inferredTipo = tipoChat === 'municipio' ? 'municipio' : 'pyme';
-    setEntityInfo(null);
+    setEntityInfo({
+      nombre_empresa:
+        welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente Virtual'),
+      descripcion:
+        welcomeSubtitle || 'Atencion con IA de Chatboc disponible en modo basico.',
+      slug: resolvedTenantSlug || 'chatboc-platform',
+      tipo_chat: inferredTipo,
+      quick_menu: [],
+      degraded_mode: true,
+    });
     setWidgetUx(DEFAULT_WIDGET_UX);
     setResolvedTipoChat(inferredTipo);
-    setProfileError("No pudimos cargar la configuracion real del widget.");
-  }, [tipoChat]);
+    setProfileError(null);
+  }, [resolvedTenantSlug, tipoChat, welcomeSubtitle, welcomeTitle]);
 
   // Apply Theme Config
   useEffect(() => {
@@ -2441,8 +2469,7 @@ function ChatWidgetInner({
         });
         const publicConfig: any = normalizePlatformWidgetConfig(rawPlatformConfig);
         if (!publicConfig) {
-          setEntityInfo(null);
-          setProfileError("No pudimos cargar la configuracion real del widget.");
+          applyWidgetFallbackProfile();
           setProfileLoading(false);
           return;
         }
@@ -2985,7 +3012,7 @@ function ChatWidgetInner({
         ) : null}
 
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
-        {isProfileLoading ? (
+        {isProfileLoading && isOpen ? (
           <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-border/60 bg-card text-card-foreground shadow-xl">
             {isOpen ? (
               <div className="flex h-full min-h-0 flex-col">
@@ -3013,7 +3040,7 @@ function ChatWidgetInner({
               </div>
             )}
           </div>
-        ) : profileError ? (
+        ) : profileError && isOpen ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
             <p className="text-destructive font-semibold">Error</p>
             <p className="text-sm text-muted-foreground">{profileError}</p>

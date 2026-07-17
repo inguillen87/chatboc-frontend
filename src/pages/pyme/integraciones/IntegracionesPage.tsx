@@ -339,8 +339,8 @@ export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup =>
 };
 
 const IntegracionesPage = () => {
-  const { currentSlug } = useTenant();
-  const [searchParams] = useSearchParams();
+  const { currentSlug, isLoadingTenant, tenantError } = useTenant();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -384,14 +384,17 @@ const IntegracionesPage = () => {
   const [paymentTesting, setPaymentTesting] = useState(false);
 
   useEffect(() => {
-    if (currentSlug) {
-      loadIntegrations();
-      loadSettings();
-      loadCatalog();
-      loadWidgetQuickMenu();
-      loadWhatsappSandboxSetup();
-      loadPaymentGateway();
+    if (!currentSlug) {
+      setLoading(false);
+      setIntegrations([]);
+      return;
     }
+    loadIntegrations();
+    loadSettings();
+    loadCatalog();
+    loadWidgetQuickMenu();
+    loadWhatsappSandboxSetup();
+    loadPaymentGateway();
   }, [currentSlug]);
 
   useEffect(() => {
@@ -401,6 +404,15 @@ const IntegracionesPage = () => {
     setActiveTab("integrations");
     setSelectedChannel(normalizedChannel);
   }, [requestedChannel]);
+
+  const handleChannelSelect = (channelId: string) => {
+    setSelectedChannel(channelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("channel", channelId);
+    nextParams.delete("action");
+    if (channelId !== "whatsapp") nextParams.delete("mode");
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const normalizeCatalog = (data: TenantCatalog | any): TenantCatalog => {
     const metadata = data?.metadata ?? data?.catalog ?? {
@@ -1533,13 +1545,6 @@ const IntegracionesPage = () => {
   const selectedChannelGuidance = CHANNEL_GUIDANCE[selectedChannel] ?? CHANNEL_GUIDANCE.whatsapp;
   const connectedChannels = CHANNELS.filter((channel) => getIntegrationStatus(channel.id).connected).length;
   const whatsappStatus = getIntegrationStatus("whatsapp");
-  const activationPath = [
-    { label: "Autorizar con Meta", done: whatsappStatus.connected },
-    { label: "Registrar sender", done: whatsappStatus.connected },
-    { label: "Probar mensajes", done: whatsappStatus.connected },
-    { label: "Publicar canal", done: whatsappStatus.connected },
-  ];
-
   const readinessLabel = loading
     ? "Cargando canales"
     : connectedChannels > 0
@@ -1547,62 +1552,62 @@ const IntegracionesPage = () => {
       : "Pendiente de autorización";
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
-      <div className="rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="container mx-auto max-w-7xl space-y-8 p-4 md:p-6">
+      <header className="border-b pb-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="gap-1 rounded-full">
-                <ShieldCheck className="h-3.5 w-3.5" /> Profile management
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> Configuración del espacio
               </Badge>
               <Badge variant="secondary" className="gap-1 rounded-full">
-                <Sparkles className="h-3.5 w-3.5" /> Meta Tech Provider
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Meta Tech Provider
               </Badge>
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Integraciones y canales</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Integraciones y canales</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                Autoriza WhatsApp Business, prueba recorridos reales, publica el widget y deja cada canal listo para operar sin exponer consolas externas al cliente.
+                Autoriza WhatsApp Business, prueba recorridos reales y deja cada canal listo para operar desde el espacio de la organización.
               </p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
-            <div className="rounded-2xl border bg-background/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estado</p>
-              <p className="mt-2 text-sm font-semibold text-foreground">{readinessLabel}</p>
+          <dl className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
+            <div className="border-l-2 border-border pl-3">
+              <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estado</dt>
+              <dd className="mt-2 text-sm font-semibold text-foreground">{readinessLabel}</dd>
             </div>
-            <div className="rounded-2xl border bg-background/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">WhatsApp</p>
-              <p className="mt-2 text-sm font-semibold text-foreground">
+            <div className="border-l-2 border-border pl-3">
+              <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">WhatsApp</dt>
+              <dd className="mt-2 text-sm font-semibold text-foreground">
                 {whatsappStatus.connected ? "Operativo" : "Requiere autorización"}
-              </p>
+              </dd>
             </div>
-            <div className="rounded-2xl border bg-background/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Canal activo</p>
-              <p className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</p>
+            <div className="border-l-2 border-border pl-3">
+              <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Canal activo</dt>
+              <dd className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</dd>
             </div>
-          </div>
+          </dl>
         </div>
-        <div className="mt-5 grid gap-2 md:grid-cols-4">
-          {activationPath.map((step, index) => (
-            <div key={step.label} className="flex items-center gap-2 rounded-2xl border bg-background/70 px-3 py-2">
-              <span
-                className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
-                  step.done
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
-                    : "border-primary/30 bg-primary/10 text-primary"
-                )}
-              >
-                {step.done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
-              </span>
-              <span className="text-xs font-medium text-foreground">{step.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      </header>
 
-      {currentSlug && (
+      {!currentSlug ? (
+        <Alert role={tenantError ? "alert" : "status"} aria-live={tenantError ? "assertive" : "polite"}>
+          {isLoadingTenant ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <AlertCircle className="h-4 w-4" aria-hidden="true" />}
+          <AlertTitle>{isLoadingTenant ? "Recuperando tu organización" : "Selecciona una organización"}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              {isLoadingTenant
+                ? "Estamos restaurando el contexto del acceso para que puedas continuar la configuración."
+                : tenantError || "No hay una organización activa. Volvé al panel y elegí el espacio que querés configurar."}
+            </p>
+            {!isLoadingTenant ? (
+              <Button type="button" size="sm" variant="outline" asChild>
+                <a href="/perfil">Ir al panel</a>
+              </Button>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
             <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6 overflow-x-auto">
                 <TabsTrigger value="integrations" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
@@ -1936,7 +1941,10 @@ const IntegracionesPage = () => {
                                     return (
                                         <button
                                             key={channel.id}
-                                            onClick={() => setSelectedChannel(channel.id)}
+                                            type="button"
+                                            onClick={() => handleChannelSelect(channel.id)}
+                                            aria-pressed={selectedChannel === channel.id}
+                                            aria-label={`${channel.label}: ${status.connected ? "operativo" : "pendiente"}`}
                                             className={cn(
                                                 "flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-sm transition-all",
                                                 selectedChannel === channel.id
@@ -1949,7 +1957,7 @@ const IntegracionesPage = () => {
                                                     "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background",
                                                     selectedChannel === channel.id && "border-primary/40 bg-primary/10 text-primary"
                                                 )}>
-                                                    <Icon className="h-4 w-4" />
+                                                    <Icon className="h-4 w-4" aria-hidden="true" />
                                                 </span>
                                                 <div className="min-w-0 text-left">
                                                     <div className="flex flex-wrap items-center gap-2 font-semibold">
@@ -1966,7 +1974,7 @@ const IntegracionesPage = () => {
                                                     <p className="mt-1 text-xs leading-5 text-muted-foreground">{guidance.outcome}</p>
                                                 </div>
                                             </div>
-                                            <ArrowRight className={cn(
+                                            <ArrowRight aria-hidden="true" className={cn(
                                                 "mt-2 h-4 w-4 shrink-0 transition-transform",
                                                 selectedChannel === channel.id && "translate-x-0.5 text-primary"
                                             )} />
@@ -1992,67 +2000,51 @@ const IntegracionesPage = () => {
 
                         <Card className="min-h-[520px] overflow-hidden">
                             <CardHeader>
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex min-w-0 items-center gap-4">
                                         <img
                                             src={INTEGRATION_LOGOS[selectedChannel]}
                                             alt={selectedChannelConfig.label}
                                             className="h-10 w-10 object-contain"
                                             onError={(e) => { e.currentTarget.style.display='none'; }}
                                         />
-                                        <div>
-                                            <CardTitle>{selectedChannelGuidance.title}</CardTitle>
-                                            <CardDescription>
+                                        <div className="min-w-0">
+                                            <CardTitle className="break-words">{selectedChannelGuidance.title}</CardTitle>
+                                            <CardDescription className="break-words">
                                                 {selectedChannelStatus.connected ? selectedChannelGuidance.outcome : selectedChannelGuidance.detail}
                                             </CardDescription>
                                         </div>
                                     </div>
                                     {selectedChannelStatus.connected ? (
-                                        <Badge className="bg-green-600">Activo</Badge>
+                                        <Badge className="w-fit shrink-0 bg-green-600">Activo</Badge>
                                     ) : (
-                                        <Badge variant="secondary">Inactivo</Badge>
+                                        <Badge variant="secondary" className="w-fit shrink-0">Inactivo</Badge>
                                     )}
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <div className="rounded-2xl border bg-muted/30 p-4">
+                                {selectedChannel !== "whatsapp" ? <div className="rounded-lg border bg-muted/30 p-4">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Siguiente paso</p>
                                             <p className="mt-1 text-sm text-foreground">
-                                                {selectedChannel === "whatsapp"
-                                                    ? "Completar autorización Meta, sender, prueba de mensaje y rutas de webhook."
-                                                    : selectedChannelStatus.connected
-                                                      ? "Revisar sincronización, permisos y reglas operativas del canal."
-                                                      : "Conectar credenciales y validar una prueba real antes de publicarlo."}
+                                                {selectedChannelStatus.connected
+                                                  ? "Revisar sincronización, permisos y reglas operativas del canal."
+                                                  : "Conectar credenciales y validar una prueba real antes de publicarlo."}
                                             </p>
                                         </div>
                                         <Badge variant="outline" className="w-fit">
                                             {selectedChannelStatus.connected ? "Listo para operar" : "Requiere configuración"}
                                         </Badge>
                                     </div>
-                                </div>
+                                </div> : null}
                                 {selectedChannelPlanLock ? renderIntegrationPlanLockPanel(selectedChannelPlanLock) : null}
-                                {selectedChannel === 'whatsapp' ? (
-                                    <div className="space-y-6">
-                                        <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
-                                        <Separator />
-                                        {renderWhatsappSandboxPanel()}
-                                        <Separator />
-                                        <div className="rounded-xl border bg-muted/30 p-4">
-                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                                <div>
-                                                    <h4 className="font-semibold">Conexión operativa</h4>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        Activá el canal real cuando el número, la frase clave y el menú ya estén validados.
-                                                    </p>
-                                                </div>
-                                                <Button onClick={() => handleConnect(selectedChannel)} variant="outline">
-                                                    <Link2 className="mr-2 h-4 w-4" /> Conectar canal
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                 {selectedChannel === 'whatsapp' ? (
+                                     <div className="space-y-6">
+                                         <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
+                                         <Separator />
+                                         {renderWhatsappSandboxPanel()}
+                                     </div>
                                 ) : selectedChannel === 'mercadopago' ? (
                                     renderPaymentGatewayPanel()
                                 ) : selectedChannel === 'email' ? (
@@ -2140,7 +2132,7 @@ const IntegracionesPage = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <Label>Notificar nuevos pedidos</Label>
+                                        <Label>Notificar nueva actividad del canal</Label>
                                         <Switch
                                             checked={selectedChannel === 'whatsapp' ? notifyWhatsapp : notifyTelegram}
                                             onCheckedChange={selectedChannel === 'whatsapp' ? setNotifyWhatsapp : setNotifyTelegram}

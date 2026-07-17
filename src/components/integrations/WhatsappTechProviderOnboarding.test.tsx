@@ -310,6 +310,8 @@ describe("WhatsappTechProviderOnboarding", () => {
 
     expect(await screen.findByText("WhatsApp productivo")).toBeInTheDocument();
     expect(screen.getByText("Resumen de activacion")).toBeInTheDocument();
+    expect(screen.getByTestId("whatsapp-primary-action")).toHaveTextContent("Configurar plantillas");
+    expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
     expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
     expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
     expect(screen.getByText(/Cerrar pendiente: Falta revisar plantillas/i)).toBeInTheDocument();
@@ -380,6 +382,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("runs the final tenant QA check in read-only mode and renders score plus next action", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
+    fireEvent.click(await screen.findByText(/controles avanzados y detalles técnicos/i));
     fireEvent.click(await screen.findByRole("button", { name: /ejecutar qa read-only/i }));
 
     await waitFor(() => {
@@ -439,6 +442,30 @@ describe("WhatsappTechProviderOnboarding", () => {
     });
   });
 
+  it("turns a pending sender into one clear approval action", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({
+      contract: {
+        ...baseContract,
+        state: {
+          waba_id: "123456789",
+          phone_number_id: "987654321",
+          requested_phone_number: "+5492634123456",
+          sender_sid: "XEPENDING",
+          sender_status: "pending_review",
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    const primaryAction = await screen.findByRole("button", { name: /^actualizar aprobación$/i });
+    fireEvent.click(primaryAction);
+
+    await waitFor(() => {
+      expect(mockedTenantService.refreshWhatsappSenderStatus).toHaveBeenCalledWith("junin-1");
+    });
+  });
+
   it("requires and normalizes an E.164 number before starting Meta signup", async () => {
     mockedTenantService.getWhatsappTechProvider.mockResolvedValue({
       contract: {
@@ -454,16 +481,23 @@ describe("WhatsappTechProviderOnboarding", () => {
     const phoneInput = await screen.findByRole("textbox", { name: /numero de whatsapp/i });
     const prepareButton = screen.getByRole("button", { name: /preparar activaci/i });
     const signupButton = screen.getByRole("button", { name: /iniciar registro embebido/i });
+    const enterPhoneButton = screen.getByRole("button", { name: /ingresar número de whatsapp/i });
 
     expect(prepareButton).toBeDisabled();
     expect(signupButton).toBeDisabled();
     expect(screen.getByText(/formato internacional E\.164/i)).toBeInTheDocument();
+    expect(enterPhoneButton).toHaveClass("w-full", "sm:w-auto");
+    fireEvent.click(enterPhoneButton);
+    expect(phoneInput).toHaveFocus();
 
     fireEvent.change(phoneInput, { target: { value: "+54 9 263 412-3456" } });
 
     expect(prepareButton).toBeEnabled();
     expect(signupButton).toBeEnabled();
     expect(screen.getByText(/\+5492634123456/)).toBeInTheDocument();
+    const metaPrimaryAction = screen.getByRole("button", { name: /^autorizar con meta$/i });
+    fireEvent.click(metaPrimaryAction);
+    expect(window.open).toHaveBeenCalledWith("https://connect.example.test/signup", "_self");
 
     fireEvent.click(prepareButton);
     await waitFor(() => {

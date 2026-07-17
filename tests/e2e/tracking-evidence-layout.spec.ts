@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { E2E_VIEWPORTS, expectNoHorizontalOverflow } from './e2e-helpers';
 
 const trackingPayload = {
   contract_version: 'tracking.experience.v1',
@@ -99,7 +100,12 @@ const evidencePreview = `
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-const mockTrackingApis = async (page: Page) => {
+type TrackingApiCapture = {
+  experienceRequests: Array<{ url: string; pinHeader: string }>;
+  supportMessages: Array<{ url: string; pinHeader: string; body: Record<string, unknown> }>;
+};
+
+const mockTrackingApis = async (page: Page, capture: TrackingApiCapture) => {
   await page.route('https://signed.example/bache-thumb.webp?token=safe', (route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: evidencePreview }),
   );
@@ -111,7 +117,24 @@ const mockTrackingApis = async (page: Page) => {
     }
     const path = new URL(request.url()).pathname.toLowerCase();
     if (path.endsWith('/api/public/tracking/experience')) {
+      capture.experienceRequests.push({
+        url: request.url(),
+        pinHeader: request.headers()['x-tracking-pin'] || '',
+      });
       await json(route, trackingPayload);
+      return;
+    }
+    if (path.endsWith('/api/public/tracking/claims/42/messages') && request.method() === 'POST') {
+      capture.supportMessages.push({
+        url: request.url(),
+        pinHeader: request.headers()['x-tracking-pin'] || '',
+        body: request.postDataJSON() as Record<string, unknown>,
+      });
+      await json(route, {
+        contract_version: 'tracking.support_message_ack.v1',
+        message: 'Mensaje recibido por la mesa de entrada.',
+        crm_writeback: { unread_for_team: true, inbox_increment: 1 },
+      });
       return;
     }
     if (path.endsWith('/auth/clerk/config')) {
@@ -122,13 +145,11 @@ const mockTrackingApis = async (page: Page) => {
   });
 };
 
-for (const viewport of [
-  { label: 'desktop', width: 1440, height: 900 },
-  { label: 'mobile', width: 390, height: 844 },
-]) {
+for (const viewport of E2E_VIEWPORTS) {
   test(`claim evidence stays readable on ${viewport.label}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await mockTrackingApis(page);
+    const capture: TrackingApiCapture = { experienceRequests: [], supportMessages: [] };
+    await mockTrackingApis(page, capture);
     await page.goto('/tracking/claim?code=M-123456&pin=654321&tenant_slug=junin', {
       waitUntil: 'domcontentloaded',
     });
@@ -145,6 +166,25 @@ for (const viewport of [
       'https://signed.example/bache-frente-casa.jpg?token=safe',
     );
     await expect(page.getByText('tenant/junin/private/bache-frente-casa.jpg')).toHaveCount(0);
+    await expect.poll(() => capture.experienceRequests.length).toBeGreaterThan(0);
+    expect(new URL(capture.experienceRequests[0].url).searchParams.has('pin')).toBe(false);
+    expect(capture.experienceRequests[0].pinHeader).toBe('654321');
+    expect(new URL(page.url()).searchParams.has('pin')).toBe(false);
+
+    await page
+      .getByRole('textbox', { name: 'Mensaje para la mesa de ayuda' })
+      .fill('La foto corresponde al bache frente al numero 55.');
+    await page.getByRole('button', { name: 'Dejar mensaje para el equipo' }).click();
+    await expect.poll(() => capture.supportMessages.length).toBe(1);
+    expect(capture.supportMessages[0].url).toContain('/api/public/tracking/claims/42/messages');
+    expect(capture.supportMessages[0].pinHeader).toBe('654321');
+    expect(capture.supportMessages[0].body).toEqual({
+      comentario: 'La foto corresponde al bache frente al numero 55.',
+      mensaje: 'La foto corresponde al bache frente al numero 55.',
+      texto: 'La foto corresponde al bache frente al numero 55.',
+    });
+    await expect(page.getByRole('status')).toContainText('Mensaje recibido por la mesa de entrada.');
+    await expect(page.getByRole('status')).toContainText('El equipo lo ve como pendiente en el CRM.');
 
     const layout = await page.evaluate(() => ({
       viewportWidth: document.documentElement.clientWidth,
@@ -155,6 +195,7 @@ for (const viewport of [
     expect(layout.evidenceRect?.width || 0).toBeGreaterThan(0);
     expect(layout.evidenceRect?.left || 0).toBeGreaterThanOrEqual(0);
     expect(layout.evidenceRect?.right || 0).toBeLessThanOrEqual(viewport.width + 1);
+    await expectNoHorizontalOverflow(page);
 
     await page.screenshot({
       path: testInfo.outputPath(`tracking-evidence-${viewport.label}.png`),

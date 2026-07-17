@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   getTenantOpsQaPlaybookV2,
   runTenantOpsQaCheckV2,
@@ -280,7 +280,14 @@ const StatusPill = ({ value }: { value?: string | null }) => {
     : pending
       ? "border-amber-500/40 bg-amber-500/10 text-amber-700"
       : "border-border bg-muted/30 text-muted-foreground";
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>;
+  return (
+    <span
+      aria-label={`Estado: ${label}`}
+      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}
+    >
+      {label}
+    </span>
+  );
 };
 
 const StepCard = ({
@@ -296,7 +303,8 @@ const StepCard = ({
   icon: React.ElementType;
   label: string;
 }) => (
-  <div
+  <li
+    aria-current={active ? "step" : undefined}
     className={cn(
       "rounded-xl border bg-background/75 p-3 transition-colors",
       done
@@ -317,14 +325,17 @@ const StepCard = ({
               : "border-border bg-muted/30 text-muted-foreground",
         )}
       >
-        {done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+        {done ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="text-sm font-semibold text-foreground">
+          <span className="sr-only">{done ? "Completado" : active ? "Paso actual" : "Pendiente"}: </span>
+          {label}
+        </p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
       </div>
     </div>
-  </div>
+  </li>
 );
 
 type WhatsappTechProviderOnboardingProps = {
@@ -348,6 +359,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const [requestedPhoneNumber, setRequestedPhoneNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [planLock, setPlanLock] = useState<IntegrationPlanLockPayload | null>(null);
+  const phoneNumberInputRef = useRef<HTMLInputElement>(null);
+  const primaryActionButtonRef = useRef<HTMLButtonElement>(null);
 
   const load = async () => {
     if (!tenantSlug) return;
@@ -788,20 +801,113 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     }
   };
 
+  const openEmbeddedSignup = () => {
+    if (signupUrl) window.open(signupUrl, "_self");
+  };
+
+  const openTemplates = () => window.open(templatesPath, "_self");
+  const needsPhoneNumber = showPhoneChoice && !phoneNumberValid && (!hasMetaAccount || !hasSender);
+  const primaryAction = !envReady
+    ? {
+        label: "Volver a comprobar configuración",
+        detail: "La plataforma debe completar sus credenciales antes de abrir Meta.",
+        disabled: loading,
+        busy: loading,
+        icon: RefreshCw,
+        onClick: () => void load(),
+      }
+    : needsPhoneNumber
+      ? {
+          label: "Ingresar número de WhatsApp",
+          detail: "Usa el número que la organización administrará, con código de país.",
+          disabled: false,
+          busy: false,
+          icon: PhoneCall,
+          onClick: () => phoneNumberInputRef.current?.focus(),
+        }
+      : !hasMetaAccount && canStartSignup
+        ? {
+            label: "Autorizar con Meta",
+            detail: "La persona administradora continuará en el flujo oficial y volverá a este espacio.",
+            disabled: false,
+            busy: false,
+            icon: ShieldCheck,
+            onClick: openEmbeddedSignup,
+          }
+        : !hasMetaAccount
+          ? {
+              label: "Preparar activación",
+              detail: "Guarda el número y solicita la URL segura de autorización.",
+              disabled: !phoneNumberValid || provisioning,
+              busy: provisioning,
+              icon: Settings2,
+              onClick: () => void handleProvision(),
+            }
+          : !hasSender
+            ? {
+                label: "Registrar número productivo",
+                detail: "Asocia el número autorizado con la infraestructura de envío.",
+                disabled: !canRegisterSender || registeringSender,
+                busy: registeringSender,
+                icon: SendHorizontal,
+                onClick: () => void handleRegisterSender(),
+              }
+            : !senderReady
+              ? {
+                  label: "Actualizar aprobación",
+                  detail: "Consulta si Meta ya habilitó el número para operar.",
+                  disabled: !canPollSender || pollingSender,
+                  busy: pollingSender,
+                  icon: RefreshCw,
+                  onClick: () => void handlePollSender(),
+                }
+              : templatesArePrimary || !hasTemplateConfig
+                ? {
+                    label: "Configurar plantillas",
+                    detail: "Revisa mensajes, botones y recorridos antes de habilitar más tráfico.",
+                    disabled: false,
+                    busy: false,
+                    icon: MessageSquareText,
+                    onClick: openTemplates,
+                  }
+                : canRunPrimarySmokeTest
+                  ? {
+                      label: "Ejecutar prueba segura",
+                      detail: "Valida la conexión en modo de solo lectura, sin enviar mensajes reales.",
+                      disabled: Boolean(runningSmokeTest),
+                      busy: Boolean(runningSmokeTest),
+                      icon: ShieldCheck,
+                      onClick: () => void handleRunSmokeTest(primarySmokeTestId),
+                    }
+                  : {
+                      label: "Actualizar estado",
+                      detail: "Vuelve a consultar el contrato y los controles disponibles.",
+                      disabled: loading,
+                      busy: loading,
+                      icon: RefreshCw,
+                      onClick: () => void load(),
+                    };
+
+  useEffect(() => {
+    if (!normalizedFocusAction || !contract) return;
+    primaryActionButtonRef.current?.focus();
+  }, [contract, normalizedFocusAction, primaryAction.label]);
+
   if (!tenantSlug) {
     return (
       <section
         data-testid="whatsapp-onboarding-missing-tenant"
+        aria-labelledby="whatsapp-missing-tenant-title"
         className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-700">
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             </span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Tenant no resuelto</p>
-              <h3 className="mt-1 text-base font-semibold text-foreground">No pude cargar la activacion de WhatsApp</h3>
+              <h3 id="whatsapp-missing-tenant-title" className="mt-1 text-base font-semibold text-foreground">No pude cargar la activacion de WhatsApp</h3>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
                 La pantalla necesita un tenant activo para revisar sender, plantillas, webviews y pruebas reales. Volve al panel o abri integracion con
                 contexto de WhatsApp.
@@ -812,10 +918,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
             <Button type="button" variant="outline" size="sm" asChild>
               <a href="/perfil">Volver al panel</a>
             </Button>
-            <Button type="button" size="sm" asChild>
-              <a href="/integracion?channel=whatsapp">
-                Abrir integracion
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <Button type="button" size="sm" asChild>
+                  <a href="/integracion?channel=whatsapp">
+                    Abrir integracion
+                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </a>
             </Button>
           </div>
@@ -918,11 +1024,11 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   }
 
   return (
-    <section className="rounded-2xl border bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-sm">
+    <section aria-labelledby="whatsapp-onboarding-title" className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-            <MessageSquareText className="h-4 w-4" />
+            <MessageSquareText className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -934,9 +1040,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 WhatsApp Business Platform
               </span>
             </div>
-            <h3 className="mt-1 text-lg font-semibold text-foreground">Activación guiada por Chatboc</h3>
+            <h3 id="whatsapp-onboarding-title" className="mt-1 text-lg font-semibold text-foreground">Activación guiada por Chatboc</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              El cliente autoriza con Meta desde Chatboc. La plataforma registra sender, voz, webhooks y pruebas sin exponer Twilio Console.
+              Una persona administradora autoriza con Meta. Chatboc conserva el contexto y guía la configuración sin depender de consolas externas.
             </p>
           </div>
         </div>
@@ -953,14 +1059,14 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-lg border border-destructive/35 bg-destructive/10 p-3 text-sm text-destructive">
+        <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-destructive/35 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}
 
       {loading && !contract ? (
-        <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <div role="status" aria-live="polite" className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
           Cargando contrato de activación...
         </div>
       ) : null}
@@ -1030,7 +1136,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   <ul className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
                     {missingConfigurationItems.map((item) => (
                       <li key={item} className="flex gap-2">
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -1041,6 +1147,40 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div
+            data-testid="whatsapp-primary-action"
+            aria-labelledby="whatsapp-primary-action-title"
+            className="rounded-lg border-l-4 border-l-primary bg-primary/5 p-4"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Ahora</p>
+                <h4 id="whatsapp-primary-action-title" className="mt-1 text-base font-semibold text-foreground">
+                  {primaryAction.label}
+                </h4>
+                <p id="whatsapp-primary-action-detail" className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {primaryAction.detail}
+                </p>
+              </div>
+              <Button
+                ref={primaryActionButtonRef}
+                type="button"
+                className="w-full shrink-0 sm:w-auto"
+                aria-describedby="whatsapp-primary-action-detail"
+                aria-busy={primaryAction.busy || undefined}
+                disabled={primaryAction.disabled}
+                onClick={primaryAction.onClick}
+              >
+                {primaryAction.busy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  React.createElement(primaryAction.icon, { className: "mr-2 h-4 w-4", "aria-hidden": true })
+                )}
+                {primaryAction.label}
+              </Button>
             </div>
           </div>
 
@@ -1057,8 +1197,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 <span>completados</span>
               </div>
             </div>
-            <Progress value={progressPercent} className="mt-3 h-2" />
-            <div className="mt-4 grid gap-2 lg:grid-cols-4">
+            <Progress value={progressPercent} aria-label={`Activación de WhatsApp: ${progressPercent}% completado`} className="mt-3 h-2" />
+            <ol aria-label="Pasos de activación de WhatsApp" className="mt-4 grid gap-2 lg:grid-cols-4">
               {activationSteps.map((step) => (
                 <StepCard
                   key={step.id}
@@ -1069,9 +1209,14 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   label={step.label}
                 />
               ))}
-            </div>
+            </ol>
           </div>
 
+          <details data-testid="whatsapp-advanced-controls" className="rounded-lg border bg-background/60">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+              Controles avanzados y detalles técnicos
+            </summary>
+            <div className="space-y-4 border-t p-4">
           {opsQa || opsQaError ? (
             <div className="rounded-2xl border bg-background/80 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1523,7 +1668,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 ].map(([label, value, Icon]) => (
                   <div key={String(label)} className="rounded-xl border bg-card/60 p-3">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      {React.createElement(Icon as React.ElementType, { className: "h-3.5 w-3.5 text-primary" })}
+                      {React.createElement(Icon as React.ElementType, { className: "h-3.5 w-3.5 text-primary", "aria-hidden": true })}
                       <span>{label}</span>
                     </div>
                     <p className="mt-2 break-all font-mono text-xs text-foreground">{readText(value) ?? "pendiente"}</p>
@@ -1554,12 +1699,14 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               <p>6. Mostrar que el cliente nunca entra a Twilio Console.</p>
             </div>
           </div>
+            </div>
+          </details>
 
           <div className="rounded-2xl border bg-background/70 p-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
-                  <ShoppingBag className="h-5 w-5" />
+                  <ShoppingBag className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">Catalogo para WhatsApp</p>
@@ -1573,16 +1720,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   </div>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   type="button"
+                  className="w-full sm:w-auto"
                   variant={catalogIsPrimary ? "default" : "outline"}
                   onClick={() => window.open(catalogAdminPath, "_self")}
                 >
                   Administrar catalogo
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => window.open(marketplacePath, "_blank", "noopener,noreferrer")}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={() => window.open(marketplacePath, "_blank", "noopener,noreferrer")}>
+                  <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
                   Ver marketplace
                 </Button>
               </div>
@@ -1592,8 +1740,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
           <div className="rounded-2xl border bg-background/70 p-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-foreground">Acciones de activación</p>
-                <p className="text-xs text-muted-foreground">El usuario avanza sin salir del panel del tenant.</p>
+                <p className="text-sm font-semibold text-foreground">Otras acciones disponibles</p>
+                <p className="text-xs text-muted-foreground">Usalas para revisar o preparar pasos que no son el siguiente recomendado.</p>
               </div>
               <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                 Paso actual: {currentStep.label}
@@ -1604,8 +1752,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 <label htmlFor="whatsapp-sender-number" className="text-sm font-medium text-foreground">
                   Numero de WhatsApp
                 </label>
-                <Input
-                  id="whatsapp-sender-number"
+                 <Input
+                   ref={phoneNumberInputRef}
+                   id="whatsapp-sender-number"
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
@@ -1629,42 +1778,42 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 </p>
               </div>
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" onClick={handleProvision} disabled={!envReady || !phoneNumberValid || provisioning}>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button className="w-full sm:w-auto" type="button" onClick={handleProvision} disabled={!envReady || !phoneNumberValid || provisioning}>
                 {provisioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar activación
               </Button>
               {embeddedSignupEnabled ? (
                 <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!canStartSignup}
-                  onClick={() => {
-                    if (signupUrl) window.open(signupUrl, "_blank", "noopener,noreferrer");
-                  }}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Iniciar registro embebido
-                </Button>
+                   type="button"
+                   className="w-full sm:w-auto"
+                   variant="outline"
+                   disabled={!canStartSignup}
+                   onClick={openEmbeddedSignup}
+                 >
+                   <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" />
+                   Iniciar registro embebido
+                 </Button>
               ) : null}
               <Button
-                type="button"
-                variant={registerSenderIsPrimary ? "default" : "outline"}
+                 type="button"
+                 className="w-full sm:w-auto"
+                 variant={registerSenderIsPrimary ? "default" : "outline"}
                 onClick={handleRegisterSender}
                 disabled={!canRegisterSender || registeringSender}
               >
                 {registeringSender ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Registrar sender
               </Button>
-              <Button type="button" variant="outline" onClick={handlePollSender} disabled={!canPollSender || pollingSender}>
+              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={handlePollSender} disabled={!canPollSender || pollingSender}>
                 {pollingSender ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Actualizar estado
               </Button>
-              <Button type="button" variant="outline" onClick={handleProvisionVoice} disabled={!envReady || provisioningVoice}>
+              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={handleProvisionVoice} disabled={!envReady || provisioningVoice}>
                 {provisioningVoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar voz
               </Button>
-              <Button type="button" variant={templatesArePrimary ? "default" : "outline"} onClick={() => window.open(templatesPath, "_self")}>
+              <Button className="w-full sm:w-auto" type="button" variant={templatesArePrimary ? "default" : "outline"} onClick={openTemplates}>
                 Plantillas WhatsApp
               </Button>
               {signupUnavailableMessage ? (

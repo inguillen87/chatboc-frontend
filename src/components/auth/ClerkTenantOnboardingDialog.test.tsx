@@ -29,7 +29,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     const dialog = screen.getByRole('dialog');
     const scrollRegion = screen.getByTestId('clerk-onboarding-scroll-region');
     const footer = screen.getByTestId('clerk-onboarding-footer');
-    const submit = screen.getByRole('button', { name: /crear tenant/i });
+    const submit = screen.getByRole('button', { name: /crear organización/i });
 
     expect(dialog).toHaveClass(
       'flex',
@@ -45,6 +45,17 @@ describe('ClerkTenantOnboardingDialog', () => {
     expect(scrollRegion).not.toContainElement(footer);
     expect(footer).toContainElement(submit);
     expect(submit).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
+    expect(submit).toHaveAttribute('aria-describedby', 'clerk-onboarding-submit-help');
+    expect(screen.getByText(/completa el nombre de la organización/i)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /configuracion inicial/i })).toBeInTheDocument();
+  });
+
+  it('shows the task that will resume after Clerk onboarding', () => {
+    renderDialog({ continuationLabel: 'Continuar con WhatsApp' });
+
+    const continuation = screen.getByTestId('clerk-onboarding-continuation');
+    expect(continuation).toHaveTextContent('Al terminar');
+    expect(continuation).toHaveTextContent('Continuar con WhatsApp');
   });
 
   it('announces the completed tenant and keeps both handoff actions reachable on mobile', async () => {
@@ -74,7 +85,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     expect(status).toHaveTextContent('Alta completada');
     expect(primary).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
     expect(panel).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
-    expect(screen.queryByRole('button', { name: /crear tenant/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /crear organización/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
     await waitFor(() => expect(title).toHaveFocus());
 
@@ -146,7 +157,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     const { rerender } = render(<ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} />);
 
     const tenantName = screen.getByLabelText(/Nombre de organizacion/i);
-    expect(screen.getByLabelText('Vertical')).toHaveAttribute('id', 'clerk-onboarding-vertical');
+    expect(screen.getByLabelText('Tipo de organización')).toHaveAttribute('id', 'clerk-onboarding-vertical');
     expect(screen.getByLabelText('Objetivo principal')).toHaveAttribute('id', 'clerk-onboarding-primary-goal');
     await waitFor(() => expect(tenantName).toHaveFocus());
 
@@ -155,7 +166,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveAttribute('aria-live', 'assertive');
     expect(alert).toHaveAttribute('aria-atomic', 'true');
-    expect(screen.getByRole('button', { name: /crear tenant/i })).toHaveAttribute('aria-describedby', 'clerk-onboarding-error');
+    expect(screen.getByRole('button', { name: /crear organización/i }).getAttribute('aria-describedby')).toContain('clerk-onboarding-error');
     await waitFor(() => expect(alert).toHaveFocus());
   });
 
@@ -164,7 +175,7 @@ describe('ClerkTenantOnboardingDialog', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /crear tenant/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /crear organización/i })).toBeInTheDocument();
   });
 
   it('keeps the normal close affordance when onboarding is optional', () => {
@@ -229,9 +240,9 @@ describe('ClerkTenantOnboardingDialog', () => {
     await waitFor(() => expect(screen.getByDisplayValue('Ferreteria Modelo')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByDisplayValue('ventas y atencion')).toBeInTheDocument());
 
-    expect(screen.getByRole('button', { name: /crear tenant/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /crear organización/i })).toBeDisabled();
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /crear tenant/i }));
+    fireEvent.click(screen.getByRole('button', { name: /crear organización/i }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -305,7 +316,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     await waitFor(() => expect(screen.getByDisplayValue('Municipalidad Demo')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /crear tenant/i }));
+    fireEvent.click(screen.getByRole('button', { name: /crear organización/i }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.not.objectContaining({

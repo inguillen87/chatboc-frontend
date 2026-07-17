@@ -1,4 +1,7 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { E2E_VIEWPORTS, expectNoHorizontalOverflow } from './e2e-helpers';
+
+test.describe.configure({ mode: 'serial' });
 
 const TENANT_SLUG = 'municipio-demo';
 const TICKET_ID = 101;
@@ -56,6 +59,34 @@ const timeline = Array.from({ length: 36 }, (_, index) => ({
   es_admin: index % 2 === 1,
 }));
 
+type TimelineMessage = (typeof timeline)[number];
+
+type WorkspaceApiCapture = {
+  replies: Array<{
+    url: string;
+    contentType: string;
+    body: string;
+  }>;
+  timelineReplies: Record<number, TimelineMessage[]>;
+};
+
+const timelineForTicket = (ticketId: number) => {
+  if (ticketId === TICKET_ID) return timeline;
+  return Array.from({ length: 36 }, (_, index) => ({
+    id: `message-${ticketId}-${index + 1}`,
+    comentario:
+      index === 35
+        ? 'Respuesta del equipo 36: el caso sigue en seguimiento operativo.'
+        : index === 34
+        ? `Mensaje exclusivo del reclamo M-${ticketId}: falta una respuesta del area.`
+        : index % 2 === 0
+          ? `Mensaje del vecino ${index + 1} para M-${ticketId}: solicita una actualizacion.`
+          : `Seguimiento interno ${index + 1} confirmado para M-${ticketId}.`,
+    fecha: new Date(Date.UTC(2026, 6, 17, 13, index)).toISOString(),
+    es_admin: index % 2 === 1,
+  }));
+};
+
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -72,7 +103,7 @@ const installWorkspaceSession = async (page: Page) => {
   );
 };
 
-const mockWorkspaceApis = async (page: Page) => {
+const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
   await page.route('**/*', async (route) => {
     const request = route.request();
     if (!['fetch', 'xhr'].includes(request.resourceType())) {
@@ -123,10 +154,70 @@ const mockWorkspaceApis = async (page: Page) => {
       return;
     }
 
+    const replyMatch = path.match(/\/api\/tickets\/(municipio|pyme)\/(\d+)\/responder$/);
+    if (replyMatch && request.method() === 'POST') {
+      const ticketId = Number(replyMatch[2]);
+      const body = request.postData() || '';
+      const replyComment = {
+        id: `reply-${9000 + ticketId}`,
+        comentario: `Actualizacion operativa E2E para M-${ticketId}.`,
+        fecha: new Date(Date.UTC(2026, 6, 17, 13, 10)).toISOString(),
+        es_admin: true,
+      };
+      capture.replies.push({
+        url: request.url(),
+        contentType: request.headers()['content-type'] || '',
+        body,
+      });
+      capture.timelineReplies[ticketId] = [...(capture.timelineReplies[ticketId] || []), replyComment];
+      await json(route, {
+        contract_version: 'tickets.agent_reply.v1',
+        comment: replyComment,
+        delivery: {
+          contract_version: 'tickets.agent_reply_delivery.v1',
+          mode: 'real_message',
+          channel: 'whatsapp',
+          status: 'sent',
+          reason: 'provider_accepted',
+          external_dispatch: true,
+          socket_emitted: false,
+          recipient_room_emitted: false,
+          recipient_presence_confirmed: false,
+          recipient_read_confirmed: false,
+          reply_comment_ids: [9000 + ticketId],
+          latest_reply_comment_id: 9000 + ticketId,
+          timeline_updated: true,
+          reply_status: 'sent_to_whatsapp',
+          operator_message: 'WhatsApp acepto la respuesta del operador.',
+          delivery_results: { email: false, sms: false, whatsapp: true, socket: false },
+        },
+      });
+      return;
+    }
+
+    if (/\/api\/tickets\/(municipio|pyme)\/\d+\/send-history$/.test(path)) {
+      await json(route, { status: 'sent', message: 'Historial notificado.' });
+      return;
+    }
+
+    if (/\/api\/tickets\/(municipio|pyme)\/\d+\/read-state$/.test(path)) {
+      await json(route, {
+        realtime_state: {
+          viewers: [],
+          active_viewers: [],
+          read_states: [],
+          summary: { active_count: 0, idle_count: 0, read_count: 0 },
+        },
+      });
+      return;
+    }
+
     if (/\/api\/tickets\/municipio\/\d+\/timeline$/.test(path)) {
+      const ticketId = Number(path.match(/\/(\d+)\/timeline$/)?.[1] || TICKET_ID);
+      const ticketTimeline = [...timelineForTicket(ticketId), ...(capture.timelineReplies[ticketId] || [])];
       await json(route, {
         estado_chat: 'abierto',
-        historial_chat: timeline,
+        historial_chat: ticketTimeline,
         timeline: [],
         unified_conversation_stream: [],
         realtime_state: { online: true },
@@ -135,7 +226,11 @@ const mockWorkspaceApis = async (page: Page) => {
     }
 
     if (/\/api\/tickets\/chat\/\d+\/mensajes$/.test(path)) {
-      await json(route, { mensajes: timeline, realtime_state: { online: true } });
+      const ticketId = Number(path.match(/\/chat\/(\d+)\/mensajes$/)?.[1] || TICKET_ID);
+      await json(route, {
+        mensajes: [...timelineForTicket(ticketId), ...(capture.timelineReplies[ticketId] || [])],
+        realtime_state: { online: true },
+      });
       return;
     }
 
@@ -195,8 +290,9 @@ const mockWorkspaceApis = async (page: Page) => {
 };
 
 const openWorkspace = async (page: Page, path: string) => {
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
   await installWorkspaceSession(page);
-  await mockWorkspaceApis(page);
+  await mockWorkspaceApis(page, capture);
   await page.goto(path, { waitUntil: 'domcontentloaded' });
 
   await expect(page.locator('[data-workspace-shell="tickets"]')).toBeVisible();
@@ -205,6 +301,7 @@ const openWorkspace = async (page: Page, path: string) => {
   await expect(page.locator('footer.bg-muted')).toHaveCount(0);
   await page.waitForTimeout(250);
   await expect(page.locator('[data-testid="chat-widget"][data-mode="standalone"]')).toBeHidden();
+  return capture;
 };
 
 const expectDocumentLocked = async (page: Page) => {
@@ -407,6 +504,68 @@ for (const path of mobilePaths) {
     await expect(chatTab).toBeFocused();
     await expect(page.getByRole('textbox', { name: 'Responder ticket' })).toBeVisible();
     await expectMobileConversationLayout(page);
+    await expectDocumentLocked(page);
+  });
+}
+
+for (const viewport of E2E_VIEWPORTS) {
+  test(`CRM reclamos selects list, detail and sends composer reply on ${viewport.label}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const capture = await openWorkspace(page, '/t/municipio-demo/reclamos');
+
+    const mobileLayout = page.getByTestId('tickets-mobile-layout');
+    if (viewport.label === 'mobile') {
+      const mobileTabs = mobileLayout.getByRole('tablist', { name: 'Vistas de tickets' });
+      await mobileTabs.getByRole('tab', { name: 'Tickets', exact: true }).click();
+    }
+
+    const secondTicket = page.getByRole('button', { name: 'Abrir ticket M-102' });
+    await secondTicket.click();
+    await expect(secondTicket).toHaveAttribute('aria-pressed', 'true');
+
+    if (viewport.label === 'mobile') {
+      const mobileTabs = mobileLayout.getByRole('tablist', { name: 'Vistas de tickets' });
+      const infoTab = mobileTabs.getByRole('tab', { name: 'Info', exact: true });
+      const chatTab = mobileTabs.getByRole('tab', { name: 'Chat', exact: true });
+
+      await infoTab.click();
+      const infoPanel = page.getByRole('tabpanel', { name: 'Info' });
+      await expect(infoPanel).toContainText('#M-102');
+      await expect(infoPanel).toContainText('Reclamo operativo 2');
+      await expect(infoPanel).toContainText('Vecino 2');
+      await expect(infoPanel).toContainText('Via publica');
+      await chatTab.click();
+    } else {
+      const detailRegion = page.getByTestId('tickets-detail-region');
+      await expect(detailRegion).toContainText('#M-102');
+      await expect(detailRegion).toContainText('Reclamo operativo 2');
+      await expect(detailRegion).toContainText('Vecino 2');
+      await expect(detailRegion).toContainText('Via publica');
+    }
+
+    await expect(page.getByText('Mensaje exclusivo del reclamo M-102: falta una respuesta del area.')).toBeVisible();
+
+    const composer = page.getByRole('textbox', { name: 'Responder ticket' });
+    await composer.fill('Actualizacion operativa E2E para M-102.');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+
+    await expect.poll(() => capture.replies.length).toBe(1);
+    expect(capture.replies[0].url).toContain('/api/tickets/municipio/102/responder');
+    expect(capture.replies[0].contentType).toContain('multipart/form-data');
+    expect(capture.replies[0].body).toContain('name="comentario"');
+    expect(capture.replies[0].body).toContain('Actualizacion operativa E2E para M-102.');
+
+    const deliveryStatus = page.getByTestId('ticket-reply-delivery-status');
+    await expect(deliveryStatus).toContainText('Mensaje enviado');
+    await expect(deliveryStatus).toContainText('WhatsApp');
+    await expect(
+      page
+        .getByTestId('ticket-message-scroll')
+        .locator('.chat-message')
+        .filter({ hasText: 'Actualizacion operativa E2E para M-102.' })
+        .last(),
+    ).toBeVisible();
+    await expectNoHorizontalOverflow(page);
     await expectDocumentLocked(page);
   });
 }

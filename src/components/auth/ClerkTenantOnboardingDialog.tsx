@@ -39,6 +39,7 @@ interface ClerkTenantOnboardingDialogProps {
   loading?: boolean;
   error?: string | null;
   completion?: ClerkTenantOnboardingCompletion | null;
+  continuationLabel?: string | null;
   onSubmit: (payload: ClerkOnboardingPayload) => Promise<void> | void;
   onCompletionPrimary?: () => void;
   onCompletionPanel?: () => void;
@@ -138,6 +139,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   loading,
   error,
   completion,
+  continuationLabel,
   onSubmit,
   onCompletionPrimary,
   onCompletionPanel,
@@ -171,6 +173,16 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
   const recommendedModules = recommendedIds.size ? starterModules.filter((module) => recommendedIds.has(module.id)) : starterModules.slice(0, 3);
   const preferredChannels = selectedPreset?.preferred_channels?.length ? selectedPreset.preferred_channels : ['whatsapp', 'webchat'];
   const preventDismiss = required || Boolean(completion);
+  const missingRequiredFields = !form.tenant_name.trim() || !form.rubro.trim();
+  const submitHelp = termsOnly
+    ? termsAccepted
+      ? 'Todo listo para actualizar el consentimiento.'
+      : 'Acepta los términos para continuar.'
+    : missingRequiredFields
+      ? 'Completa el nombre de la organización y su actividad principal.'
+      : !termsAccepted
+        ? 'Acepta los términos para crear la organización.'
+        : 'Todo listo para crear la organización y continuar.';
 
   const focusInitialControl = React.useCallback(() => {
     const initialControl = completion
@@ -237,6 +249,11 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
     event.preventDefault();
     await onSubmit({
       ...form,
+      tenant_name: form.tenant_name.trim(),
+      rubro: form.rubro.trim(),
+      telefono: form.telefono.trim(),
+      website: form.website.trim(),
+      ciudad: form.ciudad.trim(),
       terms_accepted: termsAccepted,
       terms_version: terms?.version || '2026-07-11',
       user: userProfile,
@@ -280,6 +297,19 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
             </div>
           </div>
         </DialogHeader>
+
+        {!completion && continuationLabel ? (
+          <div
+            data-testid="clerk-onboarding-continuation"
+            className="flex shrink-0 items-start gap-3 border-b border-blue-200 bg-blue-50 px-4 py-3 text-blue-950 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-50 sm:px-6"
+          >
+            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-normal">Al terminar</p>
+              <p className="mt-0.5 break-words text-sm">{continuationLabel}</p>
+            </div>
+          </div>
+        ) : null}
 
         {completion ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -340,7 +370,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
         <form
           className="flex min-h-0 flex-1 flex-col"
           aria-busy={loading || undefined}
-          aria-describedby={error ? 'clerk-onboarding-error' : undefined}
+          aria-describedby={`${error ? 'clerk-onboarding-error ' : ''}clerk-onboarding-submit-help`}
           onSubmit={submit}
         >
           <div
@@ -364,17 +394,17 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                 </div>
               ) : (
                 <>
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-4">
-                    {summaryCards.slice(0, 4).map((card) => (
-                      <div key={card.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
-                        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
-                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  <ol aria-label="Configuracion inicial" className="grid min-w-0 gap-3 sm:grid-cols-4">
+                    {summaryCards.slice(0, 4).map((card, index) => (
+                      <li key={card.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+                        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                          {index + 1}
                         </div>
                         <p className="break-words text-sm font-semibold">{card.label}</p>
                         {card.description ? <p className="mt-1 break-words text-xs leading-5 text-slate-500 dark:text-slate-400">{card.description}</p> : null}
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ol>
 
                   <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                     <div className="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -392,7 +422,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="clerk-onboarding-vertical">Vertical</Label>
+                        <Label htmlFor="clerk-onboarding-vertical">Tipo de organización</Label>
                         <Select value={form.vertical} onValueChange={handleVerticalChange} disabled={loading}>
                           <SelectTrigger id="clerk-onboarding-vertical" className="min-w-0">
                             <SelectValue placeholder="Selecciona vertical" />
@@ -408,21 +438,24 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="rubro">Rubro</Label>
+                        <Label htmlFor="rubro">Rubro / actividad principal</Label>
                         <Input
                           id="rubro"
                           value={form.rubro}
                           onChange={(event) => update('rubro', event.target.value)}
-                          placeholder="Reclamos, ventas, cuotas..."
+                          placeholder="Atención ciudadana, educación, ventas..."
                           required
                           disabled={loading}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="telefono">WhatsApp / telefono</Label>
+                        <Label htmlFor="telefono">WhatsApp / teléfono</Label>
                         <Input
                           id="telefono"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
                           value={form.telefono}
                           onChange={(event) => update('telefono', event.target.value)}
                           placeholder="+54..."
@@ -445,6 +478,8 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                         <Label htmlFor="website">Sitio web</Label>
                         <Input
                           id="website"
+                          type="url"
+                          autoComplete="url"
                           value={form.website}
                           onChange={(event) => update('website', event.target.value)}
                           placeholder="https://..."
@@ -613,18 +648,21 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
           </div>
 
           <DialogFooter
-            className="shrink-0 border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 sm:px-6"
+            className="shrink-0 gap-3 border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 sm:items-center sm:justify-between sm:px-6"
             data-testid="clerk-onboarding-footer"
           >
+            <p id="clerk-onboarding-submit-help" className="text-left text-xs leading-5 text-slate-600 dark:text-slate-400">
+              {submitHelp}
+            </p>
             <Button
               type="submit"
-              className="min-h-11 w-full sm:w-auto"
+              className="min-h-11 w-full shrink-0 sm:w-auto"
               aria-busy={loading || undefined}
-              aria-describedby={error ? 'clerk-onboarding-error' : undefined}
-              disabled={loading || !termsAccepted || (!termsOnly && (!form.tenant_name || !form.rubro))}
+              aria-describedby={`${error ? 'clerk-onboarding-error ' : ''}clerk-onboarding-submit-help`}
+              disabled={loading || !termsAccepted || (!termsOnly && missingRequiredFields)}
             >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              {termsOnly ? 'Aceptar y continuar' : 'Crear tenant'}
+              {termsOnly ? 'Aceptar y continuar' : 'Crear organización'}
             </Button>
           </DialogFooter>
         </form>
