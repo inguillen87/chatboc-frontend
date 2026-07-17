@@ -644,6 +644,122 @@ describe("WhatsappOperationsHub", () => {
     expect(testPanel).not.toHaveTextContent("flow_token");
   });
 
+  it("authorizes a survey slug before sending survey_vote and preserves it in both payloads", async () => {
+    const surveySlug = "presupuesto-participativo-2026";
+    apiFetchMock
+      .mockResolvedValueOnce({
+        dry_run: true,
+        ready_to_send: true,
+        blocked: false,
+        blockers: [],
+        recipient_hint: "***6789",
+        execute_confirmation: "signed-survey-send-confirmation",
+        survey_context: {
+          required: true,
+          ready: true,
+          id: "survey-42",
+          slug: surveySlug,
+        },
+      })
+      .mockResolvedValueOnce({
+        sent: true,
+        idempotent_replay: false,
+        interaction: {
+          status: "sent",
+          recipient_hint: "***6789",
+          external_message_sid: "SMSURVEYVOTE001",
+        },
+      });
+
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("survey_vote", "1232445823264765")}
+      />,
+    );
+
+    const recipientInput = screen.getByLabelText(/Numero destino/i);
+    const surveyInput = screen.getByLabelText(/Slug o token publico de encuesta/i);
+    const validateSend = screen.getByRole("button", { name: /Validar envio/i });
+    const executeSend = screen.getByRole("button", { name: /Enviar Flow de prueba/i });
+    expect(surveyInput).toBeRequired();
+
+    fireEvent.change(recipientInput, { target: { value: "+54 9 11 2345-6789" } });
+    expect(validateSend).toBeDisabled();
+    fireEvent.change(surveyInput, { target: { value: `  ${surveySlug}  ` } });
+    expect(validateSend).toBeEnabled();
+    fireEvent.click(validateSend);
+
+    expect(
+      await screen.findByText(/Contexto listo\. Encuesta autorizada: presupuesto-participativo-2026/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/ID survey-42/i)).toBeInTheDocument();
+    expect(surveyInput).toHaveAttribute("aria-invalid", "false");
+
+    const previewBody = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    expect(previewBody).toEqual({
+      flow_id: "survey_vote",
+      recipient: "+5491123456789",
+      idempotency_key: expect.stringMatching(/^flow-test-/),
+      dry_run: true,
+      survey_context: { slug: surveySlug },
+    });
+
+    expect(executeSend).toBeEnabled();
+    fireEvent.click(executeSend);
+    expect(await screen.findByText(/SMSURVEYVOTE001/i)).toBeInTheDocument();
+    const executeBody = JSON.parse(String(apiFetchMock.mock.calls[1][1]?.body));
+    expect(executeBody).toEqual({
+      flow_id: "survey_vote",
+      recipient: "+5491123456789",
+      idempotency_key: previewBody.idempotency_key,
+      dry_run: false,
+      survey_context: { slug: surveySlug },
+      execute_confirmation: "signed-survey-send-confirmation",
+    });
+  });
+
+  it("fails closed when survey_vote dry-run returns an incompatible survey context", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      dry_run: true,
+      ready_to_send: true,
+      blocked: false,
+      blockers: [],
+      recipient_hint: "***6789",
+      execute_confirmation: "must-not-be-used",
+      survey_context: {
+        required: true,
+        ready: true,
+        id: "survey-99",
+        slug: "otra-encuesta",
+      },
+    });
+
+    render(
+      <WhatsappOperationsHub
+        canManageFlows
+        initialExperience={metaFlowExperience("survey_vote", "1232445823264765")}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Numero destino/i), {
+      target: { value: "+54 9 11 2345-6789" },
+    });
+    const surveyInput = screen.getByLabelText(/Slug o token publico de encuesta/i);
+    fireEvent.change(surveyInput, {
+      target: { value: "presupuesto-participativo-2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Validar envio/i }));
+
+    expect(
+      await screen.findByText(/Envio bloqueado: el backend devolvio un contexto de encuesta incompatible/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/backend no autorizo este contexto de encuesta/i)).toBeInTheDocument();
+    expect(surveyInput).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: /Enviar Flow de prueba/i })).toBeDisabled();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("resets Flow controls and ignores a stale response when the tenant contract changes", async () => {
     let resolveRequest: (value: unknown) => void = () => undefined;
     apiFetchMock.mockImplementationOnce(

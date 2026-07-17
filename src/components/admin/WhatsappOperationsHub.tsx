@@ -1334,6 +1334,15 @@ const MetaPlatformPanel = ({
   const [sendConfirmation, setSendConfirmation] = useState("");
   const [recipientValidation, setRecipientValidation] = useState<"idle" | "accepted" | "rejected">("idle");
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(newFlowIdempotencyKey);
+  const [surveySlug, setSurveySlug] = useState("");
+  const [surveyContextValidation, setSurveyContextValidation] = useState<
+    "idle" | "authorized" | "rejected"
+  >("idle");
+  const [authorizedSurveyContext, setAuthorizedSurveyContext] = useState<{
+    id: string;
+    slug: string;
+  } | null>(null);
+  const [approvedSendFingerprint, setApprovedSendFingerprint] = useState("");
   const requestSequence = useRef(0);
   const sendRequestSequence = useRef(0);
 
@@ -1359,6 +1368,10 @@ const MetaPlatformPanel = ({
     setSendConfirmation("");
     setRecipientValidation("idle");
     setSendIdempotencyKey(newFlowIdempotencyKey());
+    setSurveySlug("");
+    setSurveyContextValidation("idle");
+    setAuthorizedSurveyContext(null);
+    setApprovedSendFingerprint("");
   }, [tenantSlug, flowStateKey, initialFlowId, initialMetaFlowId]);
 
   if (!Object.keys(platform).length) return null;
@@ -1384,6 +1397,9 @@ const MetaPlatformPanel = ({
   const normalizedTestRecipient = testRecipient.replace(/[()\s.\-]/g, "");
   const recipientHasE164Shape = /^\+[1-9]\d{7,14}$/.test(normalizedTestRecipient);
   const hasTestRecipient = testRecipient.trim().length > 0;
+  const isSurveyVoteFlow = selectedFlowId === "survey_vote";
+  const normalizedSurveySlug = surveySlug.trim();
+  const hasSurveySlug = normalizedSurveySlug.length > 0;
   const recipientRejected = (hasTestRecipient && !recipientHasE164Shape) || recipientValidation === "rejected";
   const recipientApproved = recipientValidation === "accepted";
   const recipientHelpId = "meta-flow-test-recipient-help";
@@ -1396,6 +1412,32 @@ const MetaPlatformPanel = ({
         : recipientValidation === "rejected"
           ? "El backend no autorizo el envio a este destino. Revisa el detalle operativo."
           : "Estructura lista para consultar. Todavia no fue validada por el backend.";
+  const surveyHelpId = "meta-flow-test-survey-help";
+  const surveyContextAuthorized = Boolean(
+    isSurveyVoteFlow &&
+      surveyContextValidation === "authorized" &&
+      authorizedSurveyContext?.id &&
+      authorizedSurveyContext.slug === normalizedSurveySlug,
+  );
+  const surveyContextRejected = isSurveyVoteFlow && surveyContextValidation === "rejected";
+  const surveyHelpText = !hasSurveySlug
+    ? "Ingresa el slug o token publico de la encuesta."
+    : surveyContextAuthorized && authorizedSurveyContext
+      ? `Contexto listo. Encuesta autorizada: ${authorizedSurveyContext.slug} (ID ${authorizedSurveyContext.id}).`
+      : surveyContextRejected
+        ? "El backend no autorizo este contexto de encuesta."
+        : "Contexto pendiente de autorizacion por el backend.";
+  const currentSendFingerprint = [
+    selectedFlowId,
+    normalizedTestRecipient,
+    sendIdempotencyKey,
+    isSurveyVoteFlow ? normalizedSurveySlug : "",
+  ].join("|");
+  const sendDryRunApproved = Boolean(
+    sendConfirmation &&
+      approvedSendFingerprint === currentSendFingerprint &&
+      (!isSurveyVoteFlow || surveyContextAuthorized),
+  );
   const selectedFlowBlockers = asArray(selectedFlow.blockers).map(String);
   const dataExchangeBlockers = asArray(dataExchange.blockers).map(String);
   const graphBlockers = asArray(flowManagement.blockers ?? graphManagement.blockers).map(String);
@@ -1467,6 +1509,10 @@ const MetaPlatformPanel = ({
     setSendConfirmation("");
     setRecipientValidation("idle");
     setSendIdempotencyKey(newFlowIdempotencyKey());
+    setSurveySlug("");
+    setSurveyContextValidation("idle");
+    setAuthorizedSurveyContext(null);
+    setApprovedSendFingerprint("");
   };
 
   const downloadFlowJson = async () => {
@@ -1681,14 +1727,28 @@ const MetaPlatformPanel = ({
       setSendResultMessage("Ingresa un destino con estructura E.164 antes de consultar al backend.");
       return;
     }
-    if (mode === "execute" && !sendConfirmation) {
+    if (isSurveyVoteFlow && !hasSurveySlug) {
+      setSendConfirmation("");
+      setApprovedSendFingerprint("");
+      setSurveyContextValidation("rejected");
+      setAuthorizedSurveyContext(null);
+      setSendResultMessage("Ingresa el slug o token publico de la encuesta antes de validar.");
+      return;
+    }
+    if (mode === "execute" && !sendDryRunApproved) {
       setSendResultMessage("Valida el envio primero; la confirmacion es de corta duracion.");
       return;
     }
 
     setSendOperation(mode);
     setSendResultMessage("");
-    if (mode === "dry") setRecipientValidation("idle");
+    if (mode === "dry") {
+      setSendConfirmation("");
+      setApprovedSendFingerprint("");
+      setRecipientValidation("idle");
+      setSurveyContextValidation("idle");
+      setAuthorizedSurveyContext(null);
+    }
     const requestId = ++sendRequestSequence.current;
     try {
       const response = await apiFetch<unknown>(appendTenantToEndpoint(sendEndpoint, tenantSlug), {
@@ -1700,6 +1760,7 @@ const MetaPlatformPanel = ({
           recipient: normalizedTestRecipient,
           idempotency_key: sendIdempotencyKey,
           dry_run: mode === "dry",
+          ...(isSurveyVoteFlow ? { survey_context: { slug: normalizedSurveySlug } } : {}),
           ...(mode === "execute" ? { execute_confirmation: sendConfirmation } : {}),
         }),
       });
@@ -1707,21 +1768,63 @@ const MetaPlatformPanel = ({
       const record = asRecord(response);
       if (mode === "dry") {
         const blockers = asArray(record.blockers).map(String);
-        const confirmation = boolish(record.ready_to_send) ? readText(record.execute_confirmation) : "";
+        const returnedSurveyContext = asRecord(record.survey_context);
+        const returnedSurveyId =
+          readText(returnedSurveyContext.id) ||
+          (typeof returnedSurveyContext.id === "number" && Number.isFinite(returnedSurveyContext.id)
+            ? String(returnedSurveyContext.id)
+            : "");
+        const returnedSurveySlug = readText(returnedSurveyContext.slug);
+        const surveyContextCompatible = isSurveyVoteFlow
+          ? boolish(returnedSurveyContext.required) &&
+            boolish(returnedSurveyContext.ready) &&
+            Boolean(returnedSurveyId) &&
+            returnedSurveySlug === normalizedSurveySlug
+          : !boolish(returnedSurveyContext.required);
+        const dryRunReady =
+          boolish(record.ready_to_send) &&
+          !boolish(record.blocked) &&
+          blockers.length === 0 &&
+          surveyContextCompatible;
+        const confirmation = dryRunReady ? readText(record.execute_confirmation) : "";
+        const successfulDryRun = Boolean(confirmation);
         setSendConfirmation(confirmation);
-        setRecipientValidation(confirmation ? "accepted" : "rejected");
+        setApprovedSendFingerprint(successfulDryRun ? currentSendFingerprint : "");
+        setRecipientValidation(
+          successfulDryRun
+            ? "accepted"
+            : blockers.some((blocker) => blocker.toLowerCase().startsWith("recipient_"))
+              ? "rejected"
+              : "idle",
+        );
+        if (isSurveyVoteFlow) {
+          setSurveyContextValidation(surveyContextCompatible ? "authorized" : "rejected");
+          setAuthorizedSurveyContext(
+            surveyContextCompatible
+              ? { id: returnedSurveyId, slug: returnedSurveySlug }
+              : null,
+          );
+        } else {
+          setSurveyContextValidation("idle");
+          setAuthorizedSurveyContext(null);
+        }
         setSendResultMessage(
-          confirmation
+          successfulDryRun
             ? `El backend habilito el envio para ${readText(record.recipient_hint) || "el destino indicado"}.`
             : blockers.length
               ? `Envio bloqueado: ${blockers.map(formatKey).join(", ")}.`
+              : !surveyContextCompatible
+                ? "Envio bloqueado: el backend devolvio un contexto de encuesta incompatible."
               : "El backend no habilito el envio real.",
         );
       } else {
         const interaction = asRecord(record.interaction);
         const messageSid = readText(interaction.external_message_sid);
         setSendConfirmation("");
+        setApprovedSendFingerprint("");
         setRecipientValidation("idle");
+        setSurveyContextValidation("idle");
+        setAuthorizedSurveyContext(null);
         setSendResultMessage(
           messageSid
             ? `Flow enviado y trazado: ${messageSid}.`
@@ -1734,7 +1837,10 @@ const MetaPlatformPanel = ({
     } catch (err) {
       if (requestId !== sendRequestSequence.current) return;
       setSendConfirmation("");
+      setApprovedSendFingerprint("");
       setRecipientValidation("idle");
+      setSurveyContextValidation("idle");
+      setAuthorizedSurveyContext(null);
       setSendResultMessage(getErrorMessage(err, "No se pudo enviar el Flow de prueba."));
     } finally {
       if (requestId === sendRequestSequence.current) setSendOperation(null);
@@ -2072,7 +2178,11 @@ const MetaPlatformPanel = ({
               </div>
               <div className="mt-3 grid gap-2">
                 <div
-                  className="grid gap-3 lg:grid-cols-[minmax(240px,0.8fr)_auto] lg:items-end"
+                  className={`grid gap-3 lg:items-end ${
+                    isSurveyVoteFlow
+                      ? "lg:grid-cols-[minmax(220px,0.7fr)_minmax(240px,0.9fr)_auto]"
+                      : "lg:grid-cols-[minmax(240px,0.8fr)_auto]"
+                  }`}
                   data-testid="native-flow-test-controls"
                 >
                   <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-test-recipient">
@@ -2090,17 +2200,54 @@ const MetaPlatformPanel = ({
                         sendRequestSequence.current += 1;
                         setTestRecipient(event.target.value.slice(0, 32));
                         setSendConfirmation("");
+                        setApprovedSendFingerprint("");
                         setSendResultMessage("");
                         setRecipientValidation("idle");
+                        setSurveyContextValidation("idle");
+                        setAuthorizedSurveyContext(null);
                       }}
                     />
                   </label>
+                  {isSurveyVoteFlow ? (
+                    <label className="grid gap-1.5 text-xs font-semibold text-foreground" htmlFor="meta-flow-test-survey-slug">
+                      Slug o token publico de encuesta
+                      <Input
+                        id="meta-flow-test-survey-slug"
+                        type="text"
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        required
+                        maxLength={160}
+                        aria-describedby={surveyHelpId}
+                        aria-invalid={surveyContextAuthorized ? false : surveyContextRejected ? true : undefined}
+                        placeholder="presupuesto-participativo-2026"
+                        value={surveySlug}
+                        onChange={(event) => {
+                          sendRequestSequence.current += 1;
+                          setSurveySlug(event.target.value);
+                          setSendConfirmation("");
+                          setApprovedSendFingerprint("");
+                          setSendResultMessage("");
+                          setRecipientValidation("idle");
+                          setSurveyContextValidation("idle");
+                          setAuthorizedSurveyContext(null);
+                        }}
+                      />
+                    </label>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={!selectedFlowId || !recipientHasE164Shape || sendOperation !== null || operation !== null}
+                      disabled={
+                        !selectedFlowId ||
+                        !recipientHasE164Shape ||
+                        (isSurveyVoteFlow && !hasSurveySlug) ||
+                        sendOperation !== null ||
+                        operation !== null
+                      }
                       onClick={() => sendTestFlow("dry")}
                     >
                       {sendOperation === "dry" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
@@ -2109,7 +2256,7 @@ const MetaPlatformPanel = ({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!sendConfirmation || sendOperation !== null || operation !== null}
+                      disabled={!sendDryRunApproved || sendOperation !== null || operation !== null}
                       onClick={() => sendTestFlow("execute")}
                     >
                       {sendOperation === "execute" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
@@ -2127,6 +2274,22 @@ const MetaPlatformPanel = ({
                 >
                   {recipientHelpText}
                 </p>
+                {isSurveyVoteFlow ? (
+                  <p
+                    id={surveyHelpId}
+                    className={`min-h-5 text-xs ${
+                      surveyContextAuthorized
+                        ? "text-emerald-700 dark:text-emerald-300"
+                        : surveyContextRejected
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                    }`}
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    {surveyHelpText}
+                  </p>
+                ) : null}
               </div>
               {sendResultMessage ? (
                 <p
