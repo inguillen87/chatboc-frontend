@@ -333,10 +333,11 @@ const Integracion = () => {
   }
 
   // Helpers to safely access nested config
-  const getWidgetConfig = () => config.configs.widget["default"] || {};
-  const getContactsConfig = () => config.configs.contacts["default"] || {};
-  const getLinksConfig = () => config.configs.links["default"] || { items: [] };
-  const getMenuConfig = () => config.configs.menu["default"] || { version: 1, main_menu: [], submenus: {} };
+  const getWidgetConfig = () => config.configs?.widget?.["default"] || {};
+  const getContactsConfig = () => config.configs?.contacts?.["default"] || {};
+  const getLinksConfig = () => config.configs?.links?.["default"] || { items: [] };
+  const getMenuConfig = () =>
+    config.configs?.menu?.["default"] || { version: 1, main_menu: [], submenus: {} };
 
   return (
     <div className="container mx-auto max-w-7xl p-6">

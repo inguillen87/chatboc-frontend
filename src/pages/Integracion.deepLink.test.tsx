@@ -112,4 +112,17 @@ describe("Integracion deep links", () => {
     });
     expect(screen.getByRole("tab", { name: /whatsapp/i })).toHaveAttribute("data-state", "active");
   });
+
+  it("renders tenants whose optional configuration namespaces are not initialized yet", async () => {
+    mockedTenantService.getTenantConfig.mockResolvedValue({
+      ...baseConfig,
+      configs: {},
+    } as any);
+
+    renderPage("/integracion");
+
+    expect(await screen.findByRole("heading", { name: /Integraci.n y Configuraci.n/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("data-state", "active");
+    expect(screen.queryByText("Ocurri. un error inesperado", { exact: false })).not.toBeInTheDocument();
+  });
 });

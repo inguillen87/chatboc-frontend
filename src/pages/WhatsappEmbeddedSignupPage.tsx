@@ -45,6 +45,9 @@ type SignupPayload = {
   code?: string | null;
 };
 
+const isOnlyWabaCompletion = (event: SignupPayload["event"]) =>
+  event === "FINISH_ONLY_WABA";
+
 type MetaSignupMessage = {
   type?: string;
   event?: string;
@@ -169,7 +172,8 @@ export default function WhatsappEmbeddedSignupPage() {
       };
 
       const payload = signupDataRef.current;
-      const waitingForAccountIds = !payload.waba_id || !payload.phone_number_id;
+      const waitingForAccountIds =
+        !payload.waba_id || (!isOnlyWabaCompletion(payload.event) && !payload.phone_number_id);
       const waitingForCode = !payload.code;
       if (!tenant || completedRef.current || waitingForAccountIds || waitingForCode) {
         if (tenant && !completedRef.current) {
@@ -195,10 +199,7 @@ export default function WhatsappEmbeddedSignupPage() {
           event: payload.event ?? "FINISH",
           business_id: payload.business_id,
         });
-        setResult({
-          ...payload,
-          event: "FINISH",
-        });
+        setResult(payload);
         setStatus(response?.next_action === "register_whatsapp_sender_via_senders_api"
           ? "Registro guardado. Falta registrar el sender productivo con Twilio."
           : "Registro guardado correctamente.");
@@ -252,7 +253,7 @@ export default function WhatsappEmbeddedSignupPage() {
         session_id: data.session_id ?? data.sessionId ?? null,
       };
 
-      if (message.event === "FINISH") {
+      if (message.event === "FINISH" || message.event === "FINISH_ONLY_WABA") {
         void completeSignup(nextPayload);
         return;
       }
@@ -323,7 +324,10 @@ export default function WhatsappEmbeddedSignupPage() {
       id: "meta",
       label: "Autorizar con Meta",
       detail: "La organización selecciona su cuenta y número dentro del flujo oficial.",
-      done: Boolean(result?.waba_id && result?.phone_number_id),
+      done: Boolean(
+        result?.waba_id &&
+          (isOnlyWabaCompletion(result.event) || result.phone_number_id),
+      ),
       active: sdkReady && !result && !saving,
       icon: ShieldCheck,
     },
@@ -488,7 +492,10 @@ export default function WhatsappEmbeddedSignupPage() {
                   <p className="font-medium">{status}</p>
                   {result ? (
                     <p className="mt-1 text-sm text-muted-foreground">
-                      WABA {result.waba_id} - Numero {result.phone_number_id}
+                      WABA {result.waba_id}
+                      {result.phone_number_id
+                        ? ` - Número ${result.phone_number_id}`
+                        : " - Número pendiente de registro"}
                     </p>
                   ) : null}
                 </div>

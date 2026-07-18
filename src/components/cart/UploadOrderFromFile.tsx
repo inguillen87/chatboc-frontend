@@ -300,10 +300,17 @@ const DOCUMENT_TYPES = [
 ] as const;
 
 type DocumentType = (typeof DOCUMENT_TYPES)[number]['value'];
+type DocumentTypeSelection = DocumentType | 'auto';
 type DocumentTypeOption = {
   value: DocumentType;
   label: string;
   helper: string;
+};
+
+const AUTO_DOCUMENT_TYPE_OPTION = {
+  value: 'auto' as const,
+  label: 'Detección automática',
+  helper: 'Chatboc clasifica la solicitud a partir del archivo o texto. Podés corregirla si ya conocés el tipo.',
 };
 
 const normalizeContractName = (value: string | null | undefined) => value?.trim() ?? '';
@@ -358,7 +365,7 @@ const createAssistedIntakeIdempotencyKey = (
   ].join(':');
 };
 
-const shouldUseAssistedIntakeIdempotency = (endpoint: string) => /\/pedidos\/from-file/i.test(endpoint);
+const isStandardAssistedIntakeEndpoint = (endpoint: string) => /\/pedidos\/from-file/i.test(endpoint);
 
 const buildSubmitTextFields = (primaryField: string, endpoint: string) => {
   const primary = normalizeContractName(primaryField);
@@ -1068,7 +1075,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [matchSummary, setMatchSummary] = useState<AssistedOrderUploadResponse['match_summary'] | null>(null);
   const [processedResponse, setProcessedResponse] = useState<AssistedOrderUploadResponse | null>(null);
-  const [documentType, setDocumentType] = useState<DocumentType>('order_note');
+  const [documentType, setDocumentType] = useState<DocumentTypeSelection>(
+    variant === 'marketplace' ? 'auto' : 'order_note',
+  );
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -1111,7 +1120,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
 
   useEffect(() => {
     if (!isDocumentType(suggestedDocumentType)) return;
-    setDocumentType((current) => (current === 'order_note' ? suggestedDocumentType : current));
+    setDocumentType((current) => (current === 'auto' || current === 'order_note' ? suggestedDocumentType : current));
   }, [suggestedDocumentType]);
 
   const selectedDocumentType = useMemo(
@@ -1135,15 +1144,21 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       .filter((item): item is DocumentTypeOption => Boolean(item));
     return normalized.length ? normalized : [...DOCUMENT_TYPES];
   }, [intakeEntry?.document_types]);
-  const activeDocumentType = useMemo(
-    () => documentTypeOptions.find((item) => item.value === documentType) ?? selectedDocumentType,
-    [documentType, documentTypeOptions, selectedDocumentType],
-  );
-
   const intakeExperience = processedResponse?.intake_experience ?? intakeEntry ?? null;
   const submitContract = intakeExperience?.submit ?? null;
   const hasExplicitIntakeContract = Boolean(intakeExperience);
   const submitEndpoint = submitContract?.endpoint || (!hasExplicitIntakeContract ? '/api/pedidos/from-file?origen=marketplace' : '');
+  const supportsAutomaticDocumentType = isMarketplace && isStandardAssistedIntakeEndpoint(submitEndpoint);
+  const effectiveDocumentType: DocumentTypeSelection =
+    documentType === 'auto' && !supportsAutomaticDocumentType ? 'order_note' : documentType;
+  const submissionDocumentType = effectiveDocumentType === 'auto' ? null : effectiveDocumentType;
+  const activeDocumentType = useMemo(
+    () =>
+      effectiveDocumentType === 'auto'
+        ? AUTO_DOCUMENT_TYPE_OPTION
+        : documentTypeOptions.find((item) => item.value === effectiveDocumentType) ?? selectedDocumentType,
+    [documentTypeOptions, effectiveDocumentType, selectedDocumentType],
+  );
   const canSubmitToServer = !isMarketplace || Boolean(submitEndpoint);
   const submitDisabled = uploading || !canSubmitToServer || turnstileUnavailable;
   const submitMethod = (submitContract?.method || 'POST').toUpperCase() === 'POST' ? 'POST' : 'POST';
@@ -1277,7 +1292,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
     setStatusMessage(
       file
         ? `Subiendo ${file.name} y preparando lectura...`
-        : `Analizando ${activeDocumentType.label.toLowerCase()} para separar articulos y datos...`,
+        : submissionDocumentType
+          ? `Analizando ${activeDocumentType.label.toLowerCase()} para separar articulos y datos...`
+          : 'Analizando el contenido para detectar el tipo y separar artículos y datos...',
     );
     setProgress(10);
 
@@ -1287,7 +1304,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       const idempotencyFingerprint = JSON.stringify([
         endpoint,
         effectiveTenantSlug ?? 'global',
-        documentType,
+        submissionDocumentType ?? 'auto',
         inputMode,
         file ? `${file.name}:${file.size}:${file.type}:${file.lastModified}` : normalizedText,
         contactName.trim(),
@@ -1296,12 +1313,12 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         contactNotes.trim(),
       ]);
       let idempotencyKey: string | null = null;
-      if (shouldUseAssistedIntakeIdempotency(endpoint)) {
+      if (isStandardAssistedIntakeEndpoint(endpoint)) {
         const cached = assistedIntakeIdempotencyRef.current;
         if (!cached || cached.fingerprint !== idempotencyFingerprint) {
           assistedIntakeIdempotencyRef.current = {
             fingerprint: idempotencyFingerprint,
-            key: createAssistedIntakeIdempotencyKey(effectiveTenantSlug, documentType, inputMode),
+            key: createAssistedIntakeIdempotencyKey(effectiveTenantSlug, submissionDocumentType ?? 'auto', inputMode),
           };
         }
         idempotencyKey = assistedIntakeIdempotencyRef.current.key;
@@ -1316,7 +1333,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           formData.append(fieldName, normalizedText);
         });
       }
-      formData.append(submitDocumentTypeField, documentType);
+      if (submissionDocumentType) {
+        formData.append(submitDocumentTypeField, submissionDocumentType);
+      }
       const contactValues: Record<string, string> = {
         contact_name: contactName.trim(),
         contact_phone: contactPhone.trim(),
@@ -1848,7 +1867,9 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                       {pendingFile.name} - {formatPendingFileSize(pendingFile.size)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Confirma el tipo de archivo y deja un contacto si queres que el equipo responda mas rapido.
+                      {effectiveDocumentType === 'auto'
+                        ? 'Chatboc detectará el tipo al procesarlo. Dejá un contacto si querés que el equipo responda más rápido.'
+                        : 'Usaremos la clasificación elegida. Dejá un contacto si querés que el equipo responda más rápido.'}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col gap-2 sm:w-auto">
@@ -1951,18 +1972,40 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             ) : null}
 
             <fieldset>
-              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de archivo</legend>
+              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clasificación</legend>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Dejala en automático para avanzar sin elegir una categoría. Usá una opción manual solo si necesitás corregirla.
+              </p>
               <div className="mt-2 grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Tipo de archivo o solicitud">
+                {supportsAutomaticDocumentType ? (
+                  <button
+                    type="button"
+                    data-testid="assisted-document-type-auto"
+                    aria-pressed={effectiveDocumentType === 'auto'}
+                    disabled={uploading}
+                    onClick={() => setDocumentType('auto')}
+                    className={cn(
+                      'min-w-0 rounded-lg border p-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      effectiveDocumentType === 'auto' ? 'border-primary bg-primary/10 text-primary' : 'bg-background',
+                    )}
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="break-words text-sm font-semibold">{AUTO_DOCUMENT_TYPE_OPTION.label}</span>
+                      <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
+                    </span>
+                    <span className="mt-1 block break-words text-xs text-muted-foreground">{AUTO_DOCUMENT_TYPE_OPTION.helper}</span>
+                  </button>
+                ) : null}
                 {documentTypeOptions.map((item) => (
                   <button
                     key={item.value}
                     type="button"
-                    aria-pressed={documentType === item.value}
+                    aria-pressed={effectiveDocumentType === item.value}
                     disabled={uploading}
                     onClick={() => setDocumentType(item.value)}
                     className={cn(
                       'min-w-0 rounded-lg border p-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      documentType === item.value ? 'border-primary bg-primary/10 text-primary' : 'bg-background',
+                      effectiveDocumentType === item.value ? 'border-primary bg-primary/10 text-primary' : 'bg-background',
                     )}
                   >
                     <span className="block break-words text-sm font-semibold">{item.label}</span>

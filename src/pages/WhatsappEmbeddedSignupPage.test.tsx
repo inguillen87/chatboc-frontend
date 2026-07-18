@@ -101,6 +101,53 @@ describe("WhatsappEmbeddedSignupPage", () => {
     consoleLogSpy.mockRestore();
   });
 
+  it("accepts FINISH_ONLY_WABA without waiting for a phone number id", async () => {
+    renderPage();
+
+    const startButton = await screen.findByRole("button", { name: /iniciar registro con meta/i });
+    await waitFor(() => expect(startButton).not.toBeDisabled());
+    fireEvent.click(startButton);
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          origin: "https://www.facebook.com",
+          data: JSON.stringify({
+            type: "WA_EMBEDDED_SIGNUP",
+            event: "FINISH_ONLY_WABA",
+            data: {
+              waba_id: "waba-123",
+              session_id: "session-789",
+            },
+          }),
+        }),
+      );
+    });
+
+    expect((await screen.findAllByText(/esperando codigo de autorizacion/i)).length).toBeGreaterThan(0);
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+
+    await act(async () => {
+      loginCallback?.({
+        status: "connected",
+        authResponse: { code: "meta-code" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledWith("junin-1", {
+        waba_id: "waba-123",
+        phone_number_id: null,
+        session_id: "session-789",
+        code: "meta-code",
+        event: "FINISH_ONLY_WABA",
+        business_id: null,
+      });
+    });
+    expect(await screen.findByText(/n.mero pendiente de registro/i)).toBeInTheDocument();
+    expect(screen.getByText("Autorizar con Meta").closest("li")).toHaveTextContent("Completado");
+  });
+
   it("keeps a recoverable return path when the Meta configuration is incomplete", async () => {
     const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     renderPage("/integracion/whatsapp/connect");

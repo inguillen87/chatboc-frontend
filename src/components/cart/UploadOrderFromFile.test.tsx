@@ -66,6 +66,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(screen.getByText('Lectura ordenada')).toBeInTheDocument();
     expect(screen.getByText('Solicitud en panel')).toBeInTheDocument();
     expect(screen.getByText('Respuesta y seguimiento')).toBeInTheDocument();
+    expect(screen.getByTestId('assisted-document-type-auto')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Nota de pedido/i })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('submits Cloudflare Turnstile token when marketplace protection is configured', async () => {
@@ -352,7 +354,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     render(<UploadOrderFromFile tenantSlug="junin" variant="marketplace" />);
 
-    expect(screen.getByRole('button', { name: /Nota de pedido/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('assisted-document-type-auto')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.change(screen.getByLabelText('Nombre'), {
       target: { value: 'Marcelo' },
@@ -389,14 +391,14 @@ describe('UploadOrderFromFile marketplace intake', () => {
     const options = apiFetchMock.mock.calls[0][1];
     expect(options.headers).toEqual(
       expect.objectContaining({
-        'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:order_note:text:/),
+        'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:auto:text:/),
       }),
     );
-    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
+    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:auto:text:/));
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
     expect(body.get('texto_pedido')).toBe('2 chapas galvanizadas');
     expect(body.get('order_text')).toBe('2 chapas galvanizadas');
-    expect(body.get('document_type')).toBe('order_note');
+    expect(body.get('document_type')).toBeNull();
     expect(body.get('tenant')).toBe('junin');
     expect(body.get('tenant_slug')).toBe('junin');
     expect(body.get('contact_name')).toBe('Marcelo');
@@ -690,7 +692,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
           headers: {
             'X-Tenant': 'junin',
             'X-Checkout-Origin': 'marketplace',
-            'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:order_note:text:/),
+            'Idempotency-Key': expect.stringMatching(/^assisted_intake:junin:auto:text:/),
           },
         }),
       );
@@ -698,7 +700,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const body = apiFetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('pedido_text')).toBe('2 chapas galvanizadas');
-    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
+    expect(body.get('idempotency_key')).toEqual(expect.stringMatching(/^assisted_intake:junin:auto:text:/));
     expect(body.get('X-Tenant')).toBeNull();
     expect(body.get('tenant')).toBeNull();
     expect(body.get('tenant_slug')).toBeNull();
@@ -730,7 +732,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     const firstHeaders = apiFetchMock.mock.calls[0][1].headers as Record<string, string>;
     const secondHeaders = apiFetchMock.mock.calls[1][1].headers as Record<string, string>;
-    expect(firstHeaders['Idempotency-Key']).toEqual(expect.stringMatching(/^assisted_intake:junin:order_note:text:/));
+    expect(firstHeaders['Idempotency-Key']).toEqual(expect.stringMatching(/^assisted_intake:junin:auto:text:/));
     expect(secondHeaders['Idempotency-Key']).toBe(firstHeaders['Idempotency-Key']);
     expect((apiFetchMock.mock.calls[1][1].body as FormData).get('idempotency_key')).toBe(firstHeaders['Idempotency-Key']);
   });
@@ -751,7 +753,7 @@ describe('UploadOrderFromFile marketplace intake', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear solicitud/i }));
 
     expect(await screen.findByText('Procesando solicitud')).toBeInTheDocument();
-    expect(screen.getByText(/Analizando nota de pedido para separar articulos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Analizando el contenido para detectar el tipo y separar art.culos/i)).toBeInTheDocument();
     expect(screen.getByText('Recibimos la entrada')).toBeInTheDocument();
     expect(screen.getByText('Identificamos datos')).toBeInTheDocument();
     expect(screen.getByText('El equipo lo recibe')).toBeInTheDocument();
