@@ -221,6 +221,27 @@ const actionLabel = (value?: string | null) => {
   return labels[normalized] ?? normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
+const statusDisplayLabel = (value?: string | null) => {
+  const normalized = normalizeStatus(value);
+  const labels: Record<string, string> = {
+    active: "Operativo",
+    approved: "Aprobado",
+    completed: "Completado",
+    connected: "Conectado",
+    done: "Listo",
+    online: "En linea",
+    pending: "Pendiente",
+    pending_meta_signup: "Falta autorizar Meta",
+    provisioning_plan_ready: "Plan de activacion listo",
+    ready: "Listo",
+    register_whatsapp_sender_via_senders_api: "Registro del numero en curso",
+    review_required: "Requiere revision",
+    sender_attached: "Numero conectado",
+    waiting_for_meta: "Esperando aprobacion de Meta",
+  };
+  return labels[normalized] ?? actionLabel(value);
+};
+
 const limitationLabel = (item: string | Record<string, unknown>) =>
   typeof item === "string" ? item.trim() : readText(item.label, item.title, item.message, item.detail, item.description);
 
@@ -272,9 +293,10 @@ const extractContract = (response: any): TechProviderContract | null => {
 };
 
 const StatusPill = ({ value }: { value?: string | null }) => {
-  const label = readText(value) ?? "pendiente";
-  const ready = isReadyStatus(label);
-  const pending = isPendingStatus(label);
+  const rawLabel = readText(value) ?? "pending";
+  const label = statusDisplayLabel(rawLabel);
+  const ready = isReadyStatus(rawLabel);
+  const pending = isPendingStatus(rawLabel);
   const tone = ready
     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
     : pending
@@ -521,6 +543,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     if (status === "register_whatsapp_sender_via_senders_api") return "Activación en proceso";
     return status;
   }, [contract?.next_action, contract?.status]);
+
+  const primaryStatus = readText(state?.sender_status, statusLabel, contract?.status, "pending");
 
   const hasMetaAccount = Boolean(state?.waba_id && state?.phone_number_id);
   const hasSender = Boolean(state?.sender_id || state?.sender_sid);
@@ -1047,9 +1071,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
           </div>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <div className="flex flex-wrap gap-2">
-            <StatusPill value={state?.sender_status || contract?.status} />
-            {statusLabel ? <StatusPill value={statusLabel} /> : null}
+          <div data-testid="whatsapp-onboarding-primary-status" className="flex flex-wrap gap-2">
+            <StatusPill value={primaryStatus} />
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

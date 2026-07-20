@@ -321,8 +321,8 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("987654321")).toBeInTheDocument();
     expect(screen.getByText("whatsapp:+18564858589")).toBeInTheDocument();
     expect(screen.getByText("XESENDER123")).toBeInTheDocument();
-    expect(screen.getAllByText("online").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ready").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("En linea").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Listo").length).toBeGreaterThan(0);
     expect(screen.getByText("Checklist operativo")).toBeInTheDocument();
     expect(screen.getByText("QA final del tenant")).toBeInTheDocument();
     expect(screen.getAllByText("Templates y webviews WhatsApp").length).toBeGreaterThan(0);
@@ -345,6 +345,26 @@ describe("WhatsappTechProviderOnboarding", () => {
 
     expect(mockedTenantService.getWhatsappTechProvider).toHaveBeenCalledWith("junin-1");
     expect(mockedGetTenantOpsQaPlaybookV2).toHaveBeenCalledWith("junin-1");
+  });
+
+  it("shows one human-readable primary status instead of duplicated provider codes", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValueOnce({
+      contract: {
+        ...baseContract,
+        status: "provisioning_plan_ready",
+        state: {
+          ...baseContract.state,
+          sender_status: "provisioning_plan_ready",
+        },
+      },
+    });
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    const primaryStatus = await screen.findByTestId("whatsapp-onboarding-primary-status");
+    expect(primaryStatus).toHaveTextContent("Plan de activacion listo");
+    expect(primaryStatus).not.toHaveTextContent("provisioning_plan_ready");
+    expect(primaryStatus.querySelectorAll("span")).toHaveLength(1);
   });
 
   it("updates the visible contract after preparing activation", async () => {
