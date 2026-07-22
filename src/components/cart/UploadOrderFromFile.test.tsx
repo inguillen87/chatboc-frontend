@@ -754,9 +754,10 @@ describe('UploadOrderFromFile marketplace intake', () => {
 
     expect(await screen.findByText('Procesando solicitud')).toBeInTheDocument();
     expect(screen.getByText(/Analizando el contenido para detectar el tipo y separar art.culos/i)).toBeInTheDocument();
-    expect(screen.getByText('Recibimos la entrada')).toBeInTheDocument();
-    expect(screen.getByText('Identificamos datos')).toBeInTheDocument();
-    expect(screen.getByText('El equipo lo recibe')).toBeInTheDocument();
+    expect(screen.getByText('Entrada seleccionada')).toBeInTheDocument();
+    expect(screen.getByText('Analizando datos')).toBeInTheDocument();
+    expect(screen.getByText('Preparando la solicitud')).toBeInTheDocument();
+    expect(screen.queryByText('Datos identificados')).not.toBeInTheDocument();
 
     resolveRequest({
       contract_version: 'marketplace.assisted_request.v1',
@@ -765,6 +766,8 @@ describe('UploadOrderFromFile marketplace intake', () => {
     });
 
     expect(await screen.findByText(/Solicitud procesada: quedo lista/i)).toBeInTheDocument();
+    expect(screen.getByText('Datos identificados')).toBeInTheDocument();
+    expect(screen.getByText('Solicitud lista')).toBeInTheDocument();
   });
 
   it('labels partial 200 responses as manual review instead of automatic processing', async () => {
@@ -795,6 +798,9 @@ describe('UploadOrderFromFile marketplace intake', () => {
     expect(screen.getByText(/requiere revision manual antes de responder/i)).toBeInTheDocument();
     expect(screen.getByText(/No se genero un borrador editable automatico/i)).toBeInTheDocument();
     expect(screen.getByText('Revision manual que recibe el equipo')).toBeInTheDocument();
+    expect(screen.getByText('Lectura para revisar')).toBeInTheDocument();
+    expect(screen.getByText('Caso enviado al equipo')).toBeInTheDocument();
+    expect(screen.queryByText('Datos identificados')).not.toBeInTheDocument();
     expect(screen.queryByText(/Solicitud procesada: quedo lista/i)).not.toBeInTheDocument();
   });
 

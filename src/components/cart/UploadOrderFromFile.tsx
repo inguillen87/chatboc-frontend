@@ -564,18 +564,18 @@ const ASSISTED_OUTCOMES = [
 const PROCESSING_STEPS = [
   {
     id: 'capture',
-    label: 'Recibimos la entrada',
-    description: 'Archivo, foto, PDF o texto queda asociado al espacio.',
+    label: 'Entrada seleccionada',
+    description: 'Archivo, foto, PDF o texto listo para iniciar la lectura.',
   },
   {
     id: 'ai_parse',
-    label: 'Identificamos datos',
-    description: 'Articulos, cantidades, reclamo, tramite y datos que falten.',
+    label: 'Analizando datos',
+    description: 'Buscamos articulos, cantidades, reclamos, tramites y datos faltantes.',
   },
   {
     id: 'crm_ready',
-    label: 'El equipo lo recibe',
-    description: 'Queda listo para responder por WhatsApp, chat, mail o telefono.',
+    label: 'Preparando la solicitud',
+    description: 'Armamos la referencia y el contexto antes de enviarlos al equipo.',
   },
 ];
 
@@ -1541,6 +1541,43 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
   const customerNextSteps = processedResponse?.customer_next_steps ?? [];
   const requestId = processedResponse?.pedido_id ?? processedResponse?.lead_id ?? null;
   const needsManualReview = isAssistedUploadManualReview(processedResponse);
+  const requestJourneySteps = processedResponse
+    ? needsManualReview
+      ? [
+          {
+            id: 'capture',
+            label: 'Entrada conservada',
+            description: 'El archivo o texto original quedo asociado a la referencia.',
+          },
+          {
+            id: 'ai_parse',
+            label: 'Lectura para revisar',
+            description: 'La IA no confirmo todos los datos y dejo las advertencias visibles.',
+          },
+          {
+            id: 'crm_ready',
+            label: 'Caso enviado al equipo',
+            description: 'Quedo en revision manual para responder sin perder el contenido original.',
+          },
+        ]
+      : [
+          {
+            id: 'capture',
+            label: 'Entrada conservada',
+            description: 'El archivo o texto original quedo asociado a la referencia.',
+          },
+          {
+            id: 'ai_parse',
+            label: 'Datos identificados',
+            description: 'Articulos, cantidades y contexto ya fueron extraidos para revision.',
+          },
+          {
+            id: 'crm_ready',
+            label: 'Solicitud lista',
+            description: 'El equipo recibio el borrador, la referencia y los proximos pasos.',
+          },
+        ]
+    : PROCESSING_STEPS;
   const operationalResult = isRecord(processedResponse?.operational_result)
     ? processedResponse.operational_result
     : null;
@@ -2141,14 +2178,18 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           </div>
           {uploading ? <Progress value={progress} className="mt-3 h-2" /> : null}
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {PROCESSING_STEPS.map((step, index) => {
+            {requestJourneySteps.map((step, index) => {
               const isActive = uploading && progress >= index * 35;
+              const isConfirmed = Boolean(processedResponse);
               return (
                 <div
                   key={step.id}
+                  data-state={isConfirmed ? (needsManualReview ? 'manual-review' : 'confirmed') : isActive ? 'active' : 'pending'}
                   className={cn(
                     'min-w-0 rounded-md border bg-background px-3 py-2 text-xs',
                     isActive && 'border-primary/40 bg-primary/5',
+                    isConfirmed && !needsManualReview && 'border-emerald-300/70 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/20',
+                    isConfirmed && needsManualReview && 'border-amber-300/70 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/20',
                   )}
                 >
                   <p className="break-words font-semibold">{step.label}</p>
