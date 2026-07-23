@@ -13,7 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, Target, UserRound } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
 import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
 import type { Ticket } from '@/types/tickets';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
@@ -989,14 +989,25 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {nextPriorityTicket ? (
                 <div
                   data-testid="tickets-next-priority-strip"
-                  className="flex shrink-0 items-center gap-1 md:hidden"
+                  className="flex shrink-0 items-center gap-1.5"
+                  title={`${nextPriorityCrmQueue?.label || nextPriorityLabel}: #${nextPriorityTicket.nro_ticket || nextPriorityTicket.id} ${nextPriorityLabel}. ${nextPriorityCrmQueue?.reason || ''}`.trim()}
                 >
-                  <span className="hidden font-semibold uppercase tracking-[0.08em] min-[980px]:inline">
-                    Siguiente prioridad
+                  <span className="hidden font-semibold uppercase tracking-[0.08em] min-[1280px]:inline">
+                    Siguiente
                   </span>
-                  <span className="hidden max-w-[10rem] truncate font-semibold text-foreground min-[480px]:block min-[920px]:max-w-[11rem]">
-                    #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityLabel}
+                  <span className="hidden max-w-[10rem] truncate font-semibold text-foreground min-[520px]:block min-[1180px]:max-w-[12rem]">
+                    #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityCrmQueue?.label || nextPriorityLabel}
                   </span>
+                  {nextPriorityCrmQueue ? (
+                    <Badge variant="outline" className="hidden shrink-0 rounded-full text-[10px] min-[1360px]:inline-flex">
+                      Score {nextPriorityCrmQueue.score.toLocaleString('es-AR')}
+                    </Badge>
+                  ) : null}
+                  {nextPriorityCrmQueue ? (
+                    <span className="sr-only">
+                      Asunto: {nextPriorityLabel}. {nextPriorityCrmQueue.reason}
+                    </span>
+                  ) : null}
                   <Button
                     type="button"
                     variant={isNextPrioritySelected ? 'secondary' : 'default'}
@@ -1004,7 +1015,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                     className="h-7 rounded-full px-2 text-xs"
                     disabled={isNextPrioritySelected}
                     aria-label={
-                      isNextPrioritySelected ? 'Prioridad en atencion' : 'Atender siguiente prioridad'
+                      isNextPrioritySelected
+                        ? 'Prioridad en atencion'
+                        : `Atender siguiente prioridad ${nextPriorityTicket.nro_ticket || nextPriorityTicket.id}: ${nextPriorityCrmQueue?.label || nextPriorityLabel}. ${nextPriorityLabel}`
                     }
                     onClick={() => selectTicket(nextPriorityTicket.id)}
                   >
@@ -1177,50 +1190,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
             ]}
           />
-        </div>
-      ) : null}
-      {embedded && nextPriorityTicket && nextPriorityCrmQueue ? (
-        <div className="hidden shrink-0 border-b border-border/70 bg-background/70 px-2.5 py-1.5 sm:px-3 md:block" data-testid="tickets-queue-command-card">
-          <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2 shadow-sm min-[860px]:flex-row min-[860px]:items-center min-[860px]:justify-between">
-            <div className="flex min-w-0 items-start gap-2">
-              <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-background/90 text-primary">
-                <Target className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary" className="rounded-full text-[10px] uppercase tracking-[0.12em]">
-                    Proxima accion
-                  </Badge>
-                  <Badge variant="outline" className="rounded-full text-[11px]">
-                    Score {nextPriorityCrmQueue.score.toLocaleString('es-AR')}
-                  </Badge>
-                  {nextPriorityCrmQueue.badges.slice(0, 3).map((badge) => (
-                    <Badge key={badge.id || badge.label} variant="outline" className="rounded-full text-[11px]">
-                      {badge.label || badge.id}
-                    </Badge>
-                  ))}
-                </div>
-                <p className="mt-1 truncate text-sm font-semibold text-foreground">
-                  {nextPriorityCrmQueue.label}: #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} - {nextPriorityLabel}
-                </p>
-                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-                  {nextPriorityCrmQueue.reason}
-                </p>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant={isNextPrioritySelected ? 'secondary' : 'default'}
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs"
-              disabled={isNextPrioritySelected}
-              aria-label={isNextPrioritySelected ? 'Prioridad recomendada en atencion' : 'Atender prioridad recomendada'}
-              onClick={() => selectTicket(nextPriorityTicket.id)}
-            >
-              <span>{isNextPrioritySelected ? 'En foco' : 'Atender'}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
         </div>
       ) : null}
       {isMobile ? (

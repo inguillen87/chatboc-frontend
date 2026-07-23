@@ -533,14 +533,13 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
-    expect(screen.getByTestId('tickets-next-priority-strip')).toHaveClass('md:hidden');
-    expect(screen.getByTestId('tickets-next-priority-strip')).not.toHaveClass('hidden');
-    expect(screen.getByTestId('tickets-queue-command-card')).toHaveClass('hidden', 'md:block');
-    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Proxima accion');
-    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Responder ahora');
-    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Score 135');
-    expect(screen.getByTestId('tickets-queue-command-card')).toHaveTextContent('Hay actividad del vecino');
-    fireEvent.click(screen.getByRole('button', { name: /atender prioridad recomendada/i }));
+    const priorityStrip = screen.getByTestId('tickets-next-priority-strip');
+    expect(priorityStrip).not.toHaveClass('hidden', 'md:hidden');
+    expect(priorityStrip).toHaveTextContent('Responder ahora');
+    expect(priorityStrip).toHaveTextContent('Score 135');
+    expect(priorityStrip).toHaveTextContent('Hay actividad del vecino');
+    expect(screen.queryByTestId('tickets-queue-command-card')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /atender siguiente prioridad/i }));
 
     expect(selectTicket).toHaveBeenCalledWith(2);
   });
