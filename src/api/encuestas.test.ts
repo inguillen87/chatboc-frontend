@@ -8,9 +8,12 @@ vi.mock('@/utils/api', () => ({
   ApiError: class ApiError extends Error {
     status: number;
     body?: Record<string, unknown>;
-    constructor(message: string, status = 500) {
+    requestId?: string;
+    constructor(message: string, status = 500, body?: Record<string, unknown>, requestId?: string) {
       super(message);
       this.status = status;
+      this.body = body;
+      this.requestId = requestId;
     }
   },
 }));
@@ -20,15 +23,144 @@ import {
   adminPublishSurvey,
   getSurveyDashboardBundle,
   getHeatmap,
+  getSummary,
   getPublicSurvey,
   getPublicSurveyLiveResults,
   getSurveyComments,
   listPublicSurveys,
   normalizePublicSurveyLiveResults,
+  normalizeSurveySummary,
   postPublicResponse,
   postSurveyComment,
 } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
+import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
+
+describe('survey summary eligibility contract', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('normalizes eligibility denominators and independent option rates', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      total_respuestas: '2',
+      participantes_unicos: '2',
+      tasa_completitud: '100',
+      preguntas: [
+        {
+          pregunta_id: '10',
+          texto: 'Servicios utilizados',
+          tipo_interno: 'opcion_multiple',
+          total_respuestas: '2',
+          respuestas_elegibles: '1',
+          respuestas_respondidas: '1',
+          tasa_respuesta_elegible: '100',
+          opciones: [
+            {
+              opcion_id: 'a',
+              texto: 'WhatsApp',
+              conteo: '1',
+              porcentaje: '50',
+              respuestas_seleccionaron: '1',
+              porcentaje_total_encuesta: '50',
+              porcentaje_elegibles: '100',
+              porcentaje_respuestas_pregunta: '100',
+            },
+            {
+              opcion_id: 'b',
+              texto: 'Web',
+              conteo: '1',
+              porcentaje: '50',
+              respuestas_seleccionaron: '1',
+              porcentaje_total_encuesta: '50',
+              porcentaje_elegibles: '100',
+              porcentaje_respuestas_pregunta: '100',
+            },
+          ],
+        },
+        {
+          pregunta_id: 11,
+          texto: 'Nunca visible',
+          respuestas_elegibles: 0,
+          respuestas_respondidas: 0,
+          tasa_respuesta_elegible: 0,
+          opciones: [
+            {
+              opcion_id: 1,
+              texto: 'Sin selección',
+              conteo: 0,
+              porcentaje: 0,
+              respuestas_seleccionaron: 0,
+              porcentaje_total_encuesta: 0,
+              porcentaje_elegibles: 'NaN',
+              porcentaje_respuestas_pregunta: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const normalized = await getSummary(42);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/encuestas/42/analytics/resumen', {});
+    expect(normalized.total_respuestas).toBe(2);
+    expect(normalized.preguntas[0]).toMatchObject({
+      pregunta_id: 10,
+      respuestas_elegibles: 1,
+      respuestas_respondidas: 1,
+      tasa_respuesta_elegible: 100,
+    });
+    expect(normalized.preguntas[0].opciones).toEqual([
+      expect.objectContaining({
+        respuestas: 1,
+        respuestas_seleccionaron: 1,
+        porcentaje: 50,
+        porcentaje_total_encuesta: 50,
+        porcentaje_elegibles: 100,
+        porcentaje_respuestas_pregunta: 100,
+      }),
+      expect.objectContaining({
+        respuestas: 1,
+        respuestas_seleccionaron: 1,
+        porcentaje_elegibles: 100,
+      }),
+    ]);
+    expect(normalized.preguntas[1]).toMatchObject({
+      respuestas_elegibles: 0,
+      respuestas_respondidas: 0,
+      tasa_respuesta_elegible: 0,
+    });
+    expect(normalized.preguntas[1].opciones[0].porcentaje_elegibles).toBe(0);
+    expect(Number.isNaN(normalized.preguntas[1].opciones[0].porcentaje_elegibles)).toBe(false);
+  });
+
+  it('keeps legacy percentages and leaves eligibility fields absent', () => {
+    const normalized = normalizeSurveySummary({
+      total_respuestas: 4,
+      participantes_unicos: 3,
+      tasa_completitud: 75,
+      preguntas: [
+        {
+          pregunta_id: 1,
+          texto: 'Prioridad',
+          total_respuestas: 4,
+          opciones: [
+            { opcion_id: 1, texto: 'Luz', respuestas: 3, porcentaje: 75 },
+          ],
+        },
+      ],
+    });
+
+    expect(normalized.preguntas[0].respuestas_elegibles).toBeUndefined();
+    expect(normalized.preguntas[0].respuestas_respondidas).toBeUndefined();
+    expect(normalized.preguntas[0].tasa_respuesta_elegible).toBeUndefined();
+    expect(normalized.preguntas[0].opciones[0]).toMatchObject({
+      respuestas: 3,
+      porcentaje: 75,
+    });
+    expect(normalized.preguntas[0].opciones[0].porcentaje_elegibles).toBeUndefined();
+  });
+});
 
 describe('getHeatmap', () => {
   beforeEach(() => {
@@ -542,21 +674,61 @@ describe('normalizePublicSurveyLiveResults', () => {
 });
 
 describe('postPublicResponse', () => {
+  const durableAck = (
+    submissionId: string,
+    responseId: number,
+    options: { replayed?: boolean; contractVersion?: string; instrumentRevision?: number } = {},
+  ) => {
+    const replayed = options.replayed ?? false;
+    const instrumentRevision = options.instrumentRevision ?? 7;
+    return {
+      contract_version: options.contractVersion ?? 'surveys.public_response.v2',
+      ok: true,
+      persisted: true,
+      replayed,
+      respuesta_id: responseId,
+      response_id: responseId,
+      instrument_revision: instrumentRevision,
+      idempotency: {
+        contract_version: 'surveys.response_receipt.v1',
+        canonical_version: 'survey-response.v1',
+        receipt_id: responseId + 1000,
+        submission_id: submissionId,
+        response_id: responseId,
+        instrument_revision: instrumentRevision,
+        state: 'committed',
+        disposition: replayed ? 'replayed' : 'accepted',
+        persisted: true,
+        replayed,
+      },
+    };
+  };
+
   beforeEach(() => {
     apiFetchMock.mockReset();
     safeLocalStorage.removeItem('chatboc_public_chat_context');
   });
 
+  it('refuses an identity-derived key before issuing any request', () => {
+    expect(() => postPublicResponse('mi-encuesta', {
+      submission_id: 'dni-12345678',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    }, 'junin')).toThrow(/identificador opaco y seguro/i);
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it('persists returned contact_key and conversation_id into public chat context', async () => {
+    const submissionId = '018f4c8e-1e56-7f38-a4df-83fd68394870';
     apiFetchMock.mockResolvedValueOnce({
-      contract_version: 'encuestas.public_response.v1',
-      ok: true,
-      id: 9,
+      ...durableAck(submissionId, 9, { contractVersion: 'encuestas.public_response.v1' }),
       contact_key: 'ck-survey-1',
       conversation_id: 'conv-survey-1',
     });
 
-    await postPublicResponse('mi-encuesta', { respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] }, 'rio-grande');
+    await postPublicResponse('mi-encuesta', {
+      submission_id: submissionId,
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    }, 'rio-grande');
 
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=rio-grande',
@@ -576,17 +748,16 @@ describe('postPublicResponse', () => {
   });
 
   it('returns contract_version in survey response ack when available', async () => {
+    const submissionId = '018f4c8e-1e56-7f38-a4df-83fd68394871';
     apiFetchMock.mockResolvedValueOnce({
-      contract_version: 'surveys.public_response.v2',
-      ok: true,
-      response_id: 99,
+      ...durableAck(submissionId, 99),
       live_results_url: '/api/v2/public/surveys/mi-encuesta/live-results?tenant_slug=rio-grande',
       realtime: { contract_version: 'surveys.realtime.v2', room: 'encuesta_mi-encuesta' },
     });
 
     const response = await postPublicResponse(
       'mi-encuesta',
-      { respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] },
+      { submission_id: submissionId, respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] },
       'rio-grande',
     );
 
@@ -595,13 +766,123 @@ describe('postPublicResponse', () => {
     expect(response.live_results_url).toBe('/api/v2/public/surveys/mi-encuesta/live-results?tenant_slug=rio-grande');
   });
 
-  it('sends nested territorial metadata without rewriting the public response payload', async () => {
+  it('sends one submission id unchanged in the body and Idempotency-Key header', async () => {
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd6839487d',
+      instrument_revision: 7,
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+    apiFetchMock.mockResolvedValueOnce(durableAck(payload.submission_id, 100));
+
+    await postPublicResponse('mi-encuesta', payload, 'junin');
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=junin',
+      expect.objectContaining({
+        method: 'POST',
+        body: payload,
+        headers: { 'Idempotency-Key': payload.submission_id },
+      }),
+    );
+  });
+
+  it('does not fall back to a second POST after an ambiguous 5xx', async () => {
+    const ambiguousError = new ApiError('Ack unavailable', 500);
+    apiFetchMock
+      .mockRejectedValueOnce(ambiguousError)
+      .mockResolvedValueOnce({ contract_version: 'encuestas.public_response.v1', ok: true, id: 102 });
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd6839487e',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+
+    await expect(postPublicResponse('mi-encuesta', payload, 'junin')).rejects.toBe(ambiguousError);
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=junin',
+      expect.objectContaining({
+        method: 'POST',
+        body: payload,
+        headers: { 'Idempotency-Key': payload.submission_id },
+      }),
+    );
+  });
+
+  it('uses the same idempotent submission for explicit 404 endpoint compatibility', async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new ApiError('Not Found', 404))
+      .mockResolvedValueOnce(durableAck(
+        '018f4c8e-1e56-7f38-a4df-83fd6839487f',
+        103,
+        { contractVersion: 'encuestas.public_response.v1' },
+      ));
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd6839487f',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+
+    await postPublicResponse('mi-encuesta', payload, 'junin');
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/public/encuestas/v1/mi-encuesta/responder?tenant_slug=junin',
+      expect.objectContaining({
+        method: 'POST',
+        body: payload,
+        headers: { 'Idempotency-Key': payload.submission_id },
+      }),
+    );
+  });
+
+  it('rejects an incomplete 2xx as ambiguous instead of clearing the logical attempt', async () => {
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394880',
+      instrument_revision: 7,
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'surveys.public_response.v2',
       ok: true,
-      response_id: 101,
+      persisted: true,
+      response_id: 104,
+      respuesta_id: 104,
     });
+
+    await expect(postPublicResponse('mi-encuesta', payload, 'junin')).rejects.toBeInstanceOf(
+      AmbiguousSurveySubmissionError,
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('translates a legacy terminal duplicate ACK into an explicit duplicate ApiError', async () => {
     const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394881',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'encuestas.public_response.v1',
+      ok: true,
+      duplicate: true,
+      reason_code: 'survey_response_duplicate',
+      message: 'La respuesta ya fue registrada.',
+    });
+
+    const request = postPublicResponse('mi-encuesta', payload, 'junin');
+    await expect(request).rejects.toMatchObject({
+      status: 409,
+      body: expect.objectContaining({
+        duplicate: true,
+        reason_code: 'survey_response_duplicate',
+      }),
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nested territorial metadata without rewriting the public response payload', async () => {
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394872',
       respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
       metadata: {
         demographics: {
@@ -617,6 +898,7 @@ describe('postPublicResponse', () => {
         },
       },
     };
+    apiFetchMock.mockResolvedValueOnce(durableAck(payload.submission_id, 101));
 
     await postPublicResponse('mi-encuesta', payload, 'junin');
 
@@ -641,7 +923,10 @@ describe('postPublicResponse', () => {
 
     const response = await postPublicResponse(
       'demo-empresas-chatboc-demo-promo-semana',
-      { respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }] },
+      {
+        submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394873',
+        respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }],
+      },
       'chatboc-demo',
     );
 

@@ -10,7 +10,7 @@ import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { ApiError } from '@/utils/api';
+import { isSurveyResponseDuplicateError } from '@/utils/surveySubmissionErrors';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 
@@ -40,9 +40,9 @@ const TenantSurveyDetailPage = () => {
     submit,
     isSubmitting,
     submitError,
-    duplicateDetected,
     submitStatus,
     submitErrorDetails,
+    submitReasonCode,
   } = useSurveyPublic(surveySlug, { tenantSlug });
 
   const metadata = useMemo(() => ({ tenant: tenantSlug ?? undefined }), [tenantSlug]);
@@ -60,12 +60,12 @@ const TenantSurveyDetailPage = () => {
         toast({ title: '¡Gracias por participar!', description: 'Registramos tu respuesta correctamente.' });
       } catch (err) {
         setLastSubmission(null);
-        if (err instanceof ApiError && err.status === 409) {
+        if (isSurveyResponseDuplicateError(err)) {
           toast({
             title: 'Ya registramos tu opinión',
             description: 'La política de unicidad impide enviar más de una respuesta.',
           });
-          return;
+          throw err;
         }
         const message = err instanceof Error ? err.message : String(err);
         toast({
@@ -73,6 +73,7 @@ const TenantSurveyDetailPage = () => {
           description: submitError ?? message ?? 'Intentá nuevamente.',
           variant: 'destructive',
         });
+        throw err;
       }
     },
     [metadata, submit, submitError, survey],
@@ -152,7 +153,7 @@ const TenantSurveyDetailPage = () => {
             submitErrorMessage={submitError}
             submitErrorStatus={submitStatus}
             submitErrorDetails={submitErrorDetails}
-            duplicateDetected={duplicateDetected}
+            submitReasonCode={submitReasonCode}
           />
         </div>
       )}

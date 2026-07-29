@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LogIn, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, LogIn, RotateCcw, Route, ShieldCheck } from 'lucide-react';
 
 import ClerkAuthButtons from '@/components/auth/ClerkAuthButtons';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
@@ -39,9 +39,15 @@ import {
   GENDER_OPTIONS,
 } from '@/components/surveys/demographicOptions';
 import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
+import { getVisibleSurveyQuestions } from '@/utils/surveyConditionalLogic';
+import {
+  SURVEY_RESPONSE_DUPLICATE_REASON_CODE,
+  getSurveySubmissionReasonCode,
+  isSurveySubmissionIdConflictError,
+  shouldReuseSurveySubmissionAttempt,
+} from '@/utils/surveySubmissionErrors';
+import { createSecureSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
 import { useUser } from '@/hooks/useUser';
-
-const SURVEY_DRAFT_TTL_MS = 30 * 60 * 1000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -113,15 +119,6 @@ const shouldResetTurnstileFromError = (details?: Record<string, unknown> | null)
   );
 };
 
-interface SurveyDraftSnapshot {
-  updatedAt: number;
-  answers: Record<number, AnswerState>;
-  dni?: string;
-  phone?: string;
-  demographics?: SurveyDemographicMetadata;
-  customGender?: string;
-}
-
 interface SurveyFormProps {
   survey: SurveyPublic;
   onSubmit: (payload: PublicResponsePayload) => Promise<void>;
@@ -130,13 +127,19 @@ interface SurveyFormProps {
   submitErrorMessage?: string | null;
   submitErrorStatus?: number | null;
   submitErrorDetails?: Record<string, unknown> | null;
-  duplicateDetected?: boolean;
+  submitReasonCode?: string | null;
   liveResults?: SurveyLiveResults;
   showLiveResults?: boolean;
   readOnly?: boolean;
   showHeader?: boolean;
   variant?: 'default' | 'votacion';
   submitLabel?: string;
+  /**
+   * Runs the participant experience as an isolated, in-memory simulation.
+   * Preview mode never persists a draft, emits analytics, requests identity/location,
+   * runs anti-bot challenges, or invokes onSubmit.
+   */
+  previewMode?: boolean;
 }
 
 interface AnswerState {
@@ -177,6 +180,11 @@ const uniqueOptionIds = (ids: SurveyOptionId[]): SurveyOptionId[] => {
   return unique;
 };
 
+interface SubmissionAttempt {
+  submissionId: string;
+  submittedAt: string;
+}
+
 export const SurveyForm = ({
   survey,
   onSubmit,
@@ -185,13 +193,14 @@ export const SurveyForm = ({
   submitErrorMessage,
   submitErrorStatus,
   submitErrorDetails,
-  duplicateDetected,
+  submitReasonCode,
   liveResults,
   showLiveResults,
   readOnly = false,
   showHeader = true,
   variant = 'default',
   submitLabel,
+  previewMode = false,
 }: SurveyFormProps) => {
   const { user, loading: authLoading } = useUser();
   const clerkRuntime = useClerkRuntime();
@@ -226,10 +235,16 @@ export const SurveyForm = ({
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
+  const [previewValidated, setPreviewValidated] = useState(false);
   const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
+  const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
+  const submissionInFlightScopeRef = useRef<string | null>(null);
+  const isDuplicateSubmission = submitReasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE;
   const currentErrorKey = useMemo(
-    () => (submitErrorMessage ? `${submitErrorStatus ?? 'na'}::${submitErrorMessage}` : null),
-    [submitErrorMessage, submitErrorStatus],
+    () => (submitErrorMessage
+      ? `${submitErrorStatus ?? 'na'}::${submitReasonCode ?? 'no_reason'}::${submitErrorMessage}`
+      : null),
+    [submitErrorMessage, submitErrorStatus, submitReasonCode],
   );
   const analyticsHost = typeof window !== 'undefined' ? window.location.host : null;
   const analyticsTenant =
@@ -238,21 +253,14 @@ export const SurveyForm = ({
       : null) ??
     null;
   const turnstileConfig = useMemo(() => getSurveyTurnstileConfig(survey), [survey]);
-  const turnstileSiteKey = turnstileConfig.enabled ? CLOUDFLARE_TURNSTILE_SITE_KEY : '';
-  const turnstileRequired = turnstileConfig.required;
+  const turnstileSiteKey = !previewMode && turnstileConfig.enabled ? CLOUDFLARE_TURNSTILE_SITE_KEY : '';
+  const turnstileRequired = !previewMode && turnstileConfig.required;
   const turnstileUnavailable = turnstileRequired && !turnstileSiteKey;
   const turnstileMissingToken = turnstileRequired && Boolean(turnstileSiteKey) && !turnstileToken.trim();
-  const draftStorageKey = useMemo(
-    () => {
-      if (!survey.slug) return null;
-      const tenantScope =
-        typeof survey.municipio_slug === 'string' && survey.municipio_slug.trim().length > 0
-          ? survey.municipio_slug.trim().toLowerCase()
-          : 'global';
-      return `chatboc:survey:draft:${tenantScope}:${survey.slug}`;
-    },
-    [survey.municipio_slug, survey.slug],
-  );
+  const participantUserId = user?.id === undefined || user?.id === null ? 'anonymous' : String(user.id);
+  const submissionScopeKey = `${survey.municipio_slug ?? 'global'}::${survey.slug ?? 'missing'}::${survey.instrument_revision ?? 'unversioned'}::${participantUserId}`;
+  const activeSubmissionScopeRef = useRef(submissionScopeKey);
+  activeSubmissionScopeRef.current = submissionScopeKey;
 
   type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';
 
@@ -261,11 +269,22 @@ export const SurveyForm = ({
   const contactRequired = Boolean(survey.requiere_datos_contacto);
   const showDniField = requireDni || contactRequired;
   const showPhoneField = requirePhone || contactRequired;
-  const showContactBlock = showDniField || showPhoneField;
+  const showContactBlock = !previewMode && (showDniField || showPhoneField);
+  const visibleQuestions = useMemo(
+    () => (readOnly && showLiveResults ? survey.preguntas : getVisibleSurveyQuestions(survey.preguntas, answers)),
+    [answers, readOnly, showLiveResults, survey.preguntas],
+  );
+  const visibleQuestionIds = useMemo(
+    () => new Set(visibleQuestions.map((question) => question.id)),
+    [visibleQuestions],
+  );
 
   useEffect(() => {
     setAnswers(initialState);
     setErrors({});
+    setSubmitting(false);
+    setDni('');
+    setPhone('');
     setIdentityError(null);
     setDemographics({});
     setCustomGender('');
@@ -273,51 +292,53 @@ export const SurveyForm = ({
     setGeoMessage(null);
     setTurnstileToken('');
     setTurnstileResetSignal((value) => value + 1);
-  }, [initialState]);
+    setPreviewValidated(false);
+    setSubmissionErrorTitle(null);
+    setSubmissionErrorDetails(null);
+    setDismissedErrorKey(null);
+    lastTrackedSubmitErrorKeyRef.current = null;
+    submissionAttemptRef.current = null;
+    submissionInFlightScopeRef.current = null;
+  }, [initialState, submissionScopeKey]);
 
   useEffect(() => {
-    if (readOnly) return;
-    if (!draftStorageKey || typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as SurveyDraftSnapshot;
-      if (!parsed || typeof parsed !== 'object') return;
-      if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > SURVEY_DRAFT_TTL_MS) {
-        window.localStorage.removeItem(draftStorageKey);
-        return;
-      }
-      if (parsed.answers && typeof parsed.answers === 'object') {
-        setAnswers((prev) => ({ ...prev, ...parsed.answers }));
-      }
-      if (typeof parsed.dni === 'string') setDni(parsed.dni);
-      if (typeof parsed.phone === 'string') setPhone(parsed.phone);
-      if (parsed.demographics && typeof parsed.demographics === 'object') {
-        setDemographics(parsed.demographics);
-      }
-      if (typeof parsed.customGender === 'string') setCustomGender(parsed.customGender);
-    } catch {
-      // ignore malformed draft payloads
-    }
-  }, [draftStorageKey, readOnly]);
+    setAnswers((previous) => {
+      let changed = false;
+      const next = { ...previous };
+      Object.keys(previous).forEach((questionId) => {
+        if (!visibleQuestionIds.has(Number(questionId))) {
+          delete next[Number(questionId)];
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+    setErrors((previous) => {
+      let changed = false;
+      const next = { ...previous };
+      Object.keys(previous).forEach((questionId) => {
+        if (!visibleQuestionIds.has(Number(questionId))) {
+          delete next[Number(questionId)];
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [visibleQuestionIds]);
 
   useEffect(() => {
-    if (readOnly) return;
-    if (!draftStorageKey || typeof window === 'undefined') return;
-    const snapshot: SurveyDraftSnapshot = {
-      updatedAt: Date.now(),
-      answers,
-      dni,
-      phone,
-      demographics,
-      customGender,
-    };
-    try {
-      window.localStorage.setItem(draftStorageKey, JSON.stringify(snapshot));
-    } catch {
-      // best-effort persistence
-    }
-  }, [answers, customGender, demographics, dni, draftStorageKey, phone, readOnly]);
+    submissionAttemptRef.current = null;
+  }, [
+    answers,
+    customGender,
+    defaultMetadata?.canal,
+    defaultMetadata?.utm_campaign,
+    defaultMetadata?.utm_source,
+    demographics,
+    dni,
+    phone,
+    submissionScopeKey,
+  ]);
 
   useEffect(() => {
     setIdentityError(null);
@@ -349,12 +370,12 @@ export const SurveyForm = ({
 
     const normalized = submitErrorMessage.toLowerCase();
     const baseTitle =
-      duplicateDetected || submitErrorStatus === 409
+      isDuplicateSubmission
         ? 'Ya registramos tu opinión'
         : 'No pudimos enviar tu respuesta';
 
     let extraHint: string | null = null;
-    if (duplicateDetected || submitErrorStatus === 409) {
+    if (isDuplicateSubmission) {
       extraHint = 'La política de unicidad impide enviar más de una respuesta.';
     } else if (normalized.includes('cors') || normalized.includes('conexión')) {
       extraHint =
@@ -367,7 +388,7 @@ export const SurveyForm = ({
   }, [
     submitErrorMessage,
     submitErrorStatus,
-    duplicateDetected,
+    isDuplicateSubmission,
     submitting,
     currentErrorKey,
     dismissedErrorKey,
@@ -375,6 +396,7 @@ export const SurveyForm = ({
   ]);
 
   useEffect(() => {
+    if (previewMode) return;
     if (!currentErrorKey || !submitErrorMessage) return;
     if (lastTrackedSubmitErrorKeyRef.current === currentErrorKey) return;
 
@@ -398,7 +420,7 @@ export const SurveyForm = ({
       message: submitErrorMessage,
     });
     lastTrackedSubmitErrorKeyRef.current = currentErrorKey;
-  }, [analyticsHost, analyticsTenant, currentErrorKey, submitErrorMessage, submitErrorStatus, survey.slug]);
+  }, [analyticsHost, analyticsTenant, currentErrorKey, previewMode, submitErrorMessage, submitErrorStatus, survey.slug]);
 
   const toDisplayText = (value: unknown): string => {
     if (typeof value === 'string') return value;
@@ -610,62 +632,71 @@ export const SurveyForm = ({
 
   const handleRadioChange = (pregunta: SurveyPregunta, value: string) => {
     const normalizedOptionId = normalizeOptionId(value);
+    if (previewMode) setPreviewValidated(false);
     setAnswers((prev) => ({
       ...prev,
       [pregunta.id]: { ...prev[pregunta.id], opcionIds: normalizedOptionId === '' ? [] : [normalizedOptionId] },
     }));
-    trackSurveyAnswerSelected({
-      slug: survey.slug ?? null,
-      host: analyticsHost,
-      tenant: analyticsTenant,
-      questionId: pregunta.id,
-      questionType: pregunta.tipo,
-      optionId: normalizedOptionId === '' ? null : normalizedOptionId,
-      selectionCount: normalizedOptionId === '' ? 0 : 1,
-    });
-  };
-
-  const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: SurveyOptionId, checked: boolean) => {
-    setAnswers((prev) => {
-      const current = prev[pregunta.id] ?? { opcionIds: [] };
-      const normalizedOptionId = normalizeOptionId(optionId);
-      const nextIds = checked
-        ? uniqueOptionIds([...(current.opcionIds ?? []), normalizedOptionId])
-        : (current.opcionIds ?? []).filter((id) => !optionIdsEqual(id, normalizedOptionId));
+    if (!previewMode) {
       trackSurveyAnswerSelected({
         slug: survey.slug ?? null,
         host: analyticsHost,
         tenant: analyticsTenant,
         questionId: pregunta.id,
         questionType: pregunta.tipo,
-        optionId: normalizedOptionId,
-        selectionCount: nextIds.length,
+        optionId: normalizedOptionId === '' ? null : normalizedOptionId,
+        selectionCount: normalizedOptionId === '' ? 0 : 1,
       });
+    }
+  };
+
+  const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: SurveyOptionId, checked: boolean) => {
+    if (previewMode) setPreviewValidated(false);
+    setAnswers((prev) => {
+      const current = prev[pregunta.id] ?? { opcionIds: [] };
+      const normalizedOptionId = normalizeOptionId(optionId);
+      const nextIds = checked
+        ? uniqueOptionIds([...(current.opcionIds ?? []), normalizedOptionId])
+        : (current.opcionIds ?? []).filter((id) => !optionIdsEqual(id, normalizedOptionId));
+      if (!previewMode) {
+        trackSurveyAnswerSelected({
+          slug: survey.slug ?? null,
+          host: analyticsHost,
+          tenant: analyticsTenant,
+          questionId: pregunta.id,
+          questionType: pregunta.tipo,
+          optionId: normalizedOptionId,
+          selectionCount: nextIds.length,
+        });
+      }
       return { ...prev, [pregunta.id]: { ...current, opcionIds: nextIds } };
     });
   };
 
   const handleTextChange = (pregunta: SurveyPregunta, value: string) => {
+    if (previewMode) setPreviewValidated(false);
     setAnswers((prev) => ({
       ...prev,
       [pregunta.id]: { ...prev[pregunta.id], texto: value },
     }));
-    trackSurveyAnswerSelected({
-      slug: survey.slug ?? null,
-      host: analyticsHost,
-      tenant: analyticsTenant,
-      questionId: pregunta.id,
-      questionType: pregunta.tipo,
-      optionId: null,
-      selectionCount: value.trim().length > 0 ? 1 : 0,
-    });
+    if (!previewMode) {
+      trackSurveyAnswerSelected({
+        slug: survey.slug ?? null,
+        host: analyticsHost,
+        tenant: analyticsTenant,
+        questionId: pregunta.id,
+        questionType: pregunta.tipo,
+        optionId: null,
+        selectionCount: value.trim().length > 0 ? 1 : 0,
+      });
+    }
   };
 
   const validate = (): boolean => {
     const newErrors: Record<number, string> = {};
     let newIdentityError: string | null = null;
 
-    survey.preguntas.forEach((pregunta) => {
+    visibleQuestions.forEach((pregunta) => {
       const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
       if (pregunta.tipo === 'abierta') {
         if (pregunta.obligatoria && !answer.texto?.trim()) {
@@ -674,7 +705,7 @@ export const SurveyForm = ({
         return;
       }
 
-      if (pregunta.tipo === 'opcion_unica') {
+      if (pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'rating_emoji') {
         if (pregunta.obligatoria && (!answer.opcionIds || answer.opcionIds.length === 0)) {
           newErrors[pregunta.id] = 'Seleccioná una opción.';
         }
@@ -698,11 +729,11 @@ export const SurveyForm = ({
     const normalizedDni = trimmedDni.replace(/\D+/g, '');
     const normalizedPhone = trimmedPhone.replace(/\D+/g, '');
 
-    if (requireDni && !normalizedDni) {
+    if (!previewMode && requireDni && !normalizedDni) {
       newIdentityError = 'Ingresá tu DNI para validar tu participación.';
-    } else if (requirePhone && !normalizedPhone) {
+    } else if (!previewMode && requirePhone && !normalizedPhone) {
       newIdentityError = 'Ingresá tu teléfono para validar tu participación.';
-    } else if (contactRequired && !normalizedDni && !normalizedPhone) {
+    } else if (!previewMode && contactRequired && !normalizedDni && !normalizedPhone) {
       newIdentityError = 'Ingresá tu DNI o teléfono para validar tu participación.';
     }
 
@@ -713,31 +744,74 @@ export const SurveyForm = ({
 
   const answeredQuestionsCount = useMemo(
     () =>
-      survey.preguntas.reduce((count, pregunta) => {
+      visibleQuestions.reduce((count, pregunta) => {
         const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
         if (pregunta.tipo === 'abierta') {
           return answer.texto?.trim() ? count + 1 : count;
         }
         return (answer.opcionIds?.length ?? 0) > 0 ? count + 1 : count;
       }, 0),
-    [answers, survey.preguntas],
+    [answers, visibleQuestions],
   );
 
-  const totalQuestionsCount = survey.preguntas.length || 1;
-  const progressPercent = Math.round((answeredQuestionsCount / totalQuestionsCount) * 100);
+  const totalQuestionsCount = visibleQuestions.length;
+  const progressPercent = totalQuestionsCount
+    ? Math.round((answeredQuestionsCount / totalQuestionsCount) * 100)
+    : 0;
   const currentQuestionIndex = useMemo(() => {
-    const firstPending = survey.preguntas.findIndex((pregunta) => {
+    const firstPending = visibleQuestions.findIndex((pregunta) => {
       const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
       if (pregunta.tipo === 'abierta') return !answer.texto?.trim();
       return (answer.opcionIds?.length ?? 0) === 0;
     });
     if (firstPending >= 0) return firstPending + 1;
     return totalQuestionsCount;
-  }, [answers, survey.preguntas, totalQuestionsCount]);
+  }, [answers, totalQuestionsCount, visibleQuestions]);
+
+  const hiddenQuestionsCount = Math.max(0, survey.preguntas.length - visibleQuestions.length);
+
+  const handleResetPreview = () => {
+    if (!previewMode) return;
+    setAnswers(initialState);
+    setErrors({});
+    setIdentityError(null);
+    setSubmissionErrorTitle(null);
+    setSubmissionErrorDetails(null);
+    setDismissedErrorKey(null);
+    setPreviewValidated(false);
+    setDni('');
+    setPhone('');
+    setDemographics({});
+    setCustomGender('');
+    setGeoStatus('idle');
+    setGeoMessage(null);
+    setTurnstileToken('');
+  };
+
+  const clearParticipantResponseState = () => {
+    setErrors({});
+    setIdentityError(null);
+    setDni('');
+    setPhone('');
+    setDemographics({});
+    setCustomGender('');
+    setGeoStatus('idle');
+    setGeoMessage(null);
+    setTurnstileToken('');
+    setTurnstileResetSignal((value) => value + 1);
+    setAnswers(initialState);
+  };
 
   const handleSubmit = async () => {
     if (readOnly) return;
-    if (submitting) return;
+    if (submitting || submissionInFlightScopeRef.current) return;
+    if (previewMode) {
+      setSubmissionErrorTitle(null);
+      setSubmissionErrorDetails(null);
+      const isValidRoute = validate();
+      setPreviewValidated(isValidRoute);
+      return;
+    }
     if (requiresAuthenticatedParticipant && !user) {
       setSubmissionErrorTitle('Necesitas identificarte para participar');
       setSubmissionErrorDetails('Inicia sesion con tu cuenta para que el voto quede asociado de forma segura.');
@@ -759,9 +833,11 @@ export const SurveyForm = ({
     setSubmissionErrorDetails(null);
     setDismissedErrorKey(null);
     setSubmitting(true);
+    const submittedScopeKey = submissionScopeKey;
+    submissionInFlightScopeRef.current = submittedScopeKey;
     try {
       const sanitizedDemographics = sanitizeDemographics();
-      const answeredQuestions = survey.preguntas.reduce((count, pregunta) => {
+      const answeredQuestions = visibleQuestions.reduce((count, pregunta) => {
         const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
         if (pregunta.tipo === 'abierta') {
           return answer.texto?.trim() ? count + 1 : count;
@@ -770,10 +846,16 @@ export const SurveyForm = ({
         return selected.length > 0 ? count + 1 : count;
       }, 0);
 
+      const submissionAttempt = submissionAttemptRef.current ?? {
+        submissionId: createSecureSurveySubmissionId(),
+        submittedAt: new Date().toISOString(),
+      };
+      submissionAttemptRef.current = submissionAttempt;
+
       const metadataPayload: SurveyAnalyticsMetadata = {
         answeredQuestions,
-        totalQuestions: survey.preguntas.length,
-        submittedAt: new Date().toISOString(),
+        totalQuestions: visibleQuestions.length,
+        submittedAt: submissionAttempt.submittedAt,
       };
 
       if (defaultMetadata?.canal) {
@@ -789,7 +871,7 @@ export const SurveyForm = ({
       const normalizedDni = trimmedDni.replace(/\D+/g, '');
       const normalizedPhone = trimmedPhone.replace(/\D+/g, '');
 
-      const respuestas = survey.preguntas.reduce<PublicResponsePayload['respuestas']>((acc, pregunta) => {
+      const respuestas = visibleQuestions.reduce<PublicResponsePayload['respuestas']>((acc, pregunta) => {
         const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
         const base = { pregunta_id: pregunta.id } as PublicResponsePayload['respuestas'][number];
 
@@ -836,7 +918,11 @@ export const SurveyForm = ({
       metadataPayload.answeredQuestions = respuestas.length;
 
       const payload: PublicResponsePayload = {
+        submission_id: submissionAttempt.submissionId,
         respuestas,
+        ...(typeof survey.instrument_revision === 'number' && survey.instrument_revision > 0
+          ? { instrument_revision: survey.instrument_revision }
+          : {}),
         dni: normalizedDni ? normalizedDni : undefined,
         phone: normalizedPhone ? normalizedPhone : undefined,
         ...defaultMetadata,
@@ -844,30 +930,42 @@ export const SurveyForm = ({
         ...(turnstileToken.trim() ? { turnstile_token: turnstileToken.trim() } : {}),
       };
       await onSubmit(payload);
-      setErrors({});
-      setIdentityError(null);
-      if (showDniField) {
-        setDni('');
+      if (activeSubmissionScopeRef.current !== submittedScopeKey) return;
+      submissionAttemptRef.current = null;
+      clearParticipantResponseState();
+    } catch (error) {
+      if (activeSubmissionScopeRef.current !== submittedScopeKey) return;
+      if (!shouldReuseSurveySubmissionAttempt(error)) {
+        submissionAttemptRef.current = null;
       }
-      if (showPhoneField) {
-        setPhone('');
+      const reasonCode = getSurveySubmissionReasonCode(error);
+      const idempotencyConflict = isSurveySubmissionIdConflictError(error);
+      if (reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE) {
+        clearParticipantResponseState();
       }
-      setDemographics({});
-      setCustomGender('');
-      setGeoStatus('idle');
-      setGeoMessage(null);
-      setTurnstileToken('');
-      setTurnstileResetSignal((value) => value + 1);
-      setAnswers(initialState);
-      if (draftStorageKey && typeof window !== 'undefined') {
-        window.localStorage.removeItem(draftStorageKey);
-      }
+      setSubmissionErrorTitle(
+        reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE
+          ? 'Ya registramos tu opinion'
+          : 'No pudimos enviar tu respuesta',
+      );
+      setSubmissionErrorDetails(
+        idempotencyConflict
+          ? `${error instanceof Error && error.message.trim() ? error.message : 'La referencia del intento entro en conflicto.'} Conservamos tus respuestas para que puedas volver a enviarlas.`
+          : error instanceof Error && error.message.trim()
+            ? error.message
+            : 'No recibimos una confirmacion segura. Tu respuesta sigue disponible para reintentar.',
+      );
     } finally {
-      setSubmitting(false);
+      if (submissionInFlightScopeRef.current === submittedScopeKey) {
+        submissionInFlightScopeRef.current = null;
+      }
+      if (activeSubmissionScopeRef.current === submittedScopeKey) {
+        setSubmitting(false);
+      }
     }
   };
 
-  if (!readOnly && requiresAuthenticatedParticipant && !user) {
+  if (!previewMode && !readOnly && requiresAuthenticatedParticipant && !user) {
     return (
       <Card className="w-full border border-border/70 bg-background shadow-sm" data-testid="survey-auth-gate">
         <CardHeader className="space-y-3">
@@ -921,8 +1019,58 @@ export const SurveyForm = ({
         </CardHeader>
       )}
       <CardContent className="space-y-10">
+        {previewMode ? (
+          <section
+            className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-3 sm:p-4"
+            aria-label="Ruta activa de la simulación"
+            data-testid="survey-preview-route"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Route className="h-4 w-4" aria-hidden="true" />
+                  Ruta activa de la simulación
+                </h3>
+                <p className="text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
+                  {visibleQuestions.length} de {survey.preguntas.length} preguntas visibles
+                  {hiddenQuestionsCount > 0 ? ` · ${hiddenQuestionsCount} fuera de esta ruta` : ''}.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={handleResetPreview}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Reiniciar prueba
+              </Button>
+            </div>
+            <ol className="flex max-w-full gap-2 overflow-x-auto pb-1" aria-label="Preguntas de la ruta activa">
+              {visibleQuestions.map((question, index) => (
+                <li
+                  key={question.id}
+                  aria-current={index + 1 === currentQuestionIndex ? 'step' : undefined}
+                  className="min-w-9 shrink-0 rounded-full border border-primary/30 bg-background px-3 py-1 text-center text-xs font-medium"
+                  title={toDisplayText(question.texto)}
+                >
+                  <span className="sr-only">Pregunta </span>
+                  {question.orden}
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted-foreground">
+              Tus respuestas quedan solamente en la memoria de esta vista previa.
+            </p>
+          </section>
+        ) : null}
         {!readOnly && (
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+          <div
+            className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Pregunta {currentQuestionIndex} de {totalQuestionsCount}</span>
               <span>{progressPercent}% completado</span>
@@ -1005,7 +1153,7 @@ export const SurveyForm = ({
             {identityError && <p className="text-sm text-destructive">{identityError}</p>}
           </div>
         )}
-        {!readOnly && (
+        {!readOnly && !previewMode && (
         <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
@@ -1210,7 +1358,7 @@ export const SurveyForm = ({
           ) : null}
         </div>
         )}
-        {survey.preguntas.map((pregunta) => (
+        {visibleQuestions.map((pregunta) => (
           <div
             key={pregunta.id}
             className={
@@ -1362,7 +1510,17 @@ export const SurveyForm = ({
 
         {!readOnly && (
           <div className="space-y-3">
-            {turnstileConfig.enabled && turnstileSiteKey ? (
+            {previewMode && previewValidated ? (
+              <Alert role="status" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100">
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                <AlertTitle>Ruta validada</AlertTitle>
+                <AlertDescription>
+                  La ruta visible está completa. No se guardó ni se envió ningún voto.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {!previewMode && turnstileConfig.enabled && turnstileSiteKey ? (
               <TurnstileChallenge
                 siteKey={turnstileSiteKey}
                 onToken={setTurnstileToken}
@@ -1373,7 +1531,7 @@ export const SurveyForm = ({
               />
             ) : null}
 
-            {turnstileUnavailable ? (
+            {!previewMode && turnstileUnavailable ? (
               <Alert variant="destructive">
                 <AlertTitle>Verificacion no disponible</AlertTitle>
                 <AlertDescription>
@@ -1388,7 +1546,11 @@ export const SurveyForm = ({
             onClick={handleSubmit}
             className="w-full md:w-auto"
           >
-            {loading || submitting ? 'Enviando…' : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
+            {previewMode
+              ? 'Validar esta ruta'
+              : loading || submitting
+                ? 'Enviando…'
+                : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
             </Button>
           </div>
         )}

@@ -29,6 +29,7 @@ import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
+import TicketAiHandoffControl, { isAiHandoffAction } from '../TicketAiHandoffControl';
 import { PresenceAvatars } from './PresenceAvatars';
 import { TimelineMergeView } from './TimelineMergeView';
 
@@ -277,7 +278,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     );
   }
 
-  const visibleActions = (detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions).filter((action) => {
+  const publishedActions = detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions;
+  const handoffActions = publishedActions.filter(isAiHandoffAction);
+  const visibleActions = publishedActions.filter((action) => !isAiHandoffAction(action)).filter((action) => {
     const required = action.requires ?? [];
     if (!required.length) return true;
     const payload = action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
@@ -406,6 +409,22 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           {liveChat?.channel_state !== 'online' && liveChatOfflineMessage ? (
             <p className="mt-2 leading-5 opacity-90">{liveChatOfflineMessage}</p>
           ) : null}
+        </div>
+      ) : null}
+
+      {handoffActions.length || detailTicket.handoff?.status ? (
+        <div className="px-4 pt-3">
+          <TicketAiHandoffControl
+            ticketId={ticketId}
+            tenantSlug={tenantSlug}
+            handoff={detailTicket.handoff}
+            actions={handoffActions}
+            onActionComplete={(result) => {
+              setLastDelivery(result.delivery ?? null);
+              void detailQuery.refetch();
+              onActionComplete?.();
+            }}
+          />
         </div>
       ) : null}
 

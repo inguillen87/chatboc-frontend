@@ -5,6 +5,10 @@ import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
 import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
 import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  getSurveySubmissionReasonCode,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 
 export interface UseSurveyPublicOptions {
   tenantSlug?: string | null;
@@ -30,12 +34,6 @@ interface UseSurveyPublicResult {
   submitErrorDetails: Record<string, unknown> | null;
   submitReasonCode: string | null;
 }
-
-const getSurveyPublicErrorReasonCode = (error: unknown): string | null => {
-  if (!(error instanceof ApiError)) return null;
-  const reasonCode = (error.body as Record<string, unknown> | undefined)?.reason_code;
-  return typeof reasonCode === 'string' && reasonCode.trim() ? reasonCode.trim() : null;
-};
 
 const RETRY_DELAYS_MS = [700, 1500] as const;
 
@@ -85,14 +83,14 @@ export function useSurveyPublic(
         payload,
         normalizedTenantSlug || undefined,
       );
-      await queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: queryKeys.surveys.public(normalizedSlug, normalizedTenantSlug),
       });
       return response;
     },
   });
 
-  const errorReasonCode = getSurveyPublicErrorReasonCode(error);
+  const errorReasonCode = getSurveySubmissionReasonCode(error);
   const errorStatus = error instanceof ApiError ? error.status : null;
   const errorDetails =
     error instanceof ApiError && error.body && typeof error.body === 'object'
@@ -119,13 +117,13 @@ export function useSurveyPublic(
     },
     isSubmitting: mutation.isPending,
     lastResponseId: mutation.data?.id,
-    duplicateDetected: mutation.error instanceof ApiError && mutation.error.status === 409,
+    duplicateDetected: isSurveyResponseDuplicateError(mutation.error),
     submitError: mutation.error ? getErrorMessage(mutation.error) : null,
     submitStatus: mutation.error instanceof ApiError ? mutation.error.status : null,
     submitErrorDetails:
       mutation.error instanceof ApiError && mutation.error.body && typeof mutation.error.body === 'object'
         ? (mutation.error.body as Record<string, unknown>)
         : null,
-    submitReasonCode: getSurveyPublicErrorReasonCode(mutation.error),
+    submitReasonCode: getSurveySubmissionReasonCode(mutation.error),
   };
 }

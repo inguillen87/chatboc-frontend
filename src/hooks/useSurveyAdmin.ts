@@ -16,6 +16,7 @@ import { getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { queryKeys } from '@/lib/queryKeys';
+import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuard';
 
 interface UseSurveyAdminOptions {
   id?: number | null;
@@ -82,7 +83,9 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const saveMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
       if (normalizedId === null) throw new Error('No survey id provided');
-      const updated = await adminUpdateSurvey(normalizedId, payload, adminRequestOptions);
+      const guardedPayload = withExpectedSurveyStructureRevision(payload, surveyQuery.data);
+      const updated = await adminUpdateSurvey(normalizedId, guardedPayload, adminRequestOptions);
+      queryClient.setQueryData(queryKeys.surveys.admin(normalizedId), updated);
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing') });
       await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return updated;

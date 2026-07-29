@@ -2,8 +2,43 @@ export type SurveyTipo = 'opinion' | 'votacion' | 'sondeo' | 'planificacion';
 export type PreguntaTipo = 'opcion_unica' | 'multiple' | 'abierta' | 'rating_emoji';
 export type SurveyOptionId = number | string;
 
+export interface SurveyConditionalShowIfV1 {
+  question_order: number;
+  option_order: number;
+}
+
+export interface SurveyConditionalLogicV1 {
+  version: 1;
+  show_if: SurveyConditionalShowIfV1;
+}
+
+export interface SurveyConditionalOptionSelectedV2 {
+  kind: 'option_selected';
+  question_ref: string;
+  option_ref: string;
+}
+
+export interface SurveyConditionalGroupV2 {
+  kind: 'group';
+  operator: 'and' | 'or';
+  children: SurveyConditionalNodeV2[];
+}
+
+export type SurveyConditionalNodeV2 =
+  | SurveyConditionalOptionSelectedV2
+  | SurveyConditionalGroupV2;
+
+export interface SurveyConditionalLogicV2 {
+  version: 2;
+  show_if: SurveyConditionalGroupV2;
+}
+
+export type SurveyConditionalLogic = SurveyConditionalLogicV1 | SurveyConditionalLogicV2;
+
 export interface SurveyPreguntaOpcion {
   id: SurveyOptionId;
+  /** Stable canonical identity used by durable survey documents. */
+  option_ref?: string | null;
   orden: number;
   texto: string;
   valor?: string;
@@ -11,6 +46,8 @@ export interface SurveyPreguntaOpcion {
 
 export interface SurveyPregunta {
   id: number;
+  /** Stable canonical identity used by durable survey documents. */
+  question_ref?: string | null;
   orden: number;
   tipo: PreguntaTipo;
   texto: string;
@@ -18,6 +55,7 @@ export interface SurveyPregunta {
   min_selecciones?: number;
   max_selecciones?: number;
   opciones?: SurveyPreguntaOpcion[];
+  conditional_logic?: SurveyConditionalLogic | null;
 }
 
 export interface SurveyChannelAsset {
@@ -278,6 +316,8 @@ export interface SurveyLivePublicResultsPayload {
 
 export interface SurveyPublic {
   id?: number;
+  /** Durable builder document that materialized this survey, when applicable. */
+  document_ref?: string | null;
   slug: string;
   slug_publico?: string;
   canonical_slug?: string;
@@ -286,6 +326,8 @@ export interface SurveyPublic {
   url_publica?: string;
   share_url?: string;
   public_api_endpoint?: string;
+  /** Revision of the question graph rendered to this participant. */
+  instrument_revision?: number;
   titulo: string;
   descripcion?: string;
   tipo: SurveyTipo;
@@ -385,6 +427,10 @@ export interface SurveyAnalyticsMetadata {
 }
 
 export interface PublicResponsePayload {
+  /** Stable client-generated key reused only while retrying the same logical submission. */
+  submission_id: string;
+  /** Echoes the public instrument revision so stale forms fail explicitly. */
+  instrument_revision?: number;
   dni?: string | null;
   phone?: string | null;
   respuestas: Array<{
@@ -406,9 +452,19 @@ export interface SurveyAdmin extends SurveyPublic {
   updated_at?: string;
   anonimato?: boolean;
   unica_por_persona?: boolean;
+  structure_guard?: {
+    contract_version?: 'surveys.structure_guard.v1' | string;
+    revision: number;
+    locked: boolean;
+    locked_at?: string | null;
+  };
 }
 
 export interface SurveyDraftPayload {
+  /** Optimistic concurrency token supplied by the admin read contract. */
+  expected_structure_revision?: number;
+  /** Stable durable-builder document identity, preserved across admin edits. */
+  document_ref?: string | null;
   titulo: string;
   slug?: string;
   descripcion?: string;
@@ -420,14 +476,17 @@ export interface SurveyDraftPayload {
   requiere_datos_contacto: boolean;
   preguntas: Array<{
     id?: number;
+    question_ref?: string | null;
     orden: number;
     tipo: PreguntaTipo;
     texto: string;
     obligatoria: boolean;
     min_selecciones?: number | null;
     max_selecciones?: number | null;
+    conditional_logic?: SurveyConditionalLogic | null;
     opciones?: Array<{
       id?: SurveyOptionId;
+      option_ref?: string | null;
       orden: number;
       texto: string;
       valor?: string;
@@ -453,13 +512,24 @@ export interface SurveySummaryOptionBreakdown {
   opcion_id: SurveyOptionId;
   texto: string;
   respuestas: number;
+  conteo?: number;
+  value?: number;
   porcentaje: number;
+  respuestas_seleccionaron?: number;
+  porcentaje_total_encuesta?: number;
+  porcentaje_elegibles?: number;
+  porcentaje_respuestas_pregunta?: number;
 }
 
 export interface SurveySummaryPregunta {
   pregunta_id: number;
   texto: string;
+  tipo?: string;
+  tipo_interno?: string;
   total_respuestas: number;
+  respuestas_elegibles?: number;
+  respuestas_respondidas?: number;
+  tasa_respuesta_elegible?: number;
   opciones: SurveySummaryOptionBreakdown[];
 }
 

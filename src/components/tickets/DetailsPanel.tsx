@@ -62,6 +62,8 @@ import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
 import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { normalizeSaasActions } from '@/api/v2/saas';
+import TicketAiHandoffControl, { isAiHandoffAction } from './TicketAiHandoffControl';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   return sanitizeAttachmentUrl(value) || undefined;
@@ -746,8 +748,21 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   };
 
   const formatDate = (dateString?: string) => fmtARWithOffset(dateString ?? '', -3);
+  const backendActions = React.useMemo(
+    () => normalizeSaasActions(ticket.allowed_actions),
+    [ticket.allowed_actions],
+  );
+  const aiHandoffActions = React.useMemo(
+    () => backendActions.filter(isAiHandoffAction),
+    [backendActions],
+  );
+  const handoffState = React.useMemo(
+    () => asPlainRecord(ticket.handoff) || asPlainRecord(ticket.datos_extra?.handoff),
+    [ticket.datos_extra, ticket.handoff],
+  );
   const operationalActions = React.useMemo(
-    () => normalizeOperationalActions(ticket.allowed_actions, ticket.actions, ticket.next_steps),
+    () => normalizeOperationalActions(ticket.allowed_actions, ticket.actions, ticket.next_steps)
+      .filter((action) => !isAiHandoffAction(action)),
     [ticket.allowed_actions, ticket.actions, ticket.next_steps],
   );
   const operationalGuidance = React.useMemo(() => deriveTicketOperationalGuidance(ticket), [ticket]);
@@ -762,7 +777,15 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   );
   const nextActionLabel = operationalGuidance.label;
   const hasOperationalSignal =
-    Boolean(nextActionLabel || priorityLabel || slaLabel || assignedAgentLabel || operationalActions.length);
+    Boolean(
+      nextActionLabel ||
+      priorityLabel ||
+      slaLabel ||
+      assignedAgentLabel ||
+      operationalActions.length ||
+      aiHandoffActions.length ||
+      handoffState,
+    );
   const assistedContext = React.useMemo(() => {
     const request =
       asPlainRecord(ticket.assisted_request) ||
@@ -853,6 +876,17 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       return;
     }
     window.open(href, '_blank', 'noopener,noreferrer');
+  };
+
+  const refreshTicketAfterHandoff = () => {
+    void getTicketById(ticket.id.toString(), {
+      ticket,
+      tenantSlug: ticket.tenant_slug,
+    })
+      .then((detailed) => updateTicket(ticket.id, detailed))
+      .catch((error) => {
+        console.warn('Handoff confirmado, pero no se pudo refrescar el ticket:', error);
+      });
   };
 
 
@@ -967,6 +1001,16 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 </div>
               </div>
 
+              {aiHandoffActions.length || handoffState ? (
+                <TicketAiHandoffControl
+                  ticketId={String(ticket.id)}
+                  tenantSlug={ticket.tenant_slug}
+                  handoff={handoffState}
+                  actions={aiHandoffActions}
+                  onActionComplete={refreshTicketAfterHandoff}
+                />
+              ) : null}
+
               {operationalActions.length ? (
                 <div className="space-y-2">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Acciones permitidas</p>
@@ -997,7 +1041,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     })}
                   </div>
                 </div>
-              ) : (
+              ) : aiHandoffActions.length || handoffState ? null : (
                 <div className="rounded-lg border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
                   Sin acciones directas publicadas. El operador puede responder, asignar o cambiar estado desde esta mesa.
                 </div>

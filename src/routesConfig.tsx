@@ -605,7 +605,11 @@ const routes: RouteConfig[] = [
   { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
+  {
+    path: '/municipal/surveys',
+    element: <SatisfactionSurveys />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+  },
   { path: '/municipal/playbook', element: <MunicipalPlaybookPage />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },

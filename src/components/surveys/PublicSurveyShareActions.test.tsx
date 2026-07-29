@@ -38,6 +38,7 @@ describe('PublicSurveyShareActions', () => {
 
   it('surfaces the submitted channel and synchronized state after participation', () => {
     const submission: PublicResponsePayload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394874',
       canal: 'qr',
       respuestas: [],
       metadata: {

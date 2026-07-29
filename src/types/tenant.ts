@@ -108,6 +108,36 @@ export interface TenantTicketPayload {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface TenantClaimIntakeReceipt {
+  contract_version: 'claims.intake_receipt.v1';
+  ok: true;
+  persisted: true;
+  deduplicated: boolean;
+  request_id: string;
+  claim: {
+    id: number | string;
+    code: string;
+    status: string;
+    category: string | null;
+    created_at: string;
+  };
+  access: {
+    mode: 'code_pin';
+    pin: string;
+  };
+  tracking: {
+    path: string;
+    experience_endpoint: string;
+    credential_transport: 'x-tracking-pin-header';
+    requires_pin: true;
+  };
+  actions: Array<{
+    id: string;
+    label: string;
+    href: string;
+  }>;
+}
+
 export interface TenantPublicNavigationItem {
   id: string;
   label: string;

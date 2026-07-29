@@ -26,6 +26,8 @@ import {
   SurveyDashboardBundle,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
+import { assertSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
 
 type PrimitiveParam = string | number | boolean | undefined | null;
 type QueryParamValue = PrimitiveParam | PrimitiveParam[] | readonly PrimitiveParam[];
@@ -412,9 +414,13 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
 };
 
 
-const shouldRetryPublicSurveyRequest = (error: unknown) => {
+const shouldRetryPublicSurveyRequest = (
+  error: unknown,
+  method: ApiFetchOptions['method'],
+) => {
   if (error instanceof ApiError) {
-    return error.status === 404 || error.status === 405 || error.status >= 500;
+    if (error.status === 404 || error.status === 405) return true;
+    return (method === undefined || method === 'GET') && error.status >= 500;
   }
   return false;
 };
@@ -427,7 +433,7 @@ const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOpt
       return await apiFetch<T>(path, options);
     } catch (error) {
       lastError = error;
-      if (!shouldRetryPublicSurveyRequest(error)) {
+      if (!shouldRetryPublicSurveyRequest(error, options.method)) {
         break;
       }
     }
@@ -774,6 +780,11 @@ export const getPublicSurveyLiveResults = (
 
 type PublicSurveyResponseAck = {
   ok: boolean;
+  persisted?: boolean;
+  replayed?: boolean;
+  duplicate?: boolean;
+  reason_code?: string;
+  message?: string;
   id?: number;
   respuesta_id?: number | string;
   response_id?: number | string;
@@ -783,20 +794,93 @@ type PublicSurveyResponseAck = {
   request_id?: string;
   live_results_url?: string;
   realtime?: Record<string, unknown>;
+  idempotency?: Record<string, unknown>;
   [key: string]: unknown;
+};
+
+const DURABLE_PUBLIC_RESPONSE_CONTRACTS = new Set([
+  'surveys.public_response.v2',
+  'encuestas.public_response.v1',
+]);
+
+const positiveInteger = (value: unknown): number | null => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+};
+
+const assertDurablePublicResponseAck = (
+  response: PublicSurveyResponseAck,
+  payload: PublicResponsePayload,
+  contractVersion?: string,
+) => {
+  // Synthetic demos have no durable database receipt by design.
+  if (contractVersion === 'demo.survey_response_ack.v1') return;
+
+  if (!contractVersion || !DURABLE_PUBLIC_RESPONSE_CONTRACTS.has(contractVersion)) {
+    throw new AmbiguousSurveySubmissionError(
+      'El servidor respondio sin un contrato durable de persistencia. Reintenta con la misma respuesta.',
+    );
+  }
+
+  const receipt = isRecord(response.idempotency) ? response.idempotency : null;
+  const responseId = positiveInteger(response.response_id);
+  const respuestaId = positiveInteger(response.respuesta_id);
+  const receiptResponseId = positiveInteger(receipt?.response_id);
+  const receiptId = positiveInteger(receipt?.receipt_id);
+  const responseRevision = positiveInteger(response.instrument_revision);
+  const receiptRevision = positiveInteger(receipt?.instrument_revision);
+  const expectedRevision = payload.instrument_revision ?? null;
+  const disposition = receipt?.disposition;
+  const replayed = response.replayed;
+  const receiptReplayed = receipt?.replayed;
+
+  const durable =
+    response.ok === true &&
+    response.persisted === true &&
+    typeof replayed === 'boolean' &&
+    receipt !== null &&
+    receipt.contract_version === 'surveys.response_receipt.v1' &&
+    receipt.canonical_version === 'survey-response.v1' &&
+    receipt.state === 'committed' &&
+    (disposition === 'accepted' || disposition === 'replayed') &&
+    receipt.persisted === true &&
+    typeof receiptReplayed === 'boolean' &&
+    receiptReplayed === replayed &&
+    disposition === (replayed ? 'replayed' : 'accepted') &&
+    receipt.submission_id === payload.submission_id &&
+    responseId !== null &&
+    respuestaId === responseId &&
+    receiptResponseId === responseId &&
+    receiptId !== null &&
+    responseRevision !== null &&
+    receiptRevision === responseRevision &&
+    (expectedRevision === null || responseRevision === expectedRevision);
+
+  if (!durable) {
+    throw new AmbiguousSurveySubmissionError(
+      'El servidor no confirmo un recibo durable completo. Reintenta con la misma respuesta.',
+    );
+  }
 };
 
 export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
-): Promise<PublicSurveyResponseAck> =>
-  callPublicSurveyEndpoint<PublicSurveyResponseAck>(buildPublicSurveyPaths(
+): Promise<PublicSurveyResponseAck> => {
+  const submissionId = assertSurveySubmissionId(payload.submission_id);
+  const requestPayload: PublicResponsePayload = {
+    ...payload,
+    submission_id: submissionId,
+  };
+
+  return callPublicSurveyEndpoint<PublicSurveyResponseAck>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/v2/public/surveys/${slug}/respond`, tenantSlug),
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
     method: 'POST',
-    body: payload,
+    headers: { 'Idempotency-Key': submissionId },
+    body: requestPayload,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -809,6 +893,21 @@ export const postPublicResponse = (
       typeof (response as Record<string, unknown>)?.contract_version === 'string'
         ? String((response as Record<string, unknown>).contract_version)
         : undefined;
+    if (
+      response.ok === true &&
+      response.duplicate === true &&
+      response.reason_code === 'survey_response_duplicate'
+    ) {
+      throw new ApiError(
+        typeof response.message === 'string' && response.message.trim()
+          ? response.message
+          : 'La respuesta ya fue registrada.',
+        409,
+        response,
+        typeof response.request_id === 'string' ? response.request_id : undefined,
+      );
+    }
+    assertDurablePublicResponseAck(response, requestPayload, contractVersion);
     if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && (!contractVersion || !PUBLIC_RESPONSE_CONTRACTS.has(contractVersion))) {
       throw new Error('No pudimos confirmar la respuesta de la encuesta en este momento.');
     }
@@ -857,6 +956,7 @@ export const postPublicResponse = (
 
     return normalizedResponse;
   });
+};
 
 export const getSurveyComments = (
   slug: string,
@@ -1123,8 +1223,206 @@ export const adminSeedSurvey = async (
   });
 };
 
-export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters): Promise<SurveySummary> =>
-  callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`);
+const optionalNonNegativeNumber = (
+  record: Record<string, unknown>,
+  keys: string[],
+): number | undefined => {
+  const raw = firstDefined(record, keys);
+  if (raw === undefined) return undefined;
+  return Math.max(0, toFiniteNumberOrUndefined(raw) ?? 0);
+};
+
+const normalizeSummaryOption = (
+  value: unknown,
+  index: number,
+): SurveySummary['preguntas'][number]['opciones'][number] | null => {
+  if (!isRecord(value)) return null;
+
+  const rawId = firstDefined(value, ['opcion_id', 'option_id', 'id', 'key']);
+  const opcionId =
+    typeof rawId === 'string' ||
+    (typeof rawId === 'number' && Number.isFinite(rawId))
+      ? rawId
+      : index;
+  const respuestas =
+    optionalNonNegativeNumber(value, [
+      'respuestas',
+      'conteo',
+      'value',
+      'count',
+      'total',
+    ]) ?? 0;
+  const porcentaje =
+    optionalNonNegativeNumber(value, [
+      'porcentaje',
+      'percentage',
+      'percent',
+      'pct',
+    ]) ?? 0;
+  const conteo = optionalNonNegativeNumber(value, ['conteo']);
+  const optionValue = optionalNonNegativeNumber(value, ['value']);
+  const respuestasSeleccionaron = optionalNonNegativeNumber(value, [
+    'respuestas_seleccionaron',
+    'respuestasSeleccionaron',
+  ]);
+  const porcentajeTotalEncuesta = optionalNonNegativeNumber(value, [
+    'porcentaje_total_encuesta',
+    'porcentajeTotalEncuesta',
+  ]);
+  const porcentajeElegibles = optionalNonNegativeNumber(value, [
+    'porcentaje_elegibles',
+    'porcentajeElegibles',
+  ]);
+  const porcentajeRespuestasPregunta = optionalNonNegativeNumber(value, [
+    'porcentaje_respuestas_pregunta',
+    'porcentajeRespuestasPregunta',
+  ]);
+
+  return {
+    ...value,
+    opcion_id: opcionId,
+    texto:
+      toTrimmedStringOrUndefined(
+        firstDefined(value, ['texto', 'label', 'opcion', 'name']),
+      ) ?? `Opción ${index + 1}`,
+    respuestas,
+    porcentaje,
+    ...(conteo !== undefined ? { conteo } : {}),
+    ...(optionValue !== undefined ? { value: optionValue } : {}),
+    ...(respuestasSeleccionaron !== undefined
+      ? { respuestas_seleccionaron: respuestasSeleccionaron }
+      : {}),
+    ...(porcentajeTotalEncuesta !== undefined
+      ? { porcentaje_total_encuesta: porcentajeTotalEncuesta }
+      : {}),
+    ...(porcentajeElegibles !== undefined
+      ? { porcentaje_elegibles: porcentajeElegibles }
+      : {}),
+    ...(porcentajeRespuestasPregunta !== undefined
+      ? { porcentaje_respuestas_pregunta: porcentajeRespuestasPregunta }
+      : {}),
+  };
+};
+
+const normalizeSummaryQuestion = (
+  value: unknown,
+  index: number,
+  surveyTotal: number,
+): SurveySummary['preguntas'][number] | null => {
+  if (!isRecord(value)) return null;
+
+  const rawQuestionId = firstDefined(value, [
+    'pregunta_id',
+    'question_id',
+    'id',
+  ]);
+  const preguntaId = toFiniteNumberOrUndefined(rawQuestionId) ?? index;
+  const respuestasElegibles = optionalNonNegativeNumber(value, [
+    'respuestas_elegibles',
+    'respuestasElegibles',
+  ]);
+  const respuestasRespondidas = optionalNonNegativeNumber(value, [
+    'respuestas_respondidas',
+    'respuestasRespondidas',
+  ]);
+  const tasaRespuestaElegible = optionalNonNegativeNumber(value, [
+    'tasa_respuesta_elegible',
+    'tasaRespuestaElegible',
+  ]);
+  const opciones = arrayFromUnknown(
+    firstDefined(value, ['opciones', 'options', 'choices']),
+  )
+    .map(normalizeSummaryOption)
+    .filter(
+      (
+        option,
+      ): option is SurveySummary['preguntas'][number]['opciones'][number] =>
+        Boolean(option),
+    );
+
+  return {
+    ...value,
+    pregunta_id: preguntaId,
+    texto:
+      toTrimmedStringOrUndefined(
+        firstDefined(value, ['texto', 'pregunta', 'label', 'title', 'nombre']),
+      ) ?? `Pregunta ${index + 1}`,
+    tipo: toTrimmedStringOrUndefined(firstDefined(value, ['tipo', 'type'])),
+    tipo_interno: toTrimmedStringOrUndefined(
+      firstDefined(value, ['tipo_interno', 'tipoInterno', 'internal_type']),
+    ),
+    total_respuestas:
+      optionalNonNegativeNumber(value, ['total_respuestas', 'totalResponses']) ??
+      surveyTotal,
+    opciones,
+    ...(respuestasElegibles !== undefined
+      ? { respuestas_elegibles: respuestasElegibles }
+      : {}),
+    ...(respuestasRespondidas !== undefined
+      ? { respuestas_respondidas: respuestasRespondidas }
+      : {}),
+    ...(tasaRespuestaElegible !== undefined
+      ? { tasa_respuesta_elegible: tasaRespuestaElegible }
+      : {}),
+  };
+};
+
+export const normalizeSurveySummary = (payload: unknown): SurveySummary => {
+  if (!isRecord(payload)) {
+    return {
+      total_respuestas: 0,
+      participantes_unicos: 0,
+      tasa_completitud: 0,
+      preguntas: [],
+    };
+  }
+
+  const totalRespuestas =
+    optionalNonNegativeNumber(payload, [
+      'total_respuestas',
+      'totalResponses',
+      'total_responses',
+      'total',
+    ]) ?? 0;
+  const preguntas = arrayFromUnknown(
+    firstDefined(payload, ['preguntas', 'questions']),
+  )
+    .map((question, index) =>
+      normalizeSummaryQuestion(question, index, totalRespuestas),
+    )
+    .filter(
+      (question): question is SurveySummary['preguntas'][number] =>
+        Boolean(question),
+    );
+
+  return {
+    ...payload,
+    total_respuestas: totalRespuestas,
+    participantes_unicos:
+      optionalNonNegativeNumber(payload, [
+        'participantes_unicos',
+        'participantesUnicos',
+        'unique_participants',
+      ]) ?? 0,
+    tasa_completitud:
+      optionalNonNegativeNumber(payload, [
+        'tasa_completitud',
+        'tasaCompletitud',
+        'completion_rate',
+      ]) ?? 0,
+    preguntas,
+  };
+};
+
+export const getSummary = async (
+  id: number,
+  filtros?: SurveyAnalyticsFilters,
+): Promise<SurveySummary> => {
+  const payload = await callAdminSurveyEndpoint<unknown>(
+    `${id}/analytics/resumen${buildQueryString(filtros)}`,
+  );
+  return normalizeSurveySummary(payload);
+};
 
 export const getTimeseries = (
   id: number,

@@ -20,6 +20,41 @@ interface UseSurveySocketOptions {
 
 const DEFAULT_UPDATE_EVENTS = ['survey_update', 'survey_update_v2', 'survey.vote.created'];
 const DEFAULT_COMMENT_EVENTS = ['survey_comment'];
+const MAX_RECENT_UPDATE_EVENT_IDS = 512;
+const SAFE_UPDATE_EVENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const resolveCommittedUpdateEventId = (payload: unknown): string | null => {
+  const event = asRecord(asRecord(payload)?.event);
+  const rawEventId = event?.event_id;
+  if (typeof rawEventId !== 'string') return null;
+
+  const eventId = rawEventId.trim();
+  return SAFE_UPDATE_EVENT_ID.test(eventId) ? eventId : null;
+};
+
+const shouldDeliverUpdate = (payload: unknown, recentEventIds: Set<string>): boolean => {
+  const eventId = resolveCommittedUpdateEventId(payload);
+  if (!eventId) return true;
+
+  if (recentEventIds.has(eventId)) {
+    // Refresh recency so active retries remain protected inside the bounded window.
+    recentEventIds.delete(eventId);
+    recentEventIds.add(eventId);
+    return false;
+  }
+
+  recentEventIds.add(eventId);
+  if (recentEventIds.size > MAX_RECENT_UPDATE_EVENT_IDS) {
+    const oldestEventId = recentEventIds.values().next().value;
+    if (typeof oldestEventId === 'string') recentEventIds.delete(oldestEventId);
+  }
+  return true;
+};
 
 const resolveSurveyRooms = (slug: string, tenantSlug?: string | null, rooms?: string[]) => {
   const explicitRooms = (rooms || [])
@@ -74,11 +109,17 @@ export function useSurveySocket({
   const socketRef = useRef<Socket | null>(null);
   const onUpdateRef = useRef(onUpdate);
   const onCommentRef = useRef(onComment);
+  const recentUpdateEventIdsRef = useRef(new Set<string>());
+  const surveyScope = `${tenantSlug?.trim().toLowerCase() || ''}\u0000${slug.trim().toLowerCase()}`;
 
   useEffect(() => {
     onUpdateRef.current = onUpdate;
     onCommentRef.current = onComment;
   }, [onUpdate, onComment]);
+
+  useEffect(() => {
+    recentUpdateEventIdsRef.current.clear();
+  }, [surveyScope]);
 
   useEffect(() => {
     if (!enabled || !slug) return;
@@ -157,6 +198,7 @@ export function useSurveySocket({
     };
 
     const handleUpdate = (data: SurveyLiveResults | SurveyLivePublicResultsPayload) => {
+      if (!shouldDeliverUpdate(data, recentUpdateEventIdsRef.current)) return;
       console.log('[SurveySocket] Received update:', data);
       onUpdateRef.current?.(data);
     };

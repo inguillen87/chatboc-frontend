@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import type { PublicResponsePayload, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
-import { ApiError } from '@/utils/api';
+import { isSurveyResponseDuplicateError } from '@/utils/surveySubmissionErrors';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import {
@@ -149,9 +149,9 @@ const PublicSurveyPage = () => {
     submit,
     isSubmitting,
     submitError,
-    duplicateDetected,
     submitStatus,
     submitErrorDetails,
+    submitReasonCode,
   } = useSurveyPublic(slug, { tenantSlug });
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
@@ -418,12 +418,12 @@ const PublicSurveyPage = () => {
         toast({ title: safeText(votacionMessages?.toast_success_title), description });
       } catch (err) {
         setLastSubmission(null);
-        if (err instanceof ApiError && err.status === 409) {
+        if (isSurveyResponseDuplicateError(err)) {
           toast({
             title: safeText(votacionMessages?.toast_duplicate_title),
             description: safeText(votacionMessages?.toast_duplicate_detail),
           });
-          return;
+          throw err;
         }
         const message = err instanceof Error ? err.message : String(err);
         toast({
@@ -431,6 +431,7 @@ const PublicSurveyPage = () => {
           description: submitError ?? message ?? safeText(votacionMessages?.toast_error_detail),
           variant: 'destructive',
         });
+        throw err;
       }
     },
     [isDemoParticipationSurvey, metadata, submit, survey, submitError],
@@ -1171,7 +1172,7 @@ const PublicSurveyPage = () => {
                   submitErrorMessage={submitError}
                   submitErrorStatus={submitStatus}
                   submitErrorDetails={submitErrorDetails}
-                  duplicateDetected={duplicateDetected}
+                  submitReasonCode={submitReasonCode}
                   showHeader={false}
                   submitLabel={
                     survey.tipo === 'votacion'
@@ -1205,7 +1206,7 @@ const PublicSurveyPage = () => {
             submitErrorMessage={submitError}
             submitErrorStatus={submitStatus}
             submitErrorDetails={submitErrorDetails}
-            duplicateDetected={duplicateDetected}
+            submitReasonCode={submitReasonCode}
           />
           {survey.permitir_comentarios && (
             <SurveyComments

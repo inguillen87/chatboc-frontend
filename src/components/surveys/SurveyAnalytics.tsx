@@ -238,6 +238,31 @@ const buildTimeseriesData = (points?: SurveyTimeseriesPoint[] | unknown) => {
 
 type OptionCandidate = { value: unknown; fallbackLabel?: string };
 
+interface QuestionEligibilityContext {
+  respuestasElegibles: number | null;
+  respuestasRespondidas: number | null;
+  tasaRespuestaElegible: number | null;
+  tipo: string | null;
+}
+
+interface OptionBreakdownItem {
+  pregunta: string;
+  opcion: string;
+  respuestas: number;
+  porcentaje?: number;
+  respuestasSeleccionaron: number;
+  porcentajeTotalEncuesta?: number;
+  porcentajeElegibles?: number;
+  porcentajeRespuestasPregunta?: number;
+  respuestasElegibles?: number;
+  respuestasRespondidas?: number;
+  tasaRespuestaElegible?: number;
+  participacion: number;
+  usaBaseElegible: boolean;
+  baseParticipacion: 'elegibles' | 'respuestas_pregunta' | 'total_encuesta' | 'legacy';
+  esSeleccionMultiple: boolean;
+}
+
 const collectOptionCandidates = (raw: unknown): OptionCandidate[] => {
   const arrayCandidates = getArray(raw);
   if (arrayCandidates.length) {
@@ -270,7 +295,8 @@ const extractOptionItem = (
   candidate: OptionCandidate,
   preguntaLabel: string,
   index: number,
-): { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } | null => {
+  eligibility: QuestionEligibilityContext,
+): OptionBreakdownItem | null => {
   const { value, fallbackLabel } = candidate;
   const container = isRecord(value) ? value : {};
   const opcion =
@@ -295,11 +321,92 @@ const extractOptionItem = (
   if (respuestas === null) return null;
   const porcentaje =
     toFiniteNumber(container.porcentaje ?? container.percent ?? container.pct ?? container.percentage) ?? undefined;
+  const respuestasSeleccionaron =
+    toFiniteNumber(
+      container.respuestas_seleccionaron ??
+        container.respuestasSeleccionaron,
+    ) ?? respuestas;
+  const porcentajeTotalEncuesta =
+    toFiniteNumber(
+      container.porcentaje_total_encuesta ??
+        container.porcentajeTotalEncuesta,
+    ) ?? undefined;
+  const porcentajeElegibles =
+    toFiniteNumber(
+      container.porcentaje_elegibles ??
+        container.porcentajeElegibles,
+    ) ?? undefined;
+  const porcentajeRespuestasPregunta =
+    toFiniteNumber(
+      container.porcentaje_respuestas_pregunta ??
+        container.porcentajeRespuestasPregunta,
+    ) ?? undefined;
+  const hasOptionEligibilityMetric =
+    porcentajeElegibles !== undefined ||
+    porcentajeRespuestasPregunta !== undefined;
+  const usaBaseElegible =
+    eligibility.respuestasElegibles !== null ||
+    eligibility.respuestasRespondidas !== null ||
+    eligibility.tasaRespuestaElegible !== null ||
+    hasOptionEligibilityMetric;
+  const computedEligiblePercentage =
+    eligibility.respuestasElegibles !== null
+      ? eligibility.respuestasElegibles > 0
+        ? (respuestasSeleccionaron / eligibility.respuestasElegibles) * 100
+        : 0
+      : null;
+  const tasaRespuestaElegible =
+    eligibility.tasaRespuestaElegible ??
+    (eligibility.respuestasElegibles !== null &&
+    eligibility.respuestasRespondidas !== null
+      ? eligibility.respuestasElegibles > 0
+        ? (eligibility.respuestasRespondidas /
+            eligibility.respuestasElegibles) *
+          100
+        : 0
+      : null);
+  const participacionElegible =
+    porcentajeElegibles ?? computedEligiblePercentage ?? undefined;
+  const baseParticipacion: OptionBreakdownItem['baseParticipacion'] =
+    participacionElegible !== undefined
+      ? 'elegibles'
+      : porcentajeRespuestasPregunta !== undefined
+        ? 'respuestas_pregunta'
+        : porcentajeTotalEncuesta !== undefined
+          ? 'total_encuesta'
+          : 'legacy';
+  const participacion = Math.max(
+    0,
+    participacionElegible ??
+      porcentajeRespuestasPregunta ??
+      porcentajeTotalEncuesta ??
+      porcentaje ??
+      0,
+  );
   return {
     pregunta: preguntaLabel,
     opcion,
     respuestas,
     porcentaje: porcentaje ?? undefined,
+    respuestasSeleccionaron: Math.max(0, respuestasSeleccionaron),
+    porcentajeTotalEncuesta,
+    porcentajeElegibles,
+    porcentajeRespuestasPregunta,
+    ...(eligibility.respuestasElegibles !== null
+      ? { respuestasElegibles: Math.max(0, eligibility.respuestasElegibles) }
+      : {}),
+    ...(eligibility.respuestasRespondidas !== null
+      ? { respuestasRespondidas: Math.max(0, eligibility.respuestasRespondidas) }
+      : {}),
+    ...(tasaRespuestaElegible !== null
+      ? { tasaRespuestaElegible: Math.max(0, tasaRespuestaElegible) }
+      : {}),
+    participacion: Number.isFinite(participacion) ? participacion : 0,
+    usaBaseElegible,
+    baseParticipacion,
+    esSeleccionMultiple: ['opcion_multiple', 'multiple', 'multiple_choice'].includes(
+      eligibility.tipo?.trim().toLowerCase() ?? '',
+    ),
   };
 };
 
@@ -362,6 +469,26 @@ const buildOptionBreakdown = (
           preguntaContainer.nombre ??
           preguntaContainer.name,
       ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const eligibility: QuestionEligibilityContext = {
+      respuestasElegibles: toFiniteNumber(
+        preguntaContainer.respuestas_elegibles ??
+          preguntaContainer.respuestasElegibles,
+      ),
+      respuestasRespondidas: toFiniteNumber(
+        preguntaContainer.respuestas_respondidas ??
+          preguntaContainer.respuestasRespondidas,
+      ),
+      tasaRespuestaElegible: toFiniteNumber(
+        preguntaContainer.tasa_respuesta_elegible ??
+          preguntaContainer.tasaRespuestaElegible,
+      ),
+      tipo: toNonEmptyString(
+        preguntaContainer.tipo_interno ??
+          preguntaContainer.tipoInterno ??
+          preguntaContainer.tipo ??
+          preguntaContainer.type,
+      ),
+    };
     const optionCandidates = collectOptionCandidates(
       preguntaContainer.opciones ??
         preguntaContainer.options ??
@@ -373,9 +500,16 @@ const buildOptionBreakdown = (
     if (!optionCandidates.length) return [];
 
     return optionCandidates
-      .map((candidate, optionIndex) => extractOptionItem(candidate, preguntaLabel, optionIndex))
+      .map((candidate, optionIndex) =>
+        extractOptionItem(
+          candidate,
+          preguntaLabel,
+          optionIndex,
+          eligibility,
+        ),
+      )
       .filter(
-        (item): item is { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } => Boolean(item),
+        (item): item is OptionBreakdownItem => Boolean(item),
       );
   });
 };
@@ -534,6 +668,11 @@ const providerLabel = (provider?: MapProvider | null) => {
 
 const formatSurveyNumber = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-AR') : '--';
+
+const formatSurveyPercentage = (value: number | null | undefined) => {
+  const safeValue = typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+  return `${safeValue.toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
+};
 
 const formatSurveyPointLabel = (point: SurveyHeatmapPoint, index: number) =>
   point.categoria || point.canal || `Zona ${index + 1}`;
@@ -859,6 +998,13 @@ export const SurveyAnalytics = ({
     [summary],
   );
   const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
+  const hasEligibilityMetrics = optionData.some((item) => item.usaBaseElegible);
+  const hasMultipleChoiceRates = optionData.some(
+    (item) => item.usaBaseElegible && item.esSeleccionMultiple,
+  );
+  const hasRowsWithoutEligibleBase = optionData.some(
+    (item) => !item.usaBaseElegible,
+  );
   const heatmapPayloadRecord = useMemo(
     () => (heatmapPayload && typeof heatmapPayload === 'object' ? (heatmapPayload as Record<string, unknown>) : null),
     [heatmapPayload],
@@ -1412,7 +1558,11 @@ export const SurveyAnalytics = ({
       <Card>
         <CardHeader>
           <CardTitle>Preferencias por opción</CardTitle>
-          <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
+          <CardDescription>
+            {hasEligibilityMetrics
+              ? 'Tasas independientes por pregunta y opción, calculadas sobre participantes elegibles.'
+              : 'Resultados acumulados por pregunta y opción.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
           <MeasuredContainer className="h-72 min-w-0">
@@ -1425,7 +1575,7 @@ export const SurveyAnalytics = ({
                   <Tooltip />
                   <Legend />
                   <Bar
-                    dataKey="respuestas"
+                    dataKey={hasEligibilityMetrics ? 'respuestasSeleccionaron' : 'respuestas'}
                     fill="#7c3aed"
                     isAnimationActive
                     animationDuration={CHART_ANIMATION_DURATION}
@@ -1439,35 +1589,112 @@ export const SurveyAnalytics = ({
               </div>
             )}
           </MeasuredContainer>
-          <MeasuredContainer className="h-72 min-w-0">
-            {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
-                <PieChart>
-                  <Pie
-                    data={optionData}
-                    dataKey="porcentaje"
-                    nameKey="opcion"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={110}
-                    innerRadius={60}
-                    isAnimationActive
-                    animationDuration={CHART_ANIMATION_DURATION}
-                    animationEasing={CHART_ANIMATION_EASING}
-                  >
-                    {optionData.map((entry, index) => (
-                      <Cell key={`${entry.opcion}-${index}`} fill={palette[index % palette.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Sin datos para graficar.
-              </div>
-            )}
-          </MeasuredContainer>
+          {optionData.length && hasEligibilityMetrics ? (
+            <div
+              className="h-72 min-w-0 overflow-auto rounded-lg border"
+              data-testid="survey-eligible-option-rates"
+            >
+              <p
+                id="survey-eligible-option-rates-description"
+                className="border-b bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+              >
+                {hasMultipleChoiceRates
+                  ? 'Cada porcentaje es una tasa de selección independiente. En selección múltiple pueden sumar más de 100%.'
+                  : hasRowsWithoutEligibleBase
+                    ? 'Las filas sin base elegible informada se muestran explícitamente con su porcentaje legacy.'
+                    : 'Cada porcentaje usa la base elegible de su propia pregunta.'}
+              </p>
+              <table
+                className="w-full min-w-[640px] text-left text-sm"
+                aria-describedby="survey-eligible-option-rates-description"
+              >
+                <caption className="sr-only">
+                  Tasas por pregunta y opción con sus denominadores
+                </caption>
+                <thead className="border-b bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3" scope="col">Pregunta</th>
+                    <th className="px-4 py-3" scope="col">Opción</th>
+                    <th className="px-4 py-3 text-right" scope="col">Selecciones</th>
+                    <th className="px-4 py-3 text-right" scope="col">Tasa por opción</th>
+                    <th className="px-4 py-3" scope="col">Base</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {optionData.map((entry, index) => (
+                    <tr key={`${entry.pregunta}-${entry.opcion}-${index}`}>
+                      <th className="px-4 py-3 font-medium" scope="row">
+                        {entry.pregunta}
+                      </th>
+                      <td className="px-4 py-3">{entry.opcion}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {formatSurveyNumber(entry.respuestasSeleccionaron)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                        {formatSurveyPercentage(entry.participacion)}
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {entry.baseParticipacion === 'elegibles'
+                            ? 'sobre elegibles'
+                            : entry.baseParticipacion === 'respuestas_pregunta'
+                              ? 'sobre respuestas de la pregunta'
+                              : entry.baseParticipacion === 'total_encuesta'
+                                ? 'sobre total de encuesta'
+                                : 'porcentaje legacy'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {!entry.usaBaseElegible
+                          ? 'Base elegible no informada'
+                          : entry.respuestasElegibles !== undefined
+                            ? `${formatSurveyNumber(entry.respuestasElegibles)} elegibles`
+                            : entry.baseParticipacion === 'respuestas_pregunta'
+                              ? 'Base: respuestas de la pregunta'
+                              : 'Base elegible parcial'}
+                        {entry.respuestasRespondidas !== undefined ? (
+                          <span className="block text-xs">
+                            {formatSurveyNumber(entry.respuestasRespondidas)} respondieron
+                            {entry.tasaRespuestaElegible !== undefined
+                              ? ` · ${formatSurveyPercentage(entry.tasaRespuestaElegible)}`
+                              : ''}
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <MeasuredContainer className="h-72 min-w-0">
+              {optionData.length ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                  <PieChart>
+                    <Pie
+                      data={optionData}
+                      dataKey="porcentaje"
+                      nameKey="opcion"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={110}
+                      innerRadius={60}
+                      isAnimationActive
+                      animationDuration={CHART_ANIMATION_DURATION}
+                      animationEasing={CHART_ANIMATION_EASING}
+                    >
+                      {optionData.map((entry, index) => (
+                        <Cell key={`${entry.opcion}-${index}`} fill={palette[index % palette.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Sin datos para graficar.
+                </div>
+              )}
+            </MeasuredContainer>
+          )}
         </CardContent>
       </Card>
 

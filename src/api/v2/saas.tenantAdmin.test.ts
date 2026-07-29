@@ -334,6 +334,45 @@ describe("tenant admin v2 contracts", () => {
     expect(tracking?.frontend_path).toBe("/tracking/claim/M-378430?pin=900144");
   });
 
+  it("preserves the handoff lifecycle and backend blocker contract", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: 42,
+        title: "Consulta vecinal",
+        status: "en_proceso",
+        handoff: {
+          status: "requested",
+          requested_by: { id: 7, name: "Mesa Uno" },
+        },
+        allowed_actions: [
+          {
+            id: "accept_handoff",
+            label: "Tomar conversación",
+            description: "Acepta el control humano de este ticket.",
+            method: "POST",
+            endpoint: "/api/v2/inbox/omnichannel/42/actions",
+            requires: [],
+            disabled: true,
+            disabled_reason: "La conversación ya fue tomada por otro operador.",
+          },
+        ],
+      },
+    });
+
+    expect(normalized.item.handoff).toMatchObject({
+      status: "requested",
+      requested_by: { name: "Mesa Uno" },
+    });
+    expect(normalized.item.allowed_actions[0]).toMatchObject({
+      id: "accept_handoff",
+      description: "Acepta el control humano de este ticket.",
+      endpoint: "/api/v2/inbox/omnichannel/42/actions",
+      disabled: true,
+      disabled_reason: "La conversación ya fue tomada por otro operador.",
+    });
+  });
+
   it("does not turn API-only GET actions into frontend navigation links", () => {
     const normalized = normalizeOmnichannelInboxDetailV2({
       contract_version: "inbox.omnichannel.detail.v1",

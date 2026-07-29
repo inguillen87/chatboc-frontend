@@ -1,7 +1,6 @@
 // src/components/chat/ChatWidgetInner.tsx
 
 import { useWidgetSessionStore } from '@/stores';
-import { MobileTicketForm } from '@/components/widget/MobileTicketForm';
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";

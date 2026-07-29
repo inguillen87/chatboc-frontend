@@ -190,7 +190,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(useCases).toHaveTextContent('Certificado o tramite');
     expect(useCases).toHaveTextContent('Pedido escrito');
     const assistedCommand = screen.getByTestId('market-assisted-command');
-    expect(assistedCommand).toHaveAttribute('open');
+    await waitFor(() => expect(assistedCommand).toHaveAttribute('open'));
     expect(assistedCommand).toHaveClass('order-2');
     expect(screen.getByText(/Nota manuscrita, foto, PDF o texto/i)).toBeInTheDocument();
     expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();

@@ -10,14 +10,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { SurveyPreviewTester } from '@/components/surveys/SurveyPreviewTester';
+import { SurveyLogicMap } from '@/components/surveys/SurveyLogicMap';
 import type {
   PreguntaTipo,
   SurveyAdmin,
+  SurveyConditionalLogic,
+  SurveyConditionalLogicV1,
+  SurveyConditionalLogicV2,
+  SurveyConditionalNodeV2,
+  SurveyConditionalOptionSelectedV2,
   SurveyDraftPayload,
+  SurveyOptionId,
   SurveyTipo,
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
 import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
+import { parseSurveyConditionalLogic } from '@/utils/surveyConditionalLogic';
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
@@ -31,15 +40,22 @@ interface SurveyEditorProps {
 
 interface LocalOption {
   localId: string;
-  id?: number;
+  id?: SurveyOptionId;
+  option_ref?: string | null;
   orden: number;
   texto: string;
   valor?: string;
 }
 
+interface LocalConditionalRule {
+  sourceLocalId: string;
+  sourceOptionLocalId: string;
+}
+
 interface LocalQuestion {
   localId: string;
   id?: number;
+  question_ref?: string | null;
   orden: number;
   tipo: PreguntaTipo;
   texto: string;
@@ -47,6 +63,9 @@ interface LocalQuestion {
   min_selecciones?: number | null;
   max_selecciones?: number | null;
   opciones?: LocalOption[];
+  conditionalRule?: LocalConditionalRule;
+  conditionalLogicV2?: SurveyConditionalLogicV2;
+  conditionalLogicInvalid?: boolean;
 }
 
 const generateId = () =>
@@ -54,29 +73,39 @@ const generateId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
-const createLocalOption = (index: number, partial?: Partial<LocalOption>): LocalOption => ({
-  localId: generateId(),
-  orden: index,
-  texto: '',
-  ...partial,
-});
+const createLocalOption = (index: number, partial?: Partial<LocalOption>): LocalOption => {
+  const localId = generateId();
+  return {
+    localId,
+    option_ref: `option:${localId}`,
+    orden: index,
+    texto: '',
+    ...partial,
+  };
+};
 
-const createLocalQuestion = (index: number, partial?: Partial<LocalQuestion>): LocalQuestion => ({
-  localId: generateId(),
-  orden: index,
-  tipo: 'opcion_unica',
-  texto: 'Nueva pregunta',
-  obligatoria: true,
-  opciones: [createLocalOption(1), createLocalOption(2)],
-  ...partial,
-});
+const createLocalQuestion = (index: number, partial?: Partial<LocalQuestion>): LocalQuestion => {
+  const localId = generateId();
+  return {
+    localId,
+    question_ref: `question:${localId}`,
+    orden: index,
+    tipo: 'opcion_unica',
+    texto: 'Nueva pregunta',
+    obligatoria: true,
+    opciones: [createLocalOption(1), createLocalOption(2)],
+    ...partial,
+  };
+};
 
 const mapQuestionsToLocal = (
   preguntas?: SurveyDraftPayload['preguntas'] | SurveyAdmin['preguntas'],
-): LocalQuestion[] =>
-  preguntas?.map((pregunta) => ({
+): LocalQuestion[] => {
+  const sourceQuestions = preguntas ?? [];
+  const localQuestions = sourceQuestions.map((pregunta) => ({
     localId: generateId(),
     id: 'id' in pregunta ? pregunta.id : undefined,
+    question_ref: pregunta.question_ref,
     orden: pregunta.orden,
     tipo: pregunta.tipo,
     texto: pregunta.texto,
@@ -86,21 +115,84 @@ const mapQuestionsToLocal = (
     opciones: pregunta.opciones?.map((opcion) => ({
       localId: generateId(),
       id: 'id' in opcion ? opcion.id : undefined,
+      option_ref: opcion.option_ref,
       orden: opcion.orden,
       texto: opcion.texto,
       valor: opcion.valor,
     })),
-  })) ?? [];
+  }));
+
+  return localQuestions.map((question, questionIndex) => {
+    const rawLogic = sourceQuestions[questionIndex]?.conditional_logic;
+    const logic = parseSurveyConditionalLogic(rawLogic);
+    if (!logic) {
+      return rawLogic === undefined || rawLogic === null
+        ? question
+        : { ...question, conditionalLogicInvalid: true };
+    }
+    if (logic.version === 2) {
+      return {
+        ...question,
+        conditionalLogicV2: logic,
+        conditionalLogicInvalid: !isLocalV2ConditionalRuleValid(logic, localQuestions, questionIndex),
+      };
+    }
+
+    const sourceIndexes = sourceQuestions.reduce<number[]>((matches, sourceQuestion, sourceIndex) => {
+      if (sourceQuestion.orden === logic.show_if.question_order) matches.push(sourceIndex);
+      return matches;
+    }, []);
+    if (sourceIndexes.length !== 1 || sourceIndexes[0] >= questionIndex) {
+      return { ...question, conditionalLogicInvalid: true };
+    }
+
+    const sourceIndex = sourceIndexes[0];
+    if (!['opcion_unica', 'multiple'].includes(sourceQuestions[sourceIndex].tipo)) {
+      return { ...question, conditionalLogicInvalid: true };
+    }
+    const sourceOptionIndexes = (sourceQuestions[sourceIndex].opciones ?? []).reduce<number[]>(
+      (matches, sourceOption, optionIndex) => {
+        if (sourceOption.orden === logic.show_if.option_order) matches.push(optionIndex);
+        return matches;
+      },
+      [],
+    );
+    if (sourceOptionIndexes.length !== 1) return { ...question, conditionalLogicInvalid: true };
+
+    const sourceQuestion = localQuestions[sourceIndex];
+    const sourceOption = sourceQuestion.opciones?.[sourceOptionIndexes[0]];
+    if (!sourceOption) return { ...question, conditionalLogicInvalid: true };
+
+    return {
+      ...question,
+      conditionalRule: {
+        sourceLocalId: sourceQuestion.localId,
+        sourceOptionLocalId: sourceOption.localId,
+      },
+    };
+  });
+};
+
+const cloneConditionalLogic = (
+  value: SurveyConditionalLogic | null | undefined,
+): SurveyConditionalLogic | null | undefined => {
+  if (value === undefined || value === null) return value;
+  const parsed = parseSurveyConditionalLogic(value);
+  if (!parsed) throw new Error('La encuesta contiene conditional_logic invalida.');
+  return parsed;
+};
 
 const cloneDraft = (draft: SurveyDraftPayload): SurveyDraftPayload => ({
   ...draft,
   preguntas: draft.preguntas.map((pregunta) => ({
     ...pregunta,
+    conditional_logic: cloneConditionalLogic(pregunta.conditional_logic),
     opciones: pregunta.opciones?.map((opcion) => ({ ...opcion })),
   })),
 });
 
 const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
+  document_ref: survey?.document_ref,
   titulo: survey?.titulo ?? '',
   slug: survey?.slug ?? '',
   descripcion: survey?.descripcion ?? '',
@@ -120,14 +212,17 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
   preguntas:
     survey?.preguntas?.map((pregunta, index) => ({
       id: pregunta.id,
+      question_ref: pregunta.question_ref,
       orden: typeof pregunta.orden === 'number' ? pregunta.orden : index + 1,
       tipo: pregunta.tipo,
       texto: pregunta.texto,
       obligatoria: pregunta.obligatoria,
       min_selecciones: pregunta.min_selecciones ?? null,
       max_selecciones: pregunta.max_selecciones ?? null,
+      conditional_logic: cloneConditionalLogic(pregunta.conditional_logic),
       opciones: pregunta.opciones?.map((opcion, optIndex) => ({
         id: opcion.id,
+        option_ref: opcion.option_ref,
         orden: typeof opcion.orden === 'number' ? opcion.orden : optIndex + 1,
         texto: opcion.texto,
         valor: opcion.valor,
@@ -146,6 +241,7 @@ const preguntaTipoOptions: Array<{ value: PreguntaTipo; label: string }> = [
   { value: 'opcion_unica', label: 'Opción única' },
   { value: 'multiple', label: 'Selección múltiple' },
   { value: 'abierta', label: 'Respuesta abierta' },
+  { value: 'rating_emoji', label: 'Rating con emojis' },
 ];
 
 const unicidadOptions = [
@@ -195,6 +291,138 @@ const buildInitialQuestions = (survey?: SurveyAdmin, initialDraft?: SurveyDraftP
   return [createLocalQuestion(1)];
 };
 
+const isCompatibleConditionalSource = (question: LocalQuestion) =>
+  (question.tipo === 'opcion_unica' || question.tipo === 'multiple') && Boolean(question.opciones?.length);
+
+const v2ConditionalLeaves = (node: SurveyConditionalNodeV2): SurveyConditionalOptionSelectedV2[] =>
+  node.kind === 'option_selected' ? [node] : node.children.flatMap(v2ConditionalLeaves);
+
+const v2MandatoryConditionalLeaves = (node: SurveyConditionalNodeV2): SurveyConditionalOptionSelectedV2[] => {
+  if (node.kind === 'option_selected') return [node];
+  return node.operator === 'and' ? node.children.flatMap(v2MandatoryConditionalLeaves) : [];
+};
+
+const ensureStableLocalRefs = (questions: LocalQuestion[]): LocalQuestion[] =>
+  questions.map((question) => ({
+    ...question,
+    question_ref: question.question_ref || `question:${question.localId}`,
+    opciones: question.opciones?.map((option) => ({
+      ...option,
+      option_ref: option.option_ref || `option:${option.localId}`,
+    })),
+  }));
+
+const replaceV2ConditionalLeaf = (
+  node: SurveyConditionalNodeV2,
+  currentQuestionRef: string,
+  currentOptionRef: string,
+  replacement: Extract<SurveyConditionalNodeV2, { kind: 'option_selected' }>,
+): SurveyConditionalNodeV2 => {
+  if (node.kind === 'option_selected') {
+    return node.question_ref === currentQuestionRef && node.option_ref === currentOptionRef
+      ? replacement
+      : node;
+  }
+  return {
+    ...node,
+    children: node.children.map((child) => replaceV2ConditionalLeaf(
+      child,
+      currentQuestionRef,
+      currentOptionRef,
+      replacement,
+    )),
+  };
+};
+
+const isLocalV2ConditionalRuleValid = (
+  rule: SurveyConditionalLogicV2,
+  questions: LocalQuestion[],
+  targetIndex: number,
+) => {
+  const parsed = parseSurveyConditionalLogic(rule);
+  if (!parsed || parsed.version !== 2) return false;
+  const referencesAreValid = v2ConditionalLeaves(parsed.show_if).every((node) => {
+  const sourceIndexes = questions.reduce<number[]>((indexes, candidate, index) => {
+    if (candidate.question_ref === node.question_ref) indexes.push(index);
+    return indexes;
+  }, []);
+  if (sourceIndexes.length !== 1 || sourceIndexes[0] >= targetIndex) return false;
+  const source = questions[sourceIndexes[0]];
+  return isCompatibleConditionalSource(source)
+    && (source.opciones ?? []).filter((option) => option.option_ref === node.option_ref).length === 1;
+  });
+  if (!referencesAreValid) return false;
+
+  const mandatorySingleChoiceOptions = new Map<string, string>();
+  for (const leaf of v2MandatoryConditionalLeaves(parsed.show_if)) {
+    const source = questions.find((question) => question.question_ref === leaf.question_ref);
+    if (source?.tipo !== 'opcion_unica') continue;
+    const previousOptionRef = mandatorySingleChoiceOptions.get(leaf.question_ref);
+    if (previousOptionRef !== undefined && previousOptionRef !== leaf.option_ref) return false;
+    mandatorySingleChoiceOptions.set(leaf.question_ref, leaf.option_ref);
+  }
+  return true;
+};
+
+const sanitizeLocalConditionalRules = (questions: LocalQuestion[]): LocalQuestion[] =>
+  questions.map((question, questionIndex) => {
+    if (question.conditionalLogicV2) {
+      return {
+        ...question,
+        conditionalLogicInvalid: !isLocalV2ConditionalRuleValid(
+          question.conditionalLogicV2,
+          questions,
+          questionIndex,
+        ),
+      };
+    }
+    const rule = question.conditionalRule;
+    if (!rule) return question;
+
+    const sourceIndex = questions.findIndex((candidate) => candidate.localId === rule.sourceLocalId);
+    const sourceQuestion = sourceIndex >= 0 ? questions[sourceIndex] : undefined;
+    const sourceOptionExists = sourceQuestion?.opciones?.some(
+      (option) => option.localId === rule.sourceOptionLocalId,
+    );
+    if (
+      sourceIndex < 0 ||
+      sourceIndex >= questionIndex ||
+      !sourceQuestion ||
+      !isCompatibleConditionalSource(sourceQuestion) ||
+      !sourceOptionExists
+    ) {
+      return { ...question, conditionalRule: undefined };
+    }
+    return question;
+  });
+
+const serializeConditionalRule = (
+  question: LocalQuestion,
+  questionIndex: number,
+  questions: LocalQuestion[],
+): SurveyConditionalLogic | null => {
+  if (question.conditionalLogicV2) return question.conditionalLogicV2;
+  const rule = question.conditionalRule;
+  if (!rule) return null;
+
+  const sourceIndex = questions.findIndex((candidate) => candidate.localId === rule.sourceLocalId);
+  if (sourceIndex < 0 || sourceIndex >= questionIndex) return null;
+  const sourceQuestion = questions[sourceIndex];
+  if (!isCompatibleConditionalSource(sourceQuestion)) return null;
+  const sourceOptionIndex = (sourceQuestion.opciones ?? []).findIndex(
+    (option) => option.localId === rule.sourceOptionLocalId,
+  );
+  if (sourceOptionIndex < 0) return null;
+
+  return {
+    version: 1,
+    show_if: {
+      question_order: sourceIndex + 1,
+      option_order: sourceOptionIndex + 1,
+    },
+  };
+};
+
 export const SurveyEditor = ({
   survey,
   initialDraft,
@@ -241,8 +469,157 @@ export const SurveyEditor = ({
 
   const handleQuestionChange = (localId: string, partial: Partial<LocalQuestion>) => {
     setQuestions((prev) =>
-      prev.map((question) => (question.localId === localId ? { ...question, ...partial } : question)),
+      sanitizeLocalConditionalRules(
+        prev.map((question) => (question.localId === localId ? { ...question, ...partial } : question)),
+      ),
     );
+  };
+
+  const handleUpgradeConditionalRule = (localId: string) => {
+    setQuestions((previous) => {
+      const withRefs = ensureStableLocalRefs(previous);
+      const targetIndex = withRefs.findIndex((question) => question.localId === localId);
+      const target = withRefs[targetIndex];
+      const simpleRule = target?.conditionalRule;
+      if (!target || targetIndex <= 0 || !simpleRule) return previous;
+      const source = withRefs.find((question) => question.localId === simpleRule.sourceLocalId);
+      const option = source?.opciones?.find((candidate) => candidate.localId === simpleRule.sourceOptionLocalId);
+      if (!source?.question_ref || !option?.option_ref) return previous;
+
+      return sanitizeLocalConditionalRules(withRefs.map((question) => (
+        question.localId === localId
+          ? {
+              ...question,
+              conditionalRule: undefined,
+              conditionalLogicInvalid: false,
+              conditionalLogicV2: {
+                version: 2,
+                show_if: {
+                  kind: 'group',
+                  operator: 'and',
+                  children: [{
+                    kind: 'option_selected',
+                    question_ref: source.question_ref,
+                    option_ref: option.option_ref,
+                  }],
+                },
+              },
+            }
+          : question
+      )));
+    });
+  };
+
+  const handleV2OperatorChange = (localId: string, operator: 'and' | 'or') => {
+    setQuestions((previous) => sanitizeLocalConditionalRules(previous.map((question) => {
+      if (question.localId !== localId || !question.conditionalLogicV2) return question;
+      return {
+        ...question,
+        conditionalLogicV2: {
+          ...question.conditionalLogicV2,
+          show_if: { ...question.conditionalLogicV2.show_if, operator },
+        },
+      };
+    })));
+  };
+
+  const handleAddV2Condition = (localId: string) => {
+    const withRefs = ensureStableLocalRefs(questions);
+    const targetIndex = withRefs.findIndex((question) => question.localId === localId);
+    const target = withRefs[targetIndex];
+    if (!target?.conditionalLogicV2 || target.conditionalLogicV2.show_if.children.length >= 16) return;
+
+    const leaves = v2ConditionalLeaves(target.conditionalLogicV2.show_if);
+    const existing = new Set(leaves.map((node) => `${node.question_ref}\u0000${node.option_ref}`));
+    const usedQuestionRefs = new Set(leaves.map((node) => node.question_ref));
+    let nextLeaf: SurveyConditionalOptionSelectedV2 | undefined;
+    const compatibleSources = withRefs.slice(0, targetIndex).filter(isCompatibleConditionalSource);
+    const orderedSources = [
+      ...compatibleSources.filter((source) => !source.question_ref || !usedQuestionRefs.has(source.question_ref)),
+      ...compatibleSources.filter((source) => source.question_ref && usedQuestionRefs.has(source.question_ref)),
+    ];
+    for (const source of orderedSources) {
+      if (!source.question_ref) continue;
+      if (
+        target.conditionalLogicV2.show_if.operator === 'and'
+        && source.tipo === 'opcion_unica'
+        && usedQuestionRefs.has(source.question_ref)
+      ) continue;
+      for (const option of source.opciones ?? []) {
+        if (!option.option_ref || existing.has(`${source.question_ref}\u0000${option.option_ref}`)) continue;
+        nextLeaf = {
+          kind: 'option_selected',
+          question_ref: source.question_ref,
+          option_ref: option.option_ref,
+        };
+        break;
+      }
+      if (nextLeaf) break;
+    }
+    if (!nextLeaf) {
+      setSubmissionError('No hay otra combinacion previa disponible para agregar a esta ruta.');
+      return;
+    }
+    setSubmissionError(null);
+    setQuestions(sanitizeLocalConditionalRules(withRefs.map((question) => (
+      question.localId === localId
+        ? {
+            ...question,
+            conditionalLogicV2: {
+              ...question.conditionalLogicV2!,
+              show_if: {
+                ...question.conditionalLogicV2!.show_if,
+                children: [...question.conditionalLogicV2!.show_if.children, nextLeaf!],
+              },
+            },
+          }
+        : question
+    ))));
+  };
+
+  const handleReplaceV2Leaf = (
+    localId: string,
+    currentQuestionRef: string,
+    currentOptionRef: string,
+    replacement: Extract<SurveyConditionalNodeV2, { kind: 'option_selected' }>,
+  ) => {
+    const target = questions.find((question) => question.localId === localId);
+    const otherLeaves = target?.conditionalLogicV2
+      ? v2ConditionalLeaves(target.conditionalLogicV2.show_if).filter(
+          (leaf) => leaf.question_ref !== currentQuestionRef || leaf.option_ref !== currentOptionRef,
+        )
+      : [];
+    if (otherLeaves.some(
+      (leaf) => leaf.question_ref === replacement.question_ref && leaf.option_ref === replacement.option_ref,
+    )) {
+      setSubmissionError('La misma condicion no puede repetirse dentro de una ruta.');
+      return;
+    }
+    const replacementSource = questions.find((question) => question.question_ref === replacement.question_ref);
+    if (
+      target?.conditionalLogicV2?.show_if.operator === 'and'
+      && replacementSource?.tipo === 'opcion_unica'
+      && otherLeaves.some((leaf) => leaf.question_ref === replacement.question_ref)
+    ) {
+      setSubmissionError('AND no puede exigir dos respuestas distintas de una pregunta de opcion unica.');
+      return;
+    }
+    setSubmissionError(null);
+    setQuestions((previous) => sanitizeLocalConditionalRules(previous.map((question) => {
+      if (question.localId !== localId || !question.conditionalLogicV2) return question;
+      return {
+        ...question,
+        conditionalLogicV2: {
+          ...question.conditionalLogicV2,
+          show_if: replaceV2ConditionalLeaf(
+            question.conditionalLogicV2.show_if,
+            currentQuestionRef,
+            currentOptionRef,
+            replacement,
+          ) as SurveyConditionalLogicV2['show_if'],
+        },
+      };
+    })));
   };
 
   const handleOptionChange = (questionId: string, optionId: string, partial: Partial<LocalOption>) => {
@@ -264,7 +641,7 @@ export const SurveyEditor = ({
   };
 
   const handleRemoveQuestion = (localId: string) => {
-    setQuestions((prev) => prev.filter((question) => question.localId !== localId));
+    setQuestions((prev) => sanitizeLocalConditionalRules(prev.filter((question) => question.localId !== localId)));
   };
 
   const handleAddOption = (questionId: string) => {
@@ -279,11 +656,32 @@ export const SurveyEditor = ({
 
   const handleRemoveOption = (questionId: string, optionId: string) => {
     setQuestions((prev) =>
-      prev.map((question) => {
-        if (question.localId !== questionId) return question;
-        return { ...question, opciones: (question.opciones ?? []).filter((option) => option.localId !== optionId) };
-      }),
+      sanitizeLocalConditionalRules(
+        prev.map((question) => {
+          if (question.localId !== questionId) return question;
+          return { ...question, opciones: (question.opciones ?? []).filter((option) => option.localId !== optionId) };
+        }),
+      ),
     );
+  };
+
+  const handleQuestionsReorder = (nextQuestions: LocalQuestion[]) => {
+    if (structureLocked) return;
+    const sanitized = sanitizeLocalConditionalRules(nextQuestions);
+    const wouldDropAdaptiveRule = nextQuestions.some(
+      (question, index) => Boolean(question.conditionalRule) && !sanitized[index]?.conditionalRule,
+    );
+    const wouldInvalidateV2Rule = nextQuestions.some(
+      (question, index) => Boolean(question.conditionalLogicV2) && sanitized[index]?.conditionalLogicInvalid,
+    );
+    if (wouldDropAdaptiveRule || wouldInvalidateV2Rule) {
+      setSubmissionError(
+        'No se puede mover una pregunta adaptativa antes de la pregunta que activa su ruta.',
+      );
+      return;
+    }
+    setSubmissionError(null);
+    setQuestions(sanitized);
   };
 
   const normalizeDateValue = (value?: string | null) => {
@@ -326,17 +724,20 @@ export const SurveyEditor = ({
     fin_at: normalizeDateValue(formValues.fin_at),
     preguntas: questions.map((question, index) => ({
       id: question.id,
+      question_ref: question.question_ref,
       orden: index + 1,
       tipo: question.tipo,
       texto: question.texto.trim(),
       obligatoria: question.obligatoria,
       min_selecciones: question.tipo === 'multiple' ? question.min_selecciones ?? null : null,
       max_selecciones: question.tipo === 'multiple' ? question.max_selecciones ?? null : null,
+      conditional_logic: serializeConditionalRule(question, index, questions),
       opciones:
         question.tipo === 'abierta'
           ? undefined
           : (question.opciones ?? []).map((option, optIndex) => ({
               id: option.id,
+              option_ref: option.option_ref,
               orden: optIndex + 1,
               texto: option.texto,
               valor: option.valor,
@@ -374,6 +775,11 @@ export const SurveyEditor = ({
     if (!preparedPayload.preguntas.length) {
       setSubmissionError('Agregá al menos una pregunta.');
       toast({ title: 'Agregá al menos una pregunta', variant: 'destructive' });
+      return false;
+    }
+    if (questions.some((question) => question.conditionalLogicInvalid)) {
+      setSubmissionError('Hay una ruta adaptativa invalida. Corregila o desactivala antes de guardar.');
+      toast({ title: 'Revisa las rutas adaptativas', variant: 'destructive' });
       return false;
     }
 
@@ -622,11 +1028,23 @@ export const SurveyEditor = ({
           <CardDescription>Arrastrá para reordenar, editá las opciones y definí validaciones.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Reorder.Group axis="y" values={questions} onReorder={setQuestions} className="space-y-4">
-            {questions.map((question) => (
+          <Reorder.Group axis="y" values={questions} onReorder={handleQuestionsReorder} className="space-y-4">
+            {questions.map((question, questionIndex) => {
+              const compatibleSources = questions
+                .slice(0, questionIndex)
+                .filter(isCompatibleConditionalSource);
+              const selectedSource = compatibleSources.find(
+                (sourceQuestion) => sourceQuestion.localId === question.conditionalRule?.sourceLocalId,
+              );
+              const v2Leaves = question.conditionalLogicV2
+                ? v2ConditionalLeaves(question.conditionalLogicV2.show_if)
+                : [];
+
+              return (
               <Reorder.Item
                 key={question.localId}
                 value={question}
+                dragListener={!structureLocked}
                 className="border border-border rounded-lg bg-card/60 p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -710,6 +1128,254 @@ export const SurveyEditor = ({
                         </>
                       )}
                     </div>
+                    {questionIndex > 0 ? (
+                      <div className="space-y-3 rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <Label htmlFor={`conditional-rule-${question.localId}`}>Ruta adaptativa</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Mostrar esta pregunta solo cuando una respuesta previa coincida.
+                            </p>
+                          </div>
+                          <Switch
+                            id={`conditional-rule-${question.localId}`}
+                            aria-label={`Activar ruta adaptativa para pregunta ${questionIndex + 1}`}
+                            checked={Boolean(
+                              question.conditionalRule || question.conditionalLogicV2 || question.conditionalLogicInvalid,
+                            )}
+                            disabled={
+                              structureLocked
+                              || (
+                                compatibleSources.length === 0
+                                && !question.conditionalRule
+                                && !question.conditionalLogicV2
+                                && !question.conditionalLogicInvalid
+                              )
+                            }
+                            onCheckedChange={(checked) => {
+                              if (!checked) {
+                                handleQuestionChange(question.localId, {
+                                  conditionalRule: undefined,
+                                  conditionalLogicV2: undefined,
+                                  conditionalLogicInvalid: false,
+                                });
+                                return;
+                              }
+                              if (question.conditionalLogicV2) return;
+                              const firstSource = compatibleSources[0];
+                              const firstOption = firstSource?.opciones?.[0];
+                              if (!firstSource || !firstOption) return;
+                              handleQuestionChange(question.localId, {
+                                conditionalRule: {
+                                  sourceLocalId: firstSource.localId,
+                                  sourceOptionLocalId: firstOption.localId,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+
+                        {question.conditionalLogicV2 ? (
+                          <div className="space-y-3 rounded-md border border-primary/20 bg-background p-3 text-sm">
+                            <div className="flex flex-wrap items-end justify-between gap-3">
+                              <div className="space-y-1">
+                                <Label htmlFor={`conditional-operator-${question.localId}`}>Combinar condiciones</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  AND exige todas; OR muestra la pregunta cuando coincide al menos una.
+                                </p>
+                              </div>
+                              <Select
+                                value={question.conditionalLogicV2.show_if.operator}
+                                disabled={structureLocked}
+                                onValueChange={(value: 'and' | 'or') => handleV2OperatorChange(question.localId, value)}
+                              >
+                                <SelectTrigger id={`conditional-operator-${question.localId}`} className="w-28">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="and">AND</SelectItem>
+                                  <SelectItem value="or">OR</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-3">
+                              {v2Leaves.map((leaf, leafIndex) => {
+                                const leafSource = compatibleSources.find(
+                                  (candidate) => candidate.question_ref === leaf.question_ref,
+                                );
+                                return (
+                                  <div
+                                    key={`${leaf.question_ref}:${leaf.option_ref}`}
+                                    className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-2"
+                                  >
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`conditional-v2-source-${question.localId}-${leafIndex}`}>
+                                        Condicion {leafIndex + 1}: pregunta
+                                      </Label>
+                                      <Select
+                                        value={leaf.question_ref}
+                                        disabled={structureLocked}
+                                        onValueChange={(questionRef) => {
+                                          const source = compatibleSources.find(
+                                            (candidate) => candidate.question_ref === questionRef,
+                                          );
+                                          const firstOption = source?.opciones?.find((option) => Boolean(option.option_ref));
+                                          if (!source?.question_ref || !firstOption?.option_ref) return;
+                                          handleReplaceV2Leaf(
+                                            question.localId,
+                                            leaf.question_ref,
+                                            leaf.option_ref,
+                                            {
+                                              kind: 'option_selected',
+                                              question_ref: source.question_ref,
+                                              option_ref: firstOption.option_ref,
+                                            },
+                                          );
+                                        }}
+                                      >
+                                        <SelectTrigger id={`conditional-v2-source-${question.localId}-${leafIndex}`}>
+                                          <SelectValue placeholder="Elegir pregunta previa" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {compatibleSources.filter((source) => Boolean(source.question_ref)).map((source) => (
+                                            <SelectItem key={source.localId} value={source.question_ref!}>
+                                              {questions.findIndex((candidate) => candidate.localId === source.localId) + 1}.{' '}
+                                              {source.texto || 'Pregunta sin titulo'}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`conditional-v2-option-${question.localId}-${leafIndex}`}>
+                                        Respuesta
+                                      </Label>
+                                      <Select
+                                        value={leaf.option_ref}
+                                        disabled={structureLocked || !leafSource}
+                                        onValueChange={(optionRef) => handleReplaceV2Leaf(
+                                          question.localId,
+                                          leaf.question_ref,
+                                          leaf.option_ref,
+                                          { ...leaf, option_ref: optionRef },
+                                        )}
+                                      >
+                                        <SelectTrigger id={`conditional-v2-option-${question.localId}-${leafIndex}`}>
+                                          <SelectValue placeholder="Elegir respuesta" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {(leafSource?.opciones ?? []).filter((option) => Boolean(option.option_ref)).map((option, optionIndex) => (
+                                            <SelectItem key={option.localId} value={option.option_ref!}>
+                                              {option.texto || `Opcion ${optionIndex + 1}`}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                structureLocked
+                                || v2Leaves.length >= 32
+                                || question.conditionalLogicV2.show_if.children.length >= 16
+                              }
+                              onClick={() => handleAddV2Condition(question.localId)}
+                            >
+                              <Plus className="h-4 w-4" /> Agregar condicion
+                            </Button>
+                          </div>
+                        ) : question.conditionalRule && selectedSource ? (
+                          <div className="space-y-3">
+                            <div className="grid gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor={`conditional-source-${question.localId}`}>Pregunta previa</Label>
+                              <Select
+                                value={selectedSource.localId}
+                                disabled={structureLocked}
+                                onValueChange={(sourceLocalId) => {
+                                  const sourceQuestion = compatibleSources.find(
+                                    (candidate) => candidate.localId === sourceLocalId,
+                                  );
+                                  const firstOption = sourceQuestion?.opciones?.[0];
+                                  if (!sourceQuestion || !firstOption) return;
+                                  handleQuestionChange(question.localId, {
+                                    conditionalRule: {
+                                      sourceLocalId: sourceQuestion.localId,
+                                      sourceOptionLocalId: firstOption.localId,
+                                    },
+                                  });
+                                }}
+                              >
+                                <SelectTrigger id={`conditional-source-${question.localId}`}>
+                                  <SelectValue placeholder="Elegir pregunta previa" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {compatibleSources.map((sourceQuestion) => (
+                                    <SelectItem key={sourceQuestion.localId} value={sourceQuestion.localId}>
+                                      {questions.findIndex((candidate) => candidate.localId === sourceQuestion.localId) + 1}.{' '}
+                                      {sourceQuestion.texto || 'Pregunta sin titulo'}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`conditional-option-${question.localId}`}>Respuesta que la activa</Label>
+                              <Select
+                                value={question.conditionalRule.sourceOptionLocalId}
+                                disabled={structureLocked}
+                                onValueChange={(sourceOptionLocalId) =>
+                                  handleQuestionChange(question.localId, {
+                                    conditionalRule: {
+                                      sourceLocalId: selectedSource.localId,
+                                      sourceOptionLocalId,
+                                    },
+                                  })
+                                }
+                              >
+                                <SelectTrigger id={`conditional-option-${question.localId}`}>
+                                  <SelectValue placeholder="Elegir respuesta" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(selectedSource.opciones ?? []).map((sourceOption, optionIndex) => (
+                                    <SelectItem key={sourceOption.localId} value={sourceOption.localId}>
+                                      {sourceOption.texto || `Opcion ${optionIndex + 1}`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={structureLocked}
+                              onClick={() => handleUpgradeConditionalRule(question.localId)}
+                            >
+                              <Plus className="h-4 w-4" /> Combinar con AND/OR
+                            </Button>
+                          </div>
+                        ) : compatibleSources.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Agrega una pregunta previa con opciones para habilitar esta ruta.
+                          </p>
+                        ) : null}
+                        {question.conditionalLogicInvalid ? (
+                          <p className="text-xs font-medium text-destructive" role="alert">
+                            La ruta referencia una pregunta u opcion inexistente, posterior o no seleccionable.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {question.tipo !== 'abierta' && (
                       <div className="space-y-2">
                         <Label>Opciones</Label>
@@ -766,13 +1432,18 @@ export const SurveyEditor = ({
                   </Button>
                 </div>
               </Reorder.Item>
-            ))}
+              );
+            })}
           </Reorder.Group>
           <Button type="button" variant="outline" onClick={handleAddQuestion} disabled={structureLocked} className="inline-flex items-center gap-2">
             <Plus className="h-4 w-4" /> Agregar pregunta
           </Button>
         </CardContent>
       </Card>
+
+      <SurveyLogicMap questions={preparedPayload.preguntas} />
+
+      <SurveyPreviewTester draft={preparedPayload} />
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" onClick={handleSave} disabled={isSubmissionPending} className="inline-flex items-center gap-2">

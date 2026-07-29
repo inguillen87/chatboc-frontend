@@ -5,6 +5,7 @@ const SURVEY_SLUG = 'prioridades-2026';
 
 const surveyPayload = {
   contract_version: 'encuestas.public.v1',
+  instrument_revision: 7,
   request_id: 'req-survey-e2e',
   slug: SURVEY_SLUG,
   slug_publico: SURVEY_SLUG,
@@ -75,6 +76,7 @@ type SurveyCapture = {
   detailRequests: string[];
   liveRequests: string[];
   responses: Array<Record<string, unknown>>;
+  idempotencyKeys: string[];
 };
 
 const json = (route: Route, body: unknown, status = 200) =>
@@ -115,11 +117,30 @@ const mockSurveyApis = async (page: Page, capture: SurveyCapture) => {
     }
 
     if (path === `/api/v2/public/surveys/${SURVEY_SLUG}/respond` && request.method() === 'POST') {
-      capture.responses.push(request.postDataJSON() as Record<string, unknown>);
+      const submitted = request.postDataJSON() as Record<string, unknown>;
+      const submissionId = String(submitted.submission_id ?? '');
+      capture.responses.push(submitted);
+      capture.idempotencyKeys.push(request.headers()['idempotency-key'] ?? '');
       await json(route, {
         contract_version: 'surveys.public_response.v2',
         ok: true,
+        persisted: true,
+        replayed: false,
+        respuesta_id: 9001,
         response_id: 9001,
+        instrument_revision: 7,
+        idempotency: {
+          contract_version: 'surveys.response_receipt.v1',
+          canonical_version: 'survey-response.v1',
+          receipt_id: 9901,
+          submission_id: submissionId,
+          response_id: 9001,
+          instrument_revision: 7,
+          state: 'committed',
+          disposition: 'accepted',
+          persisted: true,
+          replayed: false,
+        },
         live_results_url: `/api/v2/public/surveys/${SURVEY_SLUG}/live-results?tenant_slug=junin`,
         realtime: { contract_version: 'surveys.realtime.v2', room: `encuesta:${SURVEY_SLUG}` },
       });
@@ -138,7 +159,7 @@ for (const viewport of E2E_VIEWPORTS) {
       window.sessionStorage.clear();
     });
 
-    const capture: SurveyCapture = { detailRequests: [], liveRequests: [], responses: [] };
+    const capture: SurveyCapture = { detailRequests: [], liveRequests: [], responses: [], idempotencyKeys: [] };
     await mockSurveyApis(page, capture);
     await page.goto(`/e/${SURVEY_SLUG}?tenant=junin`, { waitUntil: 'domcontentloaded' });
 
@@ -157,11 +178,14 @@ for (const viewport of E2E_VIEWPORTS) {
 
     await expect.poll(() => capture.responses.length).toBe(1);
     expect(capture.responses[0]).toMatchObject({
+      submission_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      instrument_revision: 7,
       respuestas: [{ pregunta_id: 101, opcion_ids: ['luz'] }],
       metadata: { answeredQuestions: 1, totalQuestions: 1 },
     });
     expect(capture.responses[0]).not.toHaveProperty('user_id');
     expect(capture.responses[0]).not.toHaveProperty('userId');
+    expect(capture.idempotencyKeys[0]).toBe(capture.responses[0].submission_id);
 
     await expect(page.getByRole('heading', { name: /Gracias por participar/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Resultados en vivo' })).toBeVisible();

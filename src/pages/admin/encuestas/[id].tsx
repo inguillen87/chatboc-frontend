@@ -103,7 +103,9 @@ const SurveyDetailPage = () => {
     return <p className="text-sm text-destructive">{surveyError || 'No encontramos esta encuesta.'}</p>;
   }
 
-  const structureLocked = survey.estado === 'publicada';
+  const structureLocked = survey.structure_guard
+    ? survey.structure_guard.locked
+    : survey.estado === 'publicada';
   const lockMessage =
     lockedEditMessage ||
     'Podes corregir textos, fechas y configuracion. Para cambiar preguntas u opciones, crea una nueva version editable.';

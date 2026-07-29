@@ -23,7 +23,39 @@ vi.mock('@/utils/api', () => ({
   ApiError: MockApiError,
 }));
 
-import { getTenantPublicInfoFlexible } from '@/api/tenant';
+import { getTenantPublicInfoFlexible, submitTenantTicket } from '@/api/tenant';
+
+const validClaimReceipt = {
+  contract_version: 'claims.intake_receipt.v1',
+  ok: true,
+  persisted: true,
+  deduplicated: false,
+  request_id: 'req-claim-1',
+  claim: {
+    id: 123,
+    code: 'T-123',
+    status: 'nuevo',
+    category: 'Alumbrado',
+    created_at: '2026-07-28T15:30:00Z',
+  },
+  access: {
+    mode: 'code_pin',
+    pin: '804231',
+  },
+  tracking: {
+    path: '/tracking/claim/T-123#pin=804231',
+    experience_endpoint: '/api/public/tracking/experience?kind=claim&code=T-123',
+    credential_transport: 'x-tracking-pin-header',
+    requires_pin: true,
+  },
+  actions: [
+    {
+      id: 'track_claim',
+      label: 'Ver seguimiento',
+      href: '/tracking/claim/T-123#pin=804231',
+    },
+  ],
+};
 
 describe('getTenantPublicInfoFlexible', () => {
   beforeEach(() => {
@@ -135,5 +167,82 @@ describe('getTenantPublicInfoFlexible', () => {
       expect.objectContaining({ tenantSlug: 'tenant-inexistente', skipAuth: true }),
     );
     expect(apiFetchMock).not.toHaveBeenCalledWith('/public/tenant', expect.anything());
+  });
+});
+
+describe('submitTenantTicket', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('uses the canonical endpoint and sends the caller idempotency key', async () => {
+    apiFetchMock.mockResolvedValueOnce(validClaimReceipt);
+
+    await expect(
+      submitTenantTicket(
+        'junin',
+        { categoria: 'Alumbrado', descripcion: 'Luminaria apagada' },
+        'claim-intake-12345678',
+      ),
+    ).resolves.toEqual(validClaimReceipt);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/pwa/app/tickets',
+      expect.objectContaining({
+        method: 'POST',
+        body: { categoria: 'Alumbrado', descripcion: 'Luminaria apagada' },
+        headers: { 'Idempotency-Key': 'claim-intake-12345678' },
+        tenantSlug: 'junin',
+        omitChatSessionId: true,
+      }),
+    );
+  });
+
+  it('fails closed for the current legacy ack without inventing tracking credentials', async () => {
+    apiFetchMock.mockResolvedValueOnce({ ticket_id: 123, estado: 'nuevo' });
+
+    await expect(
+      submitTenantTicket('junin', { descripcion: 'Bache profundo' }, 'claim-intake-legacy-1'),
+    ).rejects.toThrow('comprobante válido');
+  });
+
+  it('rejects an unknown receipt contract version', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ...validClaimReceipt,
+      contract_version: 'claims.intake_receipt.v2',
+    });
+
+    await expect(
+      submitTenantTicket('junin', { descripcion: 'Bache profundo' }, 'claim-intake-version-1'),
+    ).rejects.toThrow('comprobante válido');
+  });
+
+  it('rejects tracking links that move the PIN into a query string', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ...validClaimReceipt,
+      tracking: {
+        ...validClaimReceipt.tracking,
+        path: '/tracking/claim/T-123?pin=804231',
+      },
+      actions: [
+        {
+          id: 'track_claim',
+          label: 'Ver seguimiento',
+          href: '/tracking/claim/T-123?pin=804231',
+        },
+      ],
+    });
+
+    await expect(
+      submitTenantTicket('junin', { descripcion: 'Bache profundo' }, 'claim-intake-query-1'),
+    ).rejects.toThrow('comprobante válido');
+  });
+
+  it('rejects unsafe idempotency keys before making a request', async () => {
+    await expect(
+      submitTenantTicket('junin', { descripcion: 'Bache profundo' }, 'bad key'),
+    ).rejects.toThrow('clave segura');
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });

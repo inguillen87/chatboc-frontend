@@ -2,9 +2,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { adminSeedSurvey, postPublicResponse } from '@/api/encuestas';
-import { ApiError } from '@/utils/api';
+import { ApiError, NetworkError } from '@/utils/api';
 import type { SurveyAdmin, SurveyPublic } from '@/types/encuestas';
 import { generateSurveySeedPayloads } from '@/utils/surveySeed';
+import {
+  AmbiguousSurveySubmissionError,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 
 interface SeedArgs {
   survey: SurveyAdmin | SurveyPublic;
@@ -100,7 +104,10 @@ const extractRetryAfterMs = (error: ApiError): number | null => {
   return null;
 };
 
-const shouldRetry = (error: unknown): error is ApiError => error instanceof ApiError && RETRY_STATUS_CODES.has(error.status);
+const shouldRetry = (error: unknown): boolean =>
+  error instanceof NetworkError ||
+  error instanceof AmbiguousSurveySubmissionError ||
+  (error instanceof ApiError && RETRY_STATUS_CODES.has(error.status));
 
 const computeRetryDelay = (attempt: number, error?: ApiError | null) => {
   const fromError = error ? extractRetryAfterMs(error) : null;
@@ -139,7 +146,7 @@ const postBatch = async (
       } catch (error) {
         lastError = error;
         if (shouldRetry(error) && attempt < MAX_RETRY_ATTEMPTS - 1) {
-          const delay = computeRetryDelay(attempt, error);
+          const delay = computeRetryDelay(attempt, error instanceof ApiError ? error : null);
           await sleep(delay);
           continue;
         }
@@ -148,8 +155,7 @@ const postBatch = async (
     }
 
     if (!success) {
-      const conflictError = lastError instanceof ApiError && lastError.status === 409;
-      if (conflictError) {
+      if (isSurveyResponseDuplicateError(lastError)) {
         summary.duplicates += 1;
       } else {
         summary.failures += 1;

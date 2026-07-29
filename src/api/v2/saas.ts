@@ -12,6 +12,7 @@ export interface SaasAction {
   id: string;
   label: string;
   type?: string;
+  description?: string;
   href?: string;
   frontend_path?: string;
   endpoint?: string;
@@ -21,6 +22,8 @@ export interface SaasAction {
   payload_defaults?: UnknownRecord;
   payloadDefaults?: UnknownRecord;
   disabled?: boolean;
+  disabled_reason?: string;
+  destructive?: boolean;
   raw?: unknown;
 }
 
@@ -239,6 +242,7 @@ export interface OmnichannelInboxItem {
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
   source_metadata?: UnknownRecord;
+  handoff?: UnknownRecord;
   live_chat?: OmnichannelLiveChatStatus;
   frontend_contract?: UnknownRecord;
   raw?: unknown;
@@ -696,6 +700,7 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     id,
     label,
     type: asString(getFirst(value, ['type', 'kind'])),
+    description: asString(getFirst(value, ['description', 'help_text', 'detail', 'summary'])),
     href,
     frontend_path: asString(getFirst(value, ['frontend_path', 'frontendPath'])) ?? frontendPath,
     endpoint,
@@ -705,11 +710,23 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     payload_defaults: payloadDefaults,
     payloadDefaults,
     disabled: asBoolean(value.disabled),
+    disabled_reason: asString(
+      getFirst(value, [
+        'disabled_reason',
+        'disabledReason',
+        'unavailable_reason',
+        'unavailableReason',
+        'blocked_reason',
+        'blockedReason',
+        'reason',
+      ]),
+    ),
+    destructive: asBoolean(value.destructive),
     raw: value,
   };
 };
 
-const normalizeActions = (value: unknown) => {
+export const normalizeSaasActions = (value: unknown): SaasAction[] => {
   const rawActions = Array.isArray(value)
     ? value
     : isRecord(value)
@@ -717,6 +734,8 @@ const normalizeActions = (value: unknown) => {
       : [];
   return rawActions.map(normalizeAction).filter((action): action is SaasAction => Boolean(action));
 };
+
+const normalizeActions = normalizeSaasActions;
 
 const normalizeAlert = (value: unknown, index = 0): SaasAlert | null => {
   if (typeof value === 'string' && value.trim()) {
@@ -1284,6 +1303,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
     source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
+    handoff: value.handoff ? asRecord(value.handoff) : undefined,
     live_chat: normalizeLiveChatStatus(value.live_chat),
     frontend_contract: value.frontend_contract ? asRecord(value.frontend_contract) : undefined,
     raw: value,

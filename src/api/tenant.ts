@@ -8,6 +8,7 @@ import type {
   TenantPublicNavigationItem,
   TenantPublicInfo,
   TenantSummary,
+  TenantClaimIntakeReceipt,
   TenantTicketPayload,
 } from '@/types/tenant';
 
@@ -443,15 +444,133 @@ export async function getTenantPublicNavigation(slug: string): Promise<TenantPub
 export async function submitTenantTicket(
   slug: string,
   payload: TenantTicketPayload,
-): Promise<{ ok: boolean; ticket_id?: number }> {
-  return apiFetch('/app/tickets', {
+  idempotencyKey: string,
+): Promise<TenantClaimIntakeReceipt> {
+  const normalizedIdempotencyKey = idempotencyKey.trim();
+  if (!/^[A-Za-z0-9_.:-]{8,128}$/.test(normalizedIdempotencyKey)) {
+    throw new Error('No se pudo generar una clave segura para enviar el reclamo.');
+  }
+
+  const response = await apiFetch<unknown>('/api/pwa/app/tickets', {
     method: 'POST',
     body: payload,
+    headers: { 'Idempotency-Key': normalizedIdempotencyKey },
     tenantSlug: slug,
     omitChatSessionId: true,
     baseUrlOverride: SAME_ORIGIN_API_BASE,
   });
+
+  return normalizeTenantClaimIntakeReceipt(response);
 }
+
+const CLAIM_RECEIPT_CONTRACT_VERSION = 'claims.intake_receipt.v1' as const;
+const CLAIM_CODE_PATTERN = /^T-([1-9]\d*)$/;
+const CLAIM_PIN_PATTERN = /^\d{6}$/;
+
+const invalidClaimReceipt = (): never => {
+  throw new Error(
+    'El servidor no confirmó un comprobante válido. Conservamos tus datos para que puedas reintentar.',
+  );
+};
+
+export const normalizeTenantClaimIntakeReceipt = (payload: unknown): TenantClaimIntakeReceipt => {
+  if (!isRecord(payload) || payload.contract_version !== CLAIM_RECEIPT_CONTRACT_VERSION) {
+    return invalidClaimReceipt();
+  }
+  if (payload.ok !== true || payload.persisted !== true || typeof payload.deduplicated !== 'boolean') {
+    return invalidClaimReceipt();
+  }
+
+  const requestId = coerceString(payload.request_id);
+  const claim = isRecord(payload.claim) ? payload.claim : null;
+  const access = isRecord(payload.access) ? payload.access : null;
+  const tracking = isRecord(payload.tracking) ? payload.tracking : null;
+  if (!requestId || !claim || !access || !tracking || !Array.isArray(payload.actions)) {
+    return invalidClaimReceipt();
+  }
+
+  const claimId = claim.id;
+  const normalizedClaimId =
+    typeof claimId === 'number' && Number.isSafeInteger(claimId) && claimId > 0
+      ? claimId
+      : typeof claimId === 'string' && /^[1-9]\d*$/.test(claimId.trim())
+        ? claimId.trim()
+        : null;
+  const code = coerceString(claim.code);
+  const status = coerceString(claim.status);
+  const createdAt = coerceString(claim.created_at);
+  const category = claim.category === null ? null : coerceString(claim.category);
+  const codeMatch = code?.match(CLAIM_CODE_PATTERN);
+  if (
+    normalizedClaimId === null ||
+    !codeMatch ||
+    codeMatch[1] !== String(normalizedClaimId) ||
+    !status ||
+    !createdAt ||
+    Number.isNaN(Date.parse(createdAt)) ||
+    (claim.category !== null && !category)
+  ) {
+    return invalidClaimReceipt();
+  }
+
+  const pin = coerceString(access.pin);
+  if (access.mode !== 'code_pin' || !pin || !CLAIM_PIN_PATTERN.test(pin)) {
+    return invalidClaimReceipt();
+  }
+
+  const expectedTrackingPath = `/tracking/claim/${encodeURIComponent(code)}#pin=${encodeURIComponent(pin)}`;
+  const expectedExperienceEndpoint =
+    `/api/public/tracking/experience?kind=claim&code=${encodeURIComponent(code)}`;
+  if (
+    tracking.path !== expectedTrackingPath ||
+    tracking.experience_endpoint !== expectedExperienceEndpoint ||
+    tracking.credential_transport !== 'x-tracking-pin-header' ||
+    tracking.requires_pin !== true
+  ) {
+    return invalidClaimReceipt();
+  }
+
+  const actions = payload.actions.map((action) => {
+    if (!isRecord(action)) return null;
+    const id = coerceString(action.id);
+    const label = coerceString(action.label);
+    const href = coerceString(action.href);
+    return id && label && href ? { id, label, href } : null;
+  });
+  if (actions.some((action) => action === null)) {
+    return invalidClaimReceipt();
+  }
+  const normalizedActions = actions as TenantClaimIntakeReceipt['actions'];
+  if (!normalizedActions.some((action) => action.id === 'track_claim' && action.href === expectedTrackingPath)) {
+    return invalidClaimReceipt();
+  }
+
+  return {
+    contract_version: CLAIM_RECEIPT_CONTRACT_VERSION,
+    ok: true,
+    persisted: true,
+    deduplicated: payload.deduplicated,
+    request_id: requestId,
+    claim: {
+      id: normalizedClaimId,
+      code,
+      status,
+      category,
+      created_at: createdAt,
+    },
+    access: {
+      mode: 'code_pin',
+      pin,
+    },
+    tracking: {
+      path: expectedTrackingPath,
+      experience_endpoint: expectedExperienceEndpoint,
+      credential_transport: 'x-tracking-pin-header',
+      requires_pin: true,
+    },
+    actions: normalizedActions,
+  };
+};
 
 const extractTenantArray = (input: unknown): unknown[] => {
   if (Array.isArray(input)) {

@@ -1,4 +1,5 @@
 import type { PublicResponsePayload, SurveyPregunta, SurveyPublic } from '@/types/encuestas';
+import { createSecureSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
 
 const BASE_OPEN_ANSWERS = [
   'Sería ideal sumar un mapa con obras en ejecución y alertas de avance.',
@@ -537,6 +538,10 @@ export const generateSurveySeedPayloads = (
     const submittedAt = new Date(Date.now() - Math.floor(Math.random() * 21 * 24 * 60 * 60 * 1000));
 
     const payload: PublicResponsePayload = {
+      submission_id: createSecureSurveySubmissionId(),
+      ...(typeof survey.instrument_revision === 'number' && survey.instrument_revision > 0
+        ? { instrument_revision: survey.instrument_revision }
+        : {}),
       respuestas,
       canal: canalChoice.value,
       utm_source: utmChoice.source ?? undefined,
