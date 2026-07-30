@@ -5,21 +5,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { SurveyPublic } from '@/types/encuestas';
 
-vi.mock('@/config', () => ({
+vi.mock('@/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/config')>()),
   ENABLE_SURVEY_ANALYTICS_FALLBACK: true,
 }));
 
 vi.mock('@/api/encuestas', () => ({
   downloadExportCsv: vi.fn(),
   getSurveyDashboardBundle: vi.fn().mockRejectedValue(new Error('dashboard unavailable')),
-  getHeatmap: vi.fn().mockResolvedValue({ points: [] }),
-  getSummary: vi.fn().mockResolvedValue({
-    total_respuestas: 0,
-    participantes_unicos: 0,
-    tasa_completitud: 0,
-    preguntas: [],
-  }),
-  getTimeseries: vi.fn().mockResolvedValue([]),
+  getHeatmap: vi.fn().mockRejectedValue(new Error('heatmap unavailable')),
+  getSummary: vi.fn().mockRejectedValue(new Error('summary unavailable')),
+  getTimeseries: vi.fn().mockRejectedValue(new Error('timeseries unavailable')),
 }));
 
 import { useSurveyAnalytics } from './useSurveyAnalytics';
@@ -86,6 +82,12 @@ describe('useSurveyAnalytics fallback heatmap contract', () => {
         state: 'demo_fallback',
         preferred_visualization: 'summary_only',
       },
+    });
+    expect(result.current.provenance).toEqual({
+      source: 'frontend_demo_fallback',
+      synthetic: true,
+      affected_modules: ['summary', 'timeseries', 'heatmap'],
+      disclaimer: 'Datos sinteticos de demostracion; no representan respuestas reales.',
     });
   });
 });

@@ -9,9 +9,12 @@ import {
   getTimeseries,
 } from '@/api/encuestas';
 import { ENABLE_SURVEY_ANALYTICS_FALLBACK } from '@/config';
+import { useTenant } from '@/context/TenantContext';
+import { queryKeys } from '@/lib/queryKeys';
 import type {
   SurveyAnalyticsFilters,
   SurveyAnalyticsHeatmap,
+  SurveyAnalyticsProvenance,
   SurveyDashboardBundle,
   SurveyExecutiveSummary,
   SurveyHeatmapPoint,
@@ -21,6 +24,7 @@ import type {
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   buildSurveyDemoAnalyticsFromDataset,
   generateSurveyDemoDataset,
@@ -38,6 +42,7 @@ interface UseSurveyAnalyticsResult {
   heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   dashboardBundle?: SurveyDashboardBundle;
   executiveSummary?: SurveyExecutiveSummary;
+  provenance: SurveyAnalyticsProvenance;
   isLoading: boolean;
   error: string | null;
   filters: SurveyAnalyticsFilters;
@@ -92,10 +97,29 @@ const normalizeFilters = (filters: SurveyAnalyticsFilters): SurveyAnalyticsFilte
   return normalized as SurveyAnalyticsFilters;
 };
 
+const summaryUsesFallback = (primary?: SurveySummary, fallback?: SurveySummary) => {
+  if (!fallback) return false;
+  if (!primary) return true;
+  const primaryRecord = primary as unknown as Record<string, unknown>;
+  return (
+    primaryRecord.total_respuestas == null ||
+    primaryRecord.participantes_unicos == null ||
+    typeof primaryRecord.tasa_completitud !== 'number' ||
+    (!Array.isArray(primary.preguntas) && fallback.preguntas.length > 0) ||
+    (Array.isArray(primary.preguntas) && primary.preguntas.length === 0 && fallback.preguntas.length > 0) ||
+    (!Array.isArray(primary.canales) && Boolean(fallback.canales?.length)) ||
+    (Array.isArray(primary.canales) && primary.canales.length === 0 && Boolean(fallback.canales?.length)) ||
+    (!Array.isArray(primary.utms) && Boolean(fallback.utms?.length)) ||
+    (Array.isArray(primary.utms) && primary.utms.length === 0 && Boolean(fallback.utms?.length)) ||
+    (!primary.demografia && Boolean(fallback.demografia))
+  );
+};
+
 interface UseSurveyAnalyticsOptions {
   fallbackSurvey?: SurveyPublic | SurveyAdmin | null;
   fallbackCount?: number;
   fallbackScenario?: string | null;
+  tenantSlug?: string | null;
 }
 
 export function useSurveyAnalytics(
@@ -105,46 +129,63 @@ export function useSurveyAnalytics(
 ): UseSurveyAnalyticsResult {
   const [filters, setFiltersState] = useState<SurveyAnalyticsFilters>(normalizeFilters(initialFilters));
   const queryClient = useQueryClient();
+  const { currentSlug } = useTenant();
+  const tenantSlug = useMemo(
+    () => options.tenantSlug ?? currentSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    [currentSlug, options.tenantSlug],
+  );
   const normalizedId = useMemo(() => (typeof id === 'number' ? id : null), [id]);
   const normalizedFilters = useMemo(() => normalizeFilters(filters), [filters]);
+  const requestOptions = useMemo(
+    () => ({ tenantSlug: tenantSlug ?? undefined, sendAnonId: true }),
+    [tenantSlug],
+  );
   const allowFallback = ENABLE_SURVEY_ANALYTICS_FALLBACK;
   const fallbackSurvey = allowFallback ? options.fallbackSurvey ?? null : null;
   const fallbackCount = allowFallback ? options.fallbackCount : undefined;
   const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
 
   const dashboardQuery = useQuery({
-    queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
+    queryKey: queryKeys.surveys.analytics('dashboard', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
     enabled: normalizedId !== null,
     retry: false,
     queryFn: () =>
-      normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+      normalizedId !== null
+        ? getSurveyDashboardBundle(normalizedId, normalizedFilters, requestOptions)
+        : Promise.reject('No id provided'),
   });
 
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
       {
-        queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
+        queryKey: queryKeys.surveys.analytics('summary', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
           normalizedId !== null &&
           (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary || !dashboardQuery.isFetched),
         queryFn: () =>
-          normalizedId !== null ? getSummary(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+          normalizedId !== null
+            ? getSummary(normalizedId, normalizedFilters, requestOptions)
+            : Promise.reject('No id provided'),
       },
       {
-        queryKey: ['survey-analytics-timeseries', normalizedId, normalizedFilters],
+        queryKey: queryKeys.surveys.analytics('timeseries', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
           normalizedId !== null &&
           (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries || !dashboardQuery.isFetched),
         queryFn: () =>
-          normalizedId !== null ? getTimeseries(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+          normalizedId !== null
+            ? getTimeseries(normalizedId, normalizedFilters, requestOptions)
+            : Promise.reject('No id provided'),
       },
       {
-        queryKey: ['survey-analytics-heatmap', normalizedId, normalizedFilters],
+        queryKey: queryKeys.surveys.analytics('heatmap', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
           normalizedId !== null &&
           (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points || !dashboardQuery.isFetched),
         queryFn: () =>
-          normalizedId !== null ? getHeatmap(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+          normalizedId !== null
+            ? getHeatmap(normalizedId, normalizedFilters, requestOptions)
+            : Promise.reject('No id provided'),
       },
     ],
   });
@@ -152,10 +193,14 @@ export function useSurveyAnalytics(
   const exportMutation = useMutation({
     mutationFn: async () => {
       if (normalizedId === null) throw new Error('No survey id provided');
-      return downloadExportCsv(normalizedId, normalizedFilters);
+      return downloadExportCsv(normalizedId, normalizedFilters, requestOptions);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', normalizedId] });
+      if (normalizedId !== null) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.surveys.analyticsModule('summary', normalizedId, tenantSlug),
+        });
+      }
     },
   });
 
@@ -182,14 +227,17 @@ export function useSurveyAnalytics(
     }
   }, [fallbackSurvey, fallbackDataset, normalizedFilters]);
 
+  const primarySummary = dashboardQuery.data?.modules?.summary ?? summaryQuery.data;
+  const primaryTimeseries = dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data;
+  const primaryHeatmap = dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points;
   const summaryData = useMemo(
-    () => mergeSurveyAnalytics(dashboardQuery.data?.modules?.summary ?? summaryQuery.data, fallbackAnalytics?.summary),
-    [dashboardQuery.data?.modules?.summary, summaryQuery.data, fallbackAnalytics?.summary],
+    () => mergeSurveyAnalytics(primarySummary, fallbackAnalytics?.summary),
+    [primarySummary, fallbackAnalytics?.summary],
   );
 
   const timeseriesDataRaw = useMemo(
-    () => pickTimeseries(dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data, fallbackAnalytics?.timeseries),
-    [dashboardQuery.data?.modules?.timeseries, timeseriesQuery.data, fallbackAnalytics?.timeseries],
+    () => pickTimeseries(primaryTimeseries, fallbackAnalytics?.timeseries),
+    [primaryTimeseries, fallbackAnalytics?.timeseries],
   );
 
   const fallbackHeatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
@@ -221,9 +269,29 @@ export function useSurveyAnalytics(
   }, [fallbackAnalytics?.heatmap]);
 
   const heatmapDataRaw = useMemo(
-    () => pickHeatmap(dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points, fallbackHeatmapPayload?.points),
-    [dashboardQuery.data?.modules?.heatmap?.points, heatmapQuery.data?.points, fallbackHeatmapPayload?.points],
+    () => pickHeatmap(primaryHeatmap, fallbackHeatmapPayload?.points),
+    [primaryHeatmap, fallbackHeatmapPayload?.points],
   );
+  const summaryFallbackUsed = summaryUsesFallback(primarySummary, fallbackAnalytics?.summary);
+  const timeseriesFallbackUsed = !Array.isArray(primaryTimeseries) && Array.isArray(fallbackAnalytics?.timeseries);
+  const heatmapFallbackUsed = !Array.isArray(primaryHeatmap) && Array.isArray(fallbackHeatmapPayload?.points);
+
+  const provenance = useMemo<SurveyAnalyticsProvenance>(() => {
+    const affectedModules: SurveyAnalyticsProvenance['affected_modules'] = [];
+    if (summaryFallbackUsed) affectedModules.push('summary');
+    if (timeseriesFallbackUsed) affectedModules.push('timeseries');
+    if (heatmapFallbackUsed) affectedModules.push('heatmap');
+    const synthetic = affectedModules.length > 0;
+    const backendModules = [primarySummary, primaryTimeseries, primaryHeatmap].filter((value) => value !== undefined).length;
+    return {
+      source: synthetic ? (backendModules > 0 ? 'mixed' : 'frontend_demo_fallback') : 'backend',
+      synthetic,
+      affected_modules: affectedModules,
+      ...(synthetic
+        ? { disclaimer: 'Datos sinteticos de demostracion; no representan respuestas reales.' }
+        : {}),
+    };
+  }, [heatmapFallbackUsed, primaryHeatmap, primarySummary, primaryTimeseries, summaryFallbackUsed, timeseriesFallbackUsed]);
 
   const timeseriesData = useMemo(
     () => (Array.isArray(timeseriesDataRaw) ? timeseriesDataRaw : []),
@@ -236,15 +304,18 @@ export function useSurveyAnalytics(
   );
 
   const heatmapMeta = useMemo(
-    () => dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata ?? fallbackHeatmapPayload?.metadata,
-    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapQuery.data?.metadata, fallbackHeatmapPayload?.metadata],
+    () => heatmapFallbackUsed
+      ? fallbackHeatmapPayload?.metadata
+      : dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata,
+    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapFallbackUsed, heatmapQuery.data?.metadata, fallbackHeatmapPayload?.metadata],
   );
 
   const heatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
+    if (heatmapFallbackUsed) return fallbackHeatmapPayload;
     const backendHeatmap = dashboardQuery.data?.modules?.heatmap ?? heatmapQuery.data;
     if (backendHeatmap) return backendHeatmap;
     return fallbackHeatmapPayload;
-  }, [dashboardQuery.data?.modules?.heatmap, heatmapQuery.data, fallbackHeatmapPayload]);
+  }, [dashboardQuery.data?.modules?.heatmap, heatmapFallbackUsed, heatmapQuery.data, fallbackHeatmapPayload]);
 
   const dashboardBundle = useMemo(
     () => dashboardQuery.data,
@@ -299,6 +370,7 @@ export function useSurveyAnalytics(
     heatmapMeta,
     dashboardBundle,
     executiveSummary,
+    provenance,
     isLoading: dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
     error: effectiveError,
     filters: normalizedFilters,

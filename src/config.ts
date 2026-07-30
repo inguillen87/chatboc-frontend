@@ -5,6 +5,7 @@
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL;
 const CANONICAL_BACKEND_URL = 'https://api.chatboc.ar';
 const IS_DEV = import.meta.env.DEV;
+const IS_TEST = import.meta.env.MODE === 'test';
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
 const VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK = import.meta.env.VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK;
@@ -299,8 +300,18 @@ const analyticsFallbackPreference = (() => {
   return null;
 })();
 
-export const ENABLE_SURVEY_ANALYTICS_FALLBACK =
-  analyticsFallbackPreference !== null ? analyticsFallbackPreference : IS_DEV;
+export const resolveSurveyAnalyticsFallbackEnabled = (
+  runtime: { isDev: boolean; isTest: boolean },
+  preference: boolean | null,
+) => {
+  if (!runtime.isDev && !runtime.isTest) return false;
+  return preference !== null ? preference : runtime.isDev;
+};
+
+export const ENABLE_SURVEY_ANALYTICS_FALLBACK = resolveSurveyAnalyticsFallbackEnabled(
+  { isDev: IS_DEV, isTest: IS_TEST },
+  analyticsFallbackPreference,
+);
 
 const publicSurveyLegacyFallbackPreference = (() => {
   const fromEnv = parseBooleanFlag(VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK);

@@ -220,23 +220,32 @@ export interface EducationFamilyContext {
 }
 
 export interface EducationGuardianLookupPayload {
+  tenant_id?: string | number;
+  guardian_id?: string | number;
   document_number?: string;
   email?: string;
-  phone?: string;
+  phone_number?: string;
   [key: string]: unknown;
 }
 
 export interface EducationGuardianVerifyPayload {
-  guardian_id?: string | number;
-  verification_code?: string;
-  code?: string;
+  tenant_id?: string | number;
+  guardian_id: string | number;
+  verification_method: 'in_person' | 'institutional_record' | 'external_identity_provider';
+  evidence_ref: string;
   [key: string]: unknown;
 }
 
 export interface EducationLinkStudentPayload {
-  guardian_id?: string | number;
-  student_id?: string | number;
+  tenant_id?: string | number;
+  guardian_id: string | number;
+  student_id: string | number;
   relationship?: string;
+  custody_scope?: string;
+  can_pickup?: boolean;
+  can_receive_billing?: boolean;
+  can_receive_sensitive_updates?: boolean;
+  status?: string;
   [key: string]: unknown;
 }
 

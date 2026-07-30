@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Activity, Layers, MapPin, Radio, Radar, ShieldCheck, Target, type LucideIcon } from 'lucide-react';
+import { Activity, AlertTriangle, Layers, MapPin, Radio, Radar, ShieldCheck, Target, type LucideIcon } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -27,6 +27,7 @@ import type {
   SurveyAnalyticsFilters,
   SurveyDemographicBreakdownItem,
   SurveyAnalyticsHeatmap,
+  SurveyAnalyticsProvenance,
   SurveyHeatmapPoint,
   SurveySummary,
   SurveyTimeseriesPoint,
@@ -40,6 +41,7 @@ interface SurveyAnalyticsProps {
   heatmap?: SurveyHeatmapPoint[];
   heatmapPayload?: SurveyAnalyticsHeatmap;
   heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
+  provenance?: SurveyAnalyticsProvenance;
   onExport: () => Promise<void>;
   isExporting?: boolean;
   filters?: SurveyAnalyticsFilters;
@@ -984,6 +986,7 @@ export const SurveyAnalytics = ({
   heatmap,
   heatmapPayload,
   heatmapMeta,
+  provenance,
   onExport,
   isExporting,
   filters,
@@ -1482,6 +1485,21 @@ export const SurveyAnalytics = ({
 
   return (
     <div className="space-y-6">
+      {provenance?.synthetic ? (
+        <div
+          role="status"
+          data-testid="survey-analytics-synthetic-notice"
+          className="flex items-start gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">Datos sinteticos de demostracion - no son respuestas reales.</p>
+            <p className="mt-1 text-xs">
+              Modulos afectados: {provenance.affected_modules.join(', ')}. Este fallback solo esta habilitado en desarrollo o pruebas.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Analítica de participación</h2>

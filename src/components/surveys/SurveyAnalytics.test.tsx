@@ -263,6 +263,26 @@ describe('SurveyAnalytics territory command center', () => {
     expect(commandCenter).toHaveTextContent('No se presenta como precision territorial real');
   });
 
+  it('labels every synthetic analytics module as demo data, not real responses', () => {
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        timeseries={[{ fecha: '2026-06-05', respuestas: 12 }]}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+        provenance={{
+          source: 'frontend_demo_fallback',
+          synthetic: true,
+          affected_modules: ['summary', 'timeseries'],
+        }}
+      />,
+    );
+
+    const notice = screen.getByTestId('survey-analytics-synthetic-notice');
+    expect(notice).toHaveTextContent(/no son respuestas reales/i);
+    expect(notice).toHaveTextContent('summary, timeseries');
+    expect(notice).toHaveTextContent(/solo esta habilitado en desarrollo o pruebas/i);
+  });
+
   it('renders rich backend heatmap payload without requiring a separate metadata prop', () => {
     render(
       <SurveyAnalytics

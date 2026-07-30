@@ -21,6 +21,7 @@ vi.mock('@/utils/api', () => ({
 import {
   adminDuplicateSurvey,
   adminPublishSurvey,
+  createSnapshot,
   getSurveyDashboardBundle,
   getHeatmap,
   getSummary,
@@ -28,10 +29,13 @@ import {
   getPublicSurveyLiveResults,
   getSurveyComments,
   listPublicSurveys,
+  listSnapshots,
   normalizePublicSurveyLiveResults,
   normalizeSurveySummary,
   postPublicResponse,
   postSurveyComment,
+  simulateSnapshotAnchor,
+  verifyResponse,
 } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
@@ -580,6 +584,100 @@ describe('public survey tenant query contract', () => {
   });
 });
 
+describe('survey anchor containment contract', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('uses the scoped snapshot endpoint with an explicit ISO range', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.anchor.v2',
+      id: 9,
+      snapshot_id: 9,
+      encuesta_id: 7,
+    });
+
+    const payload = {
+      desde: '2026-07-01T00:00:00.000Z',
+      hasta: '2026-07-30T23:59:59.000Z',
+    };
+    await createSnapshot(7, payload);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/encuestas/7/snapshot', {
+      method: 'POST',
+      body: payload,
+    });
+  });
+
+  it('calls simulation, not a publication-labelled frontend route', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: true,
+      operation: 'local_simulation',
+      contract_version: 'surveys.anchor.v2',
+      id: 9,
+      snapshot_id: 9,
+      encuesta_id: 7,
+      anchor_status: 'simulated',
+      published: false,
+      externally_verified: false,
+    });
+
+    const result = await simulateSnapshotAnchor(7, 9);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/encuestas/7/simulate/9', {
+      method: 'POST',
+      body: { chain: 'polygon' },
+    });
+    expect(result.anchor_status).toBe('simulated');
+    expect(result.published).toBe(false);
+    expect(result.externally_verified).toBe(false);
+  });
+
+  it('uses scoped GET verification and preserves local-only semantics', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: true,
+      contract_version: 'surveys.anchor.v2',
+      encuesta_id: 7,
+      snapshot_id: 9,
+      respuesta_id: 11,
+      included: true,
+      local_proof_valid: true,
+      valido: false,
+      verified: false,
+      externally_verified: false,
+      verification_status: 'local_only',
+    });
+
+    const result = await verifyResponse(7, 9, 11);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/encuestas/7/9/verify?respuesta_id=11', {
+      method: 'GET',
+    });
+    expect(result.local_proof_valid).toBe(true);
+    expect(result.verified).toBe(false);
+    expect(result.externally_verified).toBe(false);
+  });
+
+  it('unwraps the tenant-scoped list envelope', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.anchor.v2',
+      encuesta_id: 7,
+      snapshots: [{ id: 9, anchor_status: 'simulated', published: false }],
+    });
+
+    const result = await listSnapshots(7);
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/encuestas/7/snapshots', {});
+    expect(result).toEqual([{ id: 9, anchor_status: 'simulated', published: false }]);
+  });
+
+  it('fails closed when the snapshots envelope drifts', async () => {
+    apiFetchMock.mockResolvedValueOnce({ contract_version: 'legacy', data: [] });
+
+    await expect(listSnapshots(7)).rejects.toThrow(/contrato de snapshots inesperado/i);
+  });
+});
+
 describe('normalizePublicSurveyLiveResults', () => {
   it('normalizes mixed backend live-results shapes for webviews and public dashboards', () => {
     const normalized = normalizePublicSurveyLiveResults({
@@ -784,6 +882,87 @@ describe('postPublicResponse', () => {
         headers: { 'Idempotency-Key': payload.submission_id },
       }),
     );
+  });
+
+  it('requires the durable receipt to echo the governed release and human-review assurance', async () => {
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd6839488a',
+      instrument_revision: 7,
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+      governance: {
+        release_id: 51,
+        snapshot_sha256: 'a'.repeat(64),
+        eligibility_policy_version: 'eligibility-v1',
+        consent_policy_version: 'consent-v1',
+        consent_accepted: true as const,
+        eligibility_acknowledged: true as const,
+      },
+    };
+    const governanceReceipt = {
+      contract_version: 'surveys.public_governance.v1',
+      mode: 'governed_release',
+      release_id: 51,
+      snapshot_sha256: 'a'.repeat(64),
+      eligibility_policy_version: 'eligibility-v1',
+      consent_policy_version: 'consent-v1',
+      eligibility_decision: 'not_evaluated',
+      human_review_required: true,
+      regulated_election_certified: false,
+      result_certified: false,
+    };
+    const ack = durableAck(payload.submission_id, 106);
+    apiFetchMock.mockResolvedValueOnce({
+      ...ack,
+      governance: governanceReceipt,
+      idempotency: { ...ack.idempotency, governance: governanceReceipt },
+    });
+
+    await expect(postPublicResponse('mi-encuesta', payload, 'junin')).resolves.toEqual(
+      expect.objectContaining({ response_id: 106 }),
+    );
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=junin',
+      expect.objectContaining({ body: payload }),
+    );
+  });
+
+  it('treats a governed 2xx with a mismatched release receipt as ambiguous', async () => {
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd6839488b',
+      instrument_revision: 7,
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+      governance: {
+        release_id: 51,
+        snapshot_sha256: 'a'.repeat(64),
+        eligibility_policy_version: 'eligibility-v1',
+        consent_policy_version: 'consent-v1',
+        consent_accepted: true as const,
+        eligibility_acknowledged: true as const,
+      },
+    };
+    const mismatched = {
+      contract_version: 'surveys.public_governance.v1',
+      mode: 'governed_release',
+      release_id: 52,
+      snapshot_sha256: 'b'.repeat(64),
+      eligibility_policy_version: 'eligibility-v2',
+      consent_policy_version: 'consent-v2',
+      eligibility_decision: 'not_evaluated',
+      human_review_required: true,
+      regulated_election_certified: false,
+      result_certified: false,
+    };
+    const ack = durableAck(payload.submission_id, 107);
+    apiFetchMock.mockResolvedValueOnce({
+      ...ack,
+      governance: mismatched,
+      idempotency: { ...ack.idempotency, governance: mismatched },
+    });
+
+    await expect(postPublicResponse('mi-encuesta', payload, 'junin')).rejects.toBeInstanceOf(
+      AmbiguousSurveySubmissionError,
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not fall back to a second POST after an ambiguous 5xx', async () => {

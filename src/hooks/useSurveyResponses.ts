@@ -9,6 +9,8 @@ import type {
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface UseSurveyResponsesResult {
   responses: SurveyResponseRecord[];
@@ -27,16 +29,30 @@ const normalizeFilters = (filters?: SurveyResponseFilters): SurveyResponseFilter
 export function useSurveyResponses(
   id?: number | null,
   filters?: SurveyResponseFilters,
+  tenantSlugOverride?: string | null,
 ): UseSurveyResponsesResult {
+  const { currentSlug } = useTenant();
+  const tenantSlug = useMemo(
+    () => tenantSlugOverride ?? currentSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    [currentSlug, tenantSlugOverride],
+  );
   const normalizedId = useMemo(() => (typeof id === 'number' ? id : null), [id]);
   const normalizedFilters = useMemo(() => normalizeFilters(filters), [filters]);
+  const requestOptions = useMemo(
+    () => ({ tenantSlug: tenantSlug ?? undefined, sendAnonId: true }),
+    [tenantSlug],
+  );
 
   const query = useQuery({
-    queryKey: queryKeys.surveys.responses(normalizedId ?? 'missing', JSON.stringify(normalizedFilters)),
+    queryKey: queryKeys.surveys.responses(
+      normalizedId ?? 'missing',
+      JSON.stringify(normalizedFilters),
+      tenantSlug,
+    ),
     enabled: normalizedId !== null,
     queryFn: () =>
       normalizedId !== null
-        ? listSurveyResponses(normalizedId, normalizedFilters)
+        ? listSurveyResponses(normalizedId, normalizedFilters, requestOptions)
         : Promise.reject(new Error('No survey id provided')),
     refetchInterval: 30_000,
     retry: false,

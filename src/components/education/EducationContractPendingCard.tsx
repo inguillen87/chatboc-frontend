@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, ListChecks } from 'lucide-react';
+import { Clock3, ListChecks } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,8 +25,8 @@ export default function EducationContractPendingCard({
           <CardDescription>{description}</CardDescription>
         </div>
         <Badge variant="secondary">
-          <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-          Pantalla lista
+          <Clock3 className="mr-1 h-3.5 w-3.5" />
+          Integración pendiente
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -34,9 +34,10 @@ export default function EducationContractPendingCard({
           <div className="flex items-start gap-3">
             <ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold">Configuracion pendiente</h3>
+              <h3 className="text-sm font-semibold">Funcionalidad no habilitada</h3>
               <p className="text-sm text-muted-foreground">
-                La pantalla esta preparada para mostrar informacion cuando la institucion publique estos datos.
+                Todavía no hay un contrato operativo completo para esta sección. No mostramos datos simulados ni
+                acciones que el backend no pueda ejecutar.
               </p>
             </div>
           </div>
@@ -47,8 +48,8 @@ export default function EducationContractPendingCard({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos previstos</p>
             <p className="text-sm text-muted-foreground">
               {endpoints.length > 0
-                ? "Cuando se active, esta seccion mostrara informacion y acciones en el mismo lugar."
-                : "Esta seccion se completara cuando haya informacion disponible."}
+                ? "Se habilitará cuando estos contratos estén desplegados, autorizados y verificados."
+                : "Se habilitará cuando exista información operativa verificada."}
             </p>
           </div>
 

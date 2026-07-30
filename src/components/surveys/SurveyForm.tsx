@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, LogIn, RotateCcw, Route, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, LogIn, RotateCcw, Route, ShieldCheck } from 'lucide-react';
 
 import ClerkAuthButtons from '@/components/auth/ClerkAuthButtons';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
@@ -47,6 +47,12 @@ import {
   shouldReuseSurveySubmissionAttempt,
 } from '@/utils/surveySubmissionErrors';
 import { createSecureSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
+import {
+  prepareSurveyConsentPublicText,
+  SURVEY_CONSENT_TEXT_CONTENT_FORMAT,
+  SURVEY_CONSENT_TEXT_NORMALIZATION,
+  validateSurveyConsentPublicText,
+} from '@/utils/surveyGovernance';
 import { useUser } from '@/hooks/useUser';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -105,6 +111,167 @@ const getSurveyAuthMode = (survey: SurveyPublic): SurveyAuthMode => {
     return 'required';
   }
   return 'anonymous';
+};
+
+const PUBLIC_GOVERNANCE_CONTRACT = 'surveys.public_governance.v1';
+const GOVERNANCE_RELEASE_CONTRACT = 'surveys.governance_release.v1';
+const GOVERNANCE_SHA256_PATTERN = /^[a-f0-9]{64}$/i;
+
+type ResolvedPublicGovernance = {
+  required: boolean;
+  valid: boolean;
+  scopeKey: string;
+  invalidReason?: string;
+  releaseId?: number;
+  versionNumber?: number;
+  snapshotSha256?: string;
+  policySha256?: string;
+  eligibilityPolicyVersion?: string;
+  eligibilityMode?: string;
+  eligibilityDeclarations: string[];
+  consentPolicyVersion?: string;
+  consentPublicText?: string;
+  consentTextSha256?: string;
+  acknowledgment?: NonNullable<PublicResponsePayload['governance']>;
+};
+
+type PublicConsentIntegrityState = {
+  status: 'pending' | 'verified' | 'invalid' | 'not_required';
+  scopeKey: string;
+  evaluatedPublicText?: string;
+  error?: string;
+};
+
+const governanceText = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+export const resolveSurveyPublicGovernance = (survey: SurveyPublic): ResolvedPublicGovernance => {
+  const raw = isRecord(survey.governance) ? survey.governance : null;
+  if (!raw) {
+    return { required: false, valid: true, scopeKey: 'legacy:no-contract', eligibilityDeclarations: [] };
+  }
+  const mode = governanceText(raw.mode)?.toLowerCase();
+  const required = raw.release_required === true || mode === 'governed_release';
+  if (!required) {
+    return { required: false, valid: true, scopeKey: 'legacy:explicit', eligibilityDeclarations: [] };
+  }
+
+  const active = isRecord(raw.active_release) ? raw.active_release : null;
+  const releaseId = typeof active?.release_id === 'number' && Number.isInteger(active.release_id)
+    ? active.release_id
+    : undefined;
+  const snapshotSha256 = governanceText(active?.snapshot_sha256)?.toLowerCase();
+  const policySha256 = governanceText(active?.policy_sha256)?.toLowerCase();
+  const governance = isRecord(active?.governance) ? active.governance : {};
+  const eligibility = isRecord(governance.eligibility) ? governance.eligibility : {};
+  const consent = isRecord(governance.consent) ? governance.consent : {};
+  const rules = isRecord(governance.decision_rules) ? governance.decision_rules : {};
+  const assurance = isRecord(active?.assurance) ? active.assurance : {};
+  const eligibilityPolicyVersion = governanceText(eligibility.policy_version);
+  const consentPolicyVersion = governanceText(consent.policy_version);
+  const consentPublicText = typeof consent.public_text === 'string' ? consent.public_text : undefined;
+  const consentTextSha256 = governanceText(consent.text_sha256)?.toLowerCase();
+  const completeness = isRecord(active?.completeness) ? active.completeness : {};
+  const publicConsentCompleteness = isRecord(completeness.public_consent)
+    ? completeness.public_consent
+    : {};
+  let canonicalConsentText: string | undefined;
+  try {
+    canonicalConsentText = typeof consentPublicText === 'string'
+      ? validateSurveyConsentPublicText(consentPublicText)
+      : undefined;
+  } catch {
+    canonicalConsentText = undefined;
+  }
+  const eligibilityDeclarations = Array.isArray(eligibility.declarations)
+    ? eligibility.declarations.filter(
+        (item): item is string => typeof item === 'string' && item.trim().length > 0,
+      )
+    : [];
+  const scopeKey = [
+    'governed',
+    releaseId ?? 'missing-release',
+    snapshotSha256 ?? 'missing-snapshot',
+    policySha256 ?? 'missing-policy',
+    eligibilityPolicyVersion ?? 'missing-eligibility',
+    consentPolicyVersion ?? 'missing-consent',
+    consentTextSha256 ?? 'missing-consent-hash',
+  ].join(':');
+  const valid =
+    raw.contract_version === PUBLIC_GOVERNANCE_CONTRACT &&
+    mode === 'governed_release' &&
+    raw.accepting_responses === true &&
+    active?.contract_version === GOVERNANCE_RELEASE_CONTRACT &&
+    active?.status === 'published' &&
+    typeof releaseId === 'number' &&
+    releaseId > 0 &&
+    typeof snapshotSha256 === 'string' &&
+    GOVERNANCE_SHA256_PATTERN.test(snapshotSha256) &&
+    typeof policySha256 === 'string' &&
+    GOVERNANCE_SHA256_PATTERN.test(policySha256) &&
+    Boolean(eligibilityPolicyVersion) &&
+    eligibility.human_review_required === true &&
+    eligibility.automated_decision === false &&
+    Boolean(consentPolicyVersion) &&
+    typeof consentPublicText === 'string' &&
+    canonicalConsentText === consentPublicText &&
+    typeof consentTextSha256 === 'string' &&
+    GOVERNANCE_SHA256_PATTERN.test(consentTextSha256) &&
+    consent.content_format === SURVEY_CONSENT_TEXT_CONTENT_FORMAT &&
+    consent.normalization === SURVEY_CONSENT_TEXT_NORMALIZATION &&
+    consent.required === true &&
+    consent.stores_public_text === true &&
+    consent.records_participant_input === false &&
+    publicConsentCompleteness.complete === true &&
+    rules.human_review_required === true &&
+    rules.declarative_only === true &&
+    assurance.regulated_election_certified === false &&
+    assurance.result_certified === false &&
+    raw.regulated_election_certified === false &&
+    raw.result_certified === false;
+
+  if (!valid) {
+    return {
+      required: true,
+      valid: false,
+      scopeKey,
+      invalidReason:
+        'El contrato público de gobernanza está incompleto o no coincide con un release activo. La participación quedó bloqueada para evitar un consentimiento o una respuesta sin versión.',
+      releaseId,
+      snapshotSha256,
+      policySha256,
+      eligibilityPolicyVersion,
+      eligibilityMode: governanceText(eligibility.mode),
+      eligibilityDeclarations,
+      consentPolicyVersion,
+      consentPublicText,
+      consentTextSha256,
+    };
+  }
+
+  return {
+    required: true,
+    valid: true,
+    scopeKey,
+    releaseId,
+    versionNumber: typeof active?.version_number === 'number' ? active.version_number : undefined,
+    snapshotSha256,
+    policySha256,
+    eligibilityPolicyVersion,
+    eligibilityMode: governanceText(eligibility.mode),
+    eligibilityDeclarations,
+    consentPolicyVersion,
+    consentPublicText,
+    consentTextSha256,
+    acknowledgment: {
+      release_id: releaseId,
+      snapshot_sha256: snapshotSha256,
+      eligibility_policy_version: eligibilityPolicyVersion as string,
+      consent_policy_version: consentPolicyVersion as string,
+      consent_accepted: true,
+      eligibility_acknowledged: true,
+    },
+  };
 };
 
 const shouldResetTurnstileFromError = (details?: Record<string, unknown> | null): boolean => {
@@ -206,6 +373,10 @@ export const SurveyForm = ({
   const clerkRuntime = useClerkRuntime();
   const isVotingVariant = variant === 'votacion';
   const authMode = useMemo(() => getSurveyAuthMode(survey), [survey]);
+  const publicGovernance = useMemo(
+    () => resolveSurveyPublicGovernance(survey),
+    [survey],
+  );
   const requiresAuthenticatedParticipant = authMode === 'required';
   const loginHref = useMemo(() => {
     if (typeof window === 'undefined') return '/login';
@@ -236,6 +407,12 @@ export const SurveyForm = ({
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [previewValidated, setPreviewValidated] = useState(false);
+  const [governanceConsentAccepted, setGovernanceConsentAccepted] = useState(false);
+  const [governanceEligibilityAcknowledged, setGovernanceEligibilityAcknowledged] = useState(false);
+  const [publicConsentIntegrity, setPublicConsentIntegrity] = useState<PublicConsentIntegrityState>({
+    status: 'pending',
+    scopeKey: '',
+  });
   const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
   const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
   const submissionInFlightScopeRef = useRef<string | null>(null);
@@ -257,8 +434,28 @@ export const SurveyForm = ({
   const turnstileRequired = !previewMode && turnstileConfig.required;
   const turnstileUnavailable = turnstileRequired && !turnstileSiteKey;
   const turnstileMissingToken = turnstileRequired && Boolean(turnstileSiteKey) && !turnstileToken.trim();
+  const governanceAcknowledgmentMissing =
+    publicGovernance.required &&
+    publicGovernance.valid &&
+    (!governanceConsentAccepted || !governanceEligibilityAcknowledged);
+  const publicConsentIntegrityIsCurrent =
+    publicConsentIntegrity.scopeKey === publicGovernance.scopeKey &&
+    publicConsentIntegrity.evaluatedPublicText === publicGovernance.consentPublicText;
+  const visiblePublicConsentIntegrityStatus = publicConsentIntegrityIsCurrent
+    ? publicConsentIntegrity.status
+    : 'pending';
+  const publicConsentIntegrityVerified =
+    !publicGovernance.required ||
+    (
+      publicConsentIntegrityIsCurrent &&
+      publicConsentIntegrity.status === 'verified'
+    );
+  const governanceSubmissionBlocked =
+    !previewMode &&
+    publicGovernance.required &&
+    (!publicGovernance.valid || !publicConsentIntegrityVerified || governanceAcknowledgmentMissing);
   const participantUserId = user?.id === undefined || user?.id === null ? 'anonymous' : String(user.id);
-  const submissionScopeKey = `${survey.municipio_slug ?? 'global'}::${survey.slug ?? 'missing'}::${survey.instrument_revision ?? 'unversioned'}::${participantUserId}`;
+  const submissionScopeKey = `${survey.municipio_slug ?? 'global'}::${survey.slug ?? 'missing'}::${survey.instrument_revision ?? 'unversioned'}::${participantUserId}::${publicGovernance.scopeKey}`;
   const activeSubmissionScopeRef = useRef(submissionScopeKey);
   activeSubmissionScopeRef.current = submissionScopeKey;
 
@@ -293,6 +490,8 @@ export const SurveyForm = ({
     setTurnstileToken('');
     setTurnstileResetSignal((value) => value + 1);
     setPreviewValidated(false);
+    setGovernanceConsentAccepted(false);
+    setGovernanceEligibilityAcknowledged(false);
     setSubmissionErrorTitle(null);
     setSubmissionErrorDetails(null);
     setDismissedErrorKey(null);
@@ -300,6 +499,80 @@ export const SurveyForm = ({
     submissionAttemptRef.current = null;
     submissionInFlightScopeRef.current = null;
   }, [initialState, submissionScopeKey]);
+
+  useEffect(() => {
+    let active = true;
+    setGovernanceConsentAccepted(false);
+    setGovernanceEligibilityAcknowledged(false);
+    submissionAttemptRef.current = null;
+    if (!publicGovernance.required) {
+      setPublicConsentIntegrity({ status: 'not_required', scopeKey: publicGovernance.scopeKey });
+      return () => {
+        active = false;
+      };
+    }
+    if (
+      !publicGovernance.valid ||
+      !publicGovernance.consentPublicText ||
+      !publicGovernance.consentTextSha256
+    ) {
+      setPublicConsentIntegrity({
+        status: 'invalid',
+        scopeKey: publicGovernance.scopeKey,
+        evaluatedPublicText: publicGovernance.consentPublicText,
+        error: publicGovernance.invalidReason || 'El consentimiento público está incompleto.',
+      });
+      return () => {
+        active = false;
+      };
+    }
+    setPublicConsentIntegrity({
+      status: 'pending',
+      scopeKey: publicGovernance.scopeKey,
+      evaluatedPublicText: publicGovernance.consentPublicText,
+    });
+    void prepareSurveyConsentPublicText(publicGovernance.consentPublicText)
+      .then((prepared) => {
+        if (!active) return;
+        if (prepared.textSha256 !== publicGovernance.consentTextSha256) {
+          setPublicConsentIntegrity({
+            status: 'invalid',
+            scopeKey: publicGovernance.scopeKey,
+            evaluatedPublicText: publicGovernance.consentPublicText,
+            error:
+              'La huella SHA-256 no coincide con el texto de consentimiento publicado. La participación quedó bloqueada.',
+          });
+          return;
+        }
+        setPublicConsentIntegrity({
+          status: 'verified',
+          scopeKey: publicGovernance.scopeKey,
+          evaluatedPublicText: prepared.publicText,
+        });
+      })
+      .catch((integrityError: unknown) => {
+        if (!active) return;
+        setPublicConsentIntegrity({
+          status: 'invalid',
+          scopeKey: publicGovernance.scopeKey,
+          evaluatedPublicText: publicGovernance.consentPublicText,
+          error:
+            integrityError instanceof Error
+              ? integrityError.message
+              : 'No se pudo verificar la huella del consentimiento público.',
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    publicGovernance.consentPublicText,
+    publicGovernance.consentTextSha256,
+    publicGovernance.invalidReason,
+    publicGovernance.required,
+    publicGovernance.scopeKey,
+    publicGovernance.valid,
+  ]);
 
   useEffect(() => {
     setAnswers((previous) => {
@@ -336,6 +609,8 @@ export const SurveyForm = ({
     defaultMetadata?.utm_source,
     demographics,
     dni,
+    governanceConsentAccepted,
+    governanceEligibilityAcknowledged,
     phone,
     submissionScopeKey,
   ]);
@@ -786,6 +1061,8 @@ export const SurveyForm = ({
     setGeoStatus('idle');
     setGeoMessage(null);
     setTurnstileToken('');
+    setGovernanceConsentAccepted(false);
+    setGovernanceEligibilityAcknowledged(false);
   };
 
   const clearParticipantResponseState = () => {
@@ -800,6 +1077,8 @@ export const SurveyForm = ({
     setTurnstileToken('');
     setTurnstileResetSignal((value) => value + 1);
     setAnswers(initialState);
+    setGovernanceConsentAccepted(false);
+    setGovernanceEligibilityAcknowledged(false);
   };
 
   const handleSubmit = async () => {
@@ -815,6 +1094,29 @@ export const SurveyForm = ({
     if (requiresAuthenticatedParticipant && !user) {
       setSubmissionErrorTitle('Necesitas identificarte para participar');
       setSubmissionErrorDetails('Inicia sesion con tu cuenta para que el voto quede asociado de forma segura.');
+      return;
+    }
+    if (publicGovernance.required && !publicGovernance.valid) {
+      setSubmissionErrorTitle('Participación gobernada no disponible');
+      setSubmissionErrorDetails(publicGovernance.invalidReason || 'El contrato de gobernanza no es verificable.');
+      return;
+    }
+    if (publicGovernance.required && !publicConsentIntegrityVerified) {
+      setSubmissionErrorTitle('Consentimiento público no verificado');
+      setSubmissionErrorDetails(
+        (publicConsentIntegrityIsCurrent ? publicConsentIntegrity.error : undefined) ||
+          'Esperá a que la huella SHA-256 del texto público quede verificada antes de participar.',
+      );
+      return;
+    }
+    if (
+      publicGovernance.required &&
+      (!governanceConsentAccepted || !governanceEligibilityAcknowledged)
+    ) {
+      setSubmissionErrorTitle('Faltan confirmaciones de participación');
+      setSubmissionErrorDetails(
+        'Aceptá la política de consentimiento versionada y reconocé la política de elegibilidad antes de enviar.',
+      );
       return;
     }
     if (!validate()) return;
@@ -928,6 +1230,9 @@ export const SurveyForm = ({
         ...defaultMetadata,
         metadata: metadataPayload,
         ...(turnstileToken.trim() ? { turnstile_token: turnstileToken.trim() } : {}),
+        ...(publicGovernance.required && publicGovernance.acknowledgment
+          ? { governance: publicGovernance.acknowledgment }
+          : {}),
       };
       await onSubmit(payload);
       if (activeSubmissionScopeRef.current !== submittedScopeKey) return;
@@ -1064,6 +1369,108 @@ export const SurveyForm = ({
               Tus respuestas quedan solamente en la memoria de esta vista previa.
             </p>
           </section>
+        ) : null}
+        {!previewMode && publicGovernance.required ? (
+          publicGovernance.valid ? (
+            <section
+              className="space-y-4 rounded-xl border border-sky-300/70 bg-sky-50 p-4 text-sky-950"
+              aria-labelledby="survey-governance-title"
+              data-testid="survey-governance-ack"
+            >
+              <div>
+                <h3 id="survey-governance-title" className="flex items-center gap-2 font-semibold">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  Participación con política versionada
+                </h3>
+                <p className="mt-1 text-sm">
+                  Release v{publicGovernance.versionNumber ?? 'sin número'} · Elegibilidad{' '}
+                  {publicGovernance.eligibilityPolicyVersion} · Consentimiento{' '}
+                  {publicGovernance.consentPolicyVersion}.
+                </p>
+              </div>
+              <dl className="grid gap-3 text-xs md:grid-cols-2">
+                <div className="rounded-lg bg-white/70 p-3">
+                  <dt className="font-semibold">Snapshot del instrumento</dt>
+                  <dd className="mt-1 break-all font-mono">{publicGovernance.snapshotSha256}</dd>
+                </div>
+                <div className="rounded-lg bg-white/70 p-3">
+                  <dt className="font-semibold">Huella de políticas</dt>
+                  <dd className="mt-1 break-all font-mono">{publicGovernance.policySha256}</dd>
+                </div>
+              </dl>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Elegibilidad: {publicGovernance.eligibilityMode || 'modo no descriptivo'}.
+                  {publicGovernance.eligibilityDeclarations.length
+                    ? ` Declaraciones requeridas: ${publicGovernance.eligibilityDeclarations.join(', ')}.`
+                    : ' Sin códigos declarativos adicionales.'}
+                  {' '}La elegibilidad no se decide automáticamente y requiere revisión humana.
+                </p>
+                <div className="rounded-lg border border-sky-300 bg-white/80 p-3">
+                  <p className="font-semibold">Texto exacto de consentimiento</p>
+                  <p
+                    className="mt-2 whitespace-pre-wrap break-words"
+                    data-testid="survey-public-consent-text"
+                  >
+                    {publicGovernance.consentPublicText}
+                  </p>
+                  <p className="mt-3 break-all font-mono text-xs text-sky-800">
+                    SHA-256: {publicGovernance.consentTextSha256}
+                  </p>
+                </div>
+                {visiblePublicConsentIntegrityStatus === 'pending' ? (
+                  <p className="rounded-lg border border-sky-300 bg-white/80 p-3" role="status">
+                    Verificando localmente que el texto coincida con su huella SHA-256…
+                  </p>
+                ) : null}
+                {visiblePublicConsentIntegrityStatus === 'verified' ? (
+                  <p className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-emerald-950" role="status">
+                    Texto público íntegro: la huella coincide con este contenido exacto.
+                  </p>
+                ) : null}
+                {visiblePublicConsentIntegrityStatus === 'invalid' ? (
+                  <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-destructive" role="alert">
+                    {publicConsentIntegrity.error || 'No se pudo verificar el texto público.'}
+                  </p>
+                ) : null}
+                <p className="font-semibold">
+                  Chatboc no certifica una elección regulada ni sus resultados, y no reemplaza la revisión humana.
+                </p>
+              </div>
+              {!readOnly && publicConsentIntegrityVerified ? (
+                <div className="space-y-3 border-t border-sky-200 pt-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="survey-governance-consent"
+                      checked={governanceConsentAccepted}
+                      onCheckedChange={(checked) => setGovernanceConsentAccepted(checked === true)}
+                    />
+                    <Label htmlFor="survey-governance-consent" className="cursor-pointer leading-5">
+                      Confirmo que leí el texto exacto mostrado arriba y acepto la política de consentimiento versión{' '}
+                      {publicGovernance.consentPolicyVersion} vinculada a esta huella.
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="survey-governance-eligibility"
+                      checked={governanceEligibilityAcknowledged}
+                      onCheckedChange={(checked) => setGovernanceEligibilityAcknowledged(checked === true)}
+                    />
+                    <Label htmlFor="survey-governance-eligibility" className="cursor-pointer leading-5">
+                      Reconozco la política de elegibilidad versión {publicGovernance.eligibilityPolicyVersion} y que
+                      su evaluación queda sujeta a revisión humana.
+                    </Label>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <Alert variant="destructive" data-testid="survey-governance-invalid">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              <AlertTitle>Participación gobernada bloqueada</AlertTitle>
+              <AlertDescription>{publicGovernance.invalidReason}</AlertDescription>
+            </Alert>
+          )
         ) : null}
         {!readOnly && (
           <div
@@ -1542,7 +1949,13 @@ export const SurveyForm = ({
 
           <Button
             type="button"
-            disabled={loading || submitting || turnstileUnavailable || turnstileMissingToken}
+            disabled={
+              loading ||
+              submitting ||
+              turnstileUnavailable ||
+              turnstileMissingToken ||
+              governanceSubmissionBlocked
+            }
             onClick={handleSubmit}
             className="w-full md:w-auto"
           >

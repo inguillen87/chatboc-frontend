@@ -3,12 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { SurveyEditor } from '@/components/surveys/SurveyEditor';
+import { SurveyGovernancePanel } from '@/components/surveys/SurveyGovernancePanel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError, getErrorMessage } from '@/utils/api';
+import { useTenant } from '@/context/TenantContext';
 
 const isStructureLockedError = (error: unknown) =>
   error instanceof ApiError &&
@@ -20,6 +22,7 @@ const isStructureLockedError = (error: unknown) =>
 const SurveyDetailPage = () => {
   const params = useParams();
   const navigate = useNavigate();
+  const { currentSlug } = useTenant();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const {
     survey,
@@ -149,6 +152,7 @@ const SurveyDetailPage = () => {
           />
         </CardContent>
       </Card>
+      <SurveyGovernancePanel surveyId={survey.id} tenantSlug={currentSlug} />
       <div className="text-sm text-muted-foreground">
         <button className="underline" onClick={() => navigate('/admin/encuestas')}>
           Volver al listado

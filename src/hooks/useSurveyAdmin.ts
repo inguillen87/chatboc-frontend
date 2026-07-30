@@ -65,7 +65,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const normalizedId = useMemo(() => (typeof options.id === 'number' ? options.id : null), [options.id]);
 
   const surveyQuery = useQuery({
-    queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing'),
+    queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing', tenantSlug),
     enabled: normalizedId !== null,
     retry: false,
     queryFn: () =>
@@ -75,7 +75,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   });
 
   const listQuery = useQuery({
-    queryKey: queryKeys.surveys.adminList(buildListKey(options.listParams)),
+    queryKey: queryKeys.surveys.adminList(buildListKey(options.listParams), tenantSlug),
     queryFn: () => adminListSurveys(options.listParams as any, adminRequestOptions),
     retry: false,
   });
@@ -85,9 +85,9 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       if (normalizedId === null) throw new Error('No survey id provided');
       const guardedPayload = withExpectedSurveyStructureRevision(payload, surveyQuery.data);
       const updated = await adminUpdateSurvey(normalizedId, guardedPayload, adminRequestOptions);
-      queryClient.setQueryData(queryKeys.surveys.admin(normalizedId), updated);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing') });
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      queryClient.setQueryData(queryKeys.surveys.admin(normalizedId, tenantSlug), updated);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(normalizedId, tenantSlug) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return updated;
     },
   });
@@ -95,7 +95,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const createMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
       const created = await adminCreateSurvey(payload, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return created;
     },
   });
@@ -109,7 +109,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
         { titulo: payload?.titulo, slug: payload?.slug },
         adminRequestOptions,
       );
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return duplicated;
     },
   });
@@ -119,9 +119,9 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
       const published = await adminPublishSurvey(targetId, adminRequestOptions);
-      queryClient.setQueryData(queryKeys.surveys.admin(targetId), published);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId) });
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      queryClient.setQueryData(queryKeys.surveys.admin(targetId, tenantSlug), published);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId, tenantSlug) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return published;
     },
   });
@@ -135,8 +135,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string };
     }) => {
       const result = await adminSeedSurvey(id, payload, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id) });
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id, tenantSlug) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return result;
     },
   });
@@ -144,8 +144,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await adminDeleteSurvey(id, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id) });
-      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id, tenantSlug) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
     },
   });
 

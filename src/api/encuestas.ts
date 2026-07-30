@@ -14,7 +14,11 @@ import {
   SurveyPublic,
   SurveyResponseFilters,
   SurveyResponseList,
+  SnapshotCreatePayload,
+  SnapshotSimulationResponse,
+  SnapshotVerificationResult,
   SurveySnapshot,
+  SurveySnapshotListResponse,
   SurveySummary,
   SurveyTimeseriesPoint,
   SurveyForecast,
@@ -24,6 +28,9 @@ import {
   SurveySegmentsSuggestions,
   SurveyAnomalies,
   SurveyDashboardBundle,
+  SurveyGovernanceRelease,
+  SurveyGovernanceReleaseCreatePayload,
+  SurveyGovernanceReleaseList,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
@@ -833,6 +840,23 @@ const assertDurablePublicResponseAck = (
   const disposition = receipt?.disposition;
   const replayed = response.replayed;
   const receiptReplayed = receipt?.replayed;
+  const expectedGovernance = payload.governance;
+  const governanceMatches = (raw: unknown) => {
+    if (!expectedGovernance) return true;
+    if (!isRecord(raw)) return false;
+    return (
+      raw.contract_version === 'surveys.public_governance.v1' &&
+      raw.mode === 'governed_release' &&
+      positiveInteger(raw.release_id) === expectedGovernance.release_id &&
+      raw.snapshot_sha256 === expectedGovernance.snapshot_sha256 &&
+      raw.eligibility_policy_version === expectedGovernance.eligibility_policy_version &&
+      raw.consent_policy_version === expectedGovernance.consent_policy_version &&
+      raw.eligibility_decision === 'not_evaluated' &&
+      raw.human_review_required === true &&
+      raw.regulated_election_certified === false &&
+      raw.result_certified === false
+    );
+  };
 
   const durable =
     response.ok === true &&
@@ -854,7 +878,9 @@ const assertDurablePublicResponseAck = (
     receiptId !== null &&
     responseRevision !== null &&
     receiptRevision === responseRevision &&
-    (expectedRevision === null || responseRevision === expectedRevision);
+    (expectedRevision === null || responseRevision === expectedRevision) &&
+    governanceMatches(response.governance) &&
+    governanceMatches(receipt.governance);
 
   if (!durable) {
     throw new AmbiguousSurveySubmissionError(
@@ -1211,6 +1237,68 @@ export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions):
   return normalizeSurveyPreguntas(unwrapSurveyEnvelope<SurveyAdmin>(survey));
 };
 
+export const adminListSurveyGovernanceReleases = (
+  id: number,
+  options?: ApiFetchOptions,
+): Promise<SurveyGovernanceReleaseList> =>
+  apiFetch<SurveyGovernanceReleaseList>(`/api/v2/surveys/${id}/releases`, options ?? {});
+
+export const adminCreateSurveyGovernanceRelease = (
+  id: number,
+  payload: SurveyGovernanceReleaseCreatePayload,
+  idempotencyKey: string,
+  options?: ApiFetchOptions,
+): Promise<SurveyGovernanceRelease> =>
+  apiFetch<SurveyGovernanceRelease>(`/api/v2/surveys/${id}/releases`, {
+    ...options,
+    method: 'POST',
+    body: payload,
+    headers: {
+      ...options?.headers,
+      'Idempotency-Key': idempotencyKey,
+    },
+  });
+
+export const adminPublishSurveyGovernanceRelease = (
+  surveyId: number,
+  releaseId: number,
+  snapshotSha256: string,
+  idempotencyKey: string,
+  options?: ApiFetchOptions,
+): Promise<SurveyGovernanceRelease> =>
+  apiFetch<SurveyGovernanceRelease>(
+    `/api/v2/surveys/${surveyId}/releases/${releaseId}/publish`,
+    {
+      ...options,
+      method: 'POST',
+      body: { expected_snapshot_sha256: snapshotSha256 },
+      headers: {
+        ...options?.headers,
+        'Idempotency-Key': idempotencyKey,
+      },
+    },
+  );
+
+export const adminCloseSurveyGovernanceRelease = (
+  surveyId: number,
+  releaseId: number,
+  humanReviewReference: string,
+  idempotencyKey: string,
+  options?: ApiFetchOptions,
+): Promise<SurveyGovernanceRelease> =>
+  apiFetch<SurveyGovernanceRelease>(
+    `/api/v2/surveys/${surveyId}/releases/${releaseId}/close`,
+    {
+      ...options,
+      method: 'POST',
+      body: { human_review_reference: humanReviewReference },
+      headers: {
+        ...options?.headers,
+        'Idempotency-Key': idempotencyKey,
+      },
+    },
+  );
+
 export const adminSeedSurvey = async (
   id: number,
   payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string },
@@ -1417,9 +1505,11 @@ export const normalizeSurveySummary = (payload: unknown): SurveySummary => {
 export const getSummary = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
+  options?: ApiFetchOptions,
 ): Promise<SurveySummary> => {
   const payload = await callAdminSurveyEndpoint<unknown>(
     `${id}/analytics/resumen${buildQueryString(filtros)}`,
+    options,
   );
   return normalizeSurveySummary(payload);
 };
@@ -1427,8 +1517,9 @@ export const getSummary = async (
 export const getTimeseries = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
+  options?: ApiFetchOptions,
 ): Promise<SurveyTimeseriesPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`, options);
 
 const SURVEY_HEATMAP_METADATA_KEYS = [
   'headline',
@@ -1500,8 +1591,12 @@ const normalizeSurveyAnalyticsHeatmap = (payload: unknown): SurveyAnalyticsHeatm
 export const getHeatmap = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
+  options?: ApiFetchOptions,
 ): Promise<SurveyAnalyticsHeatmap> => {
-  const payload = await callAdminSurveyEndpoint<unknown>(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+  const payload = await callAdminSurveyEndpoint<unknown>(
+    `${id}/analytics/heatmap${buildQueryString(filtros)}`,
+    options,
+  );
   return normalizeSurveyAnalyticsHeatmap(payload);
 };
 
@@ -1509,17 +1604,19 @@ export const getHeatmap = async (
 export const getSurveyForecast = (
   id: number,
   params?: { window_minutes?: number; horizon_minutes?: number },
+  options?: ApiFetchOptions,
 ): Promise<SurveyForecast> =>
-  callAdminSurveyEndpoint(`${id}/analytics/forecast${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/forecast${buildQueryString(params)}`, options);
 
 export const getSurveyAlerts = (
   id: number,
   params?: { window_minutes?: number; min_activity?: number },
+  options?: ApiFetchOptions,
 ): Promise<SurveyAlert[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/alerts${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/alerts${buildQueryString(params)}`, options);
 
-export const getSurveyBrief = (id: number): Promise<SurveyBrief> =>
-  callAdminSurveyEndpoint(`${id}/analytics/brief`);
+export const getSurveyBrief = (id: number, options?: ApiFetchOptions): Promise<SurveyBrief> =>
+  callAdminSurveyEndpoint(`${id}/analytics/brief`, options);
 
 
 export const getSurveySegmentsCompare = (
@@ -1532,27 +1629,31 @@ export const getSurveySegmentsCompare = (
     a_territorio?: string;
     b_territorio?: string;
   },
+  options?: ApiFetchOptions,
 ): Promise<SurveySegmentsCompare> =>
-  callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`, options);
 
 
 export const getSurveySegmentsSuggestions = (
   id: number,
   params?: { limit?: number },
+  options?: ApiFetchOptions,
 ): Promise<SurveySegmentsSuggestions> =>
-  callAdminSurveyEndpoint(`${id}/analytics/segments/suggestions${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/segments/suggestions${buildQueryString(params)}`, options);
 
 export const getSurveyAnomalies = (
   id: number,
   params?: { burst_window_minutes?: number; burst_threshold?: number },
+  options?: ApiFetchOptions,
 ): Promise<SurveyAnomalies> =>
-  callAdminSurveyEndpoint(`${id}/analytics/anomalies${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/anomalies${buildQueryString(params)}`, options);
 
 export const getSurveyDashboardBundle = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
+  options?: ApiFetchOptions,
 ): Promise<SurveyDashboardBundle> =>
-  callAdminSurveyEndpoint<SurveyDashboardBundle>(`${id}/analytics/dashboard${buildQueryString(filtros)}`).then((bundle) => {
+  callAdminSurveyEndpoint<SurveyDashboardBundle>(`${id}/analytics/dashboard${buildQueryString(filtros)}`, options).then((bundle) => {
     const heatmap = bundle?.modules?.heatmap;
     if (!heatmap) return bundle;
     return {
@@ -1567,12 +1668,14 @@ export const getSurveyDashboardBundle = (
 export const downloadExportCsv = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
+  options?: ApiFetchOptions,
 ): Promise<Blob> => {
   const responseText = await callAdminSurveyEndpoint<string>(
     `${id}/analytics/export${buildQueryString(filtros)}`,
     {
       method: 'GET',
       headers: { Accept: 'text/csv' },
+      ...options,
     },
   );
   return new Blob([responseText], { type: 'text/csv;charset=utf-8' });
@@ -1580,36 +1683,51 @@ export const downloadExportCsv = async (
 
 export const createSnapshot = (
   id: number,
-  payload?: { rango?: string },
+  payload: SnapshotCreatePayload,
+  options?: ApiFetchOptions,
 ): Promise<SurveySnapshot> =>
-  callAdminSurveyEndpoint(`${id}/snapshots`, {
+  callAdminSurveyEndpoint(`${id}/snapshot`, {
     method: 'POST',
-    body: payload ?? {},
+    body: payload,
+    ...options,
   });
 
-export const publishSnapshot = (
+export const simulateSnapshotAnchor = (
   id: number,
   snapshotId: number,
-): Promise<SurveySnapshot> =>
-  callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/publicar`, {
+  options?: ApiFetchOptions,
+): Promise<SnapshotSimulationResponse> =>
+  callAdminSurveyEndpoint(`${id}/simulate/${snapshotId}`, {
     method: 'POST',
+    body: { chain: 'polygon' },
+    ...options,
   });
+
+/** @deprecated This operation creates a local simulation; it does not publish externally. */
+export const publishSnapshot = simulateSnapshotAnchor;
 
 export const verifyResponse = (
   id: number,
   snapshotId: number,
   respuestaId: number,
-): Promise<{ ok: boolean; valido: boolean }> =>
-  callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/verificar`, {
-    method: 'POST',
-    body: { respuesta_id: respuestaId },
-  });
+  options?: ApiFetchOptions,
+): Promise<SnapshotVerificationResult> =>
+  callAdminSurveyEndpoint(
+    `${id}/${snapshotId}/verify${buildQueryString({ respuesta_id: respuestaId })}`,
+    { method: 'GET', ...options },
+  );
 
-export const listSnapshots = (id: number): Promise<SurveySnapshot[]> =>
-  callAdminSurveyEndpoint(`${id}/snapshots`);
+export const listSnapshots = async (id: number, options?: ApiFetchOptions): Promise<SurveySnapshot[]> => {
+  const response = await callAdminSurveyEndpoint<SurveySnapshotListResponse>(`${id}/snapshots`, options);
+  if (!response || !Array.isArray(response.snapshots)) {
+    throw new Error('El backend devolvio un contrato de snapshots inesperado.');
+  }
+  return response.snapshots;
+};
 
 export const listSurveyResponses = (
   id: number,
   params?: SurveyResponseFilters,
+  options?: ApiFetchOptions,
 ): Promise<SurveyResponseList> =>
-  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`);
+  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`, options);

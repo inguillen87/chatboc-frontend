@@ -52,6 +52,8 @@ import type {
   OperationsAIBriefV1,
   OperationsAIProviderStatusItem,
   OperationsAIProviderStatusV1,
+  OperationsOpenAICapabilityKey,
+  OperationsOpenAISuiteReadiness,
   OperationsAlert,
   OperationsBucketItem,
   OperationsDashboardV1,
@@ -63,6 +65,7 @@ import type {
 } from './analyticsTypes';
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const OPENAI_PROVIDER_VERIFICATION_MAX_AGE_MS = 168 * 60 * 60 * 1000;
 const OPERATIONS_QUERY_TIMEOUT_MS = 9_000;
 const OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS = 7_000;
 
@@ -1151,10 +1154,160 @@ const providerLabel = (provider?: string) => {
 };
 
 const providerRuntimeLabel = (provider: OperationsAIProviderStatusItem) => {
+  const normalized = (provider.runtime_status || '').toLowerCase();
+  if (normalized === 'live_verified') return 'verificado en vivo';
+  if (normalized === 'configured_unverified') return 'configurado, sin verificar';
+  if (normalized === 'not_configured') return 'sin configurar';
   if (provider.runtime_status) return provider.runtime_status.replace(/_/g, ' ');
-  if (provider.configured || provider.installed || provider.enabled) return 'listo';
+  if (provider.configured || provider.installed || provider.enabled) return 'configurado';
   return 'sin configurar';
 };
+
+const providerReadinessLabel = (status: string) => {
+  if (status === 'ready') return 'configuración disponible';
+  if (status === 'warning') return 'revisión operativa';
+  if (status === 'blocked') return 'bloqueado';
+  if (status === 'loading') return 'leyendo configuración';
+  return 'estado no verificado';
+};
+
+const openAICapabilityLabels: Record<OperationsOpenAICapabilityKey, string> = {
+  chat_responses: 'Chat / Responses',
+  vision: 'Visión',
+  stt: 'Audio a texto (STT)',
+  tts: 'Texto a voz (TTS)',
+  realtime_voice: 'Realtime / llamadas',
+};
+
+const openAIReasonLabels: Record<string, string> = {
+  openai_api_key_missing: 'Falta la credencial de OpenAI',
+  openai_sdk_missing: 'Falta el SDK de OpenAI en el runtime',
+  openai_not_in_provider_order: 'OpenAI no está habilitado en el orden de proveedores',
+  websocket_client_missing: 'Falta el cliente WebSocket',
+  flask_sock_missing: 'Falta el servidor WebSocket',
+  twilio_request_auth_missing: 'Falta autenticar los webhooks de Twilio',
+  voice_stream_signing_missing: 'Falta la firma segura de Media Streams',
+  voice_stream_replay_store_missing: 'Falta Redis compartido para impedir replays',
+  capability_live_verification_missing: 'Falta una prueba controlada de esta modalidad',
+};
+
+const openAICapabilityStatusLabel = (status: string) => {
+  if (status === 'live_verified') return 'verificado en vivo';
+  if (status === 'unverified') return 'configurado · sin verificar';
+  return 'bloqueado';
+};
+
+const formatVerificationTimestamp = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getTime() > Date.now() + 5 * 60 * 1000
+    || parsed.getTime() < Date.now() - OPENAI_PROVIDER_VERIFICATION_MAX_AGE_MS
+  ) return null;
+  return parsed.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+};
+
+function OpenAISuiteReadinessPanel({
+  suite,
+  configurationScope,
+}: {
+  suite: OperationsOpenAISuiteReadiness;
+  configurationScope?: string;
+}) {
+  const providerEvidenceAt = formatVerificationTimestamp(suite.provider_verification.live_verified_at);
+  const providerVerified = suite.provider_verification.live_verified && Boolean(providerEvidenceAt);
+  const capabilityEntries = Object.entries(suite.capabilities) as Array<[
+    OperationsOpenAICapabilityKey,
+    OperationsOpenAISuiteReadiness['capabilities'][OperationsOpenAICapabilityKey],
+  ]>;
+
+  return (
+    <section
+      aria-labelledby="openai-suite-readiness-title"
+      data-testid="openai-suite-readiness"
+      className="rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] p-3"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p id="openai-suite-readiness-title" className="text-sm font-semibold text-foreground">Suite OpenAI</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Configuración y evidencia se informan por separado. Una credencial presente no prueba que una modalidad funcione.
+          </p>
+          {configurationScope === 'platform_runtime' ? (
+            <p className="mt-1 text-xs font-medium text-cyan-800 dark:text-cyan-200">
+              Configuración compartida de la plataforma Chatboc; no es una credencial ni integración propia de este tenant. La vista sí respeta sus permisos tenant.
+            </p>
+          ) : null}
+        </div>
+        <Badge variant={suite.status === 'blocked' ? 'destructive' : 'secondary'}>
+          {suite.status === 'partially_verified'
+            ? 'verificación parcial'
+            : suite.status === 'unverified'
+              ? 'sin verificar'
+              : suite.status === 'live_verified'
+                ? 'verificado en vivo'
+                : 'bloqueado'}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border border-border/70 bg-background/75 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Credencial</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">
+            {suite.key_configured ? 'Configurada' : 'No configurada'}
+          </p>
+          <code className="mt-1 block text-[11px] text-muted-foreground">OPENAI_API_KEY</code>
+        </div>
+        <div className="rounded-lg border border-border/70 bg-background/75 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Evidencia del proveedor</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">
+            {providerVerified ? 'Conectividad verificada' : 'Sin verificación fechada'}
+          </p>
+          {providerVerified ? (
+            <time dateTime={suite.provider_verification.live_verified_at ?? undefined} className="mt-1 block text-[11px] text-muted-foreground">
+              {providerEvidenceAt}
+            </time>
+          ) : (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Registrar un smoke controlado en OPENAI_PROVIDER_LIVE_VERIFIED y OPENAI_PROVIDER_LIVE_VERIFIED_AT.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        {capabilityEntries.map(([key, capability]) => {
+          const primaryReason = capability.reason_codes.find((reason) => reason !== 'capability_live_verification_missing');
+          return (
+            <div key={key} data-testid={`openai-capability-${key}`} className="rounded-lg border border-border/70 bg-background/75 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{openAICapabilityLabels[key]}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {capability.status === 'unverified'
+                      ? 'Runtime configurado; falta una prueba controlada y específica.'
+                      : capability.status === 'live_verified'
+                        ? 'Prueba específica registrada con fecha.'
+                        : openAIReasonLabels[primaryReason || ''] || 'Configuración incompleta.'}
+                  </p>
+                </div>
+                <Badge variant={capability.status === 'blocked' ? 'destructive' : capability.status === 'live_verified' ? 'default' : 'outline'}>
+                  {openAICapabilityStatusLabel(capability.status)}
+                </Badge>
+              </div>
+              {capability.status === 'blocked' && capability.configuration_env.length ? (
+                <p className="mt-2 break-words text-[11px] text-muted-foreground">
+                  Revisar: {capability.configuration_env.join(' · ')}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 function AIProviderStatusPanel({
   status,
@@ -1206,13 +1359,21 @@ function AIProviderStatusPanel({
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant={statusVariant(statusText)}>
-            {error ? 'Estado IA no disponible' : statusText.replace(/_/g, ' ')}
+            {error ? 'Estado IA no disponible' : providerReadinessLabel(statusText)}
           </Badge>
           <Badge variant={readiness?.chat_ready ? 'default' : 'outline'}>
-            {readiness?.chat_ready ? 'chat listo' : 'chat sin proveedor'}
+            {readiness?.chat_ready
+              ? 'chat verificado'
+              : readiness?.chat_runtime_configured
+                ? 'chat configurado · sin verificar'
+                : 'chat sin runtime'}
           </Badge>
           <Badge variant={readiness?.specialized_ai_ready ? 'default' : 'outline'}>
-            {readiness?.specialized_ai_ready ? 'IA especializada lista' : 'IA especializada degradada'}
+            {readiness?.specialized_ai_ready
+              ? 'IA especializada verificada'
+              : readiness?.specialized_ai_runtime_configured
+                ? 'IA especializada · sin verificar'
+                : 'IA especializada no configurada'}
           </Badge>
           {advisoryOnly ? <Badge variant="secondary">solo lectura</Badge> : null}
         </div>
@@ -1232,6 +1393,17 @@ function AIProviderStatusPanel({
 
         {status ? (
           <>
+            {status.openai_suite ? (
+              <OpenAISuiteReadinessPanel
+                suite={status.openai_suite}
+                configurationScope={asString(status.frontend_contract?.configuration_scope)}
+              />
+            ) : (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
+                El backend todavía no publica readiness por modalidad para OpenAI. Estado no verificado.
+              </div>
+            )}
+
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-border/70 bg-background/70 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Proveedor</p>
@@ -1279,7 +1451,7 @@ function AIProviderStatusPanel({
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                    {provider.configured || provider.enabled || provider.installed ? <Badge variant="default">activo</Badge> : <Badge variant="outline">pendiente</Badge>}
+                    {provider.live_verified ? <Badge variant="default">verificado</Badge> : provider.configured || provider.enabled || provider.installed ? <Badge variant="outline">configurado</Badge> : <Badge variant="outline">pendiente</Badge>}
                     {provider.quota_depleted ? <Badge variant="destructive">cuota</Badge> : null}
                     {provider.provider_order_enabled ? <Badge variant="secondary">orden</Badge> : null}
                   </div>

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   OperationsAIOpsQueueV1,
   OperationsAIProviderStatusV1,
+  OperationsOpenAISuiteReadiness,
   OperationsActionCenterV1,
   OperationsDashboardV1,
   OperationsFreshnessV1,
@@ -419,27 +420,38 @@ const aiProviderStatusFixture = (): OperationsAIProviderStatusV1 => ({
   secret_values_exposed: false,
   llm_provider_order: ['gemini', 'openai', 'huggingface'],
   readiness: {
-    chat_ready: true,
+    selected_chat_provider: 'gemini',
+    chat_runtime_configured: true,
+    chat_ready: false,
+    specialized_ai_runtime_configured: true,
     specialized_ai_ready: false,
     status: 'warning',
-    warnings: ['huggingface_quota_or_payment_required'],
+    warnings: ['huggingface_quota_or_payment_required', 'chat_capability_live_verification_missing'],
   },
   providers: {
     gemini: {
       provider: 'gemini',
       configured: true,
+      runtime_configured: true,
       provider_order_enabled: true,
       chat_model: 'gemini-2.5-flash',
     },
     openai: {
       provider: 'openai',
       configured: true,
+      runtime_configured: true,
+      key_configured: true,
       chat_default: true,
+      runtime_status: 'configured_unverified',
+      credential_status: 'present_unverified',
+      live_verified: false,
+      live_verified_at: null,
     },
     huggingface: {
       provider: 'huggingface',
       configured: true,
       enabled: true,
+      runtime_configured: true,
       runtime_status: 'degraded',
       quota_depleted: true,
       fallback_behavior: 'deterministic_local_fallback',
@@ -450,6 +462,84 @@ const aiProviderStatusFixture = (): OperationsAIProviderStatusV1 => ({
       },
     },
   },
+  openai_suite: {
+    contract_version: 'openai.suite_readiness.v1',
+    status: 'unverified',
+    key_configured: true,
+    runtime_configured: true,
+    provider_verification: {
+      status: 'present_unverified',
+      live_verified: false,
+      live_verified_at: null,
+      scope: 'provider_connectivity_only',
+    },
+    capability_evidence_available: false,
+    capabilities: {
+      chat_responses: {
+        key: 'chat_responses',
+        status: 'unverified',
+        runtime_configured: true,
+        provider_live_verified: false,
+        live_verified: false,
+        live_verified_at: null,
+        reason_codes: ['capability_live_verification_missing'],
+        configuration_env: ['OPENAI_API_KEY', 'LLM_PROVIDER_ORDER', 'OPENAI_CHAT_MODEL_DEFAULT'],
+      },
+      vision: {
+        key: 'vision',
+        status: 'unverified',
+        runtime_configured: true,
+        provider_live_verified: false,
+        live_verified: false,
+        live_verified_at: null,
+        reason_codes: ['capability_live_verification_missing'],
+        configuration_env: ['OPENAI_API_KEY', 'OPENAI_VISION_MODEL'],
+      },
+      stt: {
+        key: 'stt',
+        status: 'unverified',
+        runtime_configured: true,
+        provider_live_verified: false,
+        live_verified: false,
+        live_verified_at: null,
+        reason_codes: ['capability_live_verification_missing'],
+        configuration_env: ['OPENAI_API_KEY', 'OPENAI_STT_MODEL'],
+      },
+      tts: {
+        key: 'tts',
+        status: 'unverified',
+        runtime_configured: true,
+        provider_live_verified: false,
+        live_verified: false,
+        live_verified_at: null,
+        reason_codes: ['capability_live_verification_missing'],
+        configuration_env: ['OPENAI_API_KEY', 'OPENAI_TTS_MODEL'],
+      },
+      realtime_voice: {
+        key: 'realtime_voice',
+        status: 'blocked',
+        runtime_configured: false,
+        provider_live_verified: false,
+        live_verified: false,
+        live_verified_at: null,
+        reason_codes: ['twilio_request_auth_missing', 'voice_stream_replay_store_missing'],
+        configuration_env: [
+          'OPENAI_API_KEY',
+          'OPENAI_REALTIME_SPEECH_MODEL',
+          'TWILIO_AUTH_TOKEN',
+          'VOICE_STREAM_SIGNING_SECRET',
+          'SOCKETIO_MESSAGE_QUEUE_URL',
+        ],
+      },
+    },
+    docling: {
+      provider: 'docling',
+      enabled: true,
+      installed: true,
+      runtime_configured: true,
+    },
+    reason_codes: ['provider_live_verification_missing', 'capability_runtime_configuration_incomplete'],
+  },
   model_policy: {
     task_type: 'analytics',
     primary_provider: 'gemini',
@@ -458,6 +548,8 @@ const aiProviderStatusFixture = (): OperationsAIProviderStatusV1 => ({
   frontend_contract: {
     render_as: 'operations_ai_provider_status',
     advisory_only: true,
+    access_tenant_scoped: true,
+    configuration_scope: 'platform_runtime',
   },
 });
 
@@ -679,12 +771,26 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(panel.textContent).toContain('IA operacional');
     expect(panel.textContent).toContain('Gemini');
     expect(panel.textContent).toContain('Hugging Face');
-    expect(panel.textContent).toContain('chat listo');
-    expect(panel.textContent).toContain('IA especializada degradada');
+    expect(panel.textContent).toContain('chat configurado · sin verificar');
+    expect(panel.textContent).toContain('IA especializada · sin verificar');
     expect(panel.textContent).toContain('solo lectura');
     expect(panel.textContent).toContain('Fallback local seguro');
     expect(panel.textContent).toContain('deterministic local fallback');
     expect(panel.textContent).toContain('huggingface quota or payment required');
+    const suite = screen.getByTestId('openai-suite-readiness');
+    expect(suite).toHaveTextContent('Suite OpenAI');
+    expect(suite).toHaveTextContent('Configurada');
+    expect(suite).toHaveTextContent('Sin verificación fechada');
+    expect(suite).toHaveTextContent('Configuración compartida de la plataforma Chatboc');
+    expect(suite).toHaveTextContent('no es una credencial ni integración propia de este tenant');
+    expect(screen.getByTestId('openai-capability-chat_responses')).toHaveTextContent('configurado · sin verificar');
+    expect(screen.getByTestId('openai-capability-vision')).toHaveTextContent('Runtime configurado');
+    expect(screen.getByTestId('openai-capability-stt')).toHaveTextContent('Audio a texto');
+    expect(screen.getByTestId('openai-capability-tts')).toHaveTextContent('Texto a voz');
+    expect(screen.getByTestId('openai-capability-realtime_voice')).toHaveTextContent('bloqueado');
+    expect(screen.getByTestId('openai-capability-realtime_voice')).toHaveTextContent('Falta autenticar los webhooks de Twilio');
+    expect(suite.textContent).toContain('OPENAI_API_KEY');
+    expect(suite.textContent).toContain('VOICE_STREAM_SIGNING_SECRET');
     expect(panel.textContent).not.toContain('sk-');
     expect(panel.textContent).not.toContain('hf_');
     await waitFor(() => {
@@ -694,6 +800,76 @@ describe('OperationsDashboardPanel territory UX', () => {
         }),
       );
     });
+  });
+
+  it('shows dated provider evidence without promoting unverified modalities', async () => {
+    const providerStatus = aiProviderStatusFixture();
+    const verifiedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString().replace('.000Z', 'Z');
+    providerStatus.openai_suite = {
+      ...providerStatus.openai_suite!,
+      status: 'partially_verified',
+      provider_verification: {
+        status: 'live_verified',
+        live_verified: true,
+        live_verified_at: verifiedAt,
+        scope: 'provider_connectivity_only',
+      },
+    };
+    mocks.getOperationsAIProviderStatusV2.mockResolvedValue(providerStatus);
+
+    renderPanel();
+
+    const suite = await screen.findByTestId('openai-suite-readiness');
+    expect(suite).toHaveTextContent('verificación parcial');
+    expect(suite).toHaveTextContent('Conectividad verificada');
+    expect(suite).toHaveTextContent(new Date(verifiedAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC'));
+    expect(screen.getByText('chat configurado · sin verificar')).toBeInTheDocument();
+    expect(screen.getByTestId('openai-capability-chat_responses')).toHaveTextContent('configurado · sin verificar');
+    expect(screen.getByTestId('openai-capability-vision')).not.toHaveTextContent('verificado en vivo');
+  });
+
+  it('renders a missing key as blocked instead of silently ready', async () => {
+    const providerStatus = aiProviderStatusFixture();
+    const blockedCapabilities = Object.fromEntries(
+      Object.entries(providerStatus.openai_suite!.capabilities).map(([key, capability]) => [
+        key,
+        {
+          ...capability,
+          status: 'blocked',
+          runtime_configured: false,
+          reason_codes: ['openai_api_key_missing'],
+        },
+      ]),
+    ) as OperationsOpenAISuiteReadiness['capabilities'];
+    providerStatus.openai_suite = {
+      ...providerStatus.openai_suite!,
+      status: 'blocked',
+      key_configured: false,
+      runtime_configured: false,
+      provider_verification: {
+        status: 'missing',
+        live_verified: false,
+        live_verified_at: null,
+      },
+      capabilities: blockedCapabilities,
+    };
+    providerStatus.readiness = {
+      selected_chat_provider: null,
+      chat_runtime_configured: false,
+      chat_ready: false,
+      specialized_ai_runtime_configured: false,
+      specialized_ai_ready: false,
+      status: 'blocked',
+      warnings: ['openai_api_key_missing'],
+    };
+    mocks.getOperationsAIProviderStatusV2.mockResolvedValue(providerStatus);
+
+    renderPanel();
+
+    const suite = await screen.findByTestId('openai-suite-readiness');
+    expect(suite).toHaveTextContent('No configurada');
+    expect(suite).toHaveTextContent('bloqueado');
+    expect(screen.getByTestId('openai-capability-chat_responses')).toHaveTextContent('Falta la credencial de OpenAI');
   });
 
   it('keeps provider status as a recoverable card when the endpoint fails', async () => {

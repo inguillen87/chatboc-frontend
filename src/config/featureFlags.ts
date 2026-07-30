@@ -11,7 +11,10 @@ export const EDUCATION_FEATURE_FLAGS = {
   documents_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_DOCUMENTS_ENABLED, true),
   attendance_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ATTENDANCE_ENABLED, true),
   billing_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_BILLING_ENABLED, true),
-  admissions_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ADMISSIONS_ENABLED, true),
+  // Admissions handles sensitive applicant evidence. Keep the unfinished
+  // surface fail-closed until the versioned backend contract and capabilities
+  // are explicitly enabled for a deployment.
+  admissions_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ADMISSIONS_ENABLED, false),
 } as const;
 
 export type FeatureFlag = 'encuestas' | keyof typeof EDUCATION_FEATURE_FLAGS;

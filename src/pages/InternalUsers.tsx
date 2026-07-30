@@ -92,9 +92,11 @@ const PERMISSION_GROUPS = [
     label: 'Reportes y encuestas',
     icon: BarChart3,
     items: [
-      { value: 'analytics_read', label: 'Ver estadisticas' },
+      { value: 'analytics.read', label: 'Ver analitica agregada' },
       { value: 'surveys_read', label: 'Ver encuestas' },
       { value: 'surveys_write', label: 'Crear y publicar encuestas' },
+      { value: 'survey.pii.read', label: 'Ver respuestas con datos sensibles' },
+      { value: 'survey.export', label: 'Exportar respuestas (requiere datos sensibles)' },
     ],
   },
   {
@@ -106,6 +108,16 @@ const PERMISSION_GROUPS = [
       { value: 'orders_update', label: 'Gestionar pedidos' },
       { value: 'catalog_read', label: 'Ver catalogo' },
       { value: 'catalog_write', label: 'Editar catalogo e inventario' },
+    ],
+  },
+  {
+    id: 'education',
+    label: 'Familias y estudiantes',
+    icon: ShieldCheck,
+    items: [
+      { value: 'education.guardians.read', label: 'Consultar perfiles familiares' },
+      { value: 'education.guardians.verify', label: 'Atestar identidad de tutores' },
+      { value: 'education.guardians.link', label: 'Vincular tutores y estudiantes' },
     ],
   },
   {
@@ -134,7 +146,7 @@ const ROLE_TEMPLATES = [
     label: 'Supervisor operativo',
     description: 'Asigna responsables y mira reportes.',
     roles: ['supervisor'],
-    permisos: ['tickets_read', 'tickets_update', 'tickets_assign', 'analytics_read'],
+    permisos: ['tickets_read', 'tickets_update', 'tickets_assign', 'analytics.read'],
     channels: ['whatsapp', 'web_demo_widget'],
   },
   {
@@ -150,8 +162,16 @@ const ROLE_TEMPLATES = [
     label: 'Encuestas y reportes',
     description: 'Crea encuestas y consulta resultados.',
     roles: ['analista'],
-    permisos: ['surveys_read', 'surveys_write', 'analytics_read'],
+    permisos: ['surveys_read', 'surveys_write', 'analytics.read'],
     channels: ['whatsapp', 'web_demo_widget'],
+  },
+  {
+    id: 'survey-auditor',
+    label: 'Auditor de encuestas',
+    description: 'Accede y exporta respuestas sensibles. Asignar solo cuando sea necesario.',
+    roles: ['analista'],
+    permisos: ['surveys_read', 'analytics.read', 'survey.pii.read', 'survey.export'],
+    channels: ['web_demo_widget'],
   },
 ];
 

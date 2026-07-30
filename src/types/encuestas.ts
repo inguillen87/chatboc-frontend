@@ -361,6 +361,7 @@ export interface SurveyPublic {
   resultados_envivo?: SurveyLiveResults;
   security?: SurveySecurityContract;
   frontend_contract?: SurveyFrontendContract;
+  governance?: SurveyPublicGovernanceContract;
 
   [key: string]: unknown;
 }
@@ -443,6 +444,14 @@ export interface PublicResponsePayload {
   canal?: 'qr' | 'web' | 'whatsapp' | 'email';
   metadata?: SurveyAnalyticsMetadata;
   turnstile_token?: string;
+  governance?: {
+    release_id: number;
+    snapshot_sha256: string;
+    eligibility_policy_version: string;
+    consent_policy_version: string;
+    consent_accepted: true;
+    eligibility_acknowledged: true;
+  };
 }
 
 export interface SurveyAdmin extends SurveyPublic {
@@ -457,6 +466,152 @@ export interface SurveyAdmin extends SurveyPublic {
     revision: number;
     locked: boolean;
     locked_at?: string | null;
+  };
+}
+
+export type SurveyGovernanceReleaseStatus = 'draft' | 'published' | 'closed';
+
+export interface SurveyGovernanceEligibilityPolicy {
+  contract_version?: string;
+  policy_version: string;
+  mode: 'open' | 'self_attested' | 'institution_attested' | 'manual_review' | string;
+  declarations: string[];
+  human_review_required: boolean;
+  automated_decision: boolean;
+  stores_roster_or_pii?: boolean;
+  decision_state?: string;
+}
+
+export interface SurveyGovernanceConsentPolicy {
+  contract_version?: string;
+  policy_version: string;
+  public_text?: string;
+  text_sha256: string;
+  content_format?: 'plain_text' | string;
+  normalization?: 'unicode_nfc_lf_trim_v1' | string;
+  required: boolean;
+  stores_public_text?: boolean;
+  records_participant_input?: boolean;
+}
+
+export interface SurveyGovernanceDecisionRules {
+  contract_version?: string;
+  quorum: {
+    type: 'none' | 'minimum_responses' | 'minimum_percentage' | string;
+    value: number | null;
+  };
+  tie: { procedure: string };
+  challenge: {
+    enabled: boolean;
+    window_hours: number | null;
+    procedure: string;
+  };
+  human_review_required: boolean;
+  declarative_only: boolean;
+  computed_outcome?: null;
+}
+
+export interface SurveyGovernancePolicy {
+  eligibility?: SurveyGovernanceEligibilityPolicy;
+  consent?: SurveyGovernanceConsentPolicy;
+  decision_rules?: SurveyGovernanceDecisionRules;
+}
+
+export interface SurveyGovernanceRelease {
+  ok?: boolean;
+  contract_version: 'surveys.governance_release.v1' | string;
+  release_id: number;
+  survey_id: number;
+  version_number: number;
+  status: SurveyGovernanceReleaseStatus;
+  snapshot_sha256: string;
+  policy_sha256: string;
+  governance?: SurveyGovernancePolicy;
+  published_at?: string | null;
+  closed_at?: string | null;
+  closure?: Record<string, unknown> | null;
+  completeness?: {
+    public_consent?: {
+      complete?: boolean;
+      reason_code?: string | null;
+      content_format?: string;
+      normalization?: string;
+    };
+  };
+  capabilities?: {
+    can_publish?: boolean;
+    can_close?: boolean;
+  };
+  idempotency?: {
+    persisted?: boolean;
+    replayed?: boolean;
+    disposition?: string;
+  };
+  assurance?: {
+    scope?: string;
+    regulated_election_certified?: boolean;
+    result_certified?: boolean;
+    external_verification?: string;
+  };
+}
+
+export interface SurveyGovernanceReleaseList {
+  ok?: boolean;
+  contract_version: 'surveys.governance_releases.v1' | string;
+  survey_id: number;
+  survey_state?: SurveyAdmin['estado'] | string;
+  active_release_id?: number | null;
+  latest_release_id?: number | null;
+  capabilities?: {
+    read?: boolean;
+    manage?: boolean;
+    plan_allows_write?: boolean;
+    create_release?: boolean;
+    required_for_mutation?: string;
+  };
+  items: SurveyGovernanceRelease[];
+  total: number;
+}
+
+export interface SurveyPublicGovernanceContract {
+  contract_version?: 'surveys.public_governance.v1' | string;
+  mode?: 'legacy' | 'governed_release' | string;
+  release_required?: boolean;
+  active_release?: SurveyGovernanceRelease | null;
+  latest_release?: SurveyGovernanceRelease | null;
+  accepting_responses?: boolean;
+  blocked_reason_code?: string | null;
+  regulated_election_certified?: boolean;
+  result_certified?: boolean;
+}
+
+export interface SurveyGovernanceReleaseCreatePayload {
+  eligibility_policy: {
+    policy_version: string;
+    mode: 'open' | 'self_attested' | 'institution_attested' | 'manual_review';
+    declarations: string[];
+    human_review_required: true;
+    automated_decision: false;
+  };
+  consent_policy: {
+    policy_version: string;
+    public_text: string;
+    text_sha256: string;
+    required: true;
+  };
+  decision_rules: {
+    quorum: {
+      type: 'none' | 'minimum_responses' | 'minimum_percentage';
+      value: number | null;
+    };
+    tie: { procedure: 'human_review' | 'runoff' | 'declared_tie' };
+    challenge: {
+      enabled: boolean;
+      window_hours: number | null;
+      procedure: 'human_review';
+    };
+    human_review_required: true;
+    declarative_only: true;
   };
 }
 
@@ -654,6 +809,13 @@ export interface SurveyAnomalies {
 export interface SurveyTimeseriesPoint {
   fecha: string;
   respuestas: number;
+}
+
+export interface SurveyAnalyticsProvenance {
+  source: 'backend' | 'mixed' | 'frontend_demo_fallback';
+  synthetic: boolean;
+  affected_modules: Array<'summary' | 'timeseries' | 'heatmap'>;
+  disclaimer?: string;
 }
 
 export interface SurveyHeatmapPoint {
@@ -930,24 +1092,72 @@ export interface SurveyResponseFilters {
   utm_campaign?: string;
 }
 
+export type SurveyAnchorStatus =
+  | 'draft'
+  | 'simulated'
+  | 'unverified'
+  | 'submitted'
+  | 'confirmed'
+  | 'failed';
+
 export interface SurveySnapshot {
+  contract_version: 'surveys.anchor.v2' | string;
   id: number;
-  etiqueta: string;
-  creado_at: string;
-  publicado_at?: string | null;
-  rango?: string | null;
-  resumen?: SurveySummary;
+  snapshot_id: number;
+  encuesta_id: number;
+  tenant_id: number;
+  algo: string;
+  root_hash: string;
+  total_respuestas: number;
+  desde_at: string;
+  hasta_at: string;
+  created_at?: string | null;
+  created_by?: number | null;
+  anchor_status: SurveyAnchorStatus;
+  stored_anchor_status?: string;
+  anchor_at?: string | null;
+  tx_id?: string | null;
+  chain?: string | null;
+  is_simulated: boolean;
+  published: boolean;
+  externally_anchored: boolean;
+  externally_verified: boolean;
+  verification_status: 'unverified' | string;
+  integrity_scope: 'local_merkle_snapshot' | string;
+  assurance_notice: string;
+}
+
+export interface SurveySnapshotListResponse {
+  contract_version: 'surveys.anchor.v2' | string;
+  encuesta_id: number;
+  snapshots: SurveySnapshot[];
 }
 
 export interface SnapshotCreatePayload {
-  rango?: string;
+  desde: string;
+  hasta: string;
 }
 
-export interface SnapshotPublishPayload {
+export interface SnapshotSimulationResponse extends SurveySnapshot {
+  ok: true;
+  operation: 'local_simulation';
+}
+
+export interface SnapshotVerificationResult {
+  ok: boolean;
+  contract_version: 'surveys.anchor.v2' | string;
+  encuesta_id: number;
   snapshot_id: number;
-}
-
-export interface SnapshotVerifyPayload {
   respuesta_id: number;
-  snapshot_id: number;
+  root_hash: string;
+  content_hash: string;
+  proof: string[];
+  included: boolean;
+  local_proof_valid: boolean;
+  valido: false;
+  verified: false;
+  externally_verified: false;
+  verification_status: 'local_only' | 'invalid' | string;
+  integrity_scope: 'local_merkle_snapshot' | string;
+  assurance_notice: string;
 }

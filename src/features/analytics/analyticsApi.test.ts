@@ -641,26 +641,35 @@ describe('operations heatmap v2 contract', () => {
   });
 
   it('normalizes tenant scoped AI provider status without secret values', async () => {
+    const recentEvidenceAt = new Date(Date.now() - 5 * 60 * 1000)
+      .toISOString()
+      .replace('.000Z', 'Z');
     mocks.panelGet.mockResolvedValue({
       contract_version: 'ai.provider_status_public.v1',
       generated_at: '2026-06-27T12:00:00Z',
       secret_values_exposed: 'false',
       llm_provider_order: ['gemini', 'openai', null, 'huggingface'],
       readiness: {
+        selected_chat_provider: 'openai',
+        chat_runtime_configured: 'true',
         chat_ready: 'true',
-        specialized_ai_ready: 'false',
-        status: 'warning',
+        specialized_ai_runtime_configured: 'true',
+        specialized_ai_ready: 'true',
+        status: 'ready',
         warnings: ['huggingface_quota_or_payment_required', null],
       },
       providers: {
         gemini: {
           configured: 'true',
+          runtime_configured: 'true',
           provider_order_enabled: 'true',
           chat_model: 'gemini-2.5-flash',
+          base_url: 'https://secret.invalid/sk-provider-secret',
         },
         huggingface: {
           configured: 'true',
           enabled: 'true',
+          runtime_configured: 'true',
           runtime_status: 'degraded',
           quota_depleted: 'true',
           fallback_behavior: 'deterministic_local_fallback',
@@ -672,9 +681,46 @@ describe('operations heatmap v2 contract', () => {
           },
         },
       },
+      openai_suite: {
+        contract_version: 'openai.suite_readiness.v1',
+        status: 'live_verified',
+        key_configured: 'true',
+        runtime_configured: 'true',
+        provider_verification: {
+          status: 'live_verified',
+          live_verified: 'true',
+          live_verified_at: recentEvidenceAt,
+          raw_error: '401 sk-provider-secret',
+        },
+        capability_evidence_available: 'true',
+        reason_codes: ['capability_live_verification_missing', 'raw error sk-provider-secret'],
+        capabilities: {
+          chat_responses: {
+            status: 'live_verified',
+            runtime_configured: 'true',
+            provider_live_verified: 'true',
+            live_verified: 'true',
+            live_verified_at: recentEvidenceAt,
+            reason_codes: ['capability_live_verification_missing'],
+            configuration_env: ['OPENAI_API_KEY', 'LLM_PROVIDER_ORDER', 'OPENAI_CHAT_MODEL_DEFAULT'],
+          },
+          vision: {
+            status: 'live_verified',
+            runtime_configured: 'true',
+            provider_live_verified: 'true',
+            live_verified: 'true',
+            live_verified_at: recentEvidenceAt,
+            reason_codes: ['capability_live_verification_missing', 'sk-provider-secret'],
+            configuration_env: ['OPENAI_API_KEY', 'OPENAI_VISION_MODEL', 'SK_PROVIDER_SECRET'],
+          },
+        },
+      },
       frontend_contract: {
         render_as: 'operations_ai_provider_status',
         advisory_only: true,
+        tenant_scoped: true,
+        access_tenant_scoped: true,
+        configuration_scope: 'platform_runtime',
       },
     });
 
@@ -688,15 +734,23 @@ describe('operations heatmap v2 contract', () => {
       secret_values_exposed: false,
       llm_provider_order: ['gemini', 'openai', 'huggingface'],
       readiness: {
-        chat_ready: true,
+        selected_chat_provider: 'gemini',
+        chat_runtime_configured: true,
+        chat_ready: false,
+        specialized_ai_runtime_configured: true,
         specialized_ai_ready: false,
         status: 'warning',
-        warnings: ['huggingface_quota_or_payment_required'],
+        warnings: [
+          'huggingface_quota_or_payment_required',
+          'chat_capability_live_verification_missing',
+          'specialized_ai_live_verification_missing',
+        ],
       },
       providers: {
         gemini: {
           provider: 'gemini',
           configured: true,
+          runtime_configured: true,
           provider_order_enabled: true,
           chat_model: 'gemini-2.5-flash',
         },
@@ -704,6 +758,7 @@ describe('operations heatmap v2 contract', () => {
           provider: 'huggingface',
           configured: true,
           enabled: true,
+          runtime_configured: true,
           runtime_status: 'degraded',
           quota_depleted: true,
           fallback_behavior: 'deterministic_local_fallback',
@@ -714,8 +769,44 @@ describe('operations heatmap v2 contract', () => {
           },
         },
       },
+      openai_suite: {
+        status: 'partially_verified',
+        key_configured: true,
+        provider_verification: {
+          status: 'live_verified',
+          live_verified: true,
+          live_verified_at: recentEvidenceAt,
+        },
+        capability_evidence_available: false,
+        capabilities: {
+          chat_responses: {
+            status: 'unverified',
+            runtime_configured: true,
+            live_verified: false,
+            live_verified_at: null,
+          },
+          vision: {
+            status: 'unverified',
+            runtime_configured: true,
+            live_verified: false,
+            live_verified_at: null,
+            configuration_env: ['OPENAI_API_KEY', 'OPENAI_VISION_MODEL'],
+            reason_codes: ['capability_live_verification_missing'],
+          },
+          realtime_voice: {
+            status: 'blocked',
+          },
+        },
+      },
+      frontend_contract: {
+        access_tenant_scoped: true,
+        configuration_scope: 'platform_runtime',
+      },
     });
     expect(response.providers.huggingface.last_failure).not.toHaveProperty('message');
+    expect(response.providers.gemini).not.toHaveProperty('base_url');
+    expect(response.frontend_contract).not.toHaveProperty('tenant_scoped');
+    expect(JSON.stringify(response)).not.toContain('sk-provider-secret');
   });
 
   it('keeps the AI brief when it is embedded in the operations dashboard contract', async () => {

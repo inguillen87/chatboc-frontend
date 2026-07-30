@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3, ExternalLink, Image as ImageIcon, MapPin, MessageCircle, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
 import {
+  createOmnichannelReplyClientMessageId,
   getOmnichannelInboxDetailV2,
   postOmnichannelInboxActionV2,
   type OmnichannelActionDelivery,
@@ -18,7 +19,7 @@ import { toast } from '@/components/ui/use-toast';
 import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import {
   getAttachmentDeliveryUrl,
   getAttachmentPreviewUrl,
@@ -98,25 +99,142 @@ const liveChatClassName = (state?: string) => {
   return 'border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200';
 };
 
-const deliveryTone = (delivery?: OmnichannelActionDelivery | null) => {
-  if (delivery?.mode === 'real_message' || delivery?.external_dispatch) return 'sent';
-  if (delivery?.mode === 'timeline_only') return 'crm';
-  return 'internal';
+type DeliveryTone = 'success' | 'warning' | 'pending' | 'replay' | 'crm' | 'internal';
+
+interface DeliveryView {
+  title: string;
+  badge: string;
+  tone: DeliveryTone;
+}
+
+const deliveryView = (delivery?: OmnichannelActionDelivery | null): DeliveryView => {
+  const finalStatus = delivery?.final_delivery?.status?.trim().toLowerCase();
+  const finalSource = delivery?.final_delivery?.authoritative_source?.trim().toLowerCase();
+  const mode = delivery?.mode?.trim().toLowerCase();
+  const evidenceStage = delivery?.evidence_stage?.trim().toLowerCase();
+  const status = delivery?.status?.trim().toLowerCase();
+  const providerCallbackIsAuthoritative = finalSource === 'provider_status_callback';
+
+  if (providerCallbackIsAuthoritative && ['delivered', 'read'].includes(finalStatus || '')) {
+    return { title: 'Entrega confirmada', badge: finalStatus === 'read' ? 'Leído' : 'Entregado', tone: 'success' };
+  }
+  if (providerCallbackIsAuthoritative && ['failed', 'undelivered'].includes(finalStatus || '')) {
+    return { title: 'Entrega no realizada', badge: 'Fallo confirmado', tone: 'warning' };
+  }
+  if (mode === 'idempotent_replay' || delivery?.idempotency?.replayed) {
+    return { title: 'Reintento reconocido', badge: 'Replay sin duplicado', tone: 'replay' };
+  }
+  if (mode === 'durable_queue' || evidenceStage === 'durably_staged' || status === 'durably_staged') {
+    return { title: 'Respuesta encolada', badge: 'Encolado', tone: 'pending' };
+  }
+  if (evidenceStage === 'provider_accepted' || status === 'provider_accepted') {
+    return { title: 'Aceptado por el proveedor', badge: 'Pendiente de callback', tone: 'pending' };
+  }
+  if (mode === 'timeline_only' || evidenceStage === 'crm_only') {
+    return { title: 'Guardado solo en CRM', badge: 'CRM-only', tone: 'crm' };
+  }
+  return { title: 'Acción aplicada', badge: delivery?.status || 'Registrado', tone: 'internal' };
 };
 
-const deliveryTitle = (delivery?: OmnichannelActionDelivery | null) => {
-  const tone = deliveryTone(delivery);
-  if (tone === 'sent') return 'Mensaje enviado';
-  if (tone === 'crm') return 'Guardado en CRM';
-  return 'Accion aplicada';
+const deliveryTitle = (delivery?: OmnichannelActionDelivery | null) => deliveryView(delivery).title;
+
+const deliveryDescription = (delivery?: OmnichannelActionDelivery | null, fallback?: string | null) => {
+  const view = deliveryView(delivery);
+  if (view.tone === 'success') return 'El callback del proveedor confirmó la entrega final.';
+  if (view.tone === 'warning') return 'El callback del proveedor confirmó que la entrega no se completó.';
+  return delivery?.operator_message ||
+    fallback ||
+    (view.tone === 'crm'
+      ? 'La respuesta quedó registrada en el timeline operativo sin despacho externo.'
+      : 'El inbox fue actualizado; la entrega final depende de la evidencia del proveedor.');
 };
 
-const deliveryDescription = (delivery?: OmnichannelActionDelivery | null, fallback?: string | null) =>
-  delivery?.operator_message ||
-  fallback ||
-  (deliveryTone(delivery) === 'crm'
-    ? 'La respuesta quedo registrada en el timeline operativo.'
-    : 'El inbox fue actualizado.');
+const finalDeliveryEvidenceLabel = (status: string) => {
+  const normalized = status.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    pending_provider_callback: 'pendiente de callback del proveedor',
+    preserved_from_original_attempt: 'evidencia del intento original preservada',
+    not_dispatched: 'sin despacho externo',
+    delivered: 'entregada',
+    read: 'leída',
+    failed: 'fallida',
+    undelivered: 'no entregada',
+  };
+  return labels[normalized] || normalized.replace(/_/g, ' ');
+};
+
+const finalDeliverySourceLabel = (source: string) => {
+  const normalized = source.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    provider_status_callback: 'callback de estado del proveedor',
+    original_attempt_evidence: 'evidencia del intento original',
+    not_applicable: 'no aplica',
+  };
+  return labels[normalized] || normalized.replace(/_/g, ' ');
+};
+
+const deliveryEvidence = (delivery?: OmnichannelActionDelivery | null) => {
+  if (!delivery) return [];
+  const evidence: string[] = [];
+  const finalStatus = delivery.final_delivery?.status;
+  const finalSource = delivery.final_delivery?.authoritative_source;
+  if (finalStatus) {
+    const statusLabel = finalSource?.trim().toLowerCase() === 'provider_status_callback'
+      ? 'Entrega final'
+      : 'Estado preservado';
+    evidence.push(`${statusLabel}: ${finalDeliveryEvidenceLabel(finalStatus)}`);
+  }
+  if (finalSource) {
+    evidence.push(`Fuente: ${finalDeliverySourceLabel(finalSource)}`);
+  }
+  if (delivery.idempotency) {
+    evidence.push(`Idempotencia: ${delivery.idempotency.replayed ? 'replay sin duplicado' : 'primera aplicación'}`);
+  }
+  if (delivery.outbox) {
+    const effectCount = delivery.outbox.effect_count;
+    evidence.push(
+      typeof effectCount === 'number'
+        ? `Outbox: ${effectCount} efecto${effectCount === 1 ? '' : 's'}`
+        : `Outbox: ${delivery.outbox.durably_staged ? 'encolado' : 'sin evidencia durable'}`,
+    );
+  }
+  return evidence;
+};
+
+const isAmbiguousActionError = (error: unknown) => {
+  if (!(error instanceof ApiError)) return true;
+  return error.status >= 500 || [408, 425, 429].includes(error.status);
+};
+
+interface ReplyAttempt {
+  fingerprint: string;
+  clientMessageId: string;
+}
+
+const normalizeInboxTenantScope = (tenantSlug?: string | null) =>
+  tenantSlug?.trim().toLowerCase() || 'unscoped';
+
+const inboxDetailQueryKey = (
+  tenantSlug: string | null | undefined,
+  ticketId: string | undefined,
+  detailEndpoint?: string | null,
+) => ['inbox-omnichannel-v2-detail', normalizeInboxTenantScope(tenantSlug), ticketId ?? 'missing', detailEndpoint ?? null] as const;
+
+interface InboxActionScope {
+  key: string;
+  ticketId: string;
+  tenantSlug?: string | null;
+  detailEndpoint?: string | null;
+  detailQueryKey: ReturnType<typeof inboxDetailQueryKey>;
+  draftStorageKey?: string | null;
+  attemptClientMessageId?: string | null;
+}
+
+interface InboxActionVariables {
+  action: string;
+  payload?: Record<string, unknown>;
+  scope: InboxActionScope;
+}
 
 function SafeInboxImage({ src, alt }: { src?: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
@@ -139,11 +257,46 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   tenantSlug,
   onActionComplete,
 }) => {
-  const [draft, setDraft] = useState('');
-  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
-  const [lastDelivery, setLastDelivery] = useState<OmnichannelActionDelivery | null>(null);
+  const queryClient = useQueryClient();
+  const detailQueryKey = inboxDetailQueryKey(tenantSlug, ticketId, ticket?.detail_endpoint);
+  const activeScopeKey = JSON.stringify([
+    normalizeInboxTenantScope(tenantSlug),
+    ticketId ?? 'missing',
+    ticket?.detail_endpoint ?? null,
+  ]);
+  const [draftState, setDraftState] = useState<{
+    scopeKey: string;
+    value: string;
+    savedAt: string | null;
+  } | null>(null);
+  const [lastDeliveryState, setLastDeliveryState] = useState<{
+    scopeKey: string;
+    delivery: OmnichannelActionDelivery;
+  } | null>(null);
+  const replyAttemptRef = useRef<ReplyAttempt | null>(null);
+  const activeScopeRef = useRef(activeScopeKey);
+  activeScopeRef.current = activeScopeKey;
+  const draft = draftState?.scopeKey === activeScopeKey ? draftState.value : '';
+  const draftSavedAt = draftState?.scopeKey === activeScopeKey ? draftState.savedAt : null;
+  const setDraft = (value: string) => {
+    setDraftState((current) => ({
+      scopeKey: activeScopeKey,
+      value,
+      savedAt: current?.scopeKey === activeScopeKey ? current.savedAt : null,
+    }));
+  };
+  const setDraftSavedAt = (savedAt: string | null) => {
+    setDraftState((current) => ({
+      scopeKey: activeScopeKey,
+      value: current?.scopeKey === activeScopeKey ? current.value : '',
+      savedAt,
+    }));
+  };
+  const lastDelivery = lastDeliveryState?.scopeKey === activeScopeKey
+    ? lastDeliveryState.delivery
+    : null;
   const detailQuery = useQuery({
-    queryKey: ['inbox-omnichannel-v2-detail', tenantSlug, ticketId, ticket?.detail_endpoint],
+    queryKey: detailQueryKey,
     queryFn: () => getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint),
     enabled: Boolean(ticketId),
     retry: 0,
@@ -152,35 +305,76 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const detailTicket = detailQuery.data?.item ?? ticket;
 
   const actionMutation = useMutation({
-    mutationFn: ({ action, payload }: { action: string; payload?: Record<string, unknown> }) => {
-      if (!ticketId) throw new Error('Falta el ticket seleccionado.');
-      return postOmnichannelInboxActionV2(ticketId, { action, payload }, tenantSlug);
+    mutationFn: ({ action, payload, scope }: InboxActionVariables) => {
+      return postOmnichannelInboxActionV2(scope.ticketId, { action, payload }, scope.tenantSlug);
     },
-    onSuccess: (result) => {
+    onSuccess: async (result, variables) => {
       const updatedTicket = result.ticket;
       const delivery = result.delivery ?? null;
-      setLastDelivery(delivery);
-      if (updatedTicket.id === ticketId) {
+      const isCurrentScope = activeScopeRef.current === variables.scope.key;
+      const responseMatchesTicket = updatedTicket.id === variables.scope.ticketId;
+      if (responseMatchesTicket) {
+        queryClient.setQueryData(variables.scope.detailQueryKey, (previous: unknown) => ({
+          ...(previous && typeof previous === 'object' ? previous : {}),
+          item: updatedTicket,
+          raw: result.raw,
+        }));
+        await queryClient.invalidateQueries({
+          queryKey: variables.scope.detailQueryKey,
+          exact: true,
+          refetchType: 'active',
+        });
+      }
+      if (!isCurrentScope) {
+        onActionComplete?.();
+        return;
+      }
+      setLastDeliveryState(
+        responseMatchesTicket && delivery
+          ? { scopeKey: variables.scope.key, delivery }
+          : null,
+      );
+      if (
+        variables.action === 'reply' &&
+        replyAttemptRef.current?.clientMessageId === variables.scope.attemptClientMessageId
+      ) {
+        replyAttemptRef.current = null;
+      }
+      if (variables.action === 'reply' && responseMatchesTicket) {
         setDraft('');
         setDraftSavedAt(null);
-        if (draftStorageKey) {
+        if (variables.scope.draftStorageKey) {
           try {
-            window.localStorage.removeItem(draftStorageKey);
+            window.localStorage.removeItem(variables.scope.draftStorageKey);
           } catch {
             // local draft cleanup is best-effort
           }
         }
       }
-      toast({
-        title: deliveryTitle(delivery),
-        description: deliveryDescription(
-          delivery,
-          updatedTicket.status ? `Estado actual: ${formatTicketStatusLabel(updatedTicket.status)}.` : null,
-        ),
-      });
+      toast(responseMatchesTicket
+        ? {
+            title: deliveryTitle(delivery),
+            description: deliveryDescription(
+              delivery,
+              updatedTicket.status ? `Estado actual: ${formatTicketStatusLabel(updatedTicket.status)}.` : null,
+            ),
+          }
+        : {
+            title: 'Respuesta no confirmada',
+            description: 'El backend devolviÃ³ otro ticket. No se aplicÃ³ el resultado en esta conversaciÃ³n.',
+            variant: 'destructive',
+          });
       onActionComplete?.();
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (activeScopeRef.current !== variables.scope.key) return;
+      if (
+        variables.action === 'reply' &&
+        !isAmbiguousActionError(error) &&
+        replyAttemptRef.current?.clientMessageId === variables.scope.attemptClientMessageId
+      ) {
+        replyAttemptRef.current = null;
+      }
       toast({
         title: 'No se pudo aplicar la accion',
         description: getErrorMessage(error, 'Reintenta en unos segundos.'),
@@ -189,7 +383,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     },
   });
 
-  const draftStorageKey = detailTicket?.id ? `chatboc:omnichannel-draft:${detailTicket.id}` : null;
+  const draftStorageKey = detailTicket?.id
+    ? `chatboc:omnichannel-draft:${normalizeInboxTenantScope(tenantSlug)}:${detailTicket.id}`
+    : null;
+
+  useEffect(() => {
+    replyAttemptRef.current = null;
+    setLastDeliveryState(null);
+  }, [activeScopeKey]);
 
   useEffect(() => {
     if (!draftStorageKey) {
@@ -218,7 +419,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       return;
     }
     const actionName = action.type ?? action.id;
-    if (!actionName) return;
+    if (!actionName || !ticketId) return;
     actionMutation.mutate({
       action: actionName,
       payload: {
@@ -227,23 +428,62 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           : {}),
         ...(action.endpoint ? { endpoint: action.endpoint } : {}),
       },
+      scope: {
+        key: activeScopeKey,
+        ticketId,
+        tenantSlug,
+        detailEndpoint: ticket?.detail_endpoint,
+        detailQueryKey,
+        draftStorageKey,
+      },
     });
   };
 
   const handleReply = () => {
     const message = draft.trim();
-    if (!message) return;
+    if (!message || !ticketId) return;
     const replyAction = detailTicket?.allowed_actions?.find((action) => action.id === 'reply');
     const replyDefaults =
       replyAction?.payload && typeof replyAction.payload === 'object' && !Array.isArray(replyAction.payload)
         ? (replyAction.payload as Record<string, unknown>)
         : {};
+    const safeReplyDefaults = { ...replyDefaults };
+    delete safeReplyDefaults.client_message_id;
+    delete safeReplyDefaults.idempotency_key;
+    const fingerprint = JSON.stringify({ tenant: normalizeInboxTenantScope(tenantSlug), ticketId, message });
+    let replyAttempt = replyAttemptRef.current;
+    if (!replyAttempt || replyAttempt.fingerprint !== fingerprint) {
+      try {
+        replyAttempt = {
+          fingerprint,
+          clientMessageId: createOmnichannelReplyClientMessageId(),
+        };
+      } catch (error) {
+        toast({
+          title: 'No se pudo identificar la respuesta',
+          description: getErrorMessage(error, 'Usa un navegador con criptografía segura.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      replyAttemptRef.current = replyAttempt;
+    }
     actionMutation.mutate({
       action: 'reply',
       payload: {
-        ...replyDefaults,
+        ...safeReplyDefaults,
         ...(replyAction?.endpoint ? { endpoint: replyAction.endpoint } : {}),
         message,
+        client_message_id: replyAttempt.clientMessageId,
+      },
+      scope: {
+        key: activeScopeKey,
+        ticketId,
+        tenantSlug,
+        detailEndpoint: ticket?.detail_endpoint,
+        detailQueryKey,
+        draftStorageKey,
+        attemptClientMessageId: replyAttempt.clientMessageId,
       },
     });
   };
@@ -333,6 +573,8 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     asText(liveChat?.offline_message?.message);
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
+  const lastDeliveryView = deliveryView(lastDelivery);
+  const lastDeliveryEvidence = deliveryEvidence(lastDelivery);
   const statusTiles = [
     channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
     liveChatStateLabel ? { icon: MessageCircle, label: 'Live chat', value: liveChatStateLabel } : null,
@@ -420,7 +662,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
             handoff={detailTicket.handoff}
             actions={handoffActions}
             onActionComplete={(result) => {
-              setLastDelivery(result.delivery ?? null);
+              setLastDeliveryState(
+                result.delivery ? { scopeKey: activeScopeKey, delivery: result.delivery } : null,
+              );
               void detailQuery.refetch();
               onActionComplete?.();
             }}
@@ -538,9 +782,17 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
             <div className="min-w-0">
               <div className="font-semibold text-foreground">{deliveryTitle(lastDelivery)}</div>
               <div className="mt-0.5 text-muted-foreground">{deliveryDescription(lastDelivery)}</div>
+              {lastDeliveryEvidence.length ? (
+                <div
+                  className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
+                  data-testid="omnichannel-delivery-evidence"
+                >
+                  {lastDeliveryEvidence.map((item) => <span key={item}>{item}</span>)}
+                </div>
+              ) : null}
             </div>
-            <Badge variant={deliveryTone(lastDelivery) === 'sent' ? 'default' : 'secondary'}>
-              {lastDelivery.channel || 'crm'} · {lastDelivery.reply_status || lastDelivery.status || 'registrado'}
+            <Badge variant={lastDeliveryView.tone === 'success' ? 'default' : 'secondary'}>
+              {lastDelivery.channel || 'crm'} · {lastDeliveryView.badge}
             </Badge>
           </div>
         ) : null}

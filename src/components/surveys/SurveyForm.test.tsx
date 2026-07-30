@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SurveyForm } from './SurveyForm';
+import { resolveSurveyPublicGovernance, SurveyForm } from './SurveyForm';
 import type { SurveyPublic } from '@/types/encuestas';
 import { ApiError, NetworkError } from '@/utils/api';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
@@ -139,6 +139,73 @@ const authenticatedSurvey: SurveyPublic = {
   anonimo_permitido: false,
 };
 
+const CONSENT_TEXT_V1 = 'Texto de consentimiento público v1.';
+const CONSENT_TEXT_V2 = 'Texto de consentimiento público v2.';
+const CONSENT_SHA256_V1 = '6d249815b4c57b0090d95e1ddd777f4514938a5bc6229ad6b2875bdef32c571e';
+const CONSENT_SHA256_V2 = '93e9006dfb83b0fea211db316335112660961f3fe5de66bcab34c19b9ef15358';
+
+const governedSurvey = (releaseId = 51): SurveyPublic => ({
+  ...baseSurvey,
+  governance: {
+    contract_version: 'surveys.public_governance.v1',
+    mode: 'governed_release',
+    release_required: true,
+    accepting_responses: true,
+    regulated_election_certified: false,
+    result_certified: false,
+    active_release: {
+      contract_version: 'surveys.governance_release.v1',
+      release_id: releaseId,
+      survey_id: 42,
+      version_number: releaseId === 51 ? 1 : 2,
+      status: 'published',
+      snapshot_sha256: (releaseId === 51 ? 'a' : 'b').repeat(64),
+      policy_sha256: (releaseId === 51 ? 'c' : 'd').repeat(64),
+      published_at: '2026-07-30T12:00:00Z',
+      completeness: {
+        public_consent: {
+          complete: true,
+          reason_code: null,
+          content_format: 'plain_text',
+          normalization: 'unicode_nfc_lf_trim_v1',
+        },
+      },
+      governance: {
+        eligibility: {
+          policy_version: releaseId === 51 ? 'eligibility-v1' : 'eligibility-v2',
+          mode: 'self_attested',
+          declarations: ['resident_attested'],
+          human_review_required: true,
+          automated_decision: false,
+        },
+        consent: {
+          policy_version: releaseId === 51 ? 'consent-v1' : 'consent-v2',
+          public_text: releaseId === 51 ? CONSENT_TEXT_V1 : CONSENT_TEXT_V2,
+          text_sha256: releaseId === 51 ? CONSENT_SHA256_V1 : CONSENT_SHA256_V2,
+          content_format: 'plain_text',
+          normalization: 'unicode_nfc_lf_trim_v1',
+          required: true,
+          stores_public_text: true,
+          records_participant_input: false,
+        },
+        decision_rules: {
+          quorum: { type: 'none', value: null },
+          tie: { procedure: 'human_review' },
+          challenge: { enabled: false, window_hours: null, procedure: 'human_review' },
+          human_review_required: true,
+          declarative_only: true,
+        },
+      },
+      assurance: {
+        regulated_election_certified: false,
+        result_certified: false,
+        external_verification: 'not_performed',
+      },
+    },
+    latest_release: null,
+  },
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -182,6 +249,145 @@ describe('SurveyForm security contract', () => {
     expect(payload).not.toHaveProperty('user_id');
     expect(payload).not.toHaveProperty('userId');
     expect(payload.respuestas).toEqual([{ pregunta_id: 101, opcion_ids: [1] }]);
+  });
+
+  it('requires two explicit governance acknowledgments and submits the pinned release contract', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<SurveyForm survey={governedSurvey()} onSubmit={onSubmit} />);
+
+    expect(screen.getByTestId('survey-governance-ack')).toHaveTextContent('eligibility-v1');
+    expect(screen.getByTestId('survey-governance-ack')).toHaveTextContent('consent-v1');
+    expect(screen.getByTestId('survey-public-consent-text')).toHaveTextContent(CONSENT_TEXT_V1);
+    expect(screen.getByText(/verificando localmente|texto público íntegro/i)).toBeInTheDocument();
+    expect(screen.getByText(/no certifica una elección regulada ni sus resultados/i)).toBeInTheDocument();
+
+    const consent = await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i);
+    const eligibility = screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i);
+    const submit = screen.getByRole('button', { name: /enviar/i });
+    expect(consent).not.toBeChecked();
+    expect(eligibility).not.toBeChecked();
+    expect(submit).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(consent);
+    expect(submit).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(eligibility);
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        governance: {
+          release_id: 51,
+          snapshot_sha256: 'a'.repeat(64),
+          eligibility_policy_version: 'eligibility-v1',
+          consent_policy_version: 'consent-v1',
+          consent_accepted: true,
+          eligibility_acknowledged: true,
+        },
+        respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+      }),
+    );
+  });
+
+  it('fails closed when a governed public contract is incomplete', () => {
+    const onSubmit = vi.fn();
+    const malformed: SurveyPublic = {
+      ...governedSurvey(),
+      governance: {
+        ...governedSurvey().governance,
+        active_release: null,
+      },
+    };
+
+    render(<SurveyForm survey={malformed} onSubmit={onSubmit} />);
+
+    expect(screen.getByTestId('survey-governance-invalid')).toHaveTextContent(/quedó bloqueada/i);
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/acepto la política de consentimiento/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('recomputes the public consent hash and blocks a mismatched backend contract', async () => {
+    const onSubmit = vi.fn();
+    const mismatched = governedSurvey();
+    if (mismatched.governance?.active_release?.governance?.consent) {
+      mismatched.governance.active_release.governance.consent.text_sha256 = '0'.repeat(64);
+    }
+
+    render(<SurveyForm survey={mismatched} onSubmit={onSubmit} />);
+
+    expect(screen.getByTestId('survey-public-consent-text')).toHaveTextContent(CONSENT_TEXT_V1);
+    expect(await screen.findByText(/huella SHA-256 no coincide/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/acepto la política de consentimiento/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('renders the immutable consent as plain text without HTML or implicit links', async () => {
+    const literalText = 'Autorizo <strong>sin HTML</strong>. Referencia: https://example.test';
+    const literalHash = 'df1f87093d72a09fd97be7f00de0ff44fc364889a4298f521aecacc8f17927a3';
+    const survey = governedSurvey();
+    const consent = survey.governance?.active_release?.governance?.consent;
+    if (consent) {
+      consent.public_text = literalText;
+      consent.text_sha256 = literalHash;
+    }
+
+    render(<SurveyForm survey={survey} onSubmit={vi.fn()} />);
+
+    const renderedText = screen.getByTestId('survey-public-consent-text');
+    expect(renderedText).toHaveTextContent(literalText);
+    expect(renderedText.querySelector('strong')).toBeNull();
+    expect(renderedText.querySelector('a')).toBeNull();
+    expect(
+      await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i),
+    ).toBeInTheDocument();
+  });
+
+  it('clears both acknowledgments when the active release changes', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(<SurveyForm survey={governedSurvey(51)} onSubmit={onSubmit} />);
+
+    fireEvent.click(await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i));
+    fireEvent.click(screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i));
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeEnabled();
+
+    rerender(<SurveyForm survey={governedSurvey(52)} onSubmit={onSubmit} />);
+
+    const nextConsent = await screen.findByLabelText(/acepto la política de consentimiento versión consent-v2/i);
+    const nextEligibility = screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v2/i);
+    await waitFor(() => expect(nextConsent).not.toBeChecked());
+    expect(nextEligibility).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('invalidates verified text immediately even when the declared hash identity stays unchanged', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const original = governedSurvey();
+    const changedText = governedSurvey();
+    const consent = changedText.governance?.active_release?.governance?.consent;
+    if (consent) consent.public_text = 'Texto alterado que conserva indebidamente el hash declarado.';
+    expect(resolveSurveyPublicGovernance(changedText).scopeKey).toBe(
+      resolveSurveyPublicGovernance(original).scopeKey,
+    );
+
+    const { rerender } = render(<SurveyForm survey={original} onSubmit={onSubmit} />);
+    fireEvent.click(
+      await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i),
+    );
+    fireEvent.click(screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i));
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeEnabled();
+
+    rerender(<SurveyForm survey={changedText} onSubmit={onSubmit} />);
+
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/acepto la política de consentimiento/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/huella SHA-256 no coincide/i)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('renders Turnstile and submits the token when the public survey requires it', async () => {

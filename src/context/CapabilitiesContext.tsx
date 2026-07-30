@@ -20,7 +20,7 @@ const normalizeCapabilityToken = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
 
 const CAPABILITY_ALIASES: Record<string, string[]> = {
-  'analytics.read': ['dashboard.read', 'reports.read', 'stats.read'],
+  'analytics.read': ['dashboard.read', 'reports.read', 'stats.read', 'analytics_read'],
   'market.catalog.read': ['catalog.read', 'catalogo.read', 'inventory.read'],
   'market.catalog.write': ['catalog.write', 'catalog.manage', 'inventory.write'],
   'market.orders.read': ['orders.read', 'commerce.orders.read', 'pedidos.read'],

@@ -165,6 +165,8 @@ export interface OperationsFrontendContract {
   primary_refresh_seconds?: number;
   empty_state_behavior?: string;
   labels?: Record<string, string>;
+  access_tenant_scoped?: boolean;
+  configuration_scope?: string;
   [key: string]: unknown;
 }
 
@@ -580,12 +582,17 @@ export interface OperationsAIProviderSafeFailure {
 export interface OperationsAIProviderStatusItem {
   provider?: string;
   configured?: boolean;
+  key_configured?: boolean;
   enabled?: boolean;
   installed?: boolean;
   install_extras_enabled?: boolean;
   chat_default?: boolean;
   provider_order_enabled?: boolean;
   runtime_status?: string;
+  runtime_configured?: boolean;
+  credential_status?: string;
+  live_verified?: boolean;
+  live_verified_at?: string | null;
   quota_depleted?: boolean;
   fallback_behavior?: string;
   mode?: string;
@@ -602,6 +609,40 @@ export interface OperationsAIProviderStatusItem {
   [key: string]: unknown;
 }
 
+export type OperationsOpenAICapabilityKey =
+  | 'chat_responses'
+  | 'vision'
+  | 'stt'
+  | 'tts'
+  | 'realtime_voice';
+
+export interface OperationsOpenAICapabilityReadiness {
+  key: OperationsOpenAICapabilityKey;
+  status: 'blocked' | 'unverified' | 'live_verified';
+  runtime_configured: boolean;
+  provider_live_verified: boolean;
+  live_verified: boolean;
+  live_verified_at?: string | null;
+  reason_codes: string[];
+  configuration_env: string[];
+}
+
+export interface OperationsOpenAISuiteReadiness {
+  contract_version?: string;
+  status: 'blocked' | 'unverified' | 'partially_verified' | 'live_verified';
+  key_configured: boolean;
+  runtime_configured: boolean;
+  provider_verification: {
+    status: 'missing' | 'present_unverified' | 'live_verified';
+    live_verified: boolean;
+    live_verified_at?: string | null;
+    scope?: string;
+  };
+  capability_evidence_available: boolean;
+  capabilities: Record<OperationsOpenAICapabilityKey, OperationsOpenAICapabilityReadiness>;
+  reason_codes: string[];
+}
+
 export interface OperationsAIProviderStatusV1 {
   contract_version?: string;
   request_id?: string;
@@ -609,13 +650,17 @@ export interface OperationsAIProviderStatusV1 {
   secret_values_exposed?: boolean;
   llm_provider_order: string[];
   readiness?: {
+    selected_chat_provider?: string | null;
+    chat_runtime_configured?: boolean;
     chat_ready?: boolean;
+    specialized_ai_runtime_configured?: boolean;
     specialized_ai_ready?: boolean;
     status?: string;
     warnings?: string[];
     [key: string]: unknown;
   };
   providers: Record<string, OperationsAIProviderStatusItem>;
+  openai_suite?: OperationsOpenAISuiteReadiness;
   model_policy?: Record<string, unknown>;
   frontend_contract?: OperationsFrontendContract;
 }

@@ -128,4 +128,21 @@ describe('CapabilitiesContext', () => {
     ]);
     expect(payload.hasTicketsRead).toBe(true);
   });
+
+  it('normalizes the legacy analytics_read token to analytics.read', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        permissions: ['analytics_read'],
+      },
+    });
+
+    render(
+      <CapabilitiesProvider>
+        <CapabilityProbe />
+      </CapabilitiesProvider>,
+    );
+
+    const payload = JSON.parse(screen.getByTestId('capabilities').textContent || '{}');
+    expect(payload.capabilities).toEqual(expect.arrayContaining(['analytics_read', 'analytics.read']));
+  });
 });

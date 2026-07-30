@@ -6,6 +6,9 @@ import type {
   OperationsAIBriefV1,
   OperationsAIProviderStatusItem,
   OperationsAIProviderStatusV1,
+  OperationsOpenAICapabilityKey,
+  OperationsOpenAICapabilityReadiness,
+  OperationsOpenAISuiteReadiness,
   OperationsActionCenterV1,
   OperationsActionItem,
   OperationsAlert,
@@ -55,6 +58,54 @@ const normalizeStringList = (raw: unknown): string[] | undefined =>
   Array.isArray(raw)
     ? raw.map((item) => asString(item)).filter((item): item is string => Boolean(item))
     : undefined;
+
+const OPENAI_CAPABILITY_KEYS: OperationsOpenAICapabilityKey[] = [
+  'chat_responses',
+  'vision',
+  'stt',
+  'tts',
+  'realtime_voice',
+];
+
+const AI_PUBLIC_PROVIDER_KEYS = new Set(['openai', 'gemini', 'cohere', 'ollama', 'huggingface', 'docling']);
+const OPENAI_PROVIDER_VERIFICATION_MAX_AGE_MS = 168 * 60 * 60 * 1000;
+
+const OPENAI_PUBLIC_ENV_NAMES = new Set([
+  'LLM_PROVIDER_ORDER',
+  'OPENAI_API_KEY',
+  'OPENAI_CHAT_MODEL_DEFAULT',
+  'OPENAI_PROVIDER_LIVE_VERIFIED',
+  'OPENAI_PROVIDER_LIVE_VERIFIED_AT',
+  'OPENAI_REALTIME_INPUT_TRANSCRIPTION_MODEL',
+  'OPENAI_REALTIME_MODEL',
+  'OPENAI_REALTIME_SPEECH_MODEL',
+  'OPENAI_STT_MODEL',
+  'OPENAI_TTS_MODEL',
+  'OPENAI_VISION_MODEL',
+  'SOCKETIO_MESSAGE_QUEUE_URL',
+  'SOCKETIO_REDIS_URL',
+  'TWILIO_AUTH_TOKEN',
+  'VOICE_STREAM_REPLAY_REDIS_URL',
+  'VOICE_STREAM_SIGNING_SECRET',
+]);
+
+const normalizeSafeReasonCodes = (value: unknown): string[] =>
+  (normalizeStringList(value) ?? []).filter((item) => /^[a-z0-9][a-z0-9_]{0,79}$/.test(item));
+
+const normalizeSafeEnvNames = (value: unknown): string[] =>
+  (normalizeStringList(value) ?? []).filter((item) => OPENAI_PUBLIC_ENV_NAMES.has(item));
+
+const normalizeEvidenceTimestamp = (value: unknown): string | null => {
+  const raw = asString(value);
+  if (!raw || !/(Z|[+-]\d{2}:\d{2})$/i.test(raw)) return null;
+  const parsed = new Date(raw);
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getTime() > Date.now() + 5 * 60 * 1000
+    || parsed.getTime() < Date.now() - OPENAI_PROVIDER_VERIFICATION_MAX_AGE_MS
+  ) return null;
+  return parsed.toISOString().replace('.000Z', 'Z');
+};
 
 const pickRecord = (value: unknown): Record<string, unknown> | undefined =>
   isRecord(value) ? value : undefined;
@@ -999,16 +1050,46 @@ const normalizeAIOpsQueue = (response: unknown): OperationsAIOpsQueueV1 => {
 const normalizeAIProviderStatusItem = (value: unknown, key: string): OperationsAIProviderStatusItem => {
   const record = pickRecord(value) ?? {};
   const failure = pickRecord(record.last_failure);
+  const failureReason = failure ? normalizeSafeReasonCodes([failure.reason_code])[0] : undefined;
+  const failureTask = failure ? normalizeSafeReasonCodes([failure.task])[0] : undefined;
+  const rawFailureType = failure ? asString(failure.error_type) : undefined;
+  const failureType = rawFailureType && /^[A-Za-z][A-Za-z0-9_.]{0,79}$/.test(rawFailureType)
+    ? rawFailureType
+    : undefined;
+  const configured = asBoolean(record.configured) === true;
+  const keyConfigured = key === 'openai'
+    ? (asBoolean(record.key_configured) === true || configured)
+    : asBoolean(record.key_configured);
+  const liveVerifiedAt = key === 'openai' ? normalizeEvidenceTimestamp(record.live_verified_at) : null;
+  const liveVerified = key === 'openai'
+    ? keyConfigured === true && asBoolean(record.live_verified) === true && Boolean(liveVerifiedAt)
+    : asBoolean(record.live_verified);
   return {
-    ...record,
-    provider: asString(record.provider) ?? key,
-    configured: asBoolean(record.configured),
+    provider: key,
+    configured,
+    key_configured: keyConfigured,
     enabled: asBoolean(record.enabled),
     installed: asBoolean(record.installed),
     install_extras_enabled: asBoolean(record.install_extras_enabled),
     chat_default: asBoolean(record.chat_default),
     provider_order_enabled: asBoolean(record.provider_order_enabled),
-    runtime_status: asString(record.runtime_status),
+    runtime_configured: asBoolean(record.runtime_configured),
+    runtime_status: key === 'openai'
+      ? liveVerified
+        ? 'live_verified'
+        : keyConfigured
+          ? 'configured_unverified'
+          : 'not_configured'
+      : asString(record.runtime_status),
+    credential_status: key === 'openai'
+      ? liveVerified
+        ? 'live_verified'
+        : keyConfigured
+          ? 'present_unverified'
+          : 'missing'
+      : asString(record.credential_status),
+    live_verified: liveVerified,
+    live_verified_at: liveVerified ? liveVerifiedAt : null,
     quota_depleted: asBoolean(record.quota_depleted),
     fallback_behavior: asString(record.fallback_behavior),
     mode: asString(record.mode),
@@ -1021,13 +1102,96 @@ const normalizeAIProviderStatusItem = (value: unknown, key: string): OperationsA
     recommended_uses: normalizeStringList(record.recommended_uses),
     required_env: normalizeStringList(record.required_env),
     optional_env: normalizeStringList(record.optional_env),
-    last_failure: failure
+    last_failure: failure && (failureReason || failureTask || failureType)
       ? {
-          reason_code: asString(failure.reason_code),
-          task: asString(failure.task),
-          error_type: asString(failure.error_type),
+          reason_code: failureReason,
+          task: failureTask,
+          error_type: failureType,
         }
       : undefined,
+  };
+};
+
+const normalizeOpenAICapabilityStatus = (
+  key: OperationsOpenAICapabilityKey,
+  value: unknown,
+): OperationsOpenAICapabilityReadiness => {
+  const record = pickRecord(value) ?? {};
+  const runtimeConfigured = asBoolean(record.runtime_configured) === true;
+  const status: OperationsOpenAICapabilityReadiness['status'] = runtimeConfigured ? 'unverified' : 'blocked';
+  return {
+    key,
+    status,
+    runtime_configured: runtimeConfigured,
+    provider_live_verified: asBoolean(record.provider_live_verified) === true,
+    // The backend currently has no modality-specific evidence store. Keep the
+    // client fail-closed even if an old or malformed payload claims otherwise.
+    live_verified: false,
+    live_verified_at: null,
+    reason_codes: normalizeSafeReasonCodes(record.reason_codes),
+    configuration_env: normalizeSafeEnvNames(record.configuration_env),
+  };
+};
+
+const normalizeOpenAISuiteStatus = (value: unknown): OperationsOpenAISuiteReadiness | undefined => {
+  const record = pickRecord(value);
+  if (!record) return undefined;
+  const provider = pickRecord(record.provider_verification) ?? {};
+  const capabilitiesRecord = pickRecord(record.capabilities) ?? {};
+  const capabilities = Object.fromEntries(
+    OPENAI_CAPABILITY_KEYS.map((key) => [key, normalizeOpenAICapabilityStatus(key, capabilitiesRecord[key])]),
+  ) as Record<OperationsOpenAICapabilityKey, OperationsOpenAICapabilityReadiness>;
+  const rawProviderStatus = asString(provider.status);
+  let providerStatus: OperationsOpenAISuiteReadiness['provider_verification']['status'] = 'missing';
+  if (rawProviderStatus === 'present_unverified' || rawProviderStatus === 'live_verified') {
+    providerStatus = rawProviderStatus;
+  }
+  const providerVerifiedAt = normalizeEvidenceTimestamp(provider.live_verified_at);
+  const providerLiveVerified = providerStatus === 'live_verified'
+    && asBoolean(provider.live_verified) === true
+    && Boolean(providerVerifiedAt);
+  if (!providerLiveVerified && providerStatus === 'live_verified') {
+    providerStatus = 'present_unverified';
+  }
+
+  const keyConfigured = asBoolean(record.key_configured) === true;
+  const runtimeConfigured = Object.values(capabilities).some((capability) => capability.runtime_configured);
+  const status: OperationsOpenAISuiteReadiness['status'] = !keyConfigured || !runtimeConfigured
+    ? 'blocked'
+    : providerLiveVerified
+      ? 'partially_verified'
+      : 'unverified';
+
+  return {
+    contract_version: asString(record.contract_version),
+    status,
+    key_configured: keyConfigured,
+    runtime_configured: runtimeConfigured,
+    provider_verification: {
+      status: providerStatus,
+      live_verified: providerLiveVerified,
+      live_verified_at: providerLiveVerified ? providerVerifiedAt : null,
+      scope: providerLiveVerified ? 'provider_connectivity_only' : undefined,
+    },
+    capability_evidence_available: false,
+    capabilities,
+    reason_codes: normalizeSafeReasonCodes(record.reason_codes),
+  };
+};
+
+const normalizeAIProviderFrontendContract = (value: unknown): OperationsFrontendContract | undefined => {
+  const record = pickRecord(value);
+  if (!record) return undefined;
+  return {
+    render_as: asString(record.render_as),
+    advisory_only: asBoolean(record.advisory_only),
+    access_tenant_scoped: asBoolean(record.access_tenant_scoped),
+    configuration_scope: asString(record.configuration_scope) === 'platform_runtime'
+      ? 'platform_runtime'
+      : undefined,
+    safe_for_tenant_crm: asBoolean(record.safe_for_tenant_crm),
+    secret_values_exposed: false,
+    recommended_badges: normalizeStringList(record.recommended_badges) ?? [],
   };
 };
 
@@ -1036,25 +1200,54 @@ const normalizeAIProviderStatus = (response: unknown): OperationsAIProviderStatu
   const providerRecord = pickRecord(record.providers) ?? {};
   const readiness = pickRecord(record.readiness) ?? {};
   const providers = Object.fromEntries(
-    Object.entries(providerRecord).map(([key, value]) => [key, normalizeAIProviderStatusItem(value, key)]),
+    Object.entries(providerRecord)
+      .filter(([key]) => AI_PUBLIC_PROVIDER_KEYS.has(key))
+      .map(([key, value]) => [key, normalizeAIProviderStatusItem(value, key)]),
   );
+  const providerOrder = (normalizeStringList(record.llm_provider_order) ?? [])
+    .filter((key) => AI_PUBLIC_PROVIDER_KEYS.has(key));
+  const openaiSuite = normalizeOpenAISuiteStatus(record.openai_suite);
+  const chatRuntimeByProvider: Record<string, boolean> = {
+    openai: openaiSuite?.capabilities.chat_responses.runtime_configured === true,
+    gemini: providers.gemini?.runtime_configured === true,
+    cohere: providers.cohere?.runtime_configured === true,
+    ollama: providers.ollama?.runtime_configured === true,
+  };
+  const selectedChatProvider = providerOrder.find((provider) => chatRuntimeByProvider[provider]) ?? null;
+  const chatRuntimeConfigured = selectedChatProvider !== null;
+  const chatReady = selectedChatProvider === 'openai'
+    && openaiSuite?.capabilities.chat_responses.live_verified === true;
+  const specializedAIRuntimeConfigured = providers.huggingface?.runtime_configured === true
+    || providers.docling?.runtime_configured === true;
+  const warnings = normalizeSafeReasonCodes(readiness.warnings);
+  if (chatRuntimeConfigured && !chatReady) warnings.push('chat_capability_live_verification_missing');
+  if (specializedAIRuntimeConfigured) warnings.push('specialized_ai_live_verification_missing');
+  const normalizedWarnings = Array.from(new Set(warnings));
+  const readinessStatus = chatReady && normalizedWarnings.length === 0
+    ? 'ready'
+    : chatRuntimeConfigured
+      ? 'warning'
+      : 'blocked';
 
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
     generated_at: asString(record.generated_at),
     secret_values_exposed: asBoolean(record.secret_values_exposed),
-    llm_provider_order: normalizeStringList(record.llm_provider_order) ?? [],
+    llm_provider_order: providerOrder,
     readiness: {
-      ...readiness,
-      chat_ready: asBoolean(readiness.chat_ready),
-      specialized_ai_ready: asBoolean(readiness.specialized_ai_ready),
-      status: asString(readiness.status),
-      warnings: normalizeStringList(readiness.warnings) ?? [],
+      selected_chat_provider: selectedChatProvider,
+      chat_runtime_configured: chatRuntimeConfigured,
+      chat_ready: chatReady,
+      specialized_ai_runtime_configured: specializedAIRuntimeConfigured,
+      specialized_ai_ready: false,
+      status: readinessStatus,
+      warnings: normalizedWarnings,
     },
     providers,
+    openai_suite: openaiSuite,
     model_policy: pickRecord(record.model_policy),
-    frontend_contract: normalizeFrontendContract(record.frontend_contract),
+    frontend_contract: normalizeAIProviderFrontendContract(record.frontend_contract),
   };
 };
 

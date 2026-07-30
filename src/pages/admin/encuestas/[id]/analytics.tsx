@@ -18,6 +18,8 @@ import { useSurveyAnalytics } from '@/hooks/useSurveyAnalytics';
 import { useAnchor } from '@/hooks/useAnchor';
 import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
+import { useTenant } from '@/context/TenantContext';
+import { queryKeys } from '@/lib/queryKeys';
 import { toast } from '@/components/ui/use-toast';
 import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import {
@@ -41,8 +43,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getErrorMessage } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
+import type { SnapshotCreatePayload } from '@/types/encuestas';
 
 
 function formatDateLabel(value?: string | null) {
@@ -511,6 +515,15 @@ function decodeSegmentFilters(encodedValue: string) {
 export default function SurveyAnalyticsPage() {
   const params = useParams();
   const [searchParams] = useSearchParams();
+  const { currentSlug } = useTenant();
+  const tenantScopeSlug = useMemo(
+    () => currentSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    [currentSlug],
+  );
+  const surveyRequestOptions = useMemo(
+    () => ({ tenantSlug: tenantScopeSlug ?? undefined, sendAnonId: true }),
+    [tenantScopeSlug],
+  );
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const focusMode = useMemo(() => normalizeSurveyAnalyticsFocus(searchParams.get('focus')), [searchParams]);
   const focusCopy = focusMode ? SURVEY_ANALYTICS_FOCUS_COPY[focusMode] : null;
@@ -523,49 +536,60 @@ export default function SurveyAnalyticsPage() {
     heatmapMeta,
     dashboardBundle,
     executiveSummary,
+    provenance,
     isLoading,
     exportCsv,
     isExporting,
     filters,
     setFilters,
     error: analyticsError,
-  } = useSurveyAnalytics(surveyId ?? undefined, {}, { fallbackSurvey: survey ?? null, fallbackCount: 100 });
-  const { snapshots, isLoading: loadingSnapshots, create, publish, verify, isCreating, isPublishing, isVerifying } =
-    useAnchor(surveyId ?? undefined);
+  } = useSurveyAnalytics(surveyId ?? undefined, {}, {
+    fallbackSurvey: survey ?? null,
+    fallbackCount: 100,
+    tenantSlug: tenantScopeSlug,
+  });
+  const { snapshots, isLoading: loadingSnapshots, create, simulate, verify, isCreating, isPublishing, isVerifying } =
+    useAnchor(surveyId ?? undefined, tenantScopeSlug);
   const {
     responses,
     isLoading: isLoadingResponses,
     isRefetching: isRefreshingResponses,
     error: responsesError,
     refetch: refetchResponses,
-  } = useSurveyResponses(surveyId ?? undefined);
+  } = useSurveyResponses(surveyId ?? undefined, undefined, tenantScopeSlug);
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding, progress: seedProgress } = useSurveySeedResponses();
   const [segmentAKey, setSegmentAKey] = useState<string>('');
   const [segmentBKey, setSegmentBKey] = useState<string>('');
 
   const forecastQuery = useQuery({
-    queryKey: ['survey-analytics-forecast', surveyId],
+    queryKey: queryKeys.surveys.analytics('forecast', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveyForecast(surveyId as number, { window_minutes: 15, horizon_minutes: 90 }),
+    queryFn: () =>
+      getSurveyForecast(
+        surveyId as number,
+        { window_minutes: 15, horizon_minutes: 90 },
+        surveyRequestOptions,
+      ),
     staleTime: 30_000,
   });
   const alertsQuery = useQuery({
-    queryKey: ['survey-analytics-alerts', surveyId],
+    queryKey: queryKeys.surveys.analytics('alerts', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveyAlerts(surveyId as number, { window_minutes: 15, min_activity: 5 }),
+    queryFn: () =>
+      getSurveyAlerts(surveyId as number, { window_minutes: 15, min_activity: 5 }, surveyRequestOptions),
     staleTime: 15_000,
   });
   const briefQuery = useQuery({
-    queryKey: ['survey-analytics-brief', surveyId],
+    queryKey: queryKeys.surveys.analytics('brief', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveyBrief(surveyId as number),
+    queryFn: () => getSurveyBrief(surveyId as number, surveyRequestOptions),
     staleTime: 60_000,
   });
   const segmentsSuggestionsQuery = useQuery({
-    queryKey: ['survey-analytics-segments-suggestions', surveyId],
+    queryKey: queryKeys.surveys.analytics('segments-suggestions', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, { limit: 5 }),
+    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, { limit: 5 }, surveyRequestOptions),
     staleTime: 60_000,
   });
 
@@ -590,7 +614,7 @@ export default function SurveyAnalyticsPage() {
   useEffect(() => {
     setSegmentAKey('');
     setSegmentBKey('');
-  }, [surveyId]);
+  }, [surveyId, tenantScopeSlug]);
 
   useEffect(() => {
     if (!focusCopy?.targetId) return;
@@ -622,15 +646,20 @@ export default function SurveyAnalyticsPage() {
   );
 
   const compareQuery = useQuery({
-    queryKey: ['survey-analytics-segments-compare', surveyId, compareParams],
+    queryKey: queryKeys.surveys.analytics('segments-compare', surveyId ?? 'missing', tenantScopeSlug, compareParams),
     enabled: Boolean(surveyId && hasCompareFiltersReady),
-    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams, surveyRequestOptions),
     staleTime: 30_000,
   });
   const anomaliesQuery = useQuery({
-    queryKey: ['survey-analytics-anomalies', surveyId],
+    queryKey: queryKeys.surveys.analytics('anomalies', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveyAnomalies(surveyId as number, { burst_window_minutes: 5, burst_threshold: 10 }),
+    queryFn: () =>
+      getSurveyAnomalies(
+        surveyId as number,
+        { burst_window_minutes: 5, burst_threshold: 10 },
+        surveyRequestOptions,
+      ),
     staleTime: 30_000,
   });
 
@@ -639,7 +668,7 @@ export default function SurveyAnalyticsPage() {
     return surveys.data.find((item) => item.id === surveyId);
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
-  const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
+  const effectiveTenantSlug = effectiveSurvey?.tenant_slug ?? tenantScopeSlug ?? undefined;
 
   const surveyPublication = useMemo(
     () => asRecord(dashboardBundle?.survey_publication) ?? asRecord(dashboardBundle?.modules?.publication),
@@ -1035,21 +1064,24 @@ export default function SurveyAnalyticsPage() {
     }
   };
 
-  const handleCreateSnapshot = async (payload?: { rango?: string }) => {
+  const handleCreateSnapshot = async (payload: SnapshotCreatePayload) => {
     try {
       await create(payload);
-      toast({ title: 'Snapshot creado', description: 'Guardamos un corte transparente de resultados.' });
+      toast({ title: 'Corte local creado', description: 'Guardamos un Merkle root local para comprobar inclusion.' });
     } catch (error) {
       toast({ title: 'No se pudo crear el snapshot', description: String((error as Error)?.message ?? error), variant: 'destructive' });
     }
   };
 
-  const handlePublishSnapshot = async (snapshotId: number) => {
+  const handleSimulateAnchor = async (snapshotId: number) => {
     try {
-      await publish(snapshotId);
-      toast({ title: 'Snapshot publicado', description: 'Ahora cualquiera puede auditar este corte.' });
+      await simulate(snapshotId);
+      toast({
+        title: 'Referencia local simulada',
+        description: 'No se publico ni verifico una transaccion en una red externa.',
+      });
     } catch (error) {
-      toast({ title: 'No se pudo publicar el snapshot', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      toast({ title: 'No se pudo generar la simulacion local', description: String((error as Error)?.message ?? error), variant: 'destructive' });
     }
   };
 
@@ -1057,10 +1089,10 @@ export default function SurveyAnalyticsPage() {
     try {
       const result = await verify(snapshotId, respuestaId);
       toast({
-        title: 'Verificación realizada',
-        description: result.valido
-          ? 'La respuesta figura en el snapshot seleccionado.'
-          : 'No encontramos esa respuesta en el snapshot.',
+        title: 'Comprobacion local realizada',
+        description: result.local_proof_valid
+          ? 'La respuesta integra el Merkle root local. No se verifico una publicacion externa.'
+          : 'No se pudo demostrar la inclusion en este corte local.',
       });
       return result;
     } catch (error) {
@@ -1075,10 +1107,18 @@ export default function SurveyAnalyticsPage() {
       const result = await seedSurveyResponses({ survey: effectiveSurvey, count: 100 });
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', effectiveSurvey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', effectiveSurvey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', effectiveSurvey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-responses', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.surveys.analyticsModule('summary', effectiveSurvey.id, tenantScopeSlug),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.surveys.analyticsModule('timeseries', effectiveSurvey.id, tenantScopeSlug),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.surveys.analyticsModule('heatmap', effectiveSurvey.id, tenantScopeSlug),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.surveys.responsesForSurvey(effectiveSurvey.id, tenantScopeSlug),
+        }),
       ]);
 
       void refetchResponses();
@@ -1591,6 +1631,7 @@ export default function SurveyAnalyticsPage() {
             heatmap={heatmap}
             heatmapPayload={heatmapPayload}
             heatmapMeta={heatmapMeta}
+            provenance={provenance}
             onExport={handleExport}
             isExporting={isExporting}
             filters={filters}
@@ -2097,8 +2138,8 @@ export default function SurveyAnalyticsPage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Transparencia y auditoría</CardTitle>
-          <CardDescription>Gestioná snapshots verificables y permití validar respuestas puntuales.</CardDescription>
+          <CardTitle>Integridad local y auditoria</CardTitle>
+          <CardDescription>Gestiona cortes Merkle locales sin afirmar publicacion o verificacion externa.</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingSnapshots ? (
@@ -2109,7 +2150,7 @@ export default function SurveyAnalyticsPage() {
             <TransparencyTab
               snapshots={snapshots}
               onCreateSnapshot={handleCreateSnapshot}
-              onPublishSnapshot={handlePublishSnapshot}
+              onSimulateAnchor={handleSimulateAnchor}
               onVerifyResponse={handleVerify}
               isCreating={isCreating}
               isPublishing={isPublishing}

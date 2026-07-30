@@ -271,19 +271,54 @@ export interface OmnichannelInboxActionPayload {
   endpoint?: string;
   body?: string;
   message?: string;
+  client_message_id?: string;
+  idempotency_key?: string;
   visibility?: string;
   payload?: UnknownRecord;
 }
 
+export interface OmnichannelFinalDeliveryEvidence {
+  status?: string;
+  authoritative_source?: string;
+  raw?: unknown;
+}
+
+export interface OmnichannelReplyIdempotencyEvidence {
+  contract_version?: string;
+  replayed?: boolean;
+  source?: string;
+  raw_value_persisted?: boolean;
+  raw?: unknown;
+}
+
+export interface OmnichannelReplyOutboxEvidence {
+  durably_staged?: boolean;
+  effect_count?: number;
+  worker_authoritative?: boolean;
+  direct_dispatch_performed?: boolean;
+  raw?: unknown;
+}
+
 export interface OmnichannelActionDelivery {
   contract_version?: string;
+  legacy_contract_version?: string;
   mode?: string;
+  delivery_mode?: string;
   channel?: string;
   status?: string;
   reason?: string;
+  fallback?: string;
   external_dispatch?: boolean;
   timeline_updated?: boolean;
   reply_status?: string;
+  evidence_stage?: string;
+  final_delivery?: OmnichannelFinalDeliveryEvidence;
+  idempotency?: OmnichannelReplyIdempotencyEvidence;
+  outbox?: OmnichannelReplyOutboxEvidence;
+  delivery_results?: Record<string, boolean>;
+  delivery_results_semantics?: string;
+  requested_channels?: string[];
+  delivery_skipped?: UnknownRecord;
   admin_surface?: string;
   source_model?: string;
   operator_message?: string;
@@ -1343,15 +1378,59 @@ export const normalizeOmnichannelInboxDetailV2 = (response: unknown): Omnichanne
 
 const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDelivery | undefined => {
   if (!isRecord(value)) return undefined;
+  const finalDelivery = asRecord(value.final_delivery);
+  const idempotency = asRecord(value.idempotency);
+  const outbox = asRecord(value.outbox);
+  const deliveryResults = asRecord(value.delivery_results);
   return {
     contract_version: asString(value.contract_version),
+    legacy_contract_version: asString(value.legacy_contract_version),
     mode: asString(value.mode),
+    delivery_mode: asString(value.delivery_mode),
     channel: asString(value.channel),
     status: asString(value.status),
     reason: asString(value.reason),
+    fallback: asString(value.fallback),
     external_dispatch: asBoolean(value.external_dispatch),
     timeline_updated: asBoolean(value.timeline_updated),
     reply_status: asString(value.reply_status),
+    evidence_stage: asString(value.evidence_stage),
+    final_delivery: Object.keys(finalDelivery).length
+      ? {
+          status: asString(finalDelivery.status),
+          authoritative_source: asString(finalDelivery.authoritative_source),
+          raw: finalDelivery,
+        }
+      : undefined,
+    idempotency: Object.keys(idempotency).length
+      ? {
+          contract_version: asString(idempotency.contract_version),
+          replayed: asBoolean(idempotency.replayed),
+          source: asString(idempotency.source),
+          raw_value_persisted: asBoolean(idempotency.raw_value_persisted),
+          raw: idempotency,
+        }
+      : undefined,
+    outbox: Object.keys(outbox).length
+      ? {
+          durably_staged: asBoolean(outbox.durably_staged),
+          effect_count: asNumber(outbox.effect_count),
+          worker_authoritative: asBoolean(outbox.worker_authoritative),
+          direct_dispatch_performed: asBoolean(outbox.direct_dispatch_performed),
+          raw: outbox,
+        }
+      : undefined,
+    delivery_results: Object.keys(deliveryResults).length
+      ? Object.fromEntries(
+          Object.entries(deliveryResults)
+            .filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'),
+        )
+      : undefined,
+    delivery_results_semantics: asString(value.delivery_results_semantics),
+    requested_channels: asArray(value.requested_channels)
+      .map(asString)
+      .filter((channel): channel is string => Boolean(channel)),
+    delivery_skipped: isRecord(value.delivery_skipped) ? value.delivery_skipped : undefined,
     admin_surface: asString(value.admin_surface),
     source_model: asString(value.source_model),
     operator_message: asString(value.operator_message),
@@ -1935,6 +2014,53 @@ export const getOmnichannelInboxDetailV2 = async (
   return normalizeOmnichannelInboxDetailV2(response);
 };
 
+export const createOmnichannelReplyClientMessageId = () => {
+  const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return `crm-reply:${cryptoApi.randomUUID()}`;
+  }
+  if (typeof cryptoApi?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    cryptoApi.getRandomValues(bytes);
+    return `crm-reply:${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
+  }
+  throw new Error('Este navegador no ofrece criptografía segura para identificar la respuesta.');
+};
+
+const resolveOmnichannelReplyClientMessageId = (
+  payload: OmnichannelInboxActionPayload,
+  nestedPayload: UnknownRecord,
+) => {
+  const identities = [
+    asString(payload.client_message_id),
+    asString(nestedPayload.client_message_id),
+    asString(payload.idempotency_key),
+    asString(nestedPayload.idempotency_key),
+  ].filter((identity): identity is string => Boolean(identity));
+  const distinctIdentities = new Set(identities);
+  if (distinctIdentities.size > 1) {
+    throw new ApiError(
+      'client_message_id e Idempotency-Key deben coincidir.',
+      400,
+      { code: 'reply_idempotency_key_mismatch' },
+    );
+  }
+  const clientMessageId = identities[0];
+  if (
+    !clientMessageId ||
+    clientMessageId.length < 8 ||
+    clientMessageId.length > 256 ||
+    /[\u0000-\u001f]/.test(clientMessageId)
+  ) {
+    throw new ApiError(
+      'La respuesta requiere un client_message_id estable y válido.',
+      400,
+      { code: 'reply_idempotency_key_required' },
+    );
+  }
+  return clientMessageId;
+};
+
 export const postOmnichannelInboxActionV2 = async (
   ticketId: string,
   payload: OmnichannelInboxActionPayload,
@@ -1948,13 +2074,18 @@ export const postOmnichannelInboxActionV2 = async (
   const explicitEndpoint =
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
+  const isReply = payload.action.trim().toLowerCase() === 'reply';
+  const replyClientMessageId = isReply
+    ? resolveOmnichannelReplyClientMessageId(payload, nestedPayload)
+    : undefined;
   const payloadWithTicket = {
     ...nestedPayload,
     ...payload,
-    ...(payload.action === 'reply'
+    ...(isReply
       ? {
           body: payload.body ?? payload.message ?? nestedPayload.body ?? nestedPayload.message,
           message: payload.message ?? payload.body ?? nestedPayload.message ?? nestedPayload.body,
+          client_message_id: replyClientMessageId,
           visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
         }
       : {}),
@@ -1962,6 +2093,13 @@ export const postOmnichannelInboxActionV2 = async (
   };
   delete (payloadWithTicket as UnknownRecord).endpoint;
   delete (payloadWithTicket as UnknownRecord).payload;
+  delete (payloadWithTicket as UnknownRecord).idempotency_key;
+  const requestOptions = {
+    tenantSlug,
+    ...(replyClientMessageId
+      ? { headers: { 'Idempotency-Key': replyClientMessageId } }
+      : {}),
+  };
   let response: unknown;
   try {
     response = await panelApi.post<unknown>(
@@ -1969,14 +2107,14 @@ export const postOmnichannelInboxActionV2 = async (
         ? explicitEndpoint
         : `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
       payloadWithTicket,
-      { tenantSlug },
+      requestOptions,
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error)) throw error;
     response = await panelApi.post<unknown>(
       '/api/v2/inbox/omnichannel/actions',
       payloadWithTicket,
-      { tenantSlug },
+      requestOptions,
     );
   }
   return normalizeOmnichannelInboxActionV2(response, ticketId);
