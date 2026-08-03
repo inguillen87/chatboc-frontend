@@ -17,6 +17,17 @@ import {
 } from '@/api/encuestas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,12 +42,15 @@ import {
   SURVEY_CONSENT_TEXT_CONTENT_FORMAT,
   SURVEY_CONSENT_TEXT_MAX_CODEPOINTS,
   SURVEY_CONSENT_TEXT_NORMALIZATION,
+  sha256SurveyConsentText,
   validateSurveyConsentPublicText,
 } from '@/utils/surveyGovernance';
 
 const RELEASE_LIST_CONTRACT = 'surveys.governance_releases.v1';
 const RELEASE_CONTRACT = 'surveys.governance_release.v1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
+const OPAQUE_REVIEW_REFERENCE_PATTERN = /^[a-z][a-z0-9_.-]{1,31}:[A-Za-z][A-Za-z0-9_.:-]{7,127}$/;
+const RELEASE_STATUSES = new Set(['draft', 'published', 'closed']);
 
 type GovernanceOperation = 'create' | 'publish' | 'close';
 
@@ -52,6 +66,77 @@ type ConsentDigestState = {
   textSha256?: string;
   codePointLength: number;
   error?: string;
+};
+
+type SurveyGovernanceContractErrorKind = 'absent' | 'malformed';
+
+export class SurveyGovernanceContractError extends Error {
+  readonly kind: SurveyGovernanceContractErrorKind;
+
+  constructor(kind: SurveyGovernanceContractErrorKind) {
+    super(
+      kind === 'absent'
+        ? 'El backend no expuso el contrato versionado de gobernanza. Las acciones quedaron bloqueadas.'
+        : 'El backend devolvió un contrato de gobernanza inconsistente. Las acciones quedaron bloqueadas.',
+    );
+    this.name = 'SurveyGovernanceContractError';
+    this.kind = kind;
+    Object.setPrototypeOf(this, SurveyGovernanceContractError.prototype);
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isPositiveSafeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+
+const isNonNegativeSafeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const isIsoTimestamp = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && Number.isFinite(Date.parse(value));
+
+const stringArraysEqual = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const releaseGovernanceMatchesCreatePayload = (
+  release: SurveyGovernanceRelease,
+  expected: SurveyGovernanceReleaseCreatePayload,
+) => {
+  const eligibility = release.governance?.eligibility;
+  const consent = release.governance?.consent;
+  const rules = release.governance?.decision_rules;
+  return (
+    eligibility?.contract_version === 'surveys.eligibility_policy.v1' &&
+    eligibility.policy_version === expected.eligibility_policy.policy_version &&
+    eligibility.mode === expected.eligibility_policy.mode &&
+    Array.isArray(eligibility.declarations) &&
+    stringArraysEqual(eligibility.declarations, expected.eligibility_policy.declarations) &&
+    eligibility.human_review_required === expected.eligibility_policy.human_review_required &&
+    eligibility.automated_decision === expected.eligibility_policy.automated_decision &&
+    eligibility.stores_roster_or_pii === false &&
+    eligibility.decision_state === 'not_evaluated' &&
+    consent?.contract_version === 'surveys.consent_policy.v1' &&
+    consent.policy_version === expected.consent_policy.policy_version &&
+    consent.public_text === expected.consent_policy.public_text &&
+    consent.text_sha256 === expected.consent_policy.text_sha256 &&
+    consent.required === expected.consent_policy.required &&
+    consent.content_format === SURVEY_CONSENT_TEXT_CONTENT_FORMAT &&
+    consent.normalization === SURVEY_CONSENT_TEXT_NORMALIZATION &&
+    consent.stores_public_text === true &&
+    consent.records_participant_input === false &&
+    rules?.contract_version === 'surveys.decision_rules.v1' &&
+    rules.quorum?.type === expected.decision_rules.quorum.type &&
+    rules.quorum?.value === expected.decision_rules.quorum.value &&
+    rules.tie?.procedure === expected.decision_rules.tie.procedure &&
+    rules.challenge?.enabled === expected.decision_rules.challenge.enabled &&
+    rules.challenge?.window_hours === expected.decision_rules.challenge.window_hours &&
+    rules.challenge?.procedure === expected.decision_rules.challenge.procedure &&
+    rules.human_review_required === expected.decision_rules.human_review_required &&
+    rules.declarative_only === expected.decision_rules.declarative_only &&
+    rules.computed_outcome === null
+  );
 };
 
 const releaseStatusLabel: Record<string, string> = {
@@ -96,42 +181,155 @@ export const isSurveyGovernanceMutationAck = (
     releaseId?: number;
     status: SurveyGovernanceRelease['status'];
     requirePublicConsent?: boolean;
+    snapshotSha256?: string;
+    policySha256?: string;
+    versionNumber?: number;
+    humanReviewReferenceSha256?: string;
+    createPayload?: SurveyGovernanceReleaseCreatePayload;
   },
 ) => {
   const publicConsentComplete = value?.completeness?.public_consent?.complete === true;
-  return (
-    value?.contract_version === RELEASE_CONTRACT &&
+  const replayed = value?.idempotency?.replayed;
+  const disposition = value?.idempotency?.disposition;
+  const baseAck = (
+    value?.ok === true &&
+    value.contract_version === RELEASE_CONTRACT &&
     value.survey_id === expected.surveyId &&
-    Number.isInteger(value.release_id) &&
-    value.release_id > 0 &&
+    isPositiveSafeInteger(value.release_id) &&
+    isPositiveSafeInteger(value.version_number) &&
     (expected.releaseId === undefined || value.release_id === expected.releaseId) &&
+    (expected.versionNumber === undefined || value.version_number === expected.versionNumber) &&
     value.status === expected.status &&
     SHA256_PATTERN.test(value.snapshot_sha256) &&
     SHA256_PATTERN.test(value.policy_sha256) &&
+    (expected.snapshotSha256 === undefined || value.snapshot_sha256 === expected.snapshotSha256) &&
+    (expected.policySha256 === undefined || value.policy_sha256 === expected.policySha256) &&
     (expected.requirePublicConsent !== true || publicConsentComplete) &&
     value.assurance?.regulated_election_certified === false &&
     value.assurance?.result_certified === false &&
     value.idempotency?.persisted === true &&
-    (value.idempotency?.disposition === 'accepted' || value.idempotency?.disposition === 'replayed')
+    typeof replayed === 'boolean' &&
+    (disposition === 'accepted' || disposition === 'replayed') &&
+    disposition === (replayed ? 'replayed' : 'accepted')
+  );
+  if (!baseAck) return false;
+  if (
+    expected.createPayload !== undefined &&
+    !releaseGovernanceMatchesCreatePayload(value, expected.createPayload)
+  ) {
+    return false;
+  }
+  if (expected.humanReviewReferenceSha256 === undefined) return true;
+
+  const closure = value.closure;
+  const manifest = closure?.manifest;
+  return (
+    value.status === 'closed' &&
+    isRecord(closure) &&
+    isRecord(manifest) &&
+    SHA256_PATTERN.test(closure.manifest_sha256) &&
+    manifest.contract_version === 'surveys.closure_manifest.v1' &&
+    isPositiveSafeInteger(manifest.tenant_id) &&
+    manifest.survey_id === value.survey_id &&
+    manifest.release_id === value.release_id &&
+    manifest.release_version === value.version_number &&
+    manifest.snapshot_sha256 === value.snapshot_sha256 &&
+    manifest.policy_sha256 === value.policy_sha256 &&
+    isNonNegativeSafeInteger(manifest.response_count) &&
+    typeof manifest.response_set_sha256 === 'string' &&
+    SHA256_PATTERN.test(manifest.response_set_sha256) &&
+    manifest.human_review_reference_sha256 === expected.humanReviewReferenceSha256 &&
+    isIsoTimestamp(manifest.closed_at) &&
+    manifest.closed_at === value.closed_at &&
+    isRecord(manifest.assurance) &&
+    manifest.assurance.scope === 'local_database_closure_integrity' &&
+    manifest.assurance.regulated_election_certified === false &&
+    manifest.assurance.result_certified === false &&
+    manifest.assurance.external_anchor_verified === false
   );
 };
 
-const validateReleaseList = (
-  value: SurveyGovernanceReleaseList,
-  surveyId: number,
+export const validateSurveyGovernanceReleaseList = (
+  value: unknown,
+  expected: { surveyId: number; tenantSlug: string },
 ): SurveyGovernanceReleaseList => {
-  if (
-    value?.contract_version !== RELEASE_LIST_CONTRACT ||
-    value.survey_id !== surveyId ||
-    !Array.isArray(value.items) ||
-    value.capabilities?.read !== true ||
-    value.capabilities?.manage !== true
-  ) {
-    throw new Error(
-      'El backend no devolvió una autorización explícita y verificable para gobernanza. Las acciones quedaron bloqueadas.',
-    );
+  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(value, 'contract_version')) {
+    throw new SurveyGovernanceContractError('absent');
   }
-  return value;
+  if (value.contract_version !== RELEASE_LIST_CONTRACT) {
+    throw new SurveyGovernanceContractError('malformed');
+  }
+  const tenantSlug = expected.tenantSlug.trim();
+  const tenant = value.tenant;
+  const items = value.items;
+  const capabilities = value.capabilities;
+  if (
+    !tenantSlug ||
+    value.ok !== true ||
+    !isRecord(tenant) ||
+    !isPositiveSafeInteger(tenant.id) ||
+    typeof tenant.slug !== 'string' ||
+    tenant.slug.trim().toLowerCase() !== tenantSlug.toLowerCase() ||
+    value.survey_id !== expected.surveyId ||
+    !Array.isArray(items) ||
+    !isNonNegativeSafeInteger(value.total) ||
+    value.total !== items.length ||
+    !isRecord(capabilities) ||
+    capabilities.read !== true ||
+    capabilities.manage !== true ||
+    typeof capabilities.plan_allows_write !== 'boolean' ||
+    typeof capabilities.create_release !== 'boolean' ||
+    capabilities.required_for_mutation !== 'survey.governance.manage'
+  ) {
+    throw new SurveyGovernanceContractError('malformed');
+  }
+
+  const releaseIds = new Set<number>();
+  const versionNumbers = new Set<number>();
+  let previousVersion = Number.POSITIVE_INFINITY;
+  const publishedReleaseIds: number[] = [];
+  for (const item of items) {
+    if (
+      !isRecord(item) ||
+      item.contract_version !== RELEASE_CONTRACT ||
+      item.survey_id !== expected.surveyId ||
+      !isPositiveSafeInteger(item.release_id) ||
+      !isPositiveSafeInteger(item.version_number) ||
+      item.version_number >= previousVersion ||
+      releaseIds.has(item.release_id) ||
+      versionNumbers.has(item.version_number) ||
+      !RELEASE_STATUSES.has(String(item.status)) ||
+      typeof item.snapshot_sha256 !== 'string' ||
+      !SHA256_PATTERN.test(item.snapshot_sha256) ||
+      typeof item.policy_sha256 !== 'string' ||
+      !SHA256_PATTERN.test(item.policy_sha256) ||
+      !isRecord(item.assurance) ||
+      item.assurance.regulated_election_certified !== false ||
+      item.assurance.result_certified !== false ||
+      !isRecord(item.capabilities) ||
+      typeof item.capabilities.can_publish !== 'boolean' ||
+      typeof item.capabilities.can_close !== 'boolean'
+    ) {
+      throw new SurveyGovernanceContractError('malformed');
+    }
+    releaseIds.add(item.release_id);
+    versionNumbers.add(item.version_number);
+    previousVersion = item.version_number;
+    if (item.status === 'published') publishedReleaseIds.push(item.release_id);
+  }
+
+  const expectedLatestReleaseId = items.length > 0
+    ? (items[0] as Record<string, unknown>).release_id
+    : null;
+  if (
+    publishedReleaseIds.length > 1 ||
+    value.active_release_id !== (publishedReleaseIds[0] ?? null) ||
+    value.latest_release_id !== expectedLatestReleaseId
+  ) {
+    throw new SurveyGovernanceContractError('malformed');
+  }
+
+  return value as unknown as SurveyGovernanceReleaseList;
 };
 
 const releaseHasHonestAssurance = (release: SurveyGovernanceRelease) =>
@@ -190,6 +388,7 @@ export function SurveyGovernancePanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingOperation, setPendingOperation] = useState<string | null>(null);
+  const [closeDialogReleaseId, setCloseDialogReleaseId] = useState<number | null>(null);
   const [eligibilityVersion, setEligibilityVersion] = useState('eligibility-v1');
   const [eligibilityMode, setEligibilityMode] = useState<
     SurveyGovernanceReleaseCreatePayload['eligibility_policy']['mode']
@@ -204,15 +403,17 @@ export function SurveyGovernancePanel({
   });
   const [reviewReferences, setReviewReferences] = useState<Record<number, string>>({});
   const attemptRef = useRef<PendingAttempt | null>(null);
+  const inFlightOperationRef = useRef<string | null>(null);
   const loadVersionRef = useRef(0);
-  const scopeKey = `${tenantSlug?.trim().toLowerCase() || 'unscoped'}:${surveyId}`;
+  const normalizedTenantSlug = tenantSlug?.trim() ?? '';
+  const scopeKey = `${normalizedTenantSlug.toLowerCase() || 'missing-tenant'}:${surveyId}`;
   const activeScopeRef = useRef(scopeKey);
   activeScopeRef.current = scopeKey;
   const scopedContract = contractScope === scopeKey ? contract : null;
 
   const requestOptions = useMemo(
-    () => ({ tenantSlug: tenantSlug?.trim() || undefined }),
-    [tenantSlug],
+    () => ({ tenantSlug: normalizedTenantSlug || undefined }),
+    [normalizedTenantSlug],
   );
 
   const load = useCallback(async () => {
@@ -220,10 +421,20 @@ export function SurveyGovernancePanel({
     const requestScope = scopeKey;
     setLoading(true);
     setError(null);
+    if (!normalizedTenantSlug) {
+      setContract(null);
+      setContractScope(null);
+      setError('No pudimos verificar el tenant de gobernanza. Las acciones quedaron bloqueadas.');
+      setLoading(false);
+      return;
+    }
     try {
       const response = await adminListSurveyGovernanceReleases(surveyId, requestOptions);
       if (loadVersionRef.current !== requestVersion || activeScopeRef.current !== requestScope) return;
-      setContract(validateReleaseList(response, surveyId));
+      setContract(validateSurveyGovernanceReleaseList(response, {
+        surveyId,
+        tenantSlug: normalizedTenantSlug,
+      }));
       setContractScope(requestScope);
     } catch (requestError) {
       if (loadVersionRef.current !== requestVersion || activeScopeRef.current !== requestScope) return;
@@ -240,14 +451,16 @@ export function SurveyGovernancePanel({
         setLoading(false);
       }
     }
-  }, [requestOptions, scopeKey, surveyId]);
+  }, [normalizedTenantSlug, requestOptions, scopeKey, surveyId]);
 
   useEffect(() => {
     attemptRef.current = null;
+    inFlightOperationRef.current = null;
     setContract(null);
     setContractScope(null);
     setNotice(null);
     setPendingOperation(null);
+    setCloseDialogReleaseId(null);
     setReviewReferences({});
     void load();
     return () => {
@@ -320,6 +533,9 @@ export function SurveyGovernancePanel({
   const createRelease = async () => {
     if (scopedContract?.capabilities?.create_release !== true) return;
     const operationScope = scopeKey;
+    const operationToken = `create:${operationScope}`;
+    if (inFlightOperationRef.current !== null) return;
+    inFlightOperationRef.current = operationToken;
     const declarationCodes = Array.from(
       new Set<string>(
         declarations
@@ -364,9 +580,10 @@ export function SurveyGovernancePanel({
       );
       if (!isSurveyGovernanceMutationAck(response, {
         surveyId,
-        status: 'draft',
-        requirePublicConsent: true,
-      })) {
+          status: 'draft',
+          requirePublicConsent: true,
+          createPayload: payload,
+        })) {
         throw new Error(
           'El servidor respondió, pero no confirmó persistencia e idempotencia del release. La clave se conserva para reintentar.',
         );
@@ -375,6 +592,7 @@ export function SurveyGovernancePanel({
     } catch (requestError) {
       failOperation(requestError, operationScope);
     } finally {
+      if (inFlightOperationRef.current === operationToken) inFlightOperationRef.current = null;
       if (activeScopeRef.current === operationScope) setPendingOperation(null);
     }
   };
@@ -388,6 +606,9 @@ export function SurveyGovernancePanel({
       return;
     }
     const operationScope = scopeKey;
+    const operationToken = `publish:${operationScope}:${release.release_id}`;
+    if (inFlightOperationRef.current !== null) return;
+    inFlightOperationRef.current = operationToken;
     const payload = { expected_snapshot_sha256: release.snapshot_sha256 };
     const fingerprint = JSON.stringify(['publish', operationScope, surveyId, release.release_id, payload]);
     setPendingOperation(`publish:${release.release_id}`);
@@ -414,16 +635,20 @@ export function SurveyGovernancePanel({
           releaseId: release.release_id,
           status: 'published',
           requirePublicConsent: true,
+          snapshotSha256: release.snapshot_sha256,
+          policySha256: release.policy_sha256,
+          versionNumber: release.version_number,
         })
       ) {
         throw new Error(
           'El servidor respondió, pero no confirmó una publicación durable. La clave se conserva para reintentar.',
         );
       }
-      await finishAcknowledgedOperation('Publicación confirmada por el backend.');
+      await finishAcknowledgedOperation('Publicación confirmada por el backend.', operationScope);
     } catch (requestError) {
-      failOperation(requestError);
+      failOperation(requestError, operationScope);
     } finally {
+      if (inFlightOperationRef.current === operationToken) inFlightOperationRef.current = null;
       if (activeScopeRef.current === operationScope) setPendingOperation(null);
     }
   };
@@ -435,16 +660,20 @@ export function SurveyGovernancePanel({
     ) return;
     const operationScope = scopeKey;
     const reviewReference = reviewReferences[release.release_id]?.trim() ?? '';
-    if (!reviewReference) {
-      setError('Ingresá la referencia de la revisión humana antes de cerrar.');
+    if (!OPAQUE_REVIEW_REFERENCE_PATTERN.test(reviewReference)) {
+      setError('Ingresá una referencia opaca namespaced válida antes de cerrar.');
       return;
     }
+    const operationToken = `close:${operationScope}:${release.release_id}`;
+    if (inFlightOperationRef.current !== null) return;
+    inFlightOperationRef.current = operationToken;
     const payload = { human_review_reference: reviewReference };
     const fingerprint = JSON.stringify(['close', operationScope, surveyId, release.release_id, payload]);
     setPendingOperation(`close:${release.release_id}`);
     setError(null);
     setNotice(null);
     try {
+      const humanReviewReferenceSha256 = await sha256SurveyConsentText(reviewReference);
       const response = await adminCloseSurveyGovernanceRelease(
         surveyId,
         release.release_id,
@@ -457,16 +686,23 @@ export function SurveyGovernancePanel({
           surveyId,
           releaseId: release.release_id,
           status: 'closed',
+          snapshotSha256: release.snapshot_sha256,
+          policySha256: release.policy_sha256,
+          versionNumber: release.version_number,
+          humanReviewReferenceSha256,
         })
       ) {
         throw new Error(
           'El servidor respondió, pero no confirmó un cierre durable. La clave se conserva para reintentar.',
         );
       }
-      await finishAcknowledgedOperation('Cierre confirmado con referencia de revisión humana.');
+      setCloseDialogReleaseId(null);
+      await finishAcknowledgedOperation('Cierre confirmado con referencia de revisión humana.', operationScope);
     } catch (requestError) {
-      failOperation(requestError);
+      setCloseDialogReleaseId(null);
+      failOperation(requestError, operationScope);
     } finally {
+      if (inFlightOperationRef.current === operationToken) inFlightOperationRef.current = null;
       if (activeScopeRef.current === operationScope) setPendingOperation(null);
     }
   };
@@ -494,7 +730,13 @@ export function SurveyGovernancePanel({
             requiere autorización explícita del backend.
           </CardDescription>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void load()}
+          disabled={loading || pendingOperation !== null}
+        >
           {loading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
@@ -661,6 +903,9 @@ export function SurveyGovernancePanel({
               release.capabilities?.can_publish === true && actionableContract && publicConsentComplete;
             const canClose = release.capabilities?.can_close === true && actionableContract;
             const reviewInputId = `governance-review-${release.release_id}`;
+            const reviewHelpId = `${reviewInputId}-help`;
+            const reviewReference = reviewReferences[release.release_id]?.trim() ?? '';
+            const reviewReferenceIsValid = OPAQUE_REVIEW_REFERENCE_PATTERN.test(reviewReference);
             return (
               <article key={release.release_id} className="rounded-2xl border border-border/70 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -765,6 +1010,8 @@ export function SurveyGovernancePanel({
                         id={reviewInputId}
                         placeholder="acta:comite-2026-07-30"
                         value={reviewReferences[release.release_id] ?? ''}
+                        aria-describedby={reviewHelpId}
+                        disabled={pendingOperation !== null}
                         onChange={(event) =>
                           setReviewReferences((current) => ({
                             ...current,
@@ -772,18 +1019,51 @@ export function SurveyGovernancePanel({
                           }))
                         }
                       />
+                      <p id={reviewHelpId} className="text-xs text-muted-foreground">
+                        Usá una referencia opaca namespaced; el backend persiste únicamente su SHA-256 en el manifiesto de cierre.
+                      </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => void closeRelease(release)}
-                      disabled={pendingOperation !== null}
+                    <AlertDialog
+                      open={closeDialogReleaseId === release.release_id}
+                      onOpenChange={(open) => {
+                        if (pendingOperation !== null) return;
+                        setCloseDialogReleaseId(open ? release.release_id : null);
+                      }}
                     >
-                      {pendingOperation === `close:${release.release_id}` ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : null}
-                      Cerrar release
-                    </Button>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={pendingOperation !== null || !reviewReferenceIsValid}
+                        >
+                          {pendingOperation === `close:${release.release_id}` ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : null}
+                          Cerrar release
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Cerrar definitivamente el release v{release.version_number}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            El cierre es irreversible: rechaza respuestas nuevas y conserva el conjunto ya registrado.
+                            La referencia de revisión se vinculará por SHA-256 al manifiesto durable antes de confirmar.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={pendingOperation !== null}>Volver</AlertDialogCancel>
+                          <AlertDialogAction
+                            disabled={pendingOperation !== null || !reviewReferenceIsValid}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              void closeRelease(release);
+                            }}
+                          >
+                            {pendingOperation === `close:${release.release_id}` ? 'Cerrando…' : 'Confirmar cierre irreversible'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 ) : null}
               </article>

@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
-import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
+import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyPublic } from '@/types/encuestas';
 import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { queryKeys } from '@/lib/queryKeys';
 import {
@@ -25,7 +25,7 @@ interface UseSurveyPublicResult {
   errorReasonCode: string | null;
   isTransientError: boolean;
   retryLoad: () => Promise<unknown>;
-  submit: (payload: PublicResponsePayload) => Promise<void>;
+  submit: (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => Promise<void>;
   isSubmitting: boolean;
   lastResponseId?: number;
   duplicateDetected: boolean;
@@ -53,6 +53,9 @@ export function useSurveyPublic(
   const normalizedTenantSlug = useMemo(
     () => options?.tenantSlug?.trim() || '',
     [options?.tenantSlug],
+  );
+  const transientSubmitOptionsRef = useRef(
+    new WeakMap<PublicResponsePayload, PublicSurveySubmitOptions>(),
   );
 
   const {
@@ -82,6 +85,7 @@ export function useSurveyPublic(
         normalizedSlug,
         payload,
         normalizedTenantSlug || undefined,
+        transientSubmitOptionsRef.current.get(payload),
       );
       void queryClient.invalidateQueries({
         queryKey: queryKeys.surveys.public(normalizedSlug, normalizedTenantSlug),
@@ -108,11 +112,19 @@ export function useSurveyPublic(
     errorReasonCode,
     isTransientError: isTransientPublicSurveyError(error),
     retryLoad: () => refetch(),
-    submit: async (payload: PublicResponsePayload) => {
+    submit: async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
+      // Each mutation receives a distinct non-secret payload object. The raw
+      // credential stays in a WeakMap keyed by that exact object, so concurrent
+      // programmatic submissions cannot borrow another attempt's credential
+      // and React Query still persists only non-secret mutation variables.
+      const mutationPayload = { ...payload };
+      if (options) {
+        transientSubmitOptionsRef.current.set(mutationPayload, options);
+      }
       try {
-        await mutation.mutateAsync(payload);
-      } catch (err) {
-        throw err;
+        await mutation.mutateAsync(mutationPayload);
+      } finally {
+        transientSubmitOptionsRef.current.delete(mutationPayload);
       }
     },
     isSubmitting: mutation.isPending,

@@ -19,6 +19,77 @@ describe("normalizeWhatsappExperienceV2", () => {
         test_method: "POST",
         test_label: "Enviar prueba",
       },
+      workflow_studio: {
+        contract_version: "whatsapp.workflow_studio.v1",
+        tenant: { id: 9, slug: "colegio-demo" },
+        mode: "prepublication_read_only",
+        capabilities: {
+          draft: { label: "Draft", available: true, status: "request_only", persistent: false },
+            validate: {
+              label: "Validate",
+              available: true,
+              status: "ready",
+              method: "POST",
+              endpoint: "/api/v2/tenants/colegio-demo/whatsapp/workflow-studio/validate",
+              external_effects: false,
+            },
+          simulate: {
+              label: "Simulate",
+              available: true,
+              status: "ready",
+              method: "POST",
+              endpoint: "/api/v2/tenants/colegio-demo/whatsapp/workflow-studio/simulate",
+            external_effects: false,
+            database_writes: false,
+          },
+          versioning: { label: "Versioning", available: false, status: "blocked" },
+          runtime: { label: "Runtime", available: false, status: "blocked" },
+          publish: { label: "Publish", available: false, status: "blocked" },
+          rollback: { label: "Rollback", available: false, status: "blocked" },
+        },
+        publication_readiness: {
+          ready: false,
+          status: "blocked",
+          blockers: [
+            {
+              code: "workflow_durable_storage_missing",
+              path: "publication",
+              message: "Missing storage",
+            },
+            {
+              code: "workflow_version_ledger_missing",
+              path: "publication",
+              message: "Missing versions",
+            },
+            {
+              code: "workflow_runtime_binding_missing",
+              path: "publication",
+              message: "Missing runtime",
+            },
+            {
+              code: "workflow_publish_rollback_missing",
+              path: "publication",
+              message: "Missing publish rollback",
+            },
+          ],
+        },
+        side_effect_policy: {
+          provider_calls: false,
+          messages_sent: false,
+          tickets_created: false,
+          handoffs_created: false,
+        },
+        frontend_contract: {
+          render_as: "workflow_studio_readiness",
+          title: "Workflow Studio",
+          description: "Validate safely",
+          status_label: "Prepublication",
+          blockers_title: "Blockers",
+          safety_note: "No effects",
+          capability_order: ["draft", "validate", "simulate", "versioning", "runtime", "publish", "rollback"],
+          status_labels: { ready: "Ready", blocked: "Blocked", request_only: "Request only" },
+        },
+      },
       conversation_intelligence: {
         accessibility: {
           enabled: true,
@@ -211,6 +282,9 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect(normalized.channel.phone_number_id).toBe("987654321");
     expect(normalized.channel.test_endpoint).toBe("/api/v2/whatsapp/experience/test");
     expect(normalized.channel.test_label).toBe("Enviar prueba");
+    expect(normalized.workflow_studio?.contract_version).toBe("whatsapp.workflow_studio.v1");
+    expect((normalized.workflow_studio?.capabilities as any).validate.available).toBe(true);
+    expect((normalized.workflow_studio?.publication_readiness as any).ready).toBe(false);
     expect((normalized.conversation_intelligence.accessibility as any).features).toContain("audio_transcription");
     expect((normalized.conversation_intelligence.audio_cache as any).ttl_seconds).toBe(900);
     expect((normalized.conversation_intelligence.inputs as any).audio_note.cache_enabled).toBe(true);

@@ -3,6 +3,7 @@ import { ApiError, apiFetch } from '@/utils/api';
 import {
   PreguntaTipo,
   PublicResponsePayload,
+  PublicSurveySubmitOptions,
   SurveyAdmin,
   SurveyAnalyticsFilters,
   SurveyComment,
@@ -35,6 +36,7 @@ import {
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
 import { assertSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
+import { SURVEY_ELIGIBILITY_CREDENTIAL_HEADER } from '@/utils/surveyEligibility';
 
 type PrimitiveParam = string | number | boolean | undefined | null;
 type QueryParamValue = PrimitiveParam | PrimitiveParam[] | readonly PrimitiveParam[];
@@ -426,7 +428,15 @@ const shouldRetryPublicSurveyRequest = (
   method: ApiFetchOptions['method'],
 ) => {
   if (error instanceof ApiError) {
-    if (error.status === 404 || error.status === 405) return true;
+    const reasonCode =
+      error.body && typeof error.body === 'object' && typeof error.body.reason_code === 'string'
+        ? error.body.reason_code.trim()
+        : '';
+    // A reason-coded 404 is an authoritative domain/security decision (for
+    // example survey_not_found on a tenant mismatch), not evidence that the
+    // route is absent. Retrying a compatibility alias could otherwise mask it.
+    if (error.status === 404) return !reasonCode;
+    if (error.status === 405) return true;
     return (method === undefined || method === 'GET') && error.status >= 500;
   }
   return false;
@@ -815,10 +825,39 @@ const positiveInteger = (value: unknown): number | null => {
   return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
 };
 
+const FORBIDDEN_ELIGIBILITY_PAYLOAD_KEYS = new Set([
+  'credential',
+  'eligibilitycredential',
+  'eligibilitytoken',
+  'surveyeligibilitycredential',
+  'grantcredential',
+  'granttoken',
+]);
+
+const containsEligibilityCredentialField = (
+  value: unknown,
+  seen: WeakSet<object> = new WeakSet<object>(),
+): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.some((item) => containsEligibilityCredentialField(item, seen));
+  }
+  return Object.entries(value as Record<string, unknown>).some(([key, nested]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return (
+      FORBIDDEN_ELIGIBILITY_PAYLOAD_KEYS.has(normalizedKey) ||
+      containsEligibilityCredentialField(nested, seen)
+    );
+  });
+};
+
 const assertDurablePublicResponseAck = (
   response: PublicSurveyResponseAck,
   payload: PublicResponsePayload,
   contractVersion?: string,
+  eligibilityExpectation?: PublicSurveySubmitOptions['eligibilityExpectation'],
 ) => {
   // Synthetic demos have no durable database receipt by design.
   if (contractVersion === 'demo.survey_response_ack.v1') return;
@@ -841,8 +880,50 @@ const assertDurablePublicResponseAck = (
   const replayed = response.replayed;
   const receiptReplayed = receipt?.replayed;
   const expectedGovernance = payload.governance;
-  const governanceMatches = (raw: unknown) => {
-    if (!expectedGovernance) return true;
+  const eligibilityMatches = (raw: unknown, responseIdToMatch: number) => {
+    if (!eligibilityExpectation) return true;
+    if (!isRecord(raw)) return false;
+    const redemption = isRecord(raw.redemption) ? raw.redemption : null;
+    const denominatorStatus = isRecord(raw.denominator_status) ? raw.denominator_status : null;
+    const redeemedAt = typeof redemption?.redeemed_at === 'string' ? redemption.redeemed_at : '';
+    return (
+      raw.contract_version === eligibilityExpectation.contractVersion &&
+      raw.credential_required === true &&
+      raw.gate_status === 'verified' &&
+      raw.decision === 'verified_by_opaque_grant' &&
+      raw.privacy_assurance === 'pseudonymous_internal_linkability' &&
+      raw.assurance_level === 'human_reviewed_opaque_grant' &&
+      raw.authority_binding === 'operator_attested_v1' &&
+      raw.subject_identifier_exposed === false &&
+      raw.plaintext_credential_persisted === false &&
+      raw.persist_client_side === false &&
+      raw.ballot_secrecy_certified === false &&
+      raw.regulated_election_certified === false &&
+      raw.result_certified === false &&
+      raw.eligible_population === null &&
+      raw.participation_rate === null &&
+      raw.abstentions === null &&
+      denominatorStatus?.available === false &&
+      denominatorStatus.reason_code === 'survey_eligible_population_not_sealed' &&
+      redemption !== null &&
+      redemption.contract_version === 'surveys.eligibility_redemption.v1' &&
+      redemption.state === 'committed' &&
+      redemption.persisted === true &&
+      positiveInteger(redemption.response_id) === responseIdToMatch &&
+      positiveInteger(redemption.release_id) === eligibilityExpectation.releaseId &&
+      redemption.policy_version === eligibilityExpectation.policyVersion &&
+      redeemedAt.length > 0 &&
+      Number.isFinite(Date.parse(redeemedAt)) &&
+      !('credential' in raw) &&
+      !('grant_ref' in raw) &&
+      !('subject' in raw) &&
+      !('credential' in redemption) &&
+      !('grant_ref' in redemption) &&
+      !('subject' in redemption)
+    );
+  };
+  const governanceMatches = (raw: unknown, responseIdToMatch: number) => {
+    if (!expectedGovernance) return !eligibilityExpectation;
     if (!isRecord(raw)) return false;
     return (
       raw.contract_version === 'surveys.public_governance.v1' &&
@@ -851,10 +932,12 @@ const assertDurablePublicResponseAck = (
       raw.snapshot_sha256 === expectedGovernance.snapshot_sha256 &&
       raw.eligibility_policy_version === expectedGovernance.eligibility_policy_version &&
       raw.consent_policy_version === expectedGovernance.consent_policy_version &&
-      raw.eligibility_decision === 'not_evaluated' &&
+      raw.eligibility_decision ===
+        (eligibilityExpectation ? 'verified_by_opaque_grant' : 'not_evaluated') &&
       raw.human_review_required === true &&
       raw.regulated_election_certified === false &&
-      raw.result_certified === false
+      raw.result_certified === false &&
+      eligibilityMatches(raw.eligibility, responseIdToMatch)
     );
   };
 
@@ -879,8 +962,8 @@ const assertDurablePublicResponseAck = (
     responseRevision !== null &&
     receiptRevision === responseRevision &&
     (expectedRevision === null || responseRevision === expectedRevision) &&
-    governanceMatches(response.governance) &&
-    governanceMatches(receipt.governance);
+    governanceMatches(response.governance, responseId) &&
+    governanceMatches(receipt.governance, responseId);
 
   if (!durable) {
     throw new AmbiguousSurveySubmissionError(
@@ -893,8 +976,38 @@ export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
+  options?: PublicSurveySubmitOptions,
 ): Promise<PublicSurveyResponseAck> => {
   const submissionId = assertSurveySubmissionId(payload.submission_id);
+  if (containsEligibilityCredentialField(payload)) {
+    throw new Error(
+      'La credencial de elegibilidad sólo puede enviarse mediante el encabezado seguro dedicado.',
+    );
+  }
+  const eligibilityCredential = options?.eligibilityCredential?.trim() || '';
+  const eligibilityExpectation = options?.eligibilityExpectation;
+  if (Boolean(eligibilityCredential) !== Boolean(eligibilityExpectation)) {
+    throw new Error(
+      eligibilityExpectation
+        ? 'La credencial de elegibilidad es obligatoria para esta participación.'
+        : 'La credencial no está vinculada a un contrato de elegibilidad verificable.',
+    );
+  }
+  if (
+    eligibilityExpectation &&
+    (
+      eligibilityExpectation.contractVersion !== 'surveys.public_eligibility.v1' ||
+      (eligibilityExpectation.mode !== 'institution_attested' &&
+        eligibilityExpectation.mode !== 'manual_review') ||
+      !payload.governance ||
+      payload.governance.release_id !== eligibilityExpectation.releaseId ||
+      payload.governance.eligibility_policy_version !== eligibilityExpectation.policyVersion
+    )
+  ) {
+    throw new Error(
+      'La credencial no coincide con el release y la política de elegibilidad de esta respuesta.',
+    );
+  }
   const requestPayload: PublicResponsePayload = {
     ...payload,
     submission_id: submissionId,
@@ -905,7 +1018,12 @@ export const postPublicResponse = (
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
     method: 'POST',
-    headers: { 'Idempotency-Key': submissionId },
+    headers: {
+      'Idempotency-Key': submissionId,
+      ...(eligibilityCredential
+        ? { [SURVEY_ELIGIBILITY_CREDENTIAL_HEADER]: eligibilityCredential }
+        : {}),
+    },
     body: requestPayload,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -933,7 +1051,12 @@ export const postPublicResponse = (
         typeof response.request_id === 'string' ? response.request_id : undefined,
       );
     }
-    assertDurablePublicResponseAck(response, requestPayload, contractVersion);
+    assertDurablePublicResponseAck(
+      response,
+      requestPayload,
+      contractVersion,
+      eligibilityExpectation,
+    );
     if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && (!contractVersion || !PUBLIC_RESPONSE_CONTRACTS.has(contractVersion))) {
       throw new Error('No pudimos confirmar la respuesta de la encuesta en este momento.');
     }
@@ -1150,26 +1273,181 @@ const extractSurveyArray = (
   return null;
 };
 
+const ADMIN_LIFECYCLE_PHASES = new Set([
+  'draft',
+  'scheduled',
+  'collecting',
+  'live_voting',
+  'window_ended',
+  'closed',
+  'archived',
+  'unknown',
+]);
+const ADMIN_PERSISTED_STATES = new Set(['borrador', 'publicada', 'cerrada', 'archivada', 'unknown']);
+const isNonNegativeSafeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const isIsoDateOrNull = (value: unknown) =>
+  value === null || (typeof value === 'string' && Boolean(value) && Number.isFinite(Date.parse(value)));
+
 const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
+  if (isRecord(payload) && Object.prototype.hasOwnProperty.call(payload, 'contract_version')) {
+    if (payload.contract_version !== 'surveys.admin_list.v2') {
+      throw new Error('survey_admin_list_contract_unsupported');
+    }
+    const tenant = payload.tenant;
+    const freshness = payload.freshness;
+    const overview = payload.resumen;
+    const items = payload.encuestas;
+    const validTenant =
+      isRecord(tenant) &&
+      isNonNegativeSafeInteger(tenant.id) &&
+      tenant.id > 0 &&
+      typeof tenant.slug === 'string' &&
+      Boolean(tenant.slug.trim());
+    const validFreshness =
+      isRecord(freshness) &&
+      typeof freshness.generated_at === 'string' &&
+      Number.isFinite(Date.parse(freshness.generated_at)) &&
+      typeof freshness.source === 'string' &&
+      Boolean(freshness.source.trim()) &&
+      freshness.synthetic === false;
+    const validLifecycle = (item: Record<string, unknown>) => {
+      const value = item.admin_lifecycle;
+      if (!isRecord(value) || value.contract_version !== 'surveys.admin_lifecycle.v1') return false;
+      if (!['survey', 'voting'].includes(String(value.instrument_kind))) return false;
+      if (!ADMIN_LIFECYCLE_PHASES.has(String(value.phase))) return false;
+      if (!ADMIN_PERSISTED_STATES.has(String(value.persisted_state))) return false;
+      if (typeof value.accepts_responses !== 'boolean') return false;
+      if (value.accepts_responses !== ['collecting', 'live_voting'].includes(String(value.phase))) return false;
+      if (!isRecord(value.schedule) || !isIsoDateOrNull(value.schedule.opens_at) || !isIsoDateOrNull(value.schedule.closes_at)) return false;
+      if (typeof value.schedule.evaluated_at !== 'string' || !Number.isFinite(Date.parse(value.schedule.evaluated_at))) return false;
+      if (!isRecord(value.capabilities) || !isRecord(value.participation) || !isRecord(value.actions)) return false;
+      const capabilityKeys = ['can_publish', 'can_close', 'can_delete', 'can_share', 'can_view_results'];
+      if (!capabilityKeys.every((key) => typeof value.capabilities[key] === 'boolean')) return false;
+      if (!['responses', 'unique_participants', 'responses_last_24h'].every((key) => isNonNegativeSafeInteger(value.participation[key]))) return false;
+      if (!isIsoDateOrNull(value.participation.last_response_at)) return false;
+      if (
+        value.participation.eligible_population !== null ||
+        value.participation.participation_rate !== null ||
+        value.participation.abstentions !== null ||
+        !isRecord(value.participation.denominator_status) ||
+        value.participation.denominator_status.available !== false ||
+        value.participation.denominator_status.reason_code !== 'survey_eligible_population_not_configured'
+      ) return false;
+
+      const surveyId = item.id;
+      if (!isNonNegativeSafeInteger(surveyId) || surveyId <= 0) return false;
+      const publish = value.actions.publish;
+      const close = value.actions.close;
+      if (!isRecord(publish) || !isRecord(close)) return false;
+      if (
+        publish.method !== 'POST' ||
+        publish.endpoint !== `/api/v2/surveys/${surveyId}/publish` ||
+        publish.enabled !== value.capabilities.can_publish ||
+        close.method !== 'POST' ||
+        close.endpoint !== `/api/v2/surveys/${surveyId}/close` ||
+        close.enabled !== value.capabilities.can_close ||
+        close.confirmation_required !== true ||
+        close.irreversible !== true
+      ) return false;
+      if (publish.enabled === false && typeof publish.disabled_reason_code !== 'string') return false;
+      if (close.enabled === false && typeof close.disabled_reason_code !== 'string') return false;
+
+      const metrics = item.metricas;
+      if (!isRecord(metrics)) return false;
+      if (!['total_respuestas', 'respuestas_ultimas_24h', 'respuestas_con_coordenadas', 'participantes_unicos'].every((key) => isNonNegativeSafeInteger(metrics[key]))) return false;
+      return (
+        metrics.total_respuestas === value.participation.responses &&
+        metrics.respuestas_ultimas_24h === value.participation.responses_last_24h &&
+        metrics.participantes_unicos === value.participation.unique_participants
+      );
+    };
+    const validItems =
+      Array.isArray(items) &&
+      items.every((item) => isRecord(item) && validLifecycle(item));
+    const validOverviewShape =
+      isRecord(overview) &&
+      [
+        overview.total,
+        overview.activas,
+        overview.con_respuestas,
+        overview.total_respuestas,
+        overview.respuestas_con_coordenadas,
+        overview.respuestas_ultimas_24h,
+        overview.accepting_responses,
+      ].every(isNonNegativeSafeInteger) &&
+      isRecord(overview.por_estado) &&
+      isRecord(overview.por_tipo_instrumento) &&
+      isRecord(overview.participation_denominator) &&
+      overview.participation_denominator.available === false &&
+      overview.participation_denominator.reason_code === 'survey_eligible_population_not_configured';
+
+    let reconciles = false;
+    if (validItems && validOverviewShape && Array.isArray(items) && isRecord(overview)) {
+      const records = items as Array<Record<string, unknown>>;
+      const instrumentCounts = overview.por_tipo_instrumento as Record<string, unknown>;
+      const sum = (select: (item: Record<string, unknown>) => number) =>
+        records.reduce((total, item) => total + select(item), 0);
+      const lifecycle = (item: Record<string, unknown>) => item.admin_lifecycle as Record<string, unknown>;
+      const participation = (item: Record<string, unknown>) => lifecycle(item).participation as Record<string, unknown>;
+      const metrics = (item: Record<string, unknown>) => item.metricas as Record<string, unknown>;
+      reconciles =
+        overview.total === records.length &&
+        overview.activas === records.filter((item) => item.esta_activa === true).length &&
+        overview.con_respuestas === records.filter((item) => Number(participation(item).responses) > 0).length &&
+        overview.accepting_responses === records.filter((item) => lifecycle(item).accepts_responses === true).length &&
+        overview.total_respuestas === sum((item) => Number(participation(item).responses)) &&
+        overview.respuestas_ultimas_24h === sum((item) => Number(participation(item).responses_last_24h)) &&
+        overview.respuestas_con_coordenadas === sum((item) => Number(metrics(item).respuestas_con_coordenadas)) &&
+        instrumentCounts.survey === records.filter((item) => lifecycle(item).instrument_kind === 'survey').length &&
+        instrumentCounts.voting === records.filter((item) => lifecycle(item).instrument_kind === 'voting').length;
+    }
+
+    if (!validTenant || !validFreshness || !validOverviewShape || !validItems || !reconciles) {
+      throw new Error('survey_admin_list_contract_invalid');
+    }
+
+    return {
+      contract_version: 'surveys.admin_list.v2',
+      tenant: { id: tenant.id as number, slug: (tenant.slug as string).trim() },
+      freshness: {
+        generated_at: freshness.generated_at as string,
+        source: freshness.source as string,
+        synthetic: false,
+      },
+      overview: overview as unknown as NonNullable<SurveyListResponse['overview']>,
+      data: items as SurveyAdmin[],
+    };
+  }
+
   const extracted = extractSurveyArray(payload);
 
   if (extracted) {
     return extracted;
   }
 
-  console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
-  return { data: [] };
+  throw new Error('survey_admin_list_payload_invalid');
 };
 
 export const adminListSurveys = async (
   params?: QueryParams,
   options?: ApiFetchOptions,
 ): Promise<SurveyListResponse> => {
-  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(
+  const expectedTenantSlug = options?.tenantSlug?.trim();
+  if (!expectedTenantSlug) {
+    throw new Error('survey_admin_tenant_required');
+  }
+  const rawResponse = await callAdminSurveyEndpoint<unknown>(
     buildQueryString(params),
     options,
   );
   const normalized = normalizeSurveyListResponse(rawResponse);
+  if (
+    normalized.contract_version === 'surveys.admin_list.v2' &&
+    normalized.tenant?.slug?.toLowerCase() !== expectedTenantSlug.toLowerCase()
+  ) {
+    throw new Error('survey_admin_tenant_mismatch');
+  }
   if (!Array.isArray(normalized.data)) {
     return normalized;
   }
@@ -1237,11 +1515,39 @@ export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions):
   return normalizeSurveyPreguntas(unwrapSurveyEnvelope<SurveyAdmin>(survey));
 };
 
+export const adminCloseSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
+  const tenantSlug = options?.tenantSlug?.trim();
+  if (!tenantSlug) {
+    throw new Error('survey_admin_tenant_required');
+  }
+  const survey = await apiFetch<SurveyAdmin>(`/api/v2/surveys/${id}/close`, {
+    method: 'POST',
+    ...options,
+    tenantSlug,
+  });
+  return normalizeSurveyPreguntas(survey);
+};
+
+const requireSurveyGovernanceOptions = (options?: ApiFetchOptions): ApiFetchOptions => {
+  const tenantSlug = options?.tenantSlug?.trim();
+  if (!tenantSlug) {
+    throw new Error('survey_governance_tenant_required');
+  }
+  return {
+    ...options,
+    tenantSlug,
+    cache: 'no-store',
+  };
+};
+
 export const adminListSurveyGovernanceReleases = (
   id: number,
   options?: ApiFetchOptions,
 ): Promise<SurveyGovernanceReleaseList> =>
-  apiFetch<SurveyGovernanceReleaseList>(`/api/v2/surveys/${id}/releases`, options ?? {});
+  apiFetch<SurveyGovernanceReleaseList>(
+    `/api/v2/surveys/${id}/releases`,
+    requireSurveyGovernanceOptions(options),
+  );
 
 export const adminCreateSurveyGovernanceRelease = (
   id: number,
@@ -1250,7 +1556,7 @@ export const adminCreateSurveyGovernanceRelease = (
   options?: ApiFetchOptions,
 ): Promise<SurveyGovernanceRelease> =>
   apiFetch<SurveyGovernanceRelease>(`/api/v2/surveys/${id}/releases`, {
-    ...options,
+    ...requireSurveyGovernanceOptions(options),
     method: 'POST',
     body: payload,
     headers: {
@@ -1269,7 +1575,7 @@ export const adminPublishSurveyGovernanceRelease = (
   apiFetch<SurveyGovernanceRelease>(
     `/api/v2/surveys/${surveyId}/releases/${releaseId}/publish`,
     {
-      ...options,
+      ...requireSurveyGovernanceOptions(options),
       method: 'POST',
       body: { expected_snapshot_sha256: snapshotSha256 },
       headers: {
@@ -1289,7 +1595,7 @@ export const adminCloseSurveyGovernanceRelease = (
   apiFetch<SurveyGovernanceRelease>(
     `/api/v2/surveys/${surveyId}/releases/${releaseId}/close`,
     {
-      ...options,
+      ...requireSurveyGovernanceOptions(options),
       method: 'POST',
       body: { human_review_reference: humanReviewReference },
       headers: {

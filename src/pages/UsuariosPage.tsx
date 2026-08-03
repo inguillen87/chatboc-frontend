@@ -4,7 +4,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
@@ -14,8 +13,10 @@ import { toast } from "@/components/ui/use-toast";
 import { getTenant } from "@/utils/tenant";
 import { useUser } from "@/hooks/useUser";
 import { useSocket } from "@/context/SocketContext";
-import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle, Clock3, Copy, ExternalLink, Flame, History, ListChecks, Mail, MessageSquare, Phone, RefreshCw, Search, Send, ShieldCheck, Tags, Target, UserRound, Users } from "lucide-react";
+import { Activity, AlertTriangle, Bell, CheckCircle, Clock3, Copy, ExternalLink, Flame, History, ListChecks, Mail, MessageSquare, Phone, RefreshCw, Search, ShieldCheck, Tags, Target, UserRound, Users } from "lucide-react";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
+import CampaignPreparationPanel from "@/components/admin/CampaignPreparationPanel";
+import type { CampaignChannel } from "@/features/campaigns/campaignPreparationTypes";
 import { shouldRenderProfileImage } from "@/utils/avatarConsent";
 
 type RawUsuario = Record<string, any>;
@@ -52,21 +53,6 @@ interface Usuario {
   avatarConsent?: boolean | string | number | null;
 }
 
-interface CampaignResult {
-  campaign_id?: string;
-  mode?: string;
-  channel?: string;
-  totals?: {
-    requested?: number;
-    resolved?: number;
-    eligible?: number;
-    excluded_optout?: number;
-    excluded_frequency?: number;
-    excluded_without_channel?: number;
-  };
-  request_id?: string;
-}
-
 interface CampaignHistoryItem {
   campaign_id?: string;
   channel?: string;
@@ -76,6 +62,9 @@ interface CampaignHistoryItem {
   scheduled_for?: string | null;
   status_counts?: Record<string, number>;
   sent_count?: number;
+  delivered_count?: number;
+  read_count?: number;
+  registered_without_delivery_evidence_count?: number;
   blocked_count?: number;
   contacts_count?: number;
 }
@@ -425,11 +414,6 @@ export default function UsuariosPage() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof Usuario; direction: 'asc' | 'desc' } | null>(null);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [campaignChannel, setCampaignChannel] = useState<'whatsapp' | 'email'>('whatsapp');
-  const [campaignMessage, setCampaignMessage] = useState('Hola, tenemos una novedad importante para compartirte.');
-  const [campaignLink, setCampaignLink] = useState('');
-  const [campaignSending, setCampaignSending] = useState(false);
-  const [campaignResult, setCampaignResult] = useState<CampaignResult | null>(null);
   const [campaignHistory, setCampaignHistory] = useState<CampaignHistoryItem[]>([]);
   const [campaignLedger, setCampaignLedger] = useState<CampaignLedgerItem[]>([]);
   const [notificationCenter, setNotificationCenter] = useState<NotificationCenterItem[]>([]);
@@ -478,6 +462,20 @@ export default function UsuariosPage() {
   const selectedUsuarios = React.useMemo(
     () => usuarios.filter((usuario) => selectedIds.has(String(usuario.id))),
     [selectedIds, usuarios],
+  );
+
+  const selectedCampaignContactIds = React.useMemo(
+    () =>
+      selectedUsuarios
+        .map(
+          (usuario) =>
+            usuario.contactId ||
+            (String(usuario.id).startsWith("contact:")
+              ? String(usuario.id).replace("contact:", "")
+              : null),
+        )
+        .filter((id): id is string => Boolean(id)),
+    [selectedUsuarios],
   );
 
   const pageIds = React.useMemo(
@@ -647,74 +645,14 @@ export default function UsuariosPage() {
     });
   };
 
-  const selectMarketingContacts = () => {
+  const selectMarketingContacts = (channel: CampaignChannel) => {
     setSelectedIds(
       new Set(
         usuarios
-          .filter((usuario) => usuario.marketing && (campaignChannel === 'email' ? hasRealEmail(usuario) : hasPhone(usuario)))
+          .filter((usuario) => usuario.marketing && (channel === 'email' ? hasRealEmail(usuario) : hasPhone(usuario)))
           .map((usuario) => String(usuario.id)),
       ),
     );
-  };
-
-  const sendCampaign = async (dryRun: boolean) => {
-    if (selectedUsuarios.length === 0) {
-      toast({ variant: 'destructive', title: 'Selecciona contactos', description: 'Elegí al menos un usuario para la campaña.' });
-      return;
-    }
-    const message = campaignMessage.trim();
-    if (!message) {
-      toast({ variant: 'destructive', title: 'Mensaje vacío', description: 'Escribí el texto que se va a enviar.' });
-      return;
-    }
-
-    const legacyUserIds = selectedUsuarios
-      .map((usuario) => usuario.id)
-      .filter((id) => /^\d+$/.test(String(id)))
-      .map((id) => Number(id));
-    const contactIds = selectedUsuarios
-      .map((usuario) => usuario.contactId || (String(usuario.id).startsWith("contact:") ? String(usuario.id).replace("contact:", "") : null))
-      .filter((id): id is string => Boolean(id));
-
-    const body = {
-      user_ids: legacyUserIds,
-      contact_ids: contactIds,
-      channel: campaignChannel,
-      message: campaignLink.trim() ? `${message}\n${campaignLink.trim()}` : message,
-      dry_run: dryRun,
-      min_interval_hours: 24,
-      max_per_week: 2,
-      source: 'usuarios_page',
-    };
-
-    const endpoint = tenantSlug
-      ? `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/campaigns/send`
-      : '/api/crm/campaigns/send';
-
-    setCampaignSending(true);
-    setCampaignResult(null);
-    try {
-      const result = await apiFetch<CampaignResult>(endpoint, {
-        method: 'POST',
-        body,
-      });
-      setCampaignResult(result);
-      if (!dryRun) {
-        fetchCampaignActivity();
-      }
-      toast({
-        title: dryRun ? 'Audiencia validada' : 'Campaña registrada',
-        description: `${result.totals?.eligible ?? 0} contactos elegibles. ${result.totals?.excluded_frequency ?? 0} bloqueados por 24h.`,
-      });
-    } catch (e) {
-      toast({
-        variant: 'destructive',
-        title: 'No se pudo preparar la campaña',
-        description: getErrorMessage(e, 'Revisá permisos, tenant y contactos seleccionados.'),
-      });
-    } finally {
-      setCampaignSending(false);
-    }
   };
 
   const formatDate = (value?: string | null) => {
@@ -1046,106 +984,12 @@ export default function UsuariosPage() {
           Solo con marketing
         </label>
       </div>
-      <Card className="border-primary/20 bg-card/95 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Send className="h-5 w-5 text-primary" />
-                Campana 24h
-              </CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Valida audiencia, opt-in y frecuencia en backend. WhatsApp/email quedan registrados como interacciones.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="gap-1">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                24h por contacto
-              </Badge>
-              <Badge variant="outline">{selectedUsuarios.length} seleccionados</Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="space-y-3">
-            <Textarea
-              value={campaignMessage}
-              onChange={(event) => setCampaignMessage(event.target.value)}
-              rows={3}
-              placeholder="Mensaje breve para WhatsApp o email"
-            />
-            <Input
-              value={campaignLink}
-              onChange={(event) => setCampaignLink(event.target.value)}
-              placeholder="Link opcional: encuesta, flyer, promocion o comunicado"
-            />
-            {campaignResult && (
-              <div className="grid gap-2 rounded-xl border border-border/70 bg-background/60 p-3 text-sm sm:grid-cols-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Elegibles</p>
-                  <p className="text-xl font-bold">{campaignResult.totals?.eligible ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bloqueados 24h/semana</p>
-                  <p className="text-xl font-bold">{campaignResult.totals?.excluded_frequency ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Sin canal u opt-out</p>
-                  <p className="text-xl font-bold">
-                    {(campaignResult.totals?.excluded_without_channel ?? 0) + (campaignResult.totals?.excluded_optout ?? 0)}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-background/60 p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={campaignChannel === 'whatsapp' ? 'default' : 'outline'}
-                onClick={() => setCampaignChannel('whatsapp')}
-                className="gap-2"
-              >
-                <MessageSquare className="h-4 w-4" />
-                WhatsApp
-              </Button>
-              <Button
-                type="button"
-                variant={campaignChannel === 'email' ? 'default' : 'outline'}
-                onClick={() => setCampaignChannel('email')}
-                className="gap-2"
-              >
-                <Mail className="h-4 w-4" />
-                Email
-              </Button>
-            </div>
-            <Button type="button" variant="outline" onClick={selectMarketingContacts} className="justify-start gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Seleccionar opt-in
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={campaignSending}
-              onClick={() => sendCampaign(true)}
-              className="justify-start gap-2"
-            >
-              <CalendarClock className="h-4 w-4" />
-              Validar audiencia
-            </Button>
-            <Button
-              type="button"
-              disabled={campaignSending}
-              onClick={() => sendCampaign(false)}
-              className="justify-start gap-2"
-            >
-              <Send className="h-4 w-4" />
-              Registrar envio
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <CampaignPreparationPanel
+        tenantSlug={tenantSlug}
+        selectedContactIds={selectedCampaignContactIds}
+        selectedCount={selectedUsuarios.length}
+        onSelectMarketingContacts={selectMarketingContacts}
+      />
       <Card className="border-border/70 bg-card/95 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1213,7 +1057,7 @@ export default function UsuariosPage() {
               Historial de campanas
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Agrupa envios reales, bloqueos por frecuencia y audiencia alcanzada en los ultimos 30 dias.
+              Separa registros legacy, bloqueos y evidencia real de transporte. Un registro queued no se cuenta como enviado.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1250,8 +1094,10 @@ export default function UsuariosPage() {
                   </div>
                   <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
                     <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-emerald-200">
-                      <span className="block text-muted-foreground">Enviados</span>
-                      <strong className="text-base text-emerald-100">{item.sent_count ?? 0}</strong>
+                      <span className="block text-muted-foreground">Registrados sin evidencia</span>
+                      <strong className="text-base text-emerald-100">
+                        {item.registered_without_delivery_evidence_count ?? 0}
+                      </strong>
                     </div>
                     <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-amber-100">
                       <span className="block text-muted-foreground">Bloqueados</span>
@@ -1275,7 +1121,7 @@ export default function UsuariosPage() {
               Ledger 24h
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Ultimos eventos de envio o bloqueo. Sirve para auditar por que un contacto recibio o no recibio el mensaje.
+              Ultimos registros o bloqueos. No implica envio ni entrega si no existe recibo del proveedor.
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -1312,7 +1158,7 @@ export default function UsuariosPage() {
                   <p className="mt-2 line-clamp-2 text-xs">
                     {item.status === "blocked"
                       ? humanizeCampaignReason(item.reason)
-                      : item.content_preview || "Envio registrado en CRM."}
+                      : item.content_preview || "Registro CRM sin evidencia de entrega."}
                   </p>
                 </div>
               ))

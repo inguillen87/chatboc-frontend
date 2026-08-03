@@ -659,6 +659,137 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
   });
 
+  it('does not render queue truth or a healthy SLA state when the validated contract is unavailable', async () => {
+    renderPanel();
+
+    expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
+    expect(screen.queryByTestId('operations-queue-truth')).toBeNull();
+    expect(screen.getByText('Cobertura SLA de backlog no publicada')).toBeTruthy();
+    expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
+  });
+
+  it('renders queue snapshot coverage without presenting unknown SLA as healthy', async () => {
+    const fixture = dashboardFixture();
+    fixture.queue_truth = {
+      contract_version: 'operations.queue_truth.v1',
+      grain: 'one_current_open_ticket',
+      source_models: ['TenantTicket', 'MunicipioTicket', 'PymeTicket'],
+      as_of: '2026-08-02T14:30:00+00:00',
+      membership_quality: {
+        contract_version: 'operations.queue_membership_quality.v1',
+        creation_membership: 'created_at_null_or_lte_as_of',
+        null_created_at: { policy: 'included_with_unknown_age', included_records: 1 },
+        future_created_at: {
+          state: 'quarantined',
+          policy: 'excluded_from_queue',
+          excluded_records: 2,
+          by_source_model: [
+            { source_model: 'TenantTicket', excluded_records: 1 },
+            { source_model: 'MunicipioTicket', excluded_records: 1 },
+            { source_model: 'PymeTicket', excluded_records: 0 },
+          ],
+        },
+      },
+      coverage: {
+        source_records: 12,
+        sla: { eligible: 12, known: 8, unknown: 4, non_eligible: 0, known_pct: 66.67 },
+      },
+      queue_snapshot: {
+        grain: 'one_current_open_ticket',
+        as_of: '2026-08-02T14:30:00+00:00',
+        summary: {
+          open_total: 12,
+          sla_breached: 2,
+          sla_at_risk: 1,
+          sla_unknown: 4,
+          unassigned: 3,
+        },
+        sla: {
+          eligible: 12,
+          known: 8,
+          unknown: 4,
+          breached: 2,
+          at_risk: 1,
+          numerator: 2,
+          denominator: 8,
+          breach_rate_pct: 25,
+          at_risk_window_seconds: 14400,
+        },
+        ownership: {
+          assigned: 9,
+          unassigned: 3,
+          assignment_rate_pct: 75,
+        },
+        age_buckets: [
+          {
+            key: 'lt_1h',
+            label: 'Menos de 1 hora',
+            count: 5,
+            href: '/perfil?tab=tickets&focus=open_age_lt_1h',
+            link_semantics: 'navigation_only',
+            exact_filter: false,
+          },
+          {
+            key: 'gte_7d',
+            label: '7 dias o mas',
+            count: 2,
+            href: '/perfil?tab=tickets&focus=open_age_gte_7d',
+            link_semantics: 'navigation_only',
+            exact_filter: false,
+          },
+        ],
+        links: {
+          open: '/perfil?tab=tickets&focus=open_queue',
+          sla_breached: '/perfil?tab=tickets&focus=sla_breached_queue',
+          sla_at_risk: '/perfil?tab=tickets&focus=sla_at_risk_queue',
+          unassigned: '/perfil?tab=tickets&focus=unassigned_open_queue&agent=unassigned',
+        },
+        link_contract: {
+          open: { semantics: 'navigation_only', exact_filter: false },
+          sla_breached: { semantics: 'navigation_only', exact_filter: false },
+          sla_at_risk: { semantics: 'navigation_only', exact_filter: false },
+          sla_unknown: { semantics: 'navigation_only', exact_filter: false },
+          unassigned: { semantics: 'navigation_only', exact_filter: false },
+          ownership_by_owner: { semantics: 'navigation_only', exact_filter: false },
+          age_buckets: { semantics: 'navigation_only', exact_filter: false },
+          reason_code: 'operational_queue_v1_not_yet_bound_to_queue_truth_snapshot',
+          notice: 'Los drilldowns exactos están pendientes; estos contadores no abren filtros hasta vincular la bandeja al mismo corte y alcance.',
+        },
+      },
+      period_flow: {
+        grain: 'one_ticket_created_in_period',
+        summary: { created_total: 6, currently_open: 3, currently_closed: 3 },
+        does_not_measure: ['historical_backlog_snapshot'],
+      },
+    };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+
+    renderPanel();
+
+    const queuePanel = await screen.findByTestId('operations-queue-truth');
+    expect(queuePanel).toHaveTextContent('Cola operativa actual');
+    expect(queuePanel).toHaveTextContent('corte operativo');
+    expect(queuePanel).not.toHaveTextContent('snapshot');
+    expect(queuePanel).toHaveTextContent('Los drilldowns exactos están pendientes');
+    expect(queuePanel).toHaveTextContent('SLA conocido 8/12');
+    expect(queuePanel).toHaveTextContent('4 casos no tienen evidencia SLA verificable');
+    expect(queuePanel).toHaveTextContent('2 casos con fecha futura fueron excluidos de la cola');
+    expect(queuePanel).toHaveTextContent('1 caso sin fecha de creacion sigue visible');
+    expect(queuePanel).toHaveTextContent('fechas futuras quedan en cuarentena');
+    expect(queuePanel).toHaveTextContent('2/8 casos con SLA conocido');
+    expect(queuePanel).toHaveTextContent('6 creados');
+    expect(queuePanel).toHaveTextContent('No se mezcla con el backlog actual');
+    expect(screen.queryByRole('link', { name: /Backlog abierto/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Menos de 1 hora/i })).toBeNull();
+    expect(screen.getByText(/2 vencidos confirmados/)).toBeTruthy();
+    expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe(
+      '/perfil?tab=tickets&focus=open_queue',
+    );
+    expect(mocks.getOperationsDashboardV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
+  });
+
   it('uses the fastest live contract interval for operational refreshes', async () => {
     const intervalSpy = vi.spyOn(window, 'setInterval');
 

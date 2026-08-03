@@ -101,13 +101,23 @@ const humanizeChannel = (value?: string | null) => {
 };
 
 export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveyShareActionsProps) => {
-  const shareUrl = useMemo(() => getPublicSurveyUrl(survey.slug), [survey.slug]);
+  const tenantSlug =
+    typeof survey.tenant_slug === 'string' && survey.tenant_slug.trim()
+      ? survey.tenant_slug.trim()
+      : undefined;
+  const shareUrl = useMemo(
+    () => getPublicSurveyUrl(survey.slug, { tenantSlug }),
+    [survey.slug, tenantSlug],
+  );
   const shareText = useMemo(
     () =>
       `Participá de la encuesta “${survey.titulo}” y sumá tu voz a la toma de decisiones.`,
     [survey.titulo],
   );
-  const qrPageUrl = useMemo(() => getPublicSurveyQrPageUrl(survey.slug), [survey.slug]);
+  const qrPageUrl = useMemo(
+    () => getPublicSurveyQrPageUrl(survey.slug, { tenantSlug }),
+    [survey.slug, tenantSlug],
+  );
 
   const whatsappUrl = useMemo(() => {
     const message = `${shareText}\n${shareUrl}`;

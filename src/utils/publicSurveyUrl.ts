@@ -2,6 +2,7 @@ import { BASE_API_URL, PUBLIC_SURVEY_BASE_URL } from '@/config';
 
 interface PublicSurveyUrlOptions {
   absolute?: boolean;
+  tenantSlug?: string | null;
 }
 
 interface PublicSurveyAssetOptions extends PublicSurveyUrlOptions {
@@ -16,6 +17,7 @@ interface PublicSurveyLike {
   url_publica?: unknown;
   share_url?: unknown;
   public_url?: unknown;
+  tenant_slug?: unknown;
 }
 
 const normalizeSlug = (value: string): string => {
@@ -48,13 +50,20 @@ export const getPublicSurveyUrlFromRecord = (survey?: PublicSurveyLike | null): 
 
   if (providedUrl) return providedUrl;
 
-  return getAbsolutePublicSurveyUrl(getPublicSurveyCanonicalSlug(survey));
+  return getAbsolutePublicSurveyUrl(getPublicSurveyCanonicalSlug(survey), {
+    tenantSlug: readNonEmptyString(survey.tenant_slug) || undefined,
+  });
 };
 
 export const getPublicSurveyQrUrlFromRecord = (
   survey?: PublicSurveyLike | null,
   options: PublicSurveyAssetOptions = {},
-): string => getPublicSurveyQrUrl(getPublicSurveyCanonicalSlug(survey), options);
+): string =>
+  getPublicSurveyQrUrl(getPublicSurveyCanonicalSlug(survey), {
+    ...options,
+    tenantSlug:
+      options.tenantSlug ?? (readNonEmptyString(survey?.tenant_slug) || undefined),
+  });
 
 const extractOrigin = (value?: string): string => {
   if (typeof value !== 'string') return '';
@@ -100,13 +109,28 @@ const resolveBaseUrl = (): string => {
   return '';
 };
 
-export const getPublicSurveyPath = (slug: string): string => {
-  const normalized = normalizeSlug(slug);
-  return normalized ? `/e/${normalized}` : '';
+const appendTenantSlug = (path: string, tenantSlug?: string | null): string => {
+  const normalizedTenant = readNonEmptyString(tenantSlug);
+  if (!path || !normalizedTenant) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}tenant_slug=${encodeURIComponent(normalizedTenant)}`;
 };
 
-export const getAbsolutePublicSurveyUrl = (slug: string): string => {
-  const path = getPublicSurveyPath(slug);
+export const getPublicSurveyPath = (
+  slug: string,
+  options: PublicSurveyUrlOptions = {},
+): string => {
+  const normalized = normalizeSlug(slug);
+  return normalized
+    ? appendTenantSlug(`/e/${normalized}`, options.tenantSlug)
+    : '';
+};
+
+export const getAbsolutePublicSurveyUrl = (
+  slug: string,
+  options: PublicSurveyUrlOptions = {},
+): string => {
+  const path = getPublicSurveyPath(slug, options);
   if (!path) return '';
 
   const envBase = PUBLIC_SURVEY_BASE_URL;
@@ -126,26 +150,45 @@ export const getPublicSurveyUrl = (
   options: PublicSurveyUrlOptions = {},
 ): string => {
   if (options.absolute === false) {
-    return getPublicSurveyPath(slug);
+    return getPublicSurveyPath(slug, options);
   }
 
-  return getAbsolutePublicSurveyUrl(slug);
+  return getAbsolutePublicSurveyUrl(slug, options);
 };
 
-const getQrPath = (slug: string, size?: number): string => {
+const getQrPath = (
+  slug: string,
+  size?: number,
+  tenantSlug?: string | null,
+): string => {
   const normalized = normalizeSlug(slug);
   if (!normalized) return '';
-  const query = typeof size === 'number' && Number.isFinite(size) ? `?size=${Math.max(16, Math.round(size))}` : '';
-  return `/public/encuestas/${normalized}/qr${query}`;
+  const search = new URLSearchParams();
+  if (typeof size === 'number' && Number.isFinite(size)) {
+    search.set('size', String(Math.max(16, Math.round(size))));
+  }
+  const normalizedTenant = readNonEmptyString(tenantSlug);
+  if (normalizedTenant) search.set('tenant_slug', normalizedTenant);
+  const query = search.toString();
+  return `/public/encuestas/${normalized}/qr${query ? `?${query}` : ''}`;
 };
 
-const getQrPagePath = (slug: string): string => {
+const getQrPagePath = (
+  slug: string,
+  tenantSlug?: string | null,
+): string => {
   const normalized = normalizeSlug(slug);
-  return normalized ? `/encuestas/${normalized}/qr` : '';
+  return normalized
+    ? appendTenantSlug(`/encuestas/${normalized}/qr`, tenantSlug)
+    : '';
 };
 
-const buildQuickchartQrUrl = (slug: string, size?: number): string => {
-  const targetUrl = getPublicSurveyUrl(slug);
+const buildQuickchartQrUrl = (
+  slug: string,
+  size?: number,
+  tenantSlug?: string | null,
+): string => {
+  const targetUrl = getPublicSurveyUrl(slug, { tenantSlug });
   if (!targetUrl) return '';
 
   const normalizedSize = Math.max(16, Math.min(2048, Math.round(typeof size === 'number' ? size : 512)));
@@ -199,7 +242,7 @@ export const getPublicSurveyQrUrl = (
   slug: string,
   options: PublicSurveyAssetOptions = {},
 ): string => {
-  const path = getQrPath(slug, options.size);
+  const path = getQrPath(slug, options.size, options.tenantSlug);
   if (!path) return '';
 
   if (options.absolute === false) {
@@ -212,14 +255,14 @@ export const getPublicSurveyQrUrl = (
     return `${base}${path}`;
   }
 
-  return buildQuickchartQrUrl(slug, options.size);
+  return buildQuickchartQrUrl(slug, options.size, options.tenantSlug);
 };
 
 export const getPublicSurveyQrPageUrl = (
   slug: string,
   options: PublicSurveyUrlOptions = {},
 ): string => {
-  const path = getQrPagePath(slug);
+  const path = getQrPagePath(slug, options.tenantSlug);
   if (!path) return '';
 
   if (options.absolute === false) {

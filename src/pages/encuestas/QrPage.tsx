@@ -12,14 +12,22 @@ import { getPublicSurveyQrUrl, getPublicSurveyUrl, isQuickchartQrUrl } from '@/u
 const SurveyQrPage = () => {
   const { slug = '' } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
-  const tenantSlug = searchParams.get('tenant');
+  const tenantSlug = (
+    searchParams.get('tenant_slug') ?? searchParams.get('tenant')
+  )?.trim() || undefined;
   const { survey, isLoading, error } = useSurveyPublic(slug, { tenantSlug });
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
-  const participationUrl = useMemo(() => getPublicSurveyUrl(slug) || '', [slug]);
-  const directQrUrl = useMemo(() => getPublicSurveyQrUrl(slug, { size: 768 }), [slug]);
+  const participationUrl = useMemo(
+    () => getPublicSurveyUrl(slug, { tenantSlug }) || '',
+    [slug, tenantSlug],
+  );
+  const directQrUrl = useMemo(
+    () => getPublicSurveyQrUrl(slug, { size: 768, tenantSlug }),
+    [slug, tenantSlug],
+  );
   const isDirectQuickchart = useMemo(() => isQuickchartQrUrl(directQrUrl), [directQrUrl]);
   const fallbackQrUrl = useMemo(() => {
     if (!participationUrl || isDirectQuickchart) return '';
@@ -107,7 +115,7 @@ const SurveyQrPage = () => {
     <div className="mx-auto w-full max-w-3xl space-y-6 py-10">
       <div>
         <Link
-          to={survey ? `/e/${survey.slug}` : '/encuestas'}
+          to={survey ? getPublicSurveyUrl(survey.slug, { absolute: false, tenantSlug }) : '/encuestas'}
           className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Volver

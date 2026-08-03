@@ -61,6 +61,7 @@ import type {
   OperationsFreshnessV1,
   OperationsHeatmapPoint,
   OperationsHeatmapV1,
+  OperationsQueueLinkKey,
   PublicMapConfigV1,
 } from './analyticsTypes';
 
@@ -253,6 +254,7 @@ const focusCardToneClass: Record<OperationsFocusCard['tone'], string> = {
 type HeatmapFilterKey = 'categoria' | 'rango_edad' | 'genero' | 'canal' | 'source' | 'barrio' | 'estado' | 'distrito';
 type HeatmapQueryKey = HeatmapFilterKey | 'range' | 'scope' | 'days';
 type HeatmapFilterState = Partial<Record<HeatmapQueryKey, string>>;
+type OperationsPeriodState = Partial<Record<'range' | 'scope' | 'days', string>>;
 
 type HeatmapFilterConfig = {
   key: HeatmapFilterKey;
@@ -497,8 +499,7 @@ const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   ) as HeatmapFilterState;
 
 const DEFAULT_HEATMAP_FILTERS: HeatmapFilterState = {
-  range: 'all',
-  scope: 'historical',
+  days: '7',
 };
 
 const OPERATIONS_DASHBOARD_FALLBACK: OperationsDashboardV1 = {
@@ -561,7 +562,7 @@ const realtimeEventMatchesTenant = (payload: unknown, tenantSlug?: string) => {
   return !eventTenant || eventTenant === tenantSlug;
 };
 
-const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): HeatmapFilterState => {
+const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): OperationsPeriodState => {
   const next = Object.fromEntries(
     Object.entries(filters).filter(([key]) => HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey)),
   ) as HeatmapFilterState;
@@ -579,11 +580,15 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const tenantSlug = currentSlug || storedTenantSlug || undefined;
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
+  const activeOperationsPeriod = useMemo(
+    () => keepHeatmapPeriodFilters(activeHeatmapFilters),
+    [activeHeatmapFilters],
+  );
 
   const dashboardQuery = useQuery({
-    queryKey: ['v2-operations-dashboard', tenantSlug],
+    queryKey: ['v2-operations-dashboard', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsDashboardV2({ tenantSlug }),
+      getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod }),
       'operations_dashboard_timeout',
     ),
     retry: 0,
@@ -613,9 +618,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   });
 
   const actionCenterQuery = useQuery({
-    queryKey: ['v2-operations-action-center', tenantSlug],
+    queryKey: ['v2-operations-action-center', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsActionCenterV2({ tenantSlug }),
+      getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod }),
       'operations_action_center_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
@@ -623,9 +628,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     staleTime: 30_000,
   });
   const aiBriefQuery = useQuery({
-    queryKey: ['v2-operations-ai-brief', tenantSlug],
+    queryKey: ['v2-operations-ai-brief', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsAIBriefV2({ tenantSlug }),
+      getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod }),
       'operations_ai_brief_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
@@ -633,9 +638,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     staleTime: 30_000,
   });
   const aiOpsQueueQuery = useQuery({
-    queryKey: ['v2-operations-ai-ops-queue', tenantSlug],
+    queryKey: ['v2-operations-ai-ops-queue', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12 }),
+      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod }),
       'operations_ai_ops_queue_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
@@ -653,9 +658,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     staleTime: 60_000,
   });
   const freshnessQuery = useQuery({
-    queryKey: ['v2-operations-freshness', tenantSlug],
+    queryKey: ['v2-operations-freshness', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsFreshnessV2({ tenantSlug }),
+      getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod }),
       'operations_freshness_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
@@ -875,6 +880,8 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         alertsCount={alerts.length}
       />
 
+      <QueueTruthPanel data={data} />
+
       <div className="grid gap-3 lg:grid-cols-3">
         {focusCards.map((card) => {
           const Icon = card.icon;
@@ -954,6 +961,198 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   );
 }
 
+function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
+  const truth = data.queue_truth;
+  const snapshot = truth?.queue_snapshot;
+  if (!truth || !snapshot) return null;
+
+  const summary = snapshot.summary ?? {};
+  const sla = snapshot.sla ?? {};
+  const ownership = snapshot.ownership ?? {};
+  const links = snapshot.links ?? {};
+  const linkContract = snapshot.link_contract;
+  const linkNotice = asString(linkContract?.notice);
+  const membershipQuality = truth.membership_quality;
+  const futureCreatedAtExcluded = readNumber(membershipQuality?.future_created_at?.excluded_records) ?? 0;
+  const nullCreatedAtIncluded = readNumber(membershipQuality?.null_created_at?.included_records) ?? 0;
+  const isExactQueueLink = (key: OperationsQueueLinkKey) => {
+    const metadata = linkContract?.[key];
+    return metadata?.exact_filter === true && metadata.semantics === 'exact_filter';
+  };
+  const periodFlow = truth.period_flow?.summary ?? {};
+  const openTotal = readNumber(summary.open_total) ?? 0;
+  const breached = readNumber(sla.breached, summary.sla_breached) ?? 0;
+  const atRisk = readNumber(sla.at_risk, summary.sla_at_risk) ?? 0;
+  const eligible = readNumber(sla.eligible, truth.coverage?.sla?.eligible) ?? 0;
+  const known = readNumber(sla.known, truth.coverage?.sla?.known) ?? 0;
+  const unknown = readNumber(sla.unknown, truth.coverage?.sla?.unknown) ?? 0;
+  const unassigned = readNumber(ownership.unassigned, summary.unassigned) ?? 0;
+  const assignmentRate = readNumber(ownership.assignment_rate_pct);
+  const atRiskWindowSeconds = readNumber(sla.at_risk_window_seconds);
+  const atRiskWindowHours = atRiskWindowSeconds === undefined ? undefined : atRiskWindowSeconds / 3600;
+  const asOf = asString(snapshot.as_of) ?? asString(truth.as_of);
+  const parsedAsOf = asOf ? new Date(asOf) : null;
+  const asOfLabel = parsedAsOf && !Number.isNaN(parsedAsOf.getTime())
+    ? parsedAsOf.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+    : 'corte no informado';
+  const ageBuckets = snapshot.age_buckets ?? [];
+
+  const cards: Array<{
+    key: string;
+    linkKey: OperationsQueueLinkKey;
+    label: string;
+    value: number;
+    detail: string;
+    href?: string;
+  }> = [
+    {
+      key: 'open',
+      linkKey: 'open',
+      label: 'Backlog abierto',
+      value: openTotal,
+      detail: 'Casos abiertos elegibles al corte; fechas futuras quedan en cuarentena.',
+      href: links.open,
+    },
+    {
+      key: 'breached',
+      linkKey: 'sla_breached',
+      label: 'SLA vencido',
+      value: breached,
+      detail: `${breached}/${known} casos con SLA conocido`,
+      href: links.sla_breached,
+    },
+    {
+      key: 'risk',
+      linkKey: 'sla_at_risk',
+      label: 'SLA en riesgo',
+      value: atRisk,
+      detail: atRiskWindowHours === undefined
+        ? 'Ventana preventiva no informada'
+        : `Ventana preventiva de ${formatNumber(atRiskWindowHours)} h`,
+      href: links.sla_at_risk,
+    },
+    {
+      key: 'ownership',
+      linkKey: 'unassigned',
+      label: 'Sin responsable',
+      value: unassigned,
+      detail: assignmentRate === undefined ? 'Cobertura de asignación no disponible' : `${formatNumber(assignmentRate, '%')} asignado`,
+      href: links.unassigned,
+    },
+  ];
+
+  return (
+    <Card data-testid="operations-queue-truth" className="overflow-hidden border-primary/15 shadow-sm">
+      <CardHeader className="gap-3 border-b bg-muted/20 pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-lg">Cola operativa actual</CardTitle>
+              <Badge variant="outline">corte operativo</Badge>
+              <Badge variant="secondary">{asOfLabel}</Badge>
+            </div>
+            <CardDescription className="mt-1">
+              Stock vigente separado del flujo creado durante el período seleccionado.
+            </CardDescription>
+          </div>
+          <Badge variant={unknown > 0 ? 'secondary' : 'outline'}>
+            SLA conocido {known}/{eligible}
+          </Badge>
+        </div>
+        {unknown > 0 ? (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              {formatNumber(unknown)} casos no tienen evidencia SLA verificable. Se muestran como desconocidos y no como saludables.
+            </p>
+          </div>
+        ) : null}
+        {futureCreatedAtExcluded > 0 || nullCreatedAtIncluded > 0 ? (
+          <div
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
+              {futureCreatedAtExcluded > 0 ? (
+                <p>
+                  {formatNumber(futureCreatedAtExcluded)} {futureCreatedAtExcluded === 1 ? 'caso' : 'casos'} con fecha futura
+                  {futureCreatedAtExcluded === 1 ? ' fue excluido' : ' fueron excluidos'} de la cola y
+                  {futureCreatedAtExcluded === 1 ? ' quedo' : ' quedaron'} en cuarentena de calidad.
+                </p>
+              ) : null}
+              {nullCreatedAtIncluded > 0 ? (
+                <p>
+                  {formatNumber(nullCreatedAtIncluded)} {nullCreatedAtIncluded === 1 ? 'caso' : 'casos'} sin fecha de creacion
+                  {nullCreatedAtIncluded === 1 ? ' sigue visible' : ' siguen visibles'} con antiguedad desconocida.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {linkNotice ? (
+          <div
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground"
+          >
+            <Route className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{linkNotice}</p>
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent className="space-y-4 pt-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => {
+            const exactHref = card.href && isExactQueueLink(card.linkKey) ? card.href : undefined;
+            const body = (
+              <div className={cn(
+                'rounded-lg border bg-background p-3',
+                exactHref && 'transition-colors hover:border-primary/30',
+              )}>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{card.label}</p>
+                <p className="mt-1 text-2xl font-semibold">{formatNumber(card.value)}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.detail}</p>
+              </div>
+            );
+            return exactHref ? <Link key={card.key} to={exactHref}>{body}</Link> : <div key={card.key}>{body}</div>;
+          })}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.35fr)]">
+          <div>
+            <p className="text-sm font-semibold">Antigüedad del backlog</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ageBuckets.map((bucket, index) => {
+                const href = asString(bucket.href);
+                const exactHref = href
+                  && bucket.exact_filter === true
+                  && bucket.link_semantics === 'exact_filter'
+                  ? href
+                  : undefined;
+                const label = `${itemLabel(bucket)} · ${formatNumber(itemValue(bucket))}`;
+                return exactHref ? (
+                  <Link key={bucketItemKey(bucket, index)} to={exactHref}>
+                    <Badge variant="outline" className="cursor-pointer">{label}</Badge>
+                  </Link>
+                ) : (
+                  <Badge key={bucketItemKey(bucket, index)} variant="outline">{label}</Badge>
+                );
+              })}
+            </div>
+          </div>
+          <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+            <p className="font-semibold">Flujo del período</p>
+            <p className="mt-1 text-muted-foreground">
+              {formatNumber(periodFlow.created_total)} creados · {formatNumber(periodFlow.currently_open)} siguen abiertos.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">No se mezcla con el backlog actual.</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function OperationsCommandCockpit({
   data,
   heatmap,
@@ -972,10 +1171,16 @@ function OperationsCommandCockpit({
   alertsCount: number;
 }) {
   const ticketsSummary = data.tickets?.summary ?? {};
+  const queueSnapshot = data.queue_truth?.queue_snapshot;
+  const queueSummary = queueSnapshot?.summary ?? {};
+  const queueSla = queueSnapshot?.sla ?? {};
+  const queueLinks = queueSnapshot?.links ?? {};
   const surveysSummary = data.surveys?.summary ?? {};
   const commerceSummary = data.commerce?.summary ?? {};
-  const openTickets = readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
-  const overdueTickets = readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos);
+  const openTickets = readNumber(queueSummary.open_total, data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
+  const overdueTickets = readNumber(queueSla.breached, queueSummary.sla_breached, data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos);
+  const slaKnown = readNumber(queueSla.known);
+  const slaUnknown = readNumber(queueSla.unknown, queueSummary.sla_unknown);
   const surveyResponses = readNumber(data.summary.survey_responses, surveysSummary.responses, surveysSummary.respuestas);
   const liveVotes = readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes);
   const assistedOrders = readNumber(data.summary.assisted_orders, commerceSummary.assisted_orders);
@@ -1007,6 +1212,15 @@ function OperationsCommandCockpit({
   const aiHigh = readNumber(aiSummary.high) ?? 0;
   const dataStatus = freshness?.status ? statusLabel(freshness.status) : 'datos operativos';
   const canMapRender = canRenderHeatmap !== false;
+  const ticketDetail = queueSnapshot
+    ? slaUnknown
+      ? `${formatNumber(overdueTickets ?? 0)} vencidos confirmados · ${formatNumber(slaUnknown)} sin SLA verificable`
+      : slaKnown !== undefined
+        ? `${formatNumber(overdueTickets ?? 0)}/${formatNumber(slaKnown)} vencidos con SLA conocido`
+        : 'Cobertura SLA no informada'
+    : overdueTickets
+      ? `${formatNumber(overdueTickets)} vencidos o en riesgo`
+      : 'Cobertura SLA de backlog no publicada';
 
   const cards = [
     {
@@ -1014,10 +1228,10 @@ function OperationsCommandCockpit({
       eyebrow: 'Resolucion',
       title: 'Reclamos abiertos',
       value: formatNumber(openTickets),
-      detail: overdueTickets ? `${formatNumber(overdueTickets)} vencidos o en riesgo` : 'Bandeja operativa sin vencidos publicados',
+      detail: ticketDetail,
       icon: Ticket,
-      tone: overdueTickets ? 'warning' : 'success',
-      href: '/perfil?tab=tickets',
+      tone: !queueSnapshot || overdueTickets || slaUnknown ? 'warning' : 'success',
+      href: queueLinks.open || '/perfil?tab=tickets',
       action: 'Abrir bandeja de reclamos',
     },
     {
@@ -3408,6 +3622,7 @@ function OperationsHeatmapPanel({
                   <option value="365">{uiLabels.period_365 || 'Últimos 365 días'}</option>
                   <option value="90">{uiLabels.period_90 || 'Últimos 90 días'}</option>
                   <option value="30">{uiLabels.period_30 || 'Últimos 30 días'}</option>
+                  <option value="7">{uiLabels.period_7 || 'Últimos 7 días'}</option>
                 </select>
               </label>
 

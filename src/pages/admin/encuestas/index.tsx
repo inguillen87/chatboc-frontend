@@ -4,6 +4,7 @@ import { BarChart3, Loader2, MessageSquareText, Plus, Radio } from 'lucide-react
 import type { LucideIcon } from 'lucide-react';
 
 import { SurveyCard } from '@/components/surveys/SurveyCard';
+import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsOverview';
 import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
@@ -60,9 +61,10 @@ const AdminSurveysIndex = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
-  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, seedSurvey, isPublishing, isDeleting, isSeeding, refetchList } =
+  const { surveys, isLoadingList, listError, publishSurvey, closeSurvey, deleteSurvey, seedSurvey, isPublishing, isClosing, isDeleting, isSeeding, refetchList, tenantSlug } =
     useSurveyAdmin();
   const [publishingId, setPublishingId] = useState<number | null>(null);
+  const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
 
@@ -94,6 +96,27 @@ const AdminSurveysIndex = () => {
       toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });
     } catch (error) {
       toast({ title: 'No se pudo copiar el enlace', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+    }
+  };
+
+  const handleClose = async (survey: SurveyAdmin) => {
+    try {
+      setClosingId(survey.id);
+      await closeSurvey(survey.id);
+      toast({
+        title: survey.admin_lifecycle?.instrument_kind === 'voting' ? 'Votación cerrada' : 'Encuesta cerrada',
+        description: 'La participación quedó cerrada y las respuestas registradas se conservaron.',
+      });
+      await refetchList();
+    } catch (error) {
+      toast({
+        title: 'No pudimos cerrar la participación',
+        description: String((error as Error)?.message ?? error),
+        variant: 'destructive',
+      });
+      throw error;
+    } finally {
+      setClosingId(null);
     }
   };
 
@@ -157,8 +180,8 @@ const AdminSurveysIndex = () => {
       <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Encuestas ciudadanas</h1>
-          <p className="text-sm text-muted-foreground">Diseñá, gestioná y difundí instancias de participación desde un solo lugar.</p>
+          <h1 className="text-2xl font-semibold">Encuestas y votaciones</h1>
+          <p className="text-sm text-muted-foreground">Diseñá, gestioná y difundí la participación de tu organización desde un solo lugar.</p>
         </div>
         <Button onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nueva encuesta
@@ -202,13 +225,28 @@ const AdminSurveysIndex = () => {
         </div>
       ) : null}
 
-      {listError && <p className="text-sm text-destructive">{listError}</p>}
+      {surveys?.overview && tenantSlug && !listError ? (
+        <SurveyOperationsOverview overview={surveys.overview} freshness={surveys.freshness} tenantSlug={tenantSlug} />
+      ) : null}
+
+      {listError ? (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="font-medium text-destructive">No pudimos cargar el panel operativo</p>
+          <p className="mt-1 text-sm text-muted-foreground">{listError}</p>
+          {tenantSlug ? (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void refetchList()}>
+              Reintentar
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {isLoadingList ? (
-        <div className="flex min-h-[40vh] items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <span className="sr-only">Cargando encuestas y votaciones</span>
         </div>
-      ) : (
+      ) : !listError ? (
         <div className="grid gap-4">
           {items.map((survey) => (
             <div key={survey.id} className={focusMode && matchesFocus(survey, focusMode) ? 'rounded-2xl border border-primary/25 bg-primary/[0.03] p-2' : undefined}>
@@ -221,12 +259,14 @@ const AdminSurveysIndex = () => {
                 survey={survey}
                 onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                 onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics${focusMode ? `?focus=${focusMode}` : ''}`)}
-                onPublish={survey.estado !== 'publicada' ? () => handlePublish(survey) : undefined}
+                onPublish={survey.admin_lifecycle?.capabilities.can_publish ? () => handlePublish(survey) : undefined}
                 publishing={isPublishing && publishingId === survey.id}
-                onCopyLink={survey.estado === 'publicada' ? () => handleCopyLink(survey) : undefined}
-                onDelete={() => handleDelete(survey)}
+                onClose={survey.admin_lifecycle?.capabilities.can_close ? () => handleClose(survey) : undefined}
+                closing={isClosing && closingId === survey.id}
+                onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
+                onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
                 deleting={isDeleting && deletingId === survey.id}
-                onSeed={() => handleSeed(survey)}
+                onSeed={survey.estado === 'borrador' ? () => handleSeed(survey) : undefined}
                 seeding={isSeeding && seedingId === survey.id}
               />
             </div>
@@ -237,7 +277,7 @@ const AdminSurveysIndex = () => {
             </div>
           )}
         </div>
-      )}
+      ) : null}
       </div>
     </SectionErrorBoundary>
   );

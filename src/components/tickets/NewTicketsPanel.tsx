@@ -21,6 +21,10 @@ import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticke
 import { useTenant } from '@/context/TenantContext';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 import { resolveTenantSlug } from '@/utils/api';
+import {
+  isTicketInboxSourceModel,
+  type TicketInboxSourceModel,
+} from '@/services/ticketService';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -67,7 +71,7 @@ const normalizeQueryValue = (value: string | null) => {
 const normalizeTicketQueryNumber = (value: string | null): number | null => {
   const normalized = normalizeQueryValue(value);
   if (!normalized) return null;
-  const parsed = Number(normalized.replace(/^#/, '').replace(/^M-/i, ''));
+  const parsed = Number(normalized.replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, ''));
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -76,6 +80,10 @@ const formatDeskDeepLinkFocus = (value: string | null) =>
 
 const readTicketDeskQuery = (searchParams: URLSearchParams) => {
   const focus = normalizeQueryValue(searchParams.get('focus') ?? searchParams.get('ui_hint') ?? searchParams.get('source'));
+  const rawSourceModel = normalizeQueryValue(
+    searchParams.get('source_model') ?? searchParams.get('sourceModel'),
+  );
+  const sourceModel = isTicketInboxSourceModel(rawSourceModel) ? rawSourceModel : null;
   const ticketId = normalizeTicketQueryNumber(
     searchParams.get('ticket_id') ??
       searchParams.get('ticketId') ??
@@ -88,6 +96,8 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     key: searchParams.toString(),
     focus,
     ticketId,
+    sourceModel,
+    invalidSourceModel: rawSourceModel !== null && sourceModel === null,
     filters: {
       channel: normalizeQueryValue(searchParams.get('canal') ?? searchParams.get('channel')),
       status: normalizeQueryValue(searchParams.get('estado') ?? searchParams.get('status')),
@@ -445,6 +455,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   );
 
   const ticketDeskQuery = React.useMemo(() => readTicketDeskQuery(searchParams), [searchParams]);
+  const resolveDeskTicketTarget = React.useCallback((
+    ticketId: number,
+    sourceModel: TicketInboxSourceModel | null,
+  ) => sourceModel
+    ? resolveTicketTarget(ticketId, sourceModel)
+    : resolveTicketTarget(ticketId), [resolveTicketTarget]);
 
   React.useEffect(() => {
     if (!ticketDeskQuery.key || appliedDeskQueryKeyRef.current === ticketDeskQuery.key) return;
@@ -481,15 +497,21 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       return;
     }
 
-    const querySelectionKey = `${ticketDeskQuery.key}:${ticketDeskQuery.ticketId}`;
+    if (ticketDeskQuery.invalidSourceModel) {
+      selectedDeskQueryTicketRef.current = '';
+      clearTicketTarget();
+      return;
+    }
+
+    const querySelectionKey = `${ticketDeskQuery.key}:${ticketDeskQuery.ticketId}:${ticketDeskQuery.sourceModel ?? 'legacy'}`;
     if (selectedDeskQueryTicketRef.current === querySelectionKey) return;
     selectedDeskQueryTicketRef.current = querySelectionKey;
-    void resolveTicketTarget(ticketDeskQuery.ticketId).then((ticket) => {
+    void resolveDeskTicketTarget(ticketDeskQuery.ticketId, ticketDeskQuery.sourceModel).then((ticket) => {
       if (!ticket) return;
       if (isMobile) setActiveMobileView('chat');
       else setDesktopView('chat');
     });
-  }, [clearTicketTarget, isMobile, resolveTicketTarget, setActiveMobileView, ticketDeskQuery]);
+  }, [clearTicketTarget, isMobile, resolveDeskTicketTarget, setActiveMobileView, ticketDeskQuery]);
 
   React.useEffect(
     () => () => {
@@ -729,28 +751,41 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }
 
   const requestedTicketId = ticketDeskQuery.ticketId;
+  const requestedSourceModel = ticketDeskQuery.sourceModel;
+  const hasInvalidRequestedSource = ticketDeskQuery.invalidSourceModel;
   const targetResolutionMatches =
-    requestedTicketId !== null && ticketTargetResolution.ticketId === requestedTicketId;
+    requestedTicketId !== null &&
+    ticketTargetResolution.ticketId === requestedTicketId &&
+    (ticketTargetResolution.sourceModel ?? null) === requestedSourceModel;
   const requestedTicketResolved =
-    targetResolutionMatches && ticketTargetResolution.status === 'resolved';
-  const blockRequestedTicket = requestedTicketId !== null && !requestedTicketResolved;
+    !hasInvalidRequestedSource &&
+    targetResolutionMatches &&
+    ticketTargetResolution.status === 'resolved';
+  const blockRequestedTicket =
+    requestedTicketId !== null && (hasInvalidRequestedSource || !requestedTicketResolved);
 
   if (blockRequestedTicket) {
     const isResolving =
-      !targetResolutionMatches ||
-      ticketTargetResolution.status === 'idle' ||
-      ticketTargetResolution.status === 'resolving';
+      !hasInvalidRequestedSource && (
+        !targetResolutionMatches ||
+        ticketTargetResolution.status === 'idle' ||
+        ticketTargetResolution.status === 'resolving'
+      );
     const isForbidden = targetResolutionMatches && ticketTargetResolution.status === 'forbidden';
-    const title = isResolving
-      ? `Abriendo reclamo #${requestedTicketId}`
-      : isForbidden
-        ? 'No tenes acceso a este reclamo'
-        : ticketTargetResolution.status === 'not_found'
-          ? 'No encontramos el reclamo solicitado'
-          : 'No pudimos abrir el reclamo solicitado';
-    const message = isResolving
-      ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversacion.'
-      : ticketTargetResolution.message || 'Reintenta en unos segundos.';
+    const title = hasInvalidRequestedSource
+      ? 'El enlace del caso no es valido'
+      : isResolving
+        ? `Abriendo reclamo #${requestedTicketId}`
+        : isForbidden
+          ? 'No tenes acceso a este reclamo'
+          : ticketTargetResolution.status === 'not_found'
+            ? 'No encontramos el reclamo solicitado'
+            : 'No pudimos abrir el reclamo solicitado';
+    const message = hasInvalidRequestedSource
+      ? 'El origen indicado no pertenece al contrato de tickets. Volve a abrir el caso desde la bandeja operativa.'
+      : isResolving
+        ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversacion.'
+        : ticketTargetResolution.message || 'Reintenta en unos segundos.';
 
     return (
       <Card
@@ -771,12 +806,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </span>
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
-        {!isResolving ? (
+        {!isResolving && !hasInvalidRequestedSource ? (
           <Button
             type="button"
             variant="outline"
             className="mt-5 gap-2 rounded-lg"
-            onClick={() => void resolveTicketTarget(requestedTicketId)}
+            onClick={() => void resolveDeskTicketTarget(requestedTicketId, requestedSourceModel)}
           >
             <RefreshCw className="h-4 w-4" />
             Reintentar apertura

@@ -38,17 +38,45 @@ const payload: SurveyGovernanceReleaseCreatePayload = {
   },
 };
 
-describe('survey governance API contract', () => {
+describe('survey governance API scope', () => {
   beforeEach(() => {
     apiFetchMock.mockReset().mockResolvedValue({});
   });
 
-  it('uses the canonical tenant-scoped release list', async () => {
-    await adminListSurveyGovernanceReleases(42, { tenantSlug: 'junin' });
+  it('refuses a governance request without an explicit tenant', () => {
+    expect(() => adminListSurveyGovernanceReleases(42)).toThrow(
+      'survey_governance_tenant_required',
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
 
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/surveys/42/releases', {
+  it('normalizes the tenant and disables caching for reads and mutations', async () => {
+    await adminListSurveyGovernanceReleases(42, { tenantSlug: '  junin  ' });
+    await adminCloseSurveyGovernanceRelease(
+      42,
+      5,
+      'acta:comite-001',
+      'survey-governance:close:42:test',
+      { tenantSlug: '  junin  ' },
+    );
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/v2/surveys/42/releases', {
       tenantSlug: 'junin',
+      cache: 'no-store',
     });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v2/surveys/42/releases/5/close',
+      expect.objectContaining({
+        tenantSlug: 'junin',
+        cache: 'no-store',
+        method: 'POST',
+        body: { human_review_reference: 'acta:comite-001' },
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'survey-governance:close:42:test',
+        }),
+      }),
+    );
   });
 
   it('sends the exact create policy and caller-owned idempotency key', async () => {
@@ -58,6 +86,7 @@ describe('survey governance API contract', () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/surveys/42/releases', {
       tenantSlug: 'junin',
+      cache: 'no-store',
       method: 'POST',
       body: payload,
       headers: { 'Idempotency-Key': 'survey-governance:create:key-1' },
@@ -84,6 +113,7 @@ describe('survey governance API contract', () => {
       '/api/v2/surveys/42/releases/7/publish',
       {
         tenantSlug: 'junin',
+        cache: 'no-store',
         method: 'POST',
         body: { expected_snapshot_sha256: 'b'.repeat(64) },
         headers: { 'Idempotency-Key': 'survey-governance:publish:key-1' },
@@ -93,6 +123,7 @@ describe('survey governance API contract', () => {
       '/api/v2/surveys/42/releases/7/close',
       {
         tenantSlug: 'junin',
+        cache: 'no-store',
         method: 'POST',
         body: { human_review_reference: 'acta:comite-001' },
         headers: { 'Idempotency-Key': 'survey-governance:close:key-1' },

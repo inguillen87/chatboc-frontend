@@ -113,8 +113,10 @@ import {
   getRealtimeVoiceRequestModel,
   getRealtimeVoiceStarters,
   getRealtimeVoiceToolLabels,
+  hasConnectedRealtimeVoiceTransport,
   isRealtimeVideoRenderable,
   isRealtimeVoiceRenderable,
+  type RealtimeVoiceTransportLike,
 } from "@/utils/realtimeVoice";
 import {
   isLegacyDemoSelectorMenu,
@@ -1047,6 +1049,9 @@ interface ChatPanelProps {
     fallbackMode?: string | null;
   } | null;
   realtimeVoice?: RealtimeVoiceCapabilities | null;
+  connectRealtimeVoiceTransport?: (
+    sessionPayload: unknown,
+  ) => Promise<RealtimeVoiceTransportLike | null> | RealtimeVoiceTransportLike | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -1107,6 +1112,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     supportChannels,
     realtimeConfig,
     realtimeVoice,
+    connectRealtimeVoiceTransport,
     onA11yChange,
     a11yPrefs,
     catalogCard,
@@ -2294,6 +2300,15 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [availabilityDismissKey, readAvailabilityDismissed]);
   const previousChannelModeRef = useRef<"chat" | "voice" | "video">("chat");
   const realtimeSessionRequestRef = useRef(false);
+  const realtimeVoiceTransportRef = useRef<RealtimeVoiceTransportLike | null>(null);
+  const closeRealtimeVoiceTransport = useCallback(() => {
+    try {
+      realtimeVoiceTransportRef.current?.close?.();
+    } catch {
+      // Keep the UI fail-safe even if a provider adapter cannot clean up.
+    }
+    realtimeVoiceTransportRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (activeTicketId || sessionState !== "idle") {
@@ -2324,7 +2339,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       trackFrontendEvent(eventName, {
         tenant: tenantSlug || "unknown",
         channel,
-        session_id: realtimeSessionId || activeTicketId || `rt_${Date.now()}`,
+        session_id: realtimeSessionId || activeTicketId || undefined,
         ...extra,
       });
     },
@@ -2380,6 +2395,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       )
         return;
 
+      closeRealtimeVoiceTransport();
       realtimeSessionRequestRef.current = true;
       setChannelMode(mode);
       setSessionState("connecting");
@@ -2457,7 +2473,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           tenantSlug: tenantSlug || undefined,
         });
 
-        const sessionId = readRealtimeSessionId(payload) || `rt_${Date.now()}`;
+        const sessionId = readRealtimeSessionId(payload);
         const responseModel =
           readRealtimeResponseModel(payload) || requestedModel || undefined;
         const clientSecretsContract = readRealtimeClientSecretsContract(payload);
@@ -2465,6 +2481,31 @@ const ChatPanel = (props: ChatPanelProps) => {
         setRealtimeSessionCapabilities(readRealtimeSessionCapabilities(payload));
         setRealtimeSessionId(sessionId);
         setRealtimeAvatarMeta(Object.keys(avatarMeta).length ? avatarMeta : null);
+
+        const connectedTransport =
+          requestedMode === "voice" && connectRealtimeVoiceTransport
+            ? await connectRealtimeVoiceTransport(payload)
+            : null;
+        realtimeVoiceTransportRef.current = connectedTransport;
+
+        if (!hasConnectedRealtimeVoiceTransport(connectedTransport)) {
+          closeRealtimeVoiceTransport();
+          setSessionState("ended");
+          setAssistantSpeaking(false);
+          setRealtimeErrorCode("realtime_transport_not_connected");
+          pushRealtimeTimeline("realtime_transport_not_connected", "warning", {
+            session_provisioned: Boolean(sessionId),
+            transport: "not_connected",
+          });
+          emitRealtimeAnalytics("realtime_session_failed", requestedMode, {
+            error: "realtime_transport_not_connected",
+            session_id: sessionId || undefined,
+            session_provisioned: Boolean(sessionId),
+            model: responseModel,
+          });
+          return payload;
+        }
+
         setSessionState("live");
         setAssistantSpeaking(true);
         pushRealtimeTimeline("Escuchando", "success");
@@ -2590,6 +2631,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       }
     },
     [
+      closeRealtimeVoiceTransport,
       emitRealtimeAnalytics,
       effectiveRealtimeVoice,
       propEntityToken,
@@ -2597,6 +2639,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       realtimeConfig,
       realtimeVideoEnabled,
       realtimeVoiceEnabled,
+      connectRealtimeVoiceTransport,
       sessionState,
       tenantSlug,
       tipoChat,
@@ -2613,6 +2656,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
 
   const endRealtimeSession = useCallback(() => {
+    closeRealtimeVoiceTransport();
     setSessionState("ended");
     setIsUserSpeaking(false);
     setAssistantSpeaking(false);
@@ -2621,7 +2665,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     if (realtimeSessionId) {
       pushRealtimeTimeline("Finalizada");
     }
-  }, [pushRealtimeTimeline, realtimeSessionId]);
+  }, [closeRealtimeVoiceTransport, pushRealtimeTimeline, realtimeSessionId]);
 
   useEffect(() => {
     if (channelMode === "chat" || sessionState !== "live") return;

@@ -18,6 +18,138 @@ import {
   getPublicMapConfigV1,
 } from './analyticsApi';
 
+const queueTruthFixture = () => ({
+  contract_version: 'operations.queue_truth.v1',
+  grain: 'one_current_open_ticket',
+  source_models: ['TenantTicket', 'MunicipioTicket', 'PymeTicket'],
+  as_of: '2026-08-02T14:30:00+00:00',
+  membership_quality: {
+    contract_version: 'operations.queue_membership_quality.v1',
+    creation_membership: 'created_at_null_or_lte_as_of',
+    null_created_at: { policy: 'included_with_unknown_age', included_records: 0 },
+    future_created_at: {
+      state: 'clean',
+      policy: 'excluded_from_queue',
+      excluded_records: 0,
+      by_source_model: [
+        { source_model: 'TenantTicket', excluded_records: 0 },
+        { source_model: 'MunicipioTicket', excluded_records: 0 },
+        { source_model: 'PymeTicket', excluded_records: 0 },
+      ],
+    },
+  },
+  coverage: {
+    source_records: 9,
+    source_models: [
+      { source_model: 'TenantTicket', open_records: 5 },
+      { source_model: 'MunicipioTicket', open_records: 3 },
+      { source_model: 'PymeTicket', open_records: 1 },
+    ],
+    tenant_scope: 'authoritative',
+    sla: { eligible: 9, known: 6, unknown: 3, non_eligible: 0, known_pct: 66.67 },
+    age: { known: 9, unknown: 0, known_pct: 100 },
+    ownership: { known: 9, unknown: 0, known_pct: 100 },
+  },
+  queue_snapshot: {
+    grain: 'one_current_open_ticket',
+    as_of: '2026-08-02T14:30:00+00:00',
+    summary: {
+      open_total: 9,
+      oldest_open_age_seconds: 800000,
+      sla_breached: 2,
+      sla_at_risk: 1,
+      sla_unknown: 3,
+      assigned: 6,
+      unassigned: 3,
+    },
+    sla: {
+      eligible: 9,
+      known: 6,
+      unknown: 3,
+      non_eligible: 0,
+      breached: 2,
+      at_risk: 1,
+      healthy: 3,
+      numerator: 2,
+      denominator: 6,
+      breach_rate_pct: 33.33,
+      at_risk_window_seconds: 14400,
+      state: 'partial',
+      unknown_reason: 'missing_sla_evidence',
+    },
+    ownership: {
+      assigned: 6,
+      unassigned: 3,
+      numerator: 6,
+      denominator: 9,
+      assignment_rate_pct: 66.67,
+      by_owner: [
+        {
+          assignee_id: '12',
+          count: 6,
+          href: '/perfil?tab=tickets&focus=assigned_open_queue&agent=12',
+          link_semantics: 'navigation_only',
+          exact_filter: false,
+        },
+      ],
+      unassigned_href: '/perfil?tab=tickets&focus=unassigned_open_queue&agent=unassigned',
+    },
+    age_buckets: [
+      {
+        key: 'lt_1h',
+        label: 'Menos de 1 hora',
+        count: 7,
+        lower_bound_seconds: 0,
+        upper_bound_seconds: 3600,
+        href: '/perfil?tab=tickets&focus=open_age_lt_1h',
+        link_semantics: 'navigation_only',
+        exact_filter: false,
+      },
+      {
+        key: 'gte_7d',
+        label: '7 dias o mas',
+        count: 2,
+        lower_bound_seconds: 604800,
+        upper_bound_seconds: null,
+        href: '/perfil?tab=tickets&focus=open_age_gte_7d',
+        link_semantics: 'navigation_only',
+        exact_filter: false,
+      },
+    ],
+    links: {
+      open: '/perfil?tab=tickets&focus=open_queue',
+      sla_breached: '/perfil?tab=tickets&focus=sla_breached_queue',
+      sla_at_risk: '/perfil?tab=tickets&focus=sla_at_risk_queue',
+      sla_unknown: '/perfil?tab=tickets&focus=sla_unknown_queue',
+      unassigned: '/perfil?tab=tickets&focus=unassigned_open_queue&agent=unassigned',
+    },
+    link_contract: {
+      open: { semantics: 'navigation_only', exact_filter: false },
+      sla_breached: { semantics: 'navigation_only', exact_filter: false },
+      sla_at_risk: { semantics: 'navigation_only', exact_filter: false },
+      sla_unknown: { semantics: 'navigation_only', exact_filter: false },
+      unassigned: { semantics: 'navigation_only', exact_filter: false },
+      ownership_by_owner: { semantics: 'navigation_only', exact_filter: false },
+      age_buckets: { semantics: 'navigation_only', exact_filter: false },
+      reason_code: 'operational_queue_v1_not_yet_bound_to_queue_truth_snapshot',
+      notice: 'Los drilldowns exactos están pendientes; estos contadores no abren filtros hasta vincular la bandeja al mismo corte y alcance.',
+    },
+  },
+  period_flow: {
+    grain: 'one_ticket_created_in_period',
+    period: { from: '2026-07-26T14:30:00', to: '2026-08-02T14:30:00' },
+    as_of: '2026-08-02T14:30:00+00:00',
+    summary: { created_total: 4, currently_open: 3, currently_closed: 1 },
+    by_source_model: [
+      { source_model: 'TenantTicket', created_records: 2 },
+      { source_model: 'MunicipioTicket', created_records: 1 },
+      { source_model: 'PymeTicket', created_records: 1 },
+    ],
+    status_semantics: 'current_status_as_of_for_tickets_created_in_period',
+    does_not_measure: ['tickets_closed_in_period', 'historical_backlog_snapshot'],
+  },
+});
+
 describe('operations heatmap v2 contract', () => {
   beforeEach(() => {
     mocks.panelGet.mockReset();
@@ -836,6 +968,7 @@ describe('operations heatmap v2 contract', () => {
         by_source_model: [{ key: 'Order', label: 'Order', count: '2' }],
         totals_by_currency: [{ key: 'ARS', currency: 'ARS', amount: '4000', count: '3' }],
       },
+      queue_truth: queueTruthFixture(),
       heatmap: { contract_version: 'operations.heatmap.v1', points: [] },
       realtime: {},
       survey_analytics: {},
@@ -880,5 +1013,141 @@ describe('operations heatmap v2 contract', () => {
     expect(response.commerce?.totals_by_currency).toEqual([
       { key: 'ARS', label: 'ARS', currency: 'ARS', amount: 4000, count: 3 },
     ]);
+    expect(response.queue_truth?.queue_snapshot?.summary).toMatchObject({
+      open_total: 9,
+      sla_unknown: 3,
+    });
+    expect(response.queue_truth?.period_flow?.grain).toBe('one_ticket_created_in_period');
+    expect(response.queue_truth?.membership_quality?.future_created_at?.state).toBe('clean');
+  });
+
+  it('omits partial, contradictory or unsafe queue truth without dropping the dashboard', async () => {
+    const partialQueueTruth = {
+      contract_version: 'operations.queue_truth.v1',
+      grain: 'one_current_open_ticket',
+      as_of: '2026-08-02T14:30:00+00:00',
+    };
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: partialQueueTruth,
+    });
+
+    const partialResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(partialResponse.queue_truth).toBeUndefined();
+    expect(partialResponse.summary.open_tickets).toBe(7);
+
+    const contradictoryQueueTruth = queueTruthFixture();
+    contradictoryQueueTruth.queue_snapshot.summary.open_total = 10;
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: contradictoryQueueTruth,
+    });
+
+    const contradictoryResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(contradictoryResponse.queue_truth).toBeUndefined();
+    expect(contradictoryResponse.summary.open_tickets).toBe(7);
+
+    const unsafeQueueTruth = queueTruthFixture();
+    unsafeQueueTruth.queue_snapshot.links.open = '//attacker.example/steal';
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: unsafeQueueTruth,
+    });
+
+    const unsafeResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(unsafeResponse.queue_truth).toBeUndefined();
+    expect(unsafeResponse.summary.open_tickets).toBe(7);
+
+    const semanticDriftQueueTruth = queueTruthFixture();
+    semanticDriftQueueTruth.queue_snapshot.link_contract.unassigned = {
+      semantics: 'exact_filter',
+      exact_filter: true,
+    };
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: semanticDriftQueueTruth,
+    });
+
+    const semanticDriftResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(semanticDriftResponse.queue_truth).toBeUndefined();
+    expect(semanticDriftResponse.summary.open_tickets).toBe(7);
+
+    const reasonCodeDriftQueueTruth = queueTruthFixture();
+    reasonCodeDriftQueueTruth.queue_snapshot.link_contract.reason_code = 'unreviewed_filter_semantics';
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: reasonCodeDriftQueueTruth,
+    });
+
+    const reasonCodeDriftResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(reasonCodeDriftResponse.queue_truth).toBeUndefined();
+    expect(reasonCodeDriftResponse.summary.open_tickets).toBe(7);
+
+    const ownerLinkDriftQueueTruth = queueTruthFixture();
+    ownerLinkDriftQueueTruth.queue_snapshot.ownership.by_owner[0].exact_filter = true;
+    ownerLinkDriftQueueTruth.queue_snapshot.ownership.by_owner[0].link_semantics = 'exact_filter';
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: ownerLinkDriftQueueTruth,
+    });
+
+    const ownerLinkDriftResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(ownerLinkDriftResponse.queue_truth).toBeUndefined();
+    expect(ownerLinkDriftResponse.summary.open_tickets).toBe(7);
+
+    const missingNoticeQueueTruth = queueTruthFixture();
+    missingNoticeQueueTruth.queue_snapshot.link_contract.notice = '   ';
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: missingNoticeQueueTruth,
+    });
+
+    const missingNoticeResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(missingNoticeResponse.queue_truth).toBeUndefined();
+    expect(missingNoticeResponse.summary.open_tickets).toBe(7);
+
+    const invalidMembershipQuality = queueTruthFixture();
+    invalidMembershipQuality.membership_quality.future_created_at.excluded_records = 2;
+    invalidMembershipQuality.membership_quality.future_created_at.state = 'quarantined';
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      summary: { open_tickets: 7 },
+      alerts: [],
+      next_best_actions: [],
+      queue_truth: invalidMembershipQuality,
+    });
+
+    const invalidMembershipResponse = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(invalidMembershipResponse.queue_truth).toBeUndefined();
+    expect(invalidMembershipResponse.summary.open_tickets).toBe(7);
   });
 });

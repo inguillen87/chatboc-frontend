@@ -17,6 +17,8 @@ const CANONICAL_RBAC_CAPABILITIES = new Set([
   'analytics.read',
   'analytics.admin',
   'settings.tenant.write',
+  'interviews.cases.read',
+  'interviews.sessions.conduct',
 ]);
 
 describe('routesConfig route capabilities', () => {
@@ -38,6 +40,27 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain('const canonicalTenantPortalRoutes');
     expect(content).toContain('...canonicalTenantPortalRoutes');
     expect(content).toContain("path: '/t/:tenant/educacion/staff/inbox'");
+    expect(content).toContain("path: '/t/:tenant/educacion/staff/admisiones/:sessionId'");
+  });
+
+  it('guards interview resume with the backend conduct capability', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const routeBlock = content.match(
+      /\{\s*path:\s*'\/t\/:tenant\/educacion\/staff\/admisiones\/:sessionId',[\s\S]*?\n\s*\},/,
+    )?.[0] ?? '';
+
+    expect(routeBlock).toContain("requiredAllCapabilities: ['interviews.sessions.conduct']");
+  });
+
+  it('guards the interview inbox with the backend case-read capability', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const routeBlock = content.match(
+      /\{\s*path:\s*'\/t\/:tenant\/educacion\/staff\/admisiones',[\s\S]*?\n\s*\},/,
+    )?.[0] ?? '';
+
+    expect(routeBlock).toContain("requiredAllCapabilities: ['interviews.cases.read']");
   });
 
   it('keeps WhatsApp webview and legacy marketplace redirects registered', () => {

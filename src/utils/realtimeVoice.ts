@@ -175,6 +175,50 @@ export const getRealtimeVoiceStarters = (capabilities?: RealtimeVoiceCapabilitie
 export type RealtimeSessionState = "idle" | "connecting" | "live" | "reconnecting" | "ended";
 export type RealtimeNetworkLatency = "good" | "unstable";
 
+interface RealtimeAudioTrackLike {
+  kind?: unknown;
+  readyState?: unknown;
+}
+
+interface RealtimeRtpEndpointLike {
+  track?: RealtimeAudioTrackLike | null;
+}
+
+export interface RealtimeVoiceTransportLike {
+  connectionState?: unknown;
+  getSenders?: (() => RealtimeRtpEndpointLike[]) | null;
+  getReceivers?: (() => RealtimeRtpEndpointLike[]) | null;
+  close?: (() => void) | null;
+}
+
+const hasLiveAudioTrack = (endpoints: RealtimeRtpEndpointLike[]) =>
+  endpoints.some(
+    (endpoint) =>
+      endpoint?.track?.kind === "audio" && endpoint.track.readyState === "live",
+  );
+
+/**
+ * A session credential only provisions access; it does not prove that a call is live.
+ * The UI may announce a live voice call only after a connected peer has both a live
+ * microphone sender and a live remote-audio receiver.
+ */
+export const hasConnectedRealtimeVoiceTransport = (
+  transport?: RealtimeVoiceTransportLike | null,
+) => {
+  if (!transport || transport.connectionState !== "connected") return false;
+  if (typeof transport.getSenders !== "function") return false;
+  if (typeof transport.getReceivers !== "function") return false;
+
+  try {
+    return (
+      hasLiveAudioTrack(transport.getSenders()) &&
+      hasLiveAudioTrack(transport.getReceivers())
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const getRealtimeModeLabel = (mode: "voice" | "video") =>
   mode === "video" ? "Canal visual" : "Llamada";
 
@@ -228,6 +272,9 @@ export const getRealtimeTimelineLabel = (message?: string | null) => {
   if (normalized.includes("realtime_trial_limit_reached")) return "Limite de demo alcanzado";
   if (normalized.includes("comprobante")) return "Comprobante enviado";
   if (normalized.includes("voice_not_enabled")) return "Llamada no disponible";
+  if (normalized.includes("realtime_transport_not_connected")) {
+    return "La llamada no se conectó. Podés seguir por chat.";
+  }
   if (normalized.includes("video_unavailable") || normalized.includes("video_fallback")) {
     return "Cambiando a llamada";
   }

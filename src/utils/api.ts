@@ -158,7 +158,10 @@ const readTenantFromStoredUser = () => {
       parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant || parsed?.endpoint;
     return typeof candidate === "string" ? candidate : null;
   } catch (error) {
-    console.warn("[apiFetch] No se pudo leer tenant del usuario almacenado", error);
+    console.warn(
+      "[apiFetch] No se pudo leer tenant del usuario almacenado",
+      redactApiDiagnosticData(error),
+    );
     return null;
   }
 };
@@ -168,7 +171,10 @@ const readTenantFromStorageKey = () => {
     const candidate = safeLocalStorage.getItem("tenantSlug");
     return typeof candidate === "string" ? candidate : null;
   } catch (error) {
-    console.warn("[apiFetch] No se pudo leer tenantSlug de localStorage", error);
+    console.warn(
+      "[apiFetch] No se pudo leer tenantSlug de localStorage",
+      redactApiDiagnosticData(error),
+    );
     return null;
   }
 };
@@ -223,7 +229,10 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
         return `${url.pathname}${url.search}${url.hash}`;
       }
     } catch (error) {
-      console.warn("[apiFetch] No se pudo normalizar el path para tenant", error);
+      console.warn(
+        "[apiFetch] No se pudo normalizar el path para tenant",
+        redactApiDiagnosticData(error),
+      );
     }
 
     return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
@@ -289,7 +298,10 @@ const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: strin
     try {
       return sanitizeTenantSlug(decodeURIComponent(match[1]));
     } catch (error) {
-      console.warn("[apiFetch] No se pudo decodificar el slug de la URL", error);
+      console.warn(
+        "[apiFetch] No se pudo decodificar el slug de la URL",
+        redactApiDiagnosticData(error),
+      );
       return sanitizeTenantSlug(match[1]);
     }
   }
@@ -302,7 +314,10 @@ const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: strin
       const normalized = sanitizeTenantSlug(fromQuery);
       if (normalized) return normalized;
     } catch (error) {
-      console.warn("[apiFetch] No se pudo leer la query string para tenant", error);
+      console.warn(
+        "[apiFetch] No se pudo leer la query string para tenant",
+        redactApiDiagnosticData(error),
+      );
     }
   }
 
@@ -319,7 +334,10 @@ const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: strin
     const normalized = sanitizeTenantSlug(fromConfig);
     if (normalized) return normalized;
   } catch (error) {
-    console.warn("[apiFetch] No se pudo leer CHATBOC_CONFIG para tenant", error);
+    console.warn(
+      "[apiFetch] No se pudo leer CHATBOC_CONFIG para tenant",
+      redactApiDiagnosticData(error),
+    );
   }
 
   const subdomainTenant = sanitizeTenantSlug(readTenantFromSubdomain());
@@ -339,7 +357,10 @@ export const resolveTenantSlug = (
     try {
       safeLocalStorage.setItem("tenantSlug", resolved);
     } catch (error) {
-      console.warn("[apiFetch] No se pudo persistir tenantSlug resuelto", error);
+      console.warn(
+        "[apiFetch] No se pudo persistir tenantSlug resuelto",
+        redactApiDiagnosticData(error),
+      );
     }
   } else {
     // Attempt to recover from entity token if tenant slug resolution failed
@@ -386,6 +407,86 @@ const shouldLogVerboseApi = (): boolean => {
   }
 
   return false;
+};
+
+export const REDACTED_API_LOG_VALUE = "[REDACTED]" as const;
+
+const SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS = [
+  "authorization",
+  "token",
+  "credential",
+  "secret",
+  "apikey",
+  "pin",
+  "cookie",
+  "session",
+] as const;
+
+const isSensitiveApiDiagnosticKey = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS.some((fragment) =>
+    normalizedKey.includes(fragment),
+  );
+};
+
+/**
+ * Produces a detached, deeply redacted value exclusively for diagnostics.
+ * The original request headers/payload are never mutated.
+ */
+export const redactApiDiagnosticData = (
+  value: unknown,
+  seen: WeakSet<object> = new WeakSet<object>(),
+): unknown => {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+
+  if (typeof Headers !== "undefined" && value instanceof Headers) {
+    const redactedHeaders: Record<string, unknown> = {};
+    value.forEach((headerValue, headerName) => {
+      redactedHeaders[headerName] = isSensitiveApiDiagnosticKey(headerName)
+        ? REDACTED_API_LOG_VALUE
+        : headerValue;
+    });
+    return redactedHeaders;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactApiDiagnosticData(entry, seen));
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const source = value as Record<string, unknown>;
+  const keys =
+    value instanceof Error
+      ? Array.from(
+          new Set(["name", "message", "stack", "cause", ...Object.keys(value)]),
+        )
+      : Object.keys(value);
+  const redactedRecord: Record<string, unknown> = {};
+
+  for (const key of keys) {
+    if (isSensitiveApiDiagnosticKey(key)) {
+      redactedRecord[key] = REDACTED_API_LOG_VALUE;
+      continue;
+    }
+
+    try {
+      redactedRecord[key] = redactApiDiagnosticData(source[key], seen);
+    } catch {
+      redactedRecord[key] = "[Unavailable]";
+    }
+  }
+
+  return redactedRecord;
 };
 
 const identityTelemetryEmitted = new Set<string>();
@@ -450,13 +551,15 @@ const safeServerErrorMessage = (status?: number, fallback = 'No pudimos completa
 };
 
 const redactApiLogData = (data: unknown, status?: number, contentType?: string) => {
-  if (!isLikelyHtmlErrorBody(data)) return data;
-  return {
-    redacted: true,
-    reason: 'html_error_body',
-    status,
-    contentType,
-  };
+  const logData = isLikelyHtmlErrorBody(data)
+    ? {
+        redacted: true,
+        reason: 'html_error_body',
+        status,
+        contentType,
+      }
+    : data;
+  return redactApiDiagnosticData(logData);
 };
 
 const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number) => {
@@ -664,7 +767,10 @@ const persistOmnichannelIdentitySnapshot = (
   try {
     safeLocalStorage.setItem(key, JSON.stringify(payload));
   } catch (error) {
-    console.warn("[apiFetch] Unable to persist omnichannel identity", error);
+    console.warn(
+      "[apiFetch] Unable to persist omnichannel identity",
+      redactApiDiagnosticData(error),
+    );
   }
 };
 
@@ -798,7 +904,10 @@ export async function apiFetch<T>(
         return true;
       }
     } catch (err) {
-      console.warn("[apiFetch] Unable to determine widget environment", err);
+      console.warn(
+        "[apiFetch] Unable to determine widget environment",
+        redactApiDiagnosticData(err),
+      );
     }
 
     return false;
@@ -891,7 +1000,10 @@ export async function apiFetch<T>(
       const normalizedPathname = url.pathname.replace(/^\//, "");
       return `${normalizedPathname}${url.search}${url.hash}`;
     } catch (error) {
-      console.warn("[apiFetch] No se pudieron adjuntar query params de tenant", error);
+      console.warn(
+        "[apiFetch] No se pudieron adjuntar query params de tenant",
+        redactApiDiagnosticData(error),
+      );
       return rawPath;
     }
   };
@@ -1040,25 +1152,28 @@ export async function apiFetch<T>(
     headers.pin = normalizedPin;
     headers["X-Tracking-Pin"] = normalizedPin;
   }
-  // Log request details without exposing full tokens
+  // Keep the transport headers intact and redact only the detached diagnostic copy.
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
   const verboseLogging = shouldLogVerboseApi();
   if (verboseLogging) {
-    console.log("[apiFetch] Request", {
-      method,
-      url,
-      hasBody: !!body,
-      authToken: mask(panelToken),
-      chatAuthToken: mask(chatToken),
-      anonId: mask(anonId),
-      entityToken: mask(effectiveEntityToken || null),
-      sendAnonId,
-      widgetRequest: treatAsWidget,
-      storedRole: normalizedRole,
-      headers,
-      chatSessionIdAttached: Boolean(chatSessionId),
-      tenantSlug: effectiveTenantSlug || null,
-    });
+    console.log(
+      "[apiFetch] Request",
+      redactApiDiagnosticData({
+        method,
+        url,
+        hasBody: !!body,
+        authToken: mask(panelToken),
+        chatAuthToken: mask(chatToken),
+        anonId: mask(anonId),
+        entityToken: mask(effectiveEntityToken || null),
+        sendAnonId,
+        widgetRequest: treatAsWidget,
+        storedRole: normalizedRole,
+        headers,
+        chatSessionIdAttached: Boolean(chatSessionId),
+        tenantSlug: effectiveTenantSlug || null,
+      }),
+    );
   }
 
   const shouldOmitCredentials =
@@ -1198,7 +1313,10 @@ export async function apiFetch<T>(
     try {
       onResponse(response.clone());
     } catch (callbackError) {
-      console.warn("[apiFetch] onResponse callback failed", callbackError);
+      console.warn(
+        "[apiFetch] onResponse callback failed",
+        redactApiDiagnosticData(callbackError),
+      );
     }
   }
 
@@ -1232,7 +1350,7 @@ export async function apiFetch<T>(
       } catch (storageError) {
         console.warn(
           "[apiFetch] Unable to persist anon_id header",
-          storageError,
+          redactApiDiagnosticData(storageError),
         );
       }
     }
@@ -1257,7 +1375,7 @@ export async function apiFetch<T>(
         if (!isProduction && !options.suppressInvalidJsonWarning) {
           console.warn(
             `[apiFetch] Response body for ${method} ${url} is not valid JSON. Returning raw text instead.`,
-            parseError,
+            redactApiDiagnosticData(parseError),
           );
         }
       }
@@ -1309,12 +1427,15 @@ export async function apiFetch<T>(
     }
 
     if (verboseLogging) {
-      console.log("[apiFetch] Response", {
-        method,
-        url,
-        status: response.status,
-        data: redactApiLogData(data, response.status, responseContentType),
-      });
+      console.log(
+        "[apiFetch] Response",
+        redactApiDiagnosticData({
+          method,
+          url,
+          status: response.status,
+          data: redactApiLogData(data, response.status, responseContentType),
+        }),
+      );
     }
 
 
@@ -1408,7 +1529,7 @@ export async function apiFetch<T>(
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
         `Network/API connection issue while reaching ${BASE_API_URL}.`,
-        error
+        redactApiDiagnosticData(error)
       );
       throw new NetworkError(
         "No fue posible establecer la conexion con el servidor. Verifica tu conexion e intenta nuevamente.",
@@ -1416,7 +1537,7 @@ export async function apiFetch<T>(
       );
     }
 
-    console.error("API Fetch Error:", error);
+    console.error("API Fetch Error:", redactApiDiagnosticData(error));
     throw new NetworkError(
       "No fue posible establecer la conexion con el servidor. Verifica tu conexion e intenta nuevamente.",
       error,

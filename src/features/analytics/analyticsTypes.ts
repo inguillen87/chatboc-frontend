@@ -170,6 +170,113 @@ export interface OperationsFrontendContract {
   [key: string]: unknown;
 }
 
+export type OperationsQueueLinkSemantics = 'navigation_only' | 'exact_filter';
+
+export type OperationsQueueLinkKey =
+  | 'open'
+  | 'sla_breached'
+  | 'sla_at_risk'
+  | 'sla_unknown'
+  | 'unassigned'
+  | 'ownership_by_owner'
+  | 'age_buckets';
+
+export interface OperationsQueueLinkMetadata {
+  semantics?: OperationsQueueLinkSemantics;
+  exact_filter?: boolean;
+}
+
+export interface OperationsQueueLinkContract {
+  open?: OperationsQueueLinkMetadata;
+  sla_breached?: OperationsQueueLinkMetadata;
+  sla_at_risk?: OperationsQueueLinkMetadata;
+  sla_unknown?: OperationsQueueLinkMetadata;
+  unassigned?: OperationsQueueLinkMetadata;
+  ownership_by_owner?: OperationsQueueLinkMetadata;
+  age_buckets?: OperationsQueueLinkMetadata;
+  reason_code?: string;
+  notice?: string;
+}
+
+export interface OperationsQueueOwnerBucket {
+  assignee_id?: string;
+  count?: number;
+  href?: string;
+  link_semantics?: OperationsQueueLinkSemantics;
+  exact_filter?: boolean;
+  [key: string]: unknown;
+}
+
+export interface OperationsQueueTruthV1 {
+  contract_version?: string;
+  grain?: string;
+  source_models?: string[];
+  as_of?: string;
+  membership_quality?: {
+    contract_version?: 'operations.queue_membership_quality.v1';
+    creation_membership?: 'created_at_null_or_lte_as_of';
+    null_created_at?: {
+      policy?: 'included_with_unknown_age';
+      included_records?: number;
+    };
+    future_created_at?: {
+      state?: 'clean' | 'quarantined';
+      policy?: 'excluded_from_queue';
+      excluded_records?: number;
+      by_source_model?: Array<{
+        source_model?: string;
+        excluded_records?: number;
+      }>;
+    };
+  };
+  coverage?: {
+    source_records?: number;
+    sla?: {
+      eligible?: number;
+      known?: number;
+      unknown?: number;
+      non_eligible?: number;
+      known_pct?: number | null;
+    };
+    age?: Record<string, unknown>;
+    ownership?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  queue_snapshot?: {
+    grain?: string;
+    as_of?: string;
+    summary?: Record<string, unknown>;
+    sla?: Record<string, unknown>;
+    ownership?: {
+      assigned?: number;
+      unassigned?: number;
+      numerator?: number;
+      denominator?: number;
+      assignment_rate_pct?: number | null;
+      by_owner?: OperationsQueueOwnerBucket[];
+      unassigned_href?: string;
+      [key: string]: unknown;
+    };
+    age_buckets?: Array<OperationsBucketItem & {
+      href?: string;
+      link_semantics?: OperationsQueueLinkSemantics;
+      exact_filter?: boolean;
+    }>;
+    links?: Record<string, string>;
+    link_contract?: OperationsQueueLinkContract;
+    [key: string]: unknown;
+  };
+  period_flow?: {
+    grain?: string;
+    period?: Record<string, unknown>;
+    as_of?: string;
+    summary?: Record<string, unknown>;
+    does_not_measure?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface OperationsDashboardV1 {
   contract_version?: string;
   request_id?: string;
@@ -187,6 +294,7 @@ export interface OperationsDashboardV1 {
   live_chat?: OperationsLiveChat;
   employees?: OperationsEmployees;
   maps?: OperationsMaps;
+  queue_truth?: OperationsQueueTruthV1;
   alerts: OperationsAlert[];
   next_best_actions: OperationsActionItem[];
   ai_brief?: OperationsAIBriefV1;

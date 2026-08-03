@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/utils/api';
-import type { SurveyPublic } from '@/types/encuestas';
+import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
 
 const apiMocks = vi.hoisted(() => ({
   getPublicSurvey: vi.fn(),
@@ -68,6 +68,110 @@ describe('useSurveyPublic submission conflicts', () => {
     await waitFor(() => {
       expect(result.current.submitReasonCode).toBe(reasonCode);
       expect(result.current.duplicateDetected).toBe(duplicate);
+    });
+  });
+
+  it('keeps the credential outside React Query mutation variables', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const credential = 'sec1_ephemeral-only';
+    const payload: PublicResponsePayload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394911',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+    apiMocks.postPublicResponse.mockResolvedValueOnce({ id: 99 });
+    const { result } = renderHook(() => useSurveyPublic('consulta-segura'), { wrapper });
+    await waitFor(() => expect(result.current.survey).toEqual(survey));
+
+    await act(async () => {
+      await result.current.submit(payload, {
+        eligibilityCredential: credential,
+        eligibilityExpectation: {
+          contractVersion: 'surveys.public_eligibility.v1',
+          releaseId: 51,
+          policyVersion: 'eligibility-v1',
+          mode: 'institution_attested',
+        },
+      });
+    });
+
+    expect(apiMocks.postPublicResponse).toHaveBeenCalledWith(
+      'consulta-segura',
+      payload,
+      undefined,
+      expect.objectContaining({ eligibilityCredential: credential }),
+    );
+    const cachedVariables = queryClient.getMutationCache().getAll().map((entry) => entry.state.variables);
+    expect(cachedVariables).toEqual([payload]);
+    expect(JSON.stringify(cachedVariables)).not.toContain(credential);
+  });
+
+  it('isolates credentials across concurrent programmatic submissions', async () => {
+    const firstPayload: PublicResponsePayload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394921',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+    const secondPayload: PublicResponsePayload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394922',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [2] }],
+    };
+    const expectation = {
+      contractVersion: 'surveys.public_eligibility.v1' as const,
+      releaseId: 51,
+      policyVersion: 'eligibility-v1',
+      mode: 'institution_attested' as const,
+    };
+    let releaseRequests: (() => void) | undefined;
+    const requestGate = new Promise<void>((resolve) => {
+      releaseRequests = resolve;
+    });
+    apiMocks.postPublicResponse.mockImplementation(async () => {
+      await requestGate;
+      return { id: 99 };
+    });
+    const { result } = renderHook(() => useSurveyPublic('consulta-segura'), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.survey).toEqual(survey));
+
+    let firstRequest!: Promise<void>;
+    let secondRequest!: Promise<void>;
+    act(() => {
+      firstRequest = result.current.submit(firstPayload, {
+        eligibilityCredential: 'sec1_first-credential',
+        eligibilityExpectation: expectation,
+      });
+      secondRequest = result.current.submit(secondPayload, {
+        eligibilityCredential: 'sec1_second-credential',
+        eligibilityExpectation: expectation,
+      });
+    });
+
+    await waitFor(() => expect(apiMocks.postPublicResponse).toHaveBeenCalledTimes(2));
+    expect(apiMocks.postPublicResponse.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          'consulta-segura',
+          expect.objectContaining({ submission_id: firstPayload.submission_id }),
+          undefined,
+          expect.objectContaining({ eligibilityCredential: 'sec1_first-credential' }),
+        ],
+        [
+          'consulta-segura',
+          expect.objectContaining({ submission_id: secondPayload.submission_id }),
+          undefined,
+          expect.objectContaining({ eligibilityCredential: 'sec1_second-credential' }),
+        ],
+      ]),
+    );
+
+    releaseRequests?.();
+    await act(async () => {
+      await Promise.all([firstRequest, secondRequest]);
     });
   });
 });

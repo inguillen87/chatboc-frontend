@@ -1,6 +1,7 @@
 import { safeLocalStorage } from './safeLocalStorage';
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+const SAFE_ANON_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
 const persistAnonCookie = (anonId: string) => {
   try {
@@ -11,6 +12,28 @@ const persistAnonCookie = (anonId: string) => {
     // Ignore cookie persistence errors (e.g. in private browsing modes).
   }
 };
+
+/**
+ * Persist an anonymous identity only when it is a bounded, header-safe token.
+ *
+ * This is intentionally exported for server-issued identity upgrades (for
+ * example, after a successful passkey registration). Callers still decide
+ * which trusted response is allowed to replace the current browser identity.
+ */
+export function persistAnonId(value: unknown): string | null {
+  if (typeof window === 'undefined' || typeof value !== 'string') return null;
+
+  const anonId = value.trim();
+  if (!SAFE_ANON_ID_PATTERN.test(anonId)) return null;
+
+  try {
+    safeLocalStorage.setItem('chatboc_anon_id', anonId);
+    persistAnonCookie(anonId);
+    return anonId;
+  } catch {
+    return null;
+  }
+}
 
 export function getOrCreateAnonId(): string {
   if (typeof window === 'undefined') return '';
@@ -32,7 +55,7 @@ export function getOrCreateAnonId(): string {
       anonId =
         window.crypto?.randomUUID?.() ||
         `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
-      safeLocalStorage.setItem('chatboc_anon_id', anonId);
+      persistAnonId(anonId);
     }
     persistAnonCookie(anonId);
     return anonId;

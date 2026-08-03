@@ -161,6 +161,72 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(resolveTicketTarget).toHaveBeenCalledWith(99);
   });
 
+  it('propaga source_model al resolver un deep link con ID potencialmente colisionado', () => {
+    const resolveTicketTarget = vi.fn().mockReturnValue(new Promise(() => {}));
+    searchParamsState.value = new URLSearchParams(
+      'ticket_id=99&source_model=PymeTicket&focus=operational_queue',
+    );
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      ticketTargetResolution: {
+        ticketId: 99,
+        sourceModel: 'PymeTicket',
+        status: 'resolving',
+        ticket: null,
+        message: null,
+      },
+      resolveTicketTarget,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.getByTestId('tickets-target-resolution')).toHaveTextContent('Abriendo reclamo #99');
+    expect(resolveTicketTarget).toHaveBeenCalledWith(99, 'PymeTicket');
+  });
+
+  it('rechaza source_model desconocido sin caer en una busqueda ambigua por ID', () => {
+    const resolveTicketTarget = vi.fn().mockResolvedValue(null);
+    searchParamsState.value = new URLSearchParams('ticket_id=99&source_model=Order');
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      ticketTargetResolution: {
+        ticketId: null,
+        sourceModel: null,
+        status: 'idle',
+        ticket: null,
+        message: null,
+      },
+      resolveTicketTarget,
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('El enlace del caso no es valido');
+    expect(screen.getByRole('alert')).toHaveTextContent('origen indicado no pertenece al contrato');
+    expect(resolveTicketTarget).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /reintentar apertura/i })).not.toBeInTheDocument();
+  });
+
   it.each([
     ['forbidden', 'Tu usuario no tiene permisos para abrir el reclamo solicitado.', 'No tenes acceso a este reclamo'],
     ['not_found', 'El reclamo solicitado no existe o no esta disponible para este tenant.', 'No encontramos el reclamo solicitado'],

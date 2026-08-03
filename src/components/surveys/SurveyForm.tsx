@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { TurnstileChallenge } from '@/components/security/TurnstileChallenge';
 import {
   type PublicResponsePayload,
+  type PublicSurveySubmitOptions,
   type SurveyAnalyticsMetadata,
   type SurveyDemographicMetadata,
   type SurveyLocationMetadata,
@@ -54,6 +55,10 @@ import {
   validateSurveyConsentPublicText,
 } from '@/utils/surveyGovernance';
 import { useUser } from '@/hooks/useUser';
+import {
+  isTerminalSurveyEligibilityError,
+  resolveSurveyPublicEligibility,
+} from '@/utils/surveyEligibility';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -288,7 +293,7 @@ const shouldResetTurnstileFromError = (details?: Record<string, unknown> | null)
 
 interface SurveyFormProps {
   survey: SurveyPublic;
-  onSubmit: (payload: PublicResponsePayload) => Promise<void>;
+  onSubmit: (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => Promise<void>;
   loading?: boolean;
   defaultMetadata?: Pick<PublicResponsePayload, 'utm_campaign' | 'utm_source' | 'canal'>;
   submitErrorMessage?: string | null;
@@ -377,6 +382,10 @@ export const SurveyForm = ({
     () => resolveSurveyPublicGovernance(survey),
     [survey],
   );
+  const publicEligibility = useMemo(
+    () => resolveSurveyPublicEligibility(survey),
+    [survey],
+  );
   const requiresAuthenticatedParticipant = authMode === 'required';
   const loginHref = useMemo(() => {
     if (typeof window === 'undefined') return '/login';
@@ -409,6 +418,10 @@ export const SurveyForm = ({
   const [previewValidated, setPreviewValidated] = useState(false);
   const [governanceConsentAccepted, setGovernanceConsentAccepted] = useState(false);
   const [governanceEligibilityAcknowledged, setGovernanceEligibilityAcknowledged] = useState(false);
+  const [eligibilityCredentialReady, setEligibilityCredentialReady] = useState(false);
+  const [eligibilityStatus, setEligibilityStatus] = useState<
+    'not_required' | 'required' | 'ready' | 'verifying' | 'eligible'
+  >('not_required');
   const [publicConsentIntegrity, setPublicConsentIntegrity] = useState<PublicConsentIntegrityState>({
     status: 'pending',
     scopeKey: '',
@@ -416,6 +429,7 @@ export const SurveyForm = ({
   const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
   const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
   const submissionInFlightScopeRef = useRef<string | null>(null);
+  const eligibilityCredentialInputRef = useRef<HTMLInputElement | null>(null);
   const isDuplicateSubmission = submitReasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE;
   const currentErrorKey = useMemo(
     () => (submitErrorMessage
@@ -454,8 +468,12 @@ export const SurveyForm = ({
     !previewMode &&
     publicGovernance.required &&
     (!publicGovernance.valid || !publicConsentIntegrityVerified || governanceAcknowledgmentMissing);
+  const eligibilitySubmissionBlocked =
+    !previewMode &&
+    publicEligibility.required &&
+    (!publicEligibility.valid || !publicEligibility.available || !eligibilityCredentialReady);
   const participantUserId = user?.id === undefined || user?.id === null ? 'anonymous' : String(user.id);
-  const submissionScopeKey = `${survey.municipio_slug ?? 'global'}::${survey.slug ?? 'missing'}::${survey.instrument_revision ?? 'unversioned'}::${participantUserId}::${publicGovernance.scopeKey}`;
+  const submissionScopeKey = `${survey.municipio_slug ?? 'global'}::${survey.slug ?? 'missing'}::${survey.instrument_revision ?? 'unversioned'}::${participantUserId}::${publicGovernance.scopeKey}::${publicEligibility.scopeKey}`;
   const activeSubmissionScopeRef = useRef(submissionScopeKey);
   activeSubmissionScopeRef.current = submissionScopeKey;
 
@@ -492,13 +510,28 @@ export const SurveyForm = ({
     setPreviewValidated(false);
     setGovernanceConsentAccepted(false);
     setGovernanceEligibilityAcknowledged(false);
+    if (eligibilityCredentialInputRef.current) {
+      eligibilityCredentialInputRef.current.value = '';
+    }
+    setEligibilityCredentialReady(false);
+    setEligibilityStatus(publicEligibility.required ? 'required' : 'not_required');
     setSubmissionErrorTitle(null);
     setSubmissionErrorDetails(null);
     setDismissedErrorKey(null);
     lastTrackedSubmitErrorKeyRef.current = null;
     submissionAttemptRef.current = null;
     submissionInFlightScopeRef.current = null;
-  }, [initialState, submissionScopeKey]);
+  }, [initialState, publicEligibility.required, submissionScopeKey]);
+
+  useEffect(
+    () => () => {
+      if (eligibilityCredentialInputRef.current) {
+        eligibilityCredentialInputRef.current.value = '';
+      }
+      eligibilityCredentialInputRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -601,6 +634,11 @@ export const SurveyForm = ({
 
   useEffect(() => {
     submissionAttemptRef.current = null;
+    if (eligibilityCredentialInputRef.current) {
+      eligibilityCredentialInputRef.current.value = '';
+    }
+    setEligibilityCredentialReady(false);
+    setEligibilityStatus(publicEligibility.required ? 'required' : 'not_required');
   }, [
     answers,
     customGender,
@@ -612,6 +650,7 @@ export const SurveyForm = ({
     governanceConsentAccepted,
     governanceEligibilityAcknowledged,
     phone,
+    publicEligibility.required,
     submissionScopeKey,
   ]);
 
@@ -1063,6 +1102,11 @@ export const SurveyForm = ({
     setTurnstileToken('');
     setGovernanceConsentAccepted(false);
     setGovernanceEligibilityAcknowledged(false);
+    if (eligibilityCredentialInputRef.current) {
+      eligibilityCredentialInputRef.current.value = '';
+    }
+    setEligibilityCredentialReady(false);
+    setEligibilityStatus(publicEligibility.required ? 'required' : 'not_required');
   };
 
   const clearParticipantResponseState = () => {
@@ -1119,6 +1163,32 @@ export const SurveyForm = ({
       );
       return;
     }
+    if (publicEligibility.required && !publicEligibility.valid) {
+      setSubmissionErrorTitle('Validación de elegibilidad no disponible');
+      setSubmissionErrorDetails(
+        publicEligibility.invalidReason || 'El contrato de credenciales no es verificable.',
+      );
+      return;
+    }
+    if (publicEligibility.required && !publicEligibility.available) {
+      setSubmissionErrorTitle('Validación de elegibilidad temporalmente fuera de servicio');
+      setSubmissionErrorDetails(
+        publicEligibility.invalidReason || 'Conservá tu credencial y volvé a intentar más tarde.',
+      );
+      return;
+    }
+    const eligibilityCredential = publicEligibility.required
+      ? eligibilityCredentialInputRef.current?.value.trim() || ''
+      : '';
+    if (publicEligibility.required && (!eligibilityCredential || !publicEligibility.expectation)) {
+      setSubmissionErrorTitle('Falta la credencial de elegibilidad');
+      setSubmissionErrorDetails(
+        'Ingresá la credencial entregada por la institución para validar esta participación.',
+      );
+      setEligibilityCredentialReady(false);
+      setEligibilityStatus('required');
+      return;
+    }
     if (!validate()) return;
     if (turnstileUnavailable) {
       setSubmissionErrorTitle('No pudimos enviar tu respuesta');
@@ -1135,6 +1205,9 @@ export const SurveyForm = ({
     setSubmissionErrorDetails(null);
     setDismissedErrorKey(null);
     setSubmitting(true);
+    if (publicEligibility.required) {
+      setEligibilityStatus('verifying');
+    }
     const submittedScopeKey = submissionScopeKey;
     submissionInFlightScopeRef.current = submittedScopeKey;
     try {
@@ -1234,8 +1307,22 @@ export const SurveyForm = ({
           ? { governance: publicGovernance.acknowledgment }
           : {}),
       };
-      await onSubmit(payload);
+      if (publicEligibility.required && publicEligibility.expectation) {
+        await onSubmit(payload, {
+          eligibilityCredential,
+          eligibilityExpectation: publicEligibility.expectation,
+        });
+      } else {
+        await onSubmit(payload);
+      }
       if (activeSubmissionScopeRef.current !== submittedScopeKey) return;
+      if (publicEligibility.required) {
+        if (eligibilityCredentialInputRef.current) {
+          eligibilityCredentialInputRef.current.value = '';
+        }
+        setEligibilityCredentialReady(false);
+        setEligibilityStatus('eligible');
+      }
       submissionAttemptRef.current = null;
       clearParticipantResponseState();
     } catch (error) {
@@ -1247,6 +1334,21 @@ export const SurveyForm = ({
       const idempotencyConflict = isSurveySubmissionIdConflictError(error);
       if (reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE) {
         clearParticipantResponseState();
+      }
+      if (publicEligibility.required) {
+        if (isTerminalSurveyEligibilityError(error)) {
+          if (eligibilityCredentialInputRef.current) {
+            eligibilityCredentialInputRef.current.value = '';
+          }
+          setEligibilityCredentialReady(false);
+          setEligibilityStatus('required');
+        } else {
+          const credentialStillPresent = Boolean(
+            eligibilityCredentialInputRef.current?.value.trim(),
+          );
+          setEligibilityCredentialReady(credentialStillPresent);
+          setEligibilityStatus(credentialStillPresent ? 'ready' : 'required');
+        }
       }
       setSubmissionErrorTitle(
         reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE
@@ -1469,6 +1571,68 @@ export const SurveyForm = ({
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               <AlertTitle>Participación gobernada bloqueada</AlertTitle>
               <AlertDescription>{publicGovernance.invalidReason}</AlertDescription>
+            </Alert>
+          )
+        ) : null}
+        {!previewMode && !readOnly && publicEligibility.restricted ? (
+          publicEligibility.valid && publicEligibility.available ? (
+            <section
+              className="space-y-3 rounded-xl border border-emerald-300/70 bg-emerald-50 p-4 text-emerald-950"
+              aria-labelledby="survey-eligibility-title"
+              data-testid="survey-eligibility-gate"
+              data-eligibility-state={eligibilityStatus}
+            >
+              <div className="space-y-1">
+                <h3 id="survey-eligibility-title" className="flex items-center gap-2 font-semibold">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  Validación de elegibilidad
+                </h3>
+                <p className="text-sm">
+                  Esta consulta requiere una credencial opaca emitida por un operador autorizado según la política
+                  publicada. Chatboc no la copia al historial, la caché ni el almacenamiento local; se usa solamente
+                  durante este envío.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="survey-eligibility-credential">Credencial de elegibilidad</Label>
+                <Input
+                  id="survey-eligibility-credential"
+                  name="survey-eligibility-credential"
+                  type="password"
+                  autoComplete="one-time-code"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  ref={eligibilityCredentialInputRef}
+                  disabled={Boolean(loading || submitting)}
+                  aria-describedby="survey-eligibility-status"
+                  onInput={(event) => {
+                    const ready = Boolean(event.currentTarget.value.trim());
+                    setEligibilityCredentialReady(ready);
+                    setEligibilityStatus(ready ? 'ready' : 'required');
+                  }}
+                />
+                <p id="survey-eligibility-status" className="text-xs" role="status" aria-live="polite">
+                  {eligibilityStatus === 'verifying'
+                    ? 'Verificando la credencial y registrando la respuesta en una única operación segura…'
+                    : eligibilityStatus === 'eligible'
+                      ? 'Elegibilidad confirmada mediante un recibo durable.'
+                      : eligibilityStatus === 'ready'
+                        ? 'Credencial lista. Se verificará recién cuando envíes la respuesta.'
+                        : 'Ingresá la credencial para habilitar el envío.'}
+                </p>
+                <p className="text-xs font-medium">
+                  Esta validación no certifica secreto del voto, una elección regulada ni sus resultados.
+                </p>
+              </div>
+            </section>
+          ) : (
+            <Alert variant="destructive" data-testid="survey-eligibility-unavailable">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              <AlertTitle>Validación de elegibilidad no disponible</AlertTitle>
+              <AlertDescription>
+                {publicEligibility.invalidReason ||
+                  'Conservá tu credencial y volvé a intentar cuando el municipio restablezca este acceso.'}
+              </AlertDescription>
             </Alert>
           )
         ) : null}
@@ -1954,7 +2118,8 @@ export const SurveyForm = ({
               submitting ||
               turnstileUnavailable ||
               turnstileMissingToken ||
-              governanceSubmissionBlocked
+              governanceSubmissionBlocked ||
+              eligibilitySubmissionBlocked
             }
             onClick={handleSubmit}
             className="w-full md:w-auto"
@@ -1962,7 +2127,7 @@ export const SurveyForm = ({
             {previewMode
               ? 'Validar esta ruta'
               : loading || submitting
-                ? 'Enviando…'
+                ? (publicEligibility.required ? 'Validando y enviando…' : 'Enviando…')
                 : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
             </Button>
           </div>

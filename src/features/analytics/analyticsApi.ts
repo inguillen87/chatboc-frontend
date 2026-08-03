@@ -22,6 +22,7 @@ import type {
   OperationsHeatmapGeoFeatureCollection,
   OperationsHeatmapPoint,
   OperationsHeatmapV1,
+  OperationsQueueTruthV1,
   OperationsTrend,
   PublicMapConfigV1,
 } from './analyticsTypes';
@@ -423,6 +424,319 @@ const normalizeMaps = (value: unknown) => {
   };
 };
 
+const QUEUE_TRUTH_SOURCE_MODELS = ['TenantTicket', 'MunicipioTicket', 'PymeTicket'] as const;
+const QUEUE_TRUTH_GRAIN = 'one_current_open_ticket';
+const PERIOD_FLOW_GRAIN = 'one_ticket_created_in_period';
+const ISO_INSTANT_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+const isIsoInstantWithZone = (value: unknown): value is string =>
+  typeof value === 'string' && ISO_INSTANT_WITH_ZONE.test(value) && Number.isFinite(Date.parse(value));
+
+const isIsoDateTime = (value: unknown): value is string =>
+  typeof value === 'string' && value.includes('T') && Number.isFinite(Date.parse(value));
+
+const strictCount = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = record[key];
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+};
+
+const matchesPercentage = (value: unknown, numerator: number, denominator: number): boolean => {
+  if (denominator === 0) return value === null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) return false;
+  const expected = Math.round((numerator / denominator) * 10_000) / 100;
+  return Math.abs(value - expected) <= 0.01;
+};
+
+const isSafeInternalNavigationHref = (value: unknown): value is string => {
+  if (typeof value !== 'string' || value !== value.trim() || !value.startsWith('/') || value.startsWith('//')) {
+    return false;
+  }
+  if (/[\\\u0000-\u001f\u007f]/.test(value)) return false;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return false;
+  }
+  if (decoded.startsWith('//') || decoded.includes('\\') || /[\u0000-\u001f\u007f]/.test(decoded)) return false;
+  try {
+    const base = new URL('https://chatboc.invalid');
+    const resolved = new URL(value, base);
+    return resolved.origin === base.origin && !resolved.username && !resolved.password;
+  } catch {
+    return false;
+  }
+};
+
+const hasExactQueueSourceModels = (value: unknown): value is string[] => {
+  if (!Array.isArray(value) || value.length !== QUEUE_TRUTH_SOURCE_MODELS.length) return false;
+  if (!value.every((item): item is string => typeof item === 'string')) return false;
+  const unique = new Set(value);
+  return unique.size === QUEUE_TRUTH_SOURCE_MODELS.length
+    && QUEUE_TRUTH_SOURCE_MODELS.every((sourceModel) => unique.has(sourceModel));
+};
+
+const validateSourceBreakdown = (
+  value: unknown,
+  countKey: 'open_records' | 'created_records' | 'excluded_records',
+  expectedTotal: number,
+): boolean => {
+  if (!Array.isArray(value) || value.length !== QUEUE_TRUTH_SOURCE_MODELS.length) return false;
+  const seen = new Set<string>();
+  let total = 0;
+  for (const item of value) {
+    if (!isRecord(item)) return false;
+    const sourceModel = asString(item.source_model);
+    const count = strictCount(item, countKey);
+    if (!sourceModel || !QUEUE_TRUTH_SOURCE_MODELS.includes(sourceModel as typeof QUEUE_TRUTH_SOURCE_MODELS[number])) {
+      return false;
+    }
+    if (count === undefined || seen.has(sourceModel)) return false;
+    seen.add(sourceModel);
+    total += count;
+  }
+  return total === expectedTotal;
+};
+
+const normalizeQueueTruth = (value: unknown): OperationsQueueTruthV1 | undefined => {
+  if (!isRecord(value)) return undefined;
+  if (value.contract_version !== 'operations.queue_truth.v1' || value.grain !== QUEUE_TRUTH_GRAIN) {
+    return undefined;
+  }
+  if (!isIsoInstantWithZone(value.as_of) || !hasExactQueueSourceModels(value.source_models)) {
+    return undefined;
+  }
+
+  const coverage = pickRecord(value.coverage);
+  const coverageSla = pickRecord(coverage?.sla);
+  const coverageAge = pickRecord(coverage?.age);
+  const coverageOwnership = pickRecord(coverage?.ownership);
+  const snapshot = pickRecord(value.queue_snapshot);
+  const summary = pickRecord(snapshot?.summary);
+  const sla = pickRecord(snapshot?.sla);
+  const ownership = pickRecord(snapshot?.ownership);
+  const links = pickRecord(snapshot?.links);
+  const linkContract = pickRecord(snapshot?.link_contract);
+  const periodFlow = pickRecord(value.period_flow);
+  const period = pickRecord(periodFlow?.period);
+  const periodSummary = pickRecord(periodFlow?.summary);
+  const membershipQuality = pickRecord(value.membership_quality);
+  const nullCreatedAt = pickRecord(membershipQuality?.null_created_at);
+  const futureCreatedAt = pickRecord(membershipQuality?.future_created_at);
+  if (
+    !coverage || !coverageSla || !coverageAge || !coverageOwnership
+    || !snapshot || !summary || !sla || !ownership || !links || !linkContract
+    || !periodFlow || !period || !periodSummary
+    || !membershipQuality || !nullCreatedAt || !futureCreatedAt
+  ) {
+    return undefined;
+  }
+  if (
+    coverage.tenant_scope !== 'authoritative'
+    || snapshot.grain !== QUEUE_TRUTH_GRAIN
+    || snapshot.as_of !== value.as_of
+    || periodFlow.grain !== PERIOD_FLOW_GRAIN
+    || periodFlow.as_of !== value.as_of
+    || !isIsoDateTime(period.from)
+    || !isIsoDateTime(period.to)
+    || Date.parse(period.from) > Date.parse(period.to)
+  ) {
+    return undefined;
+  }
+
+  const openTotal = strictCount(summary, 'open_total');
+  const assigned = strictCount(summary, 'assigned');
+  const unassigned = strictCount(summary, 'unassigned');
+  const summaryBreached = strictCount(summary, 'sla_breached');
+  const summaryAtRisk = strictCount(summary, 'sla_at_risk');
+  const summaryUnknown = strictCount(summary, 'sla_unknown');
+  const oldestOpenAge = summary.oldest_open_age_seconds;
+  const eligible = strictCount(sla, 'eligible');
+  const known = strictCount(sla, 'known');
+  const unknown = strictCount(sla, 'unknown');
+  const nonEligible = strictCount(sla, 'non_eligible');
+  const breached = strictCount(sla, 'breached');
+  const atRisk = strictCount(sla, 'at_risk');
+  const healthy = strictCount(sla, 'healthy');
+  const numerator = strictCount(sla, 'numerator');
+  const denominator = strictCount(sla, 'denominator');
+  const riskWindowSeconds = strictCount(sla, 'at_risk_window_seconds');
+  if (
+    [openTotal, assigned, unassigned, summaryBreached, summaryAtRisk, summaryUnknown,
+      eligible, known, unknown, nonEligible, breached, atRisk, healthy, numerator,
+      denominator, riskWindowSeconds].some((item) => item === undefined)
+    || (oldestOpenAge !== null
+      && !(typeof oldestOpenAge === 'number' && Number.isSafeInteger(oldestOpenAge) && oldestOpenAge >= 0))
+  ) {
+    return undefined;
+  }
+  if (
+    openTotal !== assigned + unassigned
+    || openTotal !== eligible + nonEligible
+    || known + unknown !== eligible
+    || breached > known
+    || atRisk > known
+    || breached + atRisk > known
+    || healthy + breached + atRisk !== known
+    || numerator !== breached
+    || denominator !== known
+    || summaryBreached !== breached
+    || summaryAtRisk !== atRisk
+    || summaryUnknown !== unknown
+    || riskWindowSeconds === 0
+    || !matchesPercentage(sla.breach_rate_pct, breached, known)
+  ) {
+    return undefined;
+  }
+
+  const expectedSlaState = eligible === 0
+    ? 'empty'
+    : known === 0
+      ? 'unavailable'
+      : unknown > 0
+        ? 'partial'
+        : 'available';
+  if (sla.state !== expectedSlaState) return undefined;
+
+  const coverageSourceRecords = strictCount(coverage, 'source_records');
+  const coverageEligible = strictCount(coverageSla, 'eligible');
+  const coverageKnown = strictCount(coverageSla, 'known');
+  const coverageUnknown = strictCount(coverageSla, 'unknown');
+  const coverageNonEligible = strictCount(coverageSla, 'non_eligible');
+  const ageKnown = strictCount(coverageAge, 'known');
+  const ageUnknown = strictCount(coverageAge, 'unknown');
+  const ownershipKnown = strictCount(coverageOwnership, 'known');
+  const ownershipUnknown = strictCount(coverageOwnership, 'unknown');
+  const nullCreatedAtIncluded = strictCount(nullCreatedAt, 'included_records');
+  const futureCreatedAtExcluded = strictCount(futureCreatedAt, 'excluded_records');
+  if (
+    coverageSourceRecords !== openTotal
+    || coverageEligible !== eligible
+    || coverageKnown !== known
+    || coverageUnknown !== unknown
+    || coverageNonEligible !== nonEligible
+    || ageKnown === undefined
+    || ageUnknown === undefined
+    || ageKnown + ageUnknown !== openTotal
+    || ownershipKnown !== openTotal
+    || ownershipUnknown !== 0
+    || membershipQuality.contract_version !== 'operations.queue_membership_quality.v1'
+    || membershipQuality.creation_membership !== 'created_at_null_or_lte_as_of'
+    || nullCreatedAt.policy !== 'included_with_unknown_age'
+    || nullCreatedAtIncluded !== ageUnknown
+    || futureCreatedAt.policy !== 'excluded_from_queue'
+    || futureCreatedAtExcluded === undefined
+    || futureCreatedAt.state !== (futureCreatedAtExcluded > 0 ? 'quarantined' : 'clean')
+    || !validateSourceBreakdown(
+      futureCreatedAt.by_source_model,
+      'excluded_records',
+      futureCreatedAtExcluded ?? -1,
+    )
+    || !matchesPercentage(coverageSla.known_pct, known, eligible)
+    || !matchesPercentage(coverageAge.known_pct, ageKnown, openTotal)
+    || !matchesPercentage(coverageOwnership.known_pct, openTotal, openTotal)
+    || !validateSourceBreakdown(coverage.source_models, 'open_records', openTotal)
+  ) {
+    return undefined;
+  }
+
+  const ownershipAssigned = strictCount(ownership, 'assigned');
+  const ownershipUnassigned = strictCount(ownership, 'unassigned');
+  const ownershipNumerator = strictCount(ownership, 'numerator');
+  const ownershipDenominator = strictCount(ownership, 'denominator');
+  if (
+    ownershipAssigned !== assigned
+    || ownershipUnassigned !== unassigned
+    || ownershipNumerator !== assigned
+    || ownershipDenominator !== openTotal
+    || !matchesPercentage(ownership.assignment_rate_pct, assigned, openTotal)
+    || !isSafeInternalNavigationHref(ownership.unassigned_href)
+    || !Array.isArray(ownership.by_owner)
+  ) {
+    return undefined;
+  }
+  for (const owner of ownership.by_owner) {
+    if (!isRecord(owner) || !asString(owner.assignee_id) || strictCount(owner, 'count') === undefined) return undefined;
+    if (
+      !isSafeInternalNavigationHref(owner.href)
+      || owner.exact_filter !== false
+      || owner.link_semantics !== 'navigation_only'
+    ) {
+      return undefined;
+    }
+  }
+
+  if (!Array.isArray(snapshot.age_buckets) || snapshot.age_buckets.length === 0) return undefined;
+  const ageKeys = new Set<string>();
+  let bucketTotal = 0;
+  let unknownAgeBucketTotal = 0;
+  for (const bucket of snapshot.age_buckets) {
+    if (!isRecord(bucket)) return undefined;
+    const key = asString(bucket.key);
+    const count = strictCount(bucket, 'count');
+    if (!key || count === undefined || ageKeys.has(key)) return undefined;
+    const lowerBound = bucket.lower_bound_seconds;
+    const upperBound = bucket.upper_bound_seconds;
+    const validLowerBound = lowerBound === null
+      || (typeof lowerBound === 'number' && Number.isSafeInteger(lowerBound) && lowerBound >= 0);
+    const validUpperBound = upperBound === null
+      || (typeof upperBound === 'number' && Number.isSafeInteger(upperBound) && upperBound >= 0);
+    if (!validLowerBound || !validUpperBound) return undefined;
+    if (typeof lowerBound === 'number' && typeof upperBound === 'number' && upperBound <= lowerBound) return undefined;
+    if (!isSafeInternalNavigationHref(bucket.href) || bucket.exact_filter !== false || bucket.link_semantics !== 'navigation_only') {
+      return undefined;
+    }
+    ageKeys.add(key);
+    bucketTotal += count;
+    if (key === 'unknown') unknownAgeBucketTotal += count;
+  }
+  if (bucketTotal !== openTotal || unknownAgeBucketTotal !== ageUnknown) return undefined;
+
+  const requiredLinks = ['open', 'sla_breached', 'sla_at_risk', 'sla_unknown', 'unassigned'];
+  if (!Object.values(links).every(isSafeInternalNavigationHref)) return undefined;
+  if (!requiredLinks.every((key) => isSafeInternalNavigationHref(links[key]))) return undefined;
+  const matchesLinkSemantics = (
+    key: string,
+    semantics: 'navigation_only' | 'exact_filter',
+    exactFilter: boolean,
+  ) => {
+    const entry = pickRecord(linkContract[key]);
+    return entry?.semantics === semantics && entry.exact_filter === exactFilter;
+  };
+  if (
+    !matchesLinkSemantics('open', 'navigation_only', false)
+    || !matchesLinkSemantics('sla_breached', 'navigation_only', false)
+    || !matchesLinkSemantics('sla_at_risk', 'navigation_only', false)
+    || !matchesLinkSemantics('sla_unknown', 'navigation_only', false)
+    || !matchesLinkSemantics('age_buckets', 'navigation_only', false)
+    || !matchesLinkSemantics('unassigned', 'navigation_only', false)
+    || !matchesLinkSemantics('ownership_by_owner', 'navigation_only', false)
+    || linkContract.reason_code !== 'operational_queue_v1_not_yet_bound_to_queue_truth_snapshot'
+  ) {
+    return undefined;
+  }
+  const linkNotice = asString(linkContract.notice);
+  if (!linkNotice || linkNotice !== linkContract.notice || linkNotice.length > 240) return undefined;
+
+  const createdTotal = strictCount(periodSummary, 'created_total');
+  const currentlyOpen = strictCount(periodSummary, 'currently_open');
+  const currentlyClosed = strictCount(periodSummary, 'currently_closed');
+  if (
+    createdTotal === undefined
+    || currentlyOpen === undefined
+    || currentlyClosed === undefined
+    || currentlyOpen + currentlyClosed !== createdTotal
+    || !validateSourceBreakdown(periodFlow.by_source_model, 'created_records', createdTotal)
+    || !Array.isArray(periodFlow.does_not_measure)
+    || !periodFlow.does_not_measure.every((item): item is string => typeof item === 'string')
+    || !periodFlow.does_not_measure.includes('historical_backlog_snapshot')
+  ) {
+    return undefined;
+  }
+
+  return value as OperationsQueueTruthV1;
+};
+
 const normalizeDashboard = (response: unknown): OperationsDashboardV1 => {
   const record = pickRecord(response) ?? {};
 
@@ -440,6 +754,7 @@ const normalizeDashboard = (response: unknown): OperationsDashboardV1 => {
     live_chat: normalizeLiveChat(record.live_chat),
     employees: normalizeEmployees(record.employees),
     maps: normalizeMaps(record.maps),
+    queue_truth: normalizeQueueTruth(record.queue_truth),
     alerts: normalizeAlerts(record.alerts),
     next_best_actions: normalizeActions(record.next_best_actions),
     ai_brief: isRecord(record.ai_brief) ? normalizeAIBrief(record.ai_brief) : undefined,
@@ -1390,6 +1705,7 @@ export const getOperationsActionCenterV2 = async (params?: {
   tenant_id?: number | string | null;
   from?: string | null;
   to?: string | null;
+  days?: number | string | null;
   range?: string | null;
   scope?: string | null;
 }) => {
@@ -1405,6 +1721,7 @@ export const getOperationsAIBriefV2 = async (params?: {
   tenant_id?: number | string | null;
   from?: string | null;
   to?: string | null;
+  days?: number | string | null;
   range?: string | null;
   scope?: string | null;
 }) => {
@@ -1420,6 +1737,7 @@ export const getOperationsAIOpsQueueV2 = async (params?: {
   tenant_id?: number | string | null;
   from?: string | null;
   to?: string | null;
+  days?: number | string | null;
   range?: string | null;
   scope?: string | null;
   limit?: number | null;
@@ -1451,6 +1769,7 @@ export const getOperationsFreshnessV2 = async (params?: {
   tenant_id?: number | string | null;
   from?: string | null;
   to?: string | null;
+  days?: number | string | null;
   range?: string | null;
   scope?: string | null;
 }) => {

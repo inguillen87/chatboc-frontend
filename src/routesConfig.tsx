@@ -363,6 +363,11 @@ const routes: RouteConfig[] = [
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
+  ...withTenantPrefixes('/:tenant/tickets/board', {
+    element: <TicketsBoardPage />,
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: TICKET_READ_CAPABILITIES,
+  }),
   ...withTenantPrefixes('/:tenant/tickets', {
     element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
@@ -441,7 +446,21 @@ const routes: RouteConfig[] = [
         { path: '/educacion/staff/inbox', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         { path: '/t/:tenant/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         ...(EDUCATION_FEATURE_FLAGS.admissions_enabled
-          ? [{ path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          ? [
+              { path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+              {
+                path: '/t/:tenant/educacion/staff/admisiones',
+                element: <EducationAdmissionsPage />,
+                roles: ['tenant_admin', 'employee', 'superadmin'],
+                requiredAllCapabilities: ['interviews.cases.read'],
+              },
+              {
+                path: '/t/:tenant/educacion/staff/admisiones/:sessionId',
+                element: <EducationAdmissionsPage />,
+                roles: ['tenant_admin', 'employee', 'superadmin'],
+                requiredAllCapabilities: ['interviews.sessions.conduct'],
+              },
+            ]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.billing_enabled
           ? [{ path: '/educacion/staff/cobranzas', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]

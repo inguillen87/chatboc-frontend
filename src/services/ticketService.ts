@@ -761,7 +761,20 @@ export interface TicketDetailOptions {
 export interface TicketInboxTargetOptions {
     tenantSlug?: string | null;
     perPage?: number;
+    sourceModel?: TicketInboxSourceModel;
 }
+
+export const TICKET_INBOX_SOURCE_MODELS = [
+    'TenantTicket',
+    'MunicipioTicket',
+    'PymeTicket',
+] as const;
+
+export type TicketInboxSourceModel = (typeof TICKET_INBOX_SOURCE_MODELS)[number];
+
+export const isTicketInboxSourceModel = (value: unknown): value is TicketInboxSourceModel =>
+    typeof value === 'string' &&
+    TICKET_INBOX_SOURCE_MODELS.includes(value as TicketInboxSourceModel);
 
 export const getTicketById = async (id: string, opts?: TicketDetailOptions): Promise<Ticket> => {
     try {
@@ -841,6 +854,39 @@ export const getInboxTicketById = async (
     const numericId = Number(normalizedId);
     if (!normalizedId || !Number.isFinite(numericId)) {
         throw new ApiError('El identificador del ticket no es valido', 400);
+    }
+
+    if (options.sourceModel !== undefined && !isTicketInboxSourceModel(options.sourceModel)) {
+        throw new ApiError('El origen del ticket no es valido', 400, {
+            code: 'invalid_ticket_source_model',
+        });
+    }
+
+    if (options.sourceModel) {
+        const sourceModel = options.sourceModel;
+        const exactTicketContext: TicketEndpointContext = sourceModel === 'TenantTicket'
+            ? {
+                id: numericId,
+                tipo: 'municipio',
+                source_model: sourceModel,
+                ticket_type: 'tenant_ticket',
+                contract_version: 'tickets.v2.detail',
+                detail_endpoint: `/api/v2/tickets/${encodeURIComponent(normalizedId)}`,
+            }
+            : {
+                id: numericId,
+                tipo: sourceModel === 'PymeTicket' ? 'pyme' : 'municipio',
+                source_model: sourceModel,
+            };
+        const ticket = await getTicketById(normalizedId, {
+            tenantSlug: options.tenantSlug,
+            quiet: true,
+            ticket: exactTicketContext,
+        });
+        return {
+            ...ticket,
+            source_model: sourceModel,
+        };
     }
 
     const normalizeCandidateId = (value: unknown): number | null => {

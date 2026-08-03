@@ -16,6 +16,7 @@ import {
 
 import WhatsappOperationsHub from "@/components/admin/WhatsappOperationsHub";
 import WhatsappTemplatePacksPanel from "@/components/admin/WhatsappTemplatePacksPanel";
+import NotificationTemplatePreviewPanel from "@/components/admin/NotificationTemplatePreviewPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -318,6 +319,8 @@ const GestionPlantillasPage: React.FC = () => {
           <WhatsappOperationsHub tenantSlug={tenantSlug} canManageFlows={canManageWhatsappFlows} />
 
           <WhatsappTemplatePacksPanel tenantSlug={tenantSlug} canManage={canManageWhatsappFlows} />
+
+          <NotificationTemplatePreviewPanel tenantSlug={tenantSlug} />
 
           <Card className="border-border/70">
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

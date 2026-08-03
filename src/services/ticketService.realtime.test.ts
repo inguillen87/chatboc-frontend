@@ -453,6 +453,74 @@ describe('ticketService realtime normalization', () => {
     ]);
   });
 
+  it.each([
+    {
+      sourceModel: 'TenantTicket' as const,
+      endpoint: '/api/v2/tickets/99',
+      response: {
+        contract_version: 'tickets.v2.detail',
+        source_model: 'TenantTicket',
+        ticket: {
+          id: 99,
+          tipo: 'municipio',
+          nro_ticket: 'T-99',
+          estado: 'nuevo',
+          fecha: '2026-07-11T10:00:00.000Z',
+          messages: [{ id: 1, body: 'Detalle tenant', actor_type: 'citizen' }],
+        },
+      },
+    },
+    {
+      sourceModel: 'MunicipioTicket' as const,
+      endpoint: '/api/tickets/municipio/99',
+      response: {
+        id: 99,
+        tipo: 'municipio',
+        nro_ticket: 'M-99',
+        asunto: 'Detalle municipal',
+        estado: 'nuevo',
+        fecha: '2026-07-11T10:00:00.000Z',
+        mensajes: [{ id: 2, mensaje: 'Detalle municipal', es_admin: false }],
+      },
+    },
+    {
+      sourceModel: 'PymeTicket' as const,
+      endpoint: '/api/tickets/pyme/99',
+      response: {
+        id: 99,
+        tipo: 'pyme',
+        nro_ticket: 'P-99',
+        asunto: 'Detalle empresa',
+        estado: 'nuevo',
+        fecha: '2026-07-11T10:00:00.000Z',
+        mensajes: [{ id: 3, mensaje: 'Detalle empresa', es_admin: false }],
+      },
+    },
+  ])('resuelve $sourceModel por su endpoint exacto sin escanear IDs colisionados', async ({
+    sourceModel,
+    endpoint,
+    response,
+  }) => {
+    apiFetchMock.mockResolvedValueOnce(response);
+
+    const ticket = await getInboxTicketById(99, {
+      tenantSlug: 'junin',
+      sourceModel,
+    });
+
+    expect(ticket).toMatchObject({ id: 99, source_model: sourceModel });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(endpoint, { tenantSlug: 'junin' });
+  });
+
+  it('rechaza un source_model ajeno al contrato antes de consultar la API', async () => {
+    await expect(getInboxTicketById(99, {
+      tenantSlug: 'junin',
+      sourceModel: 'Order' as any,
+    })).rejects.toMatchObject({ status: 400 });
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it('paginates the scoped inbox until it finds the exact legacy target', async () => {
     apiFetchMock.mockResolvedValueOnce({
       tickets: [

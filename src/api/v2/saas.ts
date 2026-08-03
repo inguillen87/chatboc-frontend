@@ -1,4 +1,8 @@
 import { panelApi } from '@/api/v2/client';
+import {
+  parseWhatsappWorkflowStudioContract,
+  type WhatsappWorkflowStudioContract,
+} from '@/api/v2/whatsappWorkflowStudio';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
@@ -407,6 +411,7 @@ export interface WhatsappExperienceV2 {
   access: UnknownRecord;
   channel: UnknownRecord;
   enterprise_rules: UnknownRecord;
+  workflow_studio: WhatsappWorkflowStudioContract | null;
   contact_window: UnknownRecord;
   conversation_intelligence: UnknownRecord & {
     voice_calls?: {
@@ -1668,6 +1673,7 @@ export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperi
     access: asRecord(record.access),
     channel: asRecord(record.channel),
     enterprise_rules: asRecord(record.enterprise_rules),
+    workflow_studio: parseWhatsappWorkflowStudioContract(record.workflow_studio),
     contact_window: asRecord(record.contact_window),
     conversation_intelligence: {
       ...intelligence,

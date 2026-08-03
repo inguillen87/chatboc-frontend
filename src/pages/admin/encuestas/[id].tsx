@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 import { SurveyEditor } from '@/components/surveys/SurveyEditor';
 import { SurveyGovernancePanel } from '@/components/surveys/SurveyGovernancePanel';
+import { SurveyEligibilityAdminPanel } from '@/components/surveys/SurveyEligibilityAdminPanel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
@@ -153,6 +154,7 @@ const SurveyDetailPage = () => {
         </CardContent>
       </Card>
       <SurveyGovernancePanel surveyId={survey.id} tenantSlug={currentSlug} />
+      <SurveyEligibilityAdminPanel surveyId={survey.id} tenantSlug={currentSlug} />
       <div className="text-sm text-muted-foreground">
         <button className="underline" onClick={() => navigate('/admin/encuestas')}>
           Volver al listado

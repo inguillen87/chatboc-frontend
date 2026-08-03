@@ -11,6 +11,8 @@ const mockUser: Record<string, any> = { tenantSlug: 'demo', rol: 'admin', id: 1 
 vi.mock('@/services/ticketService', () => ({
   getTickets: (...args: unknown[]) => getTicketsMock(...args),
   getInboxTicketById: (...args: unknown[]) => getInboxTicketByIdMock(...args),
+  isTicketInboxSourceModel: (value: unknown) =>
+    ['TenantTicket', 'MunicipioTicket', 'PymeTicket'].includes(String(value)),
 }));
 
 vi.mock('@/hooks/useTicketUpdates', () => ({
@@ -167,12 +169,16 @@ const TicketTargetConsumer = () => {
       <span data-testid="target-ticket-count">{tickets.length}</span>
       <span data-testid="target-selected-ticket">{selectedTicket?.nro_ticket ?? 'none'}</span>
       <span data-testid="target-resolution-status">{ticketTargetResolution.status}</span>
+      <span data-testid="target-resolution-source">{ticketTargetResolution.sourceModel ?? 'none'}</span>
       <span data-testid="target-resolution-message">{ticketTargetResolution.message ?? 'none'}</span>
       <button type="button" onClick={() => void resolveTicketTarget(99)}>
         abrir objetivo
       </button>
       <button type="button" onClick={() => selectTicket(1)}>
         seleccionar primero
+      </button>
+      <button type="button" onClick={() => void resolveTicketTarget(99, 'PymeTicket')}>
+        resolver pyme colisionado
       </button>
     </div>
   );
@@ -450,6 +456,54 @@ describe('TicketContext unread delta reconciliation', () => {
     });
     expect(getInboxTicketByIdMock).toHaveBeenCalledWith(99, {
       tenantSlug: 'demo',
+    });
+  });
+
+  it('resuelve por source_model cuando dos fuentes comparten el mismo ID', async () => {
+    getTicketsMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 99,
+          tipo: 'municipio',
+          source_model: 'TenantTicket',
+          nro_ticket: 'T-99',
+          asunto: 'Caso tenant con ID colisionado',
+          estado: 'abierto',
+          fecha: '2026-07-11T09:00:00.000Z',
+          categoria: 'General',
+        },
+      ],
+    });
+    getInboxTicketByIdMock.mockResolvedValueOnce({
+      id: 99,
+      tipo: 'pyme',
+      source_model: 'PymeTicket',
+      nro_ticket: 'P-99',
+      asunto: 'Caso pyme exacto',
+      estado: 'abierto',
+      fecha: '2026-07-11T10:00:00.000Z',
+      categoria: 'General',
+    });
+
+    render(
+      <TicketProvider>
+        <TicketTargetConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('T-99');
+    });
+    fireEvent.click(screen.getByRole('button', { name: /resolver pyme colisionado/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('target-resolution-status').textContent).toBe('resolved');
+      expect(screen.getByTestId('target-resolution-source').textContent).toBe('PymeTicket');
+      expect(screen.getByTestId('target-selected-ticket').textContent).toBe('P-99');
+    });
+    expect(getInboxTicketByIdMock).toHaveBeenCalledWith(99, {
+      tenantSlug: 'demo',
+      sourceModel: 'PymeTicket',
     });
   });
 

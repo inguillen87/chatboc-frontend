@@ -9,6 +9,7 @@ import {
   getRealtimeVoiceToolLabels,
   getRealtimeSessionStatusLabel,
   getRealtimeTimelineLabel,
+  hasConnectedRealtimeVoiceTransport,
   isRealtimeVideoRenderable,
   isRealtimeVoiceRenderable,
 } from "./realtimeVoice";
@@ -197,5 +198,39 @@ describe("realtime voice contract helpers", () => {
     expect(getRealtimeTimelineLabel("rt_123456")).toBe("Escuchando");
     expect(getRealtimeTimelineLabel("video_fallback_voice")).toBe("Cambiando a llamada");
     expect(getRealtimeTimelineLabel("realtime_trial_limit_reached")).toBe("Limite de demo alcanzado");
+    expect(getRealtimeTimelineLabel("realtime_transport_not_connected")).toBe(
+      "La llamada no se conectó. Podés seguir por chat.",
+    );
+  });
+
+  it("does not treat a provisioned session or a partial peer as a live voice call", () => {
+    const liveAudio = { kind: "audio", readyState: "live" };
+
+    expect(hasConnectedRealtimeVoiceTransport(null)).toBe(false);
+    expect(hasConnectedRealtimeVoiceTransport({ connectionState: "connected" })).toBe(false);
+    expect(
+      hasConnectedRealtimeVoiceTransport({
+        connectionState: "connecting",
+        getSenders: () => [{ track: liveAudio }],
+        getReceivers: () => [{ track: liveAudio }],
+      }),
+    ).toBe(false);
+    expect(
+      hasConnectedRealtimeVoiceTransport({
+        connectionState: "connected",
+        getSenders: () => [{ track: liveAudio }],
+        getReceivers: () => [],
+      }),
+    ).toBe(false);
+  });
+
+  it("allows live state only for a connected peer with duplex live audio", () => {
+    expect(
+      hasConnectedRealtimeVoiceTransport({
+        connectionState: "connected",
+        getSenders: () => [{ track: { kind: "audio", readyState: "live" } }],
+        getReceivers: () => [{ track: { kind: "audio", readyState: "live" } }],
+      }),
+    ).toBe(true);
   });
 });

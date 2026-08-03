@@ -51,6 +51,7 @@ describe("GestionPlantillasPage WhatsApp permissions", () => {
     await waitFor(() => expect(pageMocks.apiFetch).toHaveBeenCalledWith("/api/ai/templates", expect.any(Object)));
     await screen.findByText("Sin plantillas rapidas cargadas");
     expect(screen.getByTestId("whatsapp-operations-permission")).toHaveTextContent("read-only");
+    expect(screen.getByTestId("notification-template-preview-panel")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Onboarding WhatsApp/i })).not.toBeInTheDocument();
   });
 

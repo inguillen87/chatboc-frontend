@@ -35,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import WorkflowStudioReadinessCard from "@/features/whatsappWorkflowStudio/WorkflowStudioReadinessCard";
+import WorkflowStudioControlPlanePanel from "@/features/whatsappWorkflowStudio/WorkflowStudioControlPlanePanel";
 import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 
 type AnyRecord = Record<string, any>;
@@ -3471,6 +3473,13 @@ export default function WhatsappOperationsHub({
       {!channelEnabled ? <SetupChecklist experience={experience} /> : null}
       <ChannelHealth experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />
       <EnterpriseRules experience={experience} />
+      <WorkflowStudioReadinessCard contract={experience.workflow_studio} />
+      {canManageFlows ? (
+        <WorkflowStudioControlPlanePanel
+          contract={experience.workflow_studio}
+          expectedTenantSlug={tenantSlug || readText(experience.tenant.slug)}
+        />
+      ) : null}
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
       <MetaPlatformPanel experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />

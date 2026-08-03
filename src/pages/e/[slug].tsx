@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
-import type { PublicResponsePayload, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
+import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { isSurveyResponseDuplicateError } from '@/utils/surveySubmissionErrors';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
@@ -130,7 +130,13 @@ const PublicSurveyPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tenantSlug = searchParams.get('tenant');
+  const hasTenantSelector =
+    searchParams.has('tenant_slug') || searchParams.has('tenant');
+  const rawTenantSlug = searchParams.has('tenant_slug')
+    ? searchParams.get('tenant_slug')
+    : searchParams.get('tenant');
+  const tenantSlug = rawTenantSlug?.trim() || null;
+  const tenantSelectorInvalid = hasTenantSelector && !tenantSlug;
   const mode = searchParams.get('mode'); // 'embed' or undefined
   const [submitted, setSubmitted] = useState(false);
   const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
@@ -152,7 +158,7 @@ const PublicSurveyPage = () => {
     submitStatus,
     submitErrorDetails,
     submitReasonCode,
-  } = useSurveyPublic(slug, { tenantSlug });
+  } = useSurveyPublic(tenantSelectorInvalid ? null : slug, { tenantSlug });
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
   const [socketLiveDashboard, setSocketLiveDashboard] = useState<SurveyLivePublicResultsPayload | undefined>(undefined);
@@ -393,10 +399,10 @@ const PublicSurveyPage = () => {
   };
 
   const handleSubmit = useCallback(
-    async (payload: PublicResponsePayload) => {
+    async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
       try {
         const finalPayload: PublicResponsePayload = { ...payload, ...metadata };
-        await submit(finalPayload);
+        await submit(finalPayload, options);
         setLastSubmission(finalPayload);
         setSubmitted(true);
         if (survey?.resultados_envivo) {
@@ -648,6 +654,18 @@ const PublicSurveyPage = () => {
     });
     void retryLoad();
   }, [errorView.actionHint, errorView.primaryLabel, errorView.requestId, failureCount, navigate, retryLoad, slug, tenantSlug]);
+
+  if (tenantSelectorInvalid) {
+    return (
+      <SurveyErrorState
+        title="Espacio institucional invalido"
+        description="El enlace no identifica un espacio institucional valido. Solicita un enlace nuevo a la organizacion."
+        primaryLabel="Ver encuestas"
+        onPrimary={() => navigate('/encuestas')}
+        reasonCode="tenant_resolution_failed"
+      />
+    );
+  }
 
   if (showLoadingSkeleton || isLoading) {
     return (

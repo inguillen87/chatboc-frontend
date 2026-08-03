@@ -563,6 +563,28 @@ describe('public survey tenant query contract', () => {
     );
   });
 
+  it('does not bypass an authoritative tenant-scoped 404 through a legacy alias', async () => {
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError('Encuesta no encontrada', 404, {
+        reason_code: 'survey_not_found',
+        action_hint: 'check_survey_link',
+      }),
+    );
+
+    await expect(
+      getPublicSurvey('movilidad-y-transporte-junin', 'tenant-equivocado'),
+    ).rejects.toMatchObject({
+      status: 404,
+      body: expect.objectContaining({ reason_code: 'survey_not_found' }),
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/movilidad-y-transporte-junin?tenant_slug=tenant-equivocado',
+      expect.objectContaining({ tenantSlug: 'tenant-equivocado', omitTenant: true }),
+    );
+  });
+
   it('serializes an explicit custom analytics range without a preset', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'surveys.live_results.v2',

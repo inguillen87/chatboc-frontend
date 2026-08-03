@@ -181,6 +181,7 @@ export interface SurveyFrontendContract {
     can_retry?: boolean;
     reset_required?: boolean;
   };
+  eligibility?: SurveyPublicEligibilityContract | null;
   can_retry?: boolean;
   reset_turnstile?: boolean;
   [key: string]: unknown;
@@ -454,6 +455,59 @@ export interface PublicResponsePayload {
   };
 }
 
+export type SurveyEligibilityMode =
+  | 'open'
+  | 'self_attested'
+  | 'institution_attested'
+  | 'manual_review';
+
+export interface SurveyPublicEligibilityTransport {
+  kind: 'http_header';
+  header_name: 'X-Survey-Eligibility-Credential';
+  meta_flow_supported: false;
+}
+
+export interface SurveyPublicEligibilityContract {
+  contract_version: 'surveys.public_eligibility.v1';
+  policy_version: string;
+  mode: SurveyEligibilityMode;
+  credential_required: boolean;
+  gate_status: 'attestation_only' | 'ready' | 'unavailable';
+  intake_available: boolean;
+  decision: 'not_evaluated' | 'credential_pending' | 'unavailable';
+  transport: SurveyPublicEligibilityTransport | null;
+  blocked_reason_code: string | null;
+  privacy_assurance: 'attestation_only' | 'pseudonymous_internal_linkability';
+  subject_identifier_exposed: false;
+  plaintext_credential_persisted: false;
+  persist_client_side: false;
+  ballot_secrecy_certified: false;
+  regulated_election_certified: false;
+  result_certified: false;
+  assurance_level: 'attestation_only' | 'human_reviewed_opaque_grant';
+  authority_binding: null | 'operator_attested_v1';
+  eligible_population: null;
+  participation_rate: null;
+  abstentions: null;
+  denominator_status: {
+    available: false;
+    reason_code: 'survey_eligible_population_not_sealed';
+  };
+}
+
+export interface SurveyEligibilityAckExpectation {
+  contractVersion: 'surveys.public_eligibility.v1';
+  releaseId: number;
+  policyVersion: string;
+  mode: 'institution_attested' | 'manual_review';
+}
+
+/** Runtime-only transport options. The credential must never be copied into PublicResponsePayload. */
+export interface PublicSurveySubmitOptions {
+  eligibilityCredential?: string;
+  eligibilityExpectation?: SurveyEligibilityAckExpectation;
+}
+
 export interface SurveyAdmin extends SurveyPublic {
   id: number;
   estado: 'borrador' | 'publicada' | 'cerrada' | 'archivada';
@@ -466,6 +520,75 @@ export interface SurveyAdmin extends SurveyPublic {
     revision: number;
     locked: boolean;
     locked_at?: string | null;
+  };
+  metricas?: SurveyAdminMetrics;
+  admin_lifecycle?: SurveyAdminLifecycle;
+}
+
+export interface SurveyAdminMetrics {
+  total_respuestas: number;
+  respuestas_ultimas_24h: number;
+  respuestas_con_coordenadas: number;
+  participantes_unicos: number;
+  ultima_respuesta_at: string | null;
+  canales?: Record<string, number>;
+  utm?: Array<Record<string, unknown>>;
+}
+
+export type SurveyAdminInstrumentKind = 'survey' | 'voting';
+export type SurveyAdminLifecyclePhase =
+  | 'draft'
+  | 'scheduled'
+  | 'collecting'
+  | 'live_voting'
+  | 'window_ended'
+  | 'closed'
+  | 'archived'
+  | 'unknown';
+
+export interface SurveyAdminLifecycleAction {
+  method: 'POST';
+  endpoint: string;
+  enabled: boolean;
+  confirmation_required?: boolean;
+  irreversible?: boolean;
+  disabled_reason_code?: string | null;
+}
+
+export interface SurveyAdminLifecycle {
+  contract_version: 'surveys.admin_lifecycle.v1';
+  instrument_kind: SurveyAdminInstrumentKind;
+  phase: SurveyAdminLifecyclePhase;
+  persisted_state: SurveyAdmin['estado'] | string;
+  accepts_responses: boolean;
+  schedule: {
+    opens_at: string | null;
+    closes_at: string | null;
+    evaluated_at: string;
+  };
+  participation: {
+    responses: number;
+    unique_participants: number;
+    responses_last_24h: number;
+    last_response_at: string | null;
+    eligible_population: number | null;
+    participation_rate: number | null;
+    abstentions: number | null;
+    denominator_status: {
+      available: boolean;
+      reason_code: string | null;
+    };
+  };
+  capabilities: {
+    can_publish: boolean;
+    can_close: boolean;
+    can_delete: boolean;
+    can_share: boolean;
+    can_view_results: boolean;
+  };
+  actions: {
+    publish: SurveyAdminLifecycleAction;
+    close: SurveyAdminLifecycleAction;
   };
 }
 
@@ -517,6 +640,31 @@ export interface SurveyGovernancePolicy {
   decision_rules?: SurveyGovernanceDecisionRules;
 }
 
+export interface SurveyGovernanceClosureManifest {
+  contract_version: 'surveys.closure_manifest.v1';
+  tenant_id: number;
+  survey_id: number;
+  release_id: number;
+  release_version: number;
+  snapshot_sha256: string;
+  policy_sha256: string;
+  response_count: number;
+  response_set_sha256: string;
+  human_review_reference_sha256: string;
+  closed_at: string;
+  assurance: {
+    scope: 'local_database_closure_integrity';
+    regulated_election_certified: false;
+    result_certified: false;
+    external_anchor_verified: false;
+  };
+}
+
+export interface SurveyGovernanceClosure {
+  manifest_sha256: string;
+  manifest: SurveyGovernanceClosureManifest;
+}
+
 export interface SurveyGovernanceRelease {
   ok?: boolean;
   contract_version: 'surveys.governance_release.v1' | string;
@@ -529,7 +677,7 @@ export interface SurveyGovernanceRelease {
   governance?: SurveyGovernancePolicy;
   published_at?: string | null;
   closed_at?: string | null;
-  closure?: Record<string, unknown> | null;
+  closure?: SurveyGovernanceClosure | null;
   completeness?: {
     public_consent?: {
       complete?: boolean;
@@ -558,6 +706,10 @@ export interface SurveyGovernanceRelease {
 export interface SurveyGovernanceReleaseList {
   ok?: boolean;
   contract_version: 'surveys.governance_releases.v1' | string;
+  tenant: {
+    id: number;
+    slug: string;
+  };
   survey_id: number;
   survey_state?: SurveyAdmin['estado'] | string;
   active_release_id?: number | null;
@@ -579,6 +731,7 @@ export interface SurveyPublicGovernanceContract {
   release_required?: boolean;
   active_release?: SurveyGovernanceRelease | null;
   latest_release?: SurveyGovernanceRelease | null;
+  eligibility?: SurveyPublicEligibilityContract | null;
   accepting_responses?: boolean;
   blocked_reason_code?: string | null;
   regulated_election_certified?: boolean;
@@ -656,10 +809,34 @@ export interface SurveyDraftPayload {
 
 export interface SurveyListResponse {
   data: SurveyAdmin[];
+  contract_version?: 'surveys.admin_list.v2' | string;
+  tenant?: { id: number | null; slug: string | null };
+  freshness?: {
+    generated_at: string;
+    source: string;
+    synthetic: boolean;
+  };
+  overview?: SurveyAdminOverview;
   meta?: {
     total: number;
     draftCount?: number;
     activeCount?: number;
+  };
+}
+
+export interface SurveyAdminOverview {
+  total: number;
+  por_estado: Record<string, number>;
+  activas: number;
+  con_respuestas: number;
+  total_respuestas: number;
+  respuestas_con_coordenadas: number;
+  respuestas_ultimas_24h: number;
+  accepting_responses: number;
+  por_tipo_instrumento: Partial<Record<SurveyAdminInstrumentKind, number>>;
+  participation_denominator: {
+    available: boolean;
+    reason_code: string | null;
   };
 }
 

@@ -3,9 +3,11 @@ import { Ticket, User } from '@/types/tickets';
 import {
   getInboxTicketById,
   getTickets,
+  isTicketInboxSourceModel,
   type TicketInboxFacetItem,
   type TicketInboxFacets,
   type TicketInboxPagination,
+  type TicketInboxSourceModel,
 } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
@@ -56,6 +58,7 @@ export type TicketTargetResolutionStatus =
 
 export interface TicketTargetResolution {
   ticketId: number | null;
+  sourceModel: TicketInboxSourceModel | null;
   status: TicketTargetResolutionStatus;
   ticket: Ticket | null;
   message: string | null;
@@ -139,6 +142,7 @@ const TICKET_WORKFLOW_METADATA_DEFER_MS = 1200;
 
 const IDLE_TICKET_TARGET_RESOLUTION: TicketTargetResolution = {
   ticketId: null,
+  sourceModel: null,
   status: 'idle',
   ticket: null,
   message: null,
@@ -416,7 +420,10 @@ interface TicketContextType {
   selectedTicket: Ticket | null;
   selectTicket: (ticketId: number | null) => void;
   ticketTargetResolution: TicketTargetResolution;
-  resolveTicketTarget: (ticketId: number) => Promise<Ticket | null>;
+  resolveTicketTarget: (
+    ticketId: number,
+    sourceModel?: TicketInboxSourceModel | null,
+  ) => Promise<Ticket | null>;
   clearTicketTarget: () => void;
   updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
   loading: boolean;
@@ -683,11 +690,18 @@ const normalizeTicketTargetId = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const ticketMatchesTarget = (ticket: Ticket | null | undefined, ticketId: number): boolean => {
+const ticketMatchesTarget = (
+  ticket: Ticket | null | undefined,
+  ticketId: number,
+  sourceModel: TicketInboxSourceModel | null = null,
+): boolean => {
   if (!ticket) return false;
-  return [ticket.id, (ticket as any).ticket_id]
+  const idMatches = [ticket.id, (ticket as any).ticket_id]
     .map(normalizeTicketTargetId)
     .some((candidateId) => candidateId === ticketId);
+  if (!idMatches || !sourceModel) return idMatches;
+  const ticketSourceModel = ticket.source_model ?? (ticket as any).sourceModel;
+  return isTicketInboxSourceModel(ticketSourceModel) && ticketSourceModel === sourceModel;
 };
 
 const isTicketTargetSelectionLocked = (resolution: TicketTargetResolution): boolean =>
@@ -716,6 +730,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const ticketTargetRequestSequenceRef = React.useRef(0);
   const ticketTargetInflightRef = React.useRef<{
     ticketId: number;
+    sourceModel: TicketInboxSourceModel | null;
     promise: Promise<Ticket | null>;
   } | null>(null);
   const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
@@ -909,14 +924,25 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     updateTicketTargetResolution(IDLE_TICKET_TARGET_RESOLUTION);
   }, [updateTicketTargetResolution]);
 
-  const resolveTicketTarget = useCallback((ticketId: number): Promise<Ticket | null> => {
+  const resolveTicketTarget = useCallback((
+    ticketId: number,
+    sourceModel?: TicketInboxSourceModel | null,
+  ): Promise<Ticket | null> => {
     const normalizedTicketId = normalizeTicketTargetId(ticketId);
-    if (normalizedTicketId === null) {
+    const normalizedSourceModel = sourceModel == null
+      ? null
+      : isTicketInboxSourceModel(sourceModel)
+        ? sourceModel
+        : null;
+    if (normalizedTicketId === null || (sourceModel != null && normalizedSourceModel === null)) {
       updateTicketTargetResolution({
         ticketId: null,
+        sourceModel: null,
         status: 'not_found',
         ticket: null,
-        message: 'El identificador del reclamo solicitado no es valido.',
+        message: normalizedTicketId === null
+          ? 'El identificador del reclamo solicitado no es valido.'
+          : 'El origen del reclamo solicitado no es valido.',
       });
       setSelectedTicket(null);
       return Promise.resolve(null);
@@ -925,6 +951,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     const currentResolution = ticketTargetResolutionRef.current;
     if (
       currentResolution.ticketId === normalizedTicketId &&
+      currentResolution.sourceModel === normalizedSourceModel &&
       currentResolution.status === 'resolved' &&
       currentResolution.ticket
     ) {
@@ -933,7 +960,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     }
 
     const currentInflight = ticketTargetInflightRef.current;
-    if (currentInflight?.ticketId === normalizedTicketId) {
+    if (
+      currentInflight?.ticketId === normalizedTicketId &&
+      currentInflight.sourceModel === normalizedSourceModel
+    ) {
       return currentInflight.promise;
     }
 
@@ -941,6 +971,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     ticketTargetRequestSequenceRef.current = requestSequence;
     updateTicketTargetResolution({
       ticketId: normalizedTicketId,
+      sourceModel: normalizedSourceModel,
       status: 'resolving',
       ticket: null,
       message: null,
@@ -948,11 +979,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setSelectedTicket(null);
 
     const promise = (async (): Promise<Ticket | null> => {
-      const loadedTicket = tickets.find((ticket) => ticketMatchesTarget(ticket, normalizedTicketId));
+      const loadedTicket = tickets.find((ticket) =>
+        ticketMatchesTarget(ticket, normalizedTicketId, normalizedSourceModel));
 
       try {
         const targetTicket = loadedTicket || await withTimeout(
-          getInboxTicketById(normalizedTicketId, { tenantSlug: activeTenantSlug }),
+          getInboxTicketById(normalizedTicketId, {
+            tenantSlug: activeTenantSlug,
+            ...(normalizedSourceModel ? { sourceModel: normalizedSourceModel } : {}),
+          }),
           TICKET_FETCH_TIMEOUT_MS,
           'La apertura del reclamo solicitado tardo demasiado en responder.',
         );
@@ -966,6 +1001,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         if (!scopedTicket) {
           updateTicketTargetResolution({
             ticketId: normalizedTicketId,
+            sourceModel: normalizedSourceModel,
             status: 'forbidden',
             ticket: null,
             message: 'Tu usuario no tiene permisos para abrir el reclamo solicitado.',
@@ -978,6 +1014,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         setSelectedTicket(scopedTicket);
         updateTicketTargetResolution({
           ticketId: normalizedTicketId,
+          sourceModel: normalizedSourceModel,
           status: 'resolved',
           ticket: scopedTicket,
           message: null,
@@ -992,6 +1029,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const nextResolution: TicketTargetResolution = status === 401 || status === 403
           ? {
               ticketId: normalizedTicketId,
+              sourceModel: normalizedSourceModel,
               status: 'forbidden',
               ticket: null,
               message: status === 401
@@ -1001,12 +1039,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           : status === 404
             ? {
                 ticketId: normalizedTicketId,
+                sourceModel: normalizedSourceModel,
                 status: 'not_found',
                 ticket: null,
                 message: 'El reclamo solicitado no existe o no esta disponible para este tenant.',
               }
             : {
                 ticketId: normalizedTicketId,
+                sourceModel: normalizedSourceModel,
                 status: 'error',
                 ticket: null,
                 message: 'No pudimos abrir el reclamo solicitado. Reintenta en unos segundos.',
@@ -1021,7 +1061,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       }
     })();
 
-    ticketTargetInflightRef.current = { ticketId: normalizedTicketId, promise };
+    ticketTargetInflightRef.current = {
+      ticketId: normalizedTicketId,
+      sourceModel: normalizedSourceModel,
+      promise,
+    };
     void promise.finally(() => {
       if (ticketTargetInflightRef.current?.promise === promise) {
         ticketTargetInflightRef.current = null;
@@ -1102,9 +1146,17 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
           if (
             targetResolution.status === 'resolved' &&
             targetResolution.ticketId !== null &&
-            (!prev || ticketMatchesTarget(prev, targetResolution.ticketId))
+            (!prev || ticketMatchesTarget(
+              prev,
+              targetResolution.ticketId,
+              targetResolution.sourceModel,
+            ))
           ) {
-            return nextTickets.find((ticket) => ticketMatchesTarget(ticket, targetResolution.ticketId!))
+            return nextTickets.find((ticket) => ticketMatchesTarget(
+              ticket,
+              targetResolution.ticketId!,
+              targetResolution.sourceModel,
+            ))
               || targetResolution.ticket;
           }
           if (prev) {
@@ -1460,9 +1512,17 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (
         ticketTargetResolution.status === 'resolved' &&
         ticketTargetResolution.ticketId !== null &&
-        (!current || ticketMatchesTarget(current, ticketTargetResolution.ticketId))
+        (!current || ticketMatchesTarget(
+          current,
+          ticketTargetResolution.ticketId,
+          ticketTargetResolution.sourceModel,
+        ))
       ) {
-        return tickets.find((ticket) => ticketMatchesTarget(ticket, ticketTargetResolution.ticketId!))
+        return tickets.find((ticket) => ticketMatchesTarget(
+          ticket,
+          ticketTargetResolution.ticketId!,
+          ticketTargetResolution.sourceModel,
+        ))
           || ticketTargetResolution.ticket;
       }
       if (!current) return current;

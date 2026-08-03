@@ -6,7 +6,7 @@ import {
 } from '@/services/webauthnClient';
 
 import { BASE_API_URL } from '@/config';
-import getOrCreateAnonId from '@/utils/anonId';
+import getOrCreateAnonId, { persistAnonId } from '@/utils/anonIdGenerator';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/$/, '');
 
@@ -19,7 +19,10 @@ const buildUrl = (path: string): string => {
 
 interface FetchOptions extends RequestInit {
   expectsJson?: boolean;
+  persistRegistrationAnonId?: boolean;
 }
+
+const PASSKEY_SERVER_ANON_ID_PATTERN = /^[a-f0-9]{32}$/;
 
 const readErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -43,7 +46,12 @@ const readErrorMessage = async (response: Response): Promise<string> => {
 };
 
 async function passkeyFetch<T = unknown>(path: string, init: FetchOptions = {}): Promise<T> {
-  const { expectsJson = true, headers, ...rest } = init;
+  const {
+    expectsJson = true,
+    persistRegistrationAnonId = false,
+    headers,
+    ...rest
+  } = init;
   const url = buildUrl(path);
   const response = await fetch(url, {
     credentials: 'include',
@@ -69,19 +77,53 @@ async function passkeyFetch<T = unknown>(path: string, init: FetchOptions = {}):
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const payload = (await response.json()) as T;
+  if (persistRegistrationAnonId) {
+    const payloadRecord = payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+    const serverAnonId = (
+      response.headers.get('X-Anon-Id') || response.headers.get('Anon-Id') || ''
+    ).trim().toLowerCase();
+    if (
+      typeof payloadRecord?.token === 'string'
+      && payloadRecord.token.trim()
+      && PASSKEY_SERVER_ANON_ID_PATTERN.test(serverAnonId)
+    ) {
+      persistAnonId(serverAnonId);
+    }
+  }
+
+  return payload;
 }
 
 export interface PasskeyLoginResult {
   ok: boolean;
   token?: string;
   entityToken?: string;
+  tenant_slug?: string;
+  tenantSlug?: string;
+  tipo_chat?: 'pyme' | 'municipio';
+  user?: PasskeyUser;
 }
 
 export interface PasskeyRegistrationResult {
   ok?: boolean;
   token?: string;
   entityToken?: string;
+  tenant_slug?: string;
+  tenantSlug?: string;
+  tipo_chat?: 'pyme' | 'municipio';
+  user?: PasskeyUser;
+}
+
+export interface PasskeyUser {
+  id: number;
+  email: string;
+  name: string;
+  rol: string;
+  role?: string;
+  tenant_slug?: string;
 }
 
 export const registerPasskey = async (
@@ -104,6 +146,7 @@ export const registerPasskey = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ attestationResponse }),
+    persistRegistrationAnonId: true,
   });
 };
 

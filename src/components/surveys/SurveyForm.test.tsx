@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveSurveyPublicGovernance, SurveyForm } from './SurveyForm';
-import type { SurveyPublic } from '@/types/encuestas';
+import type { SurveyPublic, SurveyPublicEligibilityContract } from '@/types/encuestas';
 import { ApiError, NetworkError } from '@/utils/api';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
 import { runBootstrapPrivacyMigrations } from '@/utils/bootstrapPrivacy';
@@ -144,13 +144,51 @@ const CONSENT_TEXT_V2 = 'Texto de consentimiento público v2.';
 const CONSENT_SHA256_V1 = '6d249815b4c57b0090d95e1ddd777f4514938a5bc6229ad6b2875bdef32c571e';
 const CONSENT_SHA256_V2 = '93e9006dfb83b0fea211db316335112660961f3fe5de66bcab34c19b9ef15358';
 
+const selfAttestedEligibilityContract = (
+  policyVersion: string,
+): SurveyPublicEligibilityContract => ({
+  contract_version: 'surveys.public_eligibility.v1',
+  policy_version: policyVersion,
+  mode: 'self_attested',
+  credential_required: false,
+  gate_status: 'attestation_only',
+  intake_available: true,
+  decision: 'not_evaluated',
+  transport: null,
+  blocked_reason_code: null,
+  eligible_population: null,
+  participation_rate: null,
+  abstentions: null,
+  denominator_status: {
+    available: false,
+    reason_code: 'survey_eligible_population_not_sealed',
+  },
+  privacy_assurance: 'attestation_only',
+  assurance_level: 'attestation_only',
+  authority_binding: null,
+  subject_identifier_exposed: false,
+  plaintext_credential_persisted: false,
+  persist_client_side: false,
+  ballot_secrecy_certified: false,
+  regulated_election_certified: false,
+  result_certified: false,
+});
+
 const governedSurvey = (releaseId = 51): SurveyPublic => ({
   ...baseSurvey,
+  frontend_contract: {
+    eligibility: selfAttestedEligibilityContract(
+      releaseId === 51 ? 'eligibility-v1' : 'eligibility-v2',
+    ),
+  },
   governance: {
     contract_version: 'surveys.public_governance.v1',
     mode: 'governed_release',
     release_required: true,
     accepting_responses: true,
+    eligibility: selfAttestedEligibilityContract(
+      releaseId === 51 ? 'eligibility-v1' : 'eligibility-v2',
+    ),
     regulated_election_certified: false,
     result_certified: false,
     active_release: {
@@ -205,6 +243,62 @@ const governedSurvey = (releaseId = 51): SurveyPublic => ({
     latest_release: null,
   },
 });
+
+const restrictedEligibilityContract = (
+  gateStatus: 'ready' | 'unavailable' = 'ready',
+): SurveyPublicEligibilityContract => ({
+  contract_version: 'surveys.public_eligibility.v1',
+  policy_version: 'eligibility-v1',
+  mode: 'institution_attested',
+  credential_required: true,
+  gate_status: gateStatus,
+  intake_available: gateStatus === 'ready',
+  decision: gateStatus === 'ready' ? 'credential_pending' : 'unavailable',
+  transport: {
+    kind: 'http_header',
+    header_name: 'X-Survey-Eligibility-Credential',
+    meta_flow_supported: false,
+  },
+  blocked_reason_code: gateStatus === 'ready' ? null : 'survey_eligibility_gate_unavailable',
+  eligible_population: null,
+  participation_rate: null,
+  abstentions: null,
+  denominator_status: {
+    available: false,
+    reason_code: 'survey_eligible_population_not_sealed',
+  },
+  privacy_assurance: 'pseudonymous_internal_linkability',
+  assurance_level: 'human_reviewed_opaque_grant',
+  authority_binding: 'operator_attested_v1',
+  subject_identifier_exposed: false,
+  plaintext_credential_persisted: false,
+  persist_client_side: false,
+  ballot_secrecy_certified: false,
+  regulated_election_certified: false,
+  result_certified: false,
+});
+
+const restrictedSurvey = (gateStatus: 'ready' | 'unavailable' = 'ready'): SurveyPublic => {
+  const survey = governedSurvey();
+  const eligibility = restrictedEligibilityContract(gateStatus);
+  const activeRelease = survey.governance?.active_release;
+  if (activeRelease?.governance?.eligibility) {
+    activeRelease.governance.eligibility = {
+      ...activeRelease.governance.eligibility,
+      mode: 'institution_attested',
+    };
+  }
+  survey.governance = {
+    ...survey.governance,
+    eligibility,
+    accepting_responses: gateStatus === 'ready',
+  };
+  survey.frontend_contract = {
+    contract_version: 'surveys.public_frontend.v2',
+    eligibility: { ...eligibility },
+  };
+  return survey;
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -290,6 +384,113 @@ describe('SurveyForm security contract', () => {
         respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
       }),
     );
+  });
+
+  it('blocks a restricted survey when the backend eligibility gate is unavailable', async () => {
+    const onSubmit = vi.fn();
+    render(<SurveyForm survey={restrictedSurvey('unavailable')} onSubmit={onSubmit} />);
+
+    expect(screen.getByTestId('survey-eligibility-unavailable')).toHaveTextContent(
+      /temporalmente fuera de servicio/i,
+    );
+    expect(screen.queryByLabelText(/credencial de elegibilidad/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('keeps an opaque credential only in memory across an ambiguous retry and clears it after success', async () => {
+    const credential = 'sec1_memory-only-retry';
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(new NetworkError('Network unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const storageSetSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    render(<SurveyForm survey={restrictedSurvey()} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(
+      await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i),
+    );
+    fireEvent.click(screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i));
+    const input = screen.getByLabelText(/credencial de elegibilidad/i) as HTMLInputElement;
+    expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveAttribute('autocomplete', 'one-time-code');
+    fireEvent.input(input, { target: { value: credential } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const firstPayload = onSubmit.mock.calls[0][0];
+    expect(JSON.stringify(firstPayload)).not.toContain(credential);
+    expect(onSubmit.mock.calls[0][1]).toEqual({
+      eligibilityCredential: credential,
+      eligibilityExpectation: {
+        contractVersion: 'surveys.public_eligibility.v1',
+        releaseId: 51,
+        policyVersion: 'eligibility-v1',
+        mode: 'institution_attested',
+      },
+    });
+    expect(input).toHaveValue(credential);
+    expect(storageSetSpy).not.toHaveBeenCalled();
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit.mock.calls[1][0].submission_id).toBe(firstPayload.submission_id);
+    expect(onSubmit.mock.calls[1][1].eligibilityCredential).toBe(credential);
+    await waitFor(() => expect(input).toHaveValue(''));
+  });
+
+  it('clears a terminal invalid credential and requires a new one', async () => {
+    const onSubmit = vi.fn().mockRejectedValueOnce(
+      new ApiError('Credencial inválida', 403, {
+        reason_code: 'survey_eligibility_credential_invalid',
+      }),
+    );
+    render(<SurveyForm survey={restrictedSurvey()} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(
+      await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i),
+    );
+    fireEvent.click(screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i));
+    const input = screen.getByLabelText(/credencial de elegibilidad/i) as HTMLInputElement;
+    fireEvent.input(input, { target: { value: 'sec1_terminal-invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(input).toHaveValue(''));
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.getByText(/ingresá la credencial para habilitar/i)).toBeInTheDocument();
+  });
+
+  it('clears a preserved credential and rotates the attempt when the response is edited', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new AmbiguousSurveySubmissionError('ACK incompleto'));
+    render(<SurveyForm survey={restrictedSurvey()} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByLabelText('Luminaria'));
+    fireEvent.click(
+      await screen.findByLabelText(/acepto la política de consentimiento versión consent-v1/i),
+    );
+    fireEvent.click(screen.getByLabelText(/reconozco la política de elegibilidad versión eligibility-v1/i));
+    const input = screen.getByLabelText(/credencial de elegibilidad/i) as HTMLInputElement;
+    fireEvent.input(input, { target: { value: 'sec1_clear-on-edit' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const firstSubmissionId = onSubmit.mock.calls[0][0].submission_id;
+    expect(input).toHaveValue('sec1_clear-on-edit');
+
+    fireEvent.click(screen.getByLabelText('Arbolado'));
+    await waitFor(() => expect(input).toHaveValue(''));
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+
+    fireEvent.input(input, { target: { value: 'sec1_replacement' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit.mock.calls[1][0].submission_id).not.toBe(firstSubmissionId);
   });
 
   it('fails closed when a governed public contract is incomplete', () => {
