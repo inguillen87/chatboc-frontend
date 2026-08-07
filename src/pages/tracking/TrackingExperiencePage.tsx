@@ -545,6 +545,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   } | null>(null);
   const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "fallback">("idle");
   const [socketAttempt, setSocketAttempt] = useState(0);
+  const [geocodedDestination, setGeocodedDestination] = useState<{ lat: number; lng: number; name?: string } | null>(null);
+  const geocodeAttemptedRef = React.useRef<string | null>(null);
   const pinInputRef = React.useRef<HTMLInputElement | null>(null);
   const trackingErrorRef = React.useRef<HTMLDivElement | null>(null);
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -585,7 +587,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const milestones = normalizeMilestones(payload, kind);
   const timeline = normalizeTimeline(payload);
   const attachments = normalizeTrackingAttachments(payload);
-  const mapState = normalizeMapLocations(payload);
+  const rawMapState = normalizeMapLocations(payload);
   const support = normalizeSupport(payload, kind);
   const currentIndex = Math.max(
     0,
@@ -601,6 +603,38 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     if (!Number.isFinite(parsed) || parsed <= 0) return 0;
     return Math.min(Math.max(parsed, 10_000), 60_000);
   }, [kind, support.enabled, support.pollingInterval]);
+
+  // Geocode text address via Nominatim when backend has no coordinates
+  const mapAddress = readText(
+    isRecord(payload?.map) ? payload.map : {},
+    ["address"],
+  ) || readText(
+    isRecord(payload?.location) ? payload.location : {},
+    ["address", "direccion"],
+  );
+  React.useEffect(() => {
+    if (rawMapState.destination || !rawMapState.canRender || rawMapState.fallback !== "geocode_address") return;
+    if (!mapAddress || geocodeAttemptedRef.current === mapAddress) return;
+    geocodeAttemptedRef.current = mapAddress;
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapAddress)}&limit=1`)
+      .then((r) => r.json())
+      .then((results: Array<{ lat: string; lon: string; display_name?: string }>) => {
+        if (results && results.length > 0) {
+          setGeocodedDestination({
+            lat: parseFloat(results[0].lat),
+            lng: parseFloat(results[0].lon),
+            name: mapAddress,
+          });
+        }
+      })
+      .catch(() => { /* geocoding best-effort */ });
+  }, [mapAddress, rawMapState.destination, rawMapState.canRender, rawMapState.fallback]);
+
+  // Merge geocoded destination into mapState
+  const mapState = useMemo(() => ({
+    ...rawMapState,
+    destination: rawMapState.destination || geocodedDestination,
+  }), [rawMapState, geocodedDestination]);
 
   const requestId = readText(payload, ["request_id"]);
   const canShowMap = Boolean(
