@@ -29,7 +29,7 @@ const TenantSurveyDetailPage = () => {
   const basePath = tenantSlug ? `/t/${encodeURIComponent(tenantSlug)}` : null;
   const liveExperiencePath = useMemo(() => {
     if (!surveySlug?.trim()) return null;
-    const query = tenantSlug ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+    const query = tenantSlug ? `?tenant_slug=${encodeURIComponent(tenantSlug)}` : '';
     return `/e/${encodeURIComponent(surveySlug.trim())}${query}`;
   }, [surveySlug, tenantSlug]);
 
@@ -124,7 +124,11 @@ const TenantSurveyDetailPage = () => {
                 Tu respuesta se registró correctamente. Compartí esta encuesta para invitar a más personas a sumarse.
               </p>
             </div>
-            <PublicSurveyShareActions survey={survey} submission={lastSubmission} />
+            <PublicSurveyShareActions
+              survey={survey}
+              submission={lastSubmission}
+              tenantSlug={tenantSlug}
+            />
             <div className="flex flex-wrap items-center justify-center gap-3">
               {basePath ? (
                 <Button asChild>

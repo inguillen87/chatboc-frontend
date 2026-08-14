@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ArrowRight, Bot, CalendarDays, Copy, Download, Loader2, MessageCircle, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -47,6 +47,19 @@ const formatDate = (value?: string | null) => {
   return format(parsed, "d 'de' MMMM yyyy", { locale: es });
 };
 
+const normalizeTenantSlug = (value?: string | null) => value?.trim().toLowerCase() || undefined;
+
+const resolveSurveyTenantScope = (
+  survey: Pick<SurveyPublic, 'tenant_slug'>,
+  requestedTenantSlug?: string,
+) => {
+  const recordTenantSlug = normalizeTenantSlug(survey.tenant_slug);
+  if (requestedTenantSlug && recordTenantSlug && requestedTenantSlug !== recordTenantSlug) {
+    return undefined;
+  }
+  return requestedTenantSlug || recordTenantSlug;
+};
+
 const getStatus = (survey: SurveyPublic) => {
   const now = new Date();
   const start = survey.inicio_at ? new Date(survey.inicio_at) : null;
@@ -71,9 +84,13 @@ const getStatus = (survey: SurveyPublic) => {
 };
 
 const SurveysPublicIndex = () => {
+  const [searchParams] = useSearchParams();
+  const requestedTenantSlug = normalizeTenantSlug(
+    searchParams.get('tenant_slug') ?? searchParams.get('tenant'),
+  );
   const { data, isLoading, error, refetch, isFetching } = useQuery<PublicSurveyListResult>({
-    queryKey: ['public-surveys'],
-    queryFn: () => listPublicSurveys(),
+    queryKey: ['public-surveys', requestedTenantSlug ?? 'unscoped'],
+    queryFn: () => listPublicSurveys(requestedTenantSlug),
     staleTime: 1000 * 60,
   });
 
@@ -89,6 +106,9 @@ const SurveysPublicIndex = () => {
       ? (data as any).__fallbackNotice
       : null;
   const surveys = Array.isArray(data) ? data : [];
+  const hasAmbiguousSurveyScope = surveys.some(
+    (survey) => !resolveSurveyTenantScope(survey, requestedTenantSlug),
+  );
   const rawPayload = hasBadPayload && typeof (data as any).__raw === 'string' ? (data as any).__raw : null;
   const statusCode = hasBadPayload && typeof (data as any).__status === 'number' ? (data as any).__status : null;
   const showRawFallback = hasBadPayload && !surveys.length;
@@ -120,6 +140,13 @@ const SurveysPublicIndex = () => {
 
   const activeSurveys = useMemo(() => sortAndFilterActiveSurveys(surveys), [surveys]);
   const latestSurveys = useMemo(() => activeSurveys.slice(0, 5), [activeSurveys]);
+  const scopedLatestSurveys = useMemo(() => {
+    const resolved = latestSurveys.map((survey) => {
+      const tenantSlug = resolveSurveyTenantScope(survey, requestedTenantSlug);
+      return tenantSlug ? { ...survey, tenant_slug: tenantSlug } : null;
+    });
+    return resolved.every((survey): survey is SurveyPublic => Boolean(survey)) ? resolved : [];
+  }, [latestSurveys, requestedTenantSlug]);
 
   const primarySurvey = latestSurveys[0];
   const widgetAssets = useMemo(() => getSurveyChannelAssets(primarySurvey, 'widget_chat'), [primarySurvey]);
@@ -136,18 +163,18 @@ const SurveysPublicIndex = () => {
   const aggregatedDigest = useMemo(
     () =>
       buildSurveyDigestMessage({
-        surveys: latestSurveys,
+        surveys: scopedLatestSurveys,
         channel: 'whatsapp',
         headerTitle: digestHeaderTitle,
         headerDescription: digestHeaderDescription,
         includeHeaderImage: true,
         fallbackImageUrl: heroImage ?? null,
       }),
-    [latestSurveys, digestHeaderTitle, digestHeaderDescription, heroImage],
+    [scopedLatestSurveys, digestHeaderTitle, digestHeaderDescription, heroImage],
   );
 
-  const aggregatedShareMessage = latestSurveys.length ? aggregatedDigest.message : null;
-  const aggregatedImageUrl = latestSurveys.length ? aggregatedDigest.imageUrl : null;
+  const aggregatedShareMessage = scopedLatestSurveys.length ? aggregatedDigest.message : null;
+  const aggregatedImageUrl = scopedLatestSurveys.length ? aggregatedDigest.imageUrl : null;
 
   const heroVisual = useMemo(
     () => heroImage ?? aggregatedImageUrl ?? '/images/og-encuestas.svg',
@@ -292,6 +319,19 @@ const SurveysPublicIndex = () => {
           </AlertDescription>
         </Alert>
       ) : null}
+      {hasAmbiguousSurveyScope ? (
+        <Alert
+          data-testid="public-survey-scope-warning"
+          className="border-amber-500/40 bg-amber-50 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/30 dark:text-amber-100"
+        >
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Organización no identificada</AlertTitle>
+          <AlertDescription>
+            Por seguridad, no generamos enlaces, códigos QR ni mensajes para compartir hasta confirmar a qué
+            organización pertenece cada encuesta. Abrí esta sección desde el portal oficial de tu municipio.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <section className="overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-slate-50 to-blue-50 shadow-lg shadow-primary/5 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30">
         <div className="grid gap-8 px-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="space-y-4">
@@ -375,12 +415,29 @@ const SurveysPublicIndex = () => {
           const rango = inicio && fin ? `${inicio} – ${fin}` : inicio || fin || null;
 
           const canonicalSlug = getPublicSurveyCanonicalSlug(survey);
-          const participationPath = getPublicSurveyUrl(canonicalSlug, { absolute: false }) || '#';
-          const participationUrl = getPublicSurveyUrlFromRecord(survey) || '';
-          const qrUrl = getPublicSurveyQrUrlFromRecord(survey, { size: 512 });
+          const tenantSlug = resolveSurveyTenantScope(survey, requestedTenantSlug);
+          const participationPath = tenantSlug
+            ? getPublicSurveyUrl(canonicalSlug, {
+                absolute: false,
+                tenantSlug,
+              }) || '#'
+            : '#';
+          const participationUrl = tenantSlug
+            ? getPublicSurveyUrlFromRecord(survey, { tenantSlug }) || ''
+            : '';
+          const qrUrl = tenantSlug
+            ? getPublicSurveyQrUrlFromRecord(survey, { size: 512, tenantSlug })
+            : '';
           const widgetUrl = participationUrl ? buildWidgetUrlWithChannel(participationUrl) : '';
-          const qrPagePath = getPublicSurveyQrPageUrl(canonicalSlug, { absolute: false }) || '#';
-          const qrPageUrl = getPublicSurveyQrPageUrl(canonicalSlug);
+          const qrPagePath = tenantSlug
+            ? getPublicSurveyQrPageUrl(canonicalSlug, {
+                absolute: false,
+                tenantSlug,
+              }) || '#'
+            : '#';
+          const qrPageUrl = tenantSlug
+            ? getPublicSurveyQrPageUrl(canonicalSlug, { tenantSlug })
+            : '';
           const whatsappShareMessage = participationUrl
             ? buildSurveyShareMessage(
                 survey,
@@ -472,10 +529,17 @@ const SurveysPublicIndex = () => {
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Compartí esta encuesta para ampliar la participación ciudadana.
+                      {tenantSlug
+                        ? 'Compartí esta encuesta para ampliar la participación ciudadana.'
+                        : 'La difusión estará disponible cuando el portal confirme la organización responsable.'}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleCopyLink}>
+                      <Button
+                        variant="outline"
+                        className="inline-flex items-center gap-2"
+                        onClick={handleCopyLink}
+                        disabled={!participationUrl}
+                      >
                         <Copy className="h-4 w-4" /> Copiar enlace
                       </Button>
                       <Button
@@ -504,7 +568,12 @@ const SurveysPublicIndex = () => {
                       >
                         <Bot className="h-4 w-4" /> Copiar enlace del asistente
                       </Button>
-                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWhatsApp}>
+                      <Button
+                        variant="outline"
+                        className="inline-flex items-center gap-2"
+                        onClick={handleShareWhatsApp}
+                        disabled={!whatsappShareMessage}
+                      >
                         <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                       </Button>
                       {qrUrl ? (
@@ -609,7 +678,18 @@ const SurveysPublicIndex = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-center gap-3 lg:w-56">
-                    <SurveyQrPreview slug={survey.slug} title={survey.titulo} remoteUrl={qrUrl} />
+                    {tenantSlug ? (
+                      <SurveyQrPreview
+                        slug={canonicalSlug}
+                        title={survey.titulo}
+                        tenantSlug={tenantSlug}
+                        remoteUrl={qrUrl}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                        QR no disponible hasta confirmar la organización.
+                      </div>
+                    )}
                     {qrPagePath !== '#' ? (
                       <Button variant="secondary" size="sm" asChild className="w-full">
                         <Link to={qrPagePath} className="inline-flex items-center justify-center gap-2">
@@ -624,12 +704,18 @@ const SurveysPublicIndex = () => {
                         </a>
                       </Button>
                     ) : null}
-                    <Button asChild className="w-full">
-                      <Link to={participationPath} className="inline-flex items-center justify-center gap-2">
-                        Participar
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
+                    {participationPath !== '#' ? (
+                      <Button asChild className="w-full">
+                        <Link to={participationPath} className="inline-flex items-center justify-center gap-2">
+                          Participar
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button className="w-full" disabled>
+                        Participación no disponible
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>

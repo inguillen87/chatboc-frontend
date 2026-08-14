@@ -3,7 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SurveyEditor } from './SurveyEditor';
-import type { SurveyDraftPayload } from '@/types/encuestas';
+import type { SurveyAdmin, SurveyDraftPayload } from '@/types/encuestas';
 
 vi.mock('framer-motion', () => ({
   Reorder: {
@@ -211,6 +211,10 @@ describe('SurveyEditor save and publish flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    HTMLElement.prototype.releasePointerCapture = vi.fn();
+    HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it('preserves durable document, question and option references when saving in the admin editor', async () => {
@@ -227,6 +231,156 @@ describe('SurveyEditor save and publish flow', () => {
       'option:canal-1',
       'option:canal-2',
     ]);
+  });
+
+  it('assigns the city role explicitly and persists matching backend references', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<SurveyEditor initialDraft={initialDraft} onSave={onSave} />);
+
+    fireEvent.keyDown(screen.getByRole('combobox', {
+      name: 'Uso en segmentación de la pregunta 1',
+    }), { key: 'ArrowDown' });
+    fireEvent.pointerUp(await screen.findByRole('option', { name: 'Ciudad o localidad' }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const payload = onSave.mock.calls[0][0] as SurveyDraftPayload;
+    expect(payload.preguntas[0]).toMatchObject({
+      tipo: 'opcion_unica',
+      question_ref: 'demographic:city',
+      logical_ref: 'demographic:city',
+    });
+    expect(screen.getByText(/JUNI no la deduce del enunciado/i)).toBeInTheDocument();
+  });
+
+  it('keeps adaptive references valid when assigning a demographic role', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const draftWithReportingValues: SurveyDraftPayload = {
+      ...v2AdaptiveDraft,
+      preguntas: v2AdaptiveDraft.preguntas.map((question, questionIndex) => questionIndex === 0
+        ? {
+            ...question,
+            opciones: question.opciones?.map((option, optionIndex) => ({
+              ...option,
+              valor: optionIndex === 0 ? 'web' : 'whatsapp',
+            })),
+          }
+        : question),
+    };
+    render(<SurveyEditor initialDraft={draftWithReportingValues} onSave={onSave} />);
+
+    fireEvent.keyDown(screen.getByRole('combobox', {
+      name: 'Uso en segmentación de la pregunta 1',
+    }), { key: 'ArrowDown' });
+    fireEvent.pointerUp(await screen.findByRole('option', { name: 'Ciudad o localidad' }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const payload = onSave.mock.calls[0][0] as SurveyDraftPayload;
+    expect(payload.preguntas[2].conditional_logic).toEqual({
+      version: 2,
+      show_if: {
+        kind: 'group',
+        operator: 'and',
+        children: [
+          { kind: 'option_selected', question_ref: 'demographic:city', option_ref: 'option:whatsapp' },
+          {
+            kind: 'group',
+            operator: 'or',
+            children: [
+              { kind: 'option_selected', question_ref: 'question:device', option_ref: 'option:mobile' },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it('blocks duplicate demographic roles before calling the backend', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const duplicateCityDraft: SurveyDraftPayload = {
+      ...initialDraft,
+      preguntas: [
+        {
+          ...initialDraft.preguntas[0],
+          question_ref: 'demographic:city',
+          logical_ref: 'demographic:city',
+        },
+        {
+          ...initialDraft.preguntas[0],
+          orden: 2,
+          texto: 'Otra ciudad',
+          question_ref: 'demographic:city',
+          logical_ref: 'demographic:city',
+        },
+      ],
+    };
+    render(<SurveyEditor initialDraft={duplicateCityDraft} onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/solo puede asignarse a una pregunta/i);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('requires explicit unique reporting values for demographic options', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const missingValuesDraft: SurveyDraftPayload = {
+      ...initialDraft,
+      preguntas: [{
+        ...initialDraft.preguntas[0],
+        question_ref: 'demographic:province',
+        logical_ref: 'demographic:province',
+        opciones: initialDraft.preguntas[0].opciones?.map((option) => ({
+          ...option,
+          valor: undefined,
+        })),
+      }],
+    };
+    render(<SurveyEditor initialDraft={missingValuesDraft} onSave={onSave} />);
+
+    expect(screen.getAllByPlaceholderText('Valor para informes (obligatorio)')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Completá el valor para informes/i);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('preserves and locks the role reference of an already persisted question', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const persistedSurvey = {
+      ...initialDraft,
+      id: 77,
+      estado: 'borrador',
+      preguntas: [{
+        ...initialDraft.preguntas[0],
+        id: 701,
+        question_ref: 'question:existing-city-label',
+        logical_ref: 'question:existing-city-label',
+        opciones: initialDraft.preguntas[0].opciones?.map((option, optionIndex) => ({
+          ...option,
+          id: optionIndex + 1,
+        })),
+      }],
+    } as SurveyAdmin;
+    render(<SurveyEditor survey={persistedSurvey} onSave={onSave} />);
+
+    expect(screen.getByRole('combobox', {
+      name: 'Uso en segmentación de la pregunta 1',
+    })).toBeDisabled();
+    expect(screen.getByText(/para conservar el historial/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const payload = onSave.mock.calls[0][0] as SurveyDraftPayload;
+    expect(payload.preguntas[0]).toMatchObject({
+      question_ref: 'question:existing-city-label',
+      logical_ref: 'question:existing-city-label',
+    });
   });
 
   it('saves the prepared title and option before publishing and blocks duplicate submits', async () => {
@@ -473,5 +627,61 @@ describe('SurveyEditor save and publish flow', () => {
     expect(within(previewTester).getByText(/que paso en whatsapp/i, { selector: 'h3' })).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
     expect(window.localStorage).toHaveLength(0);
+  });
+
+  it('offers a WhatsApp CTA when a published survey has a public URL', () => {
+    const survey = {
+      ...initialDraft,
+      id: 42,
+      estado: 'publicada',
+      inicio_at: '2026-08-14T12:00:00.000Z',
+      fin_at: '2026-08-21T12:00:00.000Z',
+      tenant_slug: 'tenant-equivocado',
+      url_publica: 'https://www.chatboc.ar/e/votacion-si-no',
+      preguntas: initialDraft.preguntas.map((question, questionIndex) => ({
+        ...question,
+        id: questionIndex + 1,
+        opciones: question.opciones?.map((option, optionIndex) => ({
+          ...option,
+          id: optionIndex + 1,
+        })),
+      })),
+    } as SurveyAdmin;
+
+    render(<SurveyEditor survey={survey} tenantSlug="org-demo" onSave={vi.fn()} />);
+
+    const whatsappLink = screen.getByRole('link', { name: 'Compartir por WhatsApp' });
+    const whatsappUrl = new URL(whatsappLink.getAttribute('href') ?? '');
+    expect(whatsappUrl.origin).toBe('https://wa.me');
+    expect(whatsappUrl.searchParams.get('text')).toContain(survey.titulo);
+    expect(whatsappUrl.searchParams.get('text')).toContain(
+      'https://www.chatboc.ar/e/votacion-si-no?tenant_slug=org-demo',
+    );
+    expect(whatsappUrl.searchParams.get('text')).not.toContain('tenant-equivocado');
+    expect(decodeURIComponent(screen.getByAltText('Código QR de la encuesta').getAttribute('src') ?? ''))
+      .toContain('tenant_slug=org-demo');
+  });
+
+  it('shows an honest open-ended schedule when a published survey has no closing date', () => {
+    const survey = {
+      ...initialDraft,
+      id: 43,
+      estado: 'publicada',
+      inicio_at: '2026-08-14T12:00:00.000Z',
+      fin_at: null,
+      preguntas: initialDraft.preguntas.map((question, questionIndex) => ({
+        ...question,
+        id: questionIndex + 1,
+        opciones: question.opciones?.map((option, optionIndex) => ({
+          ...option,
+          id: optionIndex + 1,
+        })),
+      })),
+    } as unknown as SurveyAdmin;
+
+    render(<SurveyEditor survey={survey} onSave={vi.fn()} />);
+
+    expect(screen.getByText('Sin fecha de cierre')).toBeInTheDocument();
+    expect(screen.queryByText(/Invalid Date/i)).not.toBeInTheDocument();
   });
 });

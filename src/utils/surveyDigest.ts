@@ -1,4 +1,9 @@
-import { getPublicSurveyQrPageUrl, getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import {
+  getPublicSurveyCanonicalSlug,
+  getPublicSurveyQrPageUrl,
+  getPublicSurveyQrUrl,
+  getPublicSurveyUrlFromRecord,
+} from '@/utils/publicSurveyUrl';
 import type { SurveyChannelAsset, SurveyPublic } from '@/types/encuestas';
 
 type ChannelKey = 'widget_chat' | 'whatsapp' | 'web' | string;
@@ -335,15 +340,21 @@ export const buildSurveyDigestMessage = ({
     if (survey.descripcion) {
       lines.push(`   ${survey.descripcion}`);
     }
-    const participationUrl = getPublicSurveyUrl(survey.slug);
+    const tenantSlug = survey.tenant_slug?.trim() || undefined;
+    const canonicalSlug = getPublicSurveyCanonicalSlug(survey);
+    const participationUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
     const widgetUrl = buildWidgetUrlWithChannel(participationUrl);
-    const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
-    const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
+    const qrPageUrl = getPublicSurveyQrPageUrl(canonicalSlug, { tenantSlug });
+    const qrUrl = getPublicSurveyQrUrl(canonicalSlug, { size: 512, tenantSlug });
     const shareLines = formatShareUrls({ participationUrl, widgetUrl, qrPageUrl, qrUrl });
     shareLines.forEach((line) => lines.push(`   ${line}`));
   });
 
-  const qrUrl = getPublicSurveyQrUrl(primary.slug, { size: 512 });
+  const primaryTenantSlug = primary.tenant_slug?.trim() || undefined;
+  const qrUrl = getPublicSurveyQrUrl(getPublicSurveyCanonicalSlug(primary), {
+    size: 512,
+    tenantSlug: primaryTenantSlug,
+  });
   if (qrUrl) {
     lines.push('');
     lines.push(

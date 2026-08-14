@@ -38,4 +38,20 @@ describe('buildSurveyDigestMessage', () => {
     expect(result.message).toContain('https://wa.me/?text=');
     expect(result.message).toContain('Compartir directo por WhatsApp');
   });
+
+  it('uses the canonical public slug and tenant scope in every generated asset', () => {
+    const result = buildSurveyDigestMessage({
+      surveys: [{
+        ...makeSurvey(1),
+        slug: 'encuesta-interna-1',
+        slug_publico: 'encuesta-publica-1',
+        tenant_slug: 'rio-grande',
+      }],
+      channel: 'whatsapp',
+    });
+
+    expect(result.message).toContain('/e/encuesta-publica-1?tenant_slug=rio-grande');
+    expect(result.message).toContain('/encuestas/encuesta-publica-1/qr?tenant_slug=rio-grande');
+    expect(result.message).not.toContain('/e/encuesta-interna-1');
+  });
 });

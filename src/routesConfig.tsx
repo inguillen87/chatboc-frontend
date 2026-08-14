@@ -183,6 +183,14 @@ const TwilioTicketTemplateRedirect = () => {
   return <Navigate to={`/tracking/claim/${suffix}`} replace />;
 };
 
+const LegacyDoubleChatTicketRedirect = () => {
+  const params = useParams();
+  const location = useLocation();
+  const ticketId = typeof params.ticketId === 'string' ? params.ticketId.trim() : '';
+  const suffix = `${encodeURIComponent(ticketId)}${location.search || ''}${location.hash || ''}`;
+  return <Navigate to={`/tracking/claim/${suffix}`} replace />;
+};
+
 const LegacyPublicTenantSlugRedirect = ({ suffix }: { suffix: string }) => {
   const params = useParams();
   const location = useLocation();
@@ -493,6 +501,7 @@ const routes: RouteConfig[] = [
   { path: '/tracking/order', element: <TrackingExperiencePage kind="order" /> },
   { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
   { path: '/t/chat/:ticketId', element: <TwilioTicketTemplateRedirect /> },
+  { path: '/chat/chat/:ticketId', element: <LegacyDoubleChatTicketRedirect /> },
   { path: '/catalogo/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/market" />, allowGuest: true },
   { path: '/checkout/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/checkout" />, allowGuest: true },
   { path: '/finanzas/:tenantSlug/:flow/:operationCode', element: <FinanceWebviewPage />, allowGuest: true },

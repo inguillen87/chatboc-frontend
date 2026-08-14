@@ -31,4 +31,23 @@ describe('legacy route redirects', () => {
       await screen.findByText('/tracking/claim/M-378430?source=twilio#pin=900144'),
     ).toBeInTheDocument();
   });
+
+  it('recovers legacy duplicated chat links as public claim tracking', async () => {
+    const redirectRoute = routes.find((route) => route.path === '/chat/chat/:ticketId');
+
+    expect(redirectRoute).toBeDefined();
+
+    render(
+      <MemoryRouter initialEntries={['/chat/chat/897013?source=whatsapp#pin=115474']}>
+        <Routes>
+          <Route path="/chat/chat/:ticketId" element={redirectRoute!.element} />
+          <Route path="/tracking/claim/:code" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText('/tracking/claim/897013?source=whatsapp#pin=115474'),
+    ).toBeInTheDocument();
+  });
 });

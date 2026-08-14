@@ -48,6 +48,8 @@ export interface SurveyPregunta {
   id: number;
   /** Stable canonical identity used by durable survey documents. */
   question_ref?: string | null;
+  /** Backend-native alias for question_ref; both must match when supplied. */
+  logical_ref?: string | null;
   orden: number;
   tipo: PreguntaTipo;
   texto: string;
@@ -317,6 +319,8 @@ export interface SurveyLivePublicResultsPayload {
 
 export interface SurveyPublic {
   id?: number;
+  /** Authoritative tenant selector required when public slugs are reused across organizations. */
+  tenant_slug?: string | null;
   /** Durable builder document that materialized this survey, when applicable. */
   document_ref?: string | null;
   slug: string;
@@ -333,7 +337,7 @@ export interface SurveyPublic {
   descripcion?: string;
   tipo: SurveyTipo;
   inicio_at: string;
-  fin_at: string;
+  fin_at: string | null;
   politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'por_usuario' | 'libre';
   auth_mode?: 'anonymous' | 'optional' | 'required';
   anonimo_permitido?: boolean;
@@ -785,6 +789,8 @@ export interface SurveyDraftPayload {
   preguntas: Array<{
     id?: number;
     question_ref?: string | null;
+    /** Backend-native alias for question_ref; both must match when supplied. */
+    logical_ref?: string | null;
     orden: number;
     tipo: PreguntaTipo;
     texto: string;

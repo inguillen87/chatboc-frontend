@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Reorder } from 'framer-motion';
-import { CalendarDays, Copy, GripVertical, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { CalendarDays, Copy, GripVertical, MessageCircle, Plus, Trash2, UploadCloud } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,11 +25,16 @@ import type {
   SurveyTipo,
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
-import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
+import {
+  getPublicSurveyQrUrlFromRecord,
+  getPublicSurveyUrlFromRecord,
+  getPublicSurveyWhatsAppShareUrl,
+} from '@/utils/publicSurveyUrl';
 import { parseSurveyConditionalLogic } from '@/utils/surveyConditionalLogic';
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
+  tenantSlug?: string | null;
   initialDraft?: SurveyDraftPayload;
   onSave: (payload: SurveyDraftPayload) => Promise<void>;
   onPublish?: () => Promise<void>;
@@ -56,6 +61,7 @@ interface LocalQuestion {
   localId: string;
   id?: number;
   question_ref?: string | null;
+  logicalRefConflict?: boolean;
   orden: number;
   tipo: PreguntaTipo;
   texto: string;
@@ -67,6 +73,59 @@ interface LocalQuestion {
   conditionalLogicV2?: SurveyConditionalLogicV2;
   conditionalLogicInvalid?: boolean;
 }
+
+type DemographicQuestionRole = 'general' | 'city' | 'province';
+
+const DEMOGRAPHIC_QUESTION_REFS = {
+  city: 'demographic:city',
+  province: 'demographic:province',
+} as const satisfies Record<Exclude<DemographicQuestionRole, 'general'>, string>;
+
+const demographicRoleOptions: Array<{
+  value: DemographicQuestionRole;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'general',
+    label: 'Pregunta general',
+    description: 'La respuesta se guarda solo dentro de la encuesta.',
+  },
+  {
+    value: 'city',
+    label: 'Ciudad o localidad',
+    description: 'Habilita filtros, comparaciones y mapas agregados por ciudad.',
+  },
+  {
+    value: 'province',
+    label: 'Provincia',
+    description: 'Habilita filtros y comparaciones agregadas por provincia.',
+  },
+];
+
+const resolveQuestionRef = (question: {
+  question_ref?: string | null;
+  logical_ref?: string | null;
+}) => {
+  if (question.question_ref !== undefined && question.question_ref !== null && question.question_ref !== '') {
+    return question.question_ref;
+  }
+  if (question.logical_ref !== undefined && question.logical_ref !== null && question.logical_ref !== '') {
+    return question.logical_ref;
+  }
+  return question.question_ref ?? question.logical_ref ?? null;
+};
+
+const getDemographicQuestionRole = (
+  questionRef?: string | null,
+): DemographicQuestionRole => {
+  if (questionRef === DEMOGRAPHIC_QUESTION_REFS.city) return 'city';
+  if (questionRef === DEMOGRAPHIC_QUESTION_REFS.province) return 'province';
+  return 'general';
+};
+
+const normalizeDemographicOptionValue = (value?: string) =>
+  value?.trim().replace(/\s+/g, ' ') ?? '';
 
 const generateId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -102,25 +161,39 @@ const mapQuestionsToLocal = (
   preguntas?: SurveyDraftPayload['preguntas'] | SurveyAdmin['preguntas'],
 ): LocalQuestion[] => {
   const sourceQuestions = preguntas ?? [];
-  const localQuestions = sourceQuestions.map((pregunta) => ({
-    localId: generateId(),
-    id: 'id' in pregunta ? pregunta.id : undefined,
-    question_ref: pregunta.question_ref,
-    orden: pregunta.orden,
-    tipo: pregunta.tipo,
-    texto: pregunta.texto,
-    obligatoria: pregunta.obligatoria,
-    min_selecciones: pregunta.min_selecciones ?? null,
-    max_selecciones: pregunta.max_selecciones ?? null,
-    opciones: pregunta.opciones?.map((opcion) => ({
+  const localQuestions = sourceQuestions.map((pregunta) => {
+    const questionRef = resolveQuestionRef(pregunta);
+    const logicalRefConflict = Boolean(
+      pregunta.question_ref !== undefined
+      && pregunta.question_ref !== null
+      && pregunta.question_ref !== ''
+      && pregunta.logical_ref !== undefined
+      && pregunta.logical_ref !== null
+      && pregunta.logical_ref !== ''
+      && pregunta.question_ref !== pregunta.logical_ref,
+    );
+
+    return {
       localId: generateId(),
-      id: 'id' in opcion ? opcion.id : undefined,
-      option_ref: opcion.option_ref,
-      orden: opcion.orden,
-      texto: opcion.texto,
-      valor: opcion.valor,
-    })),
-  }));
+      id: 'id' in pregunta ? pregunta.id : undefined,
+      question_ref: questionRef,
+      logicalRefConflict,
+      orden: pregunta.orden,
+      tipo: pregunta.tipo,
+      texto: pregunta.texto,
+      obligatoria: pregunta.obligatoria,
+      min_selecciones: pregunta.min_selecciones ?? null,
+      max_selecciones: pregunta.max_selecciones ?? null,
+      opciones: pregunta.opciones?.map((opcion) => ({
+        localId: generateId(),
+        id: 'id' in opcion ? opcion.id : undefined,
+        option_ref: opcion.option_ref,
+        orden: opcion.orden,
+        texto: opcion.texto,
+        valor: opcion.valor,
+      })),
+    };
+  });
 
   return localQuestions.map((question, questionIndex) => {
     const rawLogic = sourceQuestions[questionIndex]?.conditional_logic;
@@ -212,7 +285,8 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
   preguntas:
     survey?.preguntas?.map((pregunta, index) => ({
       id: pregunta.id,
-      question_ref: pregunta.question_ref,
+      question_ref: resolveQuestionRef(pregunta),
+      logical_ref: resolveQuestionRef(pregunta),
       orden: typeof pregunta.orden === 'number' ? pregunta.orden : index + 1,
       tipo: pregunta.tipo,
       texto: pregunta.texto,
@@ -334,6 +408,68 @@ const replaceV2ConditionalLeaf = (
   };
 };
 
+const replaceQuestionRefInConditionalNode = (
+  node: SurveyConditionalNodeV2,
+  currentQuestionRef: string,
+  nextQuestionRef: string,
+): SurveyConditionalNodeV2 => {
+  if (node.kind === 'option_selected') {
+    return node.question_ref === currentQuestionRef
+      ? { ...node, question_ref: nextQuestionRef }
+      : node;
+  }
+  return {
+    ...node,
+    children: node.children.map((child) => replaceQuestionRefInConditionalNode(
+      child,
+      currentQuestionRef,
+      nextQuestionRef,
+    )),
+  };
+};
+
+const getDemographicContractError = (questions: LocalQuestion[]): string | null => {
+  const usedRefs = new Set<string>();
+
+  for (const [questionIndex, question] of questions.entries()) {
+    if (question.logicalRefConflict) {
+      return `La pregunta ${questionIndex + 1} tiene referencias internas incompatibles.`;
+    }
+
+    const questionRef = question.question_ref ?? null;
+    const role = getDemographicQuestionRole(questionRef);
+    if (role === 'general' || !questionRef) continue;
+
+    if (usedRefs.has(questionRef)) {
+      const roleLabel = role === 'city' ? 'Ciudad o localidad' : 'Provincia';
+      return `El uso “${roleLabel}” solo puede asignarse a una pregunta.`;
+    }
+    usedRefs.add(questionRef);
+
+    if (question.tipo !== 'opcion_unica') {
+      return `La pregunta ${questionIndex + 1} debe ser de opción única para segmentar por ubicación.`;
+    }
+
+    const options = question.opciones ?? [];
+    if (options.some((option) => /[\u0000-\u001F\u007F]/.test(option.valor ?? ''))) {
+      return `Los valores para informes de la pregunta ${questionIndex + 1} contienen caracteres no permitidos.`;
+    }
+    const normalizedValues = options.map((option) => normalizeDemographicOptionValue(option.valor));
+    if (!options.length || normalizedValues.some((value) => !value)) {
+      return `Completá el valor para informes de todas las opciones de la pregunta ${questionIndex + 1}.`;
+    }
+    if (normalizedValues.some((value) => value.length > 120)) {
+      return `Los valores para informes de la pregunta ${questionIndex + 1} pueden tener hasta 120 caracteres.`;
+    }
+    const uniqueValues = new Set(normalizedValues.map((value) => value.toLocaleLowerCase('es-AR')));
+    if (uniqueValues.size !== normalizedValues.length) {
+      return `Los valores para informes de la pregunta ${questionIndex + 1} no pueden repetirse.`;
+    }
+  }
+
+  return null;
+};
+
 const isLocalV2ConditionalRuleValid = (
   rule: SurveyConditionalLogicV2,
   questions: LocalQuestion[],
@@ -425,6 +561,7 @@ const serializeConditionalRule = (
 
 export const SurveyEditor = ({
   survey,
+  tenantSlug,
   initialDraft,
   onSave,
   onPublish,
@@ -473,6 +610,62 @@ export const SurveyEditor = ({
         prev.map((question) => (question.localId === localId ? { ...question, ...partial } : question)),
       ),
     );
+  };
+
+  const handleDemographicRoleChange = (
+    localId: string,
+    role: DemographicQuestionRole,
+  ) => {
+    const target = questions.find((question) => question.localId === localId);
+    if (!target || target.id !== undefined || structureLocked) return;
+
+    const currentQuestionRef = target.question_ref || `question:${target.localId}`;
+    const nextQuestionRef = role === 'general'
+      ? `question:${target.localId}`
+      : DEMOGRAPHIC_QUESTION_REFS[role];
+
+    const conflictingQuestion = questions.find(
+      (question) => question.localId !== localId && question.question_ref === nextQuestionRef,
+    );
+    if (conflictingQuestion) {
+      setSubmissionError('Ese uso de segmentación ya está asignado a otra pregunta.');
+      toast({
+        title: 'Uso de segmentación duplicado',
+        description: 'Cada encuesta puede tener una sola pregunta de ciudad y una sola de provincia.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmissionError(null);
+    setQuestions((previous) => sanitizeLocalConditionalRules(previous.map((question) => {
+      const conditionalLogicV2 = question.conditionalLogicV2
+        ? {
+            ...question.conditionalLogicV2,
+            show_if: replaceQuestionRefInConditionalNode(
+              question.conditionalLogicV2.show_if,
+              currentQuestionRef,
+              nextQuestionRef,
+            ) as SurveyConditionalLogicV2['show_if'],
+          }
+        : undefined;
+
+      if (question.localId !== localId) {
+        return conditionalLogicV2 ? { ...question, conditionalLogicV2 } : question;
+      }
+
+      const needsChoiceOptions = role !== 'general' && !(question.opciones?.length);
+      return {
+        ...question,
+        question_ref: nextQuestionRef,
+        logicalRefConflict: false,
+        tipo: role === 'general' ? question.tipo : 'opcion_unica',
+        opciones: needsChoiceOptions
+          ? [createLocalOption(1), createLocalOption(2)]
+          : question.opciones,
+        conditionalLogicV2,
+      };
+    })));
   };
 
   const handleUpgradeConditionalRule = (localId: string) => {
@@ -725,6 +918,7 @@ export const SurveyEditor = ({
     preguntas: questions.map((question, index) => ({
       id: question.id,
       question_ref: question.question_ref,
+      logical_ref: question.question_ref,
       orden: index + 1,
       tipo: question.tipo,
       texto: question.texto.trim(),
@@ -740,7 +934,9 @@ export const SurveyEditor = ({
               option_ref: option.option_ref,
               orden: optIndex + 1,
               texto: option.texto,
-              valor: option.valor,
+              valor: getDemographicQuestionRole(question.question_ref) === 'general'
+                ? option.valor
+                : normalizeDemographicOptionValue(option.valor),
             })),
     })),
   }), [formValues, questions]);
@@ -782,6 +978,12 @@ export const SurveyEditor = ({
       toast({ title: 'Revisa las rutas adaptativas', variant: 'destructive' });
       return false;
     }
+    const demographicContractError = getDemographicContractError(questions);
+    if (demographicContractError) {
+      setSubmissionError(demographicContractError);
+      toast({ title: 'Revisá la segmentación geográfica', variant: 'destructive' });
+      return false;
+    }
 
     return true;
   };
@@ -808,11 +1010,21 @@ export const SurveyEditor = ({
   const isSubmissionPending = submissionAction !== null || Boolean(isSaving) || Boolean(isPublishing);
 
   const publicUrl = useMemo(
-    () => getPublicSurveyUrlFromRecord(survey),
-    [survey],
+    () => getPublicSurveyUrlFromRecord(survey, { tenantSlug }),
+    [survey, tenantSlug],
   );
 
-  const qrUrl = getPublicSurveyQrUrlFromRecord(survey, { size: 512 });
+  const whatsappShareUrl = useMemo(
+    () => getPublicSurveyWhatsAppShareUrl(
+      publicUrl,
+      survey?.titulo
+        ? `Participá de la encuesta “${survey.titulo}” y sumá tu voz a la toma de decisiones.`
+        : 'Participá de esta encuesta y sumá tu voz a la toma de decisiones.',
+    ),
+    [publicUrl, survey?.titulo],
+  );
+
+  const qrUrl = getPublicSurveyQrUrlFromRecord(survey, { size: 512, tenantSlug });
 
   return (
     <fieldset
@@ -1039,6 +1251,19 @@ export const SurveyEditor = ({
               const v2Leaves = question.conditionalLogicV2
                 ? v2ConditionalLeaves(question.conditionalLogicV2.show_if)
                 : [];
+              const demographicRole = getDemographicQuestionRole(question.question_ref);
+              const demographicRoleDescription = demographicRoleOptions.find(
+                (option) => option.value === demographicRole,
+              )?.description;
+              const demographicRoleLocked = structureLocked || question.id !== undefined;
+              const cityRoleUsedByAnotherQuestion = questions.some(
+                (candidate) => candidate.localId !== question.localId
+                  && candidate.question_ref === DEMOGRAPHIC_QUESTION_REFS.city,
+              );
+              const provinceRoleUsedByAnotherQuestion = questions.some(
+                (candidate) => candidate.localId !== question.localId
+                  && candidate.question_ref === DEMOGRAPHIC_QUESTION_REFS.province,
+              );
 
               return (
               <Reorder.Item
@@ -1062,7 +1287,7 @@ export const SurveyEditor = ({
                         <Label>Tipo de pregunta</Label>
                         <Select
                           value={question.tipo}
-                          disabled={structureLocked}
+                          disabled={structureLocked || demographicRole !== 'general'}
                           onValueChange={(value: PreguntaTipo) => {
                             handleQuestionChange(question.localId, {
                               tipo: value,
@@ -1086,6 +1311,11 @@ export const SurveyEditor = ({
                             ))}
                           </SelectContent>
                         </Select>
+                        {demographicRole !== 'general' && (
+                          <p className="text-xs text-muted-foreground">
+                            La segmentación geográfica usa una sola opción por respuesta.
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>Obligatoria</Label>
@@ -1096,6 +1326,49 @@ export const SurveyEditor = ({
                             onCheckedChange={(checked) => handleQuestionChange(question.localId, { obligatoria: checked })}
                           />
                         </div>
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`demographic-role-${question.localId}`}>
+                          Uso en segmentación e informes
+                        </Label>
+                        <Select
+                          value={demographicRole}
+                          disabled={demographicRoleLocked}
+                          onValueChange={(value: DemographicQuestionRole) => {
+                            handleDemographicRoleChange(question.localId, value);
+                          }}
+                        >
+                          <SelectTrigger
+                            id={`demographic-role-${question.localId}`}
+                            aria-label={`Uso en segmentación de la pregunta ${questionIndex + 1}`}
+                            aria-describedby={`demographic-role-help-${question.localId}`}
+                          >
+                            <SelectValue placeholder="Elegí cómo se usará la respuesta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {demographicRoleOptions.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                disabled={
+                                  (option.value === 'city' && cityRoleUsedByAnotherQuestion)
+                                  || (option.value === 'province' && provinceRoleUsedByAnotherQuestion)
+                                }
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p
+                          id={`demographic-role-help-${question.localId}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {demographicRoleDescription}
+                          {demographicRoleLocked && question.id !== undefined
+                            ? ' Para conservar el historial, el uso de una pregunta ya guardada no puede cambiarse; creá una nueva pregunta si necesitás otro.'
+                            : ' La asignación es explícita: JUNI no la deduce del enunciado.'}
+                        </p>
                       </div>
                       {question.tipo === 'multiple' && (
                         <>
@@ -1379,8 +1652,13 @@ export const SurveyEditor = ({
                     {question.tipo !== 'abierta' && (
                       <div className="space-y-2">
                         <Label>Opciones</Label>
+                        {demographicRole !== 'general' && (
+                          <p className="text-xs text-muted-foreground">
+                            El valor para informes es obligatorio y debe ser único. Ejemplos: ushuaia, rio-grande.
+                          </p>
+                        )}
                         <div className="flex flex-col gap-2">
-                          {(question.opciones ?? []).map((option) => (
+                          {(question.opciones ?? []).map((option, optionIndex) => (
                             <div key={option.localId} className="flex items-center gap-2">
                               <Input
                                 value={option.texto}
@@ -1391,10 +1669,21 @@ export const SurveyEditor = ({
                               />
                               <Input
                                 value={option.valor ?? ''}
+                                maxLength={demographicRole === 'general' ? undefined : 120}
+                                aria-label={
+                                  demographicRole === 'general'
+                                    ? `Valor interno de la opción ${optionIndex + 1} de la pregunta ${questionIndex + 1}`
+                                    : `Valor para informes de la opción ${optionIndex + 1} de la pregunta ${questionIndex + 1}`
+                                }
+                                aria-required={demographicRole !== 'general'}
                                 onChange={(event) =>
                                   handleOptionChange(question.localId, option.localId, { valor: event.target.value })
                                 }
-                                placeholder="Valor interno (opcional)"
+                                placeholder={
+                                  demographicRole === 'general'
+                                    ? 'Valor interno (opcional)'
+                                    : 'Valor para informes (obligatorio)'
+                                }
                               />
                               <Button
                                 variant="ghost"
@@ -1477,12 +1766,17 @@ export const SurveyEditor = ({
           </CardHeader>
           <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" /> Vigente hasta {new Date(survey.fin_at).toLocaleString()}
-              </p>
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <CalendarDays className="h-4 w-4" />
+                <span>
+                  {survey.fin_at
+                    ? `Vigente hasta ${new Date(survey.fin_at).toLocaleString()}`
+                    : 'Sin fecha de cierre'}
+                </span>
+              </div>
               {publicUrl && (
-                <div className="flex items-center gap-2">
-                  <code className="rounded bg-muted px-3 py-1 text-sm">{publicUrl}</code>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="max-w-full break-all rounded bg-muted px-3 py-1 text-sm">{publicUrl}</code>
                   <Button
                     variant="outline"
                     size="icon"
@@ -1501,6 +1795,13 @@ export const SurveyEditor = ({
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
+                  {whatsappShareUrl && (
+                    <Button variant="outline" asChild>
+                      <a href={whatsappShareUrl} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="mr-2 h-4 w-4" /> Compartir por WhatsApp
+                      </a>
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

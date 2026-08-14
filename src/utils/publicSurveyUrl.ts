@@ -40,18 +40,27 @@ export const getPublicSurveyCanonicalSlug = (survey?: PublicSurveyLike | null): 
   );
 };
 
-export const getPublicSurveyUrlFromRecord = (survey?: PublicSurveyLike | null): string => {
+export const getPublicSurveyUrlFromRecord = (
+  survey?: PublicSurveyLike | null,
+  options: PublicSurveyUrlOptions = {},
+): string => {
   if (!survey) return '';
+
+  const tenantSlug =
+    readNonEmptyString(options.tenantSlug) ||
+    readNonEmptyString(survey.tenant_slug) ||
+    undefined;
 
   const providedUrl =
     readNonEmptyString(survey.url_publica) ||
     readNonEmptyString(survey.share_url) ||
     readNonEmptyString(survey.public_url);
 
-  if (providedUrl) return providedUrl;
+  if (providedUrl) return appendTenantSlug(providedUrl, tenantSlug);
 
   return getAbsolutePublicSurveyUrl(getPublicSurveyCanonicalSlug(survey), {
-    tenantSlug: readNonEmptyString(survey.tenant_slug) || undefined,
+    ...options,
+    tenantSlug,
   });
 };
 
@@ -112,9 +121,26 @@ const resolveBaseUrl = (): string => {
 const appendTenantSlug = (path: string, tenantSlug?: string | null): string => {
   const normalizedTenant = readNonEmptyString(tenantSlug);
   if (!path || !normalizedTenant) return path;
-  const separator = path.includes('?') ? '&' : '?';
-  return `${path}${separator}tenant_slug=${encodeURIComponent(normalizedTenant)}`;
+
+  const relativeBase = 'https://tenant-scope.invalid';
+  try {
+    const parsed = new URL(path, relativeBase);
+    parsed.searchParams.delete('tenant');
+    parsed.searchParams.set('tenant_slug', normalizedTenant);
+
+    if (parsed.origin === relativeBase) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    return parsed.toString();
+  } catch (error) {
+    return path;
+  }
 };
+
+export const withPublicSurveyTenantScope = (
+  url: string,
+  tenantSlug?: string | null,
+): string => appendTenantSlug(url, tenantSlug);
 
 export const getPublicSurveyPath = (
   slug: string,
@@ -154,6 +180,18 @@ export const getPublicSurveyUrl = (
   }
 
   return getAbsolutePublicSurveyUrl(slug, options);
+};
+
+export const getPublicSurveyWhatsAppShareUrl = (
+  participationUrl: string,
+  message?: string | null,
+): string => {
+  const normalizedUrl = readNonEmptyString(participationUrl);
+  if (!normalizedUrl) return '';
+
+  const normalizedMessage = readNonEmptyString(message);
+  const text = normalizedMessage ? `${normalizedMessage}\n${normalizedUrl}` : normalizedUrl;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
 };
 
 const getQrPath = (

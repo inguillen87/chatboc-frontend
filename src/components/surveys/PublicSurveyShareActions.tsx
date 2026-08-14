@@ -21,7 +21,12 @@ import {
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
-import { getPublicSurveyQrPageUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import {
+  getPublicSurveyCanonicalSlug,
+  getPublicSurveyQrPageUrl,
+  getPublicSurveyUrlFromRecord,
+  getPublicSurveyWhatsAppShareUrl,
+} from '@/utils/publicSurveyUrl';
 import {
   AGE_RANGE_OPTIONS,
   EDUCATION_LEVEL_OPTIONS,
@@ -33,6 +38,7 @@ import {
 interface PublicSurveyShareActionsProps {
   survey: SurveyPublic;
   submission?: PublicResponsePayload | null;
+  tenantSlug?: string | null;
 }
 
 const labelForOption = (options: DemographicOption[], value?: string | null) => {
@@ -100,14 +106,21 @@ const humanizeChannel = (value?: string | null) => {
   return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
-export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveyShareActionsProps) => {
+export const PublicSurveyShareActions = ({
+  survey,
+  submission,
+  tenantSlug: tenantSlugOverride,
+}: PublicSurveyShareActionsProps) => {
   const tenantSlug =
-    typeof survey.tenant_slug === 'string' && survey.tenant_slug.trim()
-      ? survey.tenant_slug.trim()
+    typeof tenantSlugOverride === 'string' && tenantSlugOverride.trim()
+      ? tenantSlugOverride.trim()
+      : typeof survey.tenant_slug === 'string' && survey.tenant_slug.trim()
+        ? survey.tenant_slug.trim()
       : undefined;
+  const canonicalSlug = getPublicSurveyCanonicalSlug(survey);
   const shareUrl = useMemo(
-    () => getPublicSurveyUrl(survey.slug, { tenantSlug }),
-    [survey.slug, tenantSlug],
+    () => getPublicSurveyUrlFromRecord(survey, { tenantSlug }),
+    [survey, tenantSlug],
   );
   const shareText = useMemo(
     () =>
@@ -115,14 +128,14 @@ export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveySha
     [survey.titulo],
   );
   const qrPageUrl = useMemo(
-    () => getPublicSurveyQrPageUrl(survey.slug, { tenantSlug }),
-    [survey.slug, tenantSlug],
+    () => getPublicSurveyQrPageUrl(canonicalSlug, { tenantSlug }),
+    [canonicalSlug, tenantSlug],
   );
 
-  const whatsappUrl = useMemo(() => {
-    const message = `${shareText}\n${shareUrl}`;
-    return `https://wa.me/?text=${encodeURIComponent(message)}`;
-  }, [shareText, shareUrl]);
+  const whatsappUrl = useMemo(
+    () => getPublicSurveyWhatsAppShareUrl(shareUrl, shareText),
+    [shareText, shareUrl],
+  );
 
   const socialTargets = useMemo(
     () => [
@@ -400,7 +413,13 @@ export const PublicSurveyShareActions = ({ survey, submission }: PublicSurveySha
               Código QR listo para difundir
             </span>
           </div>
-          <SurveyQrPreview slug={survey.slug} title={survey.titulo} size={176} className="items-start" />
+          <SurveyQrPreview
+            slug={canonicalSlug}
+            title={survey.titulo}
+            tenantSlug={tenantSlug}
+            size={176}
+            className="items-start"
+          />
           <div className="space-y-2 text-xs text-muted-foreground">
             <p className="break-all">
               Enlace directo:

@@ -317,6 +317,13 @@ describe('SurveyForm security contract', () => {
     window.localStorage.clear();
   });
 
+  it('describes an open-ended survey without rendering the Unix epoch as its closing date', () => {
+    render(<SurveyForm survey={{ ...baseSurvey, fin_at: null }} onSubmit={vi.fn()} />);
+
+    expect(screen.getByText(/Sin fecha de cierre/i)).toBeInTheDocument();
+    expect(screen.queryByText(/1\/1\/1970|1970/)).not.toBeInTheDocument();
+  });
+
   it('gates one-person voting behind account authentication', () => {
     render(<SurveyForm survey={authenticatedSurvey} onSubmit={vi.fn()} />);
 

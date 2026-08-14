@@ -749,7 +749,11 @@ const PublicSurveyPage = () => {
             )}
 
             {mode !== 'embed' && (
-                <PublicSurveyShareActions survey={survey} submission={lastSubmission} />
+                <PublicSurveyShareActions
+                  survey={survey}
+                  submission={lastSubmission}
+                  tenantSlug={tenantSlug}
+                />
             )}
 
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -873,7 +877,11 @@ const PublicSurveyPage = () => {
 
               {mode !== 'embed' && (
                 <div className="flex justify-start">
-                  <PublicSurveyShareActions survey={survey} submission={lastSubmission} />
+                  <PublicSurveyShareActions
+                    survey={survey}
+                    submission={lastSubmission}
+                    tenantSlug={tenantSlug}
+                  />
                 </div>
               )}
 

@@ -21,7 +21,12 @@ import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { useTenant } from '@/context/TenantContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from '@/components/ui/use-toast';
-import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
+import {
+  getPublicSurveyQrUrlFromRecord,
+  getPublicSurveyUrlFromRecord,
+  getPublicSurveyWhatsAppShareUrl,
+  withPublicSurveyTenantScope,
+} from '@/utils/publicSurveyUrl';
 import {
   adminGetSurveyComments,
   adminModerateSurveyComment,
@@ -47,6 +52,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import type { SnapshotCreatePayload } from '@/types/encuestas';
+import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
 
 
 function formatDateLabel(value?: string | null) {
@@ -513,6 +519,7 @@ function decodeSegmentFilters(encodedValue: string) {
 
 
 export default function SurveyAnalyticsPage() {
+  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
   const params = useParams();
   const [searchParams] = useSearchParams();
   const { currentSlug } = useTenant();
@@ -668,7 +675,7 @@ export default function SurveyAnalyticsPage() {
     return surveys.data.find((item) => item.id === surveyId);
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
-  const effectiveTenantSlug = effectiveSurvey?.tenant_slug ?? tenantScopeSlug ?? undefined;
+  const effectiveTenantSlug = tenantScopeSlug ?? effectiveSurvey?.tenant_slug ?? undefined;
 
   const surveyPublication = useMemo(
     () => asRecord(dashboardBundle?.survey_publication) ?? asRecord(dashboardBundle?.modules?.publication),
@@ -685,21 +692,36 @@ export default function SurveyAnalyticsPage() {
     readRecordText(publicationLinks, 'share_url') ||
     readRecordText(publicationLinks, 'public_url') ||
     readRecordText(publicationLinks, 'copy_url');
-  const publicHref = backendPublicHref || getPublicSurveyUrlFromRecord(effectiveSurvey);
+  const publicHref = backendPublicHref
+    ? withPublicSurveyTenantScope(backendPublicHref, effectiveTenantSlug)
+    : getPublicSurveyUrlFromRecord(effectiveSurvey, { tenantSlug: effectiveTenantSlug });
   const publicUrl = useMemo(
     () => resolveDisplayUrl(publicHref),
     [publicHref],
   );
   const copyPublicUrl = useMemo(
-    () => resolveDisplayUrl(readRecordText(publicationLinks, 'copy_url') || publicHref),
-    [publicHref, publicationLinks],
+    () => resolveDisplayUrl(withPublicSurveyTenantScope(
+      readRecordText(publicationLinks, 'copy_url') || publicHref,
+      effectiveTenantSlug,
+    )),
+    [effectiveTenantSlug, publicHref, publicationLinks],
   );
   const qrUrl = (
-    readRecordText(publicationLinks, 'qr_image_url') ||
-    readRecordText(publicationLinks, 'qr_endpoint') ||
-    getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512 })
+    getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512, tenantSlug: effectiveTenantSlug }) ||
+    withPublicSurveyTenantScope(
+      readRecordText(publicationLinks, 'qr_endpoint') ||
+        readRecordText(publicationLinks, 'qr_image_url'),
+      effectiveTenantSlug,
+    )
   ) || null;
-  const whatsappShareUrl = readRecordText(publicationLinks, 'whatsapp_share_url');
+  const whatsappShareUrl = publicUrl
+    ? getPublicSurveyWhatsAppShareUrl(
+        publicUrl,
+        effectiveSurvey?.titulo
+          ? `Participá de la encuesta “${effectiveSurvey.titulo}” y sumá tu voz.`
+          : 'Participá de esta encuesta y sumá tu voz.',
+      )
+    : readRecordText(publicationLinks, 'whatsapp_share_url');
   const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
   const isPublicationReady =
     surveyPublication?.is_published === true ||
@@ -770,6 +792,7 @@ export default function SurveyAnalyticsPage() {
   const heatmapAdminAction = findOperationAction(['open_heatmap_admin']);
   const moderationAdminAction = findOperationAction(['moderate_comments']);
   const qrAdminAction = findOperationAction(['share_whatsapp_qr', 'download_qr']);
+  const qrAdminActionId = readRecordText(qrAdminAction, 'id');
   const adminLiveHref =
     resolveOperationHref(liveAdminAction) ||
     readRecordText(operationAdminSurface, 'href') ||
@@ -785,7 +808,15 @@ export default function SurveyAnalyticsPage() {
     readRecordText(operationAnalyticsSurface, 'moderation_href') ||
     readRecordText(operationAnalyticsSurface, 'moderation_route') ||
     buildSurveyAnalyticsHref(surveyId, 'moderation', operationHrefOptions);
-  const adminQrHref = resolveOperationHref(qrAdminAction) || qrUrl || '';
+  const scopedQrActionHref = withPublicSurveyTenantScope(
+    resolveOperationHref(qrAdminAction),
+    effectiveTenantSlug,
+  );
+  const shareQrViaWhatsapp =
+    qrAdminActionId === 'share_whatsapp_qr' && Boolean(resolvedWhatsappShareUrl);
+  const adminQrHref = shareQrViaWhatsapp
+    ? resolvedWhatsappShareUrl
+    : qrUrl || scopedQrActionHref || '';
   const operationsActionCards = useMemo(
     () => [
       {
@@ -814,8 +845,12 @@ export default function SurveyAnalyticsPage() {
       },
       {
         id: 'share-whatsapp-qr',
-        label: readRecordText(qrAdminAction, 'label') || 'Compartir QR por WhatsApp',
-        description: 'Distribucion rapida para plazas, escuelas, comercios y barrios.',
+        label: shareQrViaWhatsapp
+          ? 'Compartir por WhatsApp'
+          : 'Descargar QR',
+        description: shareQrViaWhatsapp
+          ? 'Abrí WhatsApp con el enlace público tenant-scoped listo para enviar.'
+          : 'Descargá el QR tenant-scoped para plazas, escuelas, comercios y barrios.',
         href: adminQrHref,
         icon: <Download className="h-4 w-4" />,
         enabled: qrAdminAction?.enabled !== false && Boolean(adminQrHref),
@@ -830,6 +865,7 @@ export default function SurveyAnalyticsPage() {
       liveAdminAction,
       moderationAdminAction,
       qrAdminAction,
+      shareQrViaWhatsapp,
     ],
   );
   const publicationActionIds = publicationActions.map((action) => readRecordText(action, 'id')).filter(Boolean);
@@ -1380,8 +1416,9 @@ export default function SurveyAnalyticsPage() {
             {qrUrl ? (
               <div className="flex flex-col items-center gap-2">
                 <SurveyQrPreview
-                  slug={effectiveSurvey.slug}
+                  slug={livePanelSlug}
                   title={effectiveSurvey.titulo}
+                  tenantSlug={effectiveTenantSlug}
                   remoteUrl={qrUrl}
                   size={160}
                   imageClassName="bg-white p-4"
@@ -1546,7 +1583,11 @@ export default function SurveyAnalyticsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="space-y-0.5">
             <p className="text-sm font-semibold">Centro de acciones de analytics</p>
-            <p className="text-xs text-muted-foreground">Exportá, difundí y generá demo sin salir de la vista.</p>
+            <p className="text-xs text-muted-foreground">
+              {syntheticSeedQaEnabled
+                ? 'Exportá, difundí y generá datos sintéticos de QA sin salir de la vista.'
+                : 'Exportá y difundí los resultados sin salir de la vista.'}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -1558,17 +1599,20 @@ export default function SurveyAnalyticsPage() {
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void handleSeedDemoResponses();
-              }}
-              disabled={isSeeding || !effectiveSurvey.slug}
-              className="inline-flex items-center gap-2"
-            >
-              {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} 100 demo
-            </Button>
+            {syntheticSeedQaEnabled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void handleSeedDemoResponses();
+                }}
+                disabled={isSeeding || !effectiveSurvey.slug}
+                className="inline-flex items-center gap-2"
+              >
+                {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                100 respuestas sintéticas
+              </Button>
+            ) : null}
             {publicUrl && resolvedPublicHref ? (
               <Button variant="outline" size="sm" asChild className="inline-flex items-center gap-2">
                 <a href={resolvedPublicHref} target="_blank" rel="noreferrer">
@@ -1585,7 +1629,7 @@ export default function SurveyAnalyticsPage() {
             ) : null}
           </div>
         </div>
-        {isSeeding && seedProgress ? (
+        {syntheticSeedQaEnabled && isSeeding && seedProgress ? (
           <div className="mt-3 space-y-2 rounded-md border border-primary/25 bg-primary/5 p-2">
             <div className="flex items-center justify-between text-xs text-primary">
               <span>Generando respuestas demo…</span>

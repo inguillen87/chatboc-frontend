@@ -37,7 +37,11 @@ vi.mock('@/components/surveys/SurveyLiveResultsPanel', () => ({
   SurveyLiveResultsPanel: () => <div data-testid="mock-survey-live-results">live results</div>,
 }));
 vi.mock('@/components/surveys/SurveyQrPreview', () => ({
-  SurveyQrPreview: () => <div data-testid="mock-survey-qr">qr</div>,
+  SurveyQrPreview: ({ slug, tenantSlug }: { slug: string; tenantSlug?: string | null }) => (
+    <div data-testid="mock-survey-qr" data-slug={slug} data-tenant-slug={tenantSlug ?? ''}>
+      qr
+    </div>
+  ),
 }));
 vi.mock('@/components/surveys/SurveyRecentResponses', () => ({
   SurveyRecentResponses: () => <div data-testid="mock-survey-responses">responses</div>,
@@ -227,6 +231,14 @@ describe('SurveyAnalyticsPage operational focus', () => {
     expect(screen.getByTestId('mock-survey-live-results')).toBeInTheDocument();
   });
 
+  it('does not expose synthetic response generation outside local development', async () => {
+    renderPage('/admin/encuestas/3/analytics');
+
+    expect(await screen.findByText('Centro de acciones de analytics')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /respuestas sintéticas|100 demo/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Exportá y difundí los resultados/i)).toBeInTheDocument();
+  });
+
   it('loads and moderates admin comments from the focused analytics view', async () => {
     renderPage('/admin/encuestas/3/analytics?focus=comments');
 
@@ -261,10 +273,25 @@ describe('SurveyAnalyticsPage operational focus', () => {
     expect(operationsCard).toHaveTextContent('Monitorear en vivo');
     expect(operationsCard).toHaveTextContent('Mapa operativo');
     expect(operationsCard).toHaveTextContent('Moderar comentarios');
-    expect(operationsCard).toHaveTextContent('Compartir QR por WhatsApp');
+    expect(operationsCard).toHaveTextContent('Compartir por WhatsApp');
+    expect(screen.getByTestId('mock-survey-qr')).toHaveAttribute(
+      'data-slug',
+      'voto-plaza-publica',
+    );
+    expect(screen.getByTestId('mock-survey-qr')).toHaveAttribute(
+      'data-tenant-slug',
+      'junin',
+    );
 
     const operationLinks = within(operationsCard).getAllByRole('link', { name: /Abrir/i });
     expect(operationLinks.some((link) => link.getAttribute('href')?.includes('focus=heatmap'))).toBe(true);
     expect(operationLinks.some((link) => link.getAttribute('href')?.includes('focus=moderation'))).toBe(true);
+    expect(
+      operationLinks.some((link) => {
+        const href = link.getAttribute('href') || '';
+        return href.startsWith('https://wa.me/?text=') &&
+          decodeURIComponent(href).includes('tenant_slug=junin');
+      }),
+    ).toBe(true);
   });
 });

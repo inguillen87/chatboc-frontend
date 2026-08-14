@@ -1419,7 +1419,7 @@ export const SurveyForm = ({
           <div className="text-sm text-muted-foreground flex flex-col gap-1">
             <span>
               Vigencia: {new Date(survey.inicio_at).toLocaleDateString()} –{' '}
-              {new Date(survey.fin_at).toLocaleDateString()}
+              {survey.fin_at ? new Date(survey.fin_at).toLocaleDateString() : 'Sin fecha de cierre'}
             </span>
             <span>Tipo: {survey.tipo}</span>
           </div>
