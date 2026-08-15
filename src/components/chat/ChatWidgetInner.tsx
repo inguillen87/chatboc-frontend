@@ -37,6 +37,10 @@ import { clearDemoRuntimeStorage } from "@/features/demo/demoStorage";
 import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
+  isTenantSlugDeploymentHostnameMirror,
+  readTenantSlugFromHostname,
+} from '@/utils/tenantHostname';
+import {
   getWidgetCartSnapshot,
   getWidgetCommerceSession,
   getWidgetTenantHistory,
@@ -442,16 +446,7 @@ function readTenantFromScripts(): string | null {
 function readTenantFromSubdomain(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    const host = window.location.hostname;
-    if (!host || host === "localhost") return null;
-    if (host === "::1" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
-
-    const segments = host.split(".");
-    if (segments.length < 2) return null;
-
-    const candidate = segments[0];
-    if (!candidate || /^\d+$/.test(candidate) || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
-    return candidate;
+    return readTenantSlugFromHostname(window.location.hostname);
   } catch (e) {
     console.warn("Error reading tenant from subdomain", e);
     return null;
@@ -613,10 +608,16 @@ function ChatWidgetInner({
   const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
   const { tenant, currentSlug } = useTenant();
-  const storedTenantSlug = useMemo(
-    () => sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug")),
-    [],
-  );
+  const storedTenantSlug = useMemo(() => {
+    const candidate = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
+    if (
+      typeof window !== 'undefined' &&
+      isTenantSlugDeploymentHostnameMirror(candidate, window.location.hostname)
+    ) {
+      return null;
+    }
+    return candidate;
+  }, []);
 
   const catalogMetadata = useMemo(() => {
     if (!catalogInfo) return null;

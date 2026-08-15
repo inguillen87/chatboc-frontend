@@ -24,6 +24,10 @@ import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/ten
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useTenantStore } from '@/stores';
 import {
+  isTenantSlugDeploymentHostnameMirror,
+  readTenantSlugFromHostname,
+} from '@/utils/tenantHostname';
+import {
   persistWidgetTokenScope,
   resolveWidgetTokenForTenant,
 } from '@/utils/widgetTokenScope';
@@ -208,16 +212,7 @@ const readTenantFromScripts = (): { slug: string | null; widgetToken: string | n
 
 const readTenantFromSubdomain = (): string | null => {
   if (typeof window === 'undefined') return null;
-  const host = window.location.hostname;
-  if (!host || host === 'localhost') return null;
-  if (host === '::1' || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
-
-  const segments = host.split('.');
-  if (segments.length < 2) return null;
-
-  const candidate = segments[0];
-  if (!candidate || /^\d+$/.test(candidate) || ['www', 'app', 'panel'].includes(candidate.toLowerCase())) return null;
-  return candidate;
+  return readTenantSlugFromHostname(window.location.hostname);
 };
 
 const resolveTenantBootstrap = (
@@ -256,7 +251,16 @@ const resolveTenantBootstrap = (
     };
   }
 
-  const storedSlug = sanitizeTenantSlug(safeLocalStorage.getItem('tenantSlug'));
+  const storedSlugCandidate = sanitizeTenantSlug(safeLocalStorage.getItem('tenantSlug'));
+  const storedSlug =
+    typeof window !== 'undefined' &&
+    isTenantSlugDeploymentHostnameMirror(storedSlugCandidate, window.location.hostname)
+      ? null
+      : storedSlugCandidate;
+
+  if (storedSlugCandidate && !storedSlug) {
+    safeLocalStorage.removeItem('tenantSlug');
+  }
 
   if (storedSlug) {
     return { slug: storedSlug, widgetToken: null };
@@ -352,6 +356,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       setTenant(DEFAULT_TENANT_INFO);
       setTenantError(null);
       setIsLoadingTenant(false);
+      useTenantStore.getState().clearTenant();
       return;
     }
 

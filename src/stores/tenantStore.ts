@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { isTenantSlugDeploymentHostnameMirror } from '@/utils/tenantHostname';
 
 interface TenantState {
   slug: string | null;
@@ -44,7 +45,17 @@ export const useTenantStore = create<TenantState>((set) => ({
 }));
 
 // Auto-load slug from storage if available
-const initialSlug = safeLocalStorage.getItem('tenantSlug');
+const storedInitialSlug = safeLocalStorage.getItem('tenantSlug');
+const initialSlug =
+  typeof window !== 'undefined' &&
+  isTenantSlugDeploymentHostnameMirror(storedInitialSlug, window.location.hostname)
+    ? null
+    : storedInitialSlug;
+
+if (storedInitialSlug && !initialSlug) {
+  safeLocalStorage.removeItem('tenantSlug');
+}
+
 if (initialSlug) {
   useTenantStore.getState().setTenant(initialSlug);
 }
