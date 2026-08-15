@@ -6,6 +6,7 @@ import { getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
 interface SurveyQrPreviewProps {
   slug: string;
   title: string;
+  tenantSlug?: string | null;
   remoteUrl?: string | null;
   size?: number;
   className?: string;
@@ -15,6 +16,7 @@ interface SurveyQrPreviewProps {
 export const SurveyQrPreview = ({
   slug,
   title,
+  tenantSlug,
   remoteUrl,
   size = 168,
   className,
@@ -24,7 +26,10 @@ export const SurveyQrPreview = ({
   const [error, setError] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
 
-  const targetUrl = useMemo(() => getPublicSurveyUrl(slug) || '', [slug]);
+  const targetUrl = useMemo(
+    () => getPublicSurveyUrl(slug, { tenantSlug }) || '',
+    [slug, tenantSlug],
+  );
   const fallbackQrUrl = useMemo(() => {
     if (!targetUrl) return '';
     const normalizedSize = Math.min(1024, Math.max(120, Math.round(size * 3)));

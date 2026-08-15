@@ -5,13 +5,14 @@ import { Loader2 } from 'lucide-react';
 import { SurveyEditor } from '@/components/surveys/SurveyEditor';
 import { SurveyGovernancePanel } from '@/components/surveys/SurveyGovernancePanel';
 import { SurveyEligibilityAdminPanel } from '@/components/surveys/SurveyEligibilityAdminPanel';
+import { SeedButton } from '@/components/surveys/SeedButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError, getErrorMessage } from '@/utils/api';
-import { useTenant } from '@/context/TenantContext';
+import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
 
 const isStructureLockedError = (error: unknown) =>
   error instanceof ApiError &&
@@ -23,7 +24,6 @@ const isStructureLockedError = (error: unknown) =>
 const SurveyDetailPage = () => {
   const params = useParams();
   const navigate = useNavigate();
-  const { currentSlug } = useTenant();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const {
     survey,
@@ -36,9 +36,12 @@ const SurveyDetailPage = () => {
     isSaving,
     isPublishing,
     isDuplicating,
+    isSeeding,
     refetchSurvey,
+    tenantSlug,
   } = useSurveyAdmin({ id: surveyId ?? undefined });
   const [lockedEditMessage, setLockedEditMessage] = useState<string | null>(null);
+  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
@@ -81,17 +84,20 @@ const SurveyDetailPage = () => {
     }
   };
 
-  const seedDemoData = async () => {
+  const seedSyntheticTestData = async () => {
     if (!surveyId) return;
     try {
       const result = await seedSurvey(surveyId, { cantidad: 100, reset: true });
       const resetInfo = result.reset
         ? ` (${result.reset.respuestas ?? 0} respuestas, ${result.reset.comentarios ?? 0} comentarios)`
         : '';
-      toast({ title: "Demo actualizada", description: `Se generaron ${result.creadas} respuestas.${resetInfo}` });
+      toast({
+        title: 'Datos sintéticos actualizados',
+        description: `Se generaron ${result.creadas} respuestas sintéticas.${resetInfo}`,
+      });
     } catch (error) {
       console.error('Seeding failed:', error);
-      toast({ title: 'Error al generar demo', variant: 'destructive' });
+      toast({ title: 'Error al generar datos sintéticos', variant: 'destructive' });
     }
   };
 
@@ -122,9 +128,23 @@ const SurveyDetailPage = () => {
             <CardTitle>Editar encuesta</CardTitle>
             <CardDescription>Actualizá contenido, reglas y preguntas antes de compartirla.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={seedDemoData}>
-            Reset y generar 100 seeds
-          </Button>
+          {syntheticSeedQaEnabled ? (
+            <SeedButton
+              onSeed={seedSyntheticTestData}
+              loading={isSeeding}
+              surveyTitle={survey.titulo}
+              labels={{
+                button: 'Reemplazar por 100 respuestas sintéticas',
+                buttonTitle: 'Herramienta de QA con datos sintéticos',
+                dialogTitle: '¿Reemplazar las respuestas por datos sintéticos?',
+                dialogDescription:
+                  'Esta acción elimina las respuestas y comentarios actuales de “{title}” y los reemplaza por 100 respuestas sintéticas de prueba.',
+                confirmLabel: 'Sí, reemplazar con datos sintéticos',
+                loadingLabel: 'Generando datos sintéticos...',
+                cancelLabel: 'Cancelar',
+              }}
+            />
+          ) : null}
         </CardHeader>
         <CardContent>
           {structureLocked || lockedEditMessage ? (
@@ -145,6 +165,7 @@ const SurveyDetailPage = () => {
           ) : null}
           <SurveyEditor
             survey={survey}
+            tenantSlug={tenantSlug}
             onSave={handleSave}
             onPublish={handlePublish}
             isSaving={isSaving}
@@ -153,8 +174,8 @@ const SurveyDetailPage = () => {
           />
         </CardContent>
       </Card>
-      <SurveyGovernancePanel surveyId={survey.id} tenantSlug={currentSlug} />
-      <SurveyEligibilityAdminPanel surveyId={survey.id} tenantSlug={currentSlug} />
+      <SurveyGovernancePanel surveyId={survey.id} tenantSlug={tenantSlug} />
+      <SurveyEligibilityAdminPanel surveyId={survey.id} tenantSlug={tenantSlug} />
       <div className="text-sm text-muted-foreground">
         <button className="underline" onClick={() => navigate('/admin/encuestas')}>
           Volver al listado

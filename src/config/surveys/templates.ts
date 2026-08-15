@@ -20,6 +20,32 @@ export interface SurveyTemplateDefinition {
 
 const MUNICIPAL_SURVEY_TEMPLATES: SurveyTemplateDefinition[] = [
   {
+    slug: 'votacion-si-no',
+    titulo: 'Votación Sí / No',
+    descripcion:
+      'Publicá una pregunta concreta con dos opciones y seguí los resultados en tiempo real.',
+    tipo: 'votacion',
+    politica_unicidad: 'por_cookie',
+    anonimato: true,
+    requiere_datos_contacto: false,
+    es_votacion_envivo: true,
+    mostrar_resultados_envivo: true,
+    permitir_comentarios: false,
+    preguntas: [
+      {
+        orden: 1,
+        tipo: 'opcion_unica',
+        texto: '¿Estás de acuerdo con la propuesta?',
+        obligatoria: true,
+        opciones: [
+          { orden: 1, texto: 'Sí', valor: 'si' },
+          { orden: 2, texto: 'No', valor: 'no' },
+        ],
+      },
+    ],
+    tags: ['Votación', 'Sí / No', 'Tiempo real'],
+  },
+  {
     slug: 'votacion-en-vivo',
     titulo: 'Votación en vivo: definamos la próxima decisión en {{municipality}}',
     descripcion:
@@ -535,21 +561,26 @@ export const buildDraftFromTemplate = (
     mostrar_resultados_envivo: template.mostrar_resultados_envivo,
     permitir_comentarios: template.permitir_comentarios,
     puntos_recompensa: template.puntos_recompensa,
-    preguntas: template.preguntas.map((pregunta, preguntaIndex) => ({
-      orden: typeof pregunta.orden === 'number' ? pregunta.orden : preguntaIndex + 1,
-      tipo: pregunta.tipo,
-      texto: replaceMunicipality(pregunta.texto, normalizedMunicipality),
-      obligatoria: Boolean(pregunta.obligatoria),
-      min_selecciones: pregunta.min_selecciones ?? null,
-      max_selecciones: pregunta.max_selecciones ?? null,
-      opciones: pregunta.opciones
-        ? pregunta.opciones.map((opcion, opcionIndex) => ({
-            orden: typeof opcion.orden === 'number' ? opcion.orden : opcionIndex + 1,
-            texto: replaceMunicipality(opcion.texto, normalizedMunicipality),
-            valor: opcion.valor,
-          }))
-        : undefined,
-    })),
+    preguntas: template.preguntas.map((pregunta, preguntaIndex) => {
+      const questionRef = pregunta.question_ref || pregunta.logical_ref || null;
+      return {
+        orden: typeof pregunta.orden === 'number' ? pregunta.orden : preguntaIndex + 1,
+        question_ref: questionRef,
+        logical_ref: questionRef,
+        tipo: pregunta.tipo,
+        texto: replaceMunicipality(pregunta.texto, normalizedMunicipality),
+        obligatoria: Boolean(pregunta.obligatoria),
+        min_selecciones: pregunta.min_selecciones ?? null,
+        max_selecciones: pregunta.max_selecciones ?? null,
+        opciones: pregunta.opciones
+          ? pregunta.opciones.map((opcion, opcionIndex) => ({
+              orden: typeof opcion.orden === 'number' ? opcion.orden : opcionIndex + 1,
+              texto: replaceMunicipality(opcion.texto, normalizedMunicipality),
+              valor: opcion.valor,
+            }))
+          : undefined,
+      };
+    }),
   } satisfies SurveyDraftPayload;
 };
 

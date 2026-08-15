@@ -56,4 +56,24 @@ describe('PublicSurveyShareActions', () => {
     expect(status).toHaveTextContent('Canal qr');
     expect(screen.getByText('Preguntas respondidas: 2 de 3.')).toBeInTheDocument();
   });
+
+  it('keeps WhatsApp and QR links in the explicit tenant scope', () => {
+    render(
+      <PublicSurveyShareActions
+        survey={{ ...baseSurvey, tenant_slug: 'tenant-equivocado' }}
+        tenantSlug="rio-grande"
+      />,
+    );
+
+    const whatsappLink = screen.getByRole('link', { name: /Compartir por WhatsApp/i });
+    const whatsappUrl = new URL(whatsappLink.getAttribute('href') ?? '');
+    const sharedText = whatsappUrl.searchParams.get('text') ?? '';
+    expect(sharedText).toContain('tenant_slug=rio-grande');
+    expect(sharedText).not.toContain('tenant-equivocado');
+
+    const qrImage = screen.getByRole('img', { name: /Código QR para participar/i });
+    expect(decodeURIComponent(qrImage.getAttribute('src') ?? '')).toContain(
+      'tenant_slug=rio-grande',
+    );
+  });
 });

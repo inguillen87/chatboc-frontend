@@ -122,6 +122,17 @@
       "destination": "https://api.chatboc.ar/api/$1"
     },
     {
+      "source": "/admin/analytics/export.csv",
+      "destination": "https://api.chatboc.ar/admin/analytics/export.csv"
+    },
+    {
+      "source": "/admin/(.*)",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin/(.*)",
       "destination": "https://api.chatboc.ar/admin/$1"
     },

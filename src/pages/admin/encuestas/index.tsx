@@ -12,6 +12,7 @@ import { toast } from '@/components/ui/use-toast';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
+import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
 
@@ -67,6 +68,7 @@ const AdminSurveysIndex = () => {
   const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
+  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -82,7 +84,7 @@ const AdminSurveysIndex = () => {
   };
 
   const handleCopyLink = async (survey: SurveyAdmin) => {
-    const publicUrl = getPublicSurveyUrlFromRecord(survey);
+    const publicUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
     if (!publicUrl) {
       toast({
         title: 'No se pudo generar el enlace público',
@@ -257,6 +259,7 @@ const AdminSurveysIndex = () => {
               ) : null}
               <SurveyCard
                 survey={survey}
+                tenantSlug={tenantSlug}
                 onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                 onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics${focusMode ? `?focus=${focusMode}` : ''}`)}
                 onPublish={survey.admin_lifecycle?.capabilities.can_publish ? () => handlePublish(survey) : undefined}
@@ -266,7 +269,7 @@ const AdminSurveysIndex = () => {
                 onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
                 onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
                 deleting={isDeleting && deletingId === survey.id}
-                onSeed={survey.estado === 'borrador' ? () => handleSeed(survey) : undefined}
+                onSeed={syntheticSeedQaEnabled && survey.estado === 'borrador' ? () => handleSeed(survey) : undefined}
                 seeding={isSeeding && seedingId === survey.id}
               />
             </div>

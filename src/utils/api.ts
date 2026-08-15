@@ -4,6 +4,10 @@ import { ZodType } from 'zod';
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import {
+  isTenantSlugDeploymentHostnameMirror,
+  readTenantSlugFromHostname,
+} from '@/utils/tenantHostname';
 import { usePanelSessionStore, useWidgetSessionStore, useTenantStore } from '@/stores';
 
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
@@ -135,19 +139,12 @@ const PLACEHOLDER_SLUGS = new Set([
 
 const readTenantFromSubdomain = () => {
   if (typeof window === "undefined") return null;
-  const host = window.location?.hostname || "";
-  if (!host || host === "localhost") return null;
-  if (host === "::1" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
-
-  const [maybeSlug, ...rest] = host.split(".");
-  if (!maybeSlug || rest.length === 0) return null;
-
-  const normalized = maybeSlug.trim().toLowerCase();
-  if (!normalized || /^\d+$/.test(normalized)) return null;
-  if (["www", "app", "panel"].includes(normalized)) return null;
-
-  return maybeSlug;
+  return readTenantSlugFromHostname(window.location?.hostname);
 };
+
+const isDeploymentHostnameMirror = (candidate?: string | null): boolean =>
+  typeof window !== 'undefined' &&
+  isTenantSlugDeploymentHostnameMirror(candidate, window.location?.hostname);
 
 const readTenantFromStoredUser = () => {
   try {
@@ -156,7 +153,8 @@ const readTenantFromStoredUser = () => {
     const parsed = JSON.parse(rawUser);
     const candidate =
       parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant || parsed?.endpoint;
-    return typeof candidate === "string" ? candidate : null;
+    if (typeof candidate !== "string" || isDeploymentHostnameMirror(candidate)) return null;
+    return candidate;
   } catch (error) {
     console.warn(
       "[apiFetch] No se pudo leer tenant del usuario almacenado",
@@ -169,7 +167,12 @@ const readTenantFromStoredUser = () => {
 const readTenantFromStorageKey = () => {
   try {
     const candidate = safeLocalStorage.getItem("tenantSlug");
-    return typeof candidate === "string" ? candidate : null;
+    if (typeof candidate !== "string") return null;
+    if (isDeploymentHostnameMirror(candidate)) {
+      safeLocalStorage.removeItem("tenantSlug");
+      return null;
+    }
+    return candidate;
   } catch (error) {
     console.warn(
       "[apiFetch] No se pudo leer tenantSlug de localStorage",

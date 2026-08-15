@@ -5,6 +5,8 @@ import {
   getPublicSurveyQrUrl,
   getPublicSurveyUrl,
   getPublicSurveyUrlFromRecord,
+  getPublicSurveyWhatsAppShareUrl,
+  withPublicSurveyTenantScope,
 } from './publicSurveyUrl';
 
 describe('public survey tenant-scoped URLs', () => {
@@ -42,5 +44,38 @@ describe('public survey tenant-scoped URLs', () => {
     });
 
     expect(url).toMatch(/\/e\/consulta-barrial\?tenant_slug=junin$/);
+  });
+
+  it('applies an explicit tenant authoritatively to backend-provided public URLs', () => {
+    const url = getPublicSurveyUrlFromRecord(
+      {
+        slug: 'consulta-barrial',
+        tenant_slug: 'tenant-equivocado',
+        url_publica: 'https://www.chatboc.ar/e/consulta-barrial?tenant=legacy&tenant_slug=anterior#resultados',
+      },
+      { tenantSlug: 'rio-grande' },
+    );
+
+    expect(url).toBe(
+      'https://www.chatboc.ar/e/consulta-barrial?tenant_slug=rio-grande#resultados',
+    );
+    expect(
+      withPublicSurveyTenantScope('/public/encuestas/consulta-barrial/qr?size=512', 'ushuaia'),
+    ).toBe('/public/encuestas/consulta-barrial/qr?size=512&tenant_slug=ushuaia');
+  });
+
+  it('builds a reusable WhatsApp CTA from the canonical public URL', () => {
+    const publicUrl = '/e/consulta-barrial?tenant_slug=junin';
+    const whatsappUrl = getPublicSurveyWhatsAppShareUrl(
+      publicUrl,
+      'Participá de la encuesta “Consulta barrial”.',
+    );
+    const parsed = new URL(whatsappUrl);
+
+    expect(parsed.origin).toBe('https://wa.me');
+    expect(parsed.searchParams.get('text')).toBe(
+      `Participá de la encuesta “Consulta barrial”.\n${publicUrl}`,
+    );
+    expect(getPublicSurveyWhatsAppShareUrl('')).toBe('');
   });
 });

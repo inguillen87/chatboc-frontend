@@ -22,6 +22,7 @@ import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
+  tenantSlug?: string | null;
   onEdit: () => void;
   onAnalytics: () => void;
   onPublish?: () => void;
@@ -35,7 +36,7 @@ interface SurveyCardProps {
   seeding?: boolean;
 }
 
-const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString('es-AR') : 'Sin fecha');
+const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString('es-AR') : 'Sin fecha');
 
 const statusVariants: Record<SurveyAdmin['estado'], 'default' | 'secondary' | 'outline' | 'destructive'> = {
   borrador: 'secondary',
@@ -57,6 +58,7 @@ const phaseLabels: Record<string, string> = {
 
 export const SurveyCard = ({
   survey,
+  tenantSlug,
   onEdit,
   onAnalytics,
   onPublish,
@@ -73,7 +75,7 @@ export const SurveyCard = ({
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const lifecycle = survey.admin_lifecycle;
   const autoSeedCantidad = getAutoSeedCantidad(survey);
-  const publicUrl = getPublicSurveyUrlFromRecord(survey);
+  const publicUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
   const instrumentLabel = lifecycle?.instrument_kind === 'voting' ? 'Votación' : 'Encuesta';
   const canPublish = lifecycle?.capabilities.can_publish ?? survey.estado === 'borrador';
   const canClose = lifecycle?.capabilities.can_close ?? survey.estado === 'publicada';
