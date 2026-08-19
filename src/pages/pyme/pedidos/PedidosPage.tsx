@@ -1,3 +1,4 @@
+import AbandonedCartRecoveryPanel from '@/components/cart/AbandonedCartRecoveryPanel';
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
@@ -6,7 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw, Upload } from 'lucide-react';
+import { ClipboardList, Loader2, Package, Sparkles, Truck, CheckCircle, XCircle, Search, ShoppingBag, ShoppingCart, MessageCircle, Globe, ExternalLink, Plus, RefreshCw, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -718,6 +719,7 @@ const PedidosPage = () => {
     normalizeAiFocusParam(searchParams.get('focus') || searchParams.get('queue') || searchParams.get('ai')),
   );
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'abandonados'>('pedidos');
 
   // Manual Order State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -918,8 +920,28 @@ const PedidosPage = () => {
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-none ${selectedOrder ? 'hidden md:flex' : ''}`}>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Pedidos</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Pedidos & Fidelización</h1>
+          <p className="text-sm md:text-base text-muted-foreground mb-2">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={activeTab === 'pedidos' ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-xl text-xs font-bold gap-1.5"
+              onClick={() => setActiveTab('pedidos')}
+            >
+              <Package className="w-3.5 h-3.5" />
+              Bandeja de Pedidos
+            </Button>
+            <Button
+              variant={activeTab === 'abandonados' ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-xl text-xs font-bold gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+              onClick={() => setActiveTab('abandonados')}
+            >
+              <ShoppingCart className="w-3.5 h-3.5 text-amber-500" />
+              Carritos Abandonados (&gt;30m)
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
