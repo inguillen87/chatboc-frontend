@@ -1635,6 +1635,32 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           ) : null}
         </div>
+        
+          {/* Smart AI / Gov Quick Action Pills */}
+          <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary/80 shrink-0 flex items-center gap-1 pl-0.5">
+              <Sparkles className="w-3 h-3 text-primary" /> Respuestas Rápidas:
+            </span>
+            {[
+              { label: '🛠️ Cuadrilla en camino', text: 'Hola! Te informamos que una cuadrilla municipal ya fue asignada y se encuentra en camino al lugar para inspeccionar y resolver el reclamo.' },
+              { label: '📍 Pedir ubicación GPS', text: 'Hola! Para que el equipo pueda ubicar el inconveniente con precisión, ¿podrías enviarnos la dirección exacta, entrecalles o tu ubicación GPS?' },
+              { label: '📸 Solicitar foto', text: 'Hola! ¿Serías tan amable de adjuntarnos una foto del problema? Nos ayuda a preparar las herramientas y repuestos antes de salir.' },
+              { label: '✅ Trabajo completado', text: '¡Buenas noticias! La cuadrilla municipal ha finalizado los trabajos en la zona. El reclamo ha sido verificado y cerrado exitosamente.' },
+              { label: '⏳ En análisis técnico', text: 'Hola! Tu reclamo está siendo evaluado por el área técnica correspondiente para programar su intervención.' },
+            ].map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setMessage(chip.text);
+                  composerRef.current?.focus();
+                }}
+                className="inline-flex shrink-0 items-center rounded-full border border-border/80 bg-background/90 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-xs hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all active:scale-95"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
         <div
           className={cn(
             'gap-2',
