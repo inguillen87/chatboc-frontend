@@ -1,3 +1,4 @@
+import ExecutiveMayorTrafficLight from '@/components/analytics/ExecutiveMayorTrafficLight';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -1000,6 +1001,9 @@ export default function MunicipalAnalytics() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 p-3 sm:p-4 lg:p-6">
+      {/* Executive Mayor Control Center & Crisis Sentinel */}
+      <ExecutiveMayorTrafficLight />
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <h1 className="text-3xl font-extrabold text-primary">Analíticas Profesionales</h1>
         <DropdownMenu>

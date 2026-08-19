@@ -1245,3 +1245,76 @@ const normalizeStatesResponse = (payload: MunicipalStatesPayload | null | undefi
   for (const value of potentialLists) { if (Array.isArray(value)) return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter((item): item is string => item.length > 0); }
   return [];
 };
+
+
+// -------------------------------------------------------------------------
+// GovTech Enterprise OS: Executive Mayor Dashboard & Sentinel API Clients
+// -------------------------------------------------------------------------
+
+export interface SecretariaPerformance {
+  secretaria: string;
+  total_reclamos: number;
+  resueltos: number;
+  pendientes: number;
+  porcentaje_resolucion: number;
+  tiempo_promedio_horas: number;
+  cumplimiento_sla_porcentaje: number;
+  semaforo: 'green' | 'yellow' | 'red';
+  estado_rendimiento: string;
+  csat_estimado: number;
+}
+
+export interface CrisisAlert {
+  alerta_id: string;
+  tipo: string;
+  severidad: 'CRITICA' | 'ALTA' | 'MEDIA';
+  distrito: string;
+  categoria_principal: string;
+  reclamos_afectados: number;
+  resumen: string;
+  accion_recomendada: string;
+}
+
+export interface MunicipalExecutiveSummaryResponse {
+  timestamp: string;
+  scorecards: Record<string, unknown>;
+  semaforo_secretarias: {
+    resumen_general: {
+      total_reclamos: number;
+      total_resueltos: number;
+      tasa_resolucion_global: number;
+      cumplimiento_sla_global: number;
+      semaforo_gobierno: 'green' | 'yellow' | 'red';
+      secretarias_evaluadas: number;
+    };
+    ranking_secretarias: SecretariaPerformance[];
+  };
+  centinela_crisis: {
+    estado_centinela: 'NORMAL' | 'ALERTA_PREVENTIVA' | 'CRISIS_DETECTADA';
+    nivel_amenaza: string;
+    alertas_activas: CrisisAlert[];
+    total_alertas: number;
+    escaneado_en: string;
+  };
+}
+
+export const getMunicipalExecutiveSummary = async (): Promise<MunicipalExecutiveSummaryResponse> => {
+  return apiFetch<MunicipalExecutiveSummaryResponse>('/api/gov/analytics/executive-summary', {
+    suppressPanel401Redirect: true,
+    preserveAuthOn401: true,
+  });
+};
+
+export const getSecretariasTrafficLight = async () => {
+  return apiFetch('/api/gov/analytics/traffic-light', {
+    suppressPanel401Redirect: true,
+    preserveAuthOn401: true,
+  });
+};
+
+export const getCrisisSentinelAlerts = async () => {
+  return apiFetch('/api/gov/analytics/crisis-sentinel', {
+    suppressPanel401Redirect: true,
+    preserveAuthOn401: true,
+  });
+};
