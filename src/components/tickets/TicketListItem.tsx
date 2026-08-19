@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { shiftDateByHours } from '@/utils/date';
-import { AlertTriangle, UserRound } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { motion } from 'framer-motion';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -16,11 +17,32 @@ interface TicketListItemProps {
   compact?: boolean;
 }
 
+const getCategoryColor = (category?: string) => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('alumbrad') || cat.includes('luz') || cat.includes('electr')) {
+    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
+  }
+  if (cat.includes('bach') || cat.includes('calle') || cat.includes('obra')) {
+    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+  }
+  if (cat.includes('arbol') || cat.includes('poda') || cat.includes('verde') || cat.includes('plaza')) {
+    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
+  }
+  if (cat.includes('limpieza') || cat.includes('higiene') || cat.includes('residu') || cat.includes('basura')) {
+    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' };
+  }
+  if (cat.includes('seguridad') || cat.includes('transit') || cat.includes('vial')) {
+    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' };
+  }
+  return { border: 'border-l-primary', bg: 'bg-primary/10 text-primary' };
+};
+
 const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick, compact = false }) => {
   const normalizeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     return String(value).trim();
   };
+
   const priorityLabel = normalizeText(ticket.priority);
   const slaLabel = normalizeText(ticket.sla_status);
   const assignedLabel = normalizeText(
@@ -51,6 +73,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   const categoryLabel = normalizeText(
     ticket.categoria || ticket.categoria_principal || ticket.categoria_simple,
   );
+  const distritoLabel = normalizeText(ticket.distrito || ticket.barrio);
   const rawSubject = normalizeText(ticket.asunto || ticket.title);
   const descriptionLabel = normalizeText(ticket.description || ticket.lastMessage);
   const subjectLooksLikeCategory =
@@ -70,31 +93,37 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   const ticketNumber = normalizeText(ticket.nro_ticket) || `#${ticket.id}`;
   const normalizedStatus = normalizeTicketStatus(ticket.estado);
   const statusLabel = formatTicketStatusLabel(ticket.estado);
+  
   const statusClass = cn(
-    'text-xs capitalize px-1.5 py-0.5',
-    normalizedStatus === 'nuevo' && 'bg-blue-500/80 text-white border-transparent',
-    normalizedStatus === 'en_proceso' && 'bg-yellow-500/80 text-white border-transparent',
-    normalizedStatus === 'resuelto' && 'bg-emerald-500/80 text-white border-transparent',
-    !normalizedStatus && 'bg-muted-foreground/20 text-muted-foreground border-transparent',
+    'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border',
+    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
+    normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+    normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+    !normalizedStatus && 'bg-muted text-muted-foreground border-border/80',
   );
+
+  const categoryColors = getCategoryColor(categoryLabel);
 
   if (compact) {
     return (
-      <button
+      <motion.button
         type="button"
+        whileHover={{ x: 2 }}
+        whileTap={{ scale: 0.99 }}
         className={cn(
-          'relative w-full p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'relative w-full p-2.5 text-left transition-all rounded-xl border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+          categoryColors.border,
           isSelected
-            ? 'bg-primary/10 shadow-sm ring-1 ring-inset ring-primary/25'
-            : 'bg-background hover:bg-muted/45',
-          hasUnread && !isSelected && 'bg-primary/[0.035]',
+            ? 'bg-primary/10 shadow-sm border border-primary/30'
+            : 'bg-card/70 hover:bg-muted/60 border-t border-r border-b border-border/50',
+          hasUnread && !isSelected && 'bg-primary/[0.04]',
         )}
         onClick={onClick}
         aria-pressed={isSelected}
         aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
       >
         {hasUnread && !isSelected && (
-          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
             {unreadBadgeLabel}
           </span>
         )}
@@ -109,177 +138,156 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">
-                <h4 className="line-clamp-1 text-sm font-semibold leading-5 text-foreground" title={subject}>
+                <h4 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
                   {subject}
                 </h4>
-                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
-                  <span className="font-semibold text-foreground/80">{ticketNumber}</span>
-                  <span className="mx-1 text-muted-foreground/70">-</span>
+                <p className="line-clamp-1 text-[11px] text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+                  <span className="font-bold text-foreground/80">{ticketNumber}</span>
+                  <span className="mx-1 text-muted-foreground/60">•</span>
                   {displayName}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-[11px] leading-4 text-muted-foreground">{formattedTime}</span>
-                <Badge variant="outline" className={statusClass}>
-                  {statusLabel}
-                </Badge>
+                <span className="text-[10px] font-medium text-muted-foreground">{formattedTime}</span>
+                <span className={statusClass}>{statusLabel}</span>
               </div>
             </div>
-            {(categoryLabel || priorityLabel || slaLabel || assignedLabel) && (
+            {categoryLabel && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden">
-                {categoryLabel ? (
-                  <span className="min-w-0 truncate rounded-full border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-muted-foreground">
-                    {categoryLabel}
+                <span className={cn("truncate rounded-lg px-2 py-0.5 text-[10px] font-extrabold", categoryColors.bg)}>
+                  {categoryLabel}
+                </span>
+                {distritoLabel && (
+                  <span className="truncate rounded-lg bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground flex items-center gap-0.5">
+                    <MapPin className="w-2.5 h-2.5" />
+                    {distritoLabel}
                   </span>
-                ) : null}
-                {priorityLabel ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'shrink-0 gap-1 px-1.5 py-0 text-[10px]',
-                      (priorityTone.includes('alta') || priorityTone.includes('urgent')) &&
-                        'border-amber-400/70 bg-amber-500/10 text-amber-700 dark:text-amber-200',
-                    )}
-                  >
-                    <AlertTriangle className="h-3 w-3" />
-                    {priorityLabel}
-                  </Badge>
-                ) : null}
-                {slaLabel ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'shrink-0 px-1.5 py-0 text-[10px]',
-                      (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
-                        'border-red-400/70 bg-red-500/10 text-red-700 dark:text-red-200',
-                    )}
-                  >
-                    SLA: {slaLabel}
-                  </Badge>
-                ) : null}
-                {assignedLabel ? (
-                  <span className="min-w-0 truncate text-[10px] font-medium leading-4 text-muted-foreground">
-                    Resp. {assignedLabel}
-                  </span>
-                ) : null}
+                )}
               </div>
             )}
-            {ticket.lastMessage ? (
-              <p
-                className="mt-1 line-clamp-1 text-xs leading-4 text-muted-foreground"
-                title={ticket.lastMessage}
-              >
-                {ticket.lastMessage}
-              </p>
-            ) : null}
-            {nextAction ? (
-              <p
-                className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"
-                title={nextAction}
-              >
-                <span className="font-semibold">Ahora: </span>
-                {nextAction}
-              </p>
-            ) : null}
           </div>
         </div>
-      </button>
+      </motion.button>
     );
   }
 
   return (
-    <button
+    <motion.button
       type="button"
+      whileHover={{ y: -1.5, scale: 1.008 }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ duration: 0.15 }}
       className={cn(
-        'relative w-full rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'p-3',
+        'relative w-full rounded-2xl border text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 border-l-[5px]',
+        categoryColors.border,
+        'p-3.5 shadow-sm',
         isSelected
-          ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20'
-          : 'border-border/80 bg-background hover:bg-muted/50',
-        hasUnread && !isSelected && 'border-primary/50',
+          ? 'border-primary/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-md ring-1 ring-primary/25'
+          : 'border-border/70 bg-card/80 backdrop-blur-sm hover:bg-muted/40 hover:shadow-md',
+        hasUnread && !isSelected && 'border-primary/40 bg-primary/[0.02]',
       )}
       onClick={onClick}
       aria-pressed={isSelected}
       aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (
-        <span className="absolute top-2 right-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm animate-pulse">
           {unreadBadgeLabel}
         </span>
       )}
-      <div className="mb-2 flex items-start justify-between gap-2">
+      
+      <div className="mb-2.5 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
-            <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground" title={subject}>
+            <h4 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
               {subject}
             </h4>
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <p className="truncate text-xs text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
-                {ticketNumber} - {displayName}
-              </p>
-              {categoryLabel && categoryLabel !== subject ? (
-                <Badge variant="outline" className="max-w-[8rem] truncate px-1.5 py-0 text-[10px] font-semibold">
-                  {categoryLabel}
-                </Badge>
-              ) : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="font-black text-xs text-primary">{ticketNumber}</span>
+              <span className="text-muted-foreground/60 text-xs">•</span>
+              <span className="truncate text-xs font-semibold text-foreground/85" title={displayName}>
+                {displayName}
+              </span>
             </div>
           </div>
         </div>
+
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <span className="text-xs text-muted-foreground">{formattedTime}</span>
-          {activeViewers > 0 ? (
-            <Badge variant="secondary" className="text-[10px]">
-              {activeViewers} viendo
-            </Badge>
-          ) : null}
-          <Badge variant="outline" className={statusClass}>
+          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+            <Clock className="w-3 h-3 text-muted-foreground/70" />
+            {formattedTime}
+          </span>
+          <span className={statusClass}>
             {statusLabel}
-          </Badge>
+          </span>
         </div>
       </div>
-      {(priorityLabel || slaLabel || assignedLabel) && (
-        <div className="mb-2 flex flex-wrap gap-1.5 overflow-hidden pl-[52px]">
-          {priorityLabel ? (
-            <Badge
-              variant="outline"
-              className={cn(
-                'gap-1 text-[10px]',
-                (priorityTone.includes('alta') || priorityTone.includes('urgent')) &&
-                  'border-amber-400/70 bg-amber-500/10 text-amber-700 dark:text-amber-200',
-              )}
-            >
-              <AlertTriangle className="h-3 w-3" />
-              {priorityLabel}
-            </Badge>
-          ) : null}
-          {slaLabel ? (
-            <Badge
-              variant="outline"
-              className={cn(
-                'text-[10px]',
-                (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
-                  'border-red-400/70 bg-red-500/10 text-red-700 dark:text-red-200',
-              )}
-            >
-              SLA: {slaLabel}
-            </Badge>
-          ) : null}
-          {assignedLabel ? (
-            <Badge variant="secondary" className="gap-1 text-[10px]">
-              <UserRound className="h-3 w-3" />
-              {assignedLabel}
-            </Badge>
-          ) : null}
-        </div>
-      )}
-      <p className="line-clamp-2 pl-[52px] text-sm leading-5 text-muted-foreground">{ticket.lastMessage || '...'}</p>
+
+      {/* Badges strip */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-1.5 overflow-hidden pl-[48px]">
+        {categoryLabel ? (
+          <span className={cn("truncate rounded-lg px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide", categoryColors.bg)}>
+            {categoryLabel}
+          </span>
+        ) : null}
+
+        {distritoLabel ? (
+          <span className="truncate rounded-lg bg-muted/80 px-2 py-0.5 text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-primary/70" />
+            {distritoLabel}
+          </span>
+        ) : null}
+
+        {priorityLabel ? (
+          <Badge
+            variant="outline"
+            className={cn(
+              'gap-1 text-[10px] font-bold rounded-lg px-2 py-0.5',
+              (priorityTone.includes('alta') || priorityTone.includes('urgent')) &&
+                'border-amber-400/70 bg-amber-500/15 text-amber-700 dark:text-amber-300',
+            )}
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {priorityLabel}
+          </Badge>
+        ) : null}
+
+        {slaLabel ? (
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[10px] font-bold rounded-lg px-2 py-0.5',
+              (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
+                'border-rose-400/70 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse',
+            )}
+          >
+            SLA: {slaLabel}
+          </Badge>
+        ) : null}
+
+        {assignedLabel ? (
+          <Badge variant="secondary" className="gap-1 text-[10px] font-semibold rounded-lg px-2 py-0.5">
+            <UserRound className="h-3 w-3" />
+            {assignedLabel}
+          </Badge>
+        ) : null}
+      </div>
+
+      <p className="line-clamp-2 pl-[48px] text-xs leading-relaxed text-muted-foreground font-normal">
+        {ticket.lastMessage || ticket.description || 'Sin mensajes adicionales'}
+      </p>
+
       {nextAction ? (
-        <p className="mt-2 line-clamp-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs leading-4 text-primary sm:ml-[52px]">
-          {nextAction}
-        </p>
+        <div className="mt-2.5 line-clamp-1 rounded-xl border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] font-bold leading-none text-primary ml-[48px] flex items-center gap-1.5 shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+          <span className="truncate">
+            <span className="uppercase text-[9px] tracking-wider text-primary/70 mr-1">Sugerencia IA:</span>
+            {nextAction}
+          </span>
+        </div>
       ) : null}
-    </button>
+    </motion.button>
   );
 };
 
