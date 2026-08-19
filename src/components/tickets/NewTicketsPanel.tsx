@@ -1,3 +1,4 @@
+import CuadrillaFieldModal from './CuadrillaFieldModal';
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
@@ -960,6 +961,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 ))}
               </div>
             ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <CuadrillaFieldModal />
           </div>
           {!embedded ? (
             <div
