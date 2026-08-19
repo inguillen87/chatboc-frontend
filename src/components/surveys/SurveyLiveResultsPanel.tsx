@@ -153,10 +153,12 @@ const normalizeStringList = (values: unknown[]) =>
     ),
   );
 
-const extractRealtimeEvents = (realtime?: SurveyRealtimeContract) =>
-  normalizeStringList(
-    (realtime?.socket?.events ?? []).map((event) => (typeof event === 'string' ? event : isRecord(event) ? event.name : undefined)),
+const extractRealtimeEvents = (realtime?: SurveyRealtimeContract) => {
+  const events = Array.isArray(realtime?.socket?.events) ? realtime.socket.events : [];
+  return normalizeStringList(
+    events.map((event) => (typeof event === 'string' ? event : isRecord(event) ? event.name : undefined)),
   );
+};
 
 const extractRealtimeJoinPayloads = (realtime?: SurveyRealtimeContract) => {
   const payloads = Array.isArray(realtime?.socket?.join_payloads)
