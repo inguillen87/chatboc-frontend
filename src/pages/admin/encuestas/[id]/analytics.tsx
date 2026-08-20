@@ -1349,28 +1349,28 @@ export default function SurveyAnalyticsPage() {
               {rangeLabel}
             </span>
           </div>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="space-y-3">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Enlace público</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Enlace público de participación</p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 py-2.5 text-sm font-mono text-foreground shadow-xs">
                       <span className="truncate">
                         {publicUrl || 'Configurá el slug público para generar el enlace compartible.'}
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <Button
-                      variant="outline"
+                      variant="default"
                       onClick={async () => {
                         if (!copyPublicUrl) return;
                         try {
                           await navigator.clipboard.writeText(copyPublicUrl);
                           toast({
-                            title: 'Link copiado',
-                            description: 'Listo para compartir por WhatsApp, redes o correo.',
+                            title: 'Link copiado al portapapeles',
+                            description: 'Listo para compartir por WhatsApp, redes sociales o afiches.',
                           });
                         } catch (error) {
                           toast({
@@ -1380,50 +1380,52 @@ export default function SurveyAnalyticsPage() {
                           });
                         }
                       }}
-                      className="inline-flex items-center gap-2"
+                      className="inline-flex items-center gap-2 shadow-xs"
                       disabled={!copyPublicUrl}
                     >
                       <Copy className="h-4 w-4" /> Copiar link
                     </Button>
                     {resolvedWhatsappShareUrl ? (
-                      <Button variant="outline" asChild className="inline-flex items-center gap-2">
+                      <Button variant="outline" asChild className="inline-flex items-center gap-2 border-emerald-600/30 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-400 dark:hover:bg-emerald-950/30">
                         <a href={resolvedWhatsappShareUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink className="h-4 w-4" /> WhatsApp
+                          <MessageCircle className="h-4 w-4" /> WhatsApp
                         </a>
                       </Button>
                     ) : null}
                     {shouldShowLiveResultsButton && resolvedLiveResultsHref ? (
                       <Button variant="outline" asChild className="inline-flex items-center gap-2">
                         <a href={resolvedLiveResultsHref} target="_blank" rel="noreferrer">
-                          <Activity className="h-4 w-4" /> Resultados
-                        </a>
-                      </Button>
-                    ) : null}
-                    {qrUrl ? (
-                      <Button variant="outline" asChild className="inline-flex items-center gap-2">
-                        <a href={qrUrl} download>
-                          <Download className="h-4 w-4" /> Descargar QR
+                          <Activity className="h-4 w-4" /> Resultados en vivo
                         </a>
                       </Button>
                     ) : null}
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {publicationActionLabel}. Compartí el enlace en WhatsApp, redes sociales o insertalo en tu sitio para maximizar la participación.
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {publicationActionLabel}. Compartí el enlace en WhatsApp, canales institucionales, redes sociales o insertalo en tu sitio para maximizar la participación.
               </p>
             </div>
             {qrUrl ? (
-              <div className="flex flex-col items-center gap-2">
-                <SurveyQrPreview
-                  slug={livePanelSlug}
-                  title={effectiveSurvey.titulo}
-                  tenantSlug={effectiveTenantSlug}
-                  remoteUrl={qrUrl}
-                  size={160}
-                  imageClassName="bg-white p-4"
-                />
-                <span className="text-xs text-muted-foreground">Escaneá para probar el recorrido público.</span>
+              <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card/80 p-3.5 shadow-sm backdrop-blur-xs">
+                <div className="overflow-hidden rounded-lg bg-white p-2 shadow-xs">
+                  <SurveyQrPreview
+                    slug={livePanelSlug}
+                    title={effectiveSurvey.titulo}
+                    tenantSlug={effectiveTenantSlug}
+                    remoteUrl={qrUrl}
+                    size={144}
+                    imageClassName="border-0 bg-white p-1"
+                  />
+                </div>
+                <div className="mt-3 flex w-full flex-col items-center gap-1.5 text-center">
+                  <Button variant="outline" size="sm" asChild className="w-full gap-1.5 text-xs font-medium shadow-xs">
+                    <a href={qrUrl} download={`qr-${livePanelSlug}.png`}>
+                      <Download className="h-3.5 w-3.5 text-primary" /> Descargar QR
+                    </a>
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground">Escaneá para probar el acceso</span>
+                </div>
               </div>
             ) : null}
           </div>
