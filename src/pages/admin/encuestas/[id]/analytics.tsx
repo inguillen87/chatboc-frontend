@@ -1177,13 +1177,13 @@ export default function SurveyAnalyticsPage() {
   };
 
   const forecast = forecastQuery.data;
-  const alerts = alertsQuery.data ?? [];
+  const alerts = Array.isArray(alertsQuery.data) ? alertsQuery.data : [];
   const brief = briefQuery.data;
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
   const responsesTotalHint = typeof summary?.total_respuestas === 'number' ? summary.total_respuestas : null;
-  const backendAlerts = dashboardBundle?.modules?.alerts ?? [];
-  const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
+  const backendAlerts = Array.isArray(dashboardBundle?.modules?.alerts) ? dashboardBundle.modules.alerts : [];
+  const effectiveAlerts = backendAlerts.length ? backendAlerts : (Array.isArray(alerts) ? alerts : []);
   const backendBrief = dashboardBundle?.modules?.brief;
   const effectiveBrief = backendBrief ?? brief;
   const executiveKpisEntries = useMemo(() => {
@@ -1192,7 +1192,7 @@ export default function SurveyAnalyticsPage() {
     return Object.entries(source).map(([key, value]) => ({ key, value: asRecord(value) ?? {} }));
   }, [dashboardBundle?.kpis_executive]);
   const topAnomalies = useMemo(
-    () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : anomalies?.signals ?? []),
+    () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : (Array.isArray(anomalies?.signals) ? anomalies.signals : [])),
     [anomalies?.top_anomalies, anomalies?.signals],
   );
   const operationsPulse = useMemo(
@@ -1249,7 +1249,7 @@ export default function SurveyAnalyticsPage() {
 
   const segmentDeltaData = useMemo(
     () =>
-      (segmentsCompare?.buckets ?? [])
+      (Array.isArray(segmentsCompare?.buckets) ? segmentsCompare.buckets : [])
         .map((bucket, index) => {
           const segmentA = toFiniteNumber(bucket.segment_a, 0);
           const segmentB = toFiniteNumber(bucket.segment_b, 0);
@@ -1275,7 +1275,7 @@ export default function SurveyAnalyticsPage() {
 
   const anomalySignalsData = useMemo(
     () =>
-      (topAnomalies ?? [])
+      (Array.isArray(topAnomalies) ? topAnomalies : [])
         .map((signal, index) => ({
           key: String(signal.id ?? index + 1),
           signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
@@ -1737,7 +1737,7 @@ export default function SurveyAnalyticsPage() {
                 <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
               ) : effectiveAlerts.length ? (
                 <div className="space-y-2">
-                  {effectiveAlerts.slice(0, 6).map((alert, index) => (
+                  {(Array.isArray(effectiveAlerts) ? effectiveAlerts : []).slice(0, 6).map((alert, index) => (
                     <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
@@ -1765,7 +1765,7 @@ export default function SurveyAnalyticsPage() {
                 <p>{asRenderableText(effectiveBrief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
                 {effectiveBrief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
-                    {effectiveBrief.highlights.slice(0, 4).map((item, index) => (
+                    {(Array.isArray(effectiveBrief?.highlights) ? effectiveBrief.highlights : []).slice(0, 4).map((item, index) => (
                       <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
                     ))}
                   </ul>
@@ -1824,7 +1824,7 @@ export default function SurveyAnalyticsPage() {
               <p className="text-sm text-destructive">{getErrorMessage(compareQuery.error)}</p>
             ) : segmentsCompare?.buckets?.length ? (
               <div className="space-y-2">
-                {segmentsCompare.buckets.slice(0, 6).map((bucket, index) => (
+                {(Array.isArray(segmentsCompare?.buckets) ? segmentsCompare.buckets : []).slice(0, 6).map((bucket, index) => (
                   <div key={`${bucket.question_id ?? index}`} className="space-y-1">
                     <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1850,7 +1850,7 @@ export default function SurveyAnalyticsPage() {
                 {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_level_label), anomalies?.risk_level ?? '—')}
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
-                    {anomalies.signals.slice(0, 6).map((signal, index) => (
+                    {(Array.isArray(anomalies?.signals) ? anomalies.signals : []).slice(0, 6).map((signal, index) => (
                       <li key={`${signal.id ?? index}`}>{asRenderableText(signal.type)}: {asRenderableText(signal.detail)}</li>
                     ))}
                   </ul>

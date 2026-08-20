@@ -49,7 +49,7 @@ export const buildSurveyPreview = (draft: SurveyDraftPayload): SurveyPublic => (
     opciones:
       question.tipo === 'abierta'
         ? undefined
-        : (question.opciones ?? []).map((option, optionIndex) => ({
+        : (Array.isArray(question.opciones) ? question.opciones : []).map((option, optionIndex) => ({
             id: `preview-${questionIndex + 1}-${optionIndex + 1}`,
             option_ref: option.option_ref,
             orden: optionIndex + 1,

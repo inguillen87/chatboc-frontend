@@ -485,7 +485,7 @@ const isLocalV2ConditionalRuleValid = (
   if (sourceIndexes.length !== 1 || sourceIndexes[0] >= targetIndex) return false;
   const source = questions[sourceIndexes[0]];
   return isCompatibleConditionalSource(source)
-    && (source.opciones ?? []).filter((option) => option.option_ref === node.option_ref).length === 1;
+    && (Array.isArray(source?.opciones) ? source.opciones : []).filter((option) => option.option_ref === node.option_ref).length === 1;
   });
   if (!referencesAreValid) return false;
 
@@ -821,7 +821,7 @@ export const SurveyEditor = ({
         if (question.localId !== questionId) return question;
         return {
           ...question,
-          opciones: (question.opciones ?? []).map((option) =>
+          opciones: (Array.isArray(question.opciones) ? question.opciones : []).map((option) =>
             option.localId === optionId ? { ...option, ...partial } : option,
           ),
         };
@@ -852,7 +852,7 @@ export const SurveyEditor = ({
       sanitizeLocalConditionalRules(
         prev.map((question) => {
           if (question.localId !== questionId) return question;
-          return { ...question, opciones: (question.opciones ?? []).filter((option) => option.localId !== optionId) };
+          return { ...question, opciones: (Array.isArray(question.opciones) ? question.opciones : []).filter((option) => option.localId !== optionId) };
         }),
       ),
     );
@@ -929,7 +929,7 @@ export const SurveyEditor = ({
       opciones:
         question.tipo === 'abierta'
           ? undefined
-          : (question.opciones ?? []).map((option, optIndex) => ({
+          : (Array.isArray(question.opciones) ? question.opciones : []).map((option, optIndex) => ({
               id: option.id,
               option_ref: option.option_ref,
               orden: optIndex + 1,
@@ -1538,7 +1538,7 @@ export const SurveyEditor = ({
                                           <SelectValue placeholder="Elegir respuesta" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {(leafSource?.opciones ?? []).filter((option) => Boolean(option.option_ref)).map((option, optionIndex) => (
+                                          {(Array.isArray(leafSource?.opciones) ? leafSource.opciones : []).filter((option) => Boolean(option.option_ref)).map((option, optionIndex) => (
                                             <SelectItem key={option.localId} value={option.option_ref!}>
                                               {option.texto || `Opcion ${optionIndex + 1}`}
                                             </SelectItem>
@@ -1618,7 +1618,7 @@ export const SurveyEditor = ({
                                   <SelectValue placeholder="Elegir respuesta" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {(selectedSource.opciones ?? []).map((sourceOption, optionIndex) => (
+                                  {(Array.isArray(selectedSource.opciones) ? selectedSource.opciones : []).map((sourceOption, optionIndex) => (
                                     <SelectItem key={sourceOption.localId} value={sourceOption.localId}>
                                       {sourceOption.texto || `Opcion ${optionIndex + 1}`}
                                     </SelectItem>
@@ -1658,7 +1658,7 @@ export const SurveyEditor = ({
                           </p>
                         )}
                         <div className="flex flex-col gap-2">
-                          {(question.opciones ?? []).map((option, optionIndex) => (
+                          {(Array.isArray(question.opciones) ? question.opciones : []).map((option, optionIndex) => (
                             <div key={option.localId} className="flex items-center gap-2">
                               <Input
                                 value={option.texto}

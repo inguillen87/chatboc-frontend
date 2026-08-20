@@ -739,7 +739,7 @@ export function PremiumTerritoryHeatmap({
   const aiStatus = heatmap?.ai_status;
   const aiStatusLabel = humanizeContractValue(readString(aiStatus?.status, heatmap?.ai_layers?.status), 'sin estado IA');
   const aiModeLabel = humanizeContractValue(readString(aiStatus?.mode, heatmap?.ai_layers?.mode), 'capas operativas');
-  const aiHintLabels = (aiStatus?.map_layer_hints ?? []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
+  const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
   const mapLayers = asRecord(heatmap?.map_layers);
   const mapLayerHotspots = asRecord(mapLayers?.hotspots);
   const mapLayerFocus = asRecord(mapLayerHotspots?.focus);
@@ -775,15 +775,15 @@ export function PremiumTerritoryHeatmap({
   ]).slice(0, 4);
   const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
     const contextLabel = readString(candidate.address, candidate.label, candidate.category);
-    return (candidate.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+    return (Array.isArray(candidate.actions) ? candidate.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const pointActions = sourcePoints.flatMap((point) => {
     const contextLabel = readString(point.label, point.categoria, point.category, point.barrio, point.distrito);
-    return (point.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+    return (Array.isArray(point.actions) ? point.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const cellActions = (heatmap?.cells ?? []).flatMap((cell) => {
     const contextLabel = readString(cell.label, cell.title, cell.key, cell.id);
-    return (cell.actions ?? []).map((action) => actionWithContext(action, contextLabel));
+    return (Array.isArray(cell.actions) ? cell.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const operationalHotspotActions = operationalHotspots
     .map((hotspot) => actionWithContext(hotspot.recommended_action, readString(hotspot.top_category, hotspot.id)))

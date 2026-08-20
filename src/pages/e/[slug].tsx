@@ -90,7 +90,7 @@ const toLegacyLiveResults = (
     if (questionId === undefined || questionId === null) continue;
     preguntas[String(questionId)] = {
       tipo: String(question.tipo || 'opcion_unica'),
-      opciones: (question.opciones ?? []).map((option) => ({
+      opciones: (Array.isArray(question.opciones) ? question.opciones : []).map((option) => ({
         id: option.id ?? option.value ?? '',
         texto: String(option.texto ?? option.label ?? option.value ?? ''),
         votos: Number(option.votos ?? option.value ?? 0) || 0,
@@ -550,7 +550,7 @@ const PublicSurveyPage = () => {
     const rows = [
       ['tipo', 'clave', 'value', 'votos', 'porcentaje'].join(','),
       ...liveQuestions.flatMap((question, qIndex) =>
-        (question.opciones ?? []).map((option, oIndex) =>
+        (Array.isArray(question.opciones) ? question.opciones : []).map((option, oIndex) =>
           [
             'pregunta',
             String(question.id ?? qIndex),
@@ -1108,7 +1108,7 @@ const PublicSurveyPage = () => {
                             </span>
                           </div>
                           <div className="space-y-2">
-                            {(question.opciones ?? []).map((option, optionIndex) => {
+                            {(Array.isArray(question.opciones) ? question.opciones : []).map((option, optionIndex) => {
                               const optionLabel = toDisplayText(option.texto ?? option.label ?? option.value) || `Opcion ${optionIndex + 1}`;
                               const optionVotes = Number(option.votos ?? 0);
                               const optionPercentage = Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)));

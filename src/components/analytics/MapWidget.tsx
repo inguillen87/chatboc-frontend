@@ -136,7 +136,7 @@ export function MapWidget({
 
   const csv = useMemo(() => {
     if (!heatmap) return [];
-    return (heatmap.cells ?? []).map((cell) => ({
+    return (Array.isArray(heatmap.cells) ? heatmap.cells : []).map((cell) => ({
       cell: cell.cellId,
       total: cell.count,
       weight: cell.weight,
