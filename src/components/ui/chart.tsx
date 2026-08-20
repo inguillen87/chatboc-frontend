@@ -26,7 +26,7 @@ function useChart() {
   const context = React.useContext(ChartContext)
 
   if (!context) {
-    throw new Error("useChart must be used within a <ChartContainer />")
+    throw new Error("useChart must be used within a ChartContainer")
   }
 
   return context
@@ -40,11 +40,23 @@ const ChartContainer = React.forwardRef<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config, ...props }, forwardedRef) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [canRender, setCanRender] = React.useState(false)
+
+  const handleRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node)
+      } else if (forwardedRef) {
+        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+      }
+    },
+    [forwardedRef]
+  )
 
   React.useEffect(() => {
     const node = containerRef.current
@@ -57,7 +69,7 @@ const ChartContainer = React.forwardRef<
       const rect = node.getBoundingClientRect()
       const style = window.getComputedStyle(node)
       const visible = style.display !== "none" && style.visibility !== "hidden"
-      setCanRender(rect.width > 24 && rect.height > 24 && visible)
+      setCanRender(rect.width >= 100 && rect.height >= 100 && visible)
     }
 
     const raf = window.requestAnimationFrame(update)
@@ -78,7 +90,7 @@ const ChartContainer = React.forwardRef<
     <ChartContext.Provider value={{ config }}>
       <div
         data-chart={chartId}
-        ref={ref}
+        ref={handleRef}
         className={cn(
           "flex aspect-video min-w-[280px] min-h-[220px] justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
@@ -91,7 +103,7 @@ const ChartContainer = React.forwardRef<
             {children}
           </RechartsPrimitive.ResponsiveContainer>
         ) : (
-          <div className="h-full w-full" />
+          <div className="h-full w-full min-h-[220px]" />
         )}
       </div>
     </ChartContext.Provider>
@@ -224,7 +236,7 @@ const ChartTooltipContent = React.forwardRef<
 
             return (
               <div
-                key={item.dataKey}
+                key={item.dataKey || index}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                   indicator === "dot" && "items-center"
@@ -348,7 +360,6 @@ const ChartLegendContent = React.forwardRef<
 )
 ChartLegendContent.displayName = "ChartLegend"
 
-// Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
   payload: unknown,

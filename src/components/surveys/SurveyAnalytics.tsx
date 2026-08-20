@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 
 import MapLibreMap from '@/components/LazyMapLibreMap';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -1751,152 +1752,25 @@ export const SurveyAnalytics = ({
                 </li>
               ))}
               {!utmBreakdown.length && (
-                <li className="text-muted-foreground">Aun no se registraron campanias etiquetadas.</li>
+                <li className="text-muted-foreground">Aún no se registraron campañas etiquetadas.</li>
               )}
             </ul>
           </div>
         </CardContent>
       </Card>
 
-      <SurveyTerritoryCommandCenter
-        points={aggregatedHeatmapPoints}
-        geoIntensity={geoIntensity}
-        geoCoverageLabel={geoCoverageLabel}
-        totalResponses={totalResponsesValue}
-        provider={provider}
-        providerHint={providerHint}
-        fallbackProvider={fallbackProvider}
-        usingSyntheticPoints={usingSyntheticPoints}
-        mapRenderReady={mapRenderReady}
-        boundingBoxValue={boundingBoxValue}
-        channelBreakdown={channelBreakdown}
-        categoryLayerCount={categoryLayerCategories.length}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Mapa de calor</CardTitle>
-          <CardDescription>Ubicaciones aproximadas de participacion cuando las respuestas las incluyen.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {usingSyntheticPoints ? (
-            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
-              El mapa se oculta porque no hay ubicaciones reales disponibles.
-            </div>
-          ) : null}
-          {mapRenderReady && heatmapData.length ? (
-            <div className="space-y-4">
-              {categoryColorMap.size ? (
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {Array.from(categoryColorMap.entries()).map(([category, color]) => (
-                    <span key={category} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                      {category}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {categoryLayerCategories.length ? (
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {categoryLayerCategories.slice(0, 8).map((category, index) => {
-                    const label = toNonEmptyString(category.categoria ?? category.category ?? category.label) ?? '—';
-                    const count = toFiniteNumber(category.event_count ?? category.total_weight ?? category.count) ?? 0;
-                    const color = toNonEmptyString(category.color) ?? categoryColorMap.get(label) ?? '#94a3b8';
-                    return (
-                      <span key={`${label}-${index}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                        {label} · {count}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : null}
-              <MeasuredContainer className="h-[360px] min-w-0 overflow-hidden rounded-lg border border-border/60">
-                <MapLibreMap
-                  className="h-full w-full"
-                  center={heatmapCenter}
-                  heatmapData={heatmapData}
-                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-                  initialZoom={heatmapBounds.length ? 12 : 4}
-                  provider={provider}
-                  onProviderUnavailable={handleProviderUnavailable}
-                  onBoundingBoxChange={handleBoundingBoxChange}
-                  geoLayerConfig={
-                    categoryLayersRecord
-                      ? {
-                          contract_version: toNonEmptyString(categoryLayersRecord.contract_version) ?? undefined,
-                          style_url: toNonEmptyString(categoryLayersRecord.style_url) ?? undefined,
-                          source: categoryLayerSource,
-                          source_options: isRecord(categoryLayersRecord.source_options) ? categoryLayersRecord.source_options : undefined,
-                          interactions: isRecord(categoryLayersRecord.interactions) ? categoryLayersRecord.interactions as any : undefined,
-                          layers: isRecord(categoryLayersRecord.layers) ? categoryLayersRecord.layers as any : undefined,
-                          telemetry: isRecord(categoryLayersRecord.telemetry) ? categoryLayersRecord.telemetry as any : undefined,
-                        }
-                      : undefined
-                  }
-                  mapStyleUrl={toNonEmptyString(categoryLayersRecord?.style_url) ?? undefined}
-                  evidence={surveyMapEvidence}
-                />
-              </MeasuredContainer>
-              <div className="overflow-x-auto">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Zonas principales
-                </p>
-                <table className="min-w-full divide-y divide-border text-sm">
-                  <thead>
-                    <tr className="text-left text-muted-foreground">
-                      <th className="py-2 pr-4">Latitud</th>
-                      <th className="py-2 pr-4">Longitud</th>
-                      <th className="py-2 pr-4">Respuestas</th>
-                      <th className="py-2 pr-4">Categoría</th>
-                      <th className="py-2 pr-4">Canal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {aggregatedHeatmapPoints.slice(0, 25).map((point, index) => (
-                      <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
-                        <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
-                        <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
-                        <td className="py-2 pr-4">{point.respuestas}</td>
-                        <td className="py-2 pr-4">
-                          {point.categoria ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColorMap.get(point.categoria) || '#94a3b8' }} />
-                              {point.categoria}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="py-2 pr-4">{point.canal || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {aggregatedHeatmapPoints.length > 25 ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Mostrando 25 zonas principales de {aggregatedHeatmapPoints.length} detectadas.
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
+      <Card className="border-border/70 shadow-sm">
         <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
-            <CardTitle>Mapa de participacion</CardTitle>
-            <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
+            <CardTitle>Mapa de Calor y Cobertura Territorial</CardTitle>
+            <CardDescription>
+              Georreferenciación, focos de concentración y distribución espacial de las respuestas recibidas.
+            </CardDescription>
           </div>
           <div className="flex flex-col items-start gap-1 md:items-end">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Vista de mapa
+              Vista del Mapa
             </span>
-            <span className="text-[11px] text-muted-foreground">Mapa interactivo</span>
             <MapProviderToggle
               value={provider}
               onChange={setProvider}
@@ -1905,14 +1779,14 @@ export const SurveyAnalytics = ({
             />
           </div>
         </CardHeader>
-        <CardContent className="h-[420px]">
+        <CardContent className="space-y-5">
           {usingSyntheticPoints ? (
-            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
-              El mapa se oculta porque no hay ubicaciones reales disponibles.
+            <div className="inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+              Visualización en modo simulación de muestra territorial.
             </div>
           ) : null}
           {mapRenderReady && heatmapData.length && boundingBoxValue ? (
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.
               <Button
                 type="button"
@@ -1926,10 +1800,20 @@ export const SurveyAnalytics = ({
               </Button>
             </div>
           ) : null}
+          {categoryColorMap.size ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {Array.from(categoryColorMap.entries()).map(([category, color]) => (
+                <span key={category} className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background px-2.5 py-1 text-xs">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                  {category}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {mapRenderReady && heatmapData.length ? (
-            <MeasuredContainer className="h-full min-w-0">
+            <MeasuredContainer minWidth={280} minHeight={380} className="h-[420px] w-full min-w-0 overflow-hidden rounded-xl border border-border/60">
               <MapLibreMap
-                className="h-full rounded-lg"
+                className="h-full w-full rounded-xl"
                 center={heatmapCenter}
                 heatmapData={heatmapData}
                 fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
@@ -1944,9 +1828,9 @@ export const SurveyAnalytics = ({
                         style_url: toNonEmptyString(categoryLayersRecord.style_url) ?? undefined,
                         source: categoryLayerSource,
                         source_options: isRecord(categoryLayersRecord.source_options) ? categoryLayersRecord.source_options : undefined,
-                        interactions: isRecord(categoryLayersRecord.interactions) ? categoryLayersRecord.interactions as any : undefined,
-                        layers: isRecord(categoryLayersRecord.layers) ? categoryLayersRecord.layers as any : undefined,
-                        telemetry: isRecord(categoryLayersRecord.telemetry) ? categoryLayersRecord.telemetry as any : undefined,
+                        interactions: isRecord(categoryLayersRecord.interactions) ? (categoryLayersRecord.interactions as any) : undefined,
+                        layers: isRecord(categoryLayersRecord.layers) ? (categoryLayersRecord.layers as any) : undefined,
+                        telemetry: isRecord(categoryLayersRecord.telemetry) ? (categoryLayersRecord.telemetry as any) : undefined,
                       }
                     : undefined
                 }
@@ -1955,22 +1839,89 @@ export const SurveyAnalytics = ({
               />
             </MeasuredContainer>
           ) : heatmapData.length ? (
-            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-border/60 bg-muted/10 p-4 text-center">
+            <div className="flex h-[320px] flex-col items-center justify-center rounded-xl border border-border/60 bg-muted/10 p-4 text-center">
               <div className="h-2 w-40 animate-pulse rounded-full bg-primary/30" />
-              <p className="mt-3 text-sm font-medium">Preparando el mapa con las respuestas geolocalizadas.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Organizando las zonas para mostrar una lectura clara.
-              </p>
+              <p className="mt-3 text-sm font-medium">Preparando el mapa con las respuestas geolocalizadas...</p>
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavia.'}
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
             </div>
           )}
+
+          {aggregatedHeatmapPoints.length ? (
+            <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Ranking de Participación por Zona y Barrio
+                </p>
+                <Badge variant="outline" className="text-[11px]">
+                  {aggregatedHeatmapPoints.length} focos detectados
+                </Badge>
+              </div>
+              <table className="min-w-full divide-y divide-border/60 text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground font-medium">
+                    <th className="py-2.5 pr-4">Zona / Barrio</th>
+                    <th className="py-2.5 pr-4">Volumen</th>
+                    <th className="py-2.5 pr-4">Distribución Relativa</th>
+                    <th className="py-2.5 pr-4">Categoría Principal</th>
+                    <th className="py-2.5 pr-4">Canal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {aggregatedHeatmapPoints.slice(0, 15).map((point, index) => {
+                    const maxVol = Math.max(1, ...aggregatedHeatmapPoints.map((p) => p.respuestas || 1));
+                    const pct = Math.round(((point.respuestas || 0) / maxVol) * 100);
+                    const zoneName = point.barrio || point.ciudad || `Zona ${index + 1} (${point.lat.toFixed(2)}, ${point.lng.toFixed(2)})`;
+                    return (
+                      <tr key={`${point.lat}-${point.lng}-${index}`} className="hover:bg-muted/20 transition-colors">
+                        <td className="py-2.5 pr-4 font-medium text-foreground">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                              {index + 1}
+                            </span>
+                            <span>{zoneName}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-4 font-semibold text-foreground">
+                          {point.respuestas} {point.respuestas === 1 ? 'voto' : 'votos'}
+                        </td>
+                        <td className="py-2.5 pr-4 min-w-[140px]">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-28 rounded-full bg-muted/60 overflow-hidden">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(8, pct)}%` }} />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{pct}%</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          {point.categoria ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px]">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColorMap.get(point.categoria) || '#38bdf8' }} />
+                              {point.categoria}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <Badge variant="secondary" className="text-[10px] font-normal uppercase">
+                            {point.canal || 'Web'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
+
       {demographicSections.length ? (
-        <Card>
+        <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle>Segmentación demográfica</CardTitle>
             <CardDescription>Distribución de respuestas según género, edad y territorio declarado.</CardDescription>

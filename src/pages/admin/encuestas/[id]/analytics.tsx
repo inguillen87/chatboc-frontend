@@ -1273,12 +1273,22 @@ export default function SurveyAnalyticsPage() {
     [segmentsCompare?.buckets],
   );
 
+  const formatSignalLabel = (rawType: string) => {
+    const norm = String(rawType || '').toLowerCase().trim();
+    if (norm.includes('suspicious') || norm.includes('ip')) return 'Integridad de Red / IP';
+    if (norm.includes('velocity') || norm.includes('flood') || norm.includes('rate')) return 'Frecuencia de Envío';
+    if (norm.includes('fingerprint') || norm.includes('duplicate')) return 'Huella de Navegador';
+    if (norm.includes('burst') || norm.includes('spike')) return 'Picos Inusuales';
+    if (norm.includes('bot') || norm.includes('automated')) return 'Verificación de Automatización';
+    return humanizeMetricKey(rawType) || 'Control de Integridad';
+  };
+
   const anomalySignalsData = useMemo(
     () =>
       (Array.isArray(topAnomalies) ? topAnomalies : [])
         .map((signal, index) => ({
           key: String(signal.id ?? index + 1),
-          signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
+          signal: formatSignalLabel(asRenderableText(signal.type) || String(signal.id ?? index + 1)),
           score: toFiniteNumber(signal.score, 0),
         }))
         .sort((a, b) => b.score - a.score)
@@ -1930,212 +1940,81 @@ export default function SurveyAnalyticsPage() {
         </Card>
       ) : null}
 
-      {hasAdminTemplateContent ? (
-        <Card>
+      {adminTemplateDecisionCards.length ? (
+        <Card className="border-border/70 shadow-sm">
           <CardHeader>
-            <CardTitle>{asRenderableText(adminTemplate?.title)}</CardTitle>
-            <CardDescription>{asRenderableText(adminTemplate?.description)}</CardDescription>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              <div>
+                <CardTitle>{asRenderableText(adminTemplate?.title) || 'Hoja de Ruta y Decisiones Estratégicas'}</CardTitle>
+                <CardDescription>{asRenderableText(adminTemplate?.description) || 'Recomendaciones y prioridades sugeridas para la gestión con base en la evidencia ciudadana.'}</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {adminTemplateTabs.length ? (
-              <div className="flex flex-wrap gap-2">
-                {adminTemplateTabs.map((tab, index) => (
-                  <Badge key={`${asRenderableText(tab.key) || 'tab'}-${index}`} variant="secondary">
-                    {asRenderableText(tab.label) || asRenderableText(tab.key)}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-
-            {adminTemplateStackGroups.length ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {adminTemplateStackGroups.map((group) => (
+            <div className="grid gap-3 lg:grid-cols-3">
+              {adminTemplateDecisionCards.map((card, index) => {
+                const evidence = asStringList(card.evidence).slice(0, 3);
+                const priority = normalizePriority(card.priority);
+                const confidenceRatio = toNormalizedRatio(card.confidence ?? card.score ?? card.priority_score);
+                const impactRatio = toNormalizedRatio(card.impact ?? card.impact_score);
+                const owner = asRenderableText(card.owner);
+                const horizon = asRenderableText(card.horizon);
+                return (
                   <motion.div
-                    key={group.key}
-                    initial={{ opacity: 0, y: 8 }}
+                    key={`${asRenderableText(card.key) || 'decision'}-${index}`}
+                    initial={{ opacity: 0, y: 10 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, amount: 0.35 }}
-                    transition={{ duration: 0.22 }}
-                    className="rounded-lg border border-border/60 bg-gradient-to-b from-muted/20 to-background p-3"
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.24, delay: index * 0.03 }}
+                    className="rounded-lg border border-border/60 bg-gradient-to-b from-primary/5 to-background p-3"
                   >
-                    {asRenderableText(group.key) ? (
-                      <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{asRenderableText(card.title) || humanizeMetricKey(asRenderableText(card.key)) || asRenderableText(card.key)}</p>
+                      {priority ? <Badge variant={getPriorityBadgeVariant(priority)}>{priority}</Badge> : null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
+                    <div className="mt-2 space-y-2">
+                      {confidenceRatio !== null ? (
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>Confianza</span>
+                            <span>{Math.round(confidenceRatio * 100)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted">
+                            <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.round(confidenceRatio * 100)}%` }} />
+                          </div>
+                        </div>
+                      ) : null}
+                      {impactRatio !== null ? (
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>Impacto</span>
+                            <span>{Math.round(impactRatio * 100)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted">
+                            <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.round(impactRatio * 100)}%` }} />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    {evidence.length ? (
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                        {evidence.map((item, evidenceIndex) => (
+                          <li key={`${asRenderableText(card.key) || 'decision'}-evidence-${evidenceIndex}`}>{item}</li>
+                        ))}
+                      </ul>
                     ) : null}
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {group.libs.map((library, index) => (
-                        <Badge key={`${group.key}-${library}-${index}`} variant="outline" className="bg-background/70">
-                          {library}
-                        </Badge>
-                      ))}
-                    </div>
+                    {(owner || horizon) ? (
+                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        {owner ? <Badge variant="secondary">{owner}</Badge> : null}
+                        {horizon ? <Badge variant="outline">{horizon}</Badge> : null}
+                      </div>
+                    ) : null}
                   </motion.div>
-                ))}
-              </div>
-            ) : null}
-
-            {adminTemplateDatasets.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {adminTemplateDatasets.slice(0, 4).map((dataset, index) => {
-                  const items = asRecordList(dataset.items).slice(0, 3);
-                  return (
-                    <div key={`${asRenderableText(dataset.key) || 'dataset'}-${index}`} className="rounded-lg border border-border/60 p-3">
-                      <p className="text-sm font-medium">{asRenderableText(dataset.label) || humanizeMetricKey(asRenderableText(dataset.key)) || asRenderableText(dataset.key)}</p>
-                      <p className="text-xs text-muted-foreground">{asRenderableText(dataset.description)}</p>
-                      {items.length ? (
-                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                          {items.map((item, itemIndex) => (
-                            <p key={`${asRenderableText(dataset.key) || 'dataset'}-item-${itemIndex}`}>
-                              {Object.entries(item)
-                                .slice(0, 3)
-                                .map(([key, value]) => `${humanizeMetricKey(key) || asRenderableText(key)}: ${asRenderableText(value)}`)
-                                .filter(Boolean)
-                                .join(' · ')}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {adminTemplateDecisionCards.length ? (
-              <div className="grid gap-3 lg:grid-cols-3">
-                {adminTemplateDecisionCards.slice(0, 6).map((card, index) => {
-                  const evidence = asStringList(card.evidence).slice(0, 3);
-                  const priority = normalizePriority(card.priority);
-                  const confidenceRatio = toNormalizedRatio(card.confidence ?? card.score ?? card.priority_score);
-                  const impactRatio = toNormalizedRatio(card.impact ?? card.impact_score);
-                  const owner = asRenderableText(card.owner);
-                  const horizon = asRenderableText(card.horizon);
-                  return (
-                    <motion.div
-                      key={`${asRenderableText(card.key) || 'decision'}-${index}`}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, amount: 0.25 }}
-                      transition={{ duration: 0.24, delay: index * 0.03 }}
-                      className="rounded-lg border border-border/60 bg-gradient-to-b from-primary/5 to-background p-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium">{asRenderableText(card.title) || humanizeMetricKey(asRenderableText(card.key)) || asRenderableText(card.key)}</p>
-                        {priority ? <Badge variant={getPriorityBadgeVariant(priority)}>{priority}</Badge> : null}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
-                      <div className="mt-2 space-y-2">
-                        {confidenceRatio !== null ? (
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                              <span>Confianza</span>
-                              <span>{Math.round(confidenceRatio * 100)}%</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted">
-                              <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.round(confidenceRatio * 100)}%` }} />
-                            </div>
-                          </div>
-                        ) : null}
-                        {impactRatio !== null ? (
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                              <span>Impacto</span>
-                              <span>{Math.round(impactRatio * 100)}%</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted">
-                              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.round(impactRatio * 100)}%` }} />
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                      {evidence.length ? (
-                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                          {evidence.map((item, evidenceIndex) => (
-                            <li key={`${asRenderableText(card.key) || 'decision'}-evidence-${evidenceIndex}`}>{item}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {(owner || horizon) ? (
-                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          {owner ? <Badge variant="secondary">{owner}</Badge> : null}
-                          {horizon ? <Badge variant="outline">{horizon}</Badge> : null}
-                        </div>
-                      ) : null}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {adminTemplateVisualModules.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {adminTemplateVisualModules.slice(0, 6).map((module, index) => {
-                  const renderHints = [
-                    ...normalizeLibraryList(module.engine),
-                    ...normalizeLibraryList(module.provider),
-                    ...normalizeLibraryList(module.renderer),
-                    ...normalizeLibraryList(module.library),
-                    ...normalizeLibraryList(module.libraries),
-                  ].filter((value, idx, list) => list.indexOf(value) === idx);
-
-                  return (
-                    <motion.div
-                      key={`${asRenderableText(module.key) || 'module'}-${index}`}
-                      initial={{ opacity: 0, y: 8 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, amount: 0.3 }}
-                      transition={{ duration: 0.22, delay: index * 0.02 }}
-                      className="rounded-lg border border-border/60 bg-gradient-to-br from-muted/20 via-background to-background p-3 text-xs"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium">{asRenderableText(module.title) || humanizeMetricKey(asRenderableText(module.key)) || asRenderableText(module.key)}</p>
-                        {asRenderableText(module.type) ? <Badge variant="outline">{asRenderableText(module.type)}</Badge> : null}
-                      </div>
-                      <p className="mt-1 text-muted-foreground">{asRenderableText(module.description)}</p>
-                      <p className="text-muted-foreground">{asRenderableText(module.empty_state)}</p>
-                      {renderHints.length ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {renderHints.slice(0, 4).map((hint) => (
-                            <Badge key={`${asRenderableText(module.key)}-${hint}`} variant="secondary" className="text-[11px]">
-                              {hint}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {adminTemplateMapLayers.length ? (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {adminTemplateMapLayers.map((layer, index) => {
-                  const providers = [
-                    ...normalizeLibraryList(layer.provider),
-                    ...normalizeLibraryList(layer.engine),
-                    ...normalizeLibraryList(layer.map_provider),
-                  ].filter((value, idx, list) => list.indexOf(value) === idx);
-
-                  return (
-                    <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 bg-background px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium">{asRenderableText(layer.label) || humanizeMetricKey(asRenderableText(layer.key)) || asRenderableText(layer.key)}</p>
-                        {asRenderableText(layer.type) ? <Badge variant="outline">{asRenderableText(layer.type)}</Badge> : null}
-                      </div>
-                      {providers.length ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {providers.slice(0, 3).map((provider) => (
-                            <Badge key={`${asRenderableText(layer.key)}-${provider}`} variant="secondary" className="text-[11px]">
-                              {provider}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       ) : null}
