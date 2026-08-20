@@ -9,8 +9,24 @@ declare global {
 
 let refreshToastId: string | number | undefined;
 let localCleanupStarted = false;
+let pwaSetupStarted = false;
+let registrationErrorCount = 0;
+let registrationRetryTimer: number | undefined;
+
+const REGISTRATION_RETRY_DELAYS_MS = [1_000, 5_000];
+const PRIVACY_PWA_CONTRACT_CACHE = 'chatboc-pwa-contract-api-network-only-v1';
+const LEGACY_SENSITIVE_API_CACHES = ['app-api', 'public-api', 'public-demo-api'];
 
 const LOCAL_PREVIEW_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+const CHATBOC_CACHE_PREFIXES = [
+  'workbox-precache',
+  'chatboc-assets-',
+  'chatboc-shell-',
+  'chatboc-pwa-contract-',
+  'public-api',
+  'public-demo-api',
+  'app-api',
+];
 
 const PUBLIC_RUNTIME_PREFIXES = [
   '/',
@@ -68,16 +84,174 @@ const cleanupLocalPwaRuntime = async () => {
   localCleanupStarted = true;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
-  await Promise.all(registrations.map((registration) => registration.unregister()));
+  await Promise.all(
+    registrations
+      .filter(isChatbocRegistration)
+      .map((registration) => registration.unregister()),
+  );
 
   if ('caches' in window) {
     const cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    await Promise.all(
+      cacheNames
+        .filter((cacheName) => CHATBOC_CACHE_PREFIXES.some((prefix) => cacheName.startsWith(prefix)))
+        .map((cacheName) => caches.delete(cacheName)),
+    );
   }
 
   if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-local-pwa-cleaned')) {
     sessionStorage.setItem('chatboc-local-pwa-cleaned', '1');
     window.location.reload();
+  }
+};
+
+const workerScriptUrl = (registration: ServiceWorkerRegistration) =>
+  registration.installing?.scriptURL ||
+  registration.waiting?.scriptURL ||
+  registration.active?.scriptURL ||
+  '';
+
+const isChatbocRegistration = (registration: ServiceWorkerRegistration) => {
+  try {
+    const rawScriptUrl = workerScriptUrl(registration);
+    if (!rawScriptUrl) {
+      return registration.scope === new URL('/', window.location.origin).href;
+    }
+
+    const scriptUrl = new URL(rawScriptUrl);
+    return scriptUrl.origin === window.location.origin && scriptUrl.pathname === '/sw.js';
+  } catch {
+    return false;
+  }
+};
+
+const clearRegistrationRetryState = () => {
+  registrationErrorCount = 0;
+  if (registrationRetryTimer !== undefined) {
+    window.clearTimeout(registrationRetryTimer);
+    registrationRetryTimer = undefined;
+  }
+};
+
+const removeLegacySensitiveApiCaches = async () => {
+  if (!('caches' in window)) return;
+  await Promise.all(LEGACY_SENSITIVE_API_CACHES.map((cacheName) => caches.delete(cacheName)));
+};
+
+const requiresMandatoryPrivacyUpgrade = async () => {
+  const registration = await navigator.serviceWorker.getRegistration('/');
+  if (!registration?.active) return false;
+
+  // The marker is written only after the NetworkOnly worker activates and
+  // verifies that the legacy URL-keyed API caches are gone. A missing marker
+  // identifies the one-time upgrade from the unsafe legacy contract.
+  if (!('caches' in window)) return true;
+  return !(await caches.has(PRIVACY_PWA_CONTRACT_CACHE));
+};
+
+const monitorRegistrationHealth = (
+  registration: ServiceWorkerRegistration,
+  scheduleRetry: () => void,
+) => {
+  let observedWorker: ServiceWorker | null = null;
+
+  const observeWorker = (worker: ServiceWorker | null) => {
+    if (!worker || worker === observedWorker) return;
+    observedWorker = worker;
+
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') {
+        clearRegistrationRetryState();
+        return;
+      }
+
+      // A redundant initial worker is a definitive install failure. Retry the
+      // registration, but never unregister a worker merely because a slow
+      // network keeps it in `installing` for a long time.
+      if (worker.state === 'redundant' && !registration.active) {
+        scheduleRetry();
+      }
+    });
+  };
+
+  if (registration.active) clearRegistrationRetryState();
+  observeWorker(registration.installing);
+  registration.addEventListener('updatefound', () => observeWorker(registration.installing));
+
+  navigator.serviceWorker.ready
+    .then(clearRegistrationRetryState)
+    .catch((error) => {
+      console.warn('PWA readiness check failed', error);
+    });
+};
+
+const registerPwaWorker = () => {
+  const scheduleRetry = () => {
+    if (registrationRetryTimer !== undefined) return;
+    const delay = REGISTRATION_RETRY_DELAYS_MS[registrationErrorCount];
+    if (delay === undefined) return;
+
+    registrationErrorCount += 1;
+    registrationRetryTimer = window.setTimeout(() => {
+      registrationRetryTimer = undefined;
+      registerPwaWorker();
+    }, delay);
+  };
+
+  try {
+    const updateSW = registerSW({
+      immediate: true,
+      onRegistered(registration) {
+        if (!registration) {
+          scheduleRetry();
+          return;
+        }
+        monitorRegistrationHealth(registration, scheduleRetry);
+      },
+      onRegisterError(error) {
+        console.warn('PWA registration failed', error);
+        scheduleRetry();
+      },
+      onNeedRefresh() {
+        requiresMandatoryPrivacyUpgrade()
+          .then((mandatoryUpgrade) => {
+            if (mandatoryUpgrade || shouldAutoApplyPublicRefresh()) {
+              updateSW(true);
+              return;
+            }
+
+            if (refreshToastId !== undefined) {
+              return;
+            }
+
+            refreshToastId = toast('Nueva version disponible', {
+              description: 'Actualiza para recibir las ultimas mejoras.',
+              action: {
+                label: 'Actualizar',
+                onClick: () => {
+                  dismissRefreshToast();
+                  updateSW(true);
+                },
+              },
+              cancel: {
+                label: 'Despues',
+                onClick: () => {
+                  dismissRefreshToast();
+                },
+              },
+            });
+          })
+          // Fail closed for this privacy migration. This can auto-apply one
+          // update if Cache Storage is unavailable, never unregister workers.
+          .catch(() => updateSW(true));
+      },
+      onOfflineReady() {
+        // The status bar owns connectivity messaging; avoid duplicate toasts.
+      },
+    });
+  } catch (error) {
+    console.warn('PWA registration failed', error);
+    scheduleRetry();
   }
 };
 
@@ -94,48 +268,17 @@ export const setupPWA = () => {
     return;
   }
 
-  if (isLocalPreviewHost()) {
+  if (import.meta.env.DEV && isLocalPreviewHost()) {
     cleanupLocalPwaRuntime().catch((error) => {
       console.warn('Local PWA cleanup skipped', error);
     });
     return;
   }
 
-  try {
-    const updateSW = registerSW({
-      immediate: true,
-      onNeedRefresh() {
-        if (shouldAutoApplyPublicRefresh()) {
-          updateSW(true);
-          return;
-        }
-
-        if (refreshToastId !== undefined) {
-          return;
-        }
-
-        refreshToastId = toast('Nueva version disponible', {
-          description: 'Actualiza para recibir las ultimas mejoras.',
-          action: {
-            label: 'Actualizar',
-            onClick: () => {
-              dismissRefreshToast();
-              updateSW(true);
-            },
-          },
-          cancel: {
-            label: 'Despues',
-            onClick: () => {
-              dismissRefreshToast();
-            },
-          },
-        });
-      },
-      onOfflineReady() {
-        // Suppress noisy offline messaging in public demo contexts.
-      },
-    });
-  } catch (error) {
-    console.warn('PWA registration skipped', error);
-  }
+  if (pwaSetupStarted) return;
+  pwaSetupStarted = true;
+  removeLegacySensitiveApiCaches().catch((error) => {
+    console.warn('Legacy PWA API cache cleanup failed', error);
+  });
+  registerPwaWorker();
 };

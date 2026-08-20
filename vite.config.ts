@@ -1,8 +1,102 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import { readFileSync } from 'node:fs';
 import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
+
+const pwaCoreStaticAssets = [
+  'favicon.ico',
+  'apple-touch-icon.png',
+  'masked-icon.svg',
+  'favicon/favicon-192x192.png',
+  'favicon/favicon-512x512.png',
+  'favicon/favicon-maskable-192x192.png',
+  'favicon/favicon-maskable-512x512.png',
+  'branding/chatboc-2026/chatboc-agent-launcher-static.svg',
+  'chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg',
+];
+
+type PwaManifestEntry = {
+  revision?: string | null;
+  size: number;
+  url: string;
+};
+
+type ViteManifestChunk = {
+  assets?: string[];
+  css?: string[];
+  file: string;
+  imports?: string[];
+};
+
+type ViteBuildManifest = Record<string, ViteManifestChunk>;
+
+const normalizePwaAssetUrl = (url: string) => url.replace(/^\/+/, '').split(/[?#]/, 1)[0];
+
+const offlineEntrySources = [
+  // The public shell mounts these lazy components on its first render.
+  'src/components/chat/ChatWidget.tsx',
+  'src/components/chat/ProactiveBubble.tsx',
+  // `/encuestas` was part of the production offline smoke. Resolve by source
+  // path because Rollup may emit either `encuestas-*` or `index-*` chunks.
+  'src/pages/encuestas/index.tsx',
+  // Default route of the separately installed portal shell.
+  'src/pages/user-portal/UserDashboardPage.tsx',
+];
+
+const keepInitialPwaShell = (manifestEntries: PwaManifestEntry[]) => {
+  const indexHtml = readFileSync(path.resolve(__dirname, 'dist/index.html'), 'utf8');
+  const portalHtml = readFileSync(path.resolve(__dirname, 'dist/portal/index.html'), 'utf8');
+  const viteManifest = JSON.parse(
+    readFileSync(path.resolve(__dirname, 'dist/.vite/manifest.json'), 'utf8'),
+  ) as ViteBuildManifest;
+  const manifestUrls = new Set(manifestEntries.map((entry) => normalizePwaAssetUrl(entry.url)));
+  // `includeAssets` is appended by vite-plugin-pwa after this transform.
+  // Keeping it out of this set prevents duplicate precache entries.
+  const shellUrls = new Set<string>(['index.html', 'portal/index.html']);
+
+  for (const html of [indexHtml, portalHtml]) {
+    for (const match of html.matchAll(/\b(?:src|href)=["']\/([^"'?#]+)(?:[?#][^"']*)?["']/g)) {
+      const assetUrl = normalizePwaAssetUrl(match[1]);
+      // The generated root web manifest is appended after Workbox transforms.
+      if (assetUrl !== 'manifest.webmanifest') shellUrls.add(assetUrl);
+    }
+  }
+
+  const visitedViteEntries = new Set<string>();
+  const addViteEntry = (entryKey: string) => {
+    if (visitedViteEntries.has(entryKey)) return;
+    visitedViteEntries.add(entryKey);
+
+    const chunk = viteManifest[entryKey];
+    if (!chunk) {
+      throw new Error(`PWA shell source missing from Vite manifest: ${entryKey}`);
+    }
+
+    for (const assetUrl of [chunk.file, ...(chunk.css ?? []), ...(chunk.assets ?? [])]) {
+      const normalizedUrl = normalizePwaAssetUrl(assetUrl);
+      if (manifestUrls.has(normalizedUrl)) shellUrls.add(normalizedUrl);
+    }
+
+    for (const importedEntry of chunk.imports ?? []) addViteEntry(importedEntry);
+  };
+
+  addViteEntry('index.html');
+  addViteEntry('portal/index.html');
+  for (const source of offlineEntrySources) addViteEntry(source);
+
+  // Registration itself lazy-loads Workbox Window. Keeping this tiny helper
+  // cached avoids noisy retry loops during an offline app-shell reload.
+  for (const url of manifestUrls) {
+    if (/^assets\/workbox-window\..*\.js$/.test(url)) shellUrls.add(url);
+  }
+
+  return {
+    manifest: manifestEntries.filter((entry) => shellUrls.has(normalizePwaAssetUrl(entry.url))),
+    warnings: [],
+  };
+};
 
 const deferredModulePreloadPatterns = [
   /(^|\/)assets\/vendor-(?:compression|pdf|charts|xlsx|docx|canvas-export|maplibre|google-maps)-/,
@@ -28,16 +122,8 @@ export default defineConfig(({ mode }) => {
         // We manually register the service worker in index.html to avoid
         // unintentionally registering it inside the embeddable iframe.
         injectRegister: null,
-        registerType: 'autoUpdate',
-        includeAssets: [
-          'favicon.ico',
-          'apple-touch-icon.png',
-          'masked-icon.svg',
-          'favicon/favicon-192x192.png',
-          'favicon/favicon-512x512.png',
-          'favicon/favicon-maskable-192x192.png',
-          'favicon/favicon-maskable-512x512.png',
-        ],
+        registerType: 'prompt',
+        includeAssets: pwaCoreStaticAssets,
         manifest: {
           id: '/',
           name: 'Chatboc | Plataforma operativa IA',
@@ -102,28 +188,22 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // The SaaS needs a live backend, so a stale offline HTML shell is more
-          // harmful than a failed offline navigation: it can reference chunks
-          // that no longer exist after a Vercel deployment.
-          globPatterns: ['**/*.{js,css,ico,png,svg}'],
-          navigateFallback: null,
+          // Keep installation fast and deterministic: cache the generated HTML
+          // entry graph plus explicitly supported public offline routes.
+          globPatterns: ['**/*.{js,css,html,webmanifest,ico,png,svg}'],
+          manifestTransforms: [keepInitialPwaShell],
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [
+            /^\/(?:api|ask|archivos|public|socket\.io)(?:\/|$)/,
+            /^\/(?:iframe|widget)(?:\/|$)/,
+            /^\/portal(?:\/|$)/,
+            /^\/iframe\.html$/,
+          ],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
-          skipWaiting: true,
-          importScripts: ['sw-recovery.js'],
+          skipWaiting: false,
+          importScripts: ['sw-cache-hygiene.js'],
           globIgnores: [
-            '**/*.html',
-            'asset-recovery.js',
-            'sw-recovery.js',
-            '**/assets/vendor-maplibre-*',
-            '**/assets/vendor-charts-*',
-            '**/assets/vendor-xlsx-*',
-            '**/assets/vendor-docx-*',
-            '**/assets/vendor-pdf-*',
-            '**/assets/vendor-canvas-export-*',
-            '**/assets/vendor-compression-*',
-            '**/assets/MapLibreMap-*',
-            '**/assets/TrackingMap-*',
             'logopro.png',
             'chatboc_widget_white_outline.png',
             'logo/chatboc_logo_original.png',
@@ -131,60 +211,28 @@ export default defineConfig(({ mode }) => {
             'images/chatcrm*.png',
             'chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png',
           ],
-          // Precache only the app shell. Heavy vendors stay runtime-loaded by route/tool.
+          // Precache only the initial app shell. Route-only vendors stay lazy.
           maximumFileSizeToCacheInBytes: 1024 * 1024,
           runtimeCaching: [
             {
-              urlPattern: ({ request }) => request.mode === 'navigate',
+              urlPattern: ({ request, url }) =>
+                request.mode === 'navigate' && url.pathname.startsWith('/portal/'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'portal-navigation',
+                networkTimeoutSeconds: 3,
+                precacheFallback: {
+                  fallbackURL: '/portal/index.html',
+                },
+              },
+            },
+            {
+              // API responses may vary by Authorization, entity token, tenant,
+              // anonymous cart or chat-session headers. Cache Storage keys only
+              // by URL, so keep all API data network-only to prevent cross-user
+              // replay on shared devices.
+              urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
               handler: 'NetworkOnly',
-            },
-            {
-              urlPattern: ({ url }) => url.pathname.startsWith('/api/public/'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'public-api',
-                networkTimeoutSeconds: 4,
-                cacheableResponse: {
-                  statuses: [0, 200, 201, 202, 204],
-                },
-                expiration: {
-                  maxEntries: 60,
-                  maxAgeSeconds: 60 * 10,
-                },
-              },
-            },
-            {
-              urlPattern: ({ url }) =>
-                url.pathname.startsWith('/api/v2/demo/') ||
-                url.pathname.startsWith('/api/pwa/public/') ||
-                url.pathname.startsWith('/api/public/tracking/'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'public-demo-api',
-                networkTimeoutSeconds: 4,
-                cacheableResponse: {
-                  statuses: [0, 200, 201, 202, 204],
-                },
-                expiration: {
-                  maxEntries: 80,
-                  maxAgeSeconds: 60 * 15,
-                },
-              },
-            },
-            {
-              urlPattern: ({ url }) => url.pathname.startsWith('/api/app/'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'app-api',
-                networkTimeoutSeconds: 4,
-                cacheableResponse: {
-                  statuses: [0, 200, 201, 202, 204],
-                },
-                expiration: {
-                  maxEntries: 60,
-                  maxAgeSeconds: 60 * 10,
-                },
-              },
             },
             {
               urlPattern: /^https:\/\/maps\.googleapis\.com\/.*/,
@@ -269,6 +317,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       chunkSizeWarningLimit: 1600,
+      manifest: true,
       modulePreload: {
         resolveDependencies(_url, deps) {
           return deps.filter((dep) => !shouldDeferModulePreload(dep));

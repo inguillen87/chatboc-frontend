@@ -4,6 +4,25 @@
   var assetPattern = /\/assets\/.*\.(?:js|css)(?:[?#].*)?$/i;
   var chunkErrorPattern =
     /chunkloaderror|failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module|failed to load module script/i;
+  var pwaCachePattern = /^(?:workbox-precache|chatboc-(?:assets|shell)-)/;
+
+  function registrationWorkerUrl(registration) {
+    var worker = registration.installing || registration.waiting || registration.active;
+    return worker && worker.scriptURL ? worker.scriptURL : '';
+  }
+
+  function isChatbocRegistration(registration) {
+    try {
+      var scriptUrl = registrationWorkerUrl(registration);
+      if (!scriptUrl) {
+        return registration.scope === new URL('/', window.location.origin).href;
+      }
+      var parsedScriptUrl = new URL(scriptUrl);
+      return parsedScriptUrl.origin === window.location.origin && parsedScriptUrl.pathname === '/sw.js';
+    } catch (_error) {
+      return false;
+    }
+  }
 
   function currentRecoveryTimestamp() {
     try {
@@ -22,6 +41,10 @@
   }
 
   async function recover(reason) {
+    if (window.navigator && window.navigator.onLine === false) {
+      return false;
+    }
+
     if (Date.now() - currentRecoveryTimestamp() < recoveryWindowMs) {
       return false;
     }
@@ -31,9 +54,13 @@
     try {
       if (window.navigator && window.navigator.serviceWorker) {
         var registrations = await window.navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(function unregister(registration) {
-          return registration.unregister();
-        }));
+        await Promise.all(
+          registrations
+            .filter(isChatbocRegistration)
+            .map(function unregister(registration) {
+              return registration.unregister();
+            }),
+        );
       }
     } catch (_error) {
       // Reload still helps when service-worker cleanup is unavailable.
@@ -42,9 +69,15 @@
     try {
       if (window.caches) {
         var cacheNames = await window.caches.keys();
-        await Promise.all(cacheNames.map(function removeCache(cacheName) {
-          return window.caches.delete(cacheName);
-        }));
+        await Promise.all(
+          cacheNames
+            .filter(function isPwaCache(cacheName) {
+              return pwaCachePattern.test(cacheName);
+            })
+            .map(function removeCache(cacheName) {
+              return window.caches.delete(cacheName);
+            }),
+        );
       }
     } catch (_error) {
       // Reload still helps when Cache Storage is unavailable.

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:local": "npm run build && npm test -- --pool=threads && npm run test:e2e -- --project=chromium",
+    "test:e2e:pwa": "npm run build && playwright test --config=playwright.pwa.config.ts",
     "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
