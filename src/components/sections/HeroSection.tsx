@@ -786,6 +786,8 @@ const HeroInputCard = ({ input, family }: { input: ConversationInput; family: st
 
 const HeroSection = ({ experience }: HeroSectionProps) => {
   const navigate = useNavigate();
+  const conversationDemoId = `hero-conversation-${React.useId().replace(/:/g, "")}`;
+  const conversationPanelId = `${conversationDemoId}-panel`;
 
   const hero = useMemo(() => resolveHeroSource(experience), [experience]);
   const tokens = isRecord(experience?.tokens) ? experience.tokens : {};
@@ -868,6 +870,36 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
   const agentTitle = readText(hero, ["agent_title"]);
   const agentSubtitle = readText(hero, ["agent_subtitle"]);
+
+  const selectConversationFlow = (index: number, focusTab = false) => {
+    const nextFlow = conversationFlows[index];
+    if (!nextFlow) return;
+
+    setManualFlowSelection(true);
+    setActiveFlowId(nextFlow.id);
+
+    if (focusTab) {
+      document.getElementById(`${conversationDemoId}-tab-${index}`)?.focus();
+    }
+  };
+
+  const handleConversationTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null;
+
+    if (event.key === "ArrowRight") {
+      nextIndex = (index + 1) % conversationFlows.length;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (index - 1 + conversationFlows.length) % conversationFlows.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = conversationFlows.length - 1;
+    }
+
+    if (nextIndex === null) return;
+    event.preventDefault();
+    selectConversationFlow(nextIndex, true);
+  };
 
   React.useEffect(() => {
     if (!activeFlow?.id) return undefined;
@@ -1023,19 +1055,27 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   </div>
 
                   {conversationFlows.length > 1 && (
-                    <div className="chatboc-phone-demo__tabs" role="tablist" aria-label="demo">
-                      {conversationFlows.map((flow) => {
+                    <div
+                      className="chatboc-phone-demo__tabs"
+                      role="tablist"
+                      aria-label="Ejemplos de conversaciones operativas"
+                    >
+                      {conversationFlows.map((flow, index) => {
                         const FlowIcon = getFlowIcon(flow);
                         const isActive = flow.id === activeFlow?.id;
                         return (
                           <button
                             key={flow.id}
+                            id={`${conversationDemoId}-tab-${index}`}
                             type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls={conversationPanelId}
+                            tabIndex={isActive ? 0 : -1}
                             className={`chatboc-phone-demo__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
-                            onClick={() => {
-                              setManualFlowSelection(true);
-                              setActiveFlowId(flow.id);
-                            }}
+                            onClick={() => selectConversationFlow(index)}
+                            onFocus={() => setManualFlowSelection(true)}
+                            onKeyDown={(event) => handleConversationTabKeyDown(event, index)}
                           >
                             <FlowIcon className="h-4 w-4" />
                             <span>{getFlowTabLabel(flow)}</span>
@@ -1045,7 +1085,24 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     </div>
                   )}
 
-                  <div key={activeFlow.id} ref={phoneScreenRef} className="chatboc-phone-demo__screen">
+                  <div
+                    key={activeFlow.id}
+                    ref={phoneScreenRef}
+                    id={conversationFlows.length > 1 ? conversationPanelId : undefined}
+                    className="chatboc-phone-demo__screen focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    role={conversationFlows.length > 1 ? "tabpanel" : "region"}
+                    aria-labelledby={
+                      conversationFlows.length > 1
+                        ? `${conversationDemoId}-tab-${activeFlowIndex}`
+                        : undefined
+                    }
+                    aria-label={
+                      conversationFlows.length > 1
+                        ? undefined
+                        : `Conversacion operativa: ${getFlowTabLabel(activeFlow)}`
+                    }
+                    tabIndex={0}
+                  >
                     <div className="chatboc-phone-demo__progress" aria-hidden="true">
                       <span />
                       <span />
@@ -1219,7 +1276,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           </div>
           )}
         </div>
-        <div className="mx-auto mt-8 flex w-full max-w-6xl items-center gap-3 md:mt-11" aria-label="Chatboc.ar Meta Tech Provider">
+        <div
+          className="mx-auto mt-8 flex w-full max-w-6xl items-center gap-3 md:mt-11"
+          role="group"
+          aria-label="Chatboc.ar Meta Tech Provider"
+        >
           <span className="hidden h-px min-w-4 flex-1 bg-gradient-to-r from-transparent via-[#0866ff]/45 to-border/60 sm:block" aria-hidden="true" />
           <div className="relative flex w-full max-w-5xl shrink-0 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[22px] border border-[#0866ff]/30 bg-white/92 px-3 py-2.5 text-center text-slate-950 shadow-[0_0_30px_rgba(8,102,255,0.16)] backdrop-blur dark:bg-[#061225]/86 dark:text-white sm:w-auto sm:flex-row sm:gap-4 sm:rounded-full sm:px-5 sm:py-2">
             <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#0866ff]/70 to-transparent" aria-hidden="true" />
