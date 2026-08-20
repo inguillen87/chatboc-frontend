@@ -320,6 +320,31 @@ describe('SurveyForm security contract', () => {
     window.localStorage.clear();
   });
 
+  it('keeps option controls accessibly named when live counters change their visual label', () => {
+    render(
+      <SurveyForm
+        survey={baseSurvey}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        liveResults={{
+          total_respuestas: 10,
+          preguntas: {
+            '101': {
+              tipo: 'opcion_unica',
+              opciones: [
+                { id: 1, texto: 'Luminaria', votos: 6 },
+                { id: 2, texto: 'Arbolado', votos: 4 },
+              ],
+            },
+          },
+        }}
+        showLiveResults
+      />,
+    );
+
+    expect(screen.getByRole('radio', { name: /^Luminaria/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^Arbolado/ })).toBeInTheDocument();
+  });
+
   it('describes an open-ended survey without rendering the Unix epoch as its closing date', () => {
     render(<SurveyForm survey={{ ...baseSurvey, fin_at: null }} onSubmit={vi.fn()} />);
 

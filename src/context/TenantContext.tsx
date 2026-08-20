@@ -84,6 +84,10 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
+const isTenantIndependentPath = (pathname: string) => {
+  const normalized = pathname.trim().toLowerCase().replace(/\/+$/, '') || '/';
+  return normalized === '/superadmin' || normalized.startsWith('/superadmin/');
+};
 const PORTAL_SECTION_SEGMENTS = new Set([
   'dashboard',
   'catalogo',
@@ -219,6 +223,10 @@ const resolveTenantBootstrap = (
   pathname: string,
   search: string,
 ): { slug: string | null; widgetToken: string | null } => {
+  if (isTenantIndependentPath(pathname)) {
+    return { slug: null, widgetToken: null };
+  }
+
   const slugFromUrl = extractSlugFromLocation(pathname, search);
   const params = new URLSearchParams(search);
   const widgetTokenFromQuery = normalizeEntityToken(
@@ -276,6 +284,7 @@ const resolveTenantBootstrap = (
 
 export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
+  const tenantBootstrapSuppressed = isTenantIndependentPath(location.pathname);
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
@@ -356,7 +365,21 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       setTenant(DEFAULT_TENANT_INFO);
       setTenantError(null);
       setIsLoadingTenant(false);
-      useTenantStore.getState().clearTenant();
+      if (tenantBootstrapSuppressed) {
+        // Keep the last tenant preference for tenant-aware routes such as /perfil,
+        // while ensuring the global super-admin shell has no active tenant state.
+        useTenantStore.setState({
+          slug: null,
+          name: null,
+          themeConfig: null,
+          features: null,
+        });
+        setFollowedTenants([]);
+        setFollowedTenantsError(null);
+        setIsLoadingFollowedTenants(false);
+      } else {
+        useTenantStore.getState().clearTenant();
+      }
       return;
     }
 
@@ -365,7 +388,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
       }
     });
-  }, [fetchTenant, location.pathname, location.search]);
+  }, [fetchTenant, location.pathname, location.search, tenantBootstrapSuppressed]);
 
   const refreshTenant = useCallback(async () => {
     if (!currentSlugRef.current && !widgetToken) return;
@@ -383,13 +406,14 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [widgetToken]);
 
   useEffect(() => {
+    if (tenantBootstrapSuppressed) return;
     const sanitized = sanitizeTenantSlug(currentSlugRef.current);
     if (sanitized) {
       safeLocalStorage.setItem('tenantSlug', sanitized);
     } else {
       safeLocalStorage.removeItem('tenantSlug');
     }
-  }, [currentSlug]);
+  }, [currentSlug, tenantBootstrapSuppressed]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -489,6 +513,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     followCurrentTenant,
     unfollowCurrentTenant,
     setTenantSlug: (slug: string) => {
+        if (tenantBootstrapSuppressed) return;
         const sanitized = sanitizeTenantSlug(slug);
         setCurrentSlug(sanitized);
         currentSlugRef.current = sanitized;
@@ -509,6 +534,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     isCurrentTenantFollowed,
     followCurrentTenant,
     unfollowCurrentTenant,
+    tenantBootstrapSuppressed,
   ]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

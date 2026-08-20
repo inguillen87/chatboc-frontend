@@ -3,6 +3,7 @@ import {
   buildTenantPath,
   buildTenantApiPath,
   resolveTenantPublicNavigationTarget,
+  sanitizePublicInternalNavigationPath,
 } from './tenantPaths';
 
 describe('buildTenantPath', () => {
@@ -54,7 +55,7 @@ describe('resolveTenantPublicNavigationTarget', () => {
   it('keeps public tenant routes inside the tenant space', () => {
     expect(
       resolveTenantPublicNavigationTarget(
-        { id: 'surveys', label: 'Encuestas', route: 'encuestas' },
+        { id: 'surveys', label: 'Encuestas', route: '/t/junin/encuestas' },
         '/t/junin',
       ),
     ).toBe('/t/junin/encuestas');
@@ -63,7 +64,7 @@ describe('resolveTenantPublicNavigationTarget', () => {
   it('maps protected ticket desk aliases to the public claim intake', () => {
     expect(
       resolveTenantPublicNavigationTarget(
-        { id: 'tickets', label: 'Tickets', route: 'tickets' },
+        { id: 'tickets', label: 'Tickets', route: '/t/junin/tickets' },
         '/t/junin',
       ),
     ).toBe('/t/junin/reclamos/nuevo');
@@ -76,18 +77,108 @@ describe('resolveTenantPublicNavigationTarget', () => {
     ).toBe('/t/junin/reclamos/nuevo');
   });
 
-  it('uses the public fallback when no navigation item is available', () => {
-    expect(resolveTenantPublicNavigationTarget(null, '/t/junin', 'reclamos/nuevo')).toBe(
-      '/t/junin/reclamos/nuevo',
-    );
+  it('fails closed when no navigation item is available', () => {
+    expect(resolveTenantPublicNavigationTarget(null, '/t/junin')).toBeNull();
   });
 
-  it('preserves external links', () => {
+  it('rejects external href values because tenant.public_navigation.v1 only defines internal routes', () => {
     expect(
       resolveTenantPublicNavigationTarget(
         { id: 'web', label: 'Web', href: 'https://junin.gob.ar' },
         '/t/junin',
       ),
-    ).toBe('https://junin.gob.ar');
+    ).toBeNull();
   });
+
+  it.each([
+    '//evil.test/phish',
+    String.raw`\\evil.test\phish`,
+    String.raw`/\evil.test/phish`,
+    String.raw`\/evil.test/phish`,
+  ])('rejects the React Router mixed-separator open redirect PoC %s', (route) => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'unsafe', label: 'No abrir', route },
+        '/t/junin',
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    '/t/junin/%2f%2fevil.test',
+    '/t/junin/%5cevil.test',
+    '/t/junin/%252f%252fevil.test',
+    '/t/junin/%255cevil.test',
+    '/t/junin/%00evil.test',
+    '/t/junin/%250aevil.test',
+  ])('rejects encoded and double-encoded separators or controls in %s', (route) => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'unsafe', label: 'No abrir', route },
+        '/t/junin',
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    'https://evil.test/phish',
+    'javascript:alert(1)',
+    'data:text/html,unsafe',
+    '/t/junin/../superadmin',
+    '/t/junin/%2e%2e/superadmin',
+    '/superadmin',
+    '/t/otro/encuestas',
+  ])('rejects schemes, traversal and routes outside the bound tenant in %s', (route) => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'unsafe', label: 'No abrir', route },
+        '/t/junin',
+      ),
+    ).toBeNull();
+  });
+
+  it('does not turn an invalid supplied route into a trusted fallback', () => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        { id: 'unsafe', label: 'No abrir', route: String.raw`/\evil.test/phish` },
+        '/t/junin',
+      ),
+    ).toBeNull();
+  });
+
+  it('preserves an ordinary tenant route with query and hash', () => {
+    expect(
+      resolveTenantPublicNavigationTarget(
+        {
+          id: 'surveys',
+          label: 'Encuestas',
+          route: '/t/junin/encuestas?estado=abierta#resultados',
+        },
+        '/t/junin',
+      ),
+    ).toBe('/t/junin/encuestas?estado=abierta#resultados');
+  });
+});
+
+describe('sanitizePublicInternalNavigationPath', () => {
+  it('accepts the same-origin root path', () => {
+    expect(sanitizePublicInternalNavigationPath('/')).toBe('/');
+  });
+
+  it('accepts canonical root-relative paths with safe unicode segments', () => {
+    expect(sanitizePublicInternalNavigationPath('/t/peñalolén/noticias')).toBe(
+      '/t/pe%C3%B1alol%C3%A9n/noticias',
+    );
+  });
+
+  it('rejects malformed percent escapes', () => {
+    expect(sanitizePublicInternalNavigationPath('/t/junin/%zz')).toBeNull();
+  });
+
+  it.each(['/t/junin/espacio%20inseguro', '/t/junin/segmento%3finyectado'])(
+    'rejects encoded characters outside the safe path-segment alphabet in %s',
+    (route) => {
+      expect(sanitizePublicInternalNavigationPath(route)).toBeNull();
+    },
+  );
 });

@@ -16,8 +16,8 @@ import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types
 import ChatMessage from './ChatMessage';
 import DetailsPanel from './DetailsPanel';
 import CaseStrip from './CaseStrip';
-import { AnimatePresence, motion } from 'framer-motion';
-import PredefinedMessagesModal from './PredefinedMessagesModal';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import ResponseTemplatePicker from './ResponseTemplatePicker';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 import { useSocket } from '@/context/SocketContext';
 import { safeOn } from '@/utils/safeOn';
@@ -65,6 +65,8 @@ import {
   getAttachmentPreviewUrl,
 } from '@/utils/attachment';
 import { isTenantTicketCollectionInvalidation } from '@/utils/tenantTicketInvalidation';
+import { buildTenantPath } from '@/utils/tenantPaths';
+import type { ResponseTemplateTicketSourceModel } from '@/features/tickets/responseTemplatesApi';
 
 type UploadResponse = UploadResponseLike;
 
@@ -121,6 +123,28 @@ const formatRelativeTime = (input?: Date | null) => {
   } catch {
     return timestamp.toLocaleString('es-AR');
   }
+};
+
+const normalizeIdentityTenantSlug = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return /^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$/.test(normalized)
+    ? normalized
+    : null;
+};
+
+const normalizeResponseTemplateSourceModel = (
+  value: unknown,
+): ResponseTemplateTicketSourceModel | null => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (
+    normalized === 'TenantTicket' ||
+    normalized === 'MunicipioTicket' ||
+    normalized === 'PymeTicket'
+  ) {
+    return normalized;
+  }
+  return null;
 };
 
 export const formatReplyDeliveryChannel = (channel: string) => {
@@ -605,7 +629,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [conversationInvalidationVersion, setConversationInvalidationVersion] = useState(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const { user } = useUser();
+  const shouldReduceMotion = useReducedMotion();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadedConversationKeyRef = useRef<string | null>(null);
@@ -718,6 +744,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   );
 
   const activeChannel = selectedTicket?.channel || 'other';
+  const responseTemplateTenantSlug =
+    normalizeIdentityTenantSlug(selectedTicket?.tenant_slug) ||
+    normalizeIdentityTenantSlug(user?.tenant_slug || user?.tenantSlug);
+  const responseTemplateSourceModel = normalizeResponseTemplateSourceModel(selectedTicket?.source_model);
+  const responseTemplateManagementHref = buildTenantPath(
+    '/perfil/plantillas-respuesta',
+    responseTemplateTenantSlug,
+  );
+  const responseTemplateMetadata = useMemo(
+    () => ({
+      category: selectedTicket?.categoria || null,
+      status: selectedTicket?.estado || null,
+      channel: activeChannel,
+    }),
+    [activeChannel, selectedTicket?.categoria, selectedTicket?.estado],
+  );
   const composerPlaceholder = listening
     ? 'Escuchando...'
     : attachmentPreview
@@ -878,6 +920,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const lastReadStateSyncRef = useRef<string | null>(null);
   const messageRef = useRef(message);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     messageRef.current = message;
@@ -910,6 +953,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
     lastReadStateSyncRef.current = null;
+    composerSelectionRef.current = null;
+    setTemplatePickerOpen(false);
     setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
   }, [selectedConversationKey]);
 
@@ -1280,8 +1325,75 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     );
   }
 
-  const handleSelectPredefinedMessage = (predefinedMessage: string) => {
-    setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
+  const captureComposerSelection = () => {
+    const composer = composerRef.current;
+    const draftLength = messageRef.current.length;
+    composerSelectionRef.current = composer
+      ? {
+          start: composer.selectionStart ?? draftLength,
+          end: composer.selectionEnd ?? draftLength,
+        }
+      : { start: draftLength, end: draftLength };
+  };
+
+  const handleTemplatePickerOpenChange = (nextOpen: boolean) => {
+    setTemplatePickerOpen(nextOpen);
+    if (!nextOpen) {
+      window.requestAnimationFrame(() => composerRef.current?.focus());
+    }
+  };
+
+  const handleSelectResponseTemplate = (renderedText: string) => {
+    const currentDraft = messageRef.current;
+    const selection = composerSelectionRef.current || {
+      start: currentDraft.length,
+      end: currentDraft.length,
+    };
+    const start = Math.max(0, Math.min(selection.start, currentDraft.length));
+    const end = Math.max(start, Math.min(selection.end, currentDraft.length));
+    const before = currentDraft.slice(0, start);
+    const after = currentDraft.slice(end);
+    const leadingSeparator = before && !/\s$/.test(before) ? '\n' : '';
+    const trailingSeparator = after && !/^\s/.test(after) ? '\n' : '';
+    const insertedText = `${leadingSeparator}${renderedText}${trailingSeparator}`;
+    const nextDraft = `${before}${insertedText}${after}`;
+    const nextCaret = before.length + insertedText.length;
+
+    setMessage(nextDraft);
+    messageRef.current = nextDraft;
+    composerSelectionRef.current = { start: nextCaret, end: nextCaret };
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
+
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+
+    if (
+      event.key === '/' &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey
+    ) {
+      const start = event.currentTarget.selectionStart ?? 0;
+      const end = event.currentTarget.selectionEnd ?? start;
+      const before = event.currentTarget.value.slice(0, start);
+      const after = event.currentTarget.value.slice(end);
+      if (!before.trim() && !after.trim()) {
+        event.preventDefault();
+        composerSelectionRef.current = { start, end };
+        setTemplatePickerOpen(true);
+        return;
+      }
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSendMessage();
+    }
   };
 
   const handleStatusChange = async (newStatus: TicketStatus) => {
@@ -1336,9 +1448,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   return (
     <motion.div
         key={selectedTicket.id}
-        initial={{ opacity: 0 }}
+        initial={shouldReduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
         data-testid="ticket-conversation-panel"
     >
@@ -1386,7 +1498,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               {activeChannel}
             </Badge>
             <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
-              <Link to="/perfil/plantillas-respuesta">Templates</Link>
+              <Link to={responseTemplateManagementHref}>Respuestas rápidas</Link>
             </Button>
             <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
               <Link to="/notificaciones">Notificaciones</Link>
@@ -1705,31 +1817,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           ) : null}
         </div>
         
-          {/* Smart AI / Gov Quick Action Pills */}
-          <div className="mb-2 hidden items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary/80 shrink-0 flex items-center gap-1 pl-0.5">
-              <Sparkles className="w-3 h-3 text-primary" /> Respuestas Rápidas:
-            </span>
-            {[
-              { label: '🛠️ Cuadrilla en camino', text: 'Hola! Te informamos que una cuadrilla municipal ya fue asignada y se encuentra en camino al lugar para inspeccionar y resolver el reclamo.' },
-              { label: '📍 Pedir ubicación GPS', text: 'Hola! Para que el equipo pueda ubicar el inconveniente con precisión, ¿podrías enviarnos la dirección exacta, entrecalles o tu ubicación GPS?' },
-              { label: '📸 Solicitar foto', text: 'Hola! ¿Serías tan amable de adjuntarnos una foto del problema? Nos ayuda a preparar las herramientas y repuestos antes de salir.' },
-              { label: '✅ Trabajo completado', text: '¡Buenas noticias! La cuadrilla municipal ha finalizado los trabajos en la zona. El reclamo ha sido verificado y cerrado exitosamente.' },
-              { label: '⏳ En análisis técnico', text: 'Hola! Tu reclamo está siendo evaluado por el área técnica correspondiente para programar su intervención.' },
-            ].map((chip, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  setMessage(chip.text);
-                  composerRef.current?.focus();
-                }}
-                className="inline-flex shrink-0 items-center rounded-full border border-border/80 bg-background/90 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-xs hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all active:scale-95"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
         <div
           className={cn(
             'gap-2',
@@ -1748,12 +1835,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={listening || isSending}
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSendMessage();
-                }
-            }}
+            onKeyDown={handleComposerKeyDown}
             maxLength={1000}
             aria-label="Responder ticket"
           />
@@ -1767,11 +1849,28 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           >
             <div className="flex items-center gap-1">
               {selectedTicket && (
-                <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
-                  <Button variant="ghost" size="icon" className="h-10 w-10" disabled={isSending} aria-label="Insertar mensaje predefinido">
+                <ResponseTemplatePicker
+                  open={templatePickerOpen}
+                  onOpenChange={handleTemplatePickerOpenChange}
+                  onSelectTemplate={handleSelectResponseTemplate}
+                  tenantSlug={responseTemplateTenantSlug}
+                  ticketId={selectedTicket.id}
+                  ticketKey={selectedConversationKey}
+                  sourceModel={responseTemplateSourceModel}
+                  metadata={responseTemplateMetadata}
+                  managementHref={responseTemplateManagementHref}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    disabled={isSending}
+                    aria-label="Insertar respuesta guardada (atajo /)"
+                    onClick={captureComposerSelection}
+                  >
                     <MessageCircle className="h-5 w-5" />
                   </Button>
-                </PredefinedMessagesModal>
+                </ResponseTemplatePicker>
               )}
               {supported && (
                 <Button variant="ghost" size="icon" className="h-10 w-10" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Detener dictado' : 'Iniciar dictado'}>

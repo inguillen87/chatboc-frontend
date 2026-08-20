@@ -11,7 +11,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
-import { isAbsoluteUrl, resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
+import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { TenantSwitcher } from './TenantSwitcher';
 
@@ -171,7 +171,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
           const to = resolveTenantPublicNavigationTarget(item, basePath);
           const label = item.label;
 
-          if (!enabled) {
+          if (!enabled || !to) {
             return (
               <span
                 key={key}
@@ -181,18 +181,6 @@ export const TenantShell = ({ children }: TenantShellProps) => {
               >
                 {label}
               </span>
-            );
-          }
-
-          if (isAbsoluteUrl(to)) {
-            return (
-              <a
-                key={key}
-                href={to}
-                className="rounded-full bg-muted/40 px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-              >
-                {label}
-              </a>
             );
           }
 

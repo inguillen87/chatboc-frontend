@@ -23,7 +23,11 @@ vi.mock('@/utils/api', () => ({
   ApiError: MockApiError,
 }));
 
-import { getTenantPublicInfoFlexible, submitTenantTicket } from '@/api/tenant';
+import {
+  getTenantPublicInfoFlexible,
+  getTenantPublicNavigation,
+  submitTenantTicket,
+} from '@/api/tenant';
 
 const validClaimReceipt = {
   contract_version: 'claims.intake_receipt.v1',
@@ -167,6 +171,72 @@ describe('getTenantPublicInfoFlexible', () => {
       expect.objectContaining({ tenantSlug: 'tenant-inexistente', skipAuth: true }),
     );
     expect(apiFetchMock).not.toHaveBeenCalledWith('/public/tenant', expect.anything());
+  });
+});
+
+describe('getTenantPublicNavigation', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('keeps only contract-defined, tenant-bound internal routes', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [
+        {
+          id: 'safe',
+          label: 'Encuestas',
+          route: '/t/junin/encuestas',
+          href: 'https://evil.test/ignored',
+          path: '//evil.test/ignored',
+          url: String.raw`/\evil.test/ignored`,
+        },
+        { id: 'slash', label: 'Slash', route: '//evil.test/phish' },
+        { id: 'backslash', label: 'Backslash', route: String.raw`\\evil.test\phish` },
+        { id: 'mixed-a', label: 'Mixed A', route: String.raw`/\evil.test/phish` },
+        { id: 'mixed-b', label: 'Mixed B', route: String.raw`\/evil.test/phish` },
+        { id: 'encoded', label: 'Encoded', route: '/t/junin/%252f%252fevil.test' },
+        { id: 'other-tenant', label: 'Otro tenant', route: '/t/otro/encuestas' },
+        { id: 'external-href', label: 'Web', href: 'https://evil.test/phish' },
+        { id: 'legacy-path', label: 'Alias', path: '/t/junin/noticias' },
+        { id: 'legacy-url', label: 'URL', url: '/t/junin/eventos' },
+      ],
+    });
+
+    const contract = await getTenantPublicNavigation('junin');
+
+    expect(contract.items).toEqual([
+      expect.objectContaining({
+        id: 'safe',
+        label: 'Encuestas',
+        route: '/t/junin/encuestas',
+        href: null,
+      }),
+    ]);
+    expect(contract.items[0]).not.toHaveProperty('path');
+    expect(contract.items[0]).not.toHaveProperty('url');
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/public/tenants/junin/public-navigation',
+      expect.objectContaining({ skipAuth: true, omitCredentials: true }),
+    );
+  });
+
+  it('fails closed for unknown public-navigation contract versions', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tenant.public_navigation.v2',
+      tenant_slug: 'junin',
+      items: [{ id: 'unsafe', label: 'No abrir', route: '/t/junin/encuestas' }],
+    });
+
+    await expect(getTenantPublicNavigation('junin')).resolves.toEqual(
+      expect.objectContaining({
+        contract_version: 'tenant.public_navigation.v2',
+        tenant_slug: 'junin',
+        items: [],
+        reason_code: 'invalid_contract_version',
+      }),
+    );
   });
 });
 

@@ -35,25 +35,25 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-muted py-8 text-muted-foreground">
+    <footer className="bg-muted py-8 text-slate-700 dark:text-slate-300">
       <div className="container mx-auto px-4">
         <div className="mb-8 grid gap-8 text-center sm:grid-cols-2 sm:text-left lg:grid-cols-4">
           <div className="flex flex-col items-center sm:items-start">
             <h3 className="mb-3 text-xl font-bold text-foreground">Chatboc</h3>
-            <p className="mb-4 max-w-xs text-muted-foreground">
+            <p className="mb-4 max-w-xs text-slate-700 dark:text-slate-300">
               Tu experto virtual para atender, vender y ordenar conversaciones en cada canal conectado.
             </p>
             <div className="flex space-x-4">
-              <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-muted-foreground transition-colors hover:text-primary">
+              <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="https://www.twitter.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="text-muted-foreground transition-colors hover:text-primary">
+              <a href="https://www.twitter.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="https://www.instagram.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-muted-foreground transition-colors hover:text-primary">
+              <a href="https://www.instagram.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                 <Instagram className="h-5 w-5" />
               </a>
-              <a href="https://www.linkedin.com/company/chatboc" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-muted-foreground transition-colors hover:text-primary">
+              <a href="https://www.linkedin.com/company/chatboc" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                 <Linkedin className="h-5 w-5" />
               </a>
             </div>
@@ -65,7 +65,7 @@ const Footer = () => {
               <li>
                 <button
                   type="button"
-                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-muted-foreground transition-colors hover:text-primary"
+                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
                   onClick={() => scrollToSection("solution")}
                 >
                   Que hace
@@ -74,14 +74,14 @@ const Footer = () => {
               <li>
                 <button
                   type="button"
-                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-muted-foreground transition-colors hover:text-primary"
+                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
                   onClick={() => scrollToSection("pricing")}
                 >
                   Planes
                 </button>
               </li>
               <li>
-                <Link to="/demo" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/demo" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Probar demo
                 </Link>
               </li>
@@ -92,12 +92,12 @@ const Footer = () => {
             <h3 className="mb-3 text-lg font-semibold text-foreground">Recursos</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/faqs" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/faqs" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Centro de ayuda (FAQs)
                 </Link>
               </li>
               <li>
-                <Link to="/documentacion" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/documentacion" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Guia de uso
                 </Link>
               </li>
@@ -107,7 +107,7 @@ const Footer = () => {
                   href="https://wa.me/5492613168608"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary"
+                  className="text-slate-700 underline underline-offset-2 transition-colors hover:text-primary dark:text-slate-300"
                   title="Chatear por WhatsApp"
                 >
                   WhatsApp
@@ -117,13 +117,13 @@ const Footer = () => {
                 <Mail className="h-4 w-4 text-primary" />
                 <a
                   href={`mailto:${email}`}
-                  className="text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary"
+                  className="text-slate-700 underline underline-offset-2 transition-colors hover:text-primary dark:text-slate-300"
                   title="Enviar correo"
                 >
                   {email}
                 </a>
                 <button type="button" className="ml-1" title="Copiar mail" aria-label="Copiar mail" onClick={handleCopyEmail}>
-                  <Copy className={`h-4 w-4 ${copied ? "text-primary" : "text-muted-foreground"} transition-colors`} />
+                  <Copy className={`h-4 w-4 ${copied ? "text-primary" : "text-slate-700 dark:text-slate-300"} transition-colors`} />
                 </button>
                 {copied ? <span className="ml-1 text-xs text-primary">Copiado</span> : null}
               </li>
@@ -134,22 +134,22 @@ const Footer = () => {
             <h3 className="mb-3 text-lg font-semibold text-foreground">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/privacidad" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/privacidad" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Politica de privacidad
                 </Link>
               </li>
               <li>
-                <Link to="/terminos" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/terminos" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Terminos y condiciones
                 </Link>
               </li>
               <li>
-                <Link to="/legal/cookies" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/legal/cookies" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Politica de cookies
                 </Link>
               </li>
               <li>
-                <Link to="/eliminacion-datos" className="text-muted-foreground transition-colors hover:text-primary">
+                <Link to="/eliminacion-datos" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
                   Eliminacion de datos
                 </Link>
               </li>
@@ -163,7 +163,7 @@ const Footer = () => {
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">Credenciales institucionales</p>
               <h3 className="text-base font-bold text-foreground">Validaciones publicas de Chatboc</h3>
             </div>
-            <p className="max-w-xl text-xs leading-5 text-muted-foreground">
+            <p className="max-w-xl text-xs leading-5 text-slate-700 dark:text-slate-300">
               Accesos oficiales para revisar informacion fiscal y descargar el certificado MiPyME.
             </p>
           </div>
@@ -179,7 +179,7 @@ const Footer = () => {
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Data fiscal</p>
                   <p className="mt-1 text-sm font-bold text-foreground">Formulario F960/D</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  <p className="mt-1 text-xs leading-5 text-slate-700 dark:text-slate-300">
                     Banner de acceso a informacion publica fiscal.
                   </p>
                 </div>
@@ -199,9 +199,9 @@ const Footer = () => {
             <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/60 hover:shadow-md">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">Certificado MiPyME</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-800 dark:text-emerald-300">Certificado MiPyME</p>
                   <p className="mt-1 text-sm font-bold text-foreground">Respaldo institucional SEPyME</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  <p className="mt-1 text-xs leading-5 text-slate-700 dark:text-slate-300">
                     Documento oficial disponible para clientes, partners y validacion comercial.
                   </p>
                 </div>
@@ -233,7 +233,7 @@ const Footer = () => {
         </section>
 
         <div className="mt-2 border-t border-border pt-5">
-          <p className="text-center text-sm text-muted-foreground/80">
+          <p className="text-center text-sm text-slate-700 dark:text-slate-300">
             (c) {year} Chatboc - Todos los derechos reservados.
           </p>
         </div>

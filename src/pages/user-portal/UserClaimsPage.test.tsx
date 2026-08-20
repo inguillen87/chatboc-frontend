@@ -171,4 +171,41 @@ describe('UserClaimsPage public claim actions', () => {
     await waitFor(() => expect(claimsMocks.getTenantPublicNavigation).toHaveBeenCalledWith('junin'));
     expect(screen.queryByRole('link', { name: /nuevo reclamo/i })).not.toBeInTheDocument();
   });
+
+  it.each([
+    '//evil.test/phish',
+    String.raw`\\evil.test\phish`,
+    String.raw`/\evil.test/phish`,
+    String.raw`\/evil.test/phish`,
+  ])('fails closed for the mixed-separator new-claim PoC %s', async (route) => {
+    claimsMocks.publicClaims = [];
+    claimsMocks.getTenantPublicNavigation.mockResolvedValueOnce({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [
+        {
+          id: 'new_claim',
+          label: 'Nuevo reclamo',
+          route,
+          enabled: true,
+          visible: true,
+        },
+      ],
+    });
+
+    const { container } = render(
+      <MemoryRouter future={routerFuture} initialEntries={['/t/junin/portal/reclamos']}>
+        <UserClaimsPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /vincular seguimiento/i })).toBeInTheDocument();
+    await waitFor(() => expect(claimsMocks.getTenantPublicNavigation).toHaveBeenCalledWith('junin'));
+    expect(screen.queryByRole('link', { name: /^nuevo reclamo$/i })).not.toBeInTheDocument();
+    expect(
+      Array.from(container.querySelectorAll('a')).some(
+        (anchor) => new URL(anchor.href).hostname === 'evil.test',
+      ),
+    ).toBe(false);
+  });
 });

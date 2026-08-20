@@ -41,6 +41,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'crm',
   'clientes',
   'admin',
+  'superadmin',
   'dashboard',
   'analytics',
   'enterprise',

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Edit,
   Loader2,
+  Lock,
   MessageCircle,
   PlusCircle,
   RefreshCw,
@@ -58,6 +59,9 @@ const normalizeKeywords = (value: unknown): string[] => {
   }
   return [];
 };
+
+const isGlobalTemplate = (template: TemplateDraft | GestionResponseTemplate) =>
+  template.scope === "global" || template.tenant_id === null;
 
 const EmptyLegacyTemplates = ({ onCreate }: { onCreate: () => void }) => (
   <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-6 text-center">
@@ -124,6 +128,13 @@ const GestionPlantillasPage: React.FC = () => {
   };
 
   const abrirFormularioEditar = (plantilla: GestionResponseTemplate) => {
+    if (isGlobalTemplate(plantilla)) {
+      toast({
+        title: "Plantilla base de solo lectura",
+        description: "Podés usarla en conversaciones, pero solo el equipo central puede modificarla.",
+      });
+      return;
+    }
     setCurrentPlantilla({ ...plantilla, keywords: normalizeKeywords(plantilla.keywords) });
     setPromptIA("");
     setIsFormOpen(true);
@@ -136,6 +147,14 @@ const GestionPlantillasPage: React.FC = () => {
       toast({
         title: "Faltan datos",
         description: "Nombre y texto son requeridos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (isGlobalTemplate(currentPlantilla)) {
+      toast({
+        title: "Plantilla base de solo lectura",
+        description: "Creá una respuesta de esta organización si necesitás una variante editable.",
         variant: "destructive",
       });
       return;
@@ -176,6 +195,15 @@ const GestionPlantillasPage: React.FC = () => {
 
   const confirmarEliminacionPlantilla = async () => {
     if (!plantillaAEliminar?.id) return;
+    if (isGlobalTemplate(plantillaAEliminar)) {
+      setPlantillaAEliminar(null);
+      toast({
+        title: "Plantilla base de solo lectura",
+        description: "Las respuestas institucionales globales no se eliminan desde un tenant.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       await apiFetch(`/api/ai/templates/${plantillaAEliminar.id}`, {
@@ -362,17 +390,20 @@ const GestionPlantillasPage: React.FC = () => {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {plantillas.map((template) => {
                     const keywords = normalizeKeywords(template.keywords);
+                    const isGlobal = isGlobalTemplate(template);
                     return (
                       <article
                         key={template.id}
-                        className="flex min-h-[220px] flex-col rounded-2xl border border-border/70 bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+                        className="flex min-h-[220px] flex-col rounded-2xl border border-border/70 bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-black tracking-tight">{template.name}</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {template.is_active === false ? "Inactiva" : "Activa"}
-                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>{template.is_active === false ? "Inactiva" : "Activa"}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{isGlobal ? "Base institucional" : "De esta organización"}</span>
+                            </div>
                           </div>
                           <span
                             className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] ${
@@ -397,16 +428,25 @@ const GestionPlantillasPage: React.FC = () => {
                           )}
                         </div>
                         <div className="mt-auto flex gap-2 pt-5">
-                          <Button type="button" variant="outline" size="sm" className="rounded-[8px]" onClick={() => abrirFormularioEditar(template)}>
-                            <Edit className="mr-1 h-4 w-4" />
-                            Editar
-                          </Button>
-                          <AlertDialogTrigger asChild>
-                            <Button type="button" variant="destructive" size="sm" className="rounded-[8px]" onClick={() => setPlantillaAEliminar(template)}>
-                              <Trash2 className="mr-1 h-4 w-4" />
-                              Eliminar
-                            </Button>
-                          </AlertDialogTrigger>
+                          {isGlobal ? (
+                            <div className="inline-flex min-h-9 items-center rounded-[8px] border border-border/70 bg-muted/35 px-3 text-xs font-semibold text-muted-foreground">
+                              <Lock className="mr-1.5 h-3.5 w-3.5" />
+                              Solo lectura
+                            </div>
+                          ) : (
+                            <>
+                              <Button type="button" variant="outline" size="sm" className="rounded-[8px]" onClick={() => abrirFormularioEditar(template)}>
+                                <Edit className="mr-1 h-4 w-4" />
+                                Editar
+                              </Button>
+                              <AlertDialogTrigger asChild>
+                                <Button type="button" variant="destructive" size="sm" className="rounded-[8px]" onClick={() => setPlantillaAEliminar(template)}>
+                                  <Trash2 className="mr-1 h-4 w-4" />
+                                  Eliminar
+                                </Button>
+                              </AlertDialogTrigger>
+                            </>
+                          )}
                         </div>
                       </article>
                     );
