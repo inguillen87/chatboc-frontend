@@ -63,7 +63,7 @@ export function MeasuredContainer({
         return;
       }
       validMeasurementsRef.current += 1;
-      setCanRender(validMeasurementsRef.current >= 2);
+      setCanRender(validMeasurementsRef.current >= 1);
     };
 
     if (!isInViewport) {

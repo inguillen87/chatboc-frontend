@@ -215,7 +215,7 @@ export function useSurveySeedResponses() {
             errors: [],
           } satisfies SeedResultSummary;
         } catch (error) {
-          const canFallbackToPublic = error instanceof ApiError && [400, 404, 405, 501].includes(error.status);
+          const canFallbackToPublic = error instanceof ApiError && [400, 403, 404, 405, 500, 501, 502, 503].includes(error.status);
           if (!canFallbackToPublic) {
             throw error;
           }

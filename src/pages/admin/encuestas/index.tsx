@@ -268,8 +268,7 @@ const AdminSurveysIndex = () => {
                 closing={isClosing && closingId === survey.id}
                 onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
                 onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
-                deleting={isDeleting && deletingId === survey.id}
-                onSeed={syntheticSeedQaEnabled && survey.estado === 'borrador' ? () => handleSeed(survey) : undefined}
+                onSeed={syntheticSeedQaEnabled && survey.estado !== 'cerrada' ? () => handleSeed(survey) : undefined}
                 seeding={isSeeding && seedingId === survey.id}
               />
             </div>
