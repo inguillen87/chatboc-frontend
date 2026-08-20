@@ -80,7 +80,7 @@
       ]
     },
     {
-      "source": "/sw-recovery.js",
+      "source": "/sw-cache-hygiene.js",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
