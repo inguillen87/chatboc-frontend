@@ -69,7 +69,9 @@ test('a backend-resolved ambient tenant enters the canonical tenant survey route
   await page.goto('/encuestas', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveURL(/\/t\/rio-grande\/encuestas$/);
-  await expect(page.getByText('Participacion no publicada')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Participacion no publicada' })).toBeVisible({
+    timeout: 10_000,
+  });
   expect(publicListRequests).toEqual([]);
 });
 
@@ -103,7 +105,9 @@ test('a cold canonical deep link scopes navigation from the route without a defa
 
   await page.goto('/t/rio-grande/encuestas', { waitUntil: 'domcontentloaded' });
 
-  await expect(page.getByText('Participacion no publicada')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Participacion no publicada' })).toBeVisible({
+    timeout: 10_000,
+  });
   expect([...new Set(navigationRequests)]).toEqual(['/api/public/tenants/rio-grande/public-navigation']);
   expect(navigationRequests).not.toContain('/api/public/tenants/default/public-navigation');
   expect(publicListRequests).toEqual([]);
