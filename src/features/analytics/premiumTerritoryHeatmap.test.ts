@@ -2,13 +2,27 @@ import { describe, expect, it } from 'vitest';
 
 import {
   aggregateTerritoryHeatmap,
-  DEFAULT_TERRITORY_ZONES,
+  DEVELOPMENT_TERRITORY_ZONES,
   getDemoTerritoryHeatmapPoints,
+  isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
+  resolveOfficialTerritoryZones,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
 } from './premiumTerritoryHeatmap';
-import type { OperationsHeatmapPoint } from './analyticsTypes';
+import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTypes';
+
+const OFFICIAL_TEST_ZONES = [
+  {
+    id: 'centro',
+    label: 'Centro',
+    polygon: [[20, 20], [80, 20], [80, 55], [20, 55]] as [number, number][],
+    geoPolygons: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5]]] as [number, number][][],
+    population: 32000,
+    populationSource: 'censo_2022',
+    source: 'official' as const,
+  },
+];
 
 const buildPoints = (count: number, overrides?: Partial<OperationsHeatmapPoint>): OperationsHeatmapPoint[] =>
   Array.from({ length: count }, (_, index) => ({
@@ -30,6 +44,7 @@ describe('premium territory heatmap aggregation', () => {
   it('keeps low sample zones private', () => {
     const result = aggregateTerritoryHeatmap({
       points: buildPoints(PREMIUM_HEATMAP_MIN_SAMPLE_SIZE - 1),
+      zones: OFFICIAL_TEST_ZONES,
     });
     const centro = result.zones.find((metric) => metric.zone.id === 'centro');
 
@@ -47,6 +62,7 @@ describe('premium territory heatmap aggregation', () => {
 
     const result = aggregateTerritoryHeatmap({
       points,
+      zones: OFFICIAL_TEST_ZONES,
       filters: { genero: 'femenino' },
     });
     const centro = result.zones.find((metric) => metric.zone.id === 'centro');
@@ -62,9 +78,153 @@ describe('premium territory heatmap aggregation', () => {
     const zoneNames = new Set(demoPoints.map((point) => point.barrio));
     const categories = new Set(demoPoints.map((point) => point.categoria));
 
-    expect(DEFAULT_TERRITORY_ZONES).toHaveLength(8);
+    expect(DEVELOPMENT_TERRITORY_ZONES).toHaveLength(8);
     expect(zoneNames.size).toBeGreaterThanOrEqual(8);
     expect(categories.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('does not aggregate real points when official boundaries are absent', () => {
+    const result = aggregateTerritoryHeatmap({
+      points: buildPoints(12),
+      zones: [],
+    });
+
+    expect(result).toMatchObject({
+      zones: [],
+      totalEvents: 0,
+      totalRecords: 0,
+      unassignedRecords: 12,
+      hasBoundaries: false,
+    });
+  });
+
+  it('builds zones only from explicit backend boundaries and keeps supplied population provenance', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      privacy: {
+        population_source: 'INDEC 2022',
+        boundaries_source: 'Catastro municipal 2026',
+      },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { official: true, source: 'Catastro municipal 2026' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [-60.9, -34.62], [-60.9, -34.57], [-60.95, -34.57], [-60.95, -34.62]]],
+              },
+              properties: { nombre: 'Centro', poblacion: 31400 },
+            },
+          ],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)).toEqual([
+      expect.objectContaining({
+        id: 'centro',
+        label: 'Centro',
+        population: 31400,
+        populationSource: 'INDEC 2022',
+        boundarySource: 'Catastro municipal 2026',
+        source: 'official',
+      }),
+    ]);
+  });
+
+  it('rejects boundary collections explicitly marked as synthetic', () => {
+    const heatmap = {
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { synthetic: true },
+          features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: {} }],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)).toEqual([]);
+  });
+
+  it('rejects boundaries without positive official provenance evidence', () => {
+    const heatmap = {
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [-60.9, -34.62], [-60.9, -34.57], [-60.95, -34.57]]],
+              },
+              properties: { nombre: 'Centro', poblacion: 31400 },
+            },
+          ],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)).toEqual([]);
+  });
+
+  it('does not use a population value without explicit population provenance', () => {
+    const heatmap = {
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { official: true, source: 'Catastro municipal' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [-60.9, -34.62], [-60.9, -34.57], [-60.95, -34.57]]],
+              },
+              properties: { nombre: 'Centro', poblacion: 999999 },
+            },
+          ],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)[0]).toMatchObject({
+      label: 'Centro',
+      population: undefined,
+      populationSource: undefined,
+    });
+  });
+
+  it('keeps the visual demo fallback disabled outside explicitly flagged local development', () => {
+    expect(isTerritoryDemoFallbackEnabled('production', 'true')).toBe(false);
+    expect(isTerritoryDemoFallbackEnabled('development', undefined)).toBe(false);
+    expect(isTerritoryDemoFallbackEnabled('development', 'true')).toBe(true);
   });
 
   it('normalizes low quality heatmap readiness from backend quality and summary fields', () => {

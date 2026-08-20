@@ -108,6 +108,18 @@ const lifecycleEnvelope = () => ({
       reason_code: 'survey_eligible_population_not_configured',
     },
   },
+  pagination: {
+    contract_version: 'surveys.pagination.v1',
+    limit: 50,
+    page: 1 as number | null,
+    cursor: null as string | null,
+    next_cursor: null as string | null,
+    next_page: null as number | null,
+    has_more: false,
+    returned: 1,
+    total_items: 1,
+    ordering: 'id_desc',
+  },
   seed_demo: { defaults: {}, profiles: [] },
 });
 
@@ -131,9 +143,27 @@ describe('admin survey lifecycle contract', () => {
     expect(result.contract_version).toBe('surveys.admin_list.v2');
     expect(result.tenant?.slug).toBe('org-demo');
     expect(result.overview?.total_respuestas).toBe(8);
+    expect(result.pagination).toMatchObject({ returned: 1, total_items: 1, has_more: false });
     expect(result.data[0].admin_lifecycle?.capabilities.can_close).toBe(true);
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/admin/encuestas',
+      expect.objectContaining({ tenantSlug: 'org-demo' }),
+    );
+  });
+
+  it('forwards the opaque cursor and bounded limit to the tenant-scoped endpoint', async () => {
+    const payload = cloneEnvelope();
+    payload.pagination.page = null;
+    payload.pagination.cursor = 'cursor_opaque-41';
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    await adminListSurveys(
+      { limit: 50, cursor: 'cursor_opaque-41' },
+      { tenantSlug: 'org-demo' },
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas?limit=50&cursor=cursor_opaque-41',
       expect.objectContaining({ tenantSlug: 'org-demo' }),
     );
   });
@@ -179,6 +209,12 @@ describe('admin survey lifecycle contract', () => {
     }],
     ['unreconciled overview', (payload: ReturnType<typeof lifecycleEnvelope>) => {
       payload.resumen.total_respuestas = 9;
+    }],
+    ['contradictory pagination', (payload: ReturnType<typeof lifecycleEnvelope>) => {
+      payload.pagination.has_more = true;
+    }],
+    ['pagination count mismatch', (payload: ReturnType<typeof lifecycleEnvelope>) => {
+      payload.pagination.returned = 0;
     }],
   ])('rejects %s', async (_label, mutate) => {
     const payload = cloneEnvelope();

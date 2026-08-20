@@ -1339,6 +1339,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   }, [filterTicketsForUser]);
 
   useTicketUpdates({
+    onCollectionInvalidated: () => {
+      fetchTickets();
+    },
     onNewTicket: (data) => {
       // Optimistic addition if we have enough data, otherwise fetch
       if (data && data.ticket && typeof data.ticket === 'object') {

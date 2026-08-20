@@ -35,13 +35,15 @@ import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
 import {
   aggregateTerritoryHeatmap,
-  DEFAULT_TERRITORY_ZONES,
+  DEVELOPMENT_TERRITORY_ZONES,
   getDemoTerritoryHeatmapPoints,
+  isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
+  resolveOfficialTerritoryZones,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
   territoryCentroid,
-  territoryPolygonToPath,
+  territoryZoneToPath,
   type TerritoryLayerDescriptor,
   type TerritoryZoneMetric,
 } from './premiumTerritoryHeatmap';
@@ -82,6 +84,23 @@ type PremiumTerritoryHeatmapProps = {
 };
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+
+const NO_TERRITORY_ZONE_METRIC: TerritoryZoneMetric = {
+  zone: {
+    id: 'without-official-boundaries',
+    label: 'Sin delimitación territorial oficial',
+    polygon: [],
+    source: 'official',
+  },
+  total: 0,
+  previousTotal: 0,
+  records: 0,
+  intensity: 0,
+  suppressed: false,
+  confidence: 'insufficient',
+  topCategories: [],
+  recommendation: 'Cargá un GeoJSON oficial de barrios, distritos o circuitos para habilitar métricas por zona.',
+};
 
 const labelFor = (labels: Record<string, string> | undefined, key: string, fallback: string) => {
   const candidate = labels?.[key];
@@ -168,6 +187,15 @@ const formatPercent = (value: number | undefined) =>
 
 const humanizeContractValue = (value: string | undefined, fallback: string) =>
   value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : fallback;
+
+const privacyModeLabel = (value: string | undefined) => {
+  const normalized = value?.trim().toLowerCase();
+  if (['aggregated', 'tenant_aggregated', 'public_aggregated'].includes(normalized ?? '')) {
+    return 'privacidad agregada';
+  }
+  if (normalized === 'coordinates_without_customer_pii') return 'sin datos personales';
+  return humanizeContractValue(value, 'privacidad protegida');
+};
 
 const operationalRankLabel = (reason: string | undefined) => {
   const labels: Record<string, string> = {
@@ -493,6 +521,7 @@ const buildOperationsGeoLayerConfig = ({
         enabled_layers: enabledLayerIds,
         operational_hotspots: heatmap.operational_hotspots?.length ?? 0,
         backend_geojson_source: Boolean(geoLayerSource),
+        privacy: heatmap.privacy,
       },
     },
     source_options: {
@@ -506,6 +535,7 @@ const buildOperationsGeoLayerConfig = ({
       source_quality_contract_version: readString(heatmap.source_quality?.contract_version),
       default_viewport_id: readString(viewportPresets?.default_preset_id),
       enabled_layers: enabledLayerIds,
+      privacy: heatmap.privacy,
       active_layers: {
         heatmap: showHeatLayer,
         ai: showAiLayer,
@@ -630,7 +660,12 @@ export function PremiumTerritoryHeatmap({
   );
   const usesBackendGeoLayerPoints = points.length === 0 && backendGeoLayerPoints.length > 0;
   const usesBackendCellPoints = points.length === 0 && !usesBackendGeoLayerPoints && backendCellPoints.length > 0;
-  const usesDemoData = allowDemoFallback && points.length === 0 && !usesBackendGeoLayerPoints && !usesBackendCellPoints;
+  const usesDemoData =
+    allowDemoFallback &&
+    isTerritoryDemoFallbackEnabled() &&
+    points.length === 0 &&
+    !usesBackendGeoLayerPoints &&
+    !usesBackendCellPoints;
   const sourcePoints = useMemo(
     () =>
       usesDemoData
@@ -648,20 +683,27 @@ export function PremiumTerritoryHeatmap({
   );
   const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
   const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
+  const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
+  const territoryZones = usesDemoData ? DEVELOPMENT_TERRITORY_ZONES : officialTerritoryZones;
+  const effectiveMinSampleSize = Math.max(
+    minSampleSize,
+    heatmap?.privacy?.minimum_sample_size ?? PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
+  );
 
   const aggregate = useMemo(
     () =>
       aggregateTerritoryHeatmap({
         points: sourcePoints,
-        zones: DEFAULT_TERRITORY_ZONES,
-        minSampleSize,
+        zones: territoryZones,
+        minSampleSize: effectiveMinSampleSize,
       }),
-    [minSampleSize, sourcePoints],
+    [effectiveMinSampleSize, sourcePoints, territoryZones],
   );
+  const hasTerritoryBoundaries = aggregate.hasBoundaries;
 
   const readiness = useMemo(
-    () => resolveTerritoryMapReadiness(heatmap, aggregate.totalRecords),
-    [aggregate.totalRecords, heatmap],
+    () => resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
+    [heatmap, sourcePoints.length],
   );
   const displayLayers = useMemo(() => resolveTerritoryLayerDescriptors(heatmap), [heatmap]);
   const displayLayerKey = displayLayers.map((layer) => layer.id).join('|');
@@ -682,7 +724,8 @@ export function PremiumTerritoryHeatmap({
   const selectedZone =
     aggregate.zones.find((metric) => metric.zone.id === selectedZoneId) ??
     aggregate.zones.find((metric) => metric.records > 0 && !metric.suppressed) ??
-    aggregate.zones[0];
+    aggregate.zones[0] ??
+    NO_TERRITORY_ZONE_METRIC;
 
   const topZones = aggregate.zones
     .filter((metric) => metric.records > 0)
@@ -877,6 +920,10 @@ export function PremiumTerritoryHeatmap({
           heatmapRecord?.generated_at,
           heatmapRecord?.updated_at,
         ),
+        metadata: {
+          privacy: heatmap?.privacy,
+          official_boundaries: hasTerritoryBoundaries,
+        },
       };
     },
     [
@@ -888,6 +935,7 @@ export function PremiumTerritoryHeatmap({
       heatmap?.quality?.coverage_pct,
       heatmap?.realtime?.latest_event_at,
       heatmap?.summary?.coverage_pct,
+      hasTerritoryBoundaries,
       liveMapPoints.length,
       liveMapProvider,
       usesBackendCellPoints,
@@ -896,7 +944,10 @@ export function PremiumTerritoryHeatmap({
     ],
   );
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
-  const visiblePointCount = readiness.visiblePoints ?? aggregate.totalRecords;
+  const visiblePointCount = readiness.visiblePoints ?? sourcePoints.length;
+  const overallEventTotal = hasTerritoryBoundaries
+    ? aggregate.totalEvents
+    : sourcePoints.reduce((total, point) => total + Math.max(0, readNumber(point.weight, point.count, point.total, point.value) ?? 1), 0);
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
   const decisionAction = narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction;
   const decisionActionLabel =
@@ -906,11 +957,17 @@ export function PremiumTerritoryHeatmap({
       : readiness.state === 'ready'
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
-  const decisionActionDetail = decisionAction?.detail ?? decisionZone.recommendation;
+  const decisionActionDetail =
+    decisionAction?.detail ??
+    (hasTerritoryBoundaries
+      ? decisionZone.recommendation
+      : 'La actividad puntual sigue disponible; las comparaciones por zona requieren límites oficiales.');
   const commandLoopHref = decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href;
   const commandPrimaryCategory = backendTopCategory
     ? humanizeContractValue(backendTopCategory, backendTopCategory)
-    : decisionZone.topCategories[0]?.label ?? aggregate.topCategories[0]?.label ?? 'sin categoria dominante';
+    : decisionZone.topCategories[0]?.label ??
+      aggregate.topCategories[0]?.label ??
+      (hasTerritoryBoundaries ? 'sin categoria dominante' : 'sin delimitación oficial');
   const commandRealtimeDetail =
     realtimeEvents.length > 0
       ? humanizeContractValue(realtimeEvents[0], realtimeEvents[0])
@@ -968,7 +1025,9 @@ export function PremiumTerritoryHeatmap({
       detail:
         backendFocusCount !== undefined
           ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
-          : decisionZone.suppressed
+          : !hasTerritoryBoundaries
+            ? 'sin ranking zonal'
+            : decisionZone.suppressed
             ? 'muestra insuficiente'
             : decisionZone.zone.label,
       icon: Compass,
@@ -1012,11 +1071,17 @@ export function PremiumTerritoryHeatmap({
   const commandSignals = [
     {
       label: backendTopCategory ? 'Foco backend' : 'Zona foco',
-      value: backendTopCategory ? humanizeContractValue(backendTopCategory, backendTopCategory) : decisionZone.zone.label,
+      value: backendTopCategory
+        ? humanizeContractValue(backendTopCategory, backendTopCategory)
+        : hasTerritoryBoundaries
+          ? decisionZone.zone.label
+          : 'Sin delimitación oficial',
       detail:
         backendFocusCount !== undefined
           ? `${formatNumber(backendFocusCount)} casos - ${backendFocusRiskLabel}`
-          : decisionZone.suppressed
+          : !hasTerritoryBoundaries
+            ? `${formatNumber(visiblePointCount, '0')} puntos reales sin agregación zonal`
+            : decisionZone.suppressed
             ? 'muestra insuficiente'
             : `${formatNumber(decisionZone.total)} eventos`,
       icon: MapPin,
@@ -1131,8 +1196,14 @@ export function PremiumTerritoryHeatmap({
             </Badge>
             <Badge variant="outline" className="gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
-              minimo {minSampleSize}
+              mínimo {effectiveMinSampleSize}
             </Badge>
+            {heatmap?.privacy?.mode ? (
+              <Badge variant="outline" className="gap-1 capitalize">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {privacyModeLabel(heatmap.privacy.mode)}
+              </Badge>
+            ) : null}
             {hasWarning ? (
               <Badge variant="outline" className="gap-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -1148,7 +1219,7 @@ export function PremiumTerritoryHeatmap({
         <div className="grid grid-cols-2 gap-2 text-right sm:min-w-[430px] sm:grid-cols-4">
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">Eventos</p>
-            <p className="text-lg font-semibold">{formatNumber(aggregate.totalEvents)}</p>
+            <p className="text-lg font-semibold">{formatNumber(overallEventTotal)}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">Cobertura</p>
@@ -1205,7 +1276,11 @@ export function PremiumTerritoryHeatmap({
           </div>
           <Badge variant="outline" className="w-fit gap-1">
             <Activity className="h-3.5 w-3.5" />
-            {hasBackendMapContract ? 'contrato backend activo' : 'atlas operativo'}
+            {hasBackendMapContract
+              ? 'contrato backend activo'
+              : hasTerritoryBoundaries
+                ? 'límites oficiales activos'
+                : 'sin límites oficiales'}
           </Badge>
         </div>
         <div className="grid divide-y divide-border/70 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
@@ -1384,7 +1459,7 @@ export function PremiumTerritoryHeatmap({
                 evidence={liveMapEvidence}
               />
             </div>
-          ) : (
+          ) : hasTerritoryBoundaries ? (
           <svg
             role="img"
             aria-label={title}
@@ -1605,7 +1680,7 @@ export function PremiumTerritoryHeatmap({
               {aggregate.zones.map((metric) => (
                 <path
                   key={`${metric.zone.id}-extrusion`}
-                  d={territoryPolygonToPath(metric.zone.polygon)}
+                  d={territoryZoneToPath(metric.zone)}
                   fill="rgba(15,23,42,0.34)"
                   stroke="rgba(15,23,42,0.08)"
                   strokeWidth="0.2"
@@ -1625,7 +1700,7 @@ export function PremiumTerritoryHeatmap({
                   }}
                 >
                   <path
-                    d={territoryPolygonToPath(metric.zone.polygon)}
+                    d={territoryZoneToPath(metric.zone)}
                     fill={
                       showHeatLayer || focusMode === 'territory'
                         ? fillForIntensity(metric, selected)
@@ -1653,14 +1728,14 @@ export function PremiumTerritoryHeatmap({
                     <title>{metric.zone.label}</title>
                   </path>
                   <path
-                    d={territoryPolygonToPath(metric.zone.polygon)}
+                    d={territoryZoneToPath(metric.zone)}
                     fill={`url(#${svgId}-surface-shine)`}
                     opacity={selected ? 0.38 : focusMode === 'quality' ? 0.25 : 0.16}
                     className="pointer-events-none"
                   />
                   {showQualityLayer || focusMode === 'quality' ? (
                     <path
-                      d={territoryPolygonToPath(metric.zone.polygon)}
+                      d={territoryZoneToPath(metric.zone)}
                       fill="none"
                       stroke={
                         !metric.records
@@ -1781,7 +1856,39 @@ export function PremiumTerritoryHeatmap({
               </g>
             ) : null}
           </svg>
+          ) : (
+            <div
+              data-testid="territory-boundary-empty-state"
+              role="status"
+              className="relative z-10 flex h-[450px] items-center justify-center px-6 pb-28 pt-24 text-center sm:h-[540px]"
+            >
+              <div className="max-w-xl rounded-xl border border-dashed border-border bg-background/90 p-6 shadow-sm backdrop-blur">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <h4 className="mt-3 text-lg font-semibold">Sin delimitación territorial oficial</h4>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un GeoJSON oficial para habilitar
+                  agregaciones, rankings y tasas por zona.
+                </p>
+              </div>
+            </div>
           )}
+
+          {showLiveMap && !hasTerritoryBoundaries ? (
+            <div
+              data-testid="territory-boundary-empty-state"
+              role="status"
+              className="pointer-events-none absolute left-3 right-3 top-24 z-20 sm:left-auto sm:right-3 sm:max-w-sm"
+            >
+              <div className="rounded-lg border border-amber-500/30 bg-background/95 p-3 shadow-sm backdrop-blur">
+                <p className="text-sm font-semibold">Sin delimitación territorial oficial</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Los puntos son reales. Rankings, tasas y comparaciones zonales permanecen desactivados.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div className={cn('pointer-events-auto max-w-md rounded-lg border px-3 py-2 shadow-sm backdrop-blur', readinessToneClass[readiness.state])}>
@@ -1872,9 +1979,11 @@ export function PremiumTerritoryHeatmap({
               variant={comparisonEnabled ? 'default' : 'outline'}
               className="mt-3 w-full justify-center gap-2 rounded-lg xl:absolute xl:right-3 xl:top-3 xl:mt-0 xl:w-auto"
               onClick={() => setComparisonEnabled((value) => !value)}
+              disabled={!hasTerritoryBoundaries}
+              title={!hasTerritoryBoundaries ? 'Requiere delimitaciones territoriales oficiales' : undefined}
             >
               <TrendingUp className="h-4 w-4" />
-              Comparar
+              Comparar zonas
             </Button>
           </div>
         </div>
@@ -1886,7 +1995,9 @@ export function PremiumTerritoryHeatmap({
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
                 <h4 className="mt-1 text-lg font-semibold">{readiness.label}</h4>
               </div>
-              <Badge variant={badgeVariantForReadiness(readiness.state)}>{confidenceLabel(aggregate.confidence)}</Badge>
+              <Badge variant={badgeVariantForReadiness(readiness.state)}>
+                {hasTerritoryBoundaries ? confidenceLabel(aggregate.confidence) : 'sin límites'}
+              </Badge>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-lg border bg-muted/20 p-3">
@@ -1908,7 +2019,9 @@ export function PremiumTerritoryHeatmap({
                   <Radar className="h-3.5 w-3.5" />
                   Alertas
                 </div>
-                <p className="mt-1 text-lg font-semibold">{formatNumber(aggregate.alerts)}</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {hasTerritoryBoundaries ? formatNumber(aggregate.alerts) : '--'}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -1981,7 +2094,7 @@ export function PremiumTerritoryHeatmap({
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
                     Hotspots operativos
                   </p>
-                  <h4 className="mt-1 text-lg font-semibold leading-tight">Zonas para actuar primero</h4>
+                  <h4 className="mt-1 text-lg font-semibold leading-tight">Focos para actuar primero</h4>
                 </div>
                 <Badge variant="outline" className="shrink-0 gap-1">
                   <Radar className="h-3.5 w-3.5" />
@@ -2186,6 +2299,8 @@ export function PremiumTerritoryHeatmap({
             </div>
           ) : null}
 
+          {hasTerritoryBoundaries ? (
+            <>
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -2207,7 +2322,7 @@ export function PremiumTerritoryHeatmap({
                 <MetricLine label="Registros agregados" value={formatNumber(selectedZone.records)} />
                 <MetricLine
                   label="Tasa cada 1.000"
-                  value={formatNumber(selectedZone.ratePerThousand, 'sin poblacion')}
+                  value={formatNumber(selectedZone.ratePerThousand, 'sin población oficial')}
                 />
                 <MetricLine label="Variacion" value={formatVariation(selectedZone.variationPercent)} />
               </div>
@@ -2268,6 +2383,22 @@ export function PremiumTerritoryHeatmap({
               </div>
             </div>
           ) : null}
+            </>
+          ) : (
+            <div
+              data-testid="territory-zone-analytics-unavailable"
+              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <MapPin className="h-4 w-4 text-primary" />
+                Sin delimitación territorial oficial
+              </div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                El mapa conserva los puntos y celdas reales, pero no calcula rankings, tasas por población ni
+                comparaciones entre zonas hasta recibir límites oficiales.
+              </p>
+            </div>
+          )}
         </aside>
       </div>
     </section>

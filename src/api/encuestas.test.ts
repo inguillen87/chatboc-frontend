@@ -21,6 +21,7 @@ vi.mock('@/utils/api', () => ({
 import {
   adminDuplicateSurvey,
   adminPublishSurvey,
+  adminSeedSurvey,
   createSnapshot,
   getSurveyDashboardBundle,
   getHeatmap,
@@ -1079,6 +1080,40 @@ describe('postPublicResponse', () => {
       }),
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a public duplicate HTTP 409 and never retries a compatibility route', async () => {
+    const duplicate = new ApiError('Duplicate', 409, {
+      reason_code: 'survey_response_duplicate',
+    });
+    apiFetchMock.mockRejectedValueOnce(duplicate);
+    const payload = {
+      submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394882',
+      respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+    };
+
+    await expect(postPublicResponse('mi-encuesta', payload, 'junin')).rejects.toBe(duplicate);
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/public/surveys/mi-encuesta/respond?tenant_slug=junin',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('preserves an admin duplicate HTTP 409 and never tries alternate admin routes', async () => {
+    const duplicate = new ApiError('Duplicate', 409, {
+      reason_code: 'survey_response_duplicate',
+    });
+    apiFetchMock.mockRejectedValueOnce(duplicate);
+
+    await expect(adminSeedSurvey(42, { cantidad: 100 })).rejects.toBe(duplicate);
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas/42/seed-demo',
+      expect.objectContaining({ method: 'POST', body: { cantidad: 100 } }),
+    );
   });
 
   it('sends nested territorial metadata without rewriting the public response payload', async () => {

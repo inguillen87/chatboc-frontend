@@ -138,16 +138,17 @@ describe('BusinessMetrics premium heatmap', () => {
     expect(mocks.premiumHeatmap).toHaveBeenCalledWith(expect.objectContaining({
       points: operationsHeatmap.points,
       heatmap: operationsHeatmap,
+      allowDemoFallback: false,
     }));
   });
 
-  it('keeps the command center usable with the tenant heatmap fallback', async () => {
+  it('keeps real tenant points without enabling the synthetic fallback', async () => {
     mocks.getOperationsHeatmapV2.mockRejectedValue(new Error('premium heatmap down'));
     mocks.getPublicMapConfigV1.mockRejectedValue(new Error('map config down'));
 
     renderPage();
 
-    expect(await screen.findByText('Fallback tenant')).toBeInTheDocument();
+    expect(await screen.findByText('Fuente tenant')).toBeInTheDocument();
     expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('points:1');
     await waitFor(() => {
       expect(mocks.premiumHeatmap).toHaveBeenCalledWith(expect.objectContaining({
@@ -155,6 +156,7 @@ describe('BusinessMetrics premium heatmap', () => {
           contract_version: 'operations.heatmap.v1',
           render_contract: expect.objectContaining({ can_render_heatmap: true }),
         }),
+        allowDemoFallback: false,
       }));
     });
   });

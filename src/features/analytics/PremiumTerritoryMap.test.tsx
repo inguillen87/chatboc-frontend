@@ -375,7 +375,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveLegend.textContent).toContain('Prioridad IA');
     expect(screen.getByTestId('operational-hotspots-panel')).toBeTruthy();
     expect(screen.getByText('Hotspots operativos')).toBeTruthy();
-    expect(screen.getByText('Zonas para actuar primero')).toBeTruthy();
+    expect(screen.getByText('Focos para actuar primero')).toBeTruthy();
     expect(screen.getByText('SLA vencido')).toBeTruthy();
     expect(screen.getByText('SLA: 2')).toBeTruthy();
     expect(screen.getByText('sin responsable: 1')).toBeTruthy();
@@ -404,15 +404,96 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Safe by default - solo preparacion operativa')).toBeTruthy();
   });
 
-  it('keeps the atlas fallback when there are no live coordinates', () => {
+  it('shows an honest boundary state instead of a synthetic atlas when coordinates and boundaries are absent', () => {
     render(<PremiumTerritoryHeatmap points={[{ id: 'draft-only', weight: 1, categoria: 'reclamos' }]} />);
 
     expect(screen.queryByTestId('live-territory-map')).toBeNull();
-    expect(screen.getByRole('img', { name: 'Inteligencia territorial' })).toBeTruthy();
-    expect(screen.getByTestId('territory-hud-overlay')).toBeTruthy();
-    expect(screen.getByTestId('territory-radar-sweep')).toBeTruthy();
-    expect(screen.getByTestId('territory-selected-crosshair')).toBeTruthy();
-    expect(screen.getAllByTestId('territory-comet-route').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
+    expect(screen.getAllByText('Sin delimitación territorial oficial').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('territory-boundary-empty-state')).toBeTruthy();
+    expect(screen.getByTestId('territory-zone-analytics-unavailable')).toBeTruthy();
+    expect(screen.queryByText('Zona seleccionada')).toBeNull();
+    expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
+  });
+
+  it('enables zonal metrics only with explicit official boundaries and backend population', () => {
+    const points = buildPoints(12);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      privacy: {
+        mode: 'aggregated',
+        minimum_sample_size: 10,
+        population_source: 'INDEC 2022',
+      },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { source: 'Catastro municipal', official: true },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5], [-61, -34.7]]],
+              },
+              properties: { nombre: 'Centro oficial', poblacion: 32000 },
+            },
+          ],
+        },
+      },
+      quality: { state: 'ready', visible_points: 12, can_render_heatmap: true },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByText('Zona seleccionada')).toBeTruthy();
+    expect(screen.getAllByText('Centro oficial').length).toBeGreaterThan(0);
+    expect(screen.getByText('privacidad agregada')).toBeTruthy();
+    expect(screen.getByText('Tasa cada 1.000')).toBeTruthy();
+    expect(screen.queryByTestId('territory-zone-analytics-unavailable')).toBeNull();
+    expect(screen.queryByText('Sin delimitación territorial oficial')).toBeNull();
+  });
+
+  it('does not trust an unproven boundary collection as official', () => {
+    const points = buildPoints(12);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5]]],
+              },
+              properties: { nombre: 'Centro supuesto', poblacion: 999999 },
+            },
+          ],
+        },
+      },
+      quality: { state: 'ready', visible_points: 12, can_render_heatmap: true },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByTestId('territory-zone-analytics-unavailable')).toBeTruthy();
+    expect(screen.getAllByText('Sin delimitación territorial oficial').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Centro supuesto')).toBeNull();
+    expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
   });
 
   it('renders backend heatmap cells as live map points when raw points are absent', () => {

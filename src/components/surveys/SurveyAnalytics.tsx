@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { Activity, AlertTriangle, Layers, MapPin, Radio, Radar, ShieldCheck, Target, type LucideIcon } from 'lucide-react';
 import {
   Bar,
@@ -35,6 +36,7 @@ import type {
 } from '@/types/encuestas';
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
+import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -733,8 +735,8 @@ const resolveSurveyTerritoryReadiness = (
 ): SurveyTerritoryReadiness => {
   if (usingSyntheticPoints) {
     return {
-      label: 'Fallback sintetico',
-      detail: 'El backend marco datos demo o sinteticos. No se presenta como precision territorial real.',
+      label: 'Fallback sintético',
+      detail: 'El backend marcó datos demo o sintéticos. No se presentan como precisión territorial real.',
       toneClass: 'border-amber-300/35 bg-amber-300/10 text-amber-50',
       icon: ShieldCheck,
     };
@@ -742,7 +744,7 @@ const resolveSurveyTerritoryReadiness = (
   if (!mapRenderReady) {
     return {
       label: 'Contrato pendiente',
-      detail: 'La respuesta trae geometria, pero el contrato todavia no esta listo para render operativo.',
+      detail: 'La respuesta trae geometría, pero el contrato todavía no está listo para render operativo.',
       toneClass: 'border-violet-300/35 bg-violet-300/10 text-violet-50',
       icon: Layers,
     };
@@ -756,8 +758,8 @@ const resolveSurveyTerritoryReadiness = (
     };
   }
   return {
-    label: 'Sin geometria',
-    detail: 'Hay que capturar ubicacion, barrio o coordenadas para activar lectura territorial.',
+    label: 'Sin geometría',
+    detail: 'Hay que capturar ubicación, barrio o coordenadas para activar la lectura territorial.',
     toneClass: 'border-rose-300/35 bg-rose-300/10 text-rose-50',
     icon: MapPin,
   };
@@ -790,6 +792,7 @@ function SurveyTerritoryCommandCenter({
   channelBreakdown: ChannelBreakdownItem[];
   categoryLayerCount: number;
 }) {
+  const shouldReduceMotion = useReducedMotion();
   const reactId = useId().replace(/:/g, '');
   const gridId = `${reactId}-survey-grid`;
   const heatGradientId = `${reactId}-survey-heat`;
@@ -825,9 +828,9 @@ function SurveyTerritoryCommandCenter({
               Centro territorial
             </div>
             <div>
-              <CardTitle className="text-2xl text-white">Mapa vivo de participacion</CardTitle>
+              <CardTitle className="text-2xl text-white">Mapa vivo de participación</CardTitle>
               <CardDescription className="text-slate-300">
-                Lectura ejecutiva de cobertura, hotspots y calidad geografica antes de abrir el mapa interactivo.
+                Lectura ejecutiva de cobertura, focos y calidad geográfica antes de abrir el mapa interactivo.
               </CardDescription>
             </div>
           </div>
@@ -877,13 +880,19 @@ function SurveyTerritoryCommandCenter({
               <g transform={`translate(${focusNode.x} ${focusNode.y})`}>
                 <circle r="112" fill={`url(#${heatGradientId})`} opacity="0.72" />
                 <circle r="42" fill="none" stroke="rgba(34,211,238,0.46)" strokeWidth="1.4">
-                  <animate attributeName="r" values="42;94;42" dur="5s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.78;0.12;0.78" dur="5s" repeatCount="indefinite" />
+                  {!shouldReduceMotion ? (
+                    <>
+                      <animate attributeName="r" values="42;94;42" dur="5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.78;0.12;0.78" dur="5s" repeatCount="indefinite" />
+                    </>
+                  ) : null}
                 </circle>
                 <g opacity="0.66">
                   <line x1="-96" x2="96" y1="0" y2="0" stroke="rgba(125,211,252,0.58)" strokeWidth="1" />
                   <line x1="0" x2="0" y1="-96" y2="96" stroke="rgba(125,211,252,0.58)" strokeWidth="1" />
-                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="13s" repeatCount="indefinite" />
+                  {!shouldReduceMotion ? (
+                    <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="13s" repeatCount="indefinite" />
+                  ) : null}
                 </g>
               </g>
             ) : null}
@@ -899,11 +908,13 @@ function SurveyTerritoryCommandCenter({
                   strokeWidth="2.2"
                   opacity="0.78"
                 />
-                <circle r="5" fill="#fbbf24">
-                  <animateMotion dur="7.5s" repeatCount="indefinite" rotate="auto">
-                    <mpath href={`#${reactId}-survey-route-path`} />
-                  </animateMotion>
-                </circle>
+                {!shouldReduceMotion ? (
+                  <circle r="5" fill="#fbbf24">
+                    <animateMotion dur="7.5s" repeatCount="indefinite" rotate="auto">
+                      <mpath href={`#${reactId}-survey-route-path`} />
+                    </animateMotion>
+                  </circle>
+                ) : null}
               </g>
             ) : null}
             {nodes.map((node, index) => {
@@ -913,8 +924,12 @@ function SurveyTerritoryCommandCenter({
                   <circle r={radius + 10} fill="rgba(34,211,238,0.08)" />
                   <circle r={radius} fill={index === 0 ? '#fbbf24' : '#38bdf8'} opacity="0.88" />
                   <circle r={radius + 5} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="1">
-                    <animate attributeName="r" values={`${radius + 5};${radius + 18};${radius + 5}`} dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.65;0.06;0.65" dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
+                    {!shouldReduceMotion ? (
+                      <>
+                        <animate attributeName="r" values={`${radius + 5};${radius + 18};${radius + 5}`} dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.65;0.06;0.65" dur={`${4 + index * 0.35}s`} repeatCount="indefinite" />
+                      </>
+                    ) : null}
                   </circle>
                 </g>
               );
@@ -951,7 +966,7 @@ function SurveyTerritoryCommandCenter({
               <p className="text-xs text-slate-400">categorias territoriales</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Senal</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Señal</p>
               <p className="mt-2 text-lg font-semibold text-white">{activeSignal}</p>
               <p className="text-xs text-slate-400">{boundingBoxValue ? 'zona filtrada' : 'vista completa'}</p>
             </div>
@@ -1425,10 +1440,17 @@ export const SurveyAnalytics = ({
 
   const geoCoverageLabel = useMemo(() => {
     if (!aggregatedHeatmapPoints.length) return '—';
+    const backendCoverage = toFiniteNumber(
+      mapMetaRecord?.coverage_pct ?? mapMetaRecord?.coverage_percent ?? mapMetaRecord?.coverage,
+    );
+    if (backendCoverage !== null) {
+      const normalizedCoverage = backendCoverage > 0 && backendCoverage <= 1 ? backendCoverage * 100 : backendCoverage;
+      return `${Math.max(0, Math.min(100, normalizedCoverage)).toFixed(1)}%`;
+    }
     if (!totalResponsesValue || totalResponsesValue <= 0) return `${aggregatedHeatmapPoints.length} zonas`;
-    const ratio = Math.min(1, aggregatedHeatmapPoints.length / totalResponsesValue);
+    const ratio = Math.min(1, geoIntensity.totalWeight / totalResponsesValue);
     return `${(ratio * 100).toFixed(1)}%`;
-  }, [aggregatedHeatmapPoints.length, totalResponsesValue]);
+  }, [aggregatedHeatmapPoints.length, geoIntensity.totalWeight, mapMetaRecord, totalResponsesValue]);
 
   const demographicSections = useMemo(() => {
     const candidates = summaryRecord
@@ -1506,9 +1528,12 @@ export const SurveyAnalytics = ({
           <h2 className="text-2xl font-semibold">Analítica de participación</h2>
           <p className="text-sm text-muted-foreground">Seguimiento de respuestas, canales y preferencias de la comunidad.</p>
         </div>
-        <Button onClick={onExport} disabled={isExporting}>
-          {isExporting ? 'Generando CSV…' : 'Exportar CSV'}
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <SurveyResponseProvenanceBadge sources={[summary, heatmapPayload]} />
+          <Button onClick={onExport} disabled={isExporting}>
+            {isExporting ? 'Generando CSV…' : 'Exportar CSV'}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -1758,6 +1783,21 @@ export const SurveyAnalytics = ({
           </div>
         </CardContent>
       </Card>
+
+      <SurveyTerritoryCommandCenter
+        points={aggregatedHeatmapPoints}
+        geoIntensity={geoIntensity}
+        geoCoverageLabel={geoCoverageLabel}
+        totalResponses={totalResponsesValue}
+        provider={provider}
+        providerHint={providerHint}
+        fallbackProvider={fallbackProvider}
+        usingSyntheticPoints={usingSyntheticPoints}
+        mapRenderReady={mapRenderReady}
+        boundingBoxValue={boundingBoxValue}
+        channelBreakdown={channelBreakdown}
+        categoryLayerCount={categoryColorMap.size}
+      />
 
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">

@@ -43,9 +43,8 @@ import { useParams } from "react-router-dom";
 import { isRecord, pickCollection, pickText } from "@/utils/responseShape";
 import { getOperationsHeatmapV2, getPublicMapConfigV1 } from "@/features/analytics/analyticsApi";
 import { PremiumTerritoryHeatmap } from "@/features/analytics/PremiumTerritoryMap";
+import { isTerritoryDemoFallbackEnabled } from "@/features/analytics/premiumTerritoryHeatmap";
 import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from "@/features/analytics/analyticsTypes";
-
-// --- MOCK DATA & TYPES (as per backend spec) ---
 
 interface Kpi {
   value: number;
@@ -173,7 +172,7 @@ const mapLegacyHeatmapSummary = (
       recommended_views: ["territory", "hotspots", "coverage"],
       premium_metadata: {
         source: "tenant_heatmap_summary",
-        fallback: true,
+        compatibility_source: true,
       },
     },
     summary: {
@@ -223,7 +222,7 @@ const mapLegacyHeatmapSummary = (
         ? "Mapa operativo unificado"
         : "Todavia faltan coordenadas para activar el mapa",
       body: heatmapPoints.length
-        ? "Lectura territorial de reclamos, encuestas y actividad comercial con fallback seguro desde el resumen tenant."
+        ? "Lectura territorial de reclamos, encuestas y actividad comercial desde el resumen operativo del tenant."
         : "Cuando el tenant cargue direcciones geocodificadas o respuestas con zona, este modulo muestra hotspots y cobertura.",
     },
     map_experience: {
@@ -450,7 +449,7 @@ export default function BusinessMetrics() {
               range: "30d",
               include_ai: 0,
             }).catch((error) => {
-              console.warn("Operations heatmap unavailable, using tenant summary fallback:", error);
+              console.warn("Operations heatmap unavailable, using the tenant operational summary:", error);
               return null;
             })
           : Promise.resolve(null),
@@ -540,6 +539,7 @@ export default function BusinessMetrics() {
     [legacyHeatmapPoints, operationsHeatmap, tenantHeatmap],
   );
   const heatmapPoints = premiumHeatmap?.points?.length ? premiumHeatmap.points : legacyHeatmapPoints;
+  const allowTerritoryDemoFallback = isTerritoryDemoFallbackEnabled();
   const heatmapSourceSummary = useMemo(() => {
     const counts = {
       tickets: 0,
@@ -862,14 +862,14 @@ export default function BusinessMetrics() {
                     <Badge variant="secondary">Encuestas {heatmapSourceSummary.surveys.toLocaleString("es-AR")}</Badge>
                     <Badge variant="secondary">Votaciones {heatmapSourceSummary.liveVotes.toLocaleString("es-AR")}</Badge>
                     <Badge variant={operationsHeatmap ? "default" : "outline"}>
-                      {operationsHeatmap ? "Contrato ops" : "Fallback tenant"}
+                      {operationsHeatmap ? "Contrato ops" : "Fuente tenant"}
                     </Badge>
                   </div>
                   <PremiumTerritoryHeatmap
                     points={heatmapPoints}
                     heatmap={premiumHeatmap}
                     mapConfig={mapConfig ?? undefined}
-                    allowDemoFallback
+                    allowDemoFallback={allowTerritoryDemoFallback}
                     demoProfile={tenant?.tipo === "municipio" ? "gobierno" : "general"}
                     className="min-h-[520px]"
                   />

@@ -177,6 +177,31 @@ describe('SurveyLiveResultsPanel', () => {
     expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 1');
   });
 
+  it('shows validated citizen provenance on the public live surface', () => {
+    mocks.liveHook = {
+      ...mocks.liveHook,
+      liveResults: {
+        ...payloadFixture(),
+        data_provenance: {
+          contract_version: 'surveys.response_provenance.v1',
+          mode: 'real',
+          server_trusted_classification: true,
+          contains_synthetic: false,
+          real_responses_included: 12,
+          synthetic_responses_included: 0,
+          synthetic_responses_excluded: 100,
+          synthetic_marker_contract: 'surveys.demo_seeding.v1',
+        },
+      },
+    };
+
+    render(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+
+    const provenance = screen.getByTestId('survey-response-provenance-real');
+    expect(provenance).toHaveTextContent('Resultados ciudadanos');
+    expect(provenance).toHaveTextContent('100 respuestas excluidas');
+  });
+
   it('keeps an actionable disabled state without a public slug', () => {
     render(<SurveyLiveResultsPanel slug="" enabled={false} />);
 

@@ -10,7 +10,9 @@ import {
   SurveyDraftPayload,
   SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
+  SurveyAdminListParams,
   SurveyListResponse,
+  SurveyListPagination,
   SurveyLivePublicResultsPayload,
   SurveyPublic,
   SurveyResponseFilters,
@@ -1284,10 +1286,78 @@ const ADMIN_LIFECYCLE_PHASES = new Set([
   'unknown',
 ]);
 const ADMIN_PERSISTED_STATES = new Set(['borrador', 'publicada', 'cerrada', 'archivada', 'unknown']);
+const SURVEY_LIST_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
 const isNonNegativeSafeInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const isIsoDateOrNull = (value: unknown) =>
   value === null || (typeof value === 'string' && Boolean(value) && Number.isFinite(Date.parse(value)));
+
+const normalizeAdminSurveyPagination = (
+  value: unknown,
+  itemCount: number,
+): SurveyListPagination | null => {
+  if (!isRecord(value) || value.contract_version !== 'surveys.pagination.v1') return null;
+
+  const limit = value.limit;
+  const page = value.page;
+  const cursor = value.cursor;
+  const nextCursor = value.next_cursor;
+  const nextPage = value.next_page;
+  const hasMore = value.has_more;
+  const returned = value.returned;
+  const totalItems = value.total_items;
+  const validCursor = (candidate: unknown): candidate is string | null =>
+    candidate === null ||
+    (typeof candidate === 'string' &&
+      candidate.length > 0 &&
+      candidate.length <= 128 &&
+      SURVEY_LIST_CURSOR_PATTERN.test(candidate));
+  const validPage = (candidate: unknown): candidate is number | null =>
+    candidate === null ||
+    (isNonNegativeSafeInteger(candidate) && candidate >= 1 && candidate <= 10_000);
+
+  if (
+    !isNonNegativeSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 100 ||
+    !validPage(page) ||
+    !validCursor(cursor) ||
+    !validCursor(nextCursor) ||
+    !validPage(nextPage) ||
+    typeof hasMore !== 'boolean' ||
+    !isNonNegativeSafeInteger(returned) ||
+    returned !== itemCount ||
+    returned > limit ||
+    !isNonNegativeSafeInteger(totalItems) ||
+    totalItems < returned ||
+    value.ordering !== 'id_desc'
+  ) {
+    return null;
+  }
+
+  if (
+    (cursor !== null && (page !== null || nextPage !== null)) ||
+    (cursor === null && page === null) ||
+    hasMore !== (nextCursor !== null) ||
+    (!hasMore && nextPage !== null) ||
+    (page !== null && hasMore && nextPage !== page + 1)
+  ) {
+    return null;
+  }
+
+  return {
+    contract_version: 'surveys.pagination.v1',
+    limit,
+    page,
+    cursor,
+    next_cursor: nextCursor,
+    next_page: nextPage,
+    has_more: hasMore,
+    returned,
+    total_items: totalItems,
+    ordering: 'id_desc',
+  };
+};
 
 const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
   if (isRecord(payload) && Object.prototype.hasOwnProperty.call(payload, 'contract_version')) {
@@ -1298,6 +1368,10 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
     const freshness = payload.freshness;
     const overview = payload.resumen;
     const items = payload.encuestas;
+    const pagination = normalizeAdminSurveyPagination(
+      payload.pagination,
+      Array.isArray(items) ? items.length : -1,
+    );
     const validTenant =
       isRecord(tenant) &&
       isNonNegativeSafeInteger(tenant.id) &&
@@ -1403,7 +1477,7 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
         instrumentCounts.voting === records.filter((item) => lifecycle(item).instrument_kind === 'voting').length;
     }
 
-    if (!validTenant || !validFreshness || !validOverviewShape || !validItems || !reconciles) {
+    if (!validTenant || !validFreshness || !validOverviewShape || !validItems || !pagination || !reconciles) {
       throw new Error('survey_admin_list_contract_invalid');
     }
 
@@ -1416,6 +1490,7 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
         synthetic: false,
       },
       overview: overview as unknown as NonNullable<SurveyListResponse['overview']>,
+      pagination,
       data: items as SurveyAdmin[],
     };
   }
@@ -1430,7 +1505,7 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
 };
 
 export const adminListSurveys = async (
-  params?: QueryParams,
+  params?: SurveyAdminListParams,
   options?: ApiFetchOptions,
 ): Promise<SurveyListResponse> => {
   const expectedTenantSlug = options?.tenantSlug?.trim();
@@ -1607,7 +1682,13 @@ export const adminCloseSurveyGovernanceRelease = (
 
 export const adminSeedSurvey = async (
   id: number,
-  payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string },
+  payload: {
+    cantidad: number;
+    reset?: boolean;
+    geo_profile_key?: string;
+    municipality_label?: string;
+    scenario?: string;
+  },
   options?: ApiFetchOptions,
 ): Promise<{ creadas: number; reset?: { respuestas?: number; comentarios?: number } }> => {
   return callAdminSurveyEndpoint<{ creadas: number }>(`${id}/seed-demo`, {

@@ -39,10 +39,13 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   GENDER_OPTIONS,
 } from '@/components/surveys/demographicOptions';
+import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
 import { getVisibleSurveyQuestions } from '@/utils/surveyConditionalLogic';
 import {
+  SURVEY_RESPONSE_DUPLICATE_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_REASON_CODE,
+  SURVEY_RESPONSE_DUPLICATE_TITLE,
   getSurveySubmissionReasonCode,
   isSurveySubmissionIdConflictError,
   shouldReuseSurveySubmissionAttempt,
@@ -427,6 +430,7 @@ export const SurveyForm = ({
     scopeKey: '',
   });
   const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
+  const externalSubmitErrorKeyRef = useRef<string | null>(null);
   const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
   const submissionInFlightScopeRef = useRef<string | null>(null);
   const eligibilityCredentialInputRef = useRef<HTMLInputElement | null>(null);
@@ -666,12 +670,17 @@ export const SurveyForm = ({
 
   useEffect(() => {
     if (!submitErrorMessage || !currentErrorKey) {
-      if (!submitting) {
+      // Only clear an error that originated in these external props. Errors
+      // caught directly from onSubmit must remain visible after pending ends.
+      if (!submitting && externalSubmitErrorKeyRef.current) {
         setSubmissionErrorTitle(null);
         setSubmissionErrorDetails(null);
+        externalSubmitErrorKeyRef.current = null;
       }
       return;
     }
+
+    externalSubmitErrorKeyRef.current = currentErrorKey;
 
     if (dismissedErrorKey && currentErrorKey === dismissedErrorKey) {
       return;
@@ -685,18 +694,20 @@ export const SurveyForm = ({
     const normalized = submitErrorMessage.toLowerCase();
     const baseTitle =
       isDuplicateSubmission
-        ? 'Ya registramos tu opinión'
+        ? SURVEY_RESPONSE_DUPLICATE_TITLE
         : 'No pudimos enviar tu respuesta';
 
     let extraHint: string | null = null;
-    if (isDuplicateSubmission) {
-      extraHint = 'La política de unicidad impide enviar más de una respuesta.';
-    } else if (normalized.includes('cors') || normalized.includes('conexión')) {
+    if (!isDuplicateSubmission && (normalized.includes('cors') || normalized.includes('conexión'))) {
       extraHint =
         'Revisá tu conexión o intentá nuevamente. Si el error persiste, compartí este mensaje con el equipo de soporte.';
     }
 
-    const detail = extraHint ? `${submitErrorMessage} ${extraHint}` : submitErrorMessage;
+    const detail = isDuplicateSubmission
+      ? SURVEY_RESPONSE_DUPLICATE_MESSAGE
+      : extraHint
+        ? `${submitErrorMessage} ${extraHint}`
+        : submitErrorMessage;
     setSubmissionErrorTitle(baseTitle);
     setSubmissionErrorDetails(detail.trim());
   }, [
@@ -1356,11 +1367,13 @@ export const SurveyForm = ({
       }
       setSubmissionErrorTitle(
         reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE
-          ? 'Ya registramos tu opinion'
+          ? SURVEY_RESPONSE_DUPLICATE_TITLE
           : 'No pudimos enviar tu respuesta',
       );
       setSubmissionErrorDetails(
-        idempotencyConflict
+        reasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE
+          ? SURVEY_RESPONSE_DUPLICATE_MESSAGE
+          : idempotencyConflict
           ? `${error instanceof Error && error.message.trim() ? error.message : 'La referencia del intento entro en conflicto.'} Conservamos tus respuestas para que puedas volver a enviarlas.`
           : error instanceof Error && error.message.trim()
             ? error.message
@@ -1430,6 +1443,7 @@ export const SurveyForm = ({
         </CardHeader>
       )}
       <CardContent className="space-y-10">
+        {showLiveResults ? <SurveyResponseProvenanceBadge sources={[liveResults]} /> : null}
         {previewMode ? (
           <section
             className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-3 sm:p-4"

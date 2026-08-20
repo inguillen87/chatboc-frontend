@@ -7,6 +7,7 @@ import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { queryKeys } from '@/lib/queryKeys';
 import {
   getSurveySubmissionReasonCode,
+  getSurveySubmissionUserMessage,
   isSurveyResponseDuplicateError,
 } from '@/utils/surveySubmissionErrors';
 
@@ -92,6 +93,9 @@ export function useSurveyPublic(
       });
       return response;
     },
+    // A public submission is already idempotent at transport level. Never let
+    // a global QueryClient policy replay a POST, especially after a 409.
+    retry: false,
   });
 
   const errorReasonCode = getSurveySubmissionReasonCode(error);
@@ -130,7 +134,9 @@ export function useSurveyPublic(
     isSubmitting: mutation.isPending,
     lastResponseId: mutation.data?.id,
     duplicateDetected: isSurveyResponseDuplicateError(mutation.error),
-    submitError: mutation.error ? getErrorMessage(mutation.error) : null,
+    submitError: mutation.error
+      ? getSurveySubmissionUserMessage(mutation.error) ?? getErrorMessage(mutation.error)
+      : null,
     submitStatus: mutation.error instanceof ApiError ? mutation.error.status : null,
     submitErrorDetails:
       mutation.error instanceof ApiError && mutation.error.body && typeof mutation.error.body === 'object'

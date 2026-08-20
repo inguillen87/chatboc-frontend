@@ -131,7 +131,14 @@
     },
     {
       "source": "/admin/(.*)",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
       "destination": "/index.html"
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": "https://api.chatboc.ar/admin/$1"
     },
     {
       "source": "/socket.io/(.*)",

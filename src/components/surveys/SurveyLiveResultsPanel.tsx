@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, BarChart3, ExternalLink, Loader2, MapPinned, R
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
+import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { normalizePublicSurveyLiveResults } from '@/api/encuestas';
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
@@ -324,6 +325,7 @@ export function SurveyLiveResultsPanel({
             Se muestran datos previos mientras polling reintenta: {error}
           </div>
         ) : null}
+        <SurveyResponseProvenanceBadge sources={[payload]} />
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading && !payload ? (

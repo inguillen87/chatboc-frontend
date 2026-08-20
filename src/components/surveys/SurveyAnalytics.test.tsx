@@ -1,9 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SurveyAnalytics } from './SurveyAnalytics';
 import type { SurveyAnalyticsHeatmap, SurveySummary } from '@/types/encuestas';
+
+const motionHarness = vi.hoisted(() => ({ shouldReduceMotion: false }));
+
+vi.mock('framer-motion', () => ({
+  useReducedMotion: () => motionHarness.shouldReduceMotion,
+}));
 
 vi.mock('recharts', () => {
   const Container = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
@@ -139,6 +145,10 @@ const metadataFixture = (): NonNullable<SurveyAnalyticsHeatmap['metadata']> => (
 });
 
 describe('SurveyAnalytics territory command center', () => {
+  beforeEach(() => {
+    motionHarness.shouldReduceMotion = false;
+  });
+
   it('renders multiple-choice eligibility as independent rates instead of a distribution pie', () => {
     render(
       <SurveyAnalytics
@@ -233,10 +243,10 @@ describe('SurveyAnalytics territory command center', () => {
 
     const commandCenter = screen.getByTestId('survey-territory-command-center');
     expect(commandCenter).toHaveTextContent('Centro territorial');
-    expect(commandCenter).toHaveTextContent('Mapa vivo de participacion');
+    expect(commandCenter).toHaveTextContent('Mapa vivo de participación');
     expect(commandCenter).toHaveTextContent('Mapa real activo');
     expect(commandCenter).toHaveTextContent('MapLibre GL');
-    expect(commandCenter).toHaveTextContent('4.0%');
+    expect(commandCenter).toHaveTextContent('38.0%');
     expect(commandCenter).toHaveTextContent('50 respuestas totales');
     expect(commandCenter).toHaveTextContent('Centro con 12 respuestas');
     expect(commandCenter).toHaveTextContent('whatsapp (31)');
@@ -258,9 +268,43 @@ describe('SurveyAnalytics territory command center', () => {
     );
 
     const commandCenter = screen.getByTestId('survey-territory-command-center');
-    expect(commandCenter).toHaveTextContent('Fallback sintetico');
+    expect(commandCenter).toHaveTextContent('Fallback sintético');
     expect(commandCenter).toHaveTextContent('demo/fallback');
-    expect(commandCenter).toHaveTextContent('No se presenta como precision territorial real');
+    expect(commandCenter).toHaveTextContent('No se presentan como precisión territorial real');
+  });
+
+  it('uses authoritative backend geographic coverage when supplied', () => {
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={heatmapFixture()}
+        heatmapMeta={{
+          ...metadataFixture(),
+          map: { ...metadataFixture().map, coverage_pct: 82.4 },
+        }}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-territory-command-center')).toHaveTextContent('82.4%');
+  });
+
+  it('removes non-essential SVG motion when the user prefers reduced motion', () => {
+    motionHarness.shouldReduceMotion = true;
+
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={heatmapFixture()}
+        heatmapMeta={metadataFixture()}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const telemetry = screen.getByTestId('survey-territory-telemetry');
+    expect(telemetry.querySelector('animate')).toBeNull();
+    expect(telemetry.querySelector('animateMotion')).toBeNull();
+    expect(telemetry.querySelector('animateTransform')).toBeNull();
   });
 
   it('labels every synthetic analytics module as demo data, not real responses', () => {
@@ -281,6 +325,31 @@ describe('SurveyAnalytics territory command center', () => {
     expect(notice).toHaveTextContent(/no son respuestas reales/i);
     expect(notice).toHaveTextContent('summary, timeseries');
     expect(notice).toHaveTextContent(/solo esta habilitado en desarrollo o pruebas/i);
+  });
+
+  it('shows backend-validated citizen provenance in the admin analytics header', () => {
+    const summary = summaryFixture();
+    summary.data_provenance = {
+      contract_version: 'surveys.response_provenance.v1',
+      mode: 'real',
+      server_trusted_classification: true,
+      contains_synthetic: false,
+      real_responses_included: 50,
+      synthetic_responses_included: 0,
+      synthetic_responses_excluded: 100,
+      synthetic_marker_contract: 'surveys.demo_seeding.v1',
+    };
+
+    render(
+      <SurveyAnalytics
+        summary={summary}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const provenance = screen.getByTestId('survey-response-provenance-real');
+    expect(provenance).toHaveTextContent('Resultados ciudadanos');
+    expect(provenance).toHaveTextContent('100 respuestas excluidas');
   });
 
   it('renders rich backend heatmap payload without requiring a separate metadata prop', () => {

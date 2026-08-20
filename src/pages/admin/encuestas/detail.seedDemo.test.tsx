@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/utils/api';
+import {
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+} from '@/utils/surveySubmissionErrors';
 
 const mocks = vi.hoisted(() => ({
   useSurveyAdmin: vi.fn(),
@@ -117,5 +122,24 @@ describe('SurveyDetailPage synthetic demo data', () => {
       title: 'Datos sintéticos actualizados',
       description: expect.stringContaining('100 respuestas sintéticas'),
     }));
+  });
+
+  it('presents an admin duplicate as a human terminal outcome', async () => {
+    const technicalMessage = 'duplicate key value violates unique constraint survey_response_identity';
+    const seedSurvey = vi.fn().mockRejectedValue(new ApiError(technicalMessage, 409, {
+      reason_code: 'survey_response_duplicate',
+    }));
+    mocks.useSurveyAdmin.mockReturnValue(adminState({ seedSurvey }));
+
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Reemplazar por 100 respuestas sintéticas' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sí, reemplazar con datos sintéticos' }));
+
+    await waitFor(() => expect(seedSurvey).toHaveBeenCalledTimes(1));
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+      description: SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+    });
+    expect(JSON.stringify(mocks.toast.mock.calls)).not.toContain(technicalMessage);
   });
 });

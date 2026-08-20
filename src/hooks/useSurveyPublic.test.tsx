@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/utils/api';
 import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
+import { SURVEY_RESPONSE_DUPLICATE_MESSAGE } from '@/utils/surveySubmissionErrors';
 
 const apiMocks = vi.hoisted(() => ({
   getPublicSurvey: vi.fn(),
@@ -48,7 +49,9 @@ describe('useSurveyPublic submission conflicts', () => {
     ['survey_submission_id_conflict', false],
     ['survey_instrument_revision_conflict', false],
   ] as const)('classifies %s without treating every 409 as a duplicate', async (reasonCode, duplicate) => {
-    const apiError = new ApiError('Conflict', 409, { reason_code: reasonCode });
+    const apiError = new ApiError('duplicate key value violates unique constraint survey_response_identity', 409, {
+      reason_code: reasonCode,
+    });
     apiMocks.postPublicResponse.mockRejectedValueOnce(apiError);
     const { result } = renderHook(() => useSurveyPublic('consulta-segura'), {
       wrapper: createWrapper(),
@@ -69,6 +72,12 @@ describe('useSurveyPublic submission conflicts', () => {
       expect(result.current.submitReasonCode).toBe(reasonCode);
       expect(result.current.duplicateDetected).toBe(duplicate);
     });
+    expect(apiMocks.postPublicResponse).toHaveBeenCalledTimes(1);
+    expect(result.current.submitError).toBe(
+      duplicate
+        ? SURVEY_RESPONSE_DUPLICATE_MESSAGE
+        : 'duplicate key value violates unique constraint survey_response_identity',
+    );
   });
 
   it('keeps the credential outside React Query mutation variables', async () => {

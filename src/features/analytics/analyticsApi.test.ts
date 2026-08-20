@@ -158,6 +158,14 @@ describe('operations heatmap v2 contract', () => {
   it('passes segment filters and normalizes real category, age and gender facets', async () => {
     mocks.panelGet.mockResolvedValue({
       contract_version: 'operations.heatmap.v1',
+      privacy_metadata: {
+        privacy_mode: 'tenant_aggregated',
+        min_sample_size: '14',
+        rawPointsRedacted: 'true',
+        coordinatePrecision: 'rounded_3_decimals',
+        populationSource: 'INDEC 2022',
+        boundary_source: 'Catastro Junín 2026',
+      },
       render_contract: {
         state: 'ready',
         map_engine: 'deckgl',
@@ -234,6 +242,21 @@ describe('operations heatmap v2 contract', () => {
         },
         cells: { type: 'FeatureCollection', features: [] },
         hotspots: { type: 'FeatureCollection', features: [] },
+        territories: {
+          type: 'FeatureCollection',
+          metadata: { official: true, source: 'Catastro Junín 2026' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [-60.9, -34.62], [-60.9, -34.57], [-60.95, -34.57], [-60.95, -34.62]]],
+              },
+              properties: { nombre: 'Centro', poblacion: 31400 },
+            },
+          ],
+        },
         categories: {
           alumbrado: {
             type: 'FeatureCollection',
@@ -529,6 +552,17 @@ describe('operations heatmap v2 contract', () => {
     });
     expect(response.geo_layers?.points?.features).toHaveLength(1);
     expect(response.geo_layers?.categories?.alumbrado?.features).toHaveLength(1);
+    expect(response.geo_layers?.boundaries?.features).toHaveLength(1);
+    expect(response.geo_layers).not.toHaveProperty('territories');
+    expect(response.privacy).toEqual({
+      mode: 'tenant_aggregated',
+      aggregation: undefined,
+      minimum_sample_size: 14,
+      raw_points_redacted: true,
+      coordinate_precision: 'rounded_3_decimals',
+      population_source: 'INDEC 2022',
+      boundaries_source: 'Catastro Junín 2026',
+    });
     expect(response.map_layers).toMatchObject({
       contract_version: 'operations.heatmap_map_layers.v1',
       engine: 'maplibre',
