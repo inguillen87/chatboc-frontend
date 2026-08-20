@@ -60,6 +60,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(serviceWorkerSource).not.toContain('public-demo-api');
   expect(serviceWorkerSource).toContain('portal-navigation');
   expect(serviceWorkerSource).toContain('/portal/index.html');
+  expect(serviceWorkerSource).toContain('/^\\/widget\\.js$/');
   expect(precacheUrls).toContain('index.html');
   expect(precacheUrls).toContain('portal/index.html');
   expect(precacheUrls).toContain('branding/chatboc-2026/chatboc-agent-launcher-static.svg');
@@ -94,11 +95,12 @@ test('installs a compact shell, controls the client and reloads offline', async 
     expect(precacheUrls, `portal shell asset ${assetUrl} must be precached`).toContain(assetUrl);
   }
 
-  const [manifestResponse, portalManifestResponse, serviceWorkerResponse, hygieneResponse] = await Promise.all([
+  const [manifestResponse, portalManifestResponse, serviceWorkerResponse, hygieneResponse, widgetResponse] = await Promise.all([
     context.request.get('/manifest.webmanifest'),
     context.request.get('/manifest.portal.webmanifest'),
     context.request.get('/sw.js'),
     context.request.get('/sw-cache-hygiene.js'),
+    context.request.get('/widget.js'),
   ]);
   expect(manifestResponse.status()).toBe(200);
   expect(manifestResponse.headers()['content-type']).toContain('application/manifest+json');
@@ -119,6 +121,8 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(serviceWorkerResponse.headers()['cache-control']).toMatch(/no-cache|no-store|max-age=0/);
   expect(hygieneResponse.status()).toBe(200);
   expect(hygieneResponse.headers()['content-type']).toMatch(/javascript/);
+  expect(widgetResponse.status()).toBe(200);
+  expect(widgetResponse.headers()['content-type']).toMatch(/javascript/);
 
   const response = await page.goto('/?pwa-lifecycle-e2e=1', {
     waitUntil: 'domcontentloaded',
@@ -209,6 +213,22 @@ test('installs a compact shell, controls the client and reloads offline', async 
   await expect
     .poll(() => offlinePortalPage.locator('#root').evaluate((root) => root.childElementCount))
     .toBeGreaterThan(0);
+
+  for (const deniedPath of ['/iframe', '/iframe.html', '/widget.js']) {
+    const deniedPage = await context.newPage();
+    const navigation = await deniedPage
+      .goto(deniedPath, { waitUntil: 'domcontentloaded', timeout: 8_000 })
+      .then((deniedResponse) => ({
+        resolved: true,
+        status: deniedResponse?.status() ?? null,
+      }))
+      .catch(() => ({ resolved: false }));
+
+    expect(navigation, `${deniedPath} must not receive the offline SPA shell`).toEqual({
+      resolved: false,
+    });
+    await deniedPage.close();
+  }
 });
 
 test('forces the one-time privacy upgrade from a legacy API-caching worker', async ({ context, page }, testInfo) => {
