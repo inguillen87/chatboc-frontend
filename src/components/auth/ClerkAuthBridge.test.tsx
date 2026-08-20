@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
@@ -17,6 +17,7 @@ const clerkMocks = vi.hoisted(() => ({
     isSignedIn: true as boolean | undefined,
     getToken: vi.fn(),
     signOut: vi.fn(),
+    sessionId: 'session_clerk_1' as string | null,
   },
   clerkUser: {
     id: 'user_clerk_1',
@@ -115,7 +116,10 @@ const jwtWithClaims = (claims: Record<string, unknown>) => {
   return `header.${payload}.signature`;
 };
 
-const renderBridge = (initialEntry = '/login') =>
+const renderBridge = (
+  initialEntry = '/login',
+  props: React.ComponentProps<typeof ClerkAuthBridge> = {},
+) =>
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <ClerkRuntimeProvider
@@ -127,7 +131,7 @@ const renderBridge = (initialEntry = '/login') =>
           socialProviders: ['google'],
         }}
       >
-        <ClerkAuthBridge />
+        <ClerkAuthBridge {...props} />
       </ClerkRuntimeProvider>
     </MemoryRouter>,
   );
@@ -149,6 +153,7 @@ describe('ClerkAuthBridge session lifecycle', () => {
     });
     clerkMocks.auth.isLoaded = true;
     clerkMocks.auth.isSignedIn = true;
+    clerkMocks.auth.sessionId = 'session_clerk_1';
     clerkMocks.auth.getToken.mockReset().mockResolvedValue('clerk-jwt');
     clerkMocks.auth.signOut.mockReset().mockResolvedValue(undefined);
     clerkMocks.clerkUser = {
@@ -204,6 +209,58 @@ describe('ClerkAuthBridge session lifecycle', () => {
       authProvider: 'clerk',
       auth_provider: 'clerk',
       authIntent: 'tenant_owner',
+    });
+  });
+
+  it('keeps one identity-bound sync alive while the route changes', async () => {
+    const pendingToken = deferred<string | null>();
+    const onSessionPending = vi.fn();
+    const onSessionReady = vi.fn();
+    let navigateTo: ((path: string) => void) | null = null;
+    clerkMocks.auth.getToken.mockReturnValueOnce(pendingToken.promise);
+
+    const NavigationCapture = () => {
+      const navigate = useNavigate();
+      React.useEffect(() => {
+        navigateTo = (path: string) => navigate(path);
+      }, [navigate]);
+      return null;
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/t/junin/inbox']}>
+        <ClerkRuntimeProvider
+          value={{
+            enabled: true,
+            loading: false,
+            publishableKey: 'pk_test_local',
+            source: 'backend',
+            socialProviders: ['google'],
+          }}
+        >
+          <NavigationCapture />
+          <ClerkAuthBridge
+            onSessionPending={onSessionPending}
+            onSessionReady={onSessionReady}
+          />
+        </ClerkRuntimeProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(onSessionPending).toHaveBeenCalledWith('user_clerk_1:session_clerk_1');
+      expect(navigateTo).not.toBeNull();
+    });
+
+    act(() => navigateTo?.('/demo'));
+    await act(async () => {
+      pendingToken.resolve('clerk-jwt');
+      await pendingToken.promise;
+    });
+
+    await waitFor(() => {
+      expect(clerkMocks.syncClerkSession).toHaveBeenCalledTimes(1);
+      expect(onSessionReady).toHaveBeenCalledWith('user_clerk_1:session_clerk_1');
     });
   });
 
@@ -406,6 +463,20 @@ describe('ClerkAuthBridge session lifecycle', () => {
     expect(usePanelSessionStore.getState().authToken).toBeNull();
     expect(clerkMocks.backendLogout).toHaveBeenCalledTimes(1);
     expect(clerkMocks.syncClerkSession).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a retryable error instead of staying pending when Clerk returns no token', async () => {
+    const onSessionReady = vi.fn();
+    clerkMocks.auth.getToken.mockResolvedValueOnce(null);
+
+    renderBridge('/t/junin/inbox', { onSessionReady });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo verificar la sesión Clerk',
+    );
+    expect(clerkMocks.syncClerkSession).not.toHaveBeenCalled();
+    expect(onSessionReady).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
   it('clears user A before exposing pending onboarding for Clerk user B', async () => {

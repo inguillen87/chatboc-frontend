@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import ScrollMascotGuide from "@/components/guidance/ScrollMascotGuide";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
+import SessionBootstrapGuard from "@/components/access/SessionBootstrapGuard";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
@@ -296,6 +297,88 @@ function AppRoutes() {
   );
 }
 
+const AppRuntime = ({
+  tenantBootstrapEnabled,
+}: {
+  tenantBootstrapEnabled: boolean;
+}) => (
+  <SocketProvider>
+    <TenantProvider bootstrapEnabled={tenantBootstrapEnabled}>
+      <CapabilitiesProvider>
+        <RealtimeAlertsProvider>
+          <AppShellStatusBar />
+          <AppAccessibility />
+          <AppRoutes />
+          <PwaInstallPrompt />
+        </RealtimeAlertsProvider>
+      </CapabilitiesProvider>
+    </TenantProvider>
+  </SocketProvider>
+);
+
+const renderAppRuntime = (tenantBootstrapEnabled: boolean) => (
+  <AppRuntime tenantBootstrapEnabled={tenantBootstrapEnabled} />
+);
+
+const BearerSessionBootstrapBoundary = () => (
+  <SessionBootstrapGuard
+    clerkStatus="disabled"
+    renderRuntime={renderAppRuntime}
+  />
+);
+
+const ClerkSessionBootstrapBoundary = () => {
+  const { isLoaded, isSignedIn, userId, sessionId } = useAuth();
+  const identity = isLoaded && isSignedIn && userId
+    ? `${userId}:${sessionId || ''}`
+    : null;
+  const identityRef = React.useRef(identity);
+  const [readyIdentity, setReadyIdentity] = React.useState<string | null>(null);
+  identityRef.current = identity;
+
+  React.useEffect(() => {
+    setReadyIdentity((current) => (current === identity ? current : null));
+  }, [identity]);
+
+  const handleSessionPending = React.useCallback((pendingIdentity: string) => {
+    if (identityRef.current === pendingIdentity) {
+      setReadyIdentity(null);
+    }
+  }, []);
+
+  const handleSessionReady = React.useCallback((syncedIdentity: string) => {
+    if (identityRef.current === syncedIdentity) {
+      setReadyIdentity(syncedIdentity);
+    }
+  }, []);
+
+  const handleSessionReset = React.useCallback(() => {
+    setReadyIdentity(null);
+  }, []);
+
+  const clerkStatus = !isLoaded
+    ? 'loading'
+    : !isSignedIn || !identity
+      ? 'signed_out'
+      : readyIdentity === identity
+        ? 'ready'
+        : 'syncing';
+
+  return (
+    <>
+      <ClerkAuthBridge
+        onSessionPending={handleSessionPending}
+        onSessionReady={handleSessionReady}
+        onSessionReset={handleSessionReset}
+      />
+      <SessionBootstrapGuard
+        clerkStatus={clerkStatus}
+        renderRuntime={renderAppRuntime}
+      />
+    </>
+  );
+};
+
 const App = () => {
   const clerkRuntime = useResolvedClerkRuntime();
   const appTree = (
@@ -310,19 +393,16 @@ const App = () => {
                 v7_relativeSplatPath: true,
               }}
             >
-              <SocketProvider>
-                <TenantProvider>
-                  <CapabilitiesProvider>
-                    <RealtimeAlertsProvider>
-                      {clerkRuntime.enabled && <ClerkAuthBridge />}
-                      <AppShellStatusBar />
-                      <AppAccessibility />
-                      <AppRoutes />
-                      <PwaInstallPrompt />
-                    </RealtimeAlertsProvider>
-                  </CapabilitiesProvider>
-                </TenantProvider>
-              </SocketProvider>
+              {clerkRuntime.loading ? (
+                <SessionBootstrapGuard
+                  clerkStatus="loading"
+                  renderRuntime={renderAppRuntime}
+                />
+              ) : clerkRuntime.enabled ? (
+                <ClerkSessionBootstrapBoundary />
+              ) : (
+                <BearerSessionBootstrapBoundary />
+              )}
             </BrowserRouter>
           </DateSettingsProvider>
         </UserProvider>

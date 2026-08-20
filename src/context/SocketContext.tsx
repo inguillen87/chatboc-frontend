@@ -82,6 +82,7 @@ const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean 
     '/encuestas',
     '/admin/encuestas',
     '/public/encuestas',
+    '/403',
   ];
 
   const segments = normalized.split('/').filter(Boolean);

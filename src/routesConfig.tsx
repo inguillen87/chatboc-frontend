@@ -126,6 +126,7 @@ const UserAccountPage = React.lazy(() => import('@/pages/user-portal/UserAccount
 export interface RouteConfig {
   path: string;
   element: React.ReactElement;
+  requiresSession?: boolean; // Bloquea el bootstrap privado antes de montar providers remotos
   roles?: string[]; // Roles para admin/empleado de Chatboc
   requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   requiredAllCapabilities?: string[]; // Capacidades obligatorias para integraciones/configuración sensible
@@ -518,7 +519,7 @@ const routes: RouteConfig[] = [
   { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
-  { path: '/admin', element: <Navigate to="/perfil" replace /> },
+  { path: '/admin', element: <Navigate to="/perfil" replace />, requiresSession: true },
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
   { path: '/sso-callback', element: <ClerkSsoCallbackPage /> },
@@ -542,10 +543,10 @@ const routes: RouteConfig[] = [
   { path: '/colegios', element: <Navigate to="/demo?sector=educacion" replace /> },
   { path: '/soluciones/gobierno', element: <Navigate to="/demo?sector=gobierno" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
-  { path: '/perfil', element: <Perfil /> },
+  { path: '/perfil', element: <Perfil />, requiresSession: true },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
-  { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace /> },
+  { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace />, requiresSession: true },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
@@ -581,6 +582,7 @@ const routes: RouteConfig[] = [
   {
     path: '/tickets',
     element: <TicketDeskRedirect />,
+    requiresSession: true,
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {

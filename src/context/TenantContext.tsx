@@ -282,9 +282,16 @@ const resolveTenantBootstrap = (
   return { slug: null, widgetToken: null };
 };
 
-export const TenantProvider = ({ children }: { children: ReactNode }) => {
+export const TenantProvider = ({
+  children,
+  bootstrapEnabled = true,
+}: {
+  children: ReactNode;
+  bootstrapEnabled?: boolean;
+}) => {
   const location = useLocation();
-  const tenantBootstrapSuppressed = isTenantIndependentPath(location.pathname);
+  const tenantBootstrapSuppressed =
+    !bootstrapEnabled || isTenantIndependentPath(location.pathname);
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
@@ -355,7 +362,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [isRecoverableTenantError]);
 
   useEffect(() => {
-    const { slug, widgetToken: token } = resolveTenantBootstrap(location.pathname, location.search);
+    const { slug, widgetToken: token } = tenantBootstrapSuppressed
+      ? { slug: null, widgetToken: null }
+      : resolveTenantBootstrap(location.pathname, location.search);
     currentSlugRef.current = slug;
     setCurrentSlug(slug);
     setWidgetToken(token ?? null);
@@ -400,10 +409,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchTenant, widgetToken]);
 
   useEffect(() => {
+    if (tenantBootstrapSuppressed) return;
     ensureRemoteAnonId({ tenantSlug: currentSlugRef.current, widgetToken }).catch((error) => {
       console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
     });
-  }, [widgetToken]);
+  }, [tenantBootstrapSuppressed, widgetToken]);
 
   useEffect(() => {
     if (tenantBootstrapSuppressed) return;

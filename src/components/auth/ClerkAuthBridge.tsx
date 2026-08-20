@@ -181,9 +181,19 @@ const resolveBridgeAuthContext = (location: { pathname: string; search: string }
   };
 };
 
-const ClerkAuthBridge: React.FC = () => {
+interface ClerkAuthBridgeProps {
+  onSessionPending?: (identity: string) => void;
+  onSessionReady?: (identity: string) => void;
+  onSessionReset?: () => void;
+}
+
+const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
+  onSessionPending,
+  onSessionReady,
+  onSessionReset,
+}) => {
   const clerkRuntime = useClerkRuntime();
-  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { isLoaded, isSignedIn, getToken, signOut, sessionId } = useAuth();
   const { user: clerkUser } = useClerkUser();
   const { refreshUser } = useUser();
   const location = useLocation();
@@ -204,8 +214,10 @@ const ClerkAuthBridge: React.FC = () => {
   const activeClerkUserIdRef = React.useRef<string | null | undefined>(undefined);
   const onboardingAuthContextRef = React.useRef<ClerkAuthContext | null>(null);
   const navigateRef = React.useRef(navigate);
+  const locationRef = React.useRef(location);
   const pathnameRef = React.useRef(location.pathname);
   navigateRef.current = navigate;
+  locationRef.current = location;
   pathnameRef.current = location.pathname;
 
   const resetBridgeState = React.useCallback(() => {
@@ -227,6 +239,10 @@ const ClerkAuthBridge: React.FC = () => {
   React.useEffect(() => {
     if (!isLoaded || typeof isSignedIn !== 'boolean') return;
 
+    if (!isSignedIn) {
+      onSessionReset?.();
+    }
+
     const wasSignedIn = previousSignedInRef.current;
     previousSignedInRef.current = isSignedIn;
     const signedOutAfterTransition = wasSignedIn === true && isSignedIn === false;
@@ -242,13 +258,14 @@ const ClerkAuthBridge: React.FC = () => {
     void transition.completion;
     activeClerkUserIdRef.current = null;
     resetBridgeState();
-  }, [isLoaded, isSignedIn, resetBridgeState]);
+  }, [isLoaded, isSignedIn, onSessionReset, resetBridgeState]);
 
   React.useEffect(() => {
     if (!clerkRuntime.enabled || !isLoaded || !isSignedIn || !clerkUser) return;
 
     const currentClerkUserId = String(clerkUser.id || '').trim();
     if (!currentClerkUserId) return;
+    const currentSessionIdentity = `${currentClerkUserId}:${sessionId || ''}`;
 
     const persistedClerkSession = hasPersistedClerkSession();
     if (activeClerkUserIdRef.current === undefined) {
@@ -272,16 +289,18 @@ const ClerkAuthBridge: React.FC = () => {
     }
     activeClerkUserIdRef.current = currentClerkUserId;
 
-    const authContext = resolveBridgeAuthContext(location);
+    const authContext = resolveBridgeAuthContext(locationRef.current);
     const syncKey = [
       clerkUser.id,
       (clerkUser as any)?.updatedAt?.getTime?.() ?? '',
       authContext.intent,
       authContext.tenantSlug || '',
+      sessionId || '',
       syncRetryNonce,
     ].join(':');
     if (syncKeyRef.current === syncKey) return;
     syncKeyRef.current = syncKey;
+    onSessionPending?.(currentSessionIdentity);
 
     let cancelled = false;
     let sessionRevision: number | null = null;
@@ -297,8 +316,14 @@ const ClerkAuthBridge: React.FC = () => {
         if (!hasCurrentIdentity()) return;
         sessionRevision = captureChatbocSessionRevision();
         const token = await getToken();
-        if (!token || !isCurrentSync()) {
-          if (isCurrentSync()) syncKeyRef.current = null;
+        if (!token) {
+          if (isCurrentSync()) {
+            syncKeyRef.current = null;
+            setSyncError('No se pudo verificar la sesión Clerk. Reintentá el acceso.');
+          }
+          return;
+        }
+        if (!isCurrentSync()) {
           return;
         }
         const nextProfile = buildClerkProfile(clerkUser);
@@ -340,6 +365,7 @@ const ClerkAuthBridge: React.FC = () => {
         setOnboardingRequired(false);
         await refreshUser();
         if (!isCurrentSync()) return;
+        onSessionReady?.(currentSessionIdentity);
 
         const tenantSlug = session.user?.tenantSlug || session.user?.tenant_slug || session.tenant?.slug || authContext.tenantSlug;
         const destination = authContext.returnTo || (
@@ -363,7 +389,7 @@ const ClerkAuthBridge: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, location, refreshUser, resetBridgeState, syncRetryNonce]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, refreshUser, resetBridgeState, sessionId, syncRetryNonce]);
 
   if (!clerkRuntime.enabled || !isLoaded || !isSignedIn) return null;
 
@@ -397,6 +423,7 @@ const ClerkAuthBridge: React.FC = () => {
       setOnboardingContract(session.onboarding);
       await refreshUser();
       if (!isCurrentSubmit()) return;
+      onSessionReady?.(`${submitClerkUserId}:${sessionId || ''}`);
       const handoff = resolveClerkOnboardingHandoff(session, authContext);
       setOnboardingDestination(handoff.destination);
       setOnboardingCompletion({

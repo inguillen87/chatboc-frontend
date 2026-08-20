@@ -130,4 +130,25 @@ describe('TenantProvider global route bootstrap', () => {
     expect(tenantApiMocks.listFollowedTenants).toHaveBeenCalledWith('junin', null);
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
   });
+
+  it('keeps the stored tenant passive without tenant-info or followed-tenant calls', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'junin');
+
+    render(
+      <MemoryRouter
+        initialEntries={['/t/junin/inbox']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider bootstrapEnabled={false}>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('ready:none')).toBeInTheDocument());
+
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
+  });
 });
