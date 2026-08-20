@@ -2,7 +2,7 @@ import React, { Suspense } from "react";
 import { cn } from "@/lib/utils";
 import type { MapLibreMapProps } from "@/components/MapLibreMap";
 
-const MapLibreMap = React.lazy(() => import("@/components/MapLibreMap"));
+const MapProviderMap = React.lazy(() => import("@/components/MapProviderMap"));
 
 export default function LazyMapLibreMap(props: MapLibreMapProps) {
   return (
@@ -18,7 +18,7 @@ export default function LazyMapLibreMap(props: MapLibreMapProps) {
         </div>
       }
     >
-      <MapLibreMap {...props} />
+      <MapProviderMap {...props} />
     </Suspense>
   );
 }

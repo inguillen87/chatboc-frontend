@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
 import type { Map, LngLatLike, StyleSpecification } from "maplibre-gl";
-import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 import { MapEvidenceBadge, buildMapEvidence, type MapEvidenceInput } from "@/components/maps/MapEvidenceBadge";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
@@ -102,18 +101,13 @@ export type MapLibreMapProps = {
   ) => void;
   disableClientClustering?: boolean;
   evidence?: MapEvidenceInput | null;
+  providerFallbackMessage?: string | null;
 };
 
 const addLayer = (map: Map, layer: any) => {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer);
   }
-};
-
-const FALLBACK_MESSAGES: Record<MapProviderUnavailableReason, string> = {
-  "missing-api-key": "Mostramos la vista de mapa disponible para esta cuenta.",
-  "load-error": "Mostramos la vista de mapa disponible para esta cuenta.",
-  "heatmap-unavailable": "Mostramos la vista de mapa disponible para esta cuenta.",
 };
 
 type MapLibreModule = typeof import("maplibre-gl");
@@ -128,6 +122,31 @@ let cachedMapLibre: MapLibreModule | null = null;
 let maplibrePromise: Promise<MapLibreModule> | null = null;
 let externalMapLibrePromise: Promise<void> | null = null;
 let didWarnExternalAssetsFallback = false;
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const BOUNDING_BOX_DEBOUNCE_MS = 80;
+
+const readReducedMotionPreference = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(REDUCED_MOTION_QUERY).matches
+    : false;
+
+const usePrefersReducedMotion = () => {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(readReducedMotionPreference);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener?.("change", updatePreference);
+
+    return () => mediaQuery.removeEventListener?.("change", updatePreference);
+  }, []);
+
+  return prefersReducedMotion;
+};
 
 const ensureExternalMapLibreAssets = async (): Promise<void> => {
   if (typeof window === "undefined") return;
@@ -460,13 +479,6 @@ export const buildMapClusterPopupContent = ({
   return root;
 };
 
-const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
-  const source = map.getSource("points");
-  if (source && typeof (source as any).setData === "function") {
-    (source as any).setData(buildGeoJson(points));
-  }
-};
-
 const toggleLayers = (
   map: Map,
   showHeatmap: boolean,
@@ -512,24 +524,22 @@ export default function MapLibreMap({
   showPolygons = false,
   marker,
   className,
-  provider = "maplibre",
   mapStyleUrl,
   mapTileUrl,
   mapTileAttribution,
   maptilerKey,
-  googleMapsKey,
   geoLayerConfig,
   adminLocation,
   fitToBounds,
   boundsPadding,
   onBoundingBoxChange,
-  onProviderUnavailable,
   disableClientClustering = false,
   evidence,
+  providerFallbackMessage,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
-  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
-  const [providerOverride, setProviderOverride] = useState<MapProvider | null>(null);
+  const [mapGeneration, setMapGeneration] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const normalizedHeatmap = useMemo(
     () =>
       (heatmapData ?? []).filter(
@@ -593,18 +603,21 @@ export default function MapLibreMap({
     }),
     [geoLayerConfig?.interactions?.hover, geoLayerConfig?.interactions?.time_slider?.enabled, geoLayerConfig?.interactions?.time_slider?.field],
   );
+  const telemetryEndpoint = typeof geoLayerConfig?.telemetry?.event_endpoint === "string"
+    ? geoLayerConfig.telemetry.event_endpoint.trim()
+    : "";
+  const telemetryEventsKey = Array.isArray(geoLayerConfig?.telemetry?.events)
+    ? geoLayerConfig.telemetry.events
+      .filter((event): event is string => typeof event === "string" && event.trim().length > 0)
+      .map((event) => event.trim())
+      .join("\u001f")
+    : "";
   const telemetryConfig = useMemo(() => {
-    const endpoint = typeof geoLayerConfig?.telemetry?.event_endpoint === "string"
-      ? geoLayerConfig.telemetry.event_endpoint.trim()
-      : "";
-    const events = Array.isArray(geoLayerConfig?.telemetry?.events)
-      ? geoLayerConfig.telemetry.events.filter((event): event is string => typeof event === "string" && event.trim().length > 0)
-      : [];
     return {
-      endpoint: endpoint || null,
-      events,
+      endpoint: telemetryEndpoint || null,
+      events: telemetryEventsKey ? telemetryEventsKey.split("\u001f") : [],
     };
-  }, [geoLayerConfig?.telemetry?.event_endpoint, geoLayerConfig?.telemetry?.events]);
+  }, [telemetryEndpoint, telemetryEventsKey]);
 
   const emitBackendMapEvent = useCallback((eventName: string, payload: Record<string, unknown>) => {
     if (!telemetryConfig.endpoint) return;
@@ -641,74 +654,30 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
   const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
+  const configuredGeoSourceRef = useRef(configuredGeoSource);
+  const configuredInteractionsRef = useRef(configuredInteractions);
+  const contractVersionRef = useRef(geoLayerConfig?.contract_version ?? null);
+  const emitBackendMapEventRef = useRef(emitBackendMapEvent);
   const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
-
-  const effectiveProvider = providerOverride ?? provider;
+  const boundingBoxControllerRef = useRef<{ setEnabled: (enabled: boolean) => void } | null>(null);
+  const hasBoundingBoxCallback = Boolean(onBoundingBoxChange);
   const mapEvidence = useMemo(
     () =>
       buildMapEvidence({
         evidence,
         points: normalizedHeatmap,
         features: configuredGeoSource?.features ?? null,
-        source: effectiveProvider,
-        provider: effectiveProvider,
+        source: "maplibre",
+        provider: "maplibre",
         contractVersion: geoLayerConfig?.contract_version,
       }),
     [
       configuredGeoSource?.features,
-      effectiveProvider,
       evidence,
       geoLayerConfig?.contract_version,
       normalizedHeatmap,
     ],
   );
-
-  useEffect(() => {
-    setProviderOverride(null);
-    setFallbackMessage(null);
-  }, [provider]);
-
-  const handleProviderUnavailable = useCallback(
-    (reason: MapProviderUnavailableReason, details?: unknown) => {
-      setProviderOverride("maplibre");
-      setFallbackMessage(FALLBACK_MESSAGES[reason] ?? FALLBACK_MESSAGES["load-error"]);
-      setMapError(null);
-      onProviderUnavailable?.("google", reason, details);
-    },
-    [onProviderUnavailable],
-  );
-
-  const resolvedGoogleMapsKey = (googleMapsKey ?? import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim();
-  const wantsGoogle = effectiveProvider === "google";
-  const shouldUseGoogle = wantsGoogle && resolvedGoogleMapsKey.length > 0;
-
-  useEffect(() => {
-    if (wantsGoogle && !resolvedGoogleMapsKey) {
-      handleProviderUnavailable("missing-api-key");
-    }
-  }, [handleProviderUnavailable, resolvedGoogleMapsKey, wantsGoogle]);
-
-  if (shouldUseGoogle) {
-    return (
-      <GoogleHeatmapMap
-        center={center}
-        initialZoom={initialZoom}
-        onSelect={onSelect}
-        heatmapData={normalizedHeatmap}
-        showHeatmap={showHeatmap}
-        marker={marker}
-        className={className}
-        adminLocation={adminLocation}
-        fitToBounds={fitToBounds}
-        boundsPadding={boundsPadding}
-        onBoundingBoxChange={onBoundingBoxChange}
-        onProviderUnavailable={handleProviderUnavailable}
-        disableClustering={!shouldCluster}
-        googleMapsKey={resolvedGoogleMapsKey}
-        evidence={mapEvidence}
-      />
-    );
-  }
 
   const resolvedMaptilerKey = (maptilerKey ?? import.meta.env.VITE_MAPTILER_KEY ?? "").trim();
   const apiKeyRef = useRef(resolvedMaptilerKey);
@@ -752,18 +721,30 @@ export default function MapLibreMap({
   }, [processedHeatmap]);
 
   useEffect(() => {
+    configuredGeoSourceRef.current = configuredGeoSource;
+  }, [configuredGeoSource]);
+
+  useEffect(() => {
+    configuredInteractionsRef.current = configuredInteractions;
+  }, [configuredInteractions]);
+
+  useEffect(() => {
+    contractVersionRef.current = geoLayerConfig?.contract_version ?? null;
+  }, [geoLayerConfig?.contract_version]);
+
+  useEffect(() => {
+    emitBackendMapEventRef.current = emitBackendMapEvent;
+  }, [emitBackendMapEvent]);
+
+  useEffect(() => {
     boundingBoxCallbackRef.current = onBoundingBoxChange;
   }, [onBoundingBoxChange]);
 
   useEffect(() => {
-    setMapError(null);
-  }, [provider, effectiveProvider]);
+    boundingBoxControllerRef.current?.setEnabled(hasBoundingBoxCallback);
+  }, [hasBoundingBoxCallback]);
 
   useEffect(() => {
-    if (effectiveProvider !== "maplibre") {
-      return;
-    }
-
     if (!mapContainerRef.current || mapRef.current) {
       return;
     }
@@ -863,7 +844,7 @@ export default function MapLibreMap({
           if (!map.getSource("points")) {
             map.addSource("points", {
               type: "geojson",
-              data: configuredGeoSource ?? { type: "FeatureCollection", features: [] },
+              data: configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
               ...configuredSourceOptions,
             });
           }
@@ -1104,21 +1085,27 @@ export default function MapLibreMap({
           });
 
           toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current, configuredLayerIds);
+          const currentInteractions = configuredInteractionsRef.current;
           trackFrontendEvent("map_loaded", {
             provider: "maplibre",
-            contract_version: geoLayerConfig?.contract_version ?? null,
-            hover_enabled: configuredInteractions.hover,
-            time_slider_enabled: configuredInteractions.timeSliderEnabled,
-            time_slider_field: configuredInteractions.timeSliderField ?? null,
+            contract_version: contractVersionRef.current,
+            hover_enabled: currentInteractions.hover,
+            time_slider_enabled: currentInteractions.timeSliderEnabled,
+            time_slider_field: currentInteractions.timeSliderField ?? null,
           });
-          emitBackendMapEvent("map_loaded", {
+          emitBackendMapEventRef.current("map_loaded", {
             provider: "maplibre",
-            contract_version: geoLayerConfig?.contract_version ?? null,
-            hover_enabled: configuredInteractions.hover,
-            time_slider_enabled: configuredInteractions.timeSliderEnabled,
-            time_slider_field: configuredInteractions.timeSliderField ?? null,
+            contract_version: contractVersionRef.current,
+            hover_enabled: currentInteractions.hover,
+            time_slider_enabled: currentInteractions.timeSliderEnabled,
+            time_slider_field: currentInteractions.timeSliderField ?? null,
           });
-          updateHeatmapSource(map, latestHeatmap.current);
+          const pointSource = map.getSource("points");
+          if (pointSource && typeof (pointSource as any).setData === "function") {
+            (pointSource as any).setData(
+              configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
+            );
+          }
         };
 
         const cycleStyle = (reason?: string) => {
@@ -1176,18 +1163,69 @@ export default function MapLibreMap({
           }
         };
 
-        const emitBoundingBox = () => {
+        let boundingBoxTimer: number | null = null;
+        let lastBoundingBoxKey: string | null = null;
+
+        const flushBoundingBox = () => {
+          boundingBoxTimer = null;
           const callback = boundingBoxCallbackRef.current;
-          if (!callback || typeof mapInstance.getBounds !== "function") return;
+          if (!callback || typeof mapInstance.getBounds !== "function") {
+            lastBoundingBoxKey = null;
+            return;
+          }
           const bounds = mapInstance.getBounds();
-          if (!bounds) return;
-          callback([
+          if (!bounds) {
+            if (lastBoundingBoxKey !== "null") {
+              lastBoundingBoxKey = "null";
+              callback(null);
+            }
+            return;
+          }
+          const nextBoundingBox: [number, number, number, number] = [
             bounds.getWest(),
             bounds.getSouth(),
             bounds.getEast(),
             bounds.getNorth(),
-          ]);
+          ];
+          if (!nextBoundingBox.every(Number.isFinite)) {
+            if (lastBoundingBoxKey !== "null") {
+              lastBoundingBoxKey = "null";
+              callback(null);
+            }
+            return;
+          }
+          const nextBoundingBoxKey = nextBoundingBox.join(":");
+          if (nextBoundingBoxKey === lastBoundingBoxKey) return;
+          lastBoundingBoxKey = nextBoundingBoxKey;
+          callback(nextBoundingBox);
         };
+
+        const scheduleBoundingBox = () => {
+          if (!boundingBoxCallbackRef.current) {
+            if (boundingBoxTimer !== null) {
+              window.clearTimeout(boundingBoxTimer);
+              boundingBoxTimer = null;
+            }
+            lastBoundingBoxKey = null;
+            return;
+          }
+          if (boundingBoxTimer !== null) {
+            window.clearTimeout(boundingBoxTimer);
+          }
+          boundingBoxTimer = window.setTimeout(flushBoundingBox, BOUNDING_BOX_DEBOUNCE_MS);
+        };
+
+        const boundingBoxController = {
+          setEnabled: (enabled: boolean) => {
+            if (boundingBoxTimer !== null) {
+              window.clearTimeout(boundingBoxTimer);
+              boundingBoxTimer = null;
+            }
+            lastBoundingBoxKey = null;
+            if (enabled) scheduleBoundingBox();
+          },
+        };
+        boundingBoxControllerRef.current = boundingBoxController;
 
         const handleCircleClick = (e: any) => {
           if (!e.features?.length) return;
@@ -1207,13 +1245,13 @@ export default function MapLibreMap({
             provider: "maplibre",
             cluster_id: clusterId,
             feature_id: properties?.id ?? null,
-            contract_version: geoLayerConfig?.contract_version ?? null,
+            contract_version: contractVersionRef.current,
           });
-          emitBackendMapEvent("cluster_click", {
+          emitBackendMapEventRef.current("cluster_click", {
             provider: "maplibre",
             cluster_id: clusterId,
             feature_id: properties?.id ?? null,
-            contract_version: geoLayerConfig?.contract_version ?? null,
+            contract_version: contractVersionRef.current,
           });
 
           const popup = new maplibre.Popup();
@@ -1242,22 +1280,34 @@ export default function MapLibreMap({
           "rotateend",
           "pitchend",
         ] as const;
-        const shouldEmitBoundingBox = Boolean(boundingBoxCallbackRef.current);
-        if (shouldEmitBoundingBox) {
-          bboxEvents.forEach((eventName) => mapInstance.on(eventName, emitBoundingBox));
+        bboxEvents.forEach((eventName) => mapInstance.on(eventName, scheduleBoundingBox));
+        if (boundingBoxCallbackRef.current) {
           if (mapInstance.isStyleLoaded()) {
-            emitBoundingBox();
+            scheduleBoundingBox();
           } else {
-            mapInstance.once("load", emitBoundingBox);
+            mapInstance.once("load", scheduleBoundingBox);
           }
         }
+
+        try {
+          mapInstance.resize();
+        } catch {
+          // The observer below will retry when the container is measurable.
+        }
+        setMapGeneration((current) => current + 1);
 
         return () => {
           mapInstance.off("click", handleClick);
           mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
           mapInstance.off("styleimagemissing", handleMissingImage);
-          if (shouldEmitBoundingBox) {
-            bboxEvents.forEach((eventName) => mapInstance.off(eventName, emitBoundingBox));
+          bboxEvents.forEach((eventName) => mapInstance.off(eventName, scheduleBoundingBox));
+          mapInstance.off("load", scheduleBoundingBox);
+          if (boundingBoxTimer !== null) {
+            window.clearTimeout(boundingBoxTimer);
+            boundingBoxTimer = null;
+          }
+          if (boundingBoxControllerRef.current === boundingBoxController) {
+            boundingBoxControllerRef.current = null;
           }
           mapInstance.off("load", ensureSourcesAndLayers);
           mapInstance.off("style.load", ensureSourcesAndLayers);
@@ -1297,20 +1347,40 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [configuredGeoSource, configuredInteractions.hover, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, configuredLayerIds, configuredSourceOptions, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, geoLayerConfig?.style_url, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [
+    configuredLayerIds.circles,
+    configuredLayerIds.halo,
+    configuredLayerIds.heat,
+    configuredSourceOptions.cluster,
+    configuredSourceOptions.clusterMaxZoom,
+    configuredSourceOptions.clusterRadius,
+    geoLayerConfig?.style_url,
+    mapStyleUrl,
+    mapTileAttribution,
+    mapTileUrl,
+    resolvedMaptilerKey,
+  ]);
+
+  const centerLng = center?.[0];
+  const centerLat = center?.[1];
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
 
-    if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
-      map.flyTo({ center, zoom: initialZoomRef.current });
+    if (Number.isFinite(centerLng) && Number.isFinite(centerLat)) {
+      const nextCenter: [number, number] = [centerLng as number, centerLat as number];
+      if (prefersReducedMotion) {
+        map.jumpTo({ center: nextCenter, zoom: initialZoomRef.current });
+      } else {
+        map.flyTo({ center: nextCenter, zoom: initialZoomRef.current });
+      }
     }
-  }, [center, effectiveProvider]);
+  }, [centerLat, centerLng, mapGeneration, prefersReducedMotion]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
 
     const applyData = () => {
       const source = map.getSource("points");
@@ -1327,7 +1397,7 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [configuredGeoSource, processedHeatmap, effectiveProvider]);
+  }, [configuredGeoSource, mapGeneration, processedHeatmap]);
 
   useEffect(() => {
     if (!configuredInteractions.timeSliderEnabled) return;
@@ -1347,7 +1417,7 @@ export default function MapLibreMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
 
     if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
       const handler = () => toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
@@ -1370,21 +1440,37 @@ export default function MapLibreMap({
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
-  }, [configuredLayerIds, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, showHeatmap, showPolygons]);
+  }, [
+    configuredLayerIds.circles,
+    configuredLayerIds.halo,
+    configuredLayerIds.heat,
+    emitBackendMapEvent,
+    geoLayerConfig?.contract_version,
+    mapGeneration,
+    showHeatmap,
+    showPolygons,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
 
     const source = map.getSource("polygons");
     if (source && typeof (source as any).setData === "function") {
       (source as any).setData(polygons ?? { type: "FeatureCollection", features: [] });
     }
-  }, [polygons, effectiveProvider]);
+  }, [mapGeneration, polygons]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !showHeatmap || showPolygons || effectiveProvider !== "maplibre") return;
+    if (!map || !showHeatmap || showPolygons) return;
+
+    if (prefersReducedMotion) {
+      if (map.getLayer(configuredLayerIds.heat)) {
+        map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", 1);
+      }
+      return;
+    }
     let frame: number;
 
     const animate = () => {
@@ -1399,12 +1485,12 @@ export default function MapLibreMap({
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [configuredLayerIds.heat, showHeatmap, effectiveProvider]);
+  }, [configuredLayerIds.heat, mapGeneration, prefersReducedMotion, showHeatmap, showPolygons]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
     if (marker) {
       if (markerRef.current) {
         markerRef.current.setLngLat(marker);
@@ -1425,12 +1511,12 @@ export default function MapLibreMap({
       markerRef.current.remove();
       markerRef.current = null;
     }
-  }, [marker, effectiveProvider]);
+  }, [mapGeneration, marker]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || effectiveProvider !== "maplibre") {
+    if (!map) {
       if (adminMarkerRef.current) {
         adminMarkerRef.current.remove();
         adminMarkerRef.current = null;
@@ -1465,12 +1551,12 @@ export default function MapLibreMap({
       adminMarkerRef.current.remove();
       adminMarkerRef.current = null;
     }
-  }, [adminLocation, effectiveProvider]);
+  }, [adminLocation, mapGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || effectiveProvider !== "maplibre") return;
+    if (!map) return;
 
     const coords = (fitToBounds ?? []).filter(
       (value): value is [number, number] =>
@@ -1485,8 +1571,17 @@ export default function MapLibreMap({
     }
 
     const applyBounds = () => {
+      const moveTo = (nextCenter: [number, number]) => {
+        const options = { center: nextCenter, zoom: initialZoomRef.current };
+        if (prefersReducedMotion) {
+          map.jumpTo(options);
+        } else {
+          map.flyTo(options);
+        }
+      };
+
       if (coords.length === 1) {
-        map.flyTo({ center: coords[0], zoom: initialZoomRef.current });
+        moveTo(coords[0]);
         return;
       }
 
@@ -1502,14 +1597,14 @@ export default function MapLibreMap({
           bounds.getEast() === bounds.getWest();
 
         if (samePoint && typeof bounds.getCenter === "function") {
-          map.flyTo({ center: bounds.getCenter().toArray() as [number, number], zoom: initialZoomRef.current });
+          moveTo(bounds.getCenter().toArray() as [number, number]);
           return;
         }
 
         try {
           map.fitBounds(bounds, {
             padding: boundsPadding ?? 48,
-            duration: 1000,
+            duration: prefersReducedMotion ? 0 : 1000,
           });
           return;
         } catch (err) {
@@ -1517,7 +1612,7 @@ export default function MapLibreMap({
         }
       }
 
-      map.flyTo({ center: coords[0], zoom: initialZoomRef.current });
+      moveTo(coords[0]);
     };
 
     if (map.isStyleLoaded()) {
@@ -1528,14 +1623,11 @@ export default function MapLibreMap({
         map.off("load", applyBounds);
       };
     }
-  }, [fitToBounds, boundsPadding, effectiveProvider]);
+  }, [boundsPadding, fitToBounds, mapGeneration, prefersReducedMotion]);
 
   useEffect(() => {
-    if (effectiveProvider !== "maplibre") return;
-
     const container = mapContainerRef.current;
-    const map = mapRef.current;
-    if (!container || !map) return;
+    if (!container) return;
 
     let rafId: number | null = null;
     const requestResize = () => {
@@ -1575,7 +1667,7 @@ export default function MapLibreMap({
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("orientationchange", requestResize);
     };
-  }, [effectiveProvider, fitToBounds, processedHeatmap.length]);
+  }, []);
 
   const containerClassName = cn(
     "relative w-full rounded-2xl overflow-hidden",
@@ -1587,9 +1679,9 @@ export default function MapLibreMap({
     <div className={containerClassName}>
       <div ref={mapContainerRef} className="absolute inset-0" />
       <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
-      {fallbackMessage && (
+      {providerFallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
-          {fallbackMessage}
+          {providerFallbackMessage}
         </div>
       )}
       {mapError && (
