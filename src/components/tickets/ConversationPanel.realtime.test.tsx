@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
   getTicketMessages: vi.fn(),
   getTicketTimeline: vi.fn(),
+  updateTicketReadState: vi.fn(),
   updateTicket: vi.fn(),
   selectedTicket: null as Ticket | null,
   socket: null as null | {
@@ -72,7 +73,7 @@ vi.mock('@/services/ticketService', async () => {
     ...actual,
     getTicketMessages: (...args: unknown[]) => harness.getTicketMessages(...args),
     getTicketTimeline: (...args: unknown[]) => harness.getTicketTimeline(...args),
-    updateTicketReadState: vi.fn().mockResolvedValue(null),
+    updateTicketReadState: (...args: unknown[]) => harness.updateTicketReadState(...args),
   };
 });
 
@@ -110,6 +111,7 @@ describe('ConversationPanel tenant invalidation', () => {
       realtime_state: null,
       unified_conversation_stream: [],
     });
+    harness.updateTicketReadState.mockReset().mockResolvedValue(null);
     harness.updateTicket.mockReset();
     harness.socket?.emit.mockClear();
     harness.socket?.off.mockClear();
@@ -206,5 +208,90 @@ describe('ConversationPanel tenant invalidation', () => {
 
     await waitFor(() => expect(harness.getTicketMessages).toHaveBeenCalledTimes(1));
     expect(screen.getByText('La luminaria sigue apagada')).toBeInTheDocument();
+  });
+
+  it('clears and reloads the conversation when another tenant has the same source, type and ticket id', async () => {
+    const otherTenantTicket: Ticket = {
+      ...selectedTicket,
+      nro_ticket: 'USH-77',
+      asunto: 'Caso del segundo tenant',
+      tenant_slug: 'ushuaia',
+    };
+    let resolveOtherTenantTimeline: ((value: {
+      messages: Array<{
+        id: string;
+        author: string;
+        content: string;
+        timestamp: string;
+      }>;
+      realtime_state: null;
+      unified_conversation_stream: never[];
+    }) => void) | null = null;
+
+    harness.getTicketTimeline
+      .mockResolvedValueOnce({
+        messages: [{
+          id: 'tenant-junin-message-1',
+          author: 'user',
+          content: 'Historial exclusivo de Junin',
+          timestamp: '2026-08-20T12:05:00Z',
+        }],
+        realtime_state: null,
+        unified_conversation_stream: [],
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOtherTenantTimeline = resolve;
+      }));
+
+    const view = render(renderConversation());
+    expect(await screen.findByText('Historial exclusivo de Junin')).toBeInTheDocument();
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1));
+    expect(harness.updateTicketReadState).toHaveBeenLastCalledWith(
+      selectedTicket.id,
+      selectedTicket.tipo,
+      'tenant-junin-message-1',
+    );
+
+    act(() => {
+      harness.selectedTicket = otherTenantTicket;
+      view.rerender(renderConversation());
+    });
+
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Historial exclusivo de Junin')).not.toBeInTheDocument();
+    expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1);
+    expect(harness.getTicketTimeline).toHaveBeenLastCalledWith(
+      otherTenantTicket.id,
+      otherTenantTicket.tipo,
+      expect.objectContaining({
+        ticket: expect.objectContaining({
+          id: selectedTicket.id,
+          tenant_slug: 'ushuaia',
+        }),
+        tenantSlug: 'ushuaia',
+      }),
+    );
+
+    await act(async () => {
+      resolveOtherTenantTimeline?.({
+        messages: [{
+          id: 'tenant-ushuaia-message-1',
+          author: 'user',
+          content: 'Historial exclusivo de Ushuaia',
+          timestamp: '2026-08-20T12:10:00Z',
+        }],
+        realtime_state: null,
+        unified_conversation_stream: [],
+      });
+    });
+
+    expect(await screen.findByText('Historial exclusivo de Ushuaia')).toBeInTheDocument();
+    expect(screen.queryByText('Historial exclusivo de Junin')).not.toBeInTheDocument();
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledTimes(2));
+    expect(harness.updateTicketReadState).toHaveBeenLastCalledWith(
+      otherTenantTicket.id,
+      otherTenantTicket.tipo,
+      'tenant-ushuaia-message-1',
+    );
   });
 });

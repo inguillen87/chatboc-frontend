@@ -612,7 +612,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const invalidationRefreshTimerRef = useRef<number | null>(null);
   const selectedTicketRef = useRef<Ticket | null>(selectedTicket);
   const selectedConversationKey = selectedTicket
-    ? `${selectedTicket.source_model || selectedTicket.tipo}:${selectedTicket.id}`
+    ? `${
+        selectedTicket.tenant_slug?.trim().toLowerCase() ||
+        (selectedTicket.tenant_id != null ? `tenant-id-${selectedTicket.tenant_id}` : 'tenant-unknown')
+      }:${selectedTicket.source_model || selectedTicket.tipo}:${selectedTicket.id}`
     : null;
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
@@ -770,7 +773,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
 
       if (!isBackgroundRefresh) {
+        loadedConversationKeyRef.current = null;
         setIsLoading(true);
+        setMessages([]);
+        setLastReplyDelivery(null);
         setTimelineItems([]);
         setTimelinePartial(false);
         loadingFallbackTimer = window.setTimeout(() => {
@@ -898,17 +904,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
     return () => window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
-  }, [selectedTicket?.id]);
+  }, [selectedConversationKey]);
 
   useEffect(() => {
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
     lastReadStateSyncRef.current = null;
     setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
-  }, [selectedTicket?.id]);
+  }, [selectedConversationKey]);
 
   useEffect(() => {
-    if (!selectedTicket || messages.length === 0) return;
+    if (
+      !selectedTicket ||
+      !selectedConversationKey ||
+      loadedConversationKeyRef.current !== selectedConversationKey ||
+      messages.length === 0
+    ) return;
 
     const latestMessageId = [...messages]
       .map((item) => item.id)
@@ -923,7 +934,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     if (latestMessageId === undefined) return;
 
-    const syncKey = `${selectedTicket.tipo}:${selectedTicket.id}:${latestMessageId}`;
+    const syncKey = `${selectedConversationKey}:${latestMessageId}`;
     if (lastReadStateSyncRef.current === syncKey) return;
     lastReadStateSyncRef.current = syncKey;
 
@@ -950,7 +961,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           });
         }
       });
-  }, [messages, selectedTicket, updateTicket]);
+  }, [messages, selectedConversationKey, selectedTicket, updateTicket]);
 
   useEffect(() => {
     if (!socket || selectedTicketId === null || !selectedTicketType) return;
@@ -1070,7 +1081,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
         socket.emit('leave', { room: ticketRoom });
     };
-  }, [selectedTicketId, selectedTicketSocketRoom, selectedTicketType, socket]);
+  }, [selectedConversationKey, selectedTicketId, selectedTicketSocketRoom, selectedTicketType, socket]);
 
   useEffect(() => {
     if (!selectedTicket) return;
