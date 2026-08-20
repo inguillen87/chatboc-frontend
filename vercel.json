@@ -146,10 +146,7 @@
     { "source": "/terminos", "destination": "/terminos/index.html" },
     { "source": "/eliminacion-datos", "destination": "/eliminacion-datos/index.html" },
     {
-      "source": "/((?!assets/).*)",
-      "has": [
-        { "type": "header", "key": "accept", "value": ".*text/html.*" }
-      ],
+      "source": "/((?!assets/|api/|ask/|archivos/|public/|socket.io/).*)",
       "destination": "/index.html"
     }
   ]
