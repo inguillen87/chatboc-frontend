@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/context/TenantContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/utils/api';
-import { isAbsoluteUrl, resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
+import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type { TenantEventItem, TenantNewsItem, TenantPublicNavigationItem } from '@/types/tenant';
 
 const normalizeText = (value: unknown) =>
@@ -54,10 +54,9 @@ const hasEndpoint = (item?: TenantPublicNavigationItem | null) =>
 const resolveNavTarget = (
   item: TenantPublicNavigationItem | null | undefined,
   basePath: string | null,
-  fallbackSuffix: string,
 ) => {
   if (!basePath) return null;
-  return resolveTenantPublicNavigationTarget(item, basePath, fallbackSuffix);
+  return resolveTenantPublicNavigationTarget(item, basePath);
 };
 
 const formatDate = (value?: string | null) => {
@@ -204,10 +203,14 @@ const TenantPublicLanding = () => {
   }, [surveysQuery.data]);
 
   const tenantName = tenant?.nombre?.trim() || slug;
-  const ticketTarget = resolveNavTarget(ticketNavItem, basePath, 'reclamos/nuevo');
-  const surveysTarget = shouldLoadSurveys ? resolveNavTarget(surveysNavItem, basePath, 'encuestas') : null;
-  const newsTarget = resolveNavTarget(newsNavItem, basePath, 'noticias');
-  const eventsTarget = resolveNavTarget(eventsNavItem, basePath, 'eventos');
+  const ticketTarget = ticketNavItem
+    ? resolveNavTarget(ticketNavItem, basePath)
+    : null;
+  const surveysTarget = shouldLoadSurveys && surveysNavItem
+    ? resolveNavTarget(surveysNavItem, basePath)
+    : null;
+  const newsTarget = newsNavItem ? resolveNavTarget(newsNavItem, basePath) : null;
+  const eventsTarget = eventsNavItem ? resolveNavTarget(eventsNavItem, basePath) : null;
 
   const statCards = [
     newsNavItem ? { label: newsNavItem.label, value: String(newsItems.length), icon: Newspaper } : null,
@@ -265,7 +268,7 @@ const TenantPublicLanding = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {ticketTarget && !isAbsoluteUrl(ticketTarget) ? (
+                  {ticketTarget ? (
                     <Button asChild size="lg" className="rounded-2xl shadow-lg shadow-primary/15">
                       <Link to={ticketTarget}>
                         {ticketNavItem?.label ?? 'Iniciar gestion'}
@@ -273,7 +276,7 @@ const TenantPublicLanding = () => {
                       </Link>
                     </Button>
                   ) : null}
-                  {surveysTarget && !isAbsoluteUrl(surveysTarget) ? (
+                  {surveysTarget ? (
                     <Button asChild variant="outline" size="lg" className="rounded-2xl bg-background/70">
                       <Link to={surveysTarget}>{surveysNavItem?.label ?? 'Participar'}</Link>
                     </Button>
@@ -310,7 +313,7 @@ const TenantPublicLanding = () => {
               icon={Newspaper}
               title={newsNavItem.label}
               description="Actualizaciones y comunicados publicados por la organizacion."
-              action={newsTarget && !isAbsoluteUrl(newsTarget) ? (
+              action={newsTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={newsTarget}>Ver todo</Link>
                 </Button>
@@ -371,7 +374,7 @@ const TenantPublicLanding = () => {
               icon={Calendar}
               title={eventsNavItem.label}
               description="Agenda publica y actividades disponibles para este espacio."
-              action={eventsTarget && !isAbsoluteUrl(eventsTarget) ? (
+              action={eventsTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={eventsTarget}>Ver agenda</Link>
                 </Button>
@@ -441,7 +444,7 @@ const TenantPublicLanding = () => {
               icon={ClipboardCheck}
               title={surveysNavItem?.label ?? 'Participacion'}
               description="Instancias activas para votar, opinar o responder desde este espacio."
-              action={surveysTarget && !isAbsoluteUrl(surveysTarget) ? (
+              action={surveysTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={surveysTarget}>Ver listado</Link>
                 </Button>

@@ -481,7 +481,6 @@ const UserClaimsPage = () => {
     return resolveTenantPublicNavigationTarget(
       guestNewClaimItem,
       `/t/${encodeURIComponent(currentSlug)}`,
-      'reclamos/nuevo',
     );
   }, [currentSlug, guestNewClaimItem, user]);
   const emptyClaimStartPath = authenticatedClaimStartPath || guestClaimStartPath;

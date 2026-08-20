@@ -71,14 +71,17 @@ export interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> 
 
 // Interfaz para la gestión de plantillas de respuesta, usada en GestionPlantillasPage.tsx
 export interface GestionResponseTemplate {
-  id: string; // o number, según la implementación del backend
+  id: string | number;
   name: string;
   text: string;
   keywords?: string[];
   is_active?: boolean;
-  // Opcional: incluir campos de auditoría si el backend los devuelve y son útiles en la UI
-  // created_at?: string;
-  // updated_at?: string;
+  tenant_id?: number | null;
+  tenant_slug?: string | null;
+  request_tenant_slug?: string | null;
+  scope?: 'tenant' | 'global';
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 

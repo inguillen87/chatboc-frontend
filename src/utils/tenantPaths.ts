@@ -118,6 +118,90 @@ const applySlugPlaceholder = (template: string, tenantSlug?: string | null) => {
 
 export const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
 
+const PUBLIC_NAVIGATION_BASE_URL = 'https://internal-navigation.invalid';
+const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const ENCODED_SEPARATOR_OR_CONTROL_PATTERN = /%(?:25)*(?:2f|5c|0[0-9a-f]|1[0-9a-f]|7f)/i;
+const SAFE_PUBLIC_PATH_SEGMENT_PATTERN = /^[\p{L}\p{N}._~-]+$/u;
+
+const hasUnsafePublicNavigationShape = (value: string) => {
+  if (
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('\\') ||
+    CONTROL_CHARACTER_PATTERN.test(value) ||
+    URI_SCHEME_PATTERN.test(value)
+  ) {
+    return true;
+  }
+
+  const pathOnly = value.split(/[?#]/, 1)[0];
+  if (pathOnly.includes('//')) return true;
+
+  const segments = pathOnly.split('/').slice(1);
+  return segments.some((segment) => segment === '.' || segment === '..');
+};
+
+/**
+ * Accepts only canonical, same-origin, root-relative paths for public
+ * navigation contracts. Public API values must never be interpreted as
+ * external links merely because they look URL-like.
+ */
+export const sanitizePublicInternalNavigationPath = (value?: unknown): string | null => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (
+    !normalized ||
+    hasUnsafePublicNavigationShape(normalized) ||
+    ENCODED_SEPARATOR_OR_CONTROL_PATTERN.test(normalized)
+  ) {
+    return null;
+  }
+
+  let decoded = normalized;
+  for (let depth = 0; depth < 3; depth += 1) {
+    let next: string;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return null;
+    }
+
+    if (hasUnsafePublicNavigationShape(next)) return null;
+    if (next === decoded) break;
+    decoded = next;
+  }
+
+  let decodedPath = normalized.split(/[?#]/, 1)[0];
+  for (let depth = 0; depth < 3; depth += 1) {
+    let next: string;
+    try {
+      next = decodeURIComponent(decodedPath);
+    } catch {
+      return null;
+    }
+    if (hasUnsafePublicNavigationShape(next)) return null;
+    if (next === decodedPath) break;
+    decodedPath = next;
+  }
+
+  const decodedSegments = decodedPath === '/' ? [] : decodedPath.split('/').slice(1);
+  if (
+    decodedSegments.some(
+      (segment) => !segment || !SAFE_PUBLIC_PATH_SEGMENT_PATTERN.test(segment),
+    )
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalized, PUBLIC_NAVIGATION_BASE_URL);
+    if (parsed.origin !== PUBLIC_NAVIGATION_BASE_URL) return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
+};
+
 export const isPrivateTenantBackofficeRoute = (value?: string | null) => {
   const normalized = String(value ?? '')
     .trim()
@@ -154,26 +238,33 @@ const stripBasePathFromTenantRoute = (route: string, basePath: string) => {
 };
 
 export const resolveTenantPublicNavigationTarget = (
-  item: Pick<TenantPublicNavigationItem, 'route' | 'href'> & { path?: unknown } | null | undefined,
+  item: TenantPublicNavigationItem | null | undefined,
   basePath: string,
-  fallbackSuffix?: string | null,
 ) => {
-  const itemRoute =
-    item?.route ||
-    item?.href ||
-    (typeof item?.path === 'string' ? item.path : null) ||
-    fallbackSuffix ||
-    '';
-  if (!itemRoute) return basePath;
-  if (isAbsoluteUrl(itemRoute)) return itemRoute;
+  const safeBasePath = sanitizePublicInternalNavigationPath(basePath);
+  if (!safeBasePath) return null;
 
-  const routeForPrivacyCheck = stripBasePathFromTenantRoute(itemRoute, basePath);
-  if (isPrivateTenantBackofficeRoute(routeForPrivacyCheck)) {
-    return `${basePath.replace(/\/+$/, '')}/reclamos/nuevo`;
+  const itemRoute = typeof item?.route === 'string' ? item.route.trim() : '';
+  // tenant.public_navigation.v1 defines `route` as a required internal path.
+  // It does not define `href`, `url` or `path` aliases, and a missing/invalid
+  // contract item must never be converted into an inferred fallback.
+  if (!item || !itemRoute) return null;
+
+  const safeTarget = sanitizePublicInternalNavigationPath(itemRoute);
+  if (!safeTarget) return null;
+
+  const basePathname = new URL(safeBasePath, PUBLIC_NAVIGATION_BASE_URL).pathname.replace(/\/+$/, '');
+  const targetPathname = new URL(safeTarget, PUBLIC_NAVIGATION_BASE_URL).pathname;
+  if (targetPathname !== basePathname && !targetPathname.startsWith(`${basePathname}/`)) {
+    return null;
   }
 
-  if (itemRoute.startsWith('/')) return itemRoute;
-  return `${basePath.replace(/\/+$/, '')}/${itemRoute.replace(/^\/+/, '')}`;
+  const routeForPrivacyCheck = stripBasePathFromTenantRoute(safeTarget, safeBasePath);
+  if (isPrivateTenantBackofficeRoute(routeForPrivacyCheck)) {
+    return `${safeBasePath.replace(/\/+$/, '')}/reclamos/nuevo`;
+  }
+
+  return safeTarget;
 };
 
 const toAbsoluteUrl = (raw: string, baseUrl?: string | null) => {

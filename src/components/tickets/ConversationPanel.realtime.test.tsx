@@ -1,16 +1,23 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ResponseTemplate } from '@/features/tickets/responseTemplatesApi';
 import type { Ticket } from '@/types/tickets';
 
 const harness = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
   getTicketMessages: vi.fn(),
   getTicketTimeline: vi.fn(),
+  listResponseTemplates: vi.fn(),
+  previewResponseTemplateForTicket: vi.fn(),
+  suggestResponseTemplates: vi.fn(),
+  sendMessage: vi.fn(),
   updateTicketReadState: vi.fn(),
   updateTicket: vi.fn(),
+  user: { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' } as Record<string, unknown>,
   selectedTicket: null as Ticket | null,
   socket: null as null | {
     connected: boolean;
@@ -54,8 +61,21 @@ vi.mock('@/context/TicketContext', () => ({
 }));
 
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({ user: { id: 10, name: 'Admin', rol: 'admin' } }),
+  useUser: () => ({ user: harness.user }),
 }));
+
+vi.mock('@/features/tickets/responseTemplatesApi', async () => {
+  const actual = await vi.importActual<typeof import('@/features/tickets/responseTemplatesApi')>(
+    '@/features/tickets/responseTemplatesApi',
+  );
+  return {
+    ...actual,
+    listResponseTemplates: (...args: unknown[]) => harness.listResponseTemplates(...args),
+    previewResponseTemplateForTicket: (...args: unknown[]) =>
+      harness.previewResponseTemplateForTicket(...args),
+    suggestResponseTemplates: (...args: unknown[]) => harness.suggestResponseTemplates(...args),
+  };
+});
 
 vi.mock('@/hooks/useSpeechRecognition', () => ({
   default: () => ({
@@ -73,6 +93,7 @@ vi.mock('@/services/ticketService', async () => {
     ...actual,
     getTicketMessages: (...args: unknown[]) => harness.getTicketMessages(...args),
     getTicketTimeline: (...args: unknown[]) => harness.getTicketTimeline(...args),
+    sendMessage: (...args: unknown[]) => harness.sendMessage(...args),
     updateTicketReadState: (...args: unknown[]) => harness.updateTicketReadState(...args),
   };
 });
@@ -82,29 +103,34 @@ vi.mock('./ChatMessage', () => ({
   default: ({ message }: { message: { text?: string } }) => <div>{message.text}</div>,
 }));
 vi.mock('./DetailsPanel', () => ({ default: () => null }));
-vi.mock('./PredefinedMessagesModal', () => ({ default: () => null }));
 vi.mock('../ui/ScrollToBottomButton', () => ({ default: () => null }));
 vi.mock('../ui/AdjuntarArchivo', () => ({ default: () => null }));
 
 import ConversationPanel, { TENANT_TICKET_INVALIDATION_DEBOUNCE_MS } from './ConversationPanel';
 
+let queryClient: QueryClient;
+
 const renderConversation = () => (
-  <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-    <ConversationPanel
-      isMobile={false}
-      isSidebarVisible
-      isDetailsVisible={false}
-      onToggleSidebar={vi.fn()}
-      onToggleDetails={vi.fn()}
-      desktopView="chat"
-    />
-  </MemoryRouter>
+  <QueryClientProvider client={queryClient}>
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <ConversationPanel
+        isMobile={false}
+        isSidebarVisible
+        isDetailsVisible={false}
+        onToggleSidebar={vi.fn()}
+        onToggleDetails={vi.fn()}
+        desktopView="chat"
+      />
+    </MemoryRouter>
+  </QueryClientProvider>
 );
 
 describe('ConversationPanel tenant invalidation', () => {
   beforeEach(() => {
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     harness.handlers.clear();
     harness.selectedTicket = selectedTicket;
+    harness.user = { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' };
     harness.getTicketMessages.mockReset().mockResolvedValue([]);
     harness.getTicketTimeline.mockReset().mockResolvedValue({
       messages: [],
@@ -112,6 +138,27 @@ describe('ConversationPanel tenant invalidation', () => {
       unified_conversation_stream: [],
     });
     harness.updateTicketReadState.mockReset().mockResolvedValue(null);
+    const responseTemplate: ResponseTemplate = {
+      id: 'template-1',
+      tenantId: 4,
+      tenantSlug: 'junin',
+      scope: 'tenant',
+      name: 'Seguimiento operativo',
+      text: 'El caso fue asignado al equipo operativo.',
+      keywords: [],
+      isActive: true,
+    };
+    harness.listResponseTemplates.mockReset().mockResolvedValue([responseTemplate]);
+    harness.suggestResponseTemplates.mockReset().mockResolvedValue([
+      { ...responseTemplate, score: 0.9 },
+    ]);
+    harness.previewResponseTemplateForTicket.mockReset().mockResolvedValue({
+      renderedText: 'Respuesta renderizada para CRM-77.',
+      templateId: responseTemplate.id,
+      ticketId: 77,
+      sourceModel: 'TenantTicket',
+    });
+    harness.sendMessage.mockReset();
     harness.updateTicket.mockReset();
     harness.socket?.emit.mockClear();
     harness.socket?.off.mockClear();
@@ -293,5 +340,82 @@ describe('ConversationPanel tenant invalidation', () => {
       otherTenantTicket.tipo,
       'tenant-ushuaia-message-1',
     );
+  });
+
+  it('scopes template list and suggestions from the authenticated user when a legacy ticket only has tenant_id', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      tenant_id: 4,
+      tenant_slug: undefined,
+    };
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.keyDown(composer, { key: '/' });
+
+    await waitFor(() => expect(harness.listResponseTemplates).toHaveBeenCalledWith('junin'));
+    expect(harness.suggestResponseTemplates).toHaveBeenCalledWith({
+      tenantSlug: 'junin',
+      metadata: {
+        category: 'alumbrado',
+        status: 'en_proceso',
+        channel: 'whatsapp',
+      },
+    });
+    expect(screen.getByRole('link', { name: 'Administrar respuestas' })).toHaveAttribute(
+      'href',
+      '/t/junin/perfil/plantillas-respuesta',
+    );
+
+    fireEvent.click(await screen.findByRole('option', { name: /Seguimiento operativo/ }));
+
+    await waitFor(() => expect(composer).toHaveValue('Respuesta renderizada para CRM-77.'));
+    expect(harness.previewResponseTemplateForTicket).toHaveBeenCalledWith({
+      tenantSlug: 'junin',
+      templateId: 'template-1',
+      ticketId: 77,
+      sourceModel: 'TenantTicket',
+    });
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('preserves the composer selection across the async preview without auto-sending', async () => {
+    let resolvePreview:
+      | ((value: {
+          renderedText: string;
+          templateId: string;
+          ticketId: number;
+          sourceModel: 'TenantTicket';
+        }) => void)
+      | null = null;
+    harness.previewResponseTemplateForTicket.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'Inicio final' } });
+    (composer as HTMLTextAreaElement).setSelectionRange(7, 12);
+    fireEvent.click(screen.getByRole('button', { name: /Insertar respuesta guardada/i }));
+    fireEvent.click(await screen.findByRole('option', { name: /Seguimiento operativo/ }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/versión segura/i);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+
+    resolvePreview?.({
+      renderedText: 'Respuesta validada',
+      templateId: 'template-1',
+      ticketId: 77,
+      sourceModel: 'TenantTicket',
+    });
+
+    await waitFor(() => expect(composer).toHaveValue('Inicio Respuesta validada'));
+    expect((composer as HTMLTextAreaElement).selectionStart).toBe(25);
+    expect((composer as HTMLTextAreaElement).selectionEnd).toBe(25);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 });

@@ -73,9 +73,11 @@ export function PwaInstallPrompt() {
   };
 
   return (
-    <aside className="chatboc-pwa-install" role="status" aria-live="polite">
+    <aside className="chatboc-pwa-install" aria-labelledby="chatboc-pwa-install-title">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground">Instalar Chatboc</p>
+        <p id="chatboc-pwa-install-title" className="text-sm font-semibold text-foreground">
+          Instalar Chatboc
+        </p>
         <p className="text-xs leading-5 text-muted-foreground">
           Acceso rápido, pantalla completa y mejor experiencia móvil.
         </p>

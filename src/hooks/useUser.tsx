@@ -13,6 +13,7 @@ import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import {
   captureChatbocSessionRevision,
   clearLocalChatbocSession,
+  hasPersistedClerkSession,
   isChatbocSessionRevisionCurrent,
 } from '@/utils/sessionLogout';
 
@@ -137,6 +138,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (user) return;
+    const hasValidBearer = Boolean(
+      getValidStoredToken('authToken') || getValidStoredToken('chatAuthToken'),
+    );
+    // A cookie-backed Clerk session is verified by ClerkAuthBridge. A local
+    // authProvider marker alone must never hydrate a private profile.
+    if (!hasValidBearer || hasPersistedClerkSession()) return;
     if (rejectedAuthTokenRef.current) {
       const storedIdentity =
         getValidStoredToken('authToken') ||
@@ -363,8 +370,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token =
       getValidStoredToken('authToken') ||
       getValidStoredToken('chatAuthToken');
-    const hasClerkCookieSession = Boolean(readClerkCookieSessionIdentity());
-    if ((token || hasClerkCookieSession) && (!user || !user.rubro)) {
+    if (token && !hasPersistedClerkSession() && (!user || !user.rubro)) {
       refreshUser();
     }
   }, [refreshUser, user]);

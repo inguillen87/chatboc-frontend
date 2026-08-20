@@ -37,7 +37,7 @@ const Index = () => {
 
   return (
     <>
-      <main className="bg-background scroll-smooth">
+      <div className="bg-background scroll-smooth">
         <section id="inicio">
           <HeroSection experience={landingExperience} />
         </section>
@@ -52,7 +52,7 @@ const Index = () => {
         <PricingSection />
         <CtaSection />
         <ComingSoonSection />
-      </main>
+      </div>
       {showWidget && null}
     </>
   );

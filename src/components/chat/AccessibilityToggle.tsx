@@ -212,7 +212,7 @@ export default function AccessibilityToggle({
               >
                 <BookOpen className="h-5 w-5" />
                 {activeCount > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[10px] font-bold leading-none text-white">
                     {activeCount}
                   </span>
                 ) : null}

@@ -1,6 +1,7 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { normalizeEntityToken } from '@/utils/entityToken';
+import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -230,23 +231,41 @@ type TenantResolveOptions = {
   forceSlug?: string | null;
 };
 
-const normalizePublicNavigationItem = (input: unknown): TenantPublicNavigationItem | null => {
+const normalizePublicNavigationItem = (
+  input: unknown,
+  basePath: string,
+): TenantPublicNavigationItem | null => {
   if (!isRecord(input)) return null;
   const label = coerceString(input.label) ?? coerceString(input.title) ?? coerceString(input.name);
-  const route = coerceString(input.route) ?? coerceString(input.path) ?? coerceString(input.url);
-  const id = coerceString(input.id) ?? coerceString(input.key) ?? label ?? route;
-  if (!id || !label) return null;
+  const rawRoute = coerceString(input.route);
+  const id = coerceString(input.id) ?? coerceString(input.key) ?? label ?? rawRoute;
+  if (!id || !label || !rawRoute) return null;
+
+  const route = resolveTenantPublicNavigationTarget(
+    { id, label, route: rawRoute },
+    basePath,
+  );
+  if (!route) return null;
 
   const explicitEnabled = coerceBoolean(input.enabled);
   const explicitDisabled = coerceBoolean(input.disabled);
   const visible = coerceBoolean(input.visible);
+  const {
+    route: _untrustedRoute,
+    href: _untrustedHref,
+    path: _legacyPath,
+    url: _legacyUrl,
+    ...contractMetadata
+  } = input;
 
   return {
-    ...(input as Record<string, unknown>),
+    ...contractMetadata,
     id,
     label,
-    route: route ?? null,
-    href: coerceString(input.href) ?? null,
+    route,
+    // tenant.public_navigation.v1 has no external-link field. Keep this
+    // explicit so spread input cannot re-introduce an untrusted href.
+    href: null,
     endpoint: coerceString(input.endpoint) ?? null,
     enabled: explicitEnabled ?? (explicitDisabled === true ? false : true),
     visible: visible ?? true,
@@ -263,6 +282,16 @@ const normalizePublicNavigation = (
     return { contract_version: null, tenant_slug: fallbackSlug, items: [] };
   }
 
+  const contractVersion = coerceString(input.contract_version);
+  if (contractVersion !== 'tenant.public_navigation.v1') {
+    return {
+      contract_version: contractVersion ?? null,
+      tenant_slug: fallbackSlug,
+      items: [],
+      reason_code: 'invalid_contract_version',
+    };
+  }
+
   const rawItems = Array.isArray(input.items)
     ? input.items
     : Array.isArray(input.navigation)
@@ -272,13 +301,13 @@ const normalizePublicNavigation = (
         : [];
 
   return {
-    contract_version: coerceString(input.contract_version) ?? null,
+    contract_version: contractVersion,
     tenant_slug:
       (isRecord(input.tenant) ? coerceString(input.tenant.slug) : undefined) ??
       coerceString(input.tenant_slug) ??
       fallbackSlug,
     items: rawItems
-      .map((item) => normalizePublicNavigationItem(item))
+      .map((item) => normalizePublicNavigationItem(item, `/t/${encodeURIComponent(fallbackSlug)}`))
       .filter((item): item is TenantPublicNavigationItem => Boolean(item)),
     request_id: coerceString(input.request_id) ?? null,
     reason_code: coerceString(input.reason_code) ?? null,

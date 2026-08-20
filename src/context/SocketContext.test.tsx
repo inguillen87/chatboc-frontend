@@ -89,4 +89,24 @@ describe('SocketProvider Clerk cookie transport', () => {
       tenant_slug: 'junin',
     });
   });
+
+  it('keeps the access-denied route passive even with a stale Clerk marker', async () => {
+    window.localStorage.setItem('authProvider', 'clerk');
+    window.localStorage.setItem('clerkUserId', 'stale_cookie_session');
+
+    render(
+      <MemoryRouter initialEntries={['/403']}>
+        <SocketProvider>
+          <div>Acceso denegado</div>
+        </SocketProvider>
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(socketHarness.io).not.toHaveBeenCalled();
+    expect(socketHarness.socket.emit).not.toHaveBeenCalled();
+  });
 });
