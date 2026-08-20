@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ArrowRight, Bot, CalendarDays, Copy, Download, Loader2, MessageCircle, Share2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bot, Building2, CalendarDays, Copy, Download, Loader2, MessageCircle, Share2, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -22,6 +22,7 @@ import {
   getPublicSurveyUrlFromRecord,
 } from '@/utils/publicSurveyUrl';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
+import { useTenant } from '@/context/TenantContext';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import {
   buildSurveyDigestMessage,
@@ -47,7 +48,13 @@ const formatDate = (value?: string | null) => {
   return format(parsed, "d 'de' MMMM yyyy", { locale: es });
 };
 
-const normalizeTenantSlug = (value?: string | null) => value?.trim().toLowerCase() || undefined;
+const normalizeTenantSlug = (value?: string | null) => {
+  const normalized = value?.trim().toLowerCase();
+  return normalized && normalized !== 'default' ? normalized : undefined;
+};
+
+const buildCanonicalTenantSurveyPath = (tenantSlug: string) =>
+  `/t/${encodeURIComponent(tenantSlug)}/encuestas`;
 
 const resolveSurveyTenantScope = (
   survey: Pick<SurveyPublic, 'tenant_slug'>,
@@ -85,12 +92,25 @@ const getStatus = (survey: SurveyPublic) => {
 
 const SurveysPublicIndex = () => {
   const [searchParams] = useSearchParams();
+  const { currentSlug, tenant, isLoadingTenant, tenantError } = useTenant();
   const requestedTenantSlug = normalizeTenantSlug(
     searchParams.get('tenant_slug') ?? searchParams.get('tenant'),
   );
+  const contextTenantSlug = normalizeTenantSlug(currentSlug);
+  const resolvedTenantSlug = normalizeTenantSlug(tenant?.slug);
+  const canonicalContextTenantSlug =
+    !isLoadingTenant &&
+    !tenantError &&
+    contextTenantSlug &&
+    resolvedTenantSlug &&
+    resolvedTenantSlug !== 'default' &&
+    contextTenantSlug === resolvedTenantSlug
+      ? resolvedTenantSlug
+      : undefined;
   const { data, isLoading, error, refetch, isFetching } = useQuery<PublicSurveyListResult>({
-    queryKey: ['public-surveys', requestedTenantSlug ?? 'unscoped'],
+    queryKey: ['public-surveys', requestedTenantSlug ?? null],
     queryFn: () => listPublicSurveys(requestedTenantSlug),
+    enabled: Boolean(requestedTenantSlug),
     staleTime: 1000 * 60,
   });
 
@@ -206,6 +226,63 @@ const SurveysPublicIndex = () => {
       });
     }
   };
+
+  if (!requestedTenantSlug) {
+    if (isLoadingTenant) {
+      return (
+        <div
+          className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <span>Identificando tu organización…</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (canonicalContextTenantSlug) {
+      return <Navigate to={buildCanonicalTenantSurveyPath(canonicalContextTenantSlug)} replace />;
+    }
+
+    return (
+      <main
+        className="mx-auto flex min-h-[58vh] w-full max-w-3xl items-center justify-center px-4 py-10"
+        data-testid="public-survey-scope-required"
+      >
+        <Card className="w-full overflow-hidden border-primary/15 shadow-xl shadow-primary/5">
+          <CardHeader className="space-y-5 bg-gradient-to-br from-primary/10 via-background to-background pb-6 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/15 bg-background shadow-sm">
+              <Building2 className="h-7 w-7 text-primary" aria-hidden="true" />
+            </div>
+            <div className="space-y-2">
+              <CardTitle className="text-2xl">Elegí una organización para ver sus encuestas</CardTitle>
+              <p className="mx-auto max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Cada espacio publica sus propias instancias de participación. Abrí el enlace oficial que te
+                compartieron o ingresá desde el portal de la organización para mantener la información
+                correctamente aislada.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5 px-6 py-6 sm:px-8">
+            <div className="flex items-start gap-3 rounded-2xl border bg-muted/35 p-4 text-sm text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <p>
+                Por seguridad no mostramos ni combinamos encuestas hasta confirmar el espacio que las publicó.
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <Button asChild variant="outline">
+                <Link to="/">Volver al inicio</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   if (isLoading) {
     return (

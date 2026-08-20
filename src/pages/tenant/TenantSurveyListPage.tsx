@@ -11,7 +11,6 @@ import { TenantShell } from '@/components/tenant/TenantShell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTenant } from '@/context/TenantContext';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/utils/api';
@@ -65,20 +64,20 @@ const publicErrorMessage = (error: unknown) => {
 
 const TenantSurveyListPage = () => {
   const params = useParams<{ tenant: string }>();
-  const { tenant, currentSlug } = useTenant();
   const { isOnline } = useNetworkStatus();
 
   const slug = useMemo(() => {
-    const fromContext = tenant?.slug ?? currentSlug;
-    if (fromContext?.trim()) return fromContext.trim();
-    if (params.tenant?.trim()) return params.tenant.trim();
-    return '';
-  }, [currentSlug, params.tenant, tenant?.slug]);
+    const routeTenant = params.tenant?.trim();
+    if (!routeTenant || routeTenant.toLowerCase() === 'default') return '';
+    return routeTenant;
+  }, [params.tenant]);
 
   const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
 
   const navigationQuery = useQuery({
-    queryKey: ['tenant-public-navigation-surveys', slug],
+    // TenantShell consumes the same contract; sharing its key lets React Query
+    // deduplicate the request instead of creating a page/shell waterfall.
+    queryKey: ['tenant-public-navigation', slug],
     enabled: Boolean(slug),
     queryFn: () => getTenantPublicNavigation(slug),
     staleTime: 1000 * 60 * 5,
