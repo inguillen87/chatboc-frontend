@@ -1303,6 +1303,10 @@ export const SurveyForm = ({
         ...defaultMetadata,
         metadata: metadataPayload,
         ...(turnstileToken.trim() ? { turnstile_token: turnstileToken.trim() } : {}),
+        privacy_consent: true,
+        ...(typeof (survey as { privacy_policy_version?: unknown })?.privacy_policy_version === 'string'
+          ? { privacy_policy_version: ((survey as { privacy_policy_version?: string }).privacy_policy_version || '').trim() || undefined }
+          : {}),
         ...(publicGovernance.required && publicGovernance.acknowledgment
           ? { governance: publicGovernance.acknowledgment }
           : {}),

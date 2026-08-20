@@ -449,6 +449,8 @@ export interface PublicResponsePayload {
   canal?: 'qr' | 'web' | 'whatsapp' | 'email';
   metadata?: SurveyAnalyticsMetadata;
   turnstile_token?: string;
+  privacy_consent?: boolean;
+  privacy_policy_version?: string;
   governance?: {
     release_id: number;
     snapshot_sha256: string;

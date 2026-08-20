@@ -401,7 +401,14 @@ const PublicSurveyPage = () => {
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
       try {
-        const finalPayload: PublicResponsePayload = { ...payload, ...metadata };
+        const finalPayload: PublicResponsePayload = {
+          ...payload,
+          ...metadata,
+          privacy_consent: true,
+          ...(typeof (survey as { privacy_policy_version?: unknown })?.privacy_policy_version === 'string'
+            ? { privacy_policy_version: ((survey as { privacy_policy_version?: string }).privacy_policy_version || '').trim() || undefined }
+            : {}),
+        };
         await submit(finalPayload, options);
         setLastSubmission(finalPayload);
         setSubmitted(true);
