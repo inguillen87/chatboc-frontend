@@ -1136,11 +1136,13 @@ const normalizeGeoFeatureCollection = (value: unknown): OperationsHeatmapGeoFeat
     ...value,
     type: 'FeatureCollection',
     features: value.features.filter((feature): feature is Record<string, unknown> => isRecord(feature)),
+    metadata: pickRecord(value.metadata),
   };
 };
 
 const normalizeHeatmapGeoLayers = (value: unknown): OperationsHeatmapV1['geo_layers'] => {
   if (!isRecord(value)) return undefined;
+  const { territories: legacyTerritories, ...canonicalValue } = value;
   const rawCategories = pickRecord(value.categories);
   const categories = rawCategories
     ? Object.entries(rawCategories).reduce<Record<string, NonNullable<OperationsHeatmapV1['geo_layers']>['points']>>((acc, [key, raw]) => {
@@ -1151,14 +1153,70 @@ const normalizeHeatmapGeoLayers = (value: unknown): OperationsHeatmapV1['geo_lay
     : undefined;
 
   return {
-    ...value,
+    ...canonicalValue,
     contract_version: asString(value.contract_version),
     provider: asString(value.provider),
     coordinate_order: asString(value.coordinate_order),
     points: normalizeGeoFeatureCollection(value.points),
     cells: normalizeGeoFeatureCollection(value.cells),
     hotspots: normalizeGeoFeatureCollection(value.hotspots),
+    boundaries: normalizeGeoFeatureCollection(value.boundaries ?? legacyTerritories),
     categories,
+  };
+};
+
+const normalizeHeatmapPrivacy = (...values: unknown[]): OperationsHeatmapV1['privacy'] => {
+  const records = values.map(pickRecord).filter((value): value is Record<string, unknown> => Boolean(value));
+  const first = <T,>(aliases: string[], parser: (value: unknown) => T | undefined): T | undefined => {
+    for (const record of records) {
+      for (const alias of aliases) {
+        const parsed = parser(record[alias]);
+        if (parsed !== undefined) return parsed;
+      }
+    }
+    return undefined;
+  };
+
+  const minimumSampleSize = first(
+    ['minimum_sample_size', 'min_sample_size', 'minimumSampleSize', 'k_anonymity_threshold', 'k_anonymity'],
+    asNumber,
+  );
+  const privacy = {
+    mode: first(['mode', 'privacy_mode', 'privacyMode'], asString),
+    aggregation: first(['aggregation', 'aggregation_level', 'aggregationLevel'], asString),
+    minimum_sample_size:
+      minimumSampleSize !== undefined && minimumSampleSize >= 1
+        ? Math.floor(minimumSampleSize)
+        : undefined,
+    raw_points_redacted: first(['raw_points_redacted', 'rawPointsRedacted', 'pii_redacted'], asBoolean),
+    coordinate_precision: first(['coordinate_precision', 'coordinatePrecision'], asString),
+    population_source: first(['population_source', 'populationSource'], asString),
+    boundaries_source: first(['boundaries_source', 'boundary_source', 'boundariesSource'], asString),
+  } satisfies NonNullable<OperationsHeatmapV1['privacy']>;
+
+  return Object.values(privacy).some((value) => value !== undefined) ? privacy : undefined;
+};
+
+const pickEmbeddedPrivacyFields = (value: unknown) => {
+  const record = pickRecord(value);
+  if (!record) return undefined;
+  return {
+    privacy_mode: record.privacy_mode,
+    privacyMode: record.privacyMode,
+    aggregation: record.aggregation,
+    aggregation_level: record.aggregation_level,
+    minimum_sample_size: record.minimum_sample_size,
+    min_sample_size: record.min_sample_size,
+    k_anonymity_threshold: record.k_anonymity_threshold,
+    raw_points_redacted: record.raw_points_redacted,
+    rawPointsRedacted: record.rawPointsRedacted,
+    pii_redacted: record.pii_redacted,
+    coordinate_precision: record.coordinate_precision,
+    coordinatePrecision: record.coordinatePrecision,
+    population_source: record.population_source,
+    populationSource: record.populationSource,
+    boundaries_source: record.boundaries_source,
+    boundary_source: record.boundary_source,
   };
 };
 
@@ -1184,6 +1242,10 @@ const normalizeHeatmapSpatialFilter = (value: unknown): OperationsHeatmapV1['spa
 const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
+  const geoLayers = normalizeHeatmapGeoLayers(record.geo_layers);
+  const sourceQuality = normalizeHeatmapSourceQuality(record.source_quality);
+  const boundaryMetadata = pickRecord(geoLayers?.boundaries?.metadata);
+  const sourceQualitySummary = pickRecord(sourceQuality?.summary);
   const rawLayers = Array.isArray(renderContract?.layers) ? renderContract.layers : [];
   const rawPremiumMetadata = renderContract?.premium_metadata ?? renderContract?.metadata;
   const premiumMetadata = Array.isArray(rawPremiumMetadata)
@@ -1224,9 +1286,23 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),
-    geo_layers: normalizeHeatmapGeoLayers(record.geo_layers),
+    geo_layers: geoLayers,
+    privacy: normalizeHeatmapPrivacy(
+      record.privacy,
+      record.privacy_metadata,
+      pickEmbeddedPrivacyFields(record),
+      renderContract?.privacy,
+      renderContract?.privacy_metadata,
+      pickEmbeddedPrivacyFields(renderContract),
+      boundaryMetadata?.privacy,
+      boundaryMetadata?.privacy_metadata,
+      pickEmbeddedPrivacyFields(boundaryMetadata),
+      sourceQualitySummary?.privacy,
+      sourceQualitySummary?.privacy_metadata,
+      pickEmbeddedPrivacyFields(sourceQualitySummary),
+    ),
     map_layers: pickRecord(record.map_layers) as OperationsHeatmapV1['map_layers'],
-    source_quality: normalizeHeatmapSourceQuality(record.source_quality),
+    source_quality: sourceQuality,
     spatial_filter: normalizeHeatmapSpatialFilter(record.spatial_filter),
     ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
     ai_insights: normalizeHeatmapAiInsights(record.ai_insights),

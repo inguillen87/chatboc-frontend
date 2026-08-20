@@ -13,6 +13,11 @@ import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import {
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
 
@@ -62,13 +67,30 @@ const AdminSurveysIndex = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
-  const { surveys, isLoadingList, listError, publishSurvey, closeSurvey, deleteSurvey, seedSurvey, isPublishing, isClosing, isDeleting, isSeeding, refetchList, tenantSlug } =
-    useSurveyAdmin();
+  const {
+    surveys,
+    isLoadingList,
+    isLoadingMoreSurveys,
+    hasMoreSurveys,
+    listError,
+    loadMoreError,
+    surveyListProgress,
+    publishSurvey,
+    closeSurvey,
+    deleteSurvey,
+    seedSurvey,
+    isPublishing,
+    isClosing,
+    isDeleting,
+    isSeeding,
+    refetchList,
+    loadMoreSurveys,
+    tenantSlug,
+  } = useSurveyAdmin();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
-  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -150,6 +172,13 @@ const AdminSurveysIndex = () => {
       // Optionally refresh analytics data if needed, but refetchList might not be enough if it doesn't return analytics counts
       await refetchList();
     } catch (error) {
+      if (isSurveyResponseDuplicateError(error)) {
+        toast({
+          title: SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+          description: SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+        });
+        return;
+      }
       toast({
         title: 'Error al generar datos',
         description: String((error as Error)?.message ?? error),
@@ -228,7 +257,13 @@ const AdminSurveysIndex = () => {
       ) : null}
 
       {surveys?.overview && tenantSlug && !listError ? (
-        <SurveyOperationsOverview overview={surveys.overview} freshness={surveys.freshness} tenantSlug={tenantSlug} />
+        <SurveyOperationsOverview
+          overview={surveys.overview}
+          freshness={surveys.freshness}
+          tenantSlug={tenantSlug}
+          loadedCount={surveyListProgress.loaded}
+          totalCount={surveyListProgress.total}
+        />
       ) : null}
 
       {listError ? (
@@ -268,7 +303,11 @@ const AdminSurveysIndex = () => {
                 closing={isClosing && closingId === survey.id}
                 onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
                 onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
-                onSeed={syntheticSeedQaEnabled && survey.estado !== 'cerrada' ? () => handleSeed(survey) : undefined}
+                onSeed={
+                  isSurveySyntheticSeedQaEnabled({ tenantId: survey.tenant_id }) && survey.estado !== 'cerrada'
+                    ? () => handleSeed(survey)
+                    : undefined
+                }
                 seeding={isSeeding && seedingId === survey.id}
               />
             </div>
@@ -278,6 +317,41 @@ const AdminSurveysIndex = () => {
               Todavía no cargaste encuestas. Creá una nueva para comenzar la fase de participación.
             </div>
           )}
+          {items.length ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-center">
+              <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                {surveyListProgress.total === null
+                  ? `${surveyListProgress.loaded.toLocaleString('es-AR')} instrumentos cargados`
+                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${surveyListProgress.total.toLocaleString('es-AR')} instrumentos`}
+              </p>
+              {loadMoreError ? (
+                <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                  Conservamos los instrumentos ya cargados. Reintentá para continuar con el listado.
+                </div>
+              ) : null}
+              {hasMoreSurveys ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void loadMoreSurveys()}
+                  disabled={isLoadingMoreSurveys}
+                  aria-describedby="survey-list-progress"
+                >
+                  {isLoadingMoreSurveys ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                      Cargando más…
+                    </>
+                  ) : (
+                    'Cargar más encuestas'
+                  )}
+                </Button>
+              ) : null}
+              <span id="survey-list-progress" className="sr-only">
+                El listado conserva los instrumentos ya cargados al solicitar la página siguiente.
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
       </div>

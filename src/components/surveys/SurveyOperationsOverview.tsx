@@ -7,6 +7,8 @@ interface SurveyOperationsOverviewProps {
   overview: SurveyAdminOverview;
   freshness?: SurveyListResponse['freshness'];
   tenantSlug: string;
+  loadedCount?: number;
+  totalCount?: number | null;
 }
 
 const formatFreshness = (value?: string) => {
@@ -23,15 +25,20 @@ export const SurveyOperationsOverview = ({
   overview,
   freshness,
   tenantSlug,
+  loadedCount,
+  totalCount,
 }: SurveyOperationsOverviewProps) => {
   const generatedAt = formatFreshness(freshness?.generated_at);
   const surveys = overview.por_tipo_instrumento.survey ?? 0;
   const votings = overview.por_tipo_instrumento.voting ?? 0;
+  const loaded = loadedCount ?? overview.total;
+  const knownTotal = typeof totalCount === 'number' ? totalCount : null;
+  const isPartial = knownTotal !== null && knownTotal > loaded;
   const cards = [
     {
-      label: 'Instrumentos',
+      label: isPartial ? 'Instrumentos cargados' : 'Instrumentos',
       value: overview.total,
-      detail: `${surveys} encuestas · ${votings} votaciones`,
+      detail: `${surveys} encuestas · ${votings} votaciones${isPartial ? ` · ${knownTotal.toLocaleString('es-AR')} registrados` : ''}`,
       icon: ClipboardList,
     },
     {
@@ -62,7 +69,18 @@ export const SurveyOperationsOverview = ({
             Estado operativo
           </h2>
           <p className="text-sm text-muted-foreground">
-            Métricas persistidas del tenant <span className="font-medium text-foreground">{tenantSlug}</span>.
+            {isPartial ? (
+              <>
+                Métricas persistidas de los {loaded.toLocaleString('es-AR')} instrumentos cargados de{' '}
+                {knownTotal?.toLocaleString('es-AR')} en{' '}
+                <span className="font-medium text-foreground">{tenantSlug}</span>.
+              </>
+            ) : (
+              <>
+                Métricas persistidas de los instrumentos cargados en{' '}
+                <span className="font-medium text-foreground">{tenantSlug}</span>.
+              </>
+            )}
           </p>
         </div>
         {generatedAt ? (
@@ -89,7 +107,7 @@ export const SurveyOperationsOverview = ({
 
       {!overview.participation_denominator.available ? (
         <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-          Participación porcentual y abstención no se calculan porque este instrumento no tiene una población
+          Participación porcentual y abstención no se calculan cuando los instrumentos no tienen una población
           elegible configurada. El panel no infiere esos valores a partir de las respuestas.
         </p>
       ) : null}

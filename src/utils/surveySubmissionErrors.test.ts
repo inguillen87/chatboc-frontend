@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ApiError, NetworkError } from '@/utils/api';
 import {
   AmbiguousSurveySubmissionError,
+  SURVEY_RESPONSE_DUPLICATE_MESSAGE,
   getSurveySubmissionReasonCode,
+  getSurveySubmissionUserMessage,
   isSurveyResponseDuplicateError,
   isSurveySubmissionIdConflictError,
   shouldReuseSurveySubmissionAttempt,
@@ -25,6 +27,15 @@ describe('survey submission error semantics', () => {
     expect(getSurveySubmissionReasonCode(new ApiError('Conflict', 409, {
       error: { reasonCode: ' SURVEY_SUBMISSION_ID_CONFLICT ' },
     }))).toBe('survey_submission_id_conflict');
+  });
+
+  it('maps an explicit duplicate to fixed public copy without exposing backend detail', () => {
+    const duplicate = new ApiError('duplicate key value violates unique constraint survey_response_identity', 409, {
+      reason_code: 'survey_response_duplicate',
+    });
+
+    expect(getSurveySubmissionUserMessage(duplicate)).toBe(SURVEY_RESPONSE_DUPLICATE_MESSAGE);
+    expect(getSurveySubmissionUserMessage(duplicate)).not.toContain('constraint');
   });
 
   it('reuses an attempt for every unchanged retry except terminal identity outcomes', () => {

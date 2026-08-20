@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "@/utils/api";
-import ChatPanel from "./ChatPanel";
+import ChatPanel, { scrollIntoViewIfSupported } from "./ChatPanel";
 
 const chatLogic = {
   messages: [],
@@ -67,6 +67,29 @@ describe("ChatPanel realtime transport truth", () => {
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/api/public/realtime/session" ? provisionedSession : {},
     );
+  });
+
+  it("degrades auto-scroll safely when the rendered element has no scrollIntoView implementation", () => {
+    const element = document.createElement("div");
+    Object.defineProperty(element, "scrollIntoView", {
+      configurable: true,
+      value: undefined,
+    });
+
+    expect(scrollIntoViewIfSupported(element, { behavior: "auto", block: "end" })).toBe(false);
+  });
+
+  it("does not conceal errors thrown by a real scrollIntoView implementation", () => {
+    const element = document.createElement("div");
+    const scrollFailure = new Error("scroll implementation failed");
+    Object.defineProperty(element, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(() => {
+        throw scrollFailure;
+      }),
+    });
+
+    expect(() => scrollIntoViewIfSupported(element, { behavior: "auto", block: "end" })).toThrow(scrollFailure);
   });
 
   it("does not announce a provisioned client secret as a live call", async () => {

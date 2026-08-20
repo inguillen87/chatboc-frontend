@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -12,7 +12,13 @@ import {
   adminSeedSurvey,
   adminUpdateSurvey,
 } from '@/api/encuestas';
-import type { SurveyAdmin, SurveyDraftPayload, SurveyListResponse } from '@/types/encuestas';
+import type {
+  SurveyAdmin,
+  SurveyAdminListParams,
+  SurveyAdminOverview,
+  SurveyDraftPayload,
+  SurveyListResponse,
+} from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -21,7 +27,12 @@ import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuar
 
 interface UseSurveyAdminOptions {
   id?: number | null;
-  listParams?: Record<string, unknown>;
+  listParams?: SurveyAdminListParams;
+}
+
+interface SurveyListProgress {
+  loaded: number;
+  total: number | null;
 }
 
 interface UseSurveyAdminResult {
@@ -29,8 +40,12 @@ interface UseSurveyAdminResult {
   surveys?: SurveyListResponse;
   isLoadingSurvey: boolean;
   isLoadingList: boolean;
+  isLoadingMoreSurveys: boolean;
+  hasMoreSurveys: boolean;
   surveyError: string | null;
   listError: string | null;
+  loadMoreError: string | null;
+  surveyListProgress: SurveyListProgress;
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   duplicateSurvey: (id?: number, payload?: { titulo?: string; slug?: string }) => Promise<SurveyAdmin>;
@@ -49,12 +64,80 @@ interface UseSurveyAdminResult {
   isDeleting: boolean;
   refetchSurvey: () => Promise<SurveyAdmin | undefined>;
   refetchList: () => Promise<SurveyListResponse | undefined>;
+  loadMoreSurveys: () => Promise<void>;
   tenantSlug: string | null;
   tenantScopeError: string | null;
 }
 
-const buildListKey = (params?: Record<string, unknown>) =>
+const buildListKey = (params?: SurveyAdminListParams) =>
   params ? JSON.stringify(Object.fromEntries(Object.entries(params).sort())) : 'default';
+
+const aggregateLoadedOverview = (
+  surveys: SurveyAdmin[],
+  fallback?: SurveyAdminOverview,
+): SurveyAdminOverview | undefined => {
+  if (!surveys.every((survey) => survey.metricas && survey.admin_lifecycle)) return fallback;
+
+  const overview: SurveyAdminOverview = {
+    total: surveys.length,
+    por_estado: {},
+    activas: 0,
+    con_respuestas: 0,
+    total_respuestas: 0,
+    respuestas_con_coordenadas: 0,
+    respuestas_ultimas_24h: 0,
+    accepting_responses: 0,
+    por_tipo_instrumento: { survey: 0, voting: 0 },
+    participation_denominator: fallback?.participation_denominator ?? {
+      available: false,
+      reason_code: 'survey_eligible_population_not_configured',
+    },
+  };
+
+  for (const survey of surveys) {
+    const metrics = survey.metricas!;
+    const lifecycle = survey.admin_lifecycle!;
+    overview.por_estado[survey.estado] = (overview.por_estado[survey.estado] ?? 0) + 1;
+    overview.activas += survey.esta_activa === true ? 1 : 0;
+    overview.con_respuestas += metrics.total_respuestas > 0 ? 1 : 0;
+    overview.total_respuestas += metrics.total_respuestas;
+    overview.respuestas_con_coordenadas += metrics.respuestas_con_coordenadas;
+    overview.respuestas_ultimas_24h += metrics.respuestas_ultimas_24h;
+    overview.accepting_responses += lifecycle.accepts_responses ? 1 : 0;
+    overview.por_tipo_instrumento[lifecycle.instrument_kind] =
+      (overview.por_tipo_instrumento[lifecycle.instrument_kind] ?? 0) + 1;
+  }
+
+  return overview;
+};
+
+const mergeSurveyListPages = (pages?: SurveyListResponse[]): SurveyListResponse | undefined => {
+  if (!pages?.length) return undefined;
+
+  const seenIds = new Set<number>();
+  const data: SurveyAdmin[] = [];
+  for (const page of pages) {
+    for (const survey of page.data) {
+      if (seenIds.has(survey.id)) continue;
+      seenIds.add(survey.id);
+      data.push(survey);
+    }
+  }
+
+  const firstPage = pages[0];
+  const lastPage = pages[pages.length - 1];
+  const allVersioned = pages.every((page) => page.contract_version === 'surveys.admin_list.v2');
+
+  return {
+    ...firstPage,
+    freshness: lastPage.freshness ?? firstPage.freshness,
+    overview: allVersioned
+      ? aggregateLoadedOverview(data, firstPage.overview)
+      : firstPage.overview,
+    pagination: lastPage.pagination ?? firstPage.pagination,
+    data,
+  };
+};
 
 export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAdminResult {
   const queryClient = useQueryClient();
@@ -64,6 +147,11 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     [currentSlug],
   );
   const normalizedId = useMemo(() => (typeof options.id === 'number' ? options.id : null), [options.id]);
+  const listParams: SurveyAdminListParams = {
+    ...options.listParams,
+    limit: options.listParams?.limit ?? 50,
+  };
+  const listParamsKey = buildListKey(listParams);
   const tenantScopeError = tenantSlug
     ? null
     : 'Seleccioná una organización antes de administrar encuestas y votaciones.';
@@ -84,12 +172,33 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
         : Promise.reject(new Error('No id provided')),
   });
 
-  const listQuery = useQuery({
-    queryKey: queryKeys.surveys.adminList(buildListKey(options.listParams), tenantSlug),
+  const listQuery = useInfiniteQuery({
+    queryKey: queryKeys.surveys.adminList(listParamsKey, tenantSlug),
     enabled: Boolean(tenantSlug),
-    queryFn: () => adminListSurveys(options.listParams as any, requireAdminRequestOptions()),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      adminListSurveys(
+        pageParam
+          ? { ...listParams, cursor: pageParam, page: undefined }
+          : listParams,
+        requireAdminRequestOptions(),
+      ),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination?.has_more
+        ? lastPage.pagination.next_cursor ?? undefined
+        : undefined,
     retry: false,
   });
+
+  const surveys = useMemo(
+    () => mergeSurveyListPages(listQuery.data?.pages),
+    [listQuery.data?.pages],
+  );
+  const surveyListProgress = useMemo<SurveyListProgress>(() => {
+    const loaded = surveys?.data.length ?? 0;
+    const total = surveys?.pagination?.total_items ?? surveys?.meta?.total ?? (surveys ? loaded : null);
+    return { loaded, total };
+  }, [surveys]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
@@ -162,6 +271,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return result;
     },
+    retry: false,
   });
 
   const deleteMutation = useMutation({
@@ -174,11 +284,18 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
 
   return {
     survey: surveyQuery.data,
-    surveys: listQuery.data,
+    surveys,
     isLoadingSurvey: Boolean(tenantSlug) && surveyQuery.isLoading,
     isLoadingList: Boolean(tenantSlug) && listQuery.isLoading,
+    isLoadingMoreSurveys: listQuery.isFetchingNextPage,
+    hasMoreSurveys: Boolean(listQuery.hasNextPage),
     surveyError: tenantScopeError ?? (surveyQuery.error ? getErrorMessage(surveyQuery.error) : null),
-    listError: tenantScopeError ?? (listQuery.error ? getErrorMessage(listQuery.error) : null),
+    listError: tenantScopeError ?? (!surveys && listQuery.error ? getErrorMessage(listQuery.error) : null),
+    loadMoreError:
+      surveys && listQuery.isFetchNextPageError && listQuery.error
+        ? getErrorMessage(listQuery.error)
+        : null,
+    surveyListProgress,
     saveSurvey: async (payload: SurveyDraftPayload) => saveMutation.mutateAsync(payload),
     createSurvey: async (payload: SurveyDraftPayload) => createMutation.mutateAsync(payload),
     duplicateSurvey: async (id?: number, payload?: { titulo?: string; slug?: string }) =>
@@ -201,7 +318,11 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     refetchList: async () => {
       if (!tenantSlug) return undefined;
       const result = await listQuery.refetch();
-      return result.data;
+      return mergeSurveyListPages(result.data?.pages);
+    },
+    loadMoreSurveys: async () => {
+      if (!tenantSlug || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
+      await listQuery.fetchNextPage();
     },
     tenantSlug,
     tenantScopeError,

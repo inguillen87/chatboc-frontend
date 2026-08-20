@@ -73,7 +73,9 @@ describe('TicketListItem', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
-    expect(screen.getByText(/M-378430 - Marcelo/i)).toBeInTheDocument();
+    const contactMetadata = screen.getByLabelText('Ticket M-378430, contacto Marcelo');
+    expect(contactMetadata).toHaveAttribute('title', 'M-378430 - Marcelo');
+    expect(contactMetadata).toHaveTextContent(/M-378430.*Marcelo/i);
   });
 
   it('keeps a specific subject as the primary title and shows category as metadata', () => {
@@ -144,7 +146,7 @@ describe('TicketListItem', () => {
       />,
     );
 
-    expect(screen.getByText(/ahora:/i)).toBeInTheDocument();
+    expect(screen.getByText(/próximo paso:/i)).toBeInTheDocument();
     expect(screen.getByText(/responder desde la mesa operativa/i)).toBeInTheDocument();
     expect(container.querySelector('.bg-primary\\/5')).toBeInTheDocument();
   });

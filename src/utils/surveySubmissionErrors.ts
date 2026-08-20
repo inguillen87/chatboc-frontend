@@ -2,6 +2,12 @@ import { ApiError } from '@/utils/api';
 
 export const SURVEY_RESPONSE_DUPLICATE_REASON_CODE = 'survey_response_duplicate';
 export const SURVEY_SUBMISSION_ID_CONFLICT_REASON_CODE = 'survey_submission_id_conflict';
+export const SURVEY_RESPONSE_DUPLICATE_TITLE = 'Ya registramos tu opinión';
+export const SURVEY_RESPONSE_DUPLICATE_MESSAGE =
+  'Esta consulta admite una sola participación por persona. Tu respuesta anterior sigue registrada y no enviamos una nueva.';
+export const SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE = 'Las respuestas ya estaban registradas';
+export const SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE =
+  'No generamos duplicados. Las respuestas existentes se conservaron sin cambios.';
 
 export class AmbiguousSurveySubmissionError extends Error {
   constructor(message: string) {
@@ -38,6 +44,14 @@ export const isSurveySubmissionIdConflictError = (error: unknown): boolean =>
   error instanceof ApiError &&
   error.status === 409 &&
   getSurveySubmissionReasonCode(error) === SURVEY_SUBMISSION_ID_CONFLICT_REASON_CODE;
+
+export const getSurveySubmissionUserMessage = (error: unknown): string | null => {
+  if (isSurveyResponseDuplicateError(error)) {
+    return SURVEY_RESPONSE_DUPLICATE_MESSAGE;
+  }
+
+  return null;
+};
 
 /**
  * Keep one identity for every retry of an unchanged logical response. Only a

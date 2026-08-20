@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
@@ -127,6 +128,17 @@ import {
 import { isBackofficeRole } from "@/utils/roles";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 import type { WidgetCommerceHistory, WidgetCommerceSession } from "@/types/widgetCommerce";
+
+export const scrollIntoViewIfSupported = (
+  element: Element | null,
+  options: ScrollIntoViewOptions,
+): boolean => {
+  const scrollIntoView = element?.scrollIntoView;
+  if (typeof scrollIntoView !== "function") return false;
+
+  scrollIntoView.call(element, options);
+  return true;
+};
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
 const REALTIME_TOOL_EVENT_NAMES = [
@@ -3150,12 +3162,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         // 3. The user just sent a message (we want to see our own message)
         if (isCloseToBottom || isShortConversation || isLatestMessageMine) {
           // Use 'auto' behavior to prevent layout trashing in iframes
-          if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({
-              behavior: "auto",
-              block: "end",
-            });
-          }
+          scrollIntoViewIfSupported(messagesEndRef.current, {
+            behavior: "auto",
+            block: "end",
+          });
           // Double check via container scrollTop for robustness
           if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop =
@@ -3168,12 +3178,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         }
       } else {
         // Fallback if ref is not ready yet
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({
-            behavior: "auto",
-            block: "end",
-          });
-        }
+        scrollIntoViewIfSupported(messagesEndRef.current, {
+          behavior: "auto",
+          block: "end",
+        });
       }
     }, 100);
     return () => clearTimeout(timer);

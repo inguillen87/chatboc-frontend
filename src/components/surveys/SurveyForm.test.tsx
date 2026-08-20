@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveSurveyPublicGovernance, SurveyForm } from './SurveyForm';
 import type { SurveyPublic, SurveyPublicEligibilityContract } from '@/types/encuestas';
 import { ApiError, NetworkError } from '@/utils/api';
-import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
+import {
+  AmbiguousSurveySubmissionError,
+  SURVEY_RESPONSE_DUPLICATE_MESSAGE,
+} from '@/utils/surveySubmissionErrors';
 import { runBootstrapPrivacyMigrations } from '@/utils/bootstrapPrivacy';
 
 const envMock = vi.hoisted(() => ({ turnstileSiteKey: '' }));
@@ -788,6 +791,35 @@ describe('SurveyForm security contract', () => {
     expect(screen.getByText(/que deberiamos mejorar/i)).toBeInTheDocument();
   });
 
+  it('shows explicit synthetic provenance on public aggregate results', () => {
+    render(
+      <SurveyForm
+        survey={adaptiveSurvey}
+        onSubmit={vi.fn()}
+        readOnly
+        showLiveResults
+        liveResults={{
+          total_respuestas: 45,
+          preguntas: {},
+          data_provenance: {
+            contract_version: 'surveys.response_provenance.v1',
+            mode: 'synthetic',
+            server_trusted_classification: true,
+            contains_synthetic: true,
+            real_responses_included: 0,
+            synthetic_responses_included: 45,
+            synthetic_responses_excluded: 0,
+            synthetic_marker_contract: 'surveys.demo_seeding.v1',
+          },
+        }}
+      />,
+    );
+
+    const provenance = screen.getByTestId('survey-response-provenance-synthetic');
+    expect(provenance).toHaveTextContent('Escenario sintético');
+    expect(provenance).toHaveTextContent('No representa participación ciudadana');
+  });
+
   it('does not restore or rewrite response PII after the bootstrap privacy migration', async () => {
     window.localStorage.setItem(
       'chatboc:survey:draft:global:entrevista-adaptativa',
@@ -910,7 +942,8 @@ describe('SurveyForm security contract', () => {
   });
 
   it('clears in-memory answers and identity after an explicit terminal duplicate', async () => {
-    const onSubmit = vi.fn().mockRejectedValueOnce(new ApiError('Duplicate', 409, {
+    const technicalMessage = 'duplicate key value violates unique constraint survey_response_identity';
+    const onSubmit = vi.fn().mockRejectedValueOnce(new ApiError(technicalMessage, 409, {
       reason_code: 'survey_response_duplicate',
       duplicate: true,
     }));
@@ -930,6 +963,8 @@ describe('SurveyForm security contract', () => {
     await waitFor(() => expect(screen.getByLabelText('Luminaria')).not.toBeChecked());
     expect(screen.getByLabelText('Documento')).toHaveValue('');
     expect(screen.getByLabelText(/tel.fono/i)).toHaveValue('');
+    expect(screen.getByText(SURVEY_RESPONSE_DUPLICATE_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText(technicalMessage)).not.toBeInTheDocument();
   });
 
   it('labels only an explicit duplicate reason as a duplicate, not every 409', async () => {
@@ -950,13 +985,15 @@ describe('SurveyForm security contract', () => {
       <SurveyForm
         survey={baseSurvey}
         onSubmit={vi.fn()}
-        submitErrorMessage="La respuesta ya existe."
+        submitErrorMessage="duplicate key value violates unique constraint survey_response_identity"
         submitErrorStatus={409}
         submitReasonCode="survey_response_duplicate"
       />,
     );
 
     expect(await screen.findByText(/ya registramos tu opini.n/i)).toBeInTheDocument();
+    expect(screen.getByText(SURVEY_RESPONSE_DUPLICATE_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText(/unique constraint/i)).not.toBeInTheDocument();
   });
 
   it('invalidates a failed submission attempt when slug, revision, or signed-in user changes', async () => {

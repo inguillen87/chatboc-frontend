@@ -88,6 +88,17 @@ export interface SurveyLiveQuestionResult {
   opciones: SurveyLiveOptionResult[];
 }
 
+export interface SurveyResponseProvenance {
+  contract_version: 'surveys.response_provenance.v1';
+  mode: 'real' | 'synthetic';
+  server_trusted_classification: true;
+  contains_synthetic: boolean;
+  real_responses_included: number;
+  synthetic_responses_included: number;
+  synthetic_responses_excluded: number;
+  synthetic_marker_contract: 'surveys.demo_seeding.v1';
+}
+
 export interface SurveyLiveResults {
   contract_version?: string;
   result_version?: number | string;
@@ -96,6 +107,8 @@ export interface SurveyLiveResults {
   total_respuestas: number;
   preguntas: Record<string, SurveyLiveQuestionResult>;
   realtime?: SurveyRealtimeContract;
+  data_provenance?: SurveyResponseProvenance;
+  response_provenance?: SurveyResponseProvenance;
 }
 
 export interface SurveyLiveTimelineMinute {
@@ -289,6 +302,8 @@ export interface SurveyLivePublicResultsPayload {
   slug?: string;
   slug_publico?: string;
   total_respuestas?: number;
+  data_provenance?: SurveyResponseProvenance;
+  response_provenance?: SurveyResponseProvenance;
   analytics_range?: SurveyLiveAnalyticsRange;
   preguntas?: SurveyLivePublicQuestion[];
   timeline_minute?: SurveyLiveTimelineMinute[];
@@ -825,11 +840,32 @@ export interface SurveyListResponse {
     synthetic: boolean;
   };
   overview?: SurveyAdminOverview;
+  pagination?: SurveyListPagination;
   meta?: {
     total: number;
     draftCount?: number;
     activeCount?: number;
   };
+}
+
+export interface SurveyAdminListParams {
+  estado?: SurveyAdmin['estado'];
+  limit?: number;
+  cursor?: string;
+  page?: number;
+}
+
+export interface SurveyListPagination {
+  contract_version: 'surveys.pagination.v1';
+  limit: number;
+  page: number | null;
+  cursor: string | null;
+  next_cursor: string | null;
+  next_page: number | null;
+  has_more: boolean;
+  returned: number;
+  total_items: number;
+  ordering: 'id_desc';
 }
 
 export interface SurveyAdminOverview {
@@ -903,6 +939,8 @@ export interface SurveySummary {
   participantes_unicos: number;
   tasa_completitud: number;
   preguntas: SurveySummaryPregunta[];
+  data_provenance?: SurveyResponseProvenance;
+  response_provenance?: SurveyResponseProvenance;
   canales?: Array<{ canal: string; respuestas: number }>;
   utms?: Array<{ fuente: string; campania?: string; respuestas: number }>;
   demografia?: SurveyDemographicBreakdowns;
@@ -1014,6 +1052,8 @@ export interface SurveyHeatmapPoint {
 
 export interface SurveyAnalyticsHeatmap {
   points: SurveyHeatmapPoint[];
+  data_provenance?: SurveyResponseProvenance;
+  response_provenance?: SurveyResponseProvenance;
   cells?: Array<Record<string, unknown>>;
   metadata?: Record<string, unknown>;
   headline?: string;

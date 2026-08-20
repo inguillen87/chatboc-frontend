@@ -141,9 +141,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 <h4 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
                   {subject}
                 </h4>
-                <p className="line-clamp-1 text-[11px] text-muted-foreground" title={`${ticketNumber} - ${displayName}`}>
+                <p
+                  className="line-clamp-1 text-[11px] text-muted-foreground"
+                  title={`${ticketNumber} - ${displayName}`}
+                  aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
+                >
                   <span className="font-bold text-foreground/80">{ticketNumber}</span>
-                  <span className="mx-1 text-muted-foreground/60">•</span>
+                  <span aria-hidden="true" className="mx-1 text-muted-foreground/60">•</span>
                   {displayName}
                 </p>
               </div>
@@ -165,6 +169,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 )}
               </div>
             )}
+            {nextAction ? (
+              <p
+                className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"
+                title={`Próximo paso: ${nextAction}`}
+              >
+                <span className="font-semibold">Próximo paso: </span>
+                {nextAction}
+              </p>
+            ) : null}
           </div>
         </div>
       </motion.button>
@@ -203,9 +216,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
             <h4 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
               {subject}
             </h4>
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5">
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5"
+              title={`${ticketNumber} - ${displayName}`}
+              aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
+            >
               <span className="font-black text-xs text-primary">{ticketNumber}</span>
-              <span className="text-muted-foreground/60 text-xs">•</span>
+              <span aria-hidden="true" className="text-muted-foreground/60 text-xs">•</span>
               <span className="truncate text-xs font-semibold text-foreground/85" title={displayName}>
                 {displayName}
               </span>

@@ -519,7 +519,6 @@ function decodeSegmentFilters(encodedValue: string) {
 
 
 export default function SurveyAnalyticsPage() {
-  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
   const params = useParams();
   const [searchParams] = useSearchParams();
   const { currentSlug } = useTenant();
@@ -676,6 +675,7 @@ export default function SurveyAnalyticsPage() {
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
   const effectiveTenantSlug = tenantScopeSlug ?? effectiveSurvey?.tenant_slug ?? undefined;
+  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled({ tenantId: effectiveSurvey?.tenant_id });
 
   const surveyPublication = useMemo(
     () => asRecord(dashboardBundle?.survey_publication) ?? asRecord(dashboardBundle?.modules?.publication),

@@ -422,6 +422,7 @@ export interface OperationsHeatmapMapLayersContract {
 export interface OperationsHeatmapGeoFeatureCollection {
   type: 'FeatureCollection';
   features: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -432,7 +433,20 @@ export interface OperationsHeatmapGeoLayers {
   points?: OperationsHeatmapGeoFeatureCollection;
   cells?: OperationsHeatmapGeoFeatureCollection;
   hotspots?: OperationsHeatmapGeoFeatureCollection;
+  /** Official administrative or municipal boundaries. Never synthesized by the client. */
+  boundaries?: OperationsHeatmapGeoFeatureCollection;
   categories?: Record<string, OperationsHeatmapGeoFeatureCollection>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapPrivacyMetadata {
+  mode?: string;
+  aggregation?: string;
+  minimum_sample_size?: number;
+  raw_points_redacted?: boolean;
+  coordinate_precision?: string;
+  population_source?: string;
+  boundaries_source?: string;
   [key: string]: unknown;
 }
 
@@ -566,6 +580,7 @@ export interface OperationsHeatmapV1 {
   };
   legend?: Record<string, unknown>;
   geo_layers?: OperationsHeatmapGeoLayers;
+  privacy?: OperationsHeatmapPrivacyMetadata;
   map_layers?: OperationsHeatmapMapLayersContract;
   source_quality?: OperationsHeatmapSourceQuality;
   spatial_filter?: {

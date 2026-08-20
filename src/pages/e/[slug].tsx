@@ -5,13 +5,18 @@ import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, Ref
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
+import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
-import { isSurveyResponseDuplicateError } from '@/utils/surveySubmissionErrors';
+import {
+  SURVEY_RESPONSE_DUPLICATE_MESSAGE,
+  SURVEY_RESPONSE_DUPLICATE_TITLE,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import {
@@ -104,6 +109,8 @@ const toLegacyLiveResults = (
     snapshot_version: value.snapshot_version,
     updated_at: value.updated_at,
     total_respuestas: Number(value.total_respuestas ?? 0) || 0,
+    data_provenance: value.data_provenance,
+    response_provenance: value.response_provenance,
     preguntas,
   };
 };
@@ -433,8 +440,8 @@ const PublicSurveyPage = () => {
         setLastSubmission(null);
         if (isSurveyResponseDuplicateError(err)) {
           toast({
-            title: safeText(votacionMessages?.toast_duplicate_title),
-            description: safeText(votacionMessages?.toast_duplicate_detail),
+            title: textOr(votacionMessages?.toast_duplicate_title, SURVEY_RESPONSE_DUPLICATE_TITLE),
+            description: textOr(votacionMessages?.toast_duplicate_detail, SURVEY_RESPONSE_DUPLICATE_MESSAGE),
           });
           throw err;
         }
@@ -940,6 +947,7 @@ const PublicSurveyPage = () => {
                       </Button>
                     </div>
                   </div>
+                  <SurveyResponseProvenanceBadge sources={[liveDashboard]} />
 
                   {liveDashboardConsecutiveErrors > 2 && liveDashboardError ? (
                     <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">

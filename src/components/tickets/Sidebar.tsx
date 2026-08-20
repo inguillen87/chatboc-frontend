@@ -694,34 +694,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               {filterControl}
               {listModeToggle}
             </div>
-            {/* Quick Category Chips for Municipal Clerks */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-1">
-              {[
-                { label: 'Todos', value: 'all' },
-                { label: '💡 Alumbrado', value: 'Alumbrado' },
-                { label: '🚧 Bacheo', value: 'Bacheo' },
-                { label: '🌳 Espacios Verdes', value: 'Espacios Verdes' },
-                { label: '🧹 Limpieza', value: 'Higiene Urbana' },
-                { label: '🚦 Tránsito', value: 'Tránsito' },
-              ].map((chip) => {
-                const isActive = (filters.area || 'all').toLowerCase() === chip.value.toLowerCase() || (chip.value === 'all' && (!filters.area || filters.area === 'all'));
-                return (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => setFilters((curr) => ({ ...curr, area: chip.value }))}
-                    className={cn(
-                      'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold transition-all cursor-pointer select-none',
-                      isActive
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'border border-border/70 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                    )}
-                  >
-                    {chip.label}
-                  </button>
-                );
-              })}
-            </div>
           </>
         )}
       </div>

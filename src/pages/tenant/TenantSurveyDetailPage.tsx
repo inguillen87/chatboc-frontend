@@ -10,7 +10,11 @@ import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { isSurveyResponseDuplicateError } from '@/utils/surveySubmissionErrors';
+import {
+  SURVEY_RESPONSE_DUPLICATE_MESSAGE,
+  SURVEY_RESPONSE_DUPLICATE_TITLE,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 
@@ -62,8 +66,8 @@ const TenantSurveyDetailPage = () => {
         setLastSubmission(null);
         if (isSurveyResponseDuplicateError(err)) {
           toast({
-            title: 'Ya registramos tu opinión',
-            description: 'La política de unicidad impide enviar más de una respuesta.',
+            title: SURVEY_RESPONSE_DUPLICATE_TITLE,
+            description: SURVEY_RESPONSE_DUPLICATE_MESSAGE,
           });
           throw err;
         }

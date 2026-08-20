@@ -13,6 +13,11 @@ import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import {
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+  SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+  isSurveyResponseDuplicateError,
+} from '@/utils/surveySubmissionErrors';
 
 const isStructureLockedError = (error: unknown) =>
   error instanceof ApiError &&
@@ -41,7 +46,7 @@ const SurveyDetailPage = () => {
     tenantSlug,
   } = useSurveyAdmin({ id: surveyId ?? undefined });
   const [lockedEditMessage, setLockedEditMessage] = useState<string | null>(null);
-  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled();
+  const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled({ tenantId: survey?.tenant_id });
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
@@ -96,8 +101,18 @@ const SurveyDetailPage = () => {
         description: `Se generaron ${result.creadas} respuestas sintéticas.${resetInfo}`,
       });
     } catch (error) {
-      console.error('Seeding failed:', error);
-      toast({ title: 'Error al generar datos sintéticos', variant: 'destructive' });
+      if (isSurveyResponseDuplicateError(error)) {
+        toast({
+          title: SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
+          description: SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
+        });
+        return;
+      }
+      toast({
+        title: 'Error al generar datos sintéticos',
+        description: getErrorMessage(error, 'Intentá nuevamente en unos minutos.'),
+        variant: 'destructive',
+      });
     }
   };
 

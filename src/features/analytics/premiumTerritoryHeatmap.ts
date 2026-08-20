@@ -20,7 +20,12 @@ export interface TerritoryZone {
   id: string;
   label: string;
   polygon: TerritoryPolygonPoint[];
+  polygons?: TerritoryPolygonPoint[][];
+  geoPolygons?: TerritoryPolygonPoint[][];
   population?: number;
+  populationSource?: string;
+  boundarySource?: string;
+  source: 'official' | 'development_demo';
 }
 
 export interface TerritoryCategoryMetric {
@@ -47,8 +52,10 @@ export interface TerritoryHeatmapAggregate {
   zones: TerritoryZoneMetric[];
   totalEvents: number;
   totalRecords: number;
+  unassignedRecords: number;
   activeZones: number;
   alerts: number;
+  hasBoundaries: boolean;
   confidence: 'empty' | 'low' | 'medium' | 'high';
   topCategories: TerritoryCategoryMetric[];
 }
@@ -386,42 +393,69 @@ const centroid = (polygon: TerritoryPolygonPoint[]): TerritoryPolygonPoint => {
   return [x / polygon.length, y / polygon.length];
 };
 
-const getPointBounds = (points: OperationsHeatmapPoint[]) => {
-  const coordinates = points
-    .map((point) => ({ lat: asNumber(point.lat), lng: asNumber(point.lng) }))
-    .filter((point): point is { lat: number; lng: number } => point.lat !== undefined && point.lng !== undefined);
+const parseGeoPosition = (value: unknown): TerritoryPolygonPoint | undefined => {
+  if (!Array.isArray(value) || value.length < 2) return undefined;
+  const lng = asNumber(value[0]);
+  const lat = asNumber(value[1]);
+  if (lng === undefined || lat === undefined || Math.abs(lng) > 180 || Math.abs(lat) > 90) return undefined;
+  return [lng, lat];
+};
 
-  if (!coordinates.length) {
-    return { minLat: -35, maxLat: -34, minLng: -61, maxLng: -60 };
+const parseGeoRing = (value: unknown): TerritoryPolygonPoint[] => {
+  if (!Array.isArray(value)) return [];
+  const ring = value.map(parseGeoPosition).filter((point): point is TerritoryPolygonPoint => Boolean(point));
+  return ring.length >= 3 ? ring : [];
+};
+
+const parseBoundaryPolygons = (geometry: unknown): TerritoryPolygonPoint[][] => {
+  if (!isRecord(geometry) || !Array.isArray(geometry.coordinates)) return [];
+  if (geometry.type === 'Polygon') {
+    const exterior = parseGeoRing(geometry.coordinates[0]);
+    return exterior.length ? [exterior] : [];
   }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates
+      .map((polygon) => (Array.isArray(polygon) ? parseGeoRing(polygon[0]) : []))
+      .filter((polygon) => polygon.length >= 3);
+  }
+  return [];
+};
 
-  const minLat = Math.min(...coordinates.map((point) => point.lat));
-  const maxLat = Math.max(...coordinates.map((point) => point.lat));
-  const minLng = Math.min(...coordinates.map((point) => point.lng));
-  const maxLng = Math.max(...coordinates.map((point) => point.lng));
+const getPolygonBounds = (polygons: TerritoryPolygonPoint[][]) => {
+  const points = polygons.flat();
+  const lngValues = points.map(([lng]) => lng);
+  const latValues = points.map(([, lat]) => lat);
+  const minLng = Math.min(...lngValues);
+  const maxLng = Math.max(...lngValues);
+  const minLat = Math.min(...latValues);
+  const maxLat = Math.max(...latValues);
   return {
-    minLat: minLat === maxLat ? minLat - 0.01 : minLat,
-    maxLat: minLat === maxLat ? maxLat + 0.01 : maxLat,
-    minLng: minLng === maxLng ? minLng - 0.01 : minLng,
-    maxLng: minLng === maxLng ? maxLng + 0.01 : maxLng,
+    minLng,
+    maxLng: minLng === maxLng ? maxLng + 0.0001 : maxLng,
+    minLat,
+    maxLat: minLat === maxLat ? maxLat + 0.0001 : maxLat,
   };
 };
 
-const projectPoint = (
-  point: OperationsHeatmapPoint,
-  bounds: ReturnType<typeof getPointBounds>,
-): TerritoryPolygonPoint => {
-  const lat = asNumber(point.lat) ?? bounds.minLat;
-  const lng = asNumber(point.lng) ?? bounds.minLng;
-  const x = 10 + ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 80;
-  const y = 8 + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * 52;
-  return [Number.isFinite(x) ? x : 50, Number.isFinite(y) ? y : 34];
-};
+const projectBoundaryPoint = (
+  [lng, lat]: TerritoryPolygonPoint,
+  bounds: ReturnType<typeof getPolygonBounds>,
+): TerritoryPolygonPoint => [
+  7 + ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 86,
+  6 + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * 56,
+];
 
-const distance = (a: TerritoryPolygonPoint, b: TerritoryPolygonPoint) => {
-  const dx = a[0] - b[0];
-  const dy = a[1] - b[1];
-  return Math.sqrt(dx * dx + dy * dy);
+const pointInPolygon = ([x, y]: TerritoryPolygonPoint, polygon: TerritoryPolygonPoint[]) => {
+  let inside = false;
+  for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current++) {
+    const [currentX, currentY] = polygon[current];
+    const [previousX, previousY] = polygon[previous];
+    const intersects =
+      currentY > y !== previousY > y &&
+      x < ((previousX - currentX) * (y - currentY)) / (previousY - currentY) + currentX;
+    if (intersects) inside = !inside;
+  }
+  return inside;
 };
 
 const categoryLabel = (value: string) =>
@@ -455,31 +489,136 @@ const passesFilters = (point: OperationsHeatmapPoint, filters?: TerritoryFilterS
 const resolvePointZone = (
   point: OperationsHeatmapPoint,
   zones: TerritoryZone[],
-  bounds: ReturnType<typeof getPointBounds>,
-) => {
+) : TerritoryZone | undefined => {
   const zoneToken = normalizeToken(
     readField(point, ['barrio', 'neighborhood', 'distrito', 'district', 'zone', 'zona']),
   );
   const direct = zones.find((zone) => normalizeToken(zone.id) === zoneToken || normalizeToken(zone.label) === zoneToken);
   if (direct) return direct;
 
-  const projected = projectPoint(point, bounds);
-  return zones.reduce((best, zone) => {
-    const zoneDistance = distance(projected, centroid(zone.polygon));
-    return zoneDistance < best.distance ? { zone, distance: zoneDistance } : best;
-  }, { zone: zones[0], distance: Number.POSITIVE_INFINITY }).zone;
+  const lat = asNumber(point.lat ?? point.latitude);
+  const lng = asNumber(point.lng ?? point.lon ?? point.longitude);
+  if (lat === undefined || lng === undefined) return undefined;
+  return zones.find((zone) => zone.geoPolygons?.some((polygon) => pointInPolygon([lng, lat], polygon)));
 };
 
-export const DEFAULT_TERRITORY_ZONES: TerritoryZone[] = [
-  { id: 'centro', label: 'Centro', population: 32000, polygon: [[31, 25], [48, 21], [58, 31], [52, 45], [35, 47], [25, 36]] },
-  { id: 'norte', label: 'Norte', population: 22000, polygon: [[30, 7], [53, 6], [61, 21], [48, 21], [31, 25], [22, 17]] },
-  { id: 'sur', label: 'Sur', population: 26000, polygon: [[34, 47], [52, 45], [63, 57], [51, 65], [28, 62], [20, 51]] },
-  { id: 'oeste', label: 'Oeste', population: 18000, polygon: [[8, 21], [22, 17], [31, 25], [25, 36], [13, 43], [5, 34]] },
-  { id: 'este', label: 'Este', population: 21000, polygon: [[61, 21], [82, 18], [92, 32], [79, 43], [58, 31]] },
-  { id: 'parque', label: 'Parque', population: 14000, polygon: [[13, 43], [25, 36], [35, 47], [28, 62], [10, 58], [5, 49]] },
-  { id: 'ribera', label: 'Ribera', population: 12000, polygon: [[79, 43], [92, 32], [97, 52], [86, 63], [63, 57], [52, 45]] },
-  { id: 'industrial', label: 'Industrial', population: 15000, polygon: [[53, 6], [76, 7], [90, 17], [82, 18], [61, 21]] },
+export const DEVELOPMENT_TERRITORY_ZONES: TerritoryZone[] = [
+  { id: 'centro', label: 'Centro', population: 32000, source: 'development_demo', polygon: [[31, 25], [48, 21], [58, 31], [52, 45], [35, 47], [25, 36]] },
+  { id: 'norte', label: 'Norte', population: 22000, source: 'development_demo', polygon: [[30, 7], [53, 6], [61, 21], [48, 21], [31, 25], [22, 17]] },
+  { id: 'sur', label: 'Sur', population: 26000, source: 'development_demo', polygon: [[34, 47], [52, 45], [63, 57], [51, 65], [28, 62], [20, 51]] },
+  { id: 'oeste', label: 'Oeste', population: 18000, source: 'development_demo', polygon: [[8, 21], [22, 17], [31, 25], [25, 36], [13, 43], [5, 34]] },
+  { id: 'este', label: 'Este', population: 21000, source: 'development_demo', polygon: [[61, 21], [82, 18], [92, 32], [79, 43], [58, 31]] },
+  { id: 'parque', label: 'Parque', population: 14000, source: 'development_demo', polygon: [[13, 43], [25, 36], [35, 47], [28, 62], [10, 58], [5, 49]] },
+  { id: 'ribera', label: 'Ribera', population: 12000, source: 'development_demo', polygon: [[79, 43], [92, 32], [97, 52], [86, 63], [63, 57], [52, 45]] },
+  { id: 'industrial', label: 'Industrial', population: 15000, source: 'development_demo', polygon: [[53, 6], [76, 7], [90, 17], [82, 18], [61, 21]] },
 ];
+
+const officialBoundaryProvenance = (metadata: Record<string, unknown> | undefined) => {
+  const provenance = isRecord(metadata?.provenance) ? metadata.provenance : undefined;
+  return readFirstString(
+    metadata?.source,
+    metadata?.dataset,
+    metadata?.authority,
+    typeof metadata?.provenance === 'string' ? metadata.provenance : undefined,
+    provenance?.source,
+    provenance?.dataset,
+    provenance?.authority,
+    provenance?.publisher,
+  );
+};
+
+const hasOfficialBoundaryEvidence = (metadata: Record<string, unknown> | undefined) => {
+  const source = officialBoundaryProvenance(metadata);
+  const normalizedSource = normalizeToken(source);
+  return (
+    asBoolean(metadata?.official) === true &&
+    Boolean(source) &&
+    asBoolean(metadata?.synthetic) !== true &&
+    asBoolean(metadata?.demo) !== true &&
+    !normalizedSource.includes('synthetic') &&
+    !normalizedSource.includes('sintet') &&
+    !normalizedSource.includes('demo')
+  );
+};
+
+export const resolveOfficialTerritoryZones = (heatmap?: OperationsHeatmapV1): TerritoryZone[] => {
+  const collection = heatmap?.geo_layers?.boundaries;
+  if (!collection || !Array.isArray(collection.features)) return [];
+  const metadata = isRecord(collection.metadata) ? collection.metadata : undefined;
+  if (!hasOfficialBoundaryEvidence(metadata)) return [];
+
+  const rawZones = collection.features.reduce<Array<{
+    id: string;
+    label: string;
+    geoPolygons: TerritoryPolygonPoint[][];
+    population?: number;
+  }>>((zones, feature, index) => {
+    const properties = isRecord(feature.properties) ? feature.properties : {};
+    const geoPolygons = parseBoundaryPolygons(feature.geometry);
+    if (!geoPolygons.length) return zones;
+    const numericId = readFirstNumber(feature.id, properties.id, properties.code, properties.codigo);
+    const id = readFirstString(feature.id, properties.id, properties.code, properties.codigo) ??
+      (numericId !== undefined ? String(numericId) : undefined);
+    const label = readFirstString(
+      properties.label,
+      properties.name,
+      properties.nombre,
+      properties.barrio,
+      properties.zona,
+      properties.district,
+      id,
+    );
+    if (!label) return zones;
+    const population = readFirstNumber(
+      properties.population,
+      properties.poblacion,
+      properties.population_total,
+      properties.population_estimate,
+    );
+    zones.push({
+      id: id ?? `boundary-${index + 1}`,
+      label,
+      geoPolygons,
+      population: population !== undefined && population > 0 ? population : undefined,
+    });
+    return zones;
+  }, []);
+  if (!rawZones.length) return [];
+
+  const bounds = getPolygonBounds(rawZones.flatMap((zone) => zone.geoPolygons));
+  const boundarySource = readFirstString(
+    officialBoundaryProvenance(metadata),
+    heatmap.privacy?.boundaries_source,
+  );
+  const populationSource = readFirstString(
+    metadata?.population_source,
+    heatmap.privacy?.population_source,
+  );
+  const seen = new Map<string, number>();
+
+  return rawZones.map((zone) => {
+    const occurrences = seen.get(zone.id) ?? 0;
+    seen.set(zone.id, occurrences + 1);
+    const polygons = zone.geoPolygons.map((polygon) => polygon.map((point) => projectBoundaryPoint(point, bounds)));
+    const trustedPopulation = zone.population !== undefined && populationSource ? zone.population : undefined;
+    return {
+      id: occurrences ? `${zone.id}-${occurrences + 1}` : zone.id,
+      label: zone.label,
+      polygon: polygons[0],
+      polygons,
+      geoPolygons: zone.geoPolygons,
+      population: trustedPopulation,
+      populationSource: trustedPopulation ? populationSource : undefined,
+      boundarySource,
+      source: 'official',
+    };
+  });
+};
+
+export const isTerritoryDemoFallbackEnabled = (
+  mode: string = import.meta.env.MODE,
+  explicitFlag: string | undefined = import.meta.env.VITE_ENABLE_TERRITORY_DEMO_FALLBACK,
+) => mode.trim().toLowerCase() === 'development' && explicitFlag?.trim().toLowerCase() === 'true';
 
 const DEMO_CATEGORIES = {
   gobierno: ['reclamos', 'turnos', 'salud', 'espacios_publicos'],
@@ -499,7 +638,7 @@ export const getDemoTerritoryHeatmapPoints = (
   const categories = DEMO_CATEGORIES[profile] ?? DEMO_CATEGORIES.general;
   const points: OperationsHeatmapPoint[] = [];
 
-  DEFAULT_TERRITORY_ZONES.forEach((zone, zoneIndex) => {
+  DEVELOPMENT_TERRITORY_ZONES.forEach((zone, zoneIndex) => {
     const [x, y] = centroid(zone.polygon);
     categories.forEach((category, categoryIndex) => {
       const records = 4 + ((zoneIndex + categoryIndex) % 5);
@@ -532,16 +671,28 @@ export const getDemoTerritoryHeatmapPoints = (
 export const aggregateTerritoryHeatmap = ({
   points,
   filters,
-  zones = DEFAULT_TERRITORY_ZONES,
+  zones,
   minSampleSize = PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
 }: {
   points: OperationsHeatmapPoint[];
   filters?: TerritoryFilterState;
-  zones?: TerritoryZone[];
+  zones: TerritoryZone[];
   minSampleSize?: number;
 }): TerritoryHeatmapAggregate => {
   const filteredPoints = points.filter((point) => passesFilters(point, filters));
-  const bounds = getPointBounds(filteredPoints);
+  if (!zones.length) {
+    return {
+      zones: [],
+      totalEvents: 0,
+      totalRecords: 0,
+      unassignedRecords: filteredPoints.length,
+      activeZones: 0,
+      alerts: 0,
+      hasBoundaries: false,
+      confidence: 'empty',
+      topCategories: [],
+    };
+  }
   const byZone = new Map(
     zones.map((zone) => [
       zone.id,
@@ -555,10 +706,18 @@ export const aggregateTerritoryHeatmap = ({
     ]),
   );
 
+  let unassignedRecords = 0;
   filteredPoints.forEach((point) => {
-    const zone = resolvePointZone(point, zones, bounds);
+    const zone = resolvePointZone(point, zones);
+    if (!zone) {
+      unassignedRecords += 1;
+      return;
+    }
     const metric = byZone.get(zone.id);
-    if (!metric) return;
+    if (!metric) {
+      unassignedRecords += 1;
+      return;
+    }
     const weight = readWeight(point);
     const previous = readPreviousWeight(point);
     const category = readField(point, ['categoria', 'category']) ?? 'sin_categoria';
@@ -625,8 +784,10 @@ export const aggregateTerritoryHeatmap = ({
     zones: zonesMetrics,
     totalEvents: Number(totalEvents.toFixed(2)),
     totalRecords,
+    unassignedRecords,
     activeZones,
     alerts,
+    hasBoundaries: true,
     confidence,
     topCategories: Array.from(categoryTotals.entries())
       .map(([key, total]) => ({ key, label: categoryLabel(key), total: Number(total.toFixed(2)) }))
@@ -637,5 +798,10 @@ export const aggregateTerritoryHeatmap = ({
 
 export const territoryPolygonToPath = (polygon: TerritoryPolygonPoint[]) =>
   polygon.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ') + ' Z';
+
+export const territoryZoneToPath = (zone: TerritoryZone) =>
+  (zone.polygons?.length ? zone.polygons : [zone.polygon])
+    .map(territoryPolygonToPath)
+    .join(' ');
 
 export const territoryCentroid = centroid;

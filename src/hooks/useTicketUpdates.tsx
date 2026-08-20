@@ -3,18 +3,24 @@ import { toast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
 import useTicketRealtime from '@/hooks/useTicketRealtime';
 import { safeOn } from '@/utils/safeOn';
+import {
+  isTenantTicketCollectionInvalidation,
+  TENANT_TICKET_INVALIDATION_CONTRACT_VERSION,
+} from '@/utils/tenantTicketInvalidation';
 
 interface UseTicketUpdatesOptions {
   onNewTicket?: (data: any) => void;
   onNewComment?: (data: any) => void;
   onUnreadChanged?: (data: any) => void;
+  onCollectionInvalidated?: (data: unknown) => void;
 }
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
-  const { onNewTicket, onNewComment, onUnreadChanged } = options;
+  const { onNewTicket, onNewComment, onUnreadChanged, onCollectionInvalidated } = options;
   const newTicketRef = useRef<UseTicketUpdatesOptions['onNewTicket']>(onNewTicket);
   const newCommentRef = useRef<UseTicketUpdatesOptions['onNewComment']>(onNewComment);
   const unreadChangedRef = useRef<UseTicketUpdatesOptions['onUnreadChanged']>(onUnreadChanged);
+  const collectionInvalidatedRef = useRef<UseTicketUpdatesOptions['onCollectionInvalidated']>(onCollectionInvalidated);
 
   const { socket } = useSocket();
 
@@ -30,6 +36,10 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   useEffect(() => {
     unreadChangedRef.current = onUnreadChanged;
   }, [onUnreadChanged]);
+
+  useEffect(() => {
+    collectionInvalidatedRef.current = onCollectionInvalidated;
+  }, [onCollectionInvalidated]);
 
   useTicketRealtime({
     onRawEvent: (eventName, data) => {
@@ -54,6 +64,17 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     };
 
     const handleTicketUpdate = (data: any) => {
+      if (isTenantTicketCollectionInvalidation(data)) {
+        collectionInvalidatedRef.current?.(data);
+        return;
+      }
+      if (
+        data &&
+        typeof data === 'object' &&
+        data.contract_version === TENANT_TICKET_INVALIDATION_CONTRACT_VERSION
+      ) {
+        return;
+      }
       newTicketRef.current?.(data);
     };
 
