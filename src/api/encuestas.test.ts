@@ -479,19 +479,9 @@ describe('listPublicSurveys', () => {
     expect(result.__badPayload).toBe(true);
   });
 
-  it('does not retry non-v1 or /public aliases when strict v1 contract fails', async () => {
-    apiFetchMock.mockRejectedValueOnce(new ApiError('Not Found', 404));
-
-    const result = await listPublicSurveys();
-
-    expect(result).toHaveLength(0);
-    expect(result.__badPayload).toBe(true);
-    expect(apiFetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/public/encuestas/v1',
-      expect.any(Object),
-    );
-    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  it.each([undefined, '', '   ', 'default', ' DEFAULT '])('fails closed before the network without an explicit tenant (%s)', async (tenantSlug) => {
+    await expect(listPublicSurveys(tenantSlug)).rejects.toThrow(/organización explícita/i);
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });
 

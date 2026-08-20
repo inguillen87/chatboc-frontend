@@ -341,46 +341,6 @@ const asFlaggedEmptyList = (
     __fallbackNotice: payload.fallbackNotice,
   });
 
-const hasPanelToken = () => {
-  try {
-    const token = safeLocalStorage.getItem('authToken');
-    return Boolean(token && token.trim());
-  } catch (error) {
-    console.warn('[encuestas] No se pudo acceder al token del panel para el fallback público', error);
-    return false;
-  }
-};
-
-const sanitizeAdminSurveys = (items: SurveyAdmin[]): SurveyPublic[] =>
-  items.map(({ estado: _estado, created_at: _createdAt, updated_at: _updatedAt, anonimato: _anonimato, unica_por_persona: _unica, ...rest }) => rest);
-
-const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | null> => {
-  if (!hasPanelToken()) {
-    return null;
-  }
-
-  try {
-    const adminResponse = await callAdminSurveyEndpoint<SurveyListResponse>(buildQueryString({ estado: 'publicada' }));
-    const published = Array.isArray(adminResponse?.data)
-      ? adminResponse.data.filter((survey) => survey.estado === 'publicada')
-      : [];
-
-    if (!published.length) {
-      return null;
-    }
-
-    const sanitized = sanitizeAdminSurveys(published);
-    return Object.assign(sanitized, {
-      __badPayload: true as const,
-      __fallbackNotice:
-        'Mostramos las encuestas publicadas recuperadas desde el panel porque el listado público devolvió un resultado vacío.',
-    });
-  } catch (error) {
-    console.warn('[encuestas] No se pudo recuperar el listado público desde el panel como fallback', error);
-    return null;
-  }
-};
-
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/v2/public/surveys/${slug}`, tenantSlug),
@@ -525,15 +485,20 @@ const attemptRecoveryFromRawPayload = async (
 };
 
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
+  const normalizedTenantSlug = tenantSlug?.trim().toLowerCase();
+  if (!normalizedTenantSlug || normalizedTenantSlug === 'default') {
+    throw new Error('Se requiere una organización explícita para consultar encuestas públicas.');
+  }
+
   try {
     const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
-      withTenantSlugParam('/api/public/encuestas/v1', tenantSlug),
+      withTenantSlugParam('/api/public/encuestas/v1', normalizedTenantSlug),
     ), {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
       omitChatSessionId: true,
-      tenantSlug,
+      tenantSlug: normalizedTenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
       omitEntityToken: true,
       omitTenant: true,
@@ -542,13 +507,6 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
     if (Array.isArray(response)) {
       if (response.length > 0) {
         return response as SurveyPublic[];
-      }
-
-      if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && !tenantSlug) {
-        const recoveredFromAdmin = await attemptRecoveryFromAdminList();
-        if (recoveredFromAdmin) {
-          return recoveredFromAdmin;
-        }
       }
 
       return response as SurveyPublic[];
@@ -573,7 +531,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
 
     const raw = serializeUnknown(response);
     if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && raw) {
-      const recovered = await attemptRecoveryFromRawPayload(raw, undefined, tenantSlug);
+      const recovered = await attemptRecoveryFromRawPayload(raw, undefined, normalizedTenantSlug);
       if (recovered) {
         return recovered;
       }
@@ -595,7 +553,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
             : serializeUnknown(error.body);
 
       if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && rawBody) {
-        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status, tenantSlug);
+        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status, normalizedTenantSlug);
         if (recovered) {
           return recovered;
         }

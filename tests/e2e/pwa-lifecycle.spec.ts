@@ -196,7 +196,9 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(offlineSurveysResponse?.status()).toBe(200);
   await expect(offlineSurveysPage).toHaveTitle(/Encuestas ciudadanas/i);
   await expect(offlineSurveysPage).toHaveURL(/\/encuestas\?pwa-offline=1$/);
-  await expect(offlineSurveysPage.getByText(/No pudimos cargar las encuestas/i).first()).toBeVisible();
+  await expect(
+    offlineSurveysPage.getByRole('heading', { name: /Elegí una organización para ver sus encuestas/i }),
+  ).toBeVisible();
   await expect
     .poll(() => offlineSurveysPage.locator('#root').evaluate((root) => root.childElementCount))
     .toBeGreaterThan(0);

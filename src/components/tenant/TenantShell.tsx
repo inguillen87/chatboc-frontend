@@ -42,13 +42,24 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   } = useTenant();
   const [updatingFollow, setUpdatingFollow] = useState(false);
 
-  const slugForPath = tenant?.slug ?? currentSlug ?? null;
+  const rawTenantSlug = tenant?.slug?.trim() || null;
+  const resolvedTenant = rawTenantSlug && rawTenantSlug.toLowerCase() !== 'default' ? tenant : null;
+  const resolvedTenantSlug = resolvedTenant?.slug?.trim() || null;
+  const normalizedCurrentSlug = currentSlug?.trim().toLowerCase() || null;
+  const navigationTenantSlug =
+    !isLoadingTenant &&
+    !tenantError &&
+    resolvedTenantSlug &&
+    normalizedCurrentSlug === resolvedTenantSlug.toLowerCase()
+      ? resolvedTenantSlug
+      : null;
+  const slugForPath = resolvedTenantSlug ?? currentSlug ?? null;
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
 
   const navigationQuery = useQuery({
-    queryKey: ['tenant-public-navigation', slugForPath],
-    enabled: Boolean(slugForPath && tenant),
-    queryFn: () => getTenantPublicNavigation(slugForPath as string),
+    queryKey: ['tenant-public-navigation', navigationTenantSlug],
+    enabled: Boolean(navigationTenantSlug),
+    queryFn: () => getTenantPublicNavigation(navigationTenantSlug as string),
     staleTime: 1000 * 60 * 5,
     retry: 1,
   });
@@ -103,7 +114,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
       );
     }
 
-    if (!tenant) {
+    if (!resolvedTenant) {
       return (
         <div className="flex flex-col gap-3">
           <h1 className="text-2xl font-semibold">No encontramos informacion para este espacio.</h1>
@@ -120,28 +131,28 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     return (
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 items-start gap-4">
-          {tenant.logo_url ? (
+          {resolvedTenant.logo_url ? (
             <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-white/80 shadow-sm sm:block">
               <img
-                src={tenant.logo_url}
-                alt={`Logo de ${tenant.nombre}`}
+                src={resolvedTenant.logo_url}
+                alt={`Logo de ${resolvedTenant.nombre}`}
                 className="h-full w-full object-contain"
               />
             </div>
           ) : null}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              {tenant.tipo ? (
+              {resolvedTenant.tipo ? (
                 <Badge variant="secondary" className="uppercase tracking-wide">
-                  {tenant.tipo}
+                  {resolvedTenant.tipo}
                 </Badge>
               ) : null}
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
-              <h1 className="text-3xl font-semibold leading-tight">{tenant.nombre}</h1>
-              {tenant.descripcion ? (
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{tenant.descripcion}</p>
+              <h1 className="text-3xl font-semibold leading-tight">{resolvedTenant.nombre}</h1>
+              {resolvedTenant.descripcion ? (
+                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{resolvedTenant.descripcion}</p>
               ) : null}
             </div>
           </div>
