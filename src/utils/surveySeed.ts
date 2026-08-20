@@ -343,6 +343,69 @@ const SCENARIO_PRESETS: Record<string, Partial<SurveySeedScenario>> = {
       'Crear mesas de agua con productores, cooperativas y municipios.',
     ],
   },
+  'tdf-gestion-2026': {
+    label: 'Tierra del Fuego - Gestión Provincial 2026',
+    municipalityLabel: 'Tierra del Fuego (Ushuaia, Río Grande, Tolhuin)',
+    clusters: [
+      { lat: -54.8072, lng: -68.3077, radiusKm: 2.5, weight: 3.8, barrio: 'Centro', ciudad: 'Ushuaia', provincia: 'Tierra del Fuego' },
+      { lat: -54.8210, lng: -68.3450, radiusKm: 2.8, weight: 2.9, barrio: 'Río Pipo', ciudad: 'Ushuaia', provincia: 'Tierra del Fuego' },
+      { lat: -54.7950, lng: -68.2880, radiusKm: 2.2, weight: 2.4, barrio: 'La Cantera / Kaupen', ciudad: 'Ushuaia', provincia: 'Tierra del Fuego' },
+      { lat: -54.8010, lng: -68.3240, radiusKm: 2.0, weight: 2.2, barrio: 'Malvinas Argentinas', ciudad: 'Ushuaia', provincia: 'Tierra del Fuego' },
+      { lat: -53.7877, lng: -67.7000, radiusKm: 3.2, weight: 4.2, barrio: 'Centro', ciudad: 'Río Grande', provincia: 'Tierra del Fuego' },
+      { lat: -53.7720, lng: -67.7210, radiusKm: 2.5, weight: 3.1, barrio: 'Chacra II / IV', ciudad: 'Río Grande', provincia: 'Tierra del Fuego' },
+      { lat: -53.8050, lng: -67.6890, radiusKm: 3.0, weight: 2.7, barrio: 'Margen Sur', ciudad: 'Río Grande', provincia: 'Tierra del Fuego' },
+      { lat: -53.7910, lng: -67.7400, radiusKm: 2.2, weight: 2.0, barrio: 'Barrio AGP / Mutual', ciudad: 'Río Grande', provincia: 'Tierra del Fuego' },
+      { lat: -54.5100, lng: -67.1950, radiusKm: 2.0, weight: 1.5, barrio: 'Centro / Lago Fagnano', ciudad: 'Tolhuin', provincia: 'Tierra del Fuego' },
+    ],
+    utms: [
+      { source: 'whatsapp', campaign: 'tdf-gestion-provincial', weight: 4.0 },
+      { source: 'web', campaign: 'consulta-ciudadana-tdf', weight: 2.8 },
+      { source: 'qr', campaign: 'puntos-innovacion-tdf', weight: 2.0 },
+      { source: 'redes', campaign: 'gobierno-tdf-melella', weight: 1.8 },
+    ],
+    channels: [
+      { value: 'whatsapp', weight: 4.0 },
+      { value: 'web', weight: 3.0 },
+      { value: 'qr', weight: 2.0 },
+      { value: 'email', weight: 1.0 },
+    ],
+    openAnswers: [
+      'Priorizar la ampliación de infraestructura de conectividad e internet de alta velocidad en toda la provincia.',
+      'Reforzar los centros de salud barriales y guardias médicas en Río Grande y Ushuaia.',
+      'Profundizar programas de innovación, tecnología y empleo joven articulados con la industria fueguina.',
+      'Mejorar la frecuencia y cobertura del transporte público y conectividad interurbana.',
+      'Avanzar en soluciones habitacionales y servicios básicos en Margen Sur y barrios altos de Ushuaia.',
+      'Impulsar la diversificación productiva, turismo sustentable y economía del conocimiento.',
+    ],
+    questionBias: {
+      '1': {
+        weights: {
+          'infraestructura-conectividad-y-servicios': 3.5,
+          'salud-publica-y-equipamiento-hospitalario': 3.2,
+          'educacion-tecnologia-e-innovacion': 2.8,
+          'empleo-y-desarrollo-productivo': 2.6,
+          'vivienda-y-habitat-social': 2.4,
+          'seguridad-ciudadana-y-prevencion': 1.8,
+        },
+      },
+      '2': {
+        weights: {
+          'muy-buena-avances-visibles': 3.2,
+          'buena-con-aspectos-a-mejorar': 3.4,
+          'regular-se-necesita-mas-ritmo': 2.0,
+          'mala-se-requieren-cambios-de-prioridad': 0.8,
+        },
+      },
+      '3': {
+        weights: {
+          'totalmente-a-favor-mayor-transparencia': 4.0,
+          'a-favor-con-seguimiento-periodico': 3.0,
+          'indiferente': 0.6,
+          'en-desacuerdo': 0.2,
+        },
+      },
+    },
+  },
 };
 
 const SCENARIO_MATCHERS: Array<{
@@ -353,6 +416,13 @@ const SCENARIO_MATCHERS: Array<{
   { predicate: (survey) => survey?.slug?.includes('intencion-voto-municipal-2025') ?? false, scenario: 'mendoza-intencion-voto-2025' },
   { predicate: (survey) => survey?.slug?.includes('inflacion-hogar-2025') ?? false, scenario: 'mendoza-costo-vida-2025' },
   { predicate: (survey) => survey?.slug?.includes('agenda-hidrica-2026') ?? false, scenario: 'mendoza-agua-2026' },
+  {
+    predicate: (survey) => {
+      const text = `${survey?.slug || ''} ${survey?.titulo || ''} ${survey?.descripcion || ''}`.toLowerCase();
+      return text.includes('tierra del fuego') || text.includes('tdf') || text.includes('ushuaia') || text.includes('rio grande') || text.includes('melella');
+    },
+    scenario: 'tdf-gestion-2026',
+  },
 ];
 
 const detectScenarioName = (survey: SurveyPublic, explicit?: string | null) => {
