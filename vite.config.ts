@@ -196,6 +196,7 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [
             /^\/(?:api|ask|archivos|public|socket\.io)(?:\/|$)/,
             /^\/(?:iframe|widget)(?:\/|$)/,
+            /^\/widget\.js$/,
             /^\/portal(?:\/|$)/,
             /^\/iframe\.html$/,
           ],
