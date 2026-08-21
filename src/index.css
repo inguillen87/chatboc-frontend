@@ -18,6 +18,9 @@
   }
   .chatboc-brand-navbar {
     padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: 0.5rem;
+    padding-left: max(1rem, env(safe-area-inset-left));
     background:
       linear-gradient(90deg, hsl(var(--background) / 0.94), hsl(var(--background) / 0.88)),
       radial-gradient(circle at 12% 0%, rgba(26, 124, 255, 0.14), transparent 26%),
@@ -1964,8 +1967,8 @@ html {
   }
 
   .chatboc-pwa-install {
-    left: 0.75rem;
-    right: 0.75rem;
+    left: calc(0.75rem + env(safe-area-inset-left));
+    right: calc(0.75rem + env(safe-area-inset-right));
     bottom: calc(5rem + env(safe-area-inset-bottom));
     width: auto;
     align-items: flex-start;
@@ -1988,6 +1991,36 @@ html {
     right: calc(3.75rem + env(safe-area-inset-right));
     top: calc(0.65rem + env(safe-area-inset-top));
     bottom: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .chatboc-mobile-menu {
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    scroll-padding-block: 0.75rem;
+    scrollbar-gutter: stable;
+  }
+
+  body.chatboc-mobile-menu-open .chatboc-a11y-dock {
+    right: calc(4.75rem + env(safe-area-inset-right));
+    left: auto;
+    top: calc(0.65rem + env(safe-area-inset-top));
+    bottom: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chatboc-mobile-menu,
+  .chatboc-mobile-menu *,
+  .chatboc-a11y-dock,
+  .chatboc-a11y-dock * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
 

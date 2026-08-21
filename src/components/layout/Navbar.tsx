@@ -1,6 +1,6 @@
 // src/components/layout/Navbar.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
   BarChart3,
@@ -24,6 +24,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
 import { useClerkRuntime } from "@/components/auth/ClerkRuntimeContext";
+import { setMobileNavigationOpen } from "@/components/app-shell/mobileNavigationOverlay";
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,17 @@ const landingNavItems = [
   { id: "publico-objetivo", label: "Sectores" },
   { id: "cta", label: "Empezar" },
 ];
+
+const MOBILE_MENU_ID = "chatboc-mobile-navigation";
+const DESKTOP_NAVIGATION_QUERY = "(min-width: 768px)";
+
+const getScrollBehavior = (): ScrollBehavior => {
+  if (typeof window === "undefined") return "auto";
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+    document.documentElement.classList.contains("a11y-reduced-motion")
+    ? "auto"
+    : "smooth";
+};
 
 const isRecord = (value: unknown): value is Record<string, any> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -106,6 +118,8 @@ const parseStoredUser = (raw: string | null) => {
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
@@ -233,6 +247,41 @@ const Navbar: React.FC = () => {
     setIsDark(false);
   }, []);
 
+  useLayoutEffect(() => {
+    setMobileNavigationOpen(menuOpen);
+    return () => setMobileNavigationOpen(false);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      mobileMenuButtonRef.current?.focus();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen || typeof window.matchMedia !== "function") return;
+
+    const desktopNavigation = window.matchMedia(DESKTOP_NAVIGATION_QUERY);
+    const closeForDesktop = () => {
+      setMenuOpen(false);
+      brandHomeButtonRef.current?.focus({ preventScroll: true });
+    };
+    const handleBreakpointChange = (event: MediaQueryListEvent) => {
+      if (event.matches) closeForDesktop();
+    };
+
+    if (desktopNavigation.matches) closeForDesktop();
+    desktopNavigation.addEventListener("change", handleBreakpointChange);
+    return () => desktopNavigation.removeEventListener("change", handleBreakpointChange);
+  }, [menuOpen]);
+
   const toggleDarkMode = () => {
     const html = document.documentElement;
     const currentlyDark = html.classList.contains("dark");
@@ -252,7 +301,7 @@ const Navbar: React.FC = () => {
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el && isLanding) {
-      el.scrollIntoView({ behavior: "smooth" });
+      el.scrollIntoView({ behavior: getScrollBehavior() });
       setMenuOpen(false);
       return;
     }
@@ -261,7 +310,7 @@ const Navbar: React.FC = () => {
 
   const handleLogoClick = () => {
     if (isLanding) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: getScrollBehavior() });
     } else {
       window.location.href = "/";
     }
@@ -280,9 +329,10 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 px-4 py-2 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <button
+          ref={brandHomeButtonRef}
           onClick={handleLogoClick}
           className="group flex items-center rounded-[8px] px-1 py-1 transition-colors hover:bg-primary/5"
           aria-label="Ir al inicio de Chatboc"
@@ -397,16 +447,25 @@ const Navbar: React.FC = () => {
         </div>
 
         <button
+          ref={mobileMenuButtonRef}
+          type="button"
           className="rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent md:hidden"
-          onClick={() => setMenuOpen(!menuOpen)}
+          onClick={() => setMenuOpen((current) => !current)}
           aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+          aria-expanded={menuOpen}
+          aria-controls={MOBILE_MENU_ID}
         >
           {menuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {menuOpen ? (
-        <div className="mx-auto mt-2 max-w-7xl rounded-[8px] border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur md:hidden">
+        <nav
+          id={MOBILE_MENU_ID}
+          data-chatboc-mobile-menu
+          aria-label="Navegación principal móvil"
+          className="chatboc-mobile-menu mx-auto mt-2 max-w-7xl rounded-[8px] border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur md:hidden"
+        >
           <div className="flex flex-col gap-1 text-foreground">
             {isLanding
               ? resolvedLandingNavItems.map((item) => (
@@ -480,11 +539,16 @@ const Navbar: React.FC = () => {
               </>
             )}
 
-            <button onClick={toggleDarkMode} className="mt-1 rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent">
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
+              className="mt-1 rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent"
+            >
               {isDark ? <Sun className="mx-auto h-5 w-5" /> : <Moon className="mx-auto h-5 w-5" />}
             </button>
           </div>
-        </div>
+        </nav>
       ) : null}
     </header>
   );
