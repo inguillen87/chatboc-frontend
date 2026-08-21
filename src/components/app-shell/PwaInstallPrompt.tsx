@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, X } from "lucide-react";
 
+import {
+  getMobileNavigationServerSnapshot,
+  getMobileNavigationSnapshot,
+  subscribeToMobileNavigation,
+} from "@/components/app-shell/mobileNavigationOverlay";
 import { Button } from "@/components/ui/button";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -31,6 +36,11 @@ export function PwaInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(isStandaloneDisplay);
   const [dismissed, setDismissed] = useState(recentlyDismissed);
+  const mobileNavigationOpen = useSyncExternalStore(
+    subscribeToMobileNavigation,
+    getMobileNavigationSnapshot,
+    getMobileNavigationServerSnapshot,
+  );
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
@@ -54,7 +64,7 @@ export function PwaInstallPrompt() {
     };
   }, []);
 
-  if (!installEvent || dismissed || isInstalled) return null;
+  if (!installEvent || dismissed || isInstalled || mobileNavigationOpen) return null;
 
   const dismiss = () => {
     safeLocalStorage.setItem(DISMISSED_KEY, String(Date.now()));

@@ -1,7 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Navbar from './Navbar';
 
@@ -33,9 +33,12 @@ vi.mock('@/context/CapabilitiesContext', () => ({
 }));
 
 describe('Navbar account menu routing', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    document.body.classList.remove('chatboc-mobile-menu-open');
     useUserMock.mockReturnValue({
       user: {
         rol: 'admin',
@@ -219,5 +222,87 @@ describe('Navbar account menu routing', () => {
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
     expect(screen.queryByRole('link', { name: /^Reclamos$/i })).not.toBeInTheDocument();
+  });
+
+  it('exposes a keyboard-safe mobile navigation disclosure and coordinates the accessibility dock', () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    const menuButton = screen.getByRole('button', { name: /abrir men/i });
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(menuButton).toHaveAttribute('aria-controls', 'chatboc-mobile-navigation');
+
+    fireEvent.click(menuButton);
+
+    expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('navigation', { name: 'Navegación principal móvil' }),
+    ).toHaveAttribute('id', 'chatboc-mobile-navigation');
+    expect(screen.getAllByRole('button', { name: 'Activar modo oscuro' })).toHaveLength(2);
+    expect(document.body).toHaveClass('chatboc-mobile-menu-open');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('navigation', { name: 'Navegación principal móvil' })).not.toBeInTheDocument();
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(menuButton).toHaveFocus();
+    expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
+
+    fireEvent.click(menuButton);
+    expect(document.body).toHaveClass('chatboc-mobile-menu-open');
+    unmount();
+    expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
+  });
+
+  it('resets the mobile overlay and moves focus to a visible control at the desktop breakpoint', () => {
+    let matches = false;
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    const mediaQuery = {
+      get matches() {
+        return matches;
+      },
+      media: '(min-width: 768px)',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener);
+      }),
+      removeEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener);
+      }),
+      dispatchEvent: vi.fn(),
+    } as unknown as MediaQueryList;
+    vi.stubGlobal('matchMedia', vi.fn(() => mediaQuery));
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    const menuButton = screen.getByRole('button', { name: /abrir men/i });
+    fireEvent.click(menuButton);
+    expect(document.body).toHaveClass('chatboc-mobile-menu-open');
+
+    act(() => {
+      matches = true;
+      listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent));
+    });
+
+    expect(screen.queryByRole('navigation', { name: 'Navegación principal móvil' })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
+    expect(screen.getByRole('button', { name: 'Ir al inicio de Chatboc' })).toHaveFocus();
+
+    act(() => {
+      matches = false;
+      listeners.forEach((listener) => listener({ matches: false } as MediaQueryListEvent));
+    });
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
+    expect(mediaQuery.removeEventListener).toHaveBeenCalled();
   });
 });
