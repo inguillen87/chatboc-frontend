@@ -1,10 +1,11 @@
 import React from 'react';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { apiFetch } from '@/utils/api';
 import { usePanelSessionStore } from '@/stores';
+import { CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS } from '@/components/auth/clerkRuntimeResolver';
 
 const bootstrapMocks = vi.hoisted(() => ({
   tenantInfo: vi.fn(),
@@ -12,6 +13,9 @@ const bootstrapMocks = vi.hoisted(() => ({
   cart: vi.fn(),
   backofficeNavigation: vi.fn(),
   clerkConfig: vi.fn(),
+  publicMounts: vi.fn(),
+  publicMutation: vi.fn(),
+  publicUnmounts: vi.fn(),
 }));
 
 const clerkMocks = vi.hoisted(() => ({
@@ -84,6 +88,39 @@ vi.mock('./routesConfig', async () => {
     return ReactModule.createElement('div', null, 'profile');
   };
 
+  const PublicContinuityProbe = () => {
+    const [draft, setDraft] = ReactModule.useState('');
+    const [mutationStatus, setMutationStatus] = ReactModule.useState('idle');
+
+    ReactModule.useEffect(() => {
+      bootstrapMocks.publicMounts();
+      return () => bootstrapMocks.publicUnmounts();
+    }, []);
+
+    const submitMutation = async () => {
+      setMutationStatus('pending');
+      await bootstrapMocks.publicMutation('/api/bootstrap-continuity', { method: 'POST' });
+      setMutationStatus('confirmed');
+    };
+
+    return ReactModule.createElement(
+      'section',
+      { 'aria-label': 'Continuidad publica' },
+      ReactModule.createElement('label', { htmlFor: 'continuity-draft' }, 'Borrador transitorio'),
+      ReactModule.createElement('input', {
+        id: 'continuity-draft',
+        value: draft,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value),
+      }),
+      ReactModule.createElement(
+        'button',
+        { type: 'button', onClick: () => void submitMutation() },
+        'Confirmar operacion',
+      ),
+      ReactModule.createElement('output', { 'data-testid': 'mutation-status' }, mutationStatus),
+    );
+  };
+
   return {
     default: [
       {
@@ -95,6 +132,11 @@ vi.mock('./routesConfig', async () => {
       {
         path: '/t/:tenant/market',
         element: ReactModule.createElement('div', null, 'market'),
+        allowGuest: true,
+      },
+      {
+        path: '/bootstrap-continuity',
+        element: ReactModule.createElement(PublicContinuityProbe),
         allowGuest: true,
       },
       {
@@ -218,6 +260,157 @@ describe('App session bootstrap ordering', () => {
     clerkMocks.bridgeReady = false;
     clerkMocks.bridgeMounts.mockReset();
     clerkMocks.bridgeUnmounts.mockReset();
+    bootstrapMocks.publicMounts.mockReset();
+    bootstrapMocks.publicMutation.mockReset().mockResolvedValue({ ok: true });
+    bootstrapMocks.publicUnmounts.mockReset();
+  });
+
+  it.each([
+    {
+      label: 'disabled',
+      config: {
+        enabled: false,
+        environment: 'production',
+        production_ready: false,
+        ready_for_session_sync: false,
+        social_providers: [],
+        configuration_warnings: [],
+      },
+    },
+    {
+      label: 'enabled',
+      config: {
+        enabled: true,
+        environment: 'development',
+        production_ready: true,
+        ready_for_session_sync: true,
+        publishable_key: 'pk_test_verified',
+        social_providers: [],
+        configuration_warnings: [],
+      },
+    },
+  ])('mounts a stateful public route once after deferred Clerk resolves $label', async ({ config }) => {
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    const view = render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Borrador transitorio')).not.toBeInTheDocument();
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+
+    await act(async () => {
+      runtimeConfig.resolve(config);
+      await runtimeConfig.promise;
+    });
+
+    const draft = await screen.findByLabelText('Borrador transitorio');
+    fireEvent.change(draft, { target: { value: 'estado que debe sobrevivir' } });
+    expect(draft).toHaveValue('estado que debe sobrevivir');
+
+    view.rerender(<App />);
+
+    expect(screen.getByLabelText('Borrador transitorio')).toHaveValue('estado que debe sobrevivir');
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.clerkConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes a deferred public POST only after bootstrap and executes it once', async () => {
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    const mutation = deferred<{ ok: boolean }>();
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    bootstrapMocks.publicMutation.mockReturnValue(mutation.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    const view = render(<App />);
+
+    expect(screen.queryByRole('button', { name: 'Confirmar operacion' })).not.toBeInTheDocument();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+
+    await act(async () => {
+      runtimeConfig.resolve({
+        enabled: false,
+        environment: 'production',
+        production_ready: false,
+        ready_for_session_sync: false,
+        social_providers: [],
+        configuration_warnings: [],
+      });
+      await runtimeConfig.promise;
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar operacion' }));
+    expect(screen.getByTestId('mutation-status')).toHaveTextContent('pending');
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledWith(
+      '/api/bootstrap-continuity',
+      { method: 'POST' },
+    );
+
+    view.rerender(<App />);
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+
+    await act(async () => {
+      mutation.resolve({ ok: true });
+      await mutation.promise;
+    });
+
+    expect(screen.getByTestId('mutation-status')).toHaveTextContent('confirmed');
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+  });
+
+  it('settles once on timeout and ignores a late Clerk response without remounting public state', async () => {
+    vi.useFakeTimers();
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    try {
+      render(<App />);
+
+      expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+      expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS);
+      });
+
+      const draft = screen.getByLabelText('Borrador transitorio');
+      fireEvent.change(draft, { target: { value: 'fallback estable' } });
+      expect(draft).toHaveValue('fallback estable');
+      expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+      expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+
+      await act(async () => {
+        runtimeConfig.resolve({
+          enabled: true,
+          environment: 'development',
+          production_ready: true,
+          ready_for_session_sync: true,
+          publishable_key: 'pk_test_late',
+          social_providers: [],
+          configuration_warnings: [],
+        });
+        await runtimeConfig.promise;
+      });
+
+      expect(screen.getByLabelText('Borrador transitorio')).toHaveValue('fallback estable');
+      expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+      expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+      expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('se aplica el fallback seguro'),
+      );
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('reaches /403 from a sessionless tenant inbox with zero tenant, cart or private calls', async () => {

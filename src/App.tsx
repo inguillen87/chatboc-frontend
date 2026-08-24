@@ -39,6 +39,7 @@ import {
 import {
   buildClerkBackendUnavailableRuntime,
   buildClerkRuntimeFromEnv,
+  CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS,
   isClerkOriginCompatible,
 } from '@/components/auth/clerkRuntimeResolver';
 
@@ -67,6 +68,36 @@ const RouteLoadingFallback = () => (
   </main>
 );
 
+const AppBootstrapFallback = () => (
+  <main
+    id="main-content"
+    tabIndex={-1}
+    className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground"
+    aria-labelledby="app-bootstrap-title"
+    aria-describedby="app-bootstrap-description"
+    aria-busy="true"
+  >
+    <div
+      className="flex max-w-sm items-center gap-4 rounded-2xl border border-border/70 bg-card/80 px-5 py-4 shadow-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      <div>
+        <h1 id="app-bootstrap-title" className="text-sm font-semibold">
+          Preparando Chatboc
+        </h1>
+        <p id="app-bootstrap-description" className="mt-1 text-xs text-muted-foreground">
+          Validando la configuracion segura de acceso...
+        </p>
+      </div>
+    </div>
+  </main>
+);
+
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
   const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
@@ -80,10 +111,31 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
 
   React.useEffect(() => {
     let cancelled = false;
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const settleRuntime = (nextRuntime: ClerkRuntimeValue) => {
+      if (cancelled || settled) return false;
+      settled = true;
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      setRuntime(nextRuntime);
+      return true;
+    };
+
+    const buildUnavailableRuntime = () =>
+      buildClerkBackendUnavailableRuntime({
+        allowEnvFallback,
+        envEnabled: CLERK_AUTH_ENABLED,
+        loading: false,
+        publishableKey: CLERK_PUBLISHABLE_KEY,
+      });
+
     const loadConfig = async () => {
       try {
         const config = await fetchClerkFrontendConfig();
-        if (cancelled) return;
         const publishableKey =
           (typeof config.publishable_key === 'string' ? config.publishable_key.trim() : '') ||
           CLERK_PUBLISHABLE_KEY;
@@ -100,7 +152,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
           productionGate &&
           originGate,
         );
-        setRuntime({
+        settleRuntime({
           enabled,
           loading: false,
           publishableKey,
@@ -127,23 +179,23 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
           productionRequirements: config.production_requirements,
         });
       } catch (error) {
-        if (!cancelled) {
+        if (settleRuntime(buildUnavailableRuntime())) {
           console.warn('[Clerk] No se pudo cargar la configuracion publica del backend', error);
-          setRuntime(
-            buildClerkBackendUnavailableRuntime({
-              allowEnvFallback,
-              envEnabled: CLERK_AUTH_ENABLED,
-              loading: false,
-              publishableKey: CLERK_PUBLISHABLE_KEY,
-            }),
-          );
         }
       }
     };
 
+    timeoutId = setTimeout(() => {
+      if (settleRuntime(buildUnavailableRuntime())) {
+        console.warn(
+          `[Clerk] La configuracion publica excedio ${CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS} ms; se aplica el fallback seguro`,
+        );
+      }
+    }, CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS);
     loadConfig();
     return () => {
       cancelled = true;
+      if (timeoutId !== null) clearTimeout(timeoutId);
     };
   }, [allowEnvFallback]);
 
@@ -389,6 +441,17 @@ const ClerkSessionBootstrapBoundary = () => {
 
 const App = () => {
   const clerkRuntime = useResolvedClerkRuntime();
+
+  // The provider topology cannot change after product routes become interactive.
+  // Resolve the optional Clerk runtime first, then mount the application exactly once.
+  if (clerkRuntime.loading) {
+    return (
+      <ClerkRuntimeProvider value={clerkRuntime}>
+        <AppBootstrapFallback />
+      </ClerkRuntimeProvider>
+    );
+  }
+
   const appTree = (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -401,12 +464,7 @@ const App = () => {
                 v7_relativeSplatPath: true,
               }}
             >
-              {clerkRuntime.loading ? (
-                <SessionBootstrapGuard
-                  clerkStatus="loading"
-                  renderRuntime={renderAppRuntime}
-                />
-              ) : clerkRuntime.enabled ? (
+              {clerkRuntime.enabled ? (
                 <ClerkSessionBootstrapBoundary />
               ) : (
                 <BearerSessionBootstrapBoundary />
