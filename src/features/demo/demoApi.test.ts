@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { demoGetMock, demoPostMock, findDemoCatalogAssetMock } = vi.hoisted(() => ({
+const { demoCatalogRequestMock, demoGetMock, demoPostMock, findDemoCatalogAssetMock } = vi.hoisted(() => ({
+  demoCatalogRequestMock: vi.fn(),
   demoGetMock: vi.fn(),
   demoPostMock: vi.fn(),
   findDemoCatalogAssetMock: vi.fn<(key: unknown) => any>(() => null),
@@ -15,6 +16,10 @@ vi.mock('@/api/v2/client', () => ({
 
 vi.mock('@/data/demoCatalogAssets', () => ({
   findDemoCatalogAsset: findDemoCatalogAssetMock,
+}));
+
+vi.mock('@/services/demoCatalogRequest', () => ({
+  requestDemoCatalog: (...args: unknown[]) => demoCatalogRequestMock(...args),
 }));
 
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -33,6 +38,7 @@ import {
 
 describe('demo session API', () => {
   beforeEach(() => {
+    demoCatalogRequestMock.mockReset();
     demoGetMock.mockReset();
     demoPostMock.mockReset();
     findDemoCatalogAssetMock.mockReset();
@@ -41,7 +47,7 @@ describe('demo session API', () => {
   });
 
   it('requests the compact selector catalog and preserves all three sector groups', async () => {
-    demoGetMock.mockResolvedValue({
+    demoCatalogRequestMock.mockResolvedValue({
       contract_version: 'demo.catalog.v2',
       sectors: ['gobierno', 'empresas', 'educacion'],
       sector_groups: [
@@ -58,7 +64,7 @@ describe('demo session API', () => {
 
     const response = await getDemoCatalog();
 
-    expect(demoGetMock).toHaveBeenCalledWith('/api/v2/demo/catalog?response_profile=selector');
+    expect(demoCatalogRequestMock).toHaveBeenCalledWith();
     expect(response.sectors).toEqual(['gobierno', 'empresas', 'educacion']);
     expect(response.sector_groups?.map((group) => group.key)).toEqual([
       'gobierno',

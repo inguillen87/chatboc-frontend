@@ -74,6 +74,10 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
+      headers: {
+        'cache-control': 'public, max-age=300',
+        etag: '"demo-selector-e2e"',
+      },
       body: JSON.stringify({
         contract_version: 'demo.catalog.v2',
         sectors: ['gobierno', 'empresas', 'educacion'],
@@ -183,6 +187,12 @@ test.describe('Chatboc smoke e2e', () => {
   });
 
   test('demo muestra los tres pilares y abre experiencia educativa', async ({ page }) => {
+    const catalogRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith('/api/v2/demo/catalog')) catalogRequests.push(url.toString());
+    });
+
     await page.goto('/demo');
 
     await expect(page.getByRole('button', { name: /Gobiernos/i })).toBeVisible();
@@ -196,6 +206,24 @@ test.describe('Chatboc smoke e2e', () => {
     await expect(page.getByText('Recorrido listo para probar.', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Mensaje' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Rubro: Colegios/i })).toBeVisible();
+    expect(catalogRequests).toHaveLength(1);
+  });
+
+  test('landing y recorrido demo comparten una sola carga del catalogo', async ({ page }) => {
+    const catalogRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith('/api/v2/demo/catalog')) catalogRequests.push(url.toString());
+    });
+
+    await page.goto('/');
+    const showcase = page.locator('#demos');
+    await expect(showcase.getByRole('heading', { name: /Proba una conversacion real por sector/i })).toBeVisible();
+    await showcase.getByRole('button', { name: /Iniciar demo colegio/i }).click();
+
+    await expect(page).toHaveURL(/\/demo\?session=/);
+    await expect(page.getByRole('heading', { name: /Elegi una operacion real para probar/i })).toBeVisible();
+    expect(catalogRequests).toHaveLength(1);
   });
 
   test('sandbox WhatsApp prioriza la accion y compacta perfiles en mobile', async ({ page }) => {

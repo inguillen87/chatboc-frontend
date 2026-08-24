@@ -24,9 +24,11 @@ vi.mock('@/utils/api', () => ({
 }));
 
 import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract } from '@/services/enterpriseService';
+import { invalidateDemoCatalogRequestCache } from '@/services/demoCatalogRequest';
 
 describe('enterpriseService demo endpoints', () => {
   beforeEach(() => {
+    invalidateDemoCatalogRequestCache({ revalidate: false });
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue({});
   });
@@ -34,10 +36,18 @@ describe('enterpriseService demo endpoints', () => {
   it('requests the compact demo catalog without tenant scope params', async () => {
     await enterpriseService.getDemoCatalog();
 
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/demo/catalog?response_profile=selector', {
-      skipAuth: true,
-      omitTenant: true,
-    });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/demo/catalog?response_profile=selector',
+      expect.objectContaining({
+        cache: 'default',
+        omitChatSessionId: true,
+        omitCredentials: true,
+        omitEntityToken: true,
+        omitTenant: true,
+        onResponse: expect.any(Function),
+        skipAuth: true,
+      }),
+    );
   });
 
   it('combines the compact profile with ensure_users using one valid query string', async () => {
@@ -45,10 +55,15 @@ describe('enterpriseService demo endpoints', () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/v2/demo/catalog?response_profile=selector&ensure_users=true',
-      {
-        skipAuth: true,
+      expect.objectContaining({
+        cache: 'no-store',
+        omitChatSessionId: true,
+        omitCredentials: true,
+        omitEntityToken: true,
         omitTenant: true,
-      },
+        onResponse: expect.any(Function),
+        skipAuth: true,
+      }),
     );
   });
 

@@ -1,5 +1,6 @@
 import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
+import { requestDemoCatalog } from '@/services/demoCatalogRequest';
 import { normalizeDemoResourceUrlsDeep } from '@/utils/demoResourceUrls';
 import { persistDemoRuntimeStorage } from './demoStorage';
 import type {
@@ -14,10 +15,7 @@ import type {
 } from './demoTypes';
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
-  const query = new URLSearchParams({ response_profile: 'selector' });
-  return normalizeDemoCatalog(
-    await demoApi.get<DemoCatalogResponse>(`/api/v2/demo/catalog?${query.toString()}`),
-  );
+  return normalizeDemoCatalog(await requestDemoCatalog<DemoCatalogResponse>());
 };
 
 export type DemoSessionPayload = {
