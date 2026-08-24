@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   clearDemoRuntimeStorage,
+  clearDemoWhatsappProfileSelection,
   DEMO_MODE_STORAGE_KEY,
 } from '@/features/demo/demoStorage';
 
@@ -18,6 +19,7 @@ const DemoModeBanner = () => {
   const handleReset = () => {
     safeLocalStorage.removeItem(DEMO_MODE_STORAGE_KEY);
     clearDemoRuntimeStorage();
+    clearDemoWhatsappProfileSelection();
     safeLocalStorage.removeItem('authToken');
     safeLocalStorage.removeItem('tenantId');
     window.location.href = '/login';

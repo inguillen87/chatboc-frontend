@@ -2,6 +2,21 @@ import { test, expect } from '@playwright/test';
 import { expectNoHorizontalOverflow } from './e2e-helpers';
 
 const mockCommonApis = async (page: import('@playwright/test').Page) => {
+  await page.route('**/auth/clerk/config*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        contract_version: 'auth.clerk.v1',
+        enabled: false,
+        environment: 'development',
+        production_ready: false,
+        ready_for_session_sync: false,
+        social_providers: [],
+      }),
+    });
+  });
+
   await page.route('**/api/public/widget-config*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -260,22 +275,31 @@ test.describe('Chatboc smoke e2e', () => {
     await expect(profileGroup).toBeVisible();
     await expect
       .poll(() =>
-        profileGroup.evaluate((element) =>
-          element.isConnected && element.getClientRects().length > 0
-            ? element.scrollWidth - element.clientWidth
-            : 0,
+        profileGroup.evaluate(
+          (element) =>
+            element.isConnected &&
+            element.getClientRects().length > 0 &&
+            element.clientHeight > 0 &&
+            element.clientHeight < 150 &&
+            element.scrollWidth > element.clientWidth,
         ),
       )
-      .toBeGreaterThan(0);
-    const profileMetrics = await profileGroup.evaluate((element) => ({
-      clientHeight: element.clientHeight,
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    }));
-    expect(profileMetrics.clientHeight).toBeGreaterThan(0);
-    expect(profileMetrics.clientHeight).toBeLessThan(150);
-    expect(profileMetrics.scrollWidth).toBeGreaterThan(profileMetrics.clientWidth);
+      .toBe(true);
     await expect.poll(() => profileGroup.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        const [launcherBox, selectedBox] = await Promise.all([
+          launcher.boundingBox(),
+          bodegaOption.boundingBox(),
+        ]);
+        if (!launcherBox || !selectedBox) return false;
+        const tolerance = 1;
+        return (
+          selectedBox.x >= launcherBox.x - tolerance &&
+          selectedBox.x + selectedBox.width <= launcherBox.x + launcherBox.width + tolerance
+        );
+      })
+      .toBe(true);
 
     await expect(primaryLink).toBeVisible();
     await expect

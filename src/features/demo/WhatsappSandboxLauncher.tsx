@@ -399,7 +399,9 @@ export default function WhatsappSandboxLauncher({
                 <p id={optionsLabelId} className="text-sm font-semibold text-foreground">
                   Elegí un perfil
                 </p>
-                <p className="text-[11px] text-muted-foreground sm:hidden">Deslizá para ver más</p>
+                {options.length > 1 ? (
+                  <p className="text-[11px] text-muted-foreground sm:hidden">Deslizá para ver más</p>
+                ) : null}
               </div>
               <div
                 ref={optionsContainerRef}
@@ -423,7 +425,7 @@ export default function WhatsappSandboxLauncher({
                       aria-pressed={isSelected}
                       aria-busy={loadingThis}
                       data-option-key={key}
-                      className={`min-h-24 w-[min(82vw,20rem)] shrink-0 snap-start rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[112px] sm:w-auto sm:hover:-translate-y-0.5 sm:hover:shadow-sm sm:motion-reduce:transform-none ${
+                      className={`min-h-24 w-[calc(100%-1.5rem)] max-w-80 shrink-0 snap-start rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[112px] sm:w-auto sm:max-w-none sm:hover:-translate-y-0.5 sm:hover:shadow-sm sm:motion-reduce:transform-none ${
                         isSelected
                           ? 'border-primary bg-primary/10 shadow-sm'
                           : 'border-border/70 bg-background/70 hover:border-primary/40'
