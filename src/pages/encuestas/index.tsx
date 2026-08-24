@@ -56,6 +56,8 @@ const normalizeTenantSlug = (value?: string | null) => {
 const buildCanonicalTenantSurveyPath = (tenantSlug: string) =>
   `/t/${encodeURIComponent(tenantSlug)}/encuestas`;
 
+const PUBLIC_SURVEYS_TITLE_ID = 'public-surveys-title';
+
 const resolveSurveyTenantScope = (
   survey: Pick<SurveyPublic, 'tenant_slug'>,
   requestedTenantSlug?: string,
@@ -230,16 +232,23 @@ const SurveysPublicIndex = () => {
   if (!requestedTenantSlug) {
     if (isLoadingTenant) {
       return (
-        <div
+        <section
           className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center"
-          role="status"
-          aria-live="polite"
+          aria-busy="true"
+          aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
         >
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div
+            className="flex items-center gap-3 text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+            aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+          >
             <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            <span>Identificando tu organización…</span>
+            <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-sm font-medium">
+              Identificando tu organización…
+            </h1>
           </div>
-        </div>
+        </section>
       );
     }
 
@@ -248,9 +257,10 @@ const SurveysPublicIndex = () => {
     }
 
     return (
-      <main
+      <section
         className="mx-auto flex min-h-[58vh] w-full max-w-3xl items-center justify-center px-4 py-10"
         data-testid="public-survey-scope-required"
+        aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
       >
         <Card className="w-full overflow-hidden border-primary/15 shadow-xl shadow-primary/5">
           <CardHeader className="space-y-5 bg-gradient-to-br from-primary/10 via-background to-background pb-6 text-center">
@@ -258,7 +268,9 @@ const SurveysPublicIndex = () => {
               <Building2 className="h-7 w-7 text-primary" aria-hidden="true" />
             </div>
             <div className="space-y-2">
-              <CardTitle className="text-2xl">Elegí una organización para ver sus encuestas</CardTitle>
+              <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-2xl font-semibold leading-none tracking-tight">
+                Elegí una organización para ver sus encuestas
+              </h1>
               <p className="mx-auto max-w-xl text-sm leading-relaxed text-muted-foreground">
                 Cada espacio publica sus propias instancias de participación. Abrí el enlace oficial que te
                 compartieron o ingresá desde el portal de la organización para mantener la información
@@ -280,24 +292,43 @@ const SurveysPublicIndex = () => {
             </div>
           </CardContent>
         </Card>
-      </main>
+      </section>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
+      <section
+        className="flex min-h-[50vh] items-center justify-center"
+        aria-busy="true"
+        aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+      >
+        <div
+          className="flex items-center gap-3 text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+          aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-sm font-medium">
+            Cargando encuestas
+          </h1>
+        </div>
+      </section>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center">
+      <section
+        className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center"
+        aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+      >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-center text-lg">No pudimos cargar las encuestas</CardTitle>
+            <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-center text-lg font-semibold leading-none tracking-tight">
+              No pudimos cargar las encuestas
+            </h1>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 text-center">
             <p className="text-sm text-muted-foreground">{getErrorMessage(error)}</p>
@@ -306,16 +337,21 @@ const SurveysPublicIndex = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
     );
   }
 
   if (showRawFallback) {
     return (
-      <div className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center">
+      <section
+        className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center"
+        aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+      >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-center text-lg">No pudimos cargar las encuestas</CardTitle>
+            <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-center text-lg font-semibold leading-none tracking-tight">
+              No pudimos cargar las encuestas
+            </h1>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 text-center">
             <div className="space-y-2 text-sm text-muted-foreground">
@@ -355,27 +391,32 @@ const SurveysPublicIndex = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
     );
   }
 
   if (!surveys.length) {
     return (
-      <div className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center">
+      <section
+        className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center"
+        aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}
+      >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-center text-lg">Por ahora no hay encuestas activas</CardTitle>
+            <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-center text-lg font-semibold leading-none tracking-tight">
+              Por ahora no hay encuestas activas
+            </h1>
           </CardHeader>
           <CardContent className="space-y-2 text-center text-sm text-muted-foreground">
             <p>Volvé más tarde para participar de las próximas instancias de consulta ciudadana.</p>
           </CardContent>
         </Card>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="space-y-8 py-6">
+    <section className="space-y-8 py-6" aria-labelledby={PUBLIC_SURVEYS_TITLE_ID}>
       {fallbackNotice ? (
         <Alert className="border-amber-500/40 bg-amber-50 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/30 dark:text-amber-100">
           <AlertCircle className="h-4 w-4" />
@@ -409,13 +450,13 @@ const SurveysPublicIndex = () => {
           </AlertDescription>
         </Alert>
       ) : null}
-      <section className="overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-slate-50 to-blue-50 shadow-lg shadow-primary/5 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30">
+      <div className="overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-slate-50 to-blue-50 shadow-lg shadow-primary/5 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30">
         <div className="grid gap-8 px-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="space-y-4">
             <p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-primary">
               Participación ciudadana inclusiva
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            <h1 id={PUBLIC_SURVEYS_TITLE_ID} className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
               Encuestas ciudadanas
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-300">
@@ -451,7 +492,7 @@ const SurveysPublicIndex = () => {
             </div>
           </div>
         </div>
-      </section>
+      </div>
       <header className="space-y-2">
         <p className="max-w-2xl text-sm text-muted-foreground">
           Conocé los procesos abiertos, respondé y compartí el enlace para sumar más voces.
@@ -800,7 +841,7 @@ const SurveysPublicIndex = () => {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };
 

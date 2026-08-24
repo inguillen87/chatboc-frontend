@@ -19,6 +19,8 @@ interface TenantShellProps {
   children: ReactNode;
 }
 
+const TENANT_SHELL_TITLE_ID = 'tenant-shell-title';
+
 const sanitizePublicMessage = (message?: string | null) => {
   if (!message) return 'No pudimos cargar este espacio en este momento.';
   if (/<[a-z][\s\S]*>/i.test(message)) {
@@ -94,8 +96,17 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   const renderHeaderContent = () => {
     if (isLoadingTenant) {
       return (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <div
+          className="flex items-center justify-center gap-3 py-12 text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          aria-labelledby={TENANT_SHELL_TITLE_ID}
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <h1 id={TENANT_SHELL_TITLE_ID} className="text-sm font-medium">
+            Cargando espacio
+          </h1>
         </div>
       );
     }
@@ -104,7 +115,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
       return (
         <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Explora espacios disponibles</h1>
+            <h1 id={TENANT_SHELL_TITLE_ID} className="text-2xl font-semibold">Explora espacios disponibles</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Elegi un municipio, colegio o empresa para acceder a sus canales publicados.
             </p>
@@ -117,7 +128,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     if (!resolvedTenant) {
       return (
         <div className="flex flex-col gap-3">
-          <h1 className="text-2xl font-semibold">No encontramos informacion para este espacio.</h1>
+          <h1 id={TENANT_SHELL_TITLE_ID} className="text-2xl font-semibold">No encontramos informacion para este espacio.</h1>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={refreshTenant} variant="outline">
               Reintentar
@@ -150,7 +161,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
-              <h1 className="text-3xl font-semibold leading-tight">{resolvedTenant.nombre}</h1>
+              <h1 id={TENANT_SHELL_TITLE_ID} className="text-3xl font-semibold leading-tight">{resolvedTenant.nombre}</h1>
               {resolvedTenant.descripcion ? (
                 <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{resolvedTenant.descripcion}</p>
               ) : null}
@@ -219,7 +230,10 @@ export const TenantShell = ({ children }: TenantShellProps) => {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 py-10">
-      <section className="rounded-3xl border bg-background/80 p-6 shadow-sm backdrop-blur">
+      <section
+        className="rounded-3xl border bg-background/80 p-6 shadow-sm backdrop-blur"
+        aria-labelledby={TENANT_SHELL_TITLE_ID}
+      >
         {renderHeaderContent()}
         {renderNavigation()}
       </section>
