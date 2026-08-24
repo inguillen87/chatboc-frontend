@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { expectNoHorizontalOverflow } from './e2e-helpers';
 
 const mockCommonApis = async (page: import('@playwright/test').Page) => {
   await page.route('**/api/public/widget-config*', async (route) => {
@@ -20,7 +21,40 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
   });
 
   await page.route('**/api/v2/demo/whatsapp-sandbox*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        contract_version: 'demo.whatsapp_sandbox_launcher.v1',
+        requires_auth: false,
+        session: {
+          demo_session_id: 'demo-whatsapp-e2e',
+          chat_session_id: 'sid_whatsapp_e2e',
+          max_messages: 10,
+        },
+        whatsapp_sandbox: {
+          contract_version: 'demo.whatsapp_sandbox.v1',
+          rubro_options: [
+            { id: 'comercio', label: 'Comercio', sector: 'empresas', rubro: 'comercio', description: 'Ventas y atención' },
+            { id: 'bodega', label: 'Bodega', sector: 'empresas', rubro: 'bodega', description: 'Pedidos y catálogo' },
+            { id: 'restaurant', label: 'Restaurante', sector: 'empresas', rubro: 'restaurant', description: 'Reservas y delivery' },
+            { id: 'hotel', label: 'Hotel', sector: 'empresas', rubro: 'hotel', description: 'Reservas y huéspedes' },
+            { id: 'municipio', label: 'Municipio', sector: 'gobierno', rubro: 'municipio', description: 'Atención ciudadana' },
+          ],
+          sandbox: {
+            display_number: '+54 9 261 000-0000',
+            activation_message: 'Hola, quiero probar la demo',
+            requires_join_phrase: false,
+            wa_deeplink: 'https://wa.me/5492610000000',
+            qr_url: '/favicon/favicon-192x192.png',
+          },
+          trial_policy: { max_messages: 10, free_inputs: ['text', 'image', 'audio'] },
+          scenario_scripts: [{ label: 'Crear pedido', message: 'Quiero pedir dos cajas' }],
+          catalog: {},
+          surveys_votings: { enabled: false },
+        },
+      }),
+    });
   });
 
   await page.route('**/api/v2/demo/admin-preview*', async (route) => {
@@ -162,6 +196,94 @@ test.describe('Chatboc smoke e2e', () => {
     await expect(page.getByText('Recorrido listo para probar.', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Mensaje' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Rubro: Colegios/i })).toBeVisible();
+  });
+
+  test('sandbox WhatsApp prioriza la accion y compacta perfiles en mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto('/demo');
+
+    const launcher = page.getByRole('region', { name: 'Probar por WhatsApp sin login' });
+    await expect(launcher).toBeVisible();
+    const profileGroup = launcher.getByRole('group', { name: 'Elegí un perfil' });
+    const primaryLink = launcher.getByRole('link', { name: 'Abrir WhatsApp directo' });
+    const numberCard = launcher.getByText('Número');
+
+    await expect(primaryLink).toBeVisible();
+    await expect(launcher.getByText('Mostrar código QR')).toBeVisible();
+    const bodegaOption = profileGroup.getByRole('button', { name: /Bodega/ });
+    await expect(bodegaOption).toHaveAttribute('aria-pressed', 'false');
+    const selectionResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname.endsWith('/api/v2/demo/whatsapp-sandbox'),
+    );
+    await bodegaOption.click();
+    await selectionResponse;
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const raw = window.sessionStorage.getItem('chatboc_demo_whatsapp_profile_v1');
+          return raw ? JSON.parse(raw).key : null;
+        }),
+      )
+      .toBe('bodega');
+    await expect(bodegaOption).toHaveAttribute('aria-pressed', 'true');
+
+    await expect(profileGroup).toBeVisible();
+    await expect
+      .poll(() =>
+        profileGroup.evaluate((element) =>
+          element.isConnected && element.getClientRects().length > 0
+            ? element.scrollWidth - element.clientWidth
+            : 0,
+        ),
+      )
+      .toBeGreaterThan(0);
+    const profileMetrics = await profileGroup.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(profileMetrics.clientHeight).toBeGreaterThan(0);
+    expect(profileMetrics.clientHeight).toBeLessThan(150);
+    expect(profileMetrics.scrollWidth).toBeGreaterThan(profileMetrics.clientWidth);
+    await expect.poll(() => profileGroup.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+
+    await expect(primaryLink).toBeVisible();
+    await expect
+      .poll(() =>
+        primaryLink.evaluate((element) =>
+          element.isConnected && element.getClientRects().length > 0
+            ? element.scrollWidth - element.clientWidth
+            : Number.POSITIVE_INFINITY,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    const messageBadge = launcher.getByText('mensajes').locator('..');
+    await expect(messageBadge).toBeVisible();
+    await expect
+      .poll(() =>
+        messageBadge.evaluate((element) =>
+          element.isConnected && element.getClientRects().length > 0
+            ? element.scrollWidth - element.clientWidth
+            : Number.POSITIVE_INFINITY,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+
+    await expect(numberCard).toBeVisible();
+    await expect
+      .poll(async () => {
+        const [linkBox, numberBox] = await Promise.all([primaryLink.boundingBox(), numberCard.boundingBox()]);
+        return Boolean(linkBox && numberBox && linkBox.y < numberBox.y);
+      })
+      .toBe(true);
+
+    const qrImages = launcher.getByAltText('Código QR para abrir la demo de WhatsApp');
+    await expect(qrImages).toHaveCount(2);
+    await expect(qrImages.first()).toBeHidden();
+    await expect(qrImages.last()).toBeHidden();
+    await expectNoHorizontalOverflow(page);
   });
 
   test('demo degrada sin mostrar error crudo cuando falla el chat backend', async ({ page }) => {

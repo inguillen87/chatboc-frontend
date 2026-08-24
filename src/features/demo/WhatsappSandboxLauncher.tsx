@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Clipboard,
@@ -19,7 +19,12 @@ import type {
   DemoWhatsappSandboxScript,
 } from './demoTypes';
 import { ApiError, getErrorMessage } from '@/utils/api';
-import { persistDemoRuntimeStorage } from './demoStorage';
+import {
+  persistDemoRuntimeStorage,
+  persistDemoWhatsappProfileSelection,
+  readDemoWhatsappProfileSelection,
+  subscribeDemoWhatsappProfileSelection,
+} from './demoStorage';
 
 type LauncherError = {
   message: string;
@@ -162,9 +167,31 @@ export default function WhatsappSandboxLauncher({
   const [launcher, setLauncher] = useState<DemoWhatsappSandboxResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingOptionKey, setLoadingOptionKey] = useState<string | null>(null);
+  const [selectedOptionKey, setSelectedOptionKey] = useState<string | null>(() =>
+    readDemoWhatsappProfileSelection({
+      sector: readText(initialSector),
+      tenantSlug: readText(initialTenantSlug),
+    }),
+  );
   const [error, setError] = useState<LauncherError | null>(null);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
+  const headingId = useId();
+  const optionsLabelId = useId();
+  const optionsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(
+    () =>
+      subscribeDemoWhatsappProfileSelection(() => {
+        setSelectedOptionKey(
+          readDemoWhatsappProfileSelection({
+            sector: readText(initialSector),
+            tenantSlug: readText(initialTenantSlug),
+          }),
+        );
+      }),
+    [initialSector, initialTenantSlug],
+  );
 
   useEffect(() => {
     let active = true;
@@ -232,20 +259,49 @@ export default function WhatsappSandboxLauncher({
   }, [qrUrl]);
 
   const selectedKey = useMemo(() => {
-    const selected = options.find((option) => {
-      const sectorMatches = initialSector && option.sector && String(option.sector) === String(initialSector);
-      const rubroMatches =
-        initialRubro &&
-        [option.rubro, option.rubro_slug, option.slug, option.value, option.key].some(
-          (value) => typeof value === 'string' && value === initialRubro,
-        );
-      return sectorMatches || rubroMatches;
-    });
-    return selected ? normalizeOptionKey(selected, options.indexOf(selected)) : null;
-  }, [initialRubro, initialSector, options]);
+    if (
+      selectedOptionKey &&
+      options.some((option, index) => normalizeOptionKey(option, index) === selectedOptionKey)
+    ) {
+      return selectedOptionKey;
+    }
+
+    const normalizedRubro = readText(initialRubro)?.toLocaleLowerCase();
+    if (normalizedRubro) {
+      const selectedByRubro = options.find((option) =>
+        [option.id, option.rubro, option.rubro_slug, option.slug, option.value, option.key].some(
+          (value) => readText(value)?.toLocaleLowerCase() === normalizedRubro,
+        ),
+      );
+      if (selectedByRubro) {
+        return normalizeOptionKey(selectedByRubro, options.indexOf(selectedByRubro));
+      }
+    }
+
+    const normalizedSector = readText(initialSector)?.toLocaleLowerCase();
+    if (!normalizedSector) return null;
+    const sectorMatches = options
+      .map((option, index) => ({ option, index }))
+      .filter(({ option }) => readText(option.sector)?.toLocaleLowerCase() === normalizedSector);
+    return sectorMatches.length === 1
+      ? normalizeOptionKey(sectorMatches[0].option, sectorMatches[0].index)
+      : null;
+  }, [initialRubro, initialSector, options, selectedOptionKey]);
+
+  useEffect(() => {
+    const container = optionsContainerRef.current;
+    if (!container || !selectedKey || typeof container.scrollTo !== 'function') return;
+    const selectedOption = Array.from(container.children).find(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element.dataset.optionKey === selectedKey,
+    );
+    if (!selectedOption) return;
+    const centeredLeft = selectedOption.offsetLeft - (container.clientWidth - selectedOption.clientWidth) / 2;
+    container.scrollTo({ left: Math.max(0, centeredLeft), behavior: 'auto' });
+  }, [options.length, selectedKey]);
 
   const selectOption = async (option: DemoWhatsappSandboxOption, index: number) => {
-    if (option.disabled) return;
+    if (option.disabled || loading) return;
     const key = normalizeOptionKey(option, index);
     setLoadingOptionKey(key);
     setError(null);
@@ -257,6 +313,12 @@ export default function WhatsappSandboxLauncher({
         source: 'public_demo_profile',
       });
       setLauncher(response);
+      persistDemoWhatsappProfileSelection({
+        key,
+        sector: readText(option.sector, initialSector),
+        tenantSlug: readText(option.tenant_slug, initialTenantSlug),
+      });
+      setSelectedOptionKey(key);
       persistSandboxSession(response);
     } catch (err) {
       setError(buildError(err));
@@ -275,10 +337,10 @@ export default function WhatsappSandboxLauncher({
     }
   };
 
-  if (loading) {
+  if (loading && !launcher) {
     return (
       <section className="rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status" aria-live="polite">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <span>Cargando sandbox de WhatsApp...</span>
         </div>
@@ -288,7 +350,10 @@ export default function WhatsappSandboxLauncher({
 
   if (!launcher && error) {
     return (
-      <section className="rounded-3xl border border-destructive/25 bg-destructive/10 p-5 text-sm text-destructive">
+      <section
+        className="rounded-3xl border border-destructive/25 bg-destructive/10 p-5 text-sm text-destructive"
+        role="alert"
+      >
         <p className="font-semibold">Sandbox no disponible</p>
         <p className="mt-1">{error.message}</p>
         {error.requestId ? <p className="mt-2 text-xs">request_id: {error.requestId}</p> : null}
@@ -299,11 +364,15 @@ export default function WhatsappSandboxLauncher({
   if (!launcher?.whatsapp_sandbox) return null;
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/80 shadow-sm">
-      <div className="grid gap-0 lg:grid-cols-[1fr_340px]">
-        <div className="p-5 sm:p-6">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
+    <section
+      className="overflow-hidden rounded-3xl border border-border/70 bg-card/80 shadow-sm"
+      aria-labelledby={headingId}
+      aria-busy={loading}
+    >
+      <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 p-5 sm:p-6">
+          <div className="mb-5 grid gap-3 min-[380px]:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <MessageSquareText className="h-4 w-4" />
@@ -312,60 +381,107 @@ export default function WhatsappSandboxLauncher({
                   WhatsApp sandbox
                 </p>
               </div>
-              <h2 className="mt-3 text-2xl font-black tracking-tight text-foreground">
+              <h2 id={headingId} className="mt-3 text-2xl font-black tracking-tight text-foreground">
                 Probar por WhatsApp sin login
               </h2>
             </div>
             {maxMessages ? (
-              <div className="rounded-2xl border bg-background/70 px-3 py-2 text-right">
-                <p className="text-2xl font-black leading-none text-foreground">{maxMessages}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">mensajes</p>
+              <div className="flex w-fit items-baseline gap-1.5 rounded-2xl border bg-background/70 px-3 py-2 text-left min-[380px]:block min-[380px]:text-right">
+                <p className="text-xl font-black leading-none text-foreground min-[380px]:text-2xl">{maxMessages}</p>
+                <p className="text-[11px] text-muted-foreground min-[380px]:mt-1">mensajes</p>
               </div>
             ) : null}
           </div>
 
           {options.length ? (
-            <div className="mb-5 grid gap-2 sm:grid-cols-2">
-              {options.map((option, index) => {
-                const key = normalizeOptionKey(option, index);
-                const label = optionLabel(option);
-                const description = optionDescription(option);
-                const isSelected = key === selectedKey;
-                const loadingThis = loadingOptionKey === key;
-                if (!label) return null;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={Boolean(option.disabled) || Boolean(loadingOptionKey)}
-                    onClick={() => void selectOption(option, index)}
-                    className={`min-h-[112px] rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border/70 bg-background/70 hover:border-primary/40'
-                    } ${option.disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-                  >
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="text-sm font-semibold text-foreground">{label}</span>
-                      {loadingThis ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : isSelected ? (
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p id={optionsLabelId} className="text-sm font-semibold text-foreground">
+                  Elegí un perfil
+                </p>
+                <p className="text-[11px] text-muted-foreground sm:hidden">Deslizá para ver más</p>
+              </div>
+              <div
+                ref={optionsContainerRef}
+                className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0"
+                role="group"
+                aria-labelledby={optionsLabelId}
+              >
+                {options.map((option, index) => {
+                  const key = normalizeOptionKey(option, index);
+                  const label = optionLabel(option);
+                  const description = optionDescription(option);
+                  const isSelected = key === selectedKey;
+                  const loadingThis = loadingOptionKey === key;
+                  if (!label) return null;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={Boolean(option.disabled) || loading || Boolean(loadingOptionKey)}
+                      onClick={() => void selectOption(option, index)}
+                      aria-pressed={isSelected}
+                      aria-busy={loadingThis}
+                      data-option-key={key}
+                      className={`min-h-24 w-[min(82vw,20rem)] shrink-0 snap-start rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[112px] sm:w-auto sm:hover:-translate-y-0.5 sm:hover:shadow-sm sm:motion-reduce:transform-none ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border/70 bg-background/70 hover:border-primary/40'
+                      } ${option.disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="text-sm font-semibold text-foreground">{label}</span>
+                        {loadingThis ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                        ) : isSelected ? (
+                          <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                        ) : null}
+                      </span>
+                      {description ? (
+                        <span
+                          className={`mt-2 block text-xs leading-5 ${
+                            isSelected ? 'text-foreground' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {description}
+                        </span>
                       ) : null}
-                    </span>
-                    {description ? (
-                      <span className="mt-2 block text-xs leading-5 text-muted-foreground">{description}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
           {error ? (
-            <div className="mb-4 rounded-2xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
+            <div
+              className="mb-4 rounded-2xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
               <p>{error.message}</p>
               {error.requestId ? <p className="mt-1 text-xs">request_id: {error.requestId}</p> : null}
+            </div>
+          ) : null}
+
+          {deeplink ? (
+            <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 p-3">
+              <Button asChild className="w-full shadow-sm">
+                <a
+                  href={deeplink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={requiresJoinPhrase ? 'Abrir WhatsApp' : 'Abrir WhatsApp directo'}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <span aria-hidden="true" className="sm:hidden">Abrir WhatsApp</span>
+                  <span aria-hidden="true" className="hidden sm:inline">
+                    {requiresJoinPhrase ? 'Abrir WhatsApp' : 'Abrir WhatsApp directo'}
+                  </span>
+                </a>
+              </Button>
+              <p className="mt-2 text-center text-[11px] leading-4 text-muted-foreground">
+                Se abrirá WhatsApp con esta demo lista para probar.
+              </p>
             </div>
           ) : null}
 
@@ -373,7 +489,7 @@ export default function WhatsappSandboxLauncher({
             {displayNumber ? (
               <div className="rounded-2xl border bg-background/70 p-4">
                 <Smartphone className="mb-3 h-4 w-4 text-primary" />
-                <p className="text-xs text-muted-foreground">Numero</p>
+                <p className="text-xs text-muted-foreground">Número</p>
                 <p className="mt-1 text-sm font-semibold text-foreground">{displayNumber}</p>
               </div>
             ) : null}
@@ -436,25 +552,35 @@ export default function WhatsappSandboxLauncher({
 
         <aside className="border-t border-border/70 bg-muted/25 p-5 lg:border-l lg:border-t-0">
           {qrUrl && !qrFailed ? (
-            <div className="mb-4 rounded-3xl border bg-background/80 p-4 text-center">
-              <QrCode className="mx-auto mb-3 h-5 w-5 text-primary" />
+            <div className="hidden rounded-3xl border bg-background/80 p-4 text-center lg:block">
+              <QrCode className="mx-auto mb-3 h-5 w-5 text-primary" aria-hidden="true" />
               <img
                 src={qrUrl}
-                alt=""
+                alt="Código QR para abrir la demo de WhatsApp"
                 className="mx-auto h-44 w-44 rounded-2xl border bg-white object-contain p-2"
                 onError={() => setQrFailed(true)}
               />
             </div>
           ) : null}
-          {deeplink ? (
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() => window.open(deeplink, '_blank', 'noopener,noreferrer')}
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              {requiresJoinPhrase ? 'Abrir WhatsApp' : 'Abrir WhatsApp directo'}
-            </Button>
+
+          {qrUrl && !qrFailed ? (
+            <details className="group rounded-2xl border bg-background/80 lg:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset">
+                <span className="flex items-center gap-2">
+                  <QrCode className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Mostrar código QR
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Opcional</span>
+              </summary>
+              <div className="border-t p-4 text-center">
+                <img
+                  src={qrUrl}
+                  alt="Código QR para abrir la demo de WhatsApp"
+                  className="mx-auto h-44 w-44 rounded-2xl border bg-white object-contain p-2"
+                  onError={() => setQrFailed(true)}
+                />
+              </div>
+            </details>
           ) : null}
 
           {(catalogResources.length || uploadDemo?.enabled) ? (
@@ -462,7 +588,7 @@ export default function WhatsappSandboxLauncher({
               <div className="mb-3 flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" />
                 <p className="text-sm font-semibold text-foreground">
-                  {readText(uploadDemo?.label, uploadDemo?.title) ?? 'Catalogo'}
+                  {readText(uploadDemo?.label, uploadDemo?.title) ?? 'Catálogo'}
                 </p>
               </div>
               {uploadDemo?.description ? (
