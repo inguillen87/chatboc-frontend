@@ -15,10 +15,28 @@ const claimsMocks = vi.hoisted(() => ({
   user: null as any,
   listClaims: vi.fn(),
   getTenantPublicNavigation: vi.fn(),
+  authority: {
+    clerkStatus: 'signed_out' as 'disabled' | 'loading' | 'signed_out' | 'syncing' | 'ready',
+    hasBearerSession: false,
+    hasVerifiedSession: false,
+  },
 }));
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+};
 
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({ user: claimsMocks.user, isLoading: false }),
+}));
+
+vi.mock('@/components/access/SessionAuthorityContext', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/access/SessionAuthorityContext')>()),
+  useSessionAuthority: () => claimsMocks.authority,
 }));
 
 vi.mock('@/context/TenantContext', () => ({
@@ -51,6 +69,11 @@ describe('UserClaimsPage public claim actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     claimsMocks.user = null;
+    claimsMocks.authority = {
+      clerkStatus: 'signed_out',
+      hasBearerSession: false,
+      hasVerifiedSession: false,
+    };
     claimsMocks.listClaims.mockResolvedValue([]);
     claimsMocks.getTenantPublicNavigation.mockResolvedValue({
       contract_version: 'tenant.public_navigation.v1',
@@ -99,8 +122,18 @@ describe('UserClaimsPage public claim actions', () => {
     expect(photoLink).not.toHaveAttribute('target', '_blank');
   });
 
-  it('loads and renders authenticated claims from the portal claims contract', async () => {
+  it.each([
+    {
+      label: 'Clerk ready cookie-only',
+      authority: { clerkStatus: 'ready' as const, hasBearerSession: false, hasVerifiedSession: true },
+    },
+    {
+      label: 'verified legacy bearer',
+      authority: { clerkStatus: 'disabled' as const, hasBearerSession: true, hasVerifiedSession: true },
+    },
+  ])('loads and renders private claims for $label authority', async ({ authority }) => {
     claimsMocks.user = { id: 'user-7', email: 'vecino@example.com' };
+    claimsMocks.authority = authority;
     claimsMocks.publicClaims = [];
     claimsMocks.listClaims.mockResolvedValueOnce([
       {
@@ -123,6 +156,92 @@ describe('UserClaimsPage public claim actions', () => {
     expect(screen.getByText('La luminaria de la esquina no funciona')).toBeInTheDocument();
     expect(screen.getByText('En proceso')).toBeInTheDocument();
     await waitFor(() => expect(claimsMocks.listClaims).toHaveBeenCalledWith('junin'));
+  });
+
+  it.each(['loading', 'signed_out'] as const)(
+    'does not call listClaims or expose stale profile PII while Clerk is %s',
+    async (clerkStatus) => {
+      claimsMocks.user = {
+        id: 'stale-user',
+        name: 'Persona Stale Privada',
+        email: 'stale-claims@example.test',
+      };
+      claimsMocks.publicClaims = [];
+      claimsMocks.authority = {
+        clerkStatus,
+        hasBearerSession: clerkStatus === 'loading',
+        hasVerifiedSession: false,
+      };
+
+      render(
+        <MemoryRouter future={routerFuture} initialEntries={['/t/junin/portal/reclamos']}>
+          <UserClaimsPage />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => expect(screen.getByText(/No tenes reclamos registrados aun/i)).toBeInTheDocument());
+      expect(claimsMocks.listClaims).not.toHaveBeenCalled();
+      expect(screen.queryByText(/Persona Stale Privada|stale-claims@example\.test/)).not.toBeInTheDocument();
+    },
+  );
+
+  it('hides user A claims synchronously during A to B authority rotation', async () => {
+    const userBClaims = deferred<any[]>();
+    claimsMocks.user = { id: 'user-a', email: 'a@example.test' };
+    claimsMocks.publicClaims = [];
+    claimsMocks.authority = {
+      clerkStatus: 'ready',
+      hasBearerSession: false,
+      hasVerifiedSession: true,
+    };
+    claimsMocks.listClaims
+      .mockResolvedValueOnce([
+        {
+          id: 'claim-a',
+          title: 'Reclamo privado A',
+          description: 'PII exclusiva de A',
+          status: 'en_proceso',
+          date: '2026-08-20T12:00:00Z',
+        },
+      ])
+      .mockImplementationOnce(() => userBClaims.promise);
+
+    const view = render(
+      <MemoryRouter future={routerFuture} initialEntries={['/t/junin/portal/reclamos']}>
+        <UserClaimsPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Reclamo privado A')).toBeInTheDocument();
+
+    claimsMocks.authority = {
+      clerkStatus: 'syncing',
+      hasBearerSession: false,
+      hasVerifiedSession: false,
+    };
+    view.rerender(
+      <MemoryRouter future={routerFuture} initialEntries={['/t/junin/portal/reclamos']}>
+        <UserClaimsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Reclamo privado A')).not.toBeInTheDocument();
+    expect(screen.queryByText('PII exclusiva de A')).not.toBeInTheDocument();
+
+    claimsMocks.user = { id: 'user-b', email: 'b@example.test' };
+    claimsMocks.authority = {
+      clerkStatus: 'ready',
+      hasBearerSession: false,
+      hasVerifiedSession: true,
+    };
+    view.rerender(
+      <MemoryRouter future={routerFuture} initialEntries={['/t/junin/portal/reclamos']}>
+        <UserClaimsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Reclamo privado A')).not.toBeInTheDocument();
+
+    userBClaims.resolve([]);
+    await waitFor(() => expect(claimsMocks.listClaims).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Reclamo privado A')).not.toBeInTheDocument();
   });
 
   it('always offers session linking to guests and shows new claim when the tenant enables it', async () => {

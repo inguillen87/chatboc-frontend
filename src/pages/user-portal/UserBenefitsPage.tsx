@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, History, Loader2, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { apiClient } from '@/api/client';
+import {
+  buildVerifiedSessionScopeKey,
+  useSessionAuthority,
+} from '@/components/access/SessionAuthorityContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,15 +21,45 @@ const UserBenefitsPage = () => {
   const { content } = usePortalContent();
   const { currentSlug } = useTenant();
   const { user } = useUser();
+  const { hasVerifiedSession } = useSessionAuthority();
+  const privateScopeKey = buildVerifiedSessionScopeKey({
+    hasVerifiedSession,
+    tenantSlug: currentSlug,
+    user,
+  });
+  const activeScopeRef = useRef(privateScopeKey);
+  activeScopeRef.current = privateScopeKey;
+  const canUsePrivateLoyalty = Boolean(privateScopeKey);
   const loginPath = useMemo(() => buildTenantPath('/login', currentSlug ?? undefined), [currentSlug]);
   const registerPath = useMemo(() => buildTenantPath('/portal/dashboard', currentSlug ?? undefined), [currentSlug]);
 
-  const [loyaltyData, setLoyaltyData] = useState<PortalLoyaltySummary | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [redeeming, setRedeeming] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loyaltyState, setLoyaltyState] = useState<{
+    scopeKey: string;
+    data: PortalLoyaltySummary;
+  } | null>(null);
+  const [loadingScopeKey, setLoadingScopeKey] = useState<string | null>(null);
+  const [redeemingState, setRedeemingState] = useState<{
+    scopeKey: string;
+    rewardId: string;
+  } | null>(null);
+  const [errorState, setErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const loyaltyData = privateScopeKey && loyaltyState?.scopeKey === privateScopeKey
+    ? loyaltyState.data
+    : null;
+  const loading = Boolean(privateScopeKey && loadingScopeKey === privateScopeKey);
+  const redeeming = privateScopeKey && redeemingState?.scopeKey === privateScopeKey
+    ? redeemingState.rewardId
+    : null;
+  const error = privateScopeKey && errorState?.scopeKey === privateScopeKey
+    ? errorState.message
+    : null;
 
-  const summary = loyaltyData || content.loyaltySummary || null;
+  const summary = canUsePrivateLoyalty
+    ? loyaltyData || content.loyaltySummary || null
+    : null;
   const rewards = useMemo(() => {
     if (summary?.availableRewards?.length) return summary.availableRewards;
     return content.catalog
@@ -44,37 +78,68 @@ const UserBenefitsPage = () => {
   const transactions = summary?.transactions ?? [];
 
   useEffect(() => {
+    let active = true;
+    const requestScopeKey = privateScopeKey;
+    const requestTenantSlug = currentSlug;
+    const isCurrentRequest = () =>
+      active && activeScopeRef.current === requestScopeKey;
+
     const fetchLoyaltyDetails = async () => {
-      if (!currentSlug || !user) return;
-      setLoading(true);
-      setError(null);
+      if (!requestTenantSlug || !requestScopeKey) {
+        setLoyaltyState(null);
+        setLoadingScopeKey(null);
+        return;
+      }
+      setLoadingScopeKey(requestScopeKey);
+      setErrorState(null);
       try {
-        const data = await apiClient.getLoyalty(currentSlug);
-        setLoyaltyData(data);
+        const data = await apiClient.getLoyalty(requestTenantSlug);
+        if (isCurrentRequest()) {
+          setLoyaltyState({ scopeKey: requestScopeKey, data });
+        }
       } catch (err) {
         console.error('Failed to fetch loyalty details', err);
-        setError('No se pudieron cargar los beneficios reales de este usuario.');
+        if (isCurrentRequest()) {
+          setErrorState({
+            scopeKey: requestScopeKey,
+            message: 'No se pudieron cargar los beneficios reales de este usuario.',
+          });
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) setLoadingScopeKey(null);
       }
     };
 
-    fetchLoyaltyDetails();
-  }, [currentSlug, user]);
+    void fetchLoyaltyDetails();
+    return () => {
+      active = false;
+    };
+  }, [currentSlug, privateScopeKey]);
 
   const handleRedeem = async (rewardId: string) => {
-    if (!currentSlug) return;
-    setRedeeming(rewardId);
-    setError(null);
+    const redemptionScopeKey = privateScopeKey;
+    const redemptionTenantSlug = currentSlug;
+    const isCurrentRedemption = () =>
+      Boolean(redemptionScopeKey && activeScopeRef.current === redemptionScopeKey);
+    if (!redemptionTenantSlug || !redemptionScopeKey) return;
+    setRedeemingState({ scopeKey: redemptionScopeKey, rewardId });
+    setErrorState(null);
     try {
-      await apiClient.redeemBenefit(currentSlug, rewardId);
-      const data = await apiClient.getLoyalty(currentSlug);
-      setLoyaltyData(data);
+      await apiClient.redeemBenefit(redemptionTenantSlug, rewardId);
+      if (!isCurrentRedemption()) return;
+      const data = await apiClient.getLoyalty(redemptionTenantSlug);
+      if (!isCurrentRedemption()) return;
+      setLoyaltyState({ scopeKey: redemptionScopeKey, data });
     } catch (err) {
       console.error('Redemption failed', err);
-      setError('No se pudo canjear el beneficio. Intenta nuevamente o verifica tu saldo.');
+      if (isCurrentRedemption()) {
+        setErrorState({
+          scopeKey: redemptionScopeKey,
+          message: 'No se pudo canjear el beneficio. Intenta nuevamente o verifica tu saldo.',
+        });
+      }
     } finally {
-      setRedeeming(null);
+      if (isCurrentRedemption()) setRedeemingState(null);
     }
   };
 
@@ -156,7 +221,7 @@ const UserBenefitsPage = () => {
                       size="sm"
                       variant="secondary"
                       className="mt-1"
-                      disabled={!user || !summary || summary.points < reward.cost || !!redeeming}
+                      disabled={!canUsePrivateLoyalty || !summary || summary.points < reward.cost || !!redeeming}
                       onClick={() => handleRedeem(reward.id)}
                     >
                       {redeeming === reward.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Canjear'}

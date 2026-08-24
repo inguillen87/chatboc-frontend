@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -15,6 +15,10 @@ import {
 } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
+import {
+  buildVerifiedSessionScopeKey,
+  useSessionAuthority,
+} from '@/components/access/SessionAuthorityContext';
 import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient, type PortalClaim } from '@/api/client';
@@ -403,38 +407,62 @@ const AuthenticatedClaimCard = ({ claim }: { claim: PortalClaim }) => {
 const UserClaimsPage = () => {
   const { currentSlug, widgetToken } = useTenant();
   const { user } = useUser();
+  const { hasVerifiedSession } = useSessionAuthority();
   const navigate = useNavigate();
   const { commerceSession, publicClaims, isLoading: portalLoading } = usePortalContent();
-  const [claims, setClaims] = useState<PortalClaim[]>([]);
-  const [claimsLoading, setClaimsLoading] = useState(false);
+  const privateScopeKey = buildVerifiedSessionScopeKey({
+    hasVerifiedSession,
+    tenantSlug: currentSlug,
+    user,
+  });
+  const activeScopeRef = useRef(privateScopeKey);
+  activeScopeRef.current = privateScopeKey;
+  const [claimsState, setClaimsState] = useState<{ scopeKey: string; items: PortalClaim[] } | null>(null);
+  const [loadingScopeKey, setLoadingScopeKey] = useState<string | null>(null);
+  const claims = privateScopeKey && claimsState?.scopeKey === privateScopeKey
+    ? claimsState.items
+    : [];
+  const claimsLoading = Boolean(privateScopeKey && loadingScopeKey === privateScopeKey);
   const [publicNavigationItems, setPublicNavigationItems] = useState<TenantPublicNavigationItem[]>([]);
 
   useEffect(() => {
     let active = true;
-    if (!currentSlug || !user || publicClaims.length > 0) {
-      setClaims([]);
-      setClaimsLoading(false);
+    const requestScopeKey = privateScopeKey;
+    const requestTenantSlug = currentSlug;
+    const isCurrentRequest = () =>
+      active && activeScopeRef.current === requestScopeKey;
+
+    if (!requestTenantSlug || !requestScopeKey || publicClaims.length > 0) {
+      setClaimsState(null);
+      setLoadingScopeKey(null);
       return;
     }
 
-    setClaimsLoading(true);
+    setLoadingScopeKey(requestScopeKey);
     apiClient
-      .listClaims(currentSlug)
+      .listClaims(requestTenantSlug)
       .then((data) => {
-        if (active) setClaims(Array.isArray(data) ? data : []);
+        if (isCurrentRequest()) {
+          setClaimsState({
+            scopeKey: requestScopeKey,
+            items: Array.isArray(data) ? data : [],
+          });
+        }
       })
       .catch((error) => {
         console.error('Error loading claims:', error);
-        if (active) setClaims([]);
+        if (isCurrentRequest()) {
+          setClaimsState({ scopeKey: requestScopeKey, items: [] });
+        }
       })
       .finally(() => {
-        if (active) setClaimsLoading(false);
+        if (isCurrentRequest()) setLoadingScopeKey(null);
       });
 
     return () => {
       active = false;
     };
-  }, [currentSlug, publicClaims.length, user]);
+  }, [currentSlug, privateScopeKey, publicClaims.length]);
 
   useEffect(() => {
     let active = true;

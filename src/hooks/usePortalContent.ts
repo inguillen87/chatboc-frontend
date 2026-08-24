@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  buildVerifiedSessionScopeKey,
+  useSessionAuthority,
+} from '@/components/access/SessionAuthorityContext';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { apiClient } from '@/api/client';
@@ -39,6 +43,26 @@ const EMPTY_PORTAL_CONTENT: PortalContent = {
   loyaltySummary: null,
 };
 
+interface ScopedPublicPortal {
+  tenantKey: string;
+  content: PortalContent;
+  commerceSession: WidgetCommerceSession | null;
+  widgetHistory: WidgetCommerceHistory | null;
+  widgetCart: WidgetCommerceCartSnapshot | null;
+}
+
+interface ScopedPrivatePortal {
+  scopeKey: string;
+  content: PortalContent;
+  bundle: PortalPremiumBundle | null;
+}
+
+interface ScopedRegistrationState {
+  tenantKey: string;
+  result: WidgetUserRegisterResponse | null;
+  error: unknown;
+}
+
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -49,20 +73,28 @@ const readFirstString = (...values: unknown[]) => {
 export function usePortalContent() {
   const { currentSlug, widgetToken } = useTenant();
   const { user } = useUser();
-  const [content, setContent] = useState<PortalContent>(EMPTY_PORTAL_CONTENT);
+  const { hasVerifiedSession } = useSessionAuthority();
+  const tenantKey = currentSlug?.trim().toLowerCase() || null;
+  const privateScopeKey = buildVerifiedSessionScopeKey({
+    hasVerifiedSession,
+    tenantSlug: currentSlug,
+    user,
+  });
+  const [privatePortal, setPrivatePortal] = useState<ScopedPrivatePortal | null>(null);
+  const [publicPortal, setPublicPortal] = useState<ScopedPublicPortal | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [bundle, setBundle] = useState<PortalPremiumBundle | null>(null);
-  const [commerceSession, setCommerceSession] = useState<WidgetCommerceSession | null>(null);
-  const [widgetHistory, setWidgetHistory] = useState<WidgetCommerceHistory | null>(null);
-  const [widgetCart, setWidgetCart] = useState<WidgetCommerceCartSnapshot | null>(null);
-  const [registrationResult, setRegistrationResult] = useState<WidgetUserRegisterResponse | null>(null);
-  const [registrationError, setRegistrationError] = useState<unknown>(null);
+  const [registrationState, setRegistrationState] = useState<ScopedRegistrationState | null>(null);
+  const fetchGenerationRef = useRef(0);
+  const registrationGenerationRef = useRef(0);
+  const activeScopeRef = useRef({ tenantKey, privateScopeKey });
+  activeScopeRef.current = { tenantKey, privateScopeKey };
 
   const buildWidgetRequest = useCallback(
     (session?: WidgetCommerceSession | null): WidgetCommerceRequest => {
       const currentChatSessionId = getOrCreateChatSessionId();
-      const adoptedChatSessionId = persistChatSessionId(session?.session?.chat_session_id) ?? currentChatSessionId;
+      const adoptedChatSessionId =
+        readFirstString(session?.session?.chat_session_id) ?? currentChatSessionId;
       return {
         tenantSlug: currentSlug,
         widgetToken,
@@ -76,9 +108,6 @@ export function usePortalContent() {
 
   const fetchPublicPortal = useCallback(async () => {
     if (!currentSlug) {
-      setCommerceSession(null);
-      setWidgetHistory(null);
-      setWidgetCart(null);
       return {
         session: null as WidgetCommerceSession | null,
         history: null as WidgetCommerceHistory | null,
@@ -89,10 +118,12 @@ export function usePortalContent() {
 
     const baseRequest = buildWidgetRequest(null);
     const session = await getWidgetCommerceSession(baseRequest).catch(() => null);
-    if (session?.session?.chat_session_id) {
-      persistChatSessionId(session.session.chat_session_id);
-    }
-    const request = buildWidgetRequest(session);
+    const request: WidgetCommerceRequest = {
+      ...baseRequest,
+      chatSessionId:
+        readFirstString(session?.session?.chat_session_id) ?? baseRequest.chatSessionId,
+      widgetSessionToken: session?.session?.widget_session_token || null,
+    };
     const historyEndpoint = readFirstString(
       session?.portal?.history_endpoint,
       session?.history?.history_endpoint,
@@ -112,30 +143,31 @@ export function usePortalContent() {
 
     const history = historyResponse.status === 'fulfilled' ? historyResponse.value : null;
     const cart = cartResponse.status === 'fulfilled' ? cartResponse.value : null;
-    if (history?.session?.chat_session_id) {
-      persistChatSessionId(history.session.chat_session_id);
-    }
-    if (cart?.session?.chat_session_id) {
-      persistChatSessionId(cart.session.chat_session_id);
-    }
 
-    setCommerceSession(session);
-    setWidgetHistory(history);
-    setWidgetCart(cart);
+    const resolvedPublicContent = buildPortalContentFromWidgetHistory(history, cart);
 
     return {
       session,
       history,
       cart,
-      content: buildPortalContentFromWidgetHistory(history, cart),
+      content: resolvedPublicContent,
     };
   }, [buildWidgetRequest, currentSlug]);
 
   const fetchContent = useCallback(async () => {
-    if (!currentSlug) {
-      setContent(EMPTY_PORTAL_CONTENT);
-      setBundle(null);
+    const fetchGeneration = ++fetchGenerationRef.current;
+    const fetchTenantKey = tenantKey;
+    const fetchPrivateScopeKey = privateScopeKey;
+    const isCurrentFetch = () =>
+      fetchGenerationRef.current === fetchGeneration &&
+      activeScopeRef.current.tenantKey === fetchTenantKey &&
+      activeScopeRef.current.privateScopeKey === fetchPrivateScopeKey;
+
+    if (!currentSlug || !fetchTenantKey) {
+      setPrivatePortal(null);
+      setPublicPortal(null);
       setError(null);
+      setIsLoading(false);
       return;
     }
 
@@ -144,10 +176,22 @@ export function usePortalContent() {
 
     try {
       const publicPortal = await fetchPublicPortal();
+      if (!isCurrentFetch()) return;
 
-      if (!user) {
-        setContent(publicPortal.content);
-        setBundle(null);
+      [publicPortal.session, publicPortal.history, publicPortal.cart].forEach((source) => {
+        const chatSessionId = source?.session?.chat_session_id;
+        if (chatSessionId) persistChatSessionId(chatSessionId);
+      });
+      setPublicPortal({
+        tenantKey: fetchTenantKey,
+        content: publicPortal.content,
+        commerceSession: publicPortal.session,
+        widgetHistory: publicPortal.history,
+        widgetCart: publicPortal.cart,
+      });
+
+      if (!fetchPrivateScopeKey) {
+        setPrivatePortal(null);
         return;
       }
 
@@ -169,6 +213,7 @@ export function usePortalContent() {
         apiClient.getPortalSurveysHistory(currentSlug, includeNetwork),
         apiClient.getPortalPremiumBundle(currentSlug),
       ]);
+      if (!isCurrentFetch()) return;
 
       const baseContent =
         contentResponse.status === 'fulfilled'
@@ -182,50 +227,78 @@ export function usePortalContent() {
             )
           : EMPTY_PORTAL_CONTENT;
 
-      setContent(overlayPortalContent(baseContent, publicPortal.content));
-      setBundle(bundleResponse.status === 'fulfilled' ? bundleResponse.value : null);
+      setPrivatePortal({
+        scopeKey: fetchPrivateScopeKey,
+        content: overlayPortalContent(baseContent, publicPortal.content),
+        bundle: bundleResponse.status === 'fulfilled' ? bundleResponse.value : null,
+      });
     } catch (err: any) {
+      if (!isCurrentFetch()) return;
       console.warn('Failed to fetch portal content', err);
       setError(err);
-      setContent(EMPTY_PORTAL_CONTENT);
-      setBundle(null);
+      setPrivatePortal(null);
+      setPublicPortal(null);
     } finally {
-      setIsLoading(false);
+      if (isCurrentFetch()) setIsLoading(false);
     }
-  }, [currentSlug, fetchPublicPortal, user]);
+  }, [currentSlug, fetchPublicPortal, privateScopeKey, tenantKey]);
+
+  const visiblePublicPortal = publicPortal?.tenantKey === tenantKey ? publicPortal : null;
+  const visiblePrivatePortal =
+    privateScopeKey && privatePortal?.scopeKey === privateScopeKey ? privatePortal : null;
+  const commerceSession = visiblePublicPortal?.commerceSession ?? null;
+  const widgetHistory = visiblePublicPortal?.widgetHistory ?? null;
+  const widgetCart = visiblePublicPortal?.widgetCart ?? null;
 
   const registerWidgetProfile = useCallback(
     async (payload: WidgetUserRegisterPayload) => {
-      if (!currentSlug) return null;
-      setRegistrationError(null);
-      const request = buildWidgetRequest(commerceSession);
+      if (!currentSlug || !tenantKey) return null;
+      const registrationGeneration = ++registrationGenerationRef.current;
+      const registrationTenantKey = tenantKey;
+      const registrationSession = commerceSession;
+      const isCurrentRegistration = () =>
+        registrationGenerationRef.current === registrationGeneration &&
+        activeScopeRef.current.tenantKey === registrationTenantKey;
+      setRegistrationState({ tenantKey: registrationTenantKey, result: null, error: null });
+      const request = buildWidgetRequest(registrationSession);
       try {
         const registerEndpoint = readFirstString(
-          commerceSession?.portal?.register_endpoint,
-          commerceSession?.history?.register_endpoint,
+          registrationSession?.portal?.register_endpoint,
+          registrationSession?.history?.register_endpoint,
         );
         const result = await registerWidgetUser(request, payload, registerEndpoint);
-        setRegistrationResult(result);
+        if (!isCurrentRegistration()) return null;
+        setRegistrationState({ tenantKey: registrationTenantKey, result, error: null });
         if (result.session?.chat_session_id) {
           persistChatSessionId(result.session.chat_session_id);
         }
 
         if (result.status !== 'verification_required') {
           const linkEndpoint = readFirstString(
-            commerceSession?.portal?.link_session_endpoint,
-            commerceSession?.history?.link_session_endpoint,
+            registrationSession?.portal?.link_session_endpoint,
+            registrationSession?.history?.link_session_endpoint,
           );
-          await linkWidgetSession(buildWidgetRequest(commerceSession), {}, linkEndpoint).catch(() => null);
+          const linkRequest: WidgetCommerceRequest = {
+            ...request,
+            chatSessionId:
+              readFirstString(result.session?.chat_session_id) ?? request.chatSessionId,
+            widgetSessionToken:
+              result.session?.widget_session_token || request.widgetSessionToken,
+          };
+          await linkWidgetSession(linkRequest, {}, linkEndpoint).catch(() => null);
+          if (!isCurrentRegistration()) return null;
           await fetchContent();
         }
 
         return result;
       } catch (err) {
-        setRegistrationError(err);
+        if (isCurrentRegistration()) {
+          setRegistrationState({ tenantKey: registrationTenantKey, result: null, error: err });
+        }
         throw err;
       }
     },
-    [buildWidgetRequest, commerceSession, currentSlug, fetchContent],
+    [buildWidgetRequest, commerceSession, currentSlug, fetchContent, tenantKey],
   );
 
   useEffect(() => {
@@ -240,10 +313,16 @@ export function usePortalContent() {
     () => normalizeWidgetProfile(widgetHistory, commerceSession),
     [commerceSession, widgetHistory],
   );
+  const registrationResult =
+    registrationState?.tenantKey === tenantKey ? registrationState.result : null;
+  const registrationError =
+    registrationState?.tenantKey === tenantKey ? registrationState.error : null;
+  const visibleContent =
+    visiblePrivatePortal?.content ?? visiblePublicPortal?.content ?? EMPTY_PORTAL_CONTENT;
 
   return {
-    content,
-    bundle,
+    content: visibleContent,
+    bundle: visiblePrivatePortal?.bundle ?? null,
     commerceSession,
     widgetHistory,
     widgetCart,

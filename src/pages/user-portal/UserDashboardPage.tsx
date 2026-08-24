@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import SummaryCard from '@/components/user-portal/dashboard/SummaryCard';
+import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
@@ -28,6 +29,8 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
+  const { hasVerifiedSession } = useSessionAuthority();
+  const canUsePrivateDashboard = Boolean(hasVerifiedSession && user);
   const { currentSlug, tenant } = useTenant();
   const {
     content,
@@ -68,7 +71,10 @@ const UserDashboardPage = () => {
     }
   };
 
-  const loyaltySummary = useMemo(() => content.loyaltySummary ?? null, [content]);
+  const loyaltySummary = useMemo(
+    () => (canUsePrivateDashboard ? content.loyaltySummary ?? null : null),
+    [canUsePrivateDashboard, content.loyaltySummary],
+  );
   const hasParticipationMetrics = Boolean(loyaltySummary?.hasParticipationMetrics);
 
   // Normalize optional arrays from the tenant portal contract.
