@@ -1081,9 +1081,10 @@ export const enterpriseService = {
   },
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
-    const suffix = ensureUsers ? "?ensure_users=true" : "";
+    const query = new URLSearchParams({ response_profile: "selector" });
+    if (ensureUsers) query.set("ensure_users", "true");
     try {
-      return await apiFetch<DemoCatalogResponse>(`/api/v2/demo/catalog${suffix}`, {
+      return await apiFetch<DemoCatalogResponse>(`/api/v2/demo/catalog?${query.toString()}`, {
         skipAuth: true,
         omitTenant: true,
       });

@@ -14,7 +14,10 @@ import type {
 } from './demoTypes';
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
-  return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
+  const query = new URLSearchParams({ response_profile: 'selector' });
+  return normalizeDemoCatalog(
+    await demoApi.get<DemoCatalogResponse>(`/api/v2/demo/catalog?${query.toString()}`),
+  );
 };
 
 export type DemoSessionPayload = {

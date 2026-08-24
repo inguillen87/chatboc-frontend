@@ -31,13 +31,25 @@ describe('enterpriseService demo endpoints', () => {
     apiFetchMock.mockResolvedValue({});
   });
 
-  it('requests demo catalog without tenant scope params', async () => {
+  it('requests the compact demo catalog without tenant scope params', async () => {
     await enterpriseService.getDemoCatalog();
 
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/demo/catalog', {
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/demo/catalog?response_profile=selector', {
       skipAuth: true,
       omitTenant: true,
     });
+  });
+
+  it('combines the compact profile with ensure_users using one valid query string', async () => {
+    await enterpriseService.getDemoCatalog(true);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/demo/catalog?response_profile=selector&ensure_users=true',
+      {
+        skipAuth: true,
+        omitTenant: true,
+      },
+    );
   });
 
   it('posts demo login payload without tenant scope params', async () => {

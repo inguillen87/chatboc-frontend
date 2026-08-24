@@ -35,7 +35,8 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
     });
   });
 
-  await page.route('**/api/v2/demo/catalog', async (route) => {
+  await page.route('**/api/v2/demo/catalog*', async (route) => {
+    expect(new URL(route.request().url()).searchParams.get('response_profile')).toBe('selector');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
