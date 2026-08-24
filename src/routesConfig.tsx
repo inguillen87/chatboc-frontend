@@ -61,7 +61,7 @@ const CategoryManagementPage = React.lazy(() => import('@/pages/admin/CategoryMa
 const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogManagementPage'));
 const OpinarArPage = React.lazy(() => import('@/pages/OpinarArPage'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
-const AnalyticsPage = React.lazy(() => import('@/pages/analytics/AnalyticsPage'));
+const AnalyticsAccessPage = React.lazy(() => import('@/features/analytics/AnalyticsAccessPage'));
 const BotSettingsEnterprise = React.lazy(() => import('@/pages/BotSettingsEnterprise'));
 
 const Iframe = React.lazy(() => import('@/pages/IframePage'));
@@ -106,7 +106,6 @@ const EducationBillingPage = React.lazy(() => import('@/pages/education/Educatio
 const EducationFamilyVerificationPage = React.lazy(() => import('@/pages/education/EducationFamilyVerificationPage'));
 const TicketsBoardPage = React.lazy(() => import('@/features/tickets/TicketsBoardPage'));
 const SurveyBuilderPage = React.lazy(() => import('@/features/surveys/SurveyBuilderPage'));
-const AnalyticsHubPage = React.lazy(() => import('@/features/analytics/AnalyticsHubPage'));
 const OperationsDashboardPage = React.lazy(() => import('@/features/analytics/OperationsDashboardPage'));
 
 // Updated for Commerce Module & Mirror Catalog
@@ -592,7 +591,7 @@ const routes: RouteConfig[] = [
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   },
   { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/hub', element: <AnalyticsAccessPage variant="hub" />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] },
   { path: '/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
     path: '/pedidos',
@@ -655,14 +654,13 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/estadisticas', { element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin', 'analytics_viewer'] }),
   {
     path: '/analytics',
-    element: <AnalyticsPage />,
-    roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: ['analytics.read'],
+    element: <AnalyticsAccessPage />,
+    roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'],
   },
   { path: '/:tenant/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   ...withTenantPrefixes('/:tenant/analytics/operations', { element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
-  { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
+  { path: '/:tenant/analytics', element: <AnalyticsAccessPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] },
+  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsAccessPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   ...withTenantPrefixes('/:tenant/perfil/plantillas-respuesta', {
     element: <GestionPlantillasPage />,
