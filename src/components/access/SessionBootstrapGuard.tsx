@@ -2,17 +2,17 @@ import React from 'react';
 import { Navigate, matchRoutes, useLocation } from 'react-router-dom';
 
 import { ViewState } from '@/components/app-shell/ViewState';
+import {
+  resolveVerifiedSession,
+  SessionAuthorityProvider,
+  type SessionClerkStatus,
+} from '@/components/access/SessionAuthorityContext';
 import routes from '@/routesConfig';
 import { buildLoginPathWithNext } from '@/utils/authRedirect';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { hasPersistedClerkSession } from '@/utils/sessionLogout';
 
-export type ClerkBootstrapStatus =
-  | 'disabled'
-  | 'loading'
-  | 'signed_out'
-  | 'syncing'
-  | 'ready';
+export type ClerkBootstrapStatus = SessionClerkStatus;
 
 interface SessionBootstrapGuardProps {
   clerkStatus: ClerkBootstrapStatus;
@@ -132,12 +132,13 @@ const SessionBootstrapGuard: React.FC<SessionBootstrapGuardProps> = ({
 }) => {
   const location = useLocation();
   const hasBearerSession = hasValidBearerSession();
+  const bearerRequiresClerkVerification =
+    hasBearerSession && hasPersistedClerkSession();
   const decision = resolveSessionBootstrapDecision({
     pathname: location.pathname,
     search: location.search,
     hasBearerSession,
-    bearerRequiresClerkVerification:
-      hasBearerSession && hasPersistedClerkSession(),
+    bearerRequiresClerkVerification,
     clerkStatus,
   });
 
@@ -149,7 +150,19 @@ const SessionBootstrapGuard: React.FC<SessionBootstrapGuardProps> = ({
     return <ViewState status="loading" title="Validando acceso seguro" />;
   }
 
-  return <>{renderRuntime(decision.kind !== 'passive')}</>;
+  const hasVerifiedSession = resolveVerifiedSession({
+    clerkStatus,
+    hasBearerSession,
+    bearerRequiresClerkVerification,
+  });
+
+  return (
+    <SessionAuthorityProvider
+      value={{ clerkStatus, hasBearerSession, hasVerifiedSession }}
+    >
+      {renderRuntime(decision.kind !== 'passive')}
+    </SessionAuthorityProvider>
+  );
 };
 
 export default SessionBootstrapGuard;

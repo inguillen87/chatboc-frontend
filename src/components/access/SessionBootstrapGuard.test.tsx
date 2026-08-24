@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SessionBootstrapGuard from './SessionBootstrapGuard';
 import type { ClerkBootstrapStatus } from './SessionBootstrapGuard';
+import { useSessionAuthority } from './SessionAuthorityContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const privateBootstrapMocks = {
@@ -30,6 +31,11 @@ const PassiveRouteProbe = () => {
   return <output data-testid="passive-route">{`${location.pathname}${location.search}`}</output>;
 };
 
+const SessionAuthorityProbe = () => {
+  const authority = useSessionAuthority();
+  return <output data-testid="session-authority">{JSON.stringify(authority)}</output>;
+};
+
 const renderGuard = (initialEntry: string, clerkStatus: ClerkBootstrapStatus = 'disabled') =>
   render(
     <MemoryRouter
@@ -39,7 +45,10 @@ const renderGuard = (initialEntry: string, clerkStatus: ClerkBootstrapStatus = '
       <SessionBootstrapGuard
         clerkStatus={clerkStatus}
         renderRuntime={(tenantBootstrapEnabled) =>
-          tenantBootstrapEnabled ? <PrivateBootstrapProbe /> : <PassiveRouteProbe />
+          <>
+            <SessionAuthorityProbe />
+            {tenantBootstrapEnabled ? <PrivateBootstrapProbe /> : <PassiveRouteProbe />}
+          </>
         }
       />
     </MemoryRouter>,
@@ -120,6 +129,32 @@ describe('SessionBootstrapGuard', () => {
     renderGuard('/perfil', 'loading');
 
     expect(screen.getByText('private-bootstrap-mounted')).toBeInTheDocument();
+    expect(screen.getByTestId('session-authority')).toHaveTextContent(
+      '"hasBearerSession":true,"hasVerifiedSession":true',
+    );
+  });
+
+  it.each(['loading', 'signed_out'] as const)(
+    'keeps a public guest route unverified when a stale Clerk marker is %s',
+    (clerkStatus) => {
+      safeLocalStorage.setItem('authProvider', 'clerk');
+      safeLocalStorage.setItem('clerkUserId', 'user-stale');
+
+      renderGuard('/t/junin/market', clerkStatus);
+
+      expect(screen.getByText('private-bootstrap-mounted')).toBeInTheDocument();
+      expect(screen.getByTestId('session-authority')).toHaveTextContent(
+        `"clerkStatus":"${clerkStatus}","hasBearerSession":false,"hasVerifiedSession":false`,
+      );
+    },
+  );
+
+  it('publishes a synchronized Clerk session as verified authority', () => {
+    renderGuard('/t/junin/market', 'ready');
+
+    expect(screen.getByTestId('session-authority')).toHaveTextContent(
+      '"clerkStatus":"ready","hasBearerSession":false,"hasVerifiedSession":true',
+    );
   });
 
   it('rejects an expired bearer before mounting private providers', async () => {

@@ -7,6 +7,7 @@ import Navbar from './Navbar';
 
 const useUserMock = vi.fn();
 const useCapabilitiesMock = vi.fn();
+const useSessionAuthorityMock = vi.fn();
 
 vi.mock('@/components/brand/ChatbocBrandLockup', () => ({
   default: () => <span>Chatboc.ar</span>,
@@ -32,6 +33,10 @@ vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => useCapabilitiesMock(),
 }));
 
+vi.mock('@/components/access/SessionAuthorityContext', () => ({
+  useSessionAuthority: () => useSessionAuthorityMock(),
+}));
+
 describe('Navbar account menu routing', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -49,6 +54,11 @@ describe('Navbar account menu routing', () => {
       capabilities: ['tickets.read', 'orders.read'],
       hasAnyCapability: (required: string[]) =>
         required.some((capability) => ['tickets.read', 'orders.read'].includes(capability)),
+    });
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'disabled',
+      hasBearerSession: true,
+      hasVerifiedSession: true,
     });
   });
 
@@ -199,6 +209,38 @@ describe('Navbar account menu routing', () => {
       'href',
       '/perfil?tab=tickets',
     );
+  });
+
+  it('does not expose an account badge or admin links from stale user data without a verified session', () => {
+    window.localStorage.setItem('authProvider', 'clerk');
+    window.localStorage.setItem('clerkUserId', 'user_stale_navbar');
+    window.localStorage.setItem(
+      'user',
+      JSON.stringify({ rol: 'admin', tipo_chat: 'municipio', name: 'Operador stale' }),
+    );
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'loading',
+      hasBearerSession: true,
+      hasVerifiedSession: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText('Mi cuenta')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Iniciar sesión' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getAllByRole('link', { name: 'Iniciar sesión' })).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Mi perfil' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Reclamos$/i })).not.toBeInTheDocument();
   });
 
   it('does not expose claims to backoffice profiles without ticket role or capability', () => {
