@@ -9,6 +9,7 @@ import { getValidStoredToken } from '@/utils/authTokens';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import {
   captureChatbocSessionRevision,
@@ -383,5 +384,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export function useUser() {
-  return useContext(UserContext);
+  const context = useContext(UserContext);
+  const { hasVerifiedSession } = useSessionAuthority();
+
+  return {
+    ...context,
+    user: hasVerifiedSession ? context.user : null,
+  };
 }

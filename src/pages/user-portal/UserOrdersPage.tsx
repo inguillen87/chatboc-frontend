@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowRightLeft, ExternalLink, Globe, MessageCircle, Package, ShoppingBag } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
+import {
+  buildVerifiedSessionScopeKey,
+  useSessionAuthority,
+} from '@/components/access/SessionAuthorityContext';
 import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient } from '@/api/client';
@@ -189,36 +193,60 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
 const UserOrdersPage = () => {
   const { currentSlug } = useTenant();
   const { user } = useUser();
+  const { hasVerifiedSession } = useSessionAuthority();
   const { content, commerceSession, publicOrders, isLoading: portalLoading } = usePortalContent();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [legacyLoading, setLegacyLoading] = useState(false);
+  const privateScopeKey = buildVerifiedSessionScopeKey({
+    hasVerifiedSession,
+    tenantSlug: currentSlug,
+    user,
+  });
+  const activeScopeRef = useRef(privateScopeKey);
+  activeScopeRef.current = privateScopeKey;
+  const [ordersState, setOrdersState] = useState<{ scopeKey: string; items: Order[] } | null>(null);
+  const [loadingScopeKey, setLoadingScopeKey] = useState<string | null>(null);
+  const orders = privateScopeKey && ordersState?.scopeKey === privateScopeKey
+    ? ordersState.items
+    : [];
+  const legacyLoading = Boolean(privateScopeKey && loadingScopeKey === privateScopeKey);
 
   useEffect(() => {
     let active = true;
-    if (!currentSlug || !user || publicOrders.length > 0) {
-      setOrders([]);
-      setLegacyLoading(false);
+    const requestScopeKey = privateScopeKey;
+    const requestTenantSlug = currentSlug;
+    const isCurrentRequest = () =>
+      active && activeScopeRef.current === requestScopeKey;
+
+    if (!requestTenantSlug || !requestScopeKey || publicOrders.length > 0) {
+      setOrdersState(null);
+      setLoadingScopeKey(null);
       return;
     }
 
-    setLegacyLoading(true);
+    setLoadingScopeKey(requestScopeKey);
     apiClient
-      .listOrders(currentSlug)
+      .listOrders(requestTenantSlug)
       .then((data) => {
-        if (active) setOrders(Array.isArray(data) ? data : []);
+        if (isCurrentRequest()) {
+          setOrdersState({
+            scopeKey: requestScopeKey,
+            items: Array.isArray(data) ? data : [],
+          });
+        }
       })
       .catch((error) => {
         console.error('Error loading orders:', error);
-        if (active) setOrders([]);
+        if (isCurrentRequest()) {
+          setOrdersState({ scopeKey: requestScopeKey, items: [] });
+        }
       })
       .finally(() => {
-        if (active) setLegacyLoading(false);
+        if (isCurrentRequest()) setLoadingScopeKey(null);
       });
 
     return () => {
       active = false;
     };
-  }, [currentSlug, publicOrders.length, user]);
+  }, [currentSlug, privateScopeKey, publicOrders.length]);
 
   const catalogPath = useMemo(() => buildTenantPath('/productos', currentSlug ?? undefined), [currentSlug]);
   const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;

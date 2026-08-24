@@ -1,8 +1,12 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { HashRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 
+import {
+  resolveVerifiedSession,
+  SessionAuthorityProvider,
+} from "@/components/access/SessionAuthorityContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
@@ -12,6 +16,8 @@ import { DateSettingsProvider } from "@/hooks/useDateSettings";
 import { UserProvider } from "@/hooks/useUser";
 import { GOOGLE_CLIENT_ID } from "@/env";
 import NotFound from "@/pages/NotFound";
+import { getValidStoredToken } from "@/utils/authTokens";
+import { hasPersistedClerkSession } from "@/utils/sessionLogout";
 import { buildTenantPath } from "@/utils/tenantPaths";
 
 const UserDashboardPage = React.lazy(() => import("@/pages/user-portal/UserDashboardPage"));
@@ -76,9 +82,28 @@ function PortalTenantRedirect() {
   return <Navigate to={buildTenantPath("/portal/dashboard", tenant)} replace />;
 }
 
-function PortalRoutes() {
+function PortalRouteTree() {
+  // Hash-router navigation re-renders this boundary, so session authority is
+  // recalculated after an auth transition instead of trusting a stale user.
+  useLocation();
+  const hasBearerSession = Boolean(
+    getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"),
+  );
+  const hasVerifiedSession = resolveVerifiedSession({
+    clerkStatus: "disabled",
+    hasBearerSession,
+    bearerRequiresClerkVerification:
+      hasBearerSession && hasPersistedClerkSession(),
+  });
+
   return (
-    <HashRouter>
+    <SessionAuthorityProvider
+      value={{
+        clerkStatus: "disabled",
+        hasBearerSession,
+        hasVerifiedSession,
+      }}
+    >
       <TenantProvider>
         <React.Suspense fallback={<PortalLoadingFallback />}>
           <Routes>
@@ -125,6 +150,14 @@ function PortalRoutes() {
           </Routes>
         </React.Suspense>
       </TenantProvider>
+    </SessionAuthorityProvider>
+  );
+}
+
+function PortalRoutes() {
+  return (
+    <HashRouter>
+      <PortalRouteTree />
     </HashRouter>
   );
 }

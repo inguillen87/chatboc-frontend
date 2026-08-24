@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 import { useCapabilities } from "@/context/CapabilitiesContext";
+import { useSessionAuthority } from "@/components/access/SessionAuthorityContext";
 import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
@@ -126,12 +127,16 @@ const Navbar: React.FC = () => {
   const clerkRuntime = useClerkRuntime();
   const { currentSlug } = useTenant();
   const { capabilities, hasAnyCapability } = useCapabilities();
+  const { hasVerifiedSession } = useSessionAuthority();
 
   const isLanding = location.pathname === "/";
   const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
   const hasPersistedSession = hasValidStoredToken || hasPersistedClerkSession();
-  const isLoggedIn = Boolean(user || (hasPersistedSession && safeLocalStorage.getItem("user")));
+  const isLoggedIn = Boolean(
+    hasVerifiedSession &&
+      (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
+  );
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const resolvedLandingNavItems = useMemo(
     () => readLandingNavItems(landingExperience?.navigation),
