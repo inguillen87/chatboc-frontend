@@ -3,6 +3,8 @@ import {
   type ClerkRuntimeValue,
 } from '@/components/auth/ClerkRuntimeContext';
 
+export const CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS = 5_000;
+
 interface ClerkEnvRuntimeOptions {
   allowEnvFallback: boolean;
   envEnabled: boolean;
