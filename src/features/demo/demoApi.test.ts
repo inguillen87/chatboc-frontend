@@ -18,7 +18,13 @@ vi.mock('@/data/demoCatalogAssets', () => ({
 }));
 
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { createDemoSession, createDemoWhatsappSandbox, getDemoAdminPreview, getDemoWhatsappSandbox } from './demoApi';
+import {
+  createDemoSession,
+  createDemoWhatsappSandbox,
+  getDemoAdminPreview,
+  getDemoCatalog,
+  getDemoWhatsappSandbox,
+} from './demoApi';
 import {
   DEMO_CHAT_SESSION_STORAGE_KEY,
   DEMO_SESSION_STORAGE_KEY,
@@ -32,6 +38,38 @@ describe('demo session API', () => {
     findDemoCatalogAssetMock.mockReset();
     findDemoCatalogAssetMock.mockReturnValue(null);
     safeLocalStorage.clear();
+  });
+
+  it('requests the compact selector catalog and preserves all three sector groups', async () => {
+    demoGetMock.mockResolvedValue({
+      contract_version: 'demo.catalog.v2',
+      sectors: ['gobierno', 'empresas', 'educacion'],
+      sector_groups: [
+        { key: 'gobierno', label: 'Gobiernos', rubro_slugs: ['municipio'] },
+        { key: 'empresas', label: 'Empresas', rubro_slugs: ['bodega', 'ferreteria'] },
+        { key: 'educacion', label: 'Colegios', rubro_slugs: ['colegios'] },
+      ],
+      rubros: [
+        { slug: 'municipio', label: 'Municipio', sector: 'gobierno' },
+        { slug: 'bodega', label: 'Bodega', sector: 'empresas' },
+        { slug: 'colegios', label: 'Colegios', sector: 'educacion' },
+      ],
+    });
+
+    const response = await getDemoCatalog();
+
+    expect(demoGetMock).toHaveBeenCalledWith('/api/v2/demo/catalog?response_profile=selector');
+    expect(response.sectors).toEqual(['gobierno', 'empresas', 'educacion']);
+    expect(response.sector_groups?.map((group) => group.key)).toEqual([
+      'gobierno',
+      'empresas',
+      'educacion',
+    ]);
+    expect(response.sector_groups?.map((group) => group.rubro_slugs)).toEqual([
+      ['municipio'],
+      ['bodega', 'ferreteria'],
+      ['colegios'],
+    ]);
   });
 
   it('persists demo tenant/session under demo-only keys without overwriting real tenant context', async () => {
