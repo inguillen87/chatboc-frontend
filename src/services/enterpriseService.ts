@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from "@/utils/api";
 import { normalizeEmployeeCoverageV2, normalizeSuperadminExecutiveSummaryV2 } from "@/api/v2/saas";
+import { requestDemoCatalog } from "@/services/demoCatalogRequest";
 import { getOrCreateAnonId } from "@/utils/anonId";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { createLeadCaptureIdempotencyKey } from "@/utils/leadCapture";
@@ -1081,13 +1082,8 @@ export const enterpriseService = {
   },
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
-    const query = new URLSearchParams({ response_profile: "selector" });
-    if (ensureUsers) query.set("ensure_users", "true");
     try {
-      return await apiFetch<DemoCatalogResponse>(`/api/v2/demo/catalog?${query.toString()}`, {
-        skipAuth: true,
-        omitTenant: true,
-      });
+      return await requestDemoCatalog<DemoCatalogResponse>({ ensureUsers });
     } catch (error) {
       const normalized = toDemoModeDisabledError(error);
       if (normalized) throw normalized;

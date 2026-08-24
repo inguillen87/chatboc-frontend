@@ -11,6 +11,10 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: BASE_URL,
+    // Functional journeys run against Vite dev. Keep prior local PWA workers
+    // from triggering the intentional cleanup reload mid-journey; the
+    // dedicated PWA config enables service workers and verifies that lifecycle.
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
   },
   webServer: {
