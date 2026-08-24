@@ -100,6 +100,8 @@ export interface OperationsAlert {
 }
 
 export interface OperationsBreakdowns {
+  available?: boolean;
+  reason_code?: string;
   summary?: Record<string, unknown>;
   items?: OperationsBucketItem[];
   by_status?: OperationsBucketItem[];
@@ -128,6 +130,8 @@ export interface OperationsLiveChat {
 }
 
 export interface OperationsEmployees {
+  available?: boolean;
+  reason_code?: string;
   summary?: Record<string, unknown>;
   items?: OperationsBucketItem[];
   coverage?: {
@@ -140,6 +144,8 @@ export interface OperationsEmployees {
 
 export interface OperationsCommerce {
   contract_version?: string;
+  available?: boolean;
+  reason_code?: string;
   summary?: Record<string, unknown>;
   by_state?: OperationsBucketItem[];
   by_origin?: OperationsBucketItem[];
@@ -282,6 +288,11 @@ export interface OperationsDashboardV1 {
   request_id?: string;
   tenant?: Record<string, unknown>;
   period?: Record<string, unknown>;
+  scope?: {
+    mode?: string;
+    unavailable_sources?: string[];
+    [key: string]: unknown;
+  };
   summary: Record<string, unknown>;
   trends?: {
     items?: OperationsTrend[];

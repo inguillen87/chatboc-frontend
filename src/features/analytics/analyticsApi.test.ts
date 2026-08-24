@@ -1055,6 +1055,59 @@ describe('operations heatmap v2 contract', () => {
     expect(response.queue_truth?.membership_quality?.future_created_at?.state).toBe('clean');
   });
 
+  it('preserves the scoped-operations availability boundary from the backend contract', async () => {
+    mocks.panelGet.mockResolvedValueOnce({
+      contract_version: 'operations.dashboard.v1',
+      scope: {
+        mode: 'employee_category_limited',
+        unavailable_sources: ['surveys', 'chats', 'commerce', 'employees'],
+      },
+      summary: { open_tickets: 4 },
+      tickets: { summary: { open_tickets: 4 } },
+      surveys: {
+        available: false,
+        reason_code: 'employee_category_boundary_unavailable',
+      },
+      chats: {
+        available: false,
+        reason_code: 'employee_category_boundary_unavailable',
+      },
+      commerce: {
+        available: false,
+        reason_code: 'employee_category_boundary_unavailable',
+      },
+      employees: {
+        available: false,
+        reason_code: 'employee_category_boundary_unavailable',
+      },
+      alerts: [],
+      next_best_actions: [],
+    });
+
+    const response = await getOperationsDashboardV2({ tenantSlug: 'junin' });
+
+    expect(response.scope).toEqual({
+      mode: 'employee_category_limited',
+      unavailable_sources: ['surveys', 'chats', 'commerce', 'employees'],
+    });
+    expect(response.surveys).toMatchObject({
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+    });
+    expect(response.chats).toMatchObject({
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+    });
+    expect(response.commerce).toMatchObject({
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+    });
+    expect(response.employees).toMatchObject({
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+    });
+  });
+
   it('omits partial, contradictory or unsafe queue truth without dropping the dashboard', async () => {
     const partialQueueTruth = {
       contract_version: 'operations.queue_truth.v1',

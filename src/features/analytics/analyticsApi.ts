@@ -739,12 +739,20 @@ const normalizeQueueTruth = (value: unknown): OperationsQueueTruthV1 | undefined
 
 const normalizeDashboard = (response: unknown): OperationsDashboardV1 => {
   const record = pickRecord(response) ?? {};
+  const scope = pickRecord(record.scope);
 
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
     tenant: pickRecord(record.tenant),
     period: pickRecord(record.period),
+    scope: scope
+      ? {
+          ...scope,
+          mode: asString(scope.mode),
+          unavailable_sources: normalizeStringList(scope.unavailable_sources),
+        }
+      : undefined,
     summary: toNumberRecord(record.summary),
     trends: normalizeTrends(record.trends),
     tickets: normalizeBreakdowns(record.tickets),

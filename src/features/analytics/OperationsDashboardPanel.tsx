@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Gauge,
   Layers,
+  LockKeyhole,
   MapPin,
   Radio,
   RefreshCw,
@@ -113,6 +114,70 @@ const asString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed || undefined;
+};
+
+type OperationsRestrictedSource = 'surveys' | 'chats' | 'commerce' | 'employees';
+
+const OPERATIONS_SOURCE_LABELS: Record<OperationsRestrictedSource, string> = {
+  surveys: 'Encuestas',
+  chats: 'Conversaciones',
+  commerce: 'Pedidos y ventas',
+  employees: 'Equipo',
+};
+
+const isOperationsSourceAvailable = (
+  data: OperationsDashboardV1,
+  source: OperationsRestrictedSource,
+) => {
+  const section = data[source];
+  if (isRecord(section) && section.available === false) return false;
+  return !(data.scope?.unavailable_sources ?? []).includes(source);
+};
+
+const getUnavailableOperationsSources = (data: OperationsDashboardV1) =>
+  (Object.keys(OPERATIONS_SOURCE_LABELS) as OperationsRestrictedSource[]).filter(
+    (source) => !isOperationsSourceAvailable(data, source),
+  );
+
+const restrictedSourceForAIOpsItem = (
+  item: OperationsAIOpsQueueItem,
+): OperationsRestrictedSource | null => {
+  const source = asString(item.source)?.toLowerCase();
+  if (source === 'survey') return 'surveys';
+  if (source === 'order' || source === 'commerce') return 'commerce';
+  if (source === 'chat' || source === 'conversation') return 'chats';
+  if (source === 'employee') return 'employees';
+  return null;
+};
+
+const filterAIOpsQueueForScope = (
+  queue: OperationsAIOpsQueueV1 | undefined,
+  data: OperationsDashboardV1,
+) => {
+  if (!queue) return undefined;
+  const unavailableSources = new Set(getUnavailableOperationsSources(data));
+  if (!unavailableSources.size) return queue;
+
+  const items = (queue.items ?? []).filter((item) => {
+    const source = restrictedSourceForAIOpsItem(item);
+    return !source || !unavailableSources.has(source);
+  });
+  if (items.length === (queue.items ?? []).length) return queue;
+
+  const countPriority = (priority: string) =>
+    items.filter((item) => asString(item.priority)?.toLowerCase() === priority).length;
+
+  return {
+    ...queue,
+    items,
+    summary: {
+      ...(queue.summary ?? {}),
+      total: items.length,
+      high: countPriority('high'),
+      medium: countPriority('medium'),
+      low: countPriority('low'),
+    },
+  };
 };
 
 const readStoredTenantSlug = () =>
@@ -573,6 +638,60 @@ interface OperationsDashboardPanelProps {
   className?: string;
 }
 
+function ScopeBoundaryNotice({ data }: { data: OperationsDashboardV1 }) {
+  const unavailableSources = getUnavailableOperationsSources(data);
+  if (!unavailableSources.length) return null;
+
+  return (
+    <div
+      data-testid="operations-scope-boundary"
+      className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-start"
+    >
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-background text-primary">
+        <LockKeyhole className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">Vista operativa según tus categorías asignadas</p>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+          Reclamos, live chat y mapa siguen disponibles. Las fuentes fuera de tu alcance se identifican claramente como no disponibles; ese estado no implica actividad cero.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {unavailableSources.map((source) => (
+            <Badge key={source} variant="outline">
+              {OPERATIONS_SOURCE_LABELS[source]} · no disponible
+            </Badge>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnavailableSourceCard({
+  source,
+  className,
+}: {
+  source: OperationsRestrictedSource;
+  className?: string;
+}) {
+  return (
+    <Card
+      data-testid={`operations-${source}-unavailable`}
+      className={cn('border-dashed border-border/80 bg-muted/20', className)}
+    >
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <LockKeyhole className="h-4 w-4 text-muted-foreground" />
+          {OPERATIONS_SOURCE_LABELS[source]}
+        </CardTitle>
+        <CardDescription>
+          No disponible para tu alcance. Este bloque no representa actividad cero.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { currentSlug } = useTenant();
   const { socket, isConnected: socketConnected } = useSocket();
@@ -737,9 +856,16 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     ? operationsDashboardErrorMessage(dashboardQuery.error)
     : undefined;
   const data = dashboardData ?? OPERATIONS_DASHBOARD_FALLBACK;
+  const surveysAvailable = isOperationsSourceAvailable(data, 'surveys');
+  const chatsAvailable = isOperationsSourceAvailable(data, 'chats');
+  const commerceAvailable = isOperationsSourceAvailable(data, 'commerce');
+  const employeesAvailable = isOperationsSourceAvailable(data, 'employees');
   const actionCenter = actionCenterQuery.data;
   const aiBrief = aiBriefQuery.data ?? (data?.ai_brief as OperationsAIBriefV1 | undefined);
-  const aiOpsQueue = aiOpsQueueQuery.data;
+  const aiOpsQueue = useMemo(
+    () => filterAIOpsQueueForScope(aiOpsQueueQuery.data, data),
+    [aiOpsQueueQuery.data, data],
+  );
   const aiProviderStatus = aiProviderStatusQuery.data;
   const freshness = freshnessQuery.data;
   const alerts = useMemo(
@@ -817,7 +943,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
           </div>
           <h2 className="text-xl font-semibold tracking-tight">Actividad y decisiones</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Reclamos, encuestas, canales, equipo, mapa y acciones recomendadas para resolver primero.
+            Reclamos, live chat, mapa y fuentes habilitadas para actuar dentro de tu alcance.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -849,6 +975,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
 
       {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
+      <ScopeBoundaryNotice data={data} />
       {dashboardFallbackActive ? (
         <div
           data-testid="operations-dashboard-degraded"
@@ -919,8 +1046,12 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         <div className="space-y-5">
           <TrendsPanel data={data} />
           <TicketBreakdowns data={data} />
-          <EngagementPanel data={data} />
-          <EmployeePanel data={data} />
+          <EngagementPanel
+            data={data}
+            surveysAvailable={surveysAvailable}
+            chatsAvailable={chatsAvailable}
+          />
+          {employeesAvailable ? <EmployeePanel data={data} /> : null}
           <OperationsHeatmapPanel
             heatmap={heatmapQuery.data}
             freshness={freshness}
@@ -940,7 +1071,11 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             error={aiOpsQueueQuery.error}
             refetch={() => void refetchAIOpsQueue()}
           />
-          <CommerceOpsPanel data={data} />
+          {commerceAvailable ? (
+            <CommerceOpsPanel data={data} />
+          ) : (
+            <UnavailableSourceCard source="commerce" />
+          )}
           <AIProviderStatusPanel
             status={aiProviderStatus}
             loading={aiProviderStatusQuery.isLoading}
@@ -1212,6 +1347,8 @@ function OperationsCommandCockpit({
   const aiHigh = readNumber(aiSummary.high) ?? 0;
   const dataStatus = freshness?.status ? statusLabel(freshness.status) : 'datos operativos';
   const canMapRender = canRenderHeatmap !== false;
+  const commerceAvailable = isOperationsSourceAvailable(data, 'commerce');
+  const surveysAvailable = isOperationsSourceAvailable(data, 'surveys');
   const ticketDetail = queueSnapshot
     ? slaUnknown
       ? `${formatNumber(overdueTickets ?? 0)} vencidos confirmados · ${formatNumber(slaUnknown)} sin SLA verificable`
@@ -1233,19 +1370,23 @@ function OperationsCommandCockpit({
       tone: !queueSnapshot || overdueTickets || slaUnknown ? 'warning' : 'success',
       href: queueLinks.open || '/perfil?tab=tickets',
       action: 'Abrir bandeja de reclamos',
+      available: true,
     },
     {
       key: 'commerce',
       eyebrow: 'Marketplace',
       title: 'Pedidos asistidos',
-      value: formatNumber(assistedOrders),
-      detail: ordersNeedingReview
-        ? `${formatNumber(ordersNeedingReview)} a revisar · ${formatNumber(unmatchedItems)} items sin resolver`
-        : 'Notas, fotos y PDFs listos para operar',
+      value: commerceAvailable ? formatNumber(assistedOrders) : 'No disponible',
+      detail: commerceAvailable
+        ? ordersNeedingReview
+          ? `${formatNumber(ordersNeedingReview)} a revisar · ${formatNumber(unmatchedItems)} items sin resolver`
+          : 'Notas, fotos y PDFs listos para operar'
+        : 'Fuera del alcance operativo asignado',
       icon: ShoppingCart,
-      tone: ordersNeedingReview ? 'warning' : 'success',
-      href: '/perfil?tab=orders&focus=assisted',
-      action: 'Abrir pedidos asistidos',
+      tone: commerceAvailable ? (ordersNeedingReview ? 'warning' : 'success') : 'neutral',
+      href: commerceAvailable ? '/perfil?tab=orders&focus=assisted' : undefined,
+      action: commerceAvailable ? 'Abrir pedidos asistidos' : 'Alcance restringido',
+      available: commerceAvailable,
     },
     {
       key: 'heatmap',
@@ -1259,6 +1400,7 @@ function OperationsCommandCockpit({
       tone: canMapRender ? 'default' : 'warning',
       href: '#operations-heatmap',
       action: 'Ver mapa de calor',
+      available: true,
     },
     {
       key: 'ai',
@@ -1270,17 +1412,23 @@ function OperationsCommandCockpit({
       tone: aiHigh ? 'warning' : 'success',
       href: '#operations-ai-queue',
       action: 'Revisar cola IA',
+      available: true,
     },
     {
       key: 'surveys',
       eyebrow: 'Participacion',
       title: 'Encuestas y votos',
-      value: formatNumber(surveyResponses),
-      detail: liveVotes ? `${formatNumber(liveVotes)} votaciones en vivo` : 'Sin votaciones live publicadas',
+      value: surveysAvailable ? formatNumber(surveyResponses) : 'No disponible',
+      detail: surveysAvailable
+        ? liveVotes
+          ? `${formatNumber(liveVotes)} votaciones en vivo`
+          : 'Sin votaciones live publicadas'
+        : 'Fuera del alcance operativo asignado',
       icon: Activity,
-      tone: liveVotes ? 'default' : 'neutral',
-      href: '/perfil?tab=analytics&focus=surveys',
-      action: 'Ver encuestas',
+      tone: surveysAvailable && liveVotes ? 'default' : 'neutral',
+      href: surveysAvailable ? '/perfil?tab=analytics&focus=surveys' : undefined,
+      action: surveysAvailable ? 'Ver encuestas' : 'Alcance restringido',
+      available: surveysAvailable,
     },
   ] as const;
 
@@ -1294,7 +1442,7 @@ function OperationsCommandCockpit({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cabina de mando</p>
           <h3 className="mt-1 text-xl font-semibold tracking-tight">Vista ejecutiva para operar ahora</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Reclamos, mapa, IA y participación unidos en una sola lectura. Cada bloque abre el módulo donde se resuelve.
+            Reclamos, mapa, IA y fuentes habilitadas en una sola lectura. Cada bloque disponible abre el módulo donde se resuelve.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1315,12 +1463,19 @@ function OperationsCommandCockpit({
                   ? 'text-muted-foreground bg-muted/50 border-border'
                   : 'text-primary bg-primary/10 border-primary/20';
           return (
-            <div key={card.key} className="border-t border-border/60 p-4 md:[&:nth-child(2n)]:border-l xl:border-l xl:first:border-l-0 xl:border-t-0">
+            <div
+              key={card.key}
+              data-testid={`operations-cockpit-${card.key}`}
+              data-available={card.available ? 'true' : 'false'}
+              className="border-t border-border/60 p-4 md:[&:nth-child(2n)]:border-l xl:border-l xl:first:border-l-0 xl:border-t-0"
+            >
               <div className="flex items-start justify-between gap-3">
                 <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
                   <Icon className="h-5 w-5" />
                 </span>
-                {card.href.startsWith('#') ? (
+                {!card.href ? (
+                  <span className="text-xs font-semibold text-muted-foreground">{card.action}</span>
+                ) : card.href.startsWith('#') ? (
                   <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
                     {card.action}
                   </a>
@@ -2139,6 +2294,10 @@ function KpiGrid({
   const commerceSummary = data.commerce?.summary ?? {};
   const employeesSummary = data.employees?.summary ?? {};
   const heatmapSummary = heatmap?.summary ?? {};
+  const surveysAvailable = isOperationsSourceAvailable(data, 'surveys');
+  const chatsAvailable = isOperationsSourceAvailable(data, 'chats');
+  const commerceAvailable = isOperationsSourceAvailable(data, 'commerce');
+  const employeesAvailable = isOperationsSourceAvailable(data, 'employees');
 
   const metrics = [
     {
@@ -2146,60 +2305,70 @@ function KpiGrid({
       label: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos),
       icon: Ticket,
+      available: true,
     },
     {
       key: 'overdue_tickets',
       label: resolveLabel(data, 'overdue_tickets', 'Reclamos vencidos'),
       value: readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos),
       icon: AlertTriangle,
+      available: true,
     },
     {
       key: 'survey_responses',
       label: resolveLabel(data, 'survey_responses', 'Respuestas'),
       value: readNumber(data.summary.survey_responses, surveysSummary.responses, surveysSummary.respuestas),
       icon: BarChart3,
+      available: surveysAvailable,
     },
     {
       key: 'live_votes',
       label: resolveLabel(data, 'live_votes', 'Votos en vivo'),
       value: readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes),
       icon: Activity,
+      available: surveysAvailable,
     },
     {
       key: 'whatsapp_messages',
       label: resolveLabel(data, 'whatsapp_messages', 'WhatsApp'),
       value: readNumber(data.summary.whatsapp_messages, chatsSummary.whatsapp_messages),
       icon: Bell,
+      available: chatsAvailable,
     },
     {
       key: 'assisted_orders',
       label: resolveLabel(data, 'assisted_orders', 'Pedidos asistidos'),
       value: readNumber(data.summary.assisted_orders, commerceSummary.assisted_orders),
       icon: ShoppingCart,
+      available: commerceAvailable,
     },
     {
       key: 'orders_needing_review',
       label: resolveLabel(data, 'orders_needing_review', 'Pedidos a revisar'),
       value: readNumber(data.summary.orders_needing_review, commerceSummary.orders_needing_review),
       icon: AlertTriangle,
+      available: commerceAvailable,
     },
     {
       key: 'employees',
       label: resolveLabel(data, 'employees', 'Equipo'),
       value: readNumber(data.summary.employees, employeesSummary.employees, employeesSummary.total, data.employees?.items?.length),
       icon: Users,
+      available: employeesAvailable,
     },
     {
       key: 'map_points',
       label: resolveLabel(data, 'map_points', 'Puntos en mapa'),
       value: readNumber(data.summary.map_points, heatmapSummary.points, heatmap?.points.length),
       icon: MapPin,
+      available: true,
     },
     {
       key: 'alerts',
       label: resolveLabel(data, 'alerts', 'Alertas'),
       value: readNumber(data.summary.alerts, alertsCount),
       icon: AlertTriangle,
+      available: true,
     },
   ];
 
@@ -2215,7 +2384,11 @@ function KpiGrid({
       {metrics.map((metric) => {
         const Icon = metric.icon;
         return (
-          <Card key={metric.key}>
+          <Card
+            key={metric.key}
+            data-testid={`operations-kpi-${metric.key}`}
+            data-available={metric.available ? 'true' : 'false'}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Icon className="h-4 w-4" />
@@ -2223,7 +2396,12 @@ function KpiGrid({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-semibold">{formatNumber(metric.value)}</p>
+              <p className={cn('font-semibold', metric.available ? 'text-3xl' : 'text-sm text-muted-foreground')}>
+                {metric.available ? formatNumber(metric.value) : 'No disponible para tu alcance'}
+              </p>
+              {!metric.available ? (
+                <p className="mt-1 text-xs text-muted-foreground">No representa actividad cero.</p>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -2437,12 +2615,20 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
   );
 }
 
-function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
-  const surveyItems = data.surveys?.items ?? [];
-  const liveItems = Array.isArray(data.surveys?.live_items)
+function EngagementPanel({
+  data,
+  surveysAvailable,
+  chatsAvailable,
+}: {
+  data: OperationsDashboardV1;
+  surveysAvailable: boolean;
+  chatsAvailable: boolean;
+}) {
+  const surveyItems = surveysAvailable ? (data.surveys?.items ?? []) : [];
+  const liveItems = surveysAvailable && Array.isArray(data.surveys?.live_items)
     ? (data.surveys?.live_items as OperationsBucketItem[])
     : [];
-  const channelItems = data.chats?.by_channel ?? [];
+  const channelItems = chatsAvailable ? (data.chats?.by_channel ?? []) : [];
   const liveChatItems = data.live_chat?.items ?? [];
   const surveyRows = [...liveItems, ...surveyItems].slice(0, 8);
   const channelRows = [...channelItems, ...liveChatItems].slice(0, 8);
@@ -2452,7 +2638,7 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
 
   return (
     <div className="space-y-4">
-      <SurveyLiveControlRoom data={data} />
+      {surveysAvailable ? <SurveyLiveControlRoom data={data} /> : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {surveyRows.length ? (
           <BreakdownCard title={resolveLabel(data, 'surveys', 'Encuestas y votaciones')} items={surveyRows} />
@@ -2463,8 +2649,10 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
               <CardTitle className="text-lg">{resolveLabel(data, 'channels', 'Canales y live chat')}</CardTitle>
               <CardDescription>
                 {data.live_chat?.active_viewers !== undefined
-                  ? `${formatNumber(data.live_chat.active_viewers)} personas activas`
-                  : 'Conversaciones y participación del periodo'}
+                  ? `${formatNumber(data.live_chat.active_viewers)} personas activas en live chat`
+                  : chatsAvailable
+                    ? 'Conversaciones y participación del periodo'
+                    : 'Actividad de live chat dentro de tu alcance'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

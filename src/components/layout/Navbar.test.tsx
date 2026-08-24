@@ -189,6 +189,85 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('routes PyME employees to scoped operational analytics', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'empleado',
+        tipo_chat: 'pyme',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
+      hasAnyCapability: (required: string[]) => required.includes('tickets.read'),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Operaciones$/i })).toHaveAttribute(
+      'href',
+      '/analytics/operations',
+    );
+  });
+
+  it('routes municipal employees to scoped operations instead of the admin-only stats route', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'operador',
+        tipo_chat: 'municipio',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
+      hasAnyCapability: (required: string[]) => required.includes('tickets.read'),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Operaciones$/i })).toHaveAttribute(
+      'href',
+      '/analytics/operations',
+    );
+    expect(screen.queryByRole('link', { name: /^Estadísticas$/i })).not.toBeInTheDocument();
+  });
+
+  it('preserves tenant-wide analytics navigation for PyME admins', () => {
+    useUserMock.mockReturnValue({
+      user: {
+        rol: 'admin',
+        tipo_chat: 'pyme',
+      },
+    });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['analytics.read'],
+      hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByRole('link', { name: /^Analytics$/i })).toHaveAttribute(
+      'href',
+      '/analytics',
+    );
+  });
+
   it('keeps the account menu available for a Clerk session transported only by cookie', () => {
     useUserMock.mockReturnValue({ user: null });
     window.localStorage.setItem('authProvider', 'clerk');

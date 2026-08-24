@@ -48,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   // Municipio specific items
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin', 'super_admin'], tipo: 'municipio' },
-  { label: 'Analytics', path: '/analytics', roles: ['admin', 'empleado', 'super_admin'] },
+  { label: 'Analytics', path: '/analytics', roles: ['admin', 'empleado', 'super_admin', 'analytics_viewer'] },
   { label: 'Encuestas', path: '/admin/encuestas', roles: ['admin', 'empleado', 'super_admin'] },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin', 'super_admin'], tipo: 'municipio' },
@@ -61,11 +61,18 @@ export default function ProfileNav() {
   const { capabilities, hasAnyCapability } = useCapabilities();
   const { currentSlug } = useTenant();
   const { ticketUnreadCount, orderUnreadCount } = useRealtimeAlerts();
+  const canUseTenantWideAnalytics = hasRequiredRole(user?.rol, [
+    'tenant_admin',
+    'superadmin',
+    'analytics_viewer',
+  ]);
 
   // Hooks to check endpoint availability
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
   const statsAvailable = useEndpointAvailable('/municipal/stats');
-  const analyticsAvailable = useEndpointAvailable('/api/admin/analytics/overview');
+  // Availability probes must be safe even before the persisted role has been
+  // revalidated. The facade performs the authoritative /api/me role check.
+  const analyticsAvailable = useEndpointAvailable('/api/v2/analytics/operations/dashboard');
   const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
   const incidentsMapAvailable = useEndpointAvailable('/municipal/incidents'); // Check for Mapa de Incidentes
 
@@ -114,7 +121,10 @@ export default function ProfileNav() {
     if (it.path === '/analytics') {
       return {
         ...it,
-        path: buildTenantPath('/analytics', currentSlug || undefined),
+        path: buildTenantPath(
+          canUseTenantWideAnalytics ? '/analytics' : '/analytics/operations',
+          currentSlug || undefined,
+        ),
       };
     }
     return it;

@@ -659,6 +659,93 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
   });
 
+  it('marks unavailable employee sources without presenting compatibility placeholders as real zeroes', async () => {
+    const fixture = dashboardFixture();
+    fixture.scope = {
+      mode: 'employee_category_limited',
+      unavailable_sources: ['surveys', 'chats', 'commerce', 'employees'],
+    };
+    fixture.summary = {
+      ...fixture.summary,
+      survey_responses: 0,
+      live_votes: 0,
+      whatsapp_messages: 0,
+      assisted_orders: 0,
+      orders_needing_review: 0,
+      employees: 0,
+    };
+    fixture.surveys = {
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+      summary: { responses: 0, live_votes: 0 },
+      items: [{ label: 'Placeholder de encuesta', count: 0 }],
+    };
+    fixture.chats = {
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+      summary: { whatsapp_messages: 0 },
+      by_channel: [{ label: 'WhatsApp placeholder', count: 0 }],
+    };
+    fixture.commerce = {
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+      summary: { orders: 0, assisted_orders: 0, orders_needing_review: 0 },
+      review_items: [],
+    };
+    fixture.employees = {
+      available: false,
+      reason_code: 'employee_category_boundary_unavailable',
+      summary: { employees: 0, coverage_rate: 0 },
+      items: [],
+    };
+    fixture.live_chat = {
+      summary: { active: 3 },
+      active_viewers: 3,
+      items: [{ label: 'Operador en vivo', count: 3 }],
+    };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+
+    renderPanel();
+
+    const scopeNotice = await screen.findByTestId('operations-scope-boundary');
+    expect(scopeNotice).toHaveTextContent('Vista operativa según tus categorías asignadas');
+    expect(scopeNotice).toHaveTextContent('no implica actividad cero');
+
+    for (const source of ['commerce', 'surveys']) {
+      const card = screen.getByTestId(`operations-cockpit-${source}`);
+      expect(card).toHaveAttribute('data-available', 'false');
+      expect(card).toHaveTextContent('No disponible');
+      expect(card).not.toHaveTextContent(/^0$/);
+      expect(card.querySelector('a')).toBeNull();
+    }
+
+    for (const metric of [
+      'survey_responses',
+      'live_votes',
+      'whatsapp_messages',
+      'assisted_orders',
+      'orders_needing_review',
+      'employees',
+    ]) {
+      const card = screen.getByTestId(`operations-kpi-${metric}`);
+      expect(card).toHaveAttribute('data-available', 'false');
+      expect(card).toHaveTextContent('No disponible para tu alcance');
+      expect(card).toHaveTextContent('No representa actividad cero');
+      expect(card).not.toHaveTextContent(/\b0\b/);
+    }
+
+    expect(screen.queryByTestId('operations-commerce')).toBeNull();
+    expect(screen.getByTestId('operations-commerce-unavailable')).toHaveTextContent(
+      'No disponible para tu alcance',
+    );
+    expect(screen.queryByText('Placeholder de encuesta')).toBeNull();
+    expect(screen.queryByText('WhatsApp placeholder')).toBeNull();
+    expect(screen.getByText('3 personas activas en live chat')).toBeInTheDocument();
+    expect(screen.getByText('1 items')).toBeInTheDocument();
+    expect(screen.queryByText('Pedido asistido requiere revision')).toBeNull();
+    expect(screen.queryByText('Encuesta o votacion en monitoreo')).toBeNull();
+  });
+
   it('does not render queue truth or a healthy SLA state when the validated contract is unavailable', async () => {
     renderPanel();
 

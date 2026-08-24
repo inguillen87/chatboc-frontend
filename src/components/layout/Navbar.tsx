@@ -152,8 +152,13 @@ const Navbar: React.FC = () => {
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
+  const isEmployee = useMemo(() => hasRequiredRole(userRole, ["employee"]), [userRole]);
   const isMunicipal = effectiveUser?.tipo_chat === "municipio";
-  const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
+  const analyticsPath = isEmployee
+    ? "/analytics/operations"
+    : isMunicipal
+      ? "/estadisticas"
+      : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
@@ -204,9 +209,11 @@ const Navbar: React.FC = () => {
 
     links.push({
       to: analyticsPath,
-      label: isMunicipal ? "Estadísticas" : "Analytics",
+      label: isEmployee ? "Operaciones" : isMunicipal ? "Estadísticas" : "Analytics",
       icon: BarChart3,
-      requiredAnyCapabilities: ["analytics.read", "dashboard.read", "reports.read"],
+      requiredAnyCapabilities: isEmployee
+        ? undefined
+        : ["analytics.read", "dashboard.read", "reports.read"],
     });
 
     links.push({
@@ -238,7 +245,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
+  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isEmployee, isMunicipal, isTenantOwnerLike, userRole]);
 
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");

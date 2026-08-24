@@ -117,4 +117,45 @@ describe('ProfileNav operational access', () => {
 
     expect(screen.getByRole('tab', { name: /Panel de Tickets/i })).toHaveAttribute('data-state', 'active');
   });
+
+  it('uses the scoped operations probe and route for employees', () => {
+    renderProfileNav();
+
+    expect(mocks.useEndpointAvailable).toHaveBeenCalledWith('/api/v2/analytics/operations/dashboard');
+    expect(mocks.useEndpointAvailable).not.toHaveBeenCalledWith('/api/admin/analytics/overview');
+    expect(screen.getByRole('tab', { name: /^Analytics$/i })).toHaveAttribute(
+      'data-route',
+      '/t/junin/analytics/operations',
+    );
+  });
+
+  it('uses the safe operations probe while preserving the tenant-wide route for tenant admins', () => {
+    mocks.useUser.mockReturnValue({
+      user: { rol: 'admin_municipio', tipo_chat: 'municipio' },
+    });
+
+    renderProfileNav();
+
+    expect(mocks.useEndpointAvailable).toHaveBeenCalledWith('/api/v2/analytics/operations/dashboard');
+    expect(mocks.useEndpointAvailable).not.toHaveBeenCalledWith('/api/admin/analytics/overview');
+    expect(screen.getByRole('tab', { name: /^Analytics$/i })).toHaveAttribute(
+      'data-route',
+      '/t/junin/analytics',
+    );
+  });
+
+  it('uses the safe operations probe while preserving the tenant-wide route for analytics viewers', () => {
+    mocks.useUser.mockReturnValue({
+      user: { rol: 'analytics_viewer', tipo_chat: 'municipio' },
+    });
+
+    renderProfileNav();
+
+    expect(mocks.useEndpointAvailable).toHaveBeenCalledWith('/api/v2/analytics/operations/dashboard');
+    expect(mocks.useEndpointAvailable).not.toHaveBeenCalledWith('/api/admin/analytics/overview');
+    expect(screen.getByRole('tab', { name: /^Analytics$/i })).toHaveAttribute(
+      'data-route',
+      '/t/junin/analytics',
+    );
+  });
 });

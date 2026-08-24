@@ -121,7 +121,7 @@ import { resolveOperationalTenantSlug } from "@/utils/tenantIdentity";
 
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
-const AnalyticsPage = React.lazy(() => import('@/pages/analytics/AnalyticsPage'));
+const AnalyticsAccessPage = React.lazy(() => import('@/features/analytics/AnalyticsAccessPage'));
 const UsuariosPage = React.lazy(() => import('@/pages/UsuariosPage'));
 const SmartPedidosWrapper = React.lazy(() => import('@/pages/SmartPedidosWrapper'));
 const InternalUsers = React.lazy(() => import('@/pages/InternalUsers'));
@@ -499,8 +499,8 @@ export default function Perfil() {
   const [isMapLoading, setIsMapLoading] = useState(true);
   const normalizedRole = String(normalizeRole(user?.rol));
   const isStaff = ['superadmin', 'tenant_admin', 'employee'].includes(normalizedRole);
-  const canViewAnalytics =
-    isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
+  const isEmployeeAnalytics = normalizedRole === 'employee';
+  const canViewAnalytics = ['superadmin', 'tenant_admin', 'employee', 'analytics_viewer'].includes(normalizedRole);
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
 
@@ -1872,10 +1872,12 @@ export default function Perfil() {
     },
     {
       id: "ai-analytics",
-      title: "Analitica avanzada e IA",
-      description: "Investigacion, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
+      title: isEmployeeAnalytics ? "Centro operativo" : "Analítica avanzada e IA",
+      description: isEmployeeAnalytics
+        ? "Actividad, mapa y acciones del equipo con alcance operativo."
+        : "Investigación, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
       icon: Sparkles,
-      actionLabel: "Abrir analitica",
+      actionLabel: isEmployeeAnalytics ? "Abrir operaciones" : "Abrir analítica",
       tab: "analytics",
       enabled: canViewAnalytics,
     },
@@ -1958,7 +1960,11 @@ export default function Perfil() {
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
                 <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-                  {activeProfileTab === "tickets" ? "Consola tickets" : "Consola analitica"}
+                  {activeProfileTab === "tickets"
+                    ? "Consola tickets"
+                    : isEmployeeAnalytics
+                      ? "Consola operativa"
+                      : "Consola analítica"}
                 </p>
                 <span className="hidden h-3 w-px bg-border sm:block" />
                 <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
@@ -2055,14 +2061,18 @@ export default function Perfil() {
                 icon={BarChart3}
                 onClick={() => updateProfileTab("estadisticas")}
               />
-              <DataModeCard
-                title="Analitica IA"
-                description="Capa avanzada para investigar y presentar."
-                bullets={["Resumen ejecutivo", "Segmentos y mapas", "Exportacion PDF/CSV"]}
-                actionLabel="Abrir investigacion"
-                icon={Sparkles}
-                onClick={() => updateProfileTab("analytics")}
-              />
+              {canViewAnalytics && (
+                <DataModeCard
+                  title={isEmployeeAnalytics ? "Operaciones" : "Analítica IA"}
+                  description={isEmployeeAnalytics ? "Vista de trabajo con alcance operativo." : "Capa avanzada para investigar y presentar."}
+                  bullets={isEmployeeAnalytics
+                    ? ["Actividad del equipo", "Mapa y prioridades", "Actualizacion en vivo"]
+                    : ["Resumen ejecutivo", "Segmentos y mapas", "Exportación PDF/CSV"]}
+                  actionLabel={isEmployeeAnalytics ? "Abrir operaciones" : "Abrir investigación"}
+                  icon={Sparkles}
+                  onClick={() => updateProfileTab("analytics")}
+                />
+              )}
             </CardContent>
           </Card>
         </div>
@@ -2103,7 +2113,9 @@ export default function Perfil() {
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
           <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
           <TabsTrigger value="estadisticas">Reportes</TabsTrigger>
-          {canViewAnalytics && <TabsTrigger value="analytics">Analitica IA</TabsTrigger>}
+          {canViewAnalytics && (
+            <TabsTrigger value="analytics">{isEmployeeAnalytics ? 'Operaciones' : 'Analítica IA'}</TabsTrigger>
+          )}
           <TabsTrigger value="catalogo">Catalogo</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
@@ -3084,8 +3096,8 @@ export default function Perfil() {
         </TabsContent>
         {canViewAnalytics && (
           <TabsContent value="analytics">
-            <React.Suspense fallback={<ProfileTabFallback label="Cargando analitica IA..." />}>
-              <AnalyticsPage />
+            <React.Suspense fallback={<ProfileTabFallback label={isEmployeeAnalytics ? "Cargando operaciones..." : "Cargando analítica IA..."} />}>
+              <AnalyticsAccessPage embedded />
             </React.Suspense>
           </TabsContent>
         )}

@@ -157,6 +157,51 @@ describe('routesConfig route capabilities', () => {
     expect(moduleBlock).not.toContain('/inbox');
   });
 
+  it('routes every tenant-wide analytics entry through the role-aware facade', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+
+    expect(content).toContain("const AnalyticsAccessPage = React.lazy(() => import('@/features/analytics/AnalyticsAccessPage'))");
+    expect(content).toContain("path: '/analytics/hub', element: <AnalyticsAccessPage variant=\"hub\" />");
+    expect(content).toContain(
+      "path: '/analytics/hub', element: <AnalyticsAccessPage variant=\"hub\" />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer']",
+    );
+    expect(content).toContain('element: <AnalyticsAccessPage />');
+    expect(content).toContain("path: '/:tenant/analytics', element: <AnalyticsAccessPage />");
+    expect(content).toContain("...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsAccessPage />");
+    expect(content).toContain(
+      "path: '/:tenant/analytics', element: <AnalyticsAccessPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer']",
+    );
+    expect(content).not.toContain("element: <AnalyticsPage />");
+    expect(content).not.toContain("element: <AnalyticsHubPage />");
+  });
+
+  it('keeps employee operations routes separate from tenant-wide analytics', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const rootAnalyticsRoute = content.match(
+      /\{\s*path:\s*'\/analytics',\s*element:\s*<AnalyticsAccessPage\s*\/>[\s\S]*?\n\s*\},/,
+    )?.[0] ?? '';
+
+    expect(content).toContain("path: '/analytics/operations', element: <OperationsDashboardPage />");
+    expect(content).toContain("path: '/:tenant/analytics/operations', element: <OperationsDashboardPage />");
+    expect(content).toContain("...withTenantPrefixes('/:tenant/analytics/operations', { element: <OperationsDashboardPage />");
+    expect(rootAnalyticsRoute).toContain("roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer']");
+    expect(rootAnalyticsRoute).not.toContain('requiredCapabilities');
+  });
+
+  it('uses the same role-aware analytics facade inside the profile workspace', () => {
+    const profilePath = path.resolve(__dirname, 'pages/Perfil.tsx');
+    const content = fs.readFileSync(profilePath, 'utf8');
+
+    expect(content).toContain("const AnalyticsAccessPage = React.lazy(() => import('@/features/analytics/AnalyticsAccessPage'))");
+    expect(content).toContain('<AnalyticsAccessPage embedded />');
+    expect(content).not.toContain("import('@/pages/analytics/AnalyticsPage')");
+    expect(content).toMatch(
+      /\{canViewAnalytics && \(\s*<DataModeCard[\s\S]*?onClick=\{\(\) => updateProfileTab\("analytics"\)\}[\s\S]*?\)\}/,
+    );
+  });
+
   it('links template operations to the canonical WhatsApp onboarding route', () => {
     const templatesPagePath = path.resolve(__dirname, 'pages/GestionPlantillasPage.tsx');
     const content = fs.readFileSync(templatesPagePath, 'utf8');
