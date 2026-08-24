@@ -54,9 +54,17 @@ const queryClient = new QueryClient({
   },
 });
 const RouteLoadingFallback = () => (
-  <div className="flex min-h-[45vh] items-center justify-center bg-background text-sm text-muted-foreground">
-    Cargando modulo...
-  </div>
+  <main
+    id="main-content"
+    tabIndex={-1}
+    className="flex min-h-[45vh] items-center justify-center bg-background text-sm text-muted-foreground"
+    aria-labelledby="route-loading-title"
+    aria-busy="true"
+  >
+    <h1 id="route-loading-title" className="text-sm font-medium">
+      Cargando modulo...
+    </h1>
+  </main>
 );
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {

@@ -62,6 +62,8 @@ const publicErrorMessage = (error: unknown) => {
   return message;
 };
 
+const TENANT_SURVEYS_REGION_TITLE_ID = 'tenant-surveys-region-title';
+
 const TenantSurveyListPage = () => {
   const params = useParams<{ tenant: string }>();
   const { isOnline } = useNetworkStatus();
@@ -103,84 +105,87 @@ const TenantSurveyListPage = () => {
 
   return (
     <TenantShell>
-      {!slug ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Selecciona un espacio</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Elegi un espacio para ver sus instancias publicas disponibles.
-          </CardContent>
-        </Card>
-      ) : navigationQuery.isLoading ? (
-        <ViewState status="loading" title="Cargando participacion" />
-      ) : !surveyNavItem ? (
-        <ViewState
-          status="empty"
-          title="Participacion no publicada"
-          description="Este espacio no tiene una instancia publica de participacion habilitada."
-        />
-      ) : !hasEndpoint(surveyNavItem) ? (
-        <ViewState
-          status="empty"
-          title="Participacion no disponible"
-          description="La organizacion todavia no publico el listado para esta seccion."
-        />
-      ) : !isOnline && !surveysQuery.data ? (
-        <ViewState
-          status="offline"
-          title="Sin conexion para consultar participacion"
-          description="Revisa tu conexion y reintenta."
-        />
-      ) : surveysQuery.isLoading ? (
-        <ViewState status="loading" title="Cargando participacion" />
-      ) : surveysQuery.error ? (
-        <ViewState
-          status="error"
-          title="No pudimos cargar la participacion"
-          description={publicErrorMessage(surveysQuery.error)}
-        />
-      ) : surveys.length ? (
-        <div className="space-y-5">
-          {surveys.map((survey) => {
-            const status = getSurveyStatus(survey.inicio_at, survey.fin_at);
-            const isLiveExperience = Boolean(survey.es_votacion_envivo || survey.mostrar_resultados_envivo);
-            const surveyHref = isLiveExperience
-              ? `/e/${encodeURIComponent(survey.slug)}?tenant=${encodeURIComponent(slug)}`
-              : `${basePath}/encuestas/${survey.slug}`;
-            return (
-              <article key={survey.slug} className="rounded-3xl border bg-background/80 shadow-sm">
-                <CardHeader className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                    {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
-                    {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
-                    {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
-                    {formatDate(survey.fin_at) ? <Badge variant="outline">Cierra: {formatDate(survey.fin_at)}</Badge> : null}
-                  </div>
-                  <CardTitle className="text-2xl leading-tight">{survey.titulo}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {survey.descripcion ? (
-                    <p className="text-sm leading-relaxed text-muted-foreground">{survey.descripcion}</p>
-                  ) : null}
-                  {basePath ? (
-                    <Button asChild>
-                      <a href={surveyHref}>{isLiveExperience ? 'Abrir sala en vivo' : 'Responder encuesta'}</a>
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <ViewState
-          status={isStale ? 'stale' : 'empty'}
-          title={isStale ? 'Actualizando participacion' : 'No hay instancias activas'}
-          description={isStale ? 'Se muestran datos previos mientras se actualizan.' : 'Este espacio todavia no publico instancias activas.'}
-        />
-      )}
+      <section aria-labelledby={TENANT_SURVEYS_REGION_TITLE_ID} className="space-y-5">
+        <h2 id={TENANT_SURVEYS_REGION_TITLE_ID} className="sr-only">Encuestas</h2>
+        {!slug ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Selecciona un espacio</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Elegi un espacio para ver sus instancias publicas disponibles.
+            </CardContent>
+          </Card>
+        ) : navigationQuery.isLoading ? (
+          <ViewState status="loading" title="Cargando participacion" />
+        ) : !surveyNavItem ? (
+          <ViewState
+            status="empty"
+            title="Participacion no publicada"
+            description="Este espacio no tiene una instancia publica de participacion habilitada."
+          />
+        ) : !hasEndpoint(surveyNavItem) ? (
+          <ViewState
+            status="empty"
+            title="Participacion no disponible"
+            description="La organizacion todavia no publico el listado para esta seccion."
+          />
+        ) : !isOnline && !surveysQuery.data ? (
+          <ViewState
+            status="offline"
+            title="Sin conexion para consultar participacion"
+            description="Revisa tu conexion y reintenta."
+          />
+        ) : surveysQuery.isLoading ? (
+          <ViewState status="loading" title="Cargando participacion" />
+        ) : surveysQuery.error ? (
+          <ViewState
+            status="error"
+            title="No pudimos cargar la participacion"
+            description={publicErrorMessage(surveysQuery.error)}
+          />
+        ) : surveys.length ? (
+          <div className="space-y-5">
+            {surveys.map((survey) => {
+              const status = getSurveyStatus(survey.inicio_at, survey.fin_at);
+              const isLiveExperience = Boolean(survey.es_votacion_envivo || survey.mostrar_resultados_envivo);
+              const surveyHref = isLiveExperience
+                ? `/e/${encodeURIComponent(survey.slug)}?tenant=${encodeURIComponent(slug)}`
+                : `${basePath}/encuestas/${survey.slug}`;
+              return (
+                <article key={survey.slug} className="rounded-3xl border bg-background/80 shadow-sm">
+                  <CardHeader className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                      {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
+                      {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
+                      {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
+                      {formatDate(survey.fin_at) ? <Badge variant="outline">Cierra: {formatDate(survey.fin_at)}</Badge> : null}
+                    </div>
+                    <CardTitle className="text-2xl leading-tight">{survey.titulo}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {survey.descripcion ? (
+                      <p className="text-sm leading-relaxed text-muted-foreground">{survey.descripcion}</p>
+                    ) : null}
+                    {basePath ? (
+                      <Button asChild>
+                        <a href={surveyHref}>{isLiveExperience ? 'Abrir sala en vivo' : 'Responder encuesta'}</a>
+                      </Button>
+                    ) : null}
+                  </CardContent>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <ViewState
+            status={isStale ? 'stale' : 'empty'}
+            title={isStale ? 'Actualizando participacion' : 'No hay instancias activas'}
+            description={isStale ? 'Se muestran datos previos mientras se actualizan.' : 'Este espacio todavia no publico instancias activas.'}
+          />
+        )}
+      </section>
     </TenantShell>
   );
 };
