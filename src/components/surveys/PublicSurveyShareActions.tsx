@@ -424,7 +424,7 @@ export const PublicSurveyShareActions = ({
             <p className="break-all">
               Enlace directo:
               {' '}
-              <code className="rounded bg-muted px-1 py-0.5">{shareUrl}</code>
+              <code className="rounded bg-muted px-1 py-0.5 text-foreground">{shareUrl}</code>
             </p>
             <Button variant="outline" size="sm" asChild className="w-full">
               <a href={qrPageUrl} target="_blank" rel="noreferrer">

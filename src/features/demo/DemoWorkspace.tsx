@@ -115,7 +115,7 @@ const DemoRubroToolsPanel = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">{tool.label}</p>
                     {tool.statusLabel ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                         {tool.statusLabel}
                       </span>
                     ) : null}

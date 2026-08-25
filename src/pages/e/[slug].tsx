@@ -1190,7 +1190,7 @@ const PublicSurveyPage = () => {
                         <div key={`${question.id ?? 'question'}-${qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
                           <div className="mb-2 flex items-start justify-between gap-3">
                             <p className="text-sm font-medium">{toDisplayText(question.texto ?? question.titulo)}</p>
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                               {question.total_votos ?? 0} votos
                             </span>
                           </div>
