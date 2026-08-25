@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DemoAdminPreviewResponse } from '@/features/demo/demoTypes';
@@ -178,7 +178,11 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
 
     const grid = document.querySelector('[data-demo-kpi-list]');
+    expect(grid?.tagName).toBe('UL');
     expect(grid).toHaveClass('grid-cols-2', '2xl:grid-cols-4');
+    const kpiItems = within(grid as HTMLElement).getAllByRole('listitem');
+    expect(kpiItems).toHaveLength(4);
+    expect(kpiItems.every((item) => item.tagName === 'LI' && !item.hasAttribute('role'))).toBe(true);
     expect(screen.getByText('184 casos')).toBeVisible();
     expect(screen.getByText('87 %')).toBeVisible();
     expect(screen.getAllByText('3,4 min')).toHaveLength(2);

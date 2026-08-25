@@ -1234,7 +1234,11 @@ const DemoExecutiveKpiGrid = ({
           {isMixedPartitioned ? 'Fuentes separadas' : isSynthetic ? 'Escenario simulado' : 'Sesión actual'}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4" role="list" data-demo-kpi-list>
+      <ul
+        className="m-0 grid list-none grid-cols-2 gap-3 p-0 2xl:grid-cols-4"
+        aria-labelledby="demo-executive-kpis-title"
+        data-demo-kpi-list
+      >
         {items.map((item) => {
           const CardIcon = item.icon;
           const sourceLabel = item.dataMode === 'synthetic_demo_scenario'
@@ -1243,10 +1247,9 @@ const DemoExecutiveKpiGrid = ({
               ? 'Sesión actual'
               : null;
           return (
-            <article
+            <li
               key={item.id}
               className="min-w-0 rounded-2xl border border-border/70 bg-background/80 p-3 shadow-sm sm:p-4"
-              role="listitem"
             >
               <div className="mb-3 flex items-start justify-between gap-2">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -1276,10 +1279,10 @@ const DemoExecutiveKpiGrid = ({
                 </dd>
               </dl>
               {item.detail ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{item.detail}</p> : null}
-            </article>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 };
