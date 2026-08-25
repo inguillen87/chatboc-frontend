@@ -943,13 +943,23 @@ const DemoPreviewMap = ({
   zoom?: number | null;
   mapCenter?: { lat: number | null; lng: number | null } | null;
 }) => {
+  const [mapMode, setMapMode] = useState<'hybrid' | 'density' | 'points'>('hybrid');
+  const rawWeights = points.map((point) => Math.max(0, point.weight ?? 1));
+  const maxWeight = Math.max(1, ...rawWeights);
+  const positiveWeights = rawWeights.filter((weight) => weight > 0);
+  const minWeight = positiveWeights.length ? Math.min(...positiveWeights) : 0;
   const heatmapData: HeatPoint[] = points.map((point, index) => ({
     id: index + 1,
     ticket: point.label,
     lat: point.lat,
     lng: point.lng,
-    weight: point.weight ?? 1,
-    totalWeight: point.weight ?? 1,
+    weight: Math.max(0, point.weight ?? 1) / maxWeight,
+    intensity: Math.max(0, point.weight ?? 1) / maxWeight,
+    averageWeight: Math.max(0, point.weight ?? 1),
+    totalWeight: Math.max(0, point.weight ?? 1),
+    clusterSize: Math.max(1, Math.round(point.weight ?? 1)),
+    clusterId: `demo-preview-zone-${point.id}`,
+    barrio: point.zone ?? point.label,
     categoria: point.category ?? undefined,
     direccion: point.address ?? undefined,
     estado: point.status ?? undefined,
@@ -979,11 +989,12 @@ const DemoPreviewMap = ({
 
   return (
     <section
-      className="rounded-2xl border border-border/70 bg-background/70 p-4"
+      className="overflow-hidden rounded-2xl border border-border/70 bg-background/70 shadow-sm"
       aria-labelledby={titleId}
       data-demo-map-mode={dataMode ?? 'unspecified'}
+      data-testid="demo-executive-map"
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 border-b border-border/70 bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.45))] p-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h3 id={titleId} className="text-sm font-semibold text-foreground">{title}</h3>
           {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
@@ -1002,6 +1013,39 @@ const DemoPreviewMap = ({
           </span>
         </div>
       </div>
+      <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Lectura territorial</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Intensidad relativa por volumen representado. No indica prioridad ni gravedad.
+          </p>
+        </div>
+        <div
+          className="inline-flex w-fit max-w-full rounded-xl border border-border bg-background p-1 shadow-sm"
+          role="group"
+          aria-label="Capas del mapa demostrativo"
+        >
+          {([
+            ['hybrid', 'Calor + puntos'],
+            ['density', 'Densidad'],
+            ['points', 'Puntos'],
+          ] as const).map(([mode, modeLabel]) => (
+            <button
+              key={mode}
+              type="button"
+              className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:px-3 ${
+                mapMode === mode
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+              aria-pressed={mapMode === mode}
+              onClick={() => setMapMode(mode)}
+            >
+              {modeLabel}
+            </button>
+          ))}
+        </div>
+      </div>
       <React.Suspense
         fallback={
           <div className="flex h-48 items-center justify-center rounded-xl border text-xs text-muted-foreground">
@@ -1010,9 +1054,10 @@ const DemoPreviewMap = ({
         }
       >
         <MapLibreMap
-          className="h-48 rounded-xl border"
+          className="h-[20rem] rounded-none border-0 sm:h-[24rem]"
           heatmapData={heatmapData}
-          showHeatmap={false}
+          showHeatmap={mapMode !== 'points'}
+          showPoints={mapMode !== 'density'}
           center={center}
           fitToBounds={bounds.length ? bounds : undefined}
           initialZoom={zoom ?? (bounds.length > 1 ? 12 : 14)}
@@ -1028,12 +1073,29 @@ const DemoPreviewMap = ({
           ariaLabel={accessibleMapLabel}
         />
       </React.Suspense>
+      <div className="border-t border-border/70 bg-muted/15 px-4 py-3" data-testid="demo-map-volume-legend">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 sm:max-w-sm sm:flex-1">
+            <div
+              className="h-2.5 rounded-full border border-border/70 bg-[linear-gradient(90deg,rgba(68,1,84,.72),rgba(59,82,139,.82),rgba(33,145,140,.88),rgba(94,201,98,.92),rgba(253,231,37,.98))]"
+              aria-hidden="true"
+            />
+            <div className="mt-1 flex justify-between text-[10px] font-medium text-muted-foreground">
+              <span>{EXECUTIVE_NUMBER_FORMATTER.format(minWeight)} menor volumen</span>
+              <span>{EXECUTIVE_NUMBER_FORMATTER.format(maxWeight)} mayor volumen</span>
+            </div>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Los números sobre el mapa son casos representados por cada zona de muestra.
+          </p>
+        </div>
+      </div>
       {coverageNote ? (
-        <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-foreground">
+        <p className="mx-4 mt-3 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-foreground">
           {coverageNote}
         </p>
       ) : null}
-      <div className="mt-3 grid gap-2">
+      <div className="grid gap-2 p-4 sm:grid-cols-2">
         {points.map((point) => (
           <div key={`row-${point.id}`} className="rounded-lg border bg-muted/20 px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center gap-2">
@@ -1043,6 +1105,11 @@ const DemoPreviewMap = ({
               {point.status ? (
                 <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
                   {formatDemoPresentationLabel(point.status)}
+                </span>
+              ) : null}
+              {typeof point.weight === 'number' ? (
+                <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  Volumen {EXECUTIVE_NUMBER_FORMATTER.format(point.weight)}
                 </span>
               ) : null}
             </div>

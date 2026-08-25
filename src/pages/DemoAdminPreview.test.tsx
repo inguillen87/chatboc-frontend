@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DemoAdminPreviewResponse } from '@/features/demo/demoTypes';
@@ -10,15 +10,21 @@ vi.mock('@/components/MapLibreMap', () => ({
     heatmapData,
     ariaLabel,
     evidence,
+    showHeatmap,
+    showPoints,
   }: {
     heatmapData: unknown[];
     ariaLabel?: string;
     evidence?: { label?: string; synthetic?: boolean };
+    showHeatmap?: boolean;
+    showPoints?: boolean;
   }) => (
     <div
       data-testid="maplibre-preview"
       data-evidence-label={evidence?.label}
       data-evidence-synthetic={String(evidence?.synthetic)}
+      data-show-heatmap={String(Boolean(showHeatmap))}
+      data-show-points={String(Boolean(showPoints))}
       role="region"
       aria-label={ariaLabel}
     >
@@ -237,8 +243,22 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(await screen.findByTestId('maplibre-preview')).toHaveTextContent('1 puntos en mapa');
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-label', 'Puntos simulados');
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-synthetic', 'true');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'true');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'true');
     expect(screen.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
     expect(screen.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
+    expect(screen.getByTestId('demo-map-volume-legend')).toHaveTextContent(
+      'Los números sobre el mapa son casos representados por cada zona de muestra.',
+    );
+    const densityButton = screen.getByRole('button', { name: 'Densidad' });
+    const pointsButton = screen.getByRole('button', { name: 'Puntos' });
+    expect(screen.getByRole('button', { name: 'Calor + puntos' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(densityButton);
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'true');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'false');
+    fireEvent.click(pointsButton);
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'false');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'true');
   });
 
   it('renders the seeded survey contract instead of treating runtime tickets as responses', () => {
