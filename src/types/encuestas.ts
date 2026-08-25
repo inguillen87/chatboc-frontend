@@ -104,6 +104,8 @@ export interface SurveyLiveResults {
   result_version?: number | string;
   snapshot_version?: string;
   updated_at?: string;
+  seeded_responses?: number;
+  interactive_demo_responses?: number;
   total_respuestas: number;
   preguntas: Record<string, SurveyLiveQuestionResult>;
   realtime?: SurveyRealtimeContract;
@@ -323,6 +325,8 @@ export interface SurveyLivePublicResultsPayload {
   request_id?: string;
   slug?: string;
   slug_publico?: string;
+  seeded_responses?: number;
+  interactive_demo_responses?: number;
   total_respuestas?: number;
   data_provenance?: SurveyResponseProvenance;
   response_provenance?: SurveyResponseProvenance;

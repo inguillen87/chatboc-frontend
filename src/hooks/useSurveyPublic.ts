@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef } from 'react';
 
 import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
+import type { PublicSurveyResponseAck } from '@/api/encuestas';
 import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyPublic } from '@/types/encuestas';
 import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { queryKeys } from '@/lib/queryKeys';
@@ -26,7 +27,10 @@ interface UseSurveyPublicResult {
   errorReasonCode: string | null;
   isTransientError: boolean;
   retryLoad: () => Promise<unknown>;
-  submit: (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => Promise<void>;
+  submit: (
+    payload: PublicResponsePayload,
+    options?: PublicSurveySubmitOptions,
+  ) => Promise<PublicSurveyResponseAck>;
   isSubmitting: boolean;
   lastResponseId?: number;
   duplicateDetected: boolean;
@@ -126,7 +130,7 @@ export function useSurveyPublic(
         transientSubmitOptionsRef.current.set(mutationPayload, options);
       }
       try {
-        await mutation.mutateAsync(mutationPayload);
+        return await mutation.mutateAsync(mutationPayload);
       } finally {
         transientSubmitOptionsRef.current.delete(mutationPayload);
       }

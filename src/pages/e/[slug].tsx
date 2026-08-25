@@ -5,7 +5,10 @@ import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, Ref
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
-import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import {
+  SurveyResponseProvenanceBadge,
+  resolveSurveyResponseProvenance,
+} from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +16,7 @@ import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import {
+  AmbiguousSurveySubmissionError,
   SURVEY_RESPONSE_DUPLICATE_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_TITLE,
   isSurveyResponseDuplicateError,
@@ -26,6 +30,7 @@ import {
   trackSurveyPageView,
   trackSurveyRetryTriggered,
   trackSurveySubmission,
+  trackSurveyDemoInteraction,
 } from '@/utils/surveyAnalytics';
 import { mapSurveyError } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
@@ -45,38 +50,8 @@ import {
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v2';
 
-const appendDemoVoteToLiveResults = (
-  source: SurveyLiveResults | undefined,
-  payload: PublicResponsePayload,
-): SurveyLiveResults | undefined => {
-  if (!source?.preguntas || !Array.isArray(payload.respuestas)) return source;
-
-  const preguntas = { ...source.preguntas };
-  let changed = false;
-
-  for (const respuesta of payload.respuestas) {
-    const key = String(respuesta.pregunta_id);
-    const questionStats = preguntas[key];
-    if (!questionStats?.opciones?.length || !respuesta.opcion_ids?.length) continue;
-
-    const selectedIds = new Set(respuesta.opcion_ids.map((id) => String(id)));
-    preguntas[key] = {
-      ...questionStats,
-      opciones: questionStats.opciones.map((option) =>
-        selectedIds.has(String(option.id)) ? { ...option, votos: option.votos + 1 } : option,
-      ),
-    };
-    changed = true;
-  }
-
-  if (!changed) return source;
-
-  return {
-    ...source,
-    total_respuestas: (Number(source.total_respuestas) || 0) + 1,
-    preguntas,
-  };
-};
+const toNonNegativeInteger = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 
 const isLiveResultsV2 = (
   value: SurveyLiveResults | SurveyLivePublicResultsPayload | undefined,
@@ -108,6 +83,8 @@ const toLegacyLiveResults = (
     result_version: value.result_version,
     snapshot_version: value.snapshot_version,
     updated_at: value.updated_at,
+    seeded_responses: value.seeded_responses,
+    interactive_demo_responses: value.interactive_demo_responses,
     total_respuestas: Number(value.total_respuestas ?? 0) || 0,
     data_provenance: value.data_provenance,
     response_provenance: value.response_provenance,
@@ -146,6 +123,7 @@ const PublicSurveyPage = () => {
   const tenantSelectorInvalid = hasTenantSelector && !tenantSlug;
   const mode = searchParams.get('mode'); // 'embed' or undefined
   const [submitted, setSubmitted] = useState(false);
+  const [demoSubmissionPersisted, setDemoSubmissionPersisted] = useState<boolean | null>(null);
   const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
   const {
@@ -173,14 +151,22 @@ const PublicSurveyPage = () => {
   const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(true);
   const surveyResources = survey?.recursos as Record<string, unknown> | undefined;
+  const trustedResponseProvenance = resolveSurveyResponseProvenance(
+    survey?.resultados_envivo,
+    survey,
+  );
+  const surveyLiveContract = survey?.resultados_envivo as
+    | (SurveyLiveResults & { demo_mode?: boolean })
+    | undefined;
   const isDemoParticipationSurvey = Boolean(
-    surveyResources?.demoMode ||
-      surveyResources?.demo_mode ||
-      searchParams.get('demo_participation') === '1',
+    survey?.demo_mode === true ||
+      surveyLiveContract?.demo_mode === true ||
+      trustedResponseProvenance?.mode === 'synthetic' ||
+      surveyResources?.demoMode === true ||
+      surveyResources?.demo_mode === true,
   );
-  const shouldRevealLiveResults = Boolean(
-    survey?.mostrar_resultados_envivo && (!isDemoParticipationSurvey || submitted),
-  );
+  const shareSubmission = isDemoParticipationSurvey ? null : lastSubmission;
+  const shouldRevealLiveResults = Boolean(survey?.mostrar_resultados_envivo);
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
   const {
     liveResults: polledLiveDashboard,
@@ -212,13 +198,28 @@ const PublicSurveyPage = () => {
       ? socketLiveDashboard
       : polledLiveDashboard;
   }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
+  const seededResponseCount = useMemo(() => {
+    const candidates = [
+      liveDashboard?.seeded_responses,
+      liveResults?.seeded_responses,
+      survey?.resultados_envivo?.seeded_responses,
+      trustedResponseProvenance?.synthetic_responses_included,
+    ];
+    for (const candidate of candidates) {
+      const count = toNonNegativeInteger(candidate);
+      if (count !== null) return count;
+    }
+    return null;
+  }, [
+    liveDashboard?.seeded_responses,
+    liveResults?.seeded_responses,
+    survey?.resultados_envivo?.seeded_responses,
+    trustedResponseProvenance?.synthetic_responses_included,
+  ]);
   const renderedLiveResults = useMemo(() => {
     const dashboardResults = toLegacyLiveResults(liveDashboard);
-    if (!dashboardResults) return liveResults;
-    return isDemoParticipationSurvey && submitted && lastSubmission
-      ? appendDemoVoteToLiveResults(dashboardResults, lastSubmission)
-      : dashboardResults;
-  }, [isDemoParticipationSurvey, lastSubmission, liveDashboard, liveResults, submitted]);
+    return dashboardResults || liveResults;
+  }, [liveDashboard, liveResults]);
   const surveySocketRooms = useMemo(() => {
     const realtime = survey?.realtime as Record<string, unknown> | undefined;
     const explicitRooms = Array.isArray(realtime?.rooms)
@@ -322,13 +323,9 @@ const PublicSurveyPage = () => {
       return;
     }
     if (survey?.resultados_envivo) {
-      setLiveResults(
-        isDemoParticipationSurvey && submitted && lastSubmission
-          ? appendDemoVoteToLiveResults(survey.resultados_envivo, lastSubmission)
-          : survey.resultados_envivo,
-      );
+      setLiveResults(survey.resultados_envivo);
     }
-  }, [isDemoParticipationSurvey, lastSubmission, shouldRevealLiveResults, submitted, survey?.resultados_envivo]);
+  }, [shouldRevealLiveResults, survey?.resultados_envivo]);
 
   // Handle Socket.IO connection
   useSurveySocket({
@@ -338,11 +335,7 @@ const PublicSurveyPage = () => {
       enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
           const legacyResults = toLegacyLiveResults(data);
-          setLiveResults(
-            isDemoParticipationSurvey && submitted && lastSubmission
-              ? appendDemoVoteToLiveResults(legacyResults, lastSubmission)
-              : legacyResults,
-          );
+          setLiveResults(legacyResults);
           if (isLiveResultsV2(data)) {
             setSocketLiveDashboard(data);
           } else {
@@ -407,6 +400,7 @@ const PublicSurveyPage = () => {
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
+      let shouldRefreshLiveResults = false;
       try {
         const finalPayload: PublicResponsePayload = {
           ...payload,
@@ -416,26 +410,52 @@ const PublicSurveyPage = () => {
             ? { privacy_policy_version: ((survey as { privacy_policy_version?: string }).privacy_policy_version || '').trim() || undefined }
             : {}),
         };
-        await submit(finalPayload, options);
-        setLastSubmission(finalPayload);
-        setSubmitted(true);
-        if (survey?.resultados_envivo) {
-          setLiveResults(
-            isDemoParticipationSurvey
-              ? appendDemoVoteToLiveResults(survey.resultados_envivo, finalPayload)
-              : survey.resultados_envivo,
+        const submissionAck = await submit(finalPayload, options);
+        const ackMatchesSurvey = isDemoParticipationSurvey
+          ? submissionAck.ack_kind === 'synthetic_demo' || submissionAck.ack_kind === 'durable_demo'
+          : submissionAck.ack_kind === 'durable_response';
+        if (!ackMatchesSurvey) {
+          throw new AmbiguousSurveySubmissionError(
+            'La confirmación del servidor no coincide con el tipo de encuesta publicada. Reintenta con la misma respuesta.',
           );
         }
+        const persistedDemoInteraction = submissionAck.ack_kind === 'durable_demo';
+        shouldRefreshLiveResults = submissionAck.ack_kind !== 'synthetic_demo';
+        setDemoSubmissionPersisted(
+          isDemoParticipationSurvey ? persistedDemoInteraction : null,
+        );
+        setLastSubmission(finalPayload);
+        setSubmitted(true);
         if (survey) {
-          trackSurveySubmission({ survey, payload: finalPayload });
+          if (isDemoParticipationSurvey) {
+            trackSurveyDemoInteraction({
+              survey,
+              payload: finalPayload,
+              persisted: persistedDemoInteraction,
+              durable: persistedDemoInteraction,
+            });
+          } else {
+            trackSurveySubmission({ survey, payload: finalPayload });
+          }
         }
 
         let description = safeText(votacionMessages?.toast_success_detail);
-        if (survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
+        if (!isDemoParticipationSurvey && survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
           description = `${safeText(votacionMessages?.toast_puntos_prefix)} ${survey.puntos_recompensa}`;
         }
 
-        toast({ title: safeText(votacionMessages?.toast_success_title), description });
+        toast({
+          title: isDemoParticipationSurvey
+            ? persistedDemoInteraction
+              ? 'Participación demo guardada en Preview'
+              : 'Simulación completada'
+            : safeText(votacionMessages?.toast_success_title),
+          description: isDemoParticipationSurvey
+            ? persistedDemoInteraction
+              ? 'Quedó registrada como interacción de prueba, separada de cualquier dato ciudadano.'
+              : 'La selección se mostró sin modificar datos ciudadanos.'
+            : description,
+        });
       } catch (err) {
         setLastSubmission(null);
         if (isSurveyResponseDuplicateError(err)) {
@@ -453,13 +473,19 @@ const PublicSurveyPage = () => {
         });
         throw err;
       }
+      if (shouldRefreshLiveResults) {
+        void Promise.resolve()
+          .then(() => refetchLiveDashboard())
+          .catch(() => undefined);
+      }
     },
-    [isDemoParticipationSurvey, metadata, submit, survey, submitError],
+    [isDemoParticipationSurvey, metadata, refetchLiveDashboard, submit, survey, submitError],
   );
 
   const handleReset = useCallback(() => {
     setSubmitted(false);
     setLastSubmission(null);
+    setDemoSubmissionPersisted(null);
   }, []);
 
   // Embed Mode Styles
@@ -476,7 +502,6 @@ const PublicSurveyPage = () => {
 
   const totalVotes = useMemo(() => {
     if (!survey) return null;
-    if (isDemoParticipationSurvey && !submitted) return null;
     if (typeof liveResults?.total_respuestas === 'number') {
       return liveResults.total_respuestas;
     }
@@ -490,15 +515,13 @@ const PublicSurveyPage = () => {
       }
     }
     return null;
-  }, [isDemoParticipationSurvey, liveResults, submitted, survey]);
+  }, [liveResults, survey]);
 
   useEffect(() => {
     if (typeof totalVotes === 'number') {
       setLivePollTotalVotes(totalVotes);
-    } else if (isDemoParticipationSurvey && !submitted) {
-      setLivePollTotalVotes(null);
     }
-  }, [isDemoParticipationSurvey, submitted, totalVotes]);
+  }, [totalVotes]);
 
   const pollSubtitle = useMemo(() => {
     if (!survey?.descripcion) return null;
@@ -753,18 +776,23 @@ const PublicSurveyPage = () => {
         <Card className="w-full border-none shadow-none sm:border sm:shadow-sm">
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">{textOr(votacionMessages?.titulo_gracias, '¡Gracias por participar!')}</h1>
-              {survey.puntos_recompensa ? (
+              <h1 className="text-2xl font-semibold">
+                {isDemoParticipationSurvey
+                  ? demoSubmissionPersisted
+                    ? 'Participación demo guardada en Preview'
+                    : 'Simulación interactiva completada'
+                  : textOr(votacionMessages?.titulo_gracias, '¡Gracias por participar!')}
+              </h1>
+              {!isDemoParticipationSurvey && survey.puntos_recompensa ? (
                 <p className="text-lg font-bold text-primary animate-pulse">
                   {textOr(votacionMessages?.puntos_label, 'Puntos obtenidos:')} {survey.puntos_recompensa}
                 </p>
               ) : null}
               <p className="text-muted-foreground">
                 {isDemoParticipationSurvey
-                  ? textOr(
-                      votacionMessages?.detalle_gracias_demo,
-                      'Tu voto se sumo a la simulacion: ahora ves 100 respuestas demo mas tu participacion.',
-                    )
+                  ? demoSubmissionPersisted
+                    ? 'Esta interacción quedó guardada en el entorno QA de Preview y permanece separada de cualquier dato ciudadano o resultado oficial.'
+                    : 'Interacción de muestra completada. Tu selección no se guarda ni se presenta como dato ciudadano.'
                   : textOr(votacionMessages?.detalle_gracias, 'Tu respuesta quedó registrada correctamente.')}
               </p>
             </div>
@@ -790,7 +818,7 @@ const PublicSurveyPage = () => {
             {mode !== 'embed' && (
                 <PublicSurveyShareActions
                   survey={survey}
-                  submission={lastSubmission}
+                  submission={shareSubmission}
                   tenantSlug={tenantSlug}
                 />
             )}
@@ -921,16 +949,31 @@ const PublicSurveyPage = () => {
                 <div className="flex justify-start">
                   <PublicSurveyShareActions
                     survey={survey}
-                    submission={lastSubmission}
+                    submission={shareSubmission}
                     tenantSlug={tenantSlug}
                   />
                 </div>
               )}
 
-              {isDemoParticipationSurvey && !submitted ? (
-                <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground shadow-sm">
-                  Vota primero para desbloquear los resultados. Despues vas a ver la base demo de 100 respuestas
-                  sinteticas mas tu participacion en vivo.
+              {isDemoParticipationSurvey ? (
+                <div
+                  className="flex flex-col gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm sm:flex-row sm:items-start sm:justify-between"
+                  data-testid="public-survey-demo-disclosure"
+                >
+                  <div className="space-y-1">
+                    <p className="font-semibold">Demostración interactiva</p>
+                    <p className="text-muted-foreground">
+                      El escenario base contiene{' '}
+                      {seededResponseCount === null
+                        ? 'respuestas sintéticas'
+                        : `${seededResponseCount.toLocaleString('es-AR')} respuestas sintéticas`}{' '}
+                      y no representa participación ciudadana ni resultados oficiales.
+                    </p>
+                  </div>
+                  <SurveyResponseProvenanceBadge
+                    sources={[liveDashboard, liveResults, survey.resultados_envivo]}
+                    className="shrink-0"
+                  />
                 </div>
               ) : null}
 
@@ -978,8 +1021,6 @@ const PublicSurveyPage = () => {
                       </Button>
                     </div>
                   </div>
-                  <SurveyResponseProvenanceBadge sources={[liveDashboard]} />
-
                   {liveDashboardConsecutiveErrors > 2 && liveDashboardError ? (
                     <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                       {liveDashboardError}
@@ -1247,7 +1288,9 @@ const PublicSurveyPage = () => {
                   submitReasonCode={submitReasonCode}
                   showHeader={false}
                   submitLabel={
-                    survey.tipo === 'votacion'
+                    isDemoParticipationSurvey
+                      ? 'Simular participación'
+                      : survey.tipo === 'votacion'
                       ? textOr(votacionUi?.boton_votar, 'Enviar voto')
                       : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }

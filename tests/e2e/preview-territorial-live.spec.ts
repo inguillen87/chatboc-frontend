@@ -220,8 +220,8 @@ const assertCoherentSurveyContract = async (page: Page) => {
   await expect(page.getByText('Radar de decisión', { exact: false })).toHaveCount(0);
 
   await expect(page.getByText('Luminarias').first()).toBeVisible();
-  await expect(page.getByText('26 votos · 26%', { exact: true })).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Luminarias 26% \(26\)/ })).toBeVisible();
+  await expect(page.getByText(/\d+ votos · \d+(?:[.,]\d+)?%/).first()).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Luminarias/ })).toBeVisible();
   await expect(page.getByText('Última sincronización', { exact: true })).toBeVisible();
   await expect(page.getByTestId('survey-last-updated')).not.toContainText('9/23/2026');
 
@@ -230,7 +230,7 @@ const assertCoherentSurveyContract = async (page: Page) => {
   ).toBeVisible();
   await expect(page.getByText('5 ubicaciones', { exact: false }).first()).toBeVisible();
   await expect(
-    page.getByText('100 respuestas representadas', { exact: false }).first(),
+    page.getByText(/\d+ respuestas representadas/i).first(),
   ).toBeVisible();
 };
 
@@ -669,14 +669,14 @@ test.describe('remote Preview territorial evidence', () => {
   });
 });
 
-test.describe('remote Preview single-write QA vote', () => {
+test.describe('remote Preview durable demo participation gate', () => {
   test.describe.configure({ retries: 0 });
   test.skip(
     !previewQaEnabled || !previewWriteQaEnabled,
     'Requires both CHATBOC_REMOTE_PREVIEW_QA=1 and the explicit one-shot write gate.',
   );
 
-  test('casts exactly one idempotent QA vote and reaches 101 responses', async ({ page }) => {
+  test('persists exactly one isolated QA interaction and exposes its durable receipt', async ({ page }) => {
     test.setTimeout(240_000);
     const submittedRequests: Request[] = [];
     page.on('request', (request) => {
@@ -685,10 +685,22 @@ test.describe('remote Preview single-write QA vote', () => {
 
     const { liveResponse } = await openSurveyAndWaitForContracts(page);
     const initialLivePayload: unknown = await liveResponse.json();
-    expect(
-      findFirstNumberByKeys(initialLivePayload, new Set(['total_respuestas', 'total_responses'])),
-      'The one-shot QA vote must start from the deterministic 100-response fixture.',
-    ).toBe(100);
+    const initialTotal = findFirstNumberByKeys(
+      initialLivePayload,
+      new Set(['total_respuestas', 'total_responses']),
+    );
+    const seededResponses = findFirstNumberByKeys(
+      initialLivePayload,
+      new Set(['seeded_responses']),
+    );
+    expect(initialTotal, 'The live contract must expose its current response total.').not.toBeNull();
+    expect(seededResponses, 'The demo contract must disclose its synthetic baseline.').not.toBeNull();
+    if (initialTotal === null || seededResponses === null) {
+      throw new Error('Preview demo live results omitted the dynamic total or seeded baseline.');
+    }
+    expect(Number.isSafeInteger(initialTotal)).toBe(true);
+    expect(Number.isSafeInteger(seededResponses)).toBe(true);
+    expect(initialTotal).toBeGreaterThanOrEqual(seededResponses);
 
     const turnstile = page.getByTestId('survey-turnstile-challenge');
     await expect(turnstile).toBeVisible({ timeout: REMOTE_WAIT_MS });
@@ -704,11 +716,11 @@ test.describe('remote Preview single-write QA vote', () => {
       })
       .toBe(true);
 
-    const selectedOption = page.getByRole('radio', { name: /Luminarias 26% \(26\)/ });
+    const selectedOption = page.getByRole('radio', { name: /Luminarias/ });
     await selectedOption.check();
     await expect(selectedOption).toBeChecked();
 
-    const submitButton = page.getByRole('button', { name: 'Enviar voto' });
+    const submitButton = page.getByRole('button', { name: 'Simular participación' });
     await expect(submitButton).toBeEnabled({ timeout: REMOTE_WAIT_MS });
     const responseRequestPromise = page.waitForRequest(isSurveyResponseRequest, {
       timeout: REMOTE_WAIT_MS,
@@ -724,12 +736,54 @@ test.describe('remote Preview single-write QA vote', () => {
       responsePromise,
     ]);
     expect(response.ok()).toBe(true);
+    const responsePayload = (await response.json()) as JsonRecord;
+    expect(responsePayload.contract_version).toBe('surveys.public_response.v2');
+    expect(responsePayload.participation_contract_version).toBe('demo.survey_participation.v1');
+    expect(responsePayload.ok).toBe(true);
+    expect(responsePayload.accepted).toBe(true);
+    expect(responsePayload.demo_mode).toBe(true);
+    expect(responsePayload.persisted).toBe(true);
+    expect(responsePayload.durable).toBe(true);
+    expect(responsePayload.municipal_truth).toBe(false);
+    expect(responsePayload.response_origin).toBe('interactive_demo');
+    expect(responsePayload.slug).toBe(SURVEY_SLUG);
+    expect(responsePayload.seeded_responses_before).toBe(seededResponses);
+    expect(responsePayload.seeded_responses_after).toBe(seededResponses);
+    expect(responsePayload.total_responses_after).toBe(initialTotal + 1);
+    expect(responsePayload.persistence).toMatchObject({
+      contract_version: 'demo.survey_persistence.v1',
+      state: 'durable_preview',
+      durable: true,
+      database_write: true,
+      scope: 'interactive_demo_only',
+      municipal_truth: false,
+    });
     const submittedPayload = responseRequest.postDataJSON() as JsonRecord;
     const idempotencyKey = responseRequest.headers()['idempotency-key'] || '';
     expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
     expect(idempotencyKey).toBe(submittedPayload.submission_id);
+    expect(Number.isSafeInteger(responsePayload.instrument_revision)).toBe(true);
+    if (submittedPayload.instrument_revision !== undefined) {
+      expect(responsePayload.instrument_revision).toBe(submittedPayload.instrument_revision);
+    }
+    expect(responsePayload.idempotency).toMatchObject({
+      contract_version: 'surveys.response_receipt.v1',
+      canonical_version: 'survey-response.v1',
+      submission_id: submittedPayload.submission_id,
+      instrument_revision: responsePayload.instrument_revision,
+      state: 'committed',
+      disposition: 'accepted',
+      persisted: true,
+      replayed: false,
+    });
 
-    await expect(page.getByRole('heading', { name: /Gracias por participar/i })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Participación demo guardada en Preview' })).toBeVisible({
+      timeout: REMOTE_WAIT_MS,
+    });
+    await expect(page.getByText(/entorno QA de Preview/i)).toBeVisible({
+      timeout: REMOTE_WAIT_MS,
+    });
+    await expect(page.getByText(/separada de cualquier dato ciudadano o resultado oficial/i)).toBeVisible({
       timeout: REMOTE_WAIT_MS,
     });
     await page.waitForTimeout(1_000);
@@ -748,10 +802,10 @@ test.describe('remote Preview single-write QA vote', () => {
         },
         {
           intervals: [1_000, 2_000, 5_000],
-          message: 'The persisted QA response must be visible as response 101.',
+          message: 'The durable Preview interaction must increment the dynamic demo total once.',
           timeout: REMOTE_WAIT_MS,
         },
       )
-      .toBe(101);
+      .toBe(initialTotal + 1);
   });
 });

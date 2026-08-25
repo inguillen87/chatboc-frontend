@@ -779,9 +779,13 @@ export const getPublicSurveyLiveResults = (
     omitTenant: true,
   }).then(normalizePublicSurveyLiveResults);
 
-type PublicSurveyResponseAck = {
+export type PublicSurveyAckKind = 'durable_response' | 'synthetic_demo' | 'durable_demo';
+
+type PublicSurveyResponseAckWire = {
   ok: boolean;
+  ack_kind?: PublicSurveyAckKind;
   persisted?: boolean;
+  durable?: boolean;
   replayed?: boolean;
   duplicate?: boolean;
   reason_code?: string;
@@ -799,13 +803,112 @@ type PublicSurveyResponseAck = {
   [key: string]: unknown;
 };
 
+export type PublicSurveyResponseAck = PublicSurveyResponseAckWire & {
+  ack_kind: PublicSurveyAckKind;
+};
+
 const DURABLE_PUBLIC_RESPONSE_CONTRACTS = new Set([
   'surveys.public_response.v2',
   'encuestas.public_response.v1',
 ]);
 
+const nonNegativeInteger = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+const isExplicitSyntheticDemoAck = (
+  response: PublicSurveyResponseAckWire,
+  requestedSlug: string,
+  contractVersion?: string,
+): boolean => {
+  const normalizedRequestedSlug = requestedSlug.trim().toLowerCase();
+  const responseSlug =
+    typeof response.slug === 'string' ? response.slug.trim().toLowerCase() : '';
+  const legacyContractVersion =
+    typeof response.legacy_contract_version === 'string'
+      ? response.legacy_contract_version
+      : undefined;
+  const hasDemoContract =
+    contractVersion === 'demo.survey_response_ack.v1' ||
+    (
+      contractVersion === 'surveys.public_response.v2' &&
+      legacyContractVersion === 'demo.survey_response_ack.v1'
+    );
+  const persistence = isRecord(response.persistence) ? response.persistence : null;
+  const seededBefore = nonNegativeInteger(response.seeded_responses_before);
+  const seededAfter = nonNegativeInteger(response.seeded_responses_after);
+  const simulatedAfter = nonNegativeInteger(response.simulated_view_responses_after);
+
+  return Boolean(
+    hasDemoContract &&
+    normalizedRequestedSlug.startsWith('demo-') &&
+    responseSlug === normalizedRequestedSlug &&
+    response.demo_mode === true &&
+    response.ok === true &&
+    response.accepted === true &&
+    response.ignored === false &&
+    response.duplicate === false &&
+    response.persisted === false &&
+    response.durable === false &&
+    persistence?.contract_version === 'demo.survey_persistence.v1' &&
+    persistence?.state === 'not_persisted' &&
+    persistence?.durable === false &&
+    persistence?.database_write === false &&
+    persistence?.live_results_mutated === false &&
+    persistence?.scope === 'current_view' &&
+    seededBefore !== null &&
+    seededAfter === seededBefore &&
+    simulatedAfter === seededBefore + 1
+  );
+};
+
+const isExplicitDurableDemoAck = (
+  response: PublicSurveyResponseAckWire,
+  requestedSlug: string,
+  contractVersion?: string,
+): boolean => {
+  const normalizedRequestedSlug = requestedSlug.trim().toLowerCase();
+  const responseSlug =
+    typeof response.slug === 'string' ? response.slug.trim().toLowerCase() : '';
+  const persistence = isRecord(response.persistence) ? response.persistence : null;
+  const seededBefore = nonNegativeInteger(response.seeded_responses_before);
+  const seededAfter = nonNegativeInteger(response.seeded_responses_after);
+  const interactiveAfter = nonNegativeInteger(response.interactive_demo_responses_after);
+  const totalAfter = nonNegativeInteger(response.total_responses_after);
+
+  return Boolean(
+    contractVersion === 'surveys.public_response.v2' &&
+    normalizedRequestedSlug.startsWith('demo-') &&
+    responseSlug === normalizedRequestedSlug &&
+    response.participation_contract_version === 'demo.survey_participation.v1' &&
+    response.demo_mode === true &&
+    response.ok === true &&
+    response.success === true &&
+    response.accepted === true &&
+    response.duplicate === false &&
+    response.persisted === true &&
+    response.durable === true &&
+    response.municipal_truth === false &&
+    response.response_origin === 'interactive_demo' &&
+    persistence?.contract_version === 'demo.survey_persistence.v1' &&
+    persistence?.state === 'durable_preview' &&
+    persistence?.durable === true &&
+    persistence?.database_write === true &&
+    persistence?.scope === 'interactive_demo_only' &&
+    persistence?.municipal_truth === false &&
+    seededBefore !== null &&
+    seededAfter === seededBefore &&
+    interactiveAfter !== null &&
+    totalAfter === seededBefore + interactiveAfter
+  );
+};
+
 const positiveInteger = (value: unknown): number | null => {
-  const numeric = typeof value === 'number' ? value : Number(value);
+  const numeric =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim()
+        ? Number(value)
+        : Number.NaN;
   return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
 };
 
@@ -838,13 +941,28 @@ const containsEligibilityCredentialField = (
 };
 
 const assertDurablePublicResponseAck = (
-  response: PublicSurveyResponseAck,
+  response: PublicSurveyResponseAckWire,
+  requestedSlug: string,
   payload: PublicResponsePayload,
   contractVersion?: string,
   eligibilityExpectation?: PublicSurveySubmitOptions['eligibilityExpectation'],
 ) => {
-  // Synthetic demos have no durable database receipt by design.
-  if (contractVersion === 'demo.survey_response_ack.v1') return;
+  // A synthetic demo is accepted only when the server explicitly proves that
+  // it did not mutate durable or citizen data. Any ambiguous V2 wrapper still
+  // fails closed through the normal receipt validation below.
+  if (
+    !eligibilityExpectation &&
+    isExplicitSyntheticDemoAck(response, requestedSlug, contractVersion)
+  ) return;
+
+  if (
+    response.demo_mode === true &&
+    !isExplicitDurableDemoAck(response, requestedSlug, contractVersion)
+  ) {
+    throw new AmbiguousSurveySubmissionError(
+      'El servidor no confirmó una clasificación durable y aislada para la interacción demo.',
+    );
+  }
 
   if (!contractVersion || !DURABLE_PUBLIC_RESPONSE_CONTRACTS.has(contractVersion)) {
     throw new AmbiguousSurveySubmissionError(
@@ -997,7 +1115,7 @@ export const postPublicResponse = (
     submission_id: submissionId,
   };
 
-  return callPublicSurveyEndpoint<PublicSurveyResponseAck>(buildPublicSurveyPaths(
+  return callPublicSurveyEndpoint<PublicSurveyResponseAckWire>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/v2/public/surveys/${slug}/respond`, tenantSlug),
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/responder`, tenantSlug),
   ), {
@@ -1037,6 +1155,7 @@ export const postPublicResponse = (
     }
     assertDurablePublicResponseAck(
       response,
+      slug,
       requestPayload,
       contractVersion,
       eligibilityExpectation,
@@ -1055,8 +1174,14 @@ export const postPublicResponse = (
         : typeof rawNormalizedId === 'string' && rawNormalizedId.trim() && Number.isFinite(Number(rawNormalizedId))
           ? Number(rawNormalizedId)
           : undefined;
-    const normalizedResponse = {
+    const ackKind: PublicSurveyAckKind = isExplicitSyntheticDemoAck(response, slug, contractVersion)
+      ? 'synthetic_demo'
+      : isExplicitDurableDemoAck(response, slug, contractVersion)
+        ? 'durable_demo'
+        : 'durable_response';
+    const normalizedResponse: PublicSurveyResponseAck = {
       ...response,
+      ack_kind: ackKind,
       ...(numericId !== undefined ? { id: numericId } : {}),
       ...(contractVersion ? { contract_version: contractVersion } : {}),
     };
