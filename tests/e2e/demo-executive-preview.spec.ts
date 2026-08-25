@@ -27,6 +27,7 @@ const executivePreview = {
     contract_version: 'demo.executive_provenance.v1',
     mode: 'synthetic_demo_scenario',
     synthetic: true,
+    contains_synthetic: true,
     municipal_truth: false,
     suitable_for_product_demonstration: true,
     suitable_for_government_decisions: false,
@@ -81,8 +82,21 @@ const executivePreview = {
       data_mode: 'synthetic_demo_scenario',
     },
   ],
+  case_sample: {
+    contract_version: 'demo.case_sample.v1',
+    sample: true,
+    total_cases: 184,
+    displayed_cases: 1,
+    represented_cases_on_map: 18,
+    label: 'Muestra del escenario; no representa el universo municipal.',
+  },
   map: {
     enabled: true,
+    sample: true,
+    displayed_points: 1,
+    represented_cases: 18,
+    total_cases: 184,
+    coverage_note: 'Una zona de muestra representa 18 de 184 reclamos del escenario.',
     title: 'Mapa operativo del escenario',
     label: 'Puntos simulados',
     data_mode: 'synthetic_demo_scenario',
@@ -90,6 +104,33 @@ const executivePreview = {
     points: [
       { id: 'point-1', label: 'REC-2026-0184', lat: -33.144539, lng: -68.485729 },
     ],
+  },
+  survey_voting: {
+    contract_version: 'demo.surveys_votings.v1',
+    enabled: true,
+    demo_mode: true,
+    label: 'Encuestas y votaciones',
+    description: 'Sondeos ciudadanos con resultados demo.',
+    total_available: 6,
+    seed_policy: { responses_per_item: 100, real_people: false, deterministic: true },
+    items: [{
+      id: 'survey-1',
+      title: 'Votación de prioridades barriales',
+      question: '¿Qué tema debería resolverse primero?',
+      status: 'demo_publicada',
+      demo_mode: true,
+      data_provenance: { mode: 'synthetic', contains_synthetic: true },
+      results: {
+        total_respuestas: 100,
+        options: [
+          { label: 'Luminarias', count: 45, porcentaje: 45 },
+          { label: 'Bacheo', count: 18, porcentaje: 18 },
+          { label: 'Limpieza', count: 25, porcentaje: 25 },
+          { label: 'Espacios verdes', count: 12, porcentaje: 12 },
+        ],
+      },
+      links: { public_page_path: '/e/demo-prioridades-barriales' },
+    }],
   },
 };
 
@@ -215,12 +256,26 @@ test.describe('government executive demo preview', () => {
       await expect(page.locator('main main')).toHaveCount(0);
       await expect(page.locator('h1')).toHaveCount(1);
       await expect(panel.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
+      await expect(panel.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toHaveCount(0);
       expect(adminPreviewRequests.length).toBeGreaterThan(0);
       expect(
         adminPreviewRequests.every(
           (requestUrl) => new URL(requestUrl).searchParams.get('presentation_mode') === 'executive',
         ),
       ).toBe(true);
+
+      await panel.getByRole('button', { name: 'Reclamos', exact: true }).click();
+      await expect(panel.getByText('Casos simulados')).toBeVisible();
+      await expect(panel.getByText('Muestra visible: 1 de 184 casos del escenario.')).toBeVisible();
+
+      await panel.getByRole('button', { name: 'Mapa operativo', exact: true }).click();
+      await expect(panel.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
+      await expect(panel.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
+
+      await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
+      await expect(panel.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
+      await expect(panel.getByText('Votación de prioridades barriales')).toBeVisible();
+      await expect(panel.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
 
       const axe = await new AxeBuilder({ page })
         .include('[data-demo-admin-preview]')
@@ -271,7 +326,9 @@ test.describe('government executive demo preview', () => {
       channel_summary: {
         contract_version: 'demo.channel_summary.v1',
         data_mode: 'session_generated_events',
-        observed_items: 1,
+        total_interactions: null,
+        total_cases: 1,
+        observed_cases: 1,
         note: 'Solo actividad observada en esta sesión.',
         channels: [],
       },
@@ -290,6 +347,8 @@ test.describe('government executive demo preview', () => {
     await expect(panel.getByText('Sesión actual')).toBeVisible();
     await expect(panel.getByText('Demo sintética')).toBeVisible();
     await expect(panel.getByText('100 votos')).toBeVisible();
+    await expect(panel.locator('[data-demo-channel-summary]')).toContainText('Casos observados');
+    await expect(panel.locator('[data-demo-channel-summary]')).toContainText('1');
 
     const axe = await new AxeBuilder({ page })
       .include('[data-demo-admin-preview]')

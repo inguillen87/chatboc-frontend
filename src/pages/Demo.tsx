@@ -548,6 +548,11 @@ const normalizePreviewMap = (preview: DemoAdminPreviewResponse | null) => {
     points: normalizedPoints,
     dataMode,
     label: map.label?.trim() || null,
+    sample: map.sample === true,
+    displayedPoints: readFiniteNumber(map.displayed_points, normalizedPoints.length),
+    representedCases: readFiniteNumber(map.represented_cases, preview?.case_sample?.represented_cases_on_map),
+    totalCases: readFiniteNumber(map.total_cases, preview?.case_sample?.total_cases),
+    coverageNote: map.coverage_note?.trim() || preview?.case_sample?.label?.trim() || null,
     zoom: readFiniteNumber(map.zoom),
     center: map.center
       ? {
@@ -555,6 +560,69 @@ const normalizePreviewMap = (preview: DemoAdminPreviewResponse | null) => {
           lng: readFiniteNumber(map.center.lng, map.center.longitude),
         }
       : null,
+  };
+};
+
+const normalizePreviewSurveyVoting = (preview: DemoAdminPreviewResponse | null) => {
+  const surveyVoting = preview?.survey_voting;
+  if (!surveyVoting || surveyVoting.enabled === false) return null;
+  const rawItems = Array.isArray(surveyVoting.items)
+    ? surveyVoting.items
+    : Array.isArray(surveyVoting.all_items)
+      ? surveyVoting.all_items
+      : [];
+  const items = rawItems
+    .map((item, index) => {
+      const title = item.title?.trim() || item.titulo?.trim();
+      if (!title) return null;
+      const totalResponses = readFiniteNumber(
+        item.results?.total_respuestas,
+        item.results?.seeded_responses,
+        surveyVoting.seed_policy?.responses_per_item,
+      ) ?? 0;
+      const options = (Array.isArray(item.results?.options) ? item.results.options : [])
+        .map((option, optionIndex) => {
+          const label = option.label?.trim() || option.texto?.trim();
+          if (!label) return null;
+          const count = readFiniteNumber(option.count, option.votos) ?? 0;
+          const declaredPercentage = readFiniteNumber(option.porcentaje);
+          const percentage = Math.min(
+            100,
+            Math.max(0, declaredPercentage ?? (totalResponses > 0 ? (count / totalResponses) * 100 : 0)),
+          );
+          return {
+            id: `${String(item.id ?? item.slug ?? index)}-option-${optionIndex}`,
+            label,
+            count,
+            percentage,
+          };
+        })
+        .filter((option): option is NonNullable<typeof option> => Boolean(option));
+      const publicPagePath = item.links?.public_page_path?.trim();
+      const isSynthetic =
+        item.demo_mode === true ||
+        item.data_provenance?.mode === 'synthetic' ||
+        item.data_provenance?.contains_synthetic === true;
+      return {
+        id: String(item.id ?? item.slug ?? `survey-${index}`),
+        title,
+        description: item.description?.trim() || item.descripcion?.trim() || null,
+        question: item.question?.trim() || null,
+        status: item.status?.trim() || item.estado?.trim() || null,
+        totalResponses,
+        options,
+        isSynthetic,
+        publicPagePath: publicPagePath?.startsWith('/e/') ? publicPagePath : null,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  return {
+    title: surveyVoting.label?.trim() || 'Encuestas y votaciones',
+    description: surveyVoting.description?.trim() || null,
+    totalAvailable: readFiniteNumber(surveyVoting.total_available, items.length) ?? items.length,
+    realPeople: surveyVoting.seed_policy?.real_people === true,
+    items,
   };
 };
 
@@ -670,6 +738,11 @@ const mergePreviewMapWithRuntime = (
       points: runtimePoints,
       dataMode: 'session_generated_events',
       label: 'Eventos reales de esta sesión',
+      sample: false,
+      displayedPoints: runtimePoints.length,
+      representedCases: runtimePoints.length,
+      totalCases: runtimePoints.length,
+      coverageNote: 'Ubicaciones aportadas durante esta sesión demo.',
       zoom: null,
       center: null,
     };
@@ -718,6 +791,11 @@ const DemoPreviewMap = ({
   points,
   dataMode,
   label,
+  sample,
+  displayedPoints,
+  representedCases,
+  totalCases,
+  coverageNote,
   zoom,
   mapCenter,
 }: {
@@ -726,6 +804,11 @@ const DemoPreviewMap = ({
   points: NormalizedPreviewMapPoint[];
   dataMode?: string | null;
   label?: string | null;
+  sample?: boolean;
+  displayedPoints?: number | null;
+  representedCases?: number | null;
+  totalCases?: number | null;
+  coverageNote?: string | null;
   zoom?: number | null;
   mapCenter?: { lat: number | null; lng: number | null } | null;
 }) => {
@@ -751,6 +834,12 @@ const DemoPreviewMap = ({
   const isSynthetic = dataMode === 'synthetic_demo_scenario';
   const provenanceLabel = label || (isSynthetic ? 'Datos simulados' : 'Eventos de esta sesión');
   const titleId = `demo-preview-map-${isSynthetic ? 'synthetic' : 'session'}`;
+  const pointCount = displayedPoints ?? points.length;
+  const hasCoverage =
+    typeof representedCases === 'number' && typeof totalCases === 'number' && totalCases > 0;
+  const accessibleMapLabel = hasCoverage
+    ? `${title}. ${pointCount} zonas muestran ${representedCases} de ${totalCases} casos. ${provenanceLabel}.`
+    : `${title}. ${pointCount} ubicaciones. ${provenanceLabel}.`;
 
   return (
     <section
@@ -765,8 +854,13 @@ const DemoPreviewMap = ({
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">
           <span className="rounded-full border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-            {points.length} puntos
+            {pointCount} {sample ? 'zonas de muestra' : pointCount === 1 ? 'ubicación' : 'ubicaciones'}
           </span>
+          {hasCoverage ? (
+            <span className="rounded-full border bg-muted/40 px-2 py-1 text-[11px] font-semibold text-foreground">
+              {EXECUTIVE_NUMBER_FORMATTER.format(representedCases)} de {EXECUTIVE_NUMBER_FORMATTER.format(totalCases)} casos
+            </span>
+          ) : null}
           <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
             {provenanceLabel}
           </span>
@@ -787,10 +881,16 @@ const DemoPreviewMap = ({
           fitToBounds={bounds.length ? bounds : undefined}
           initialZoom={zoom ?? (bounds.length > 1 ? 12 : 14)}
           disableClientClustering
+          ariaLabel={accessibleMapLabel}
         />
       </React.Suspense>
+      {coverageNote ? (
+        <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-foreground">
+          {coverageNote}
+        </p>
+      ) : null}
       <div className="mt-3 grid gap-2">
-        {points.slice(0, 4).map((point) => (
+        {points.map((point) => (
           <div key={`row-${point.id}`} className="rounded-lg border bg-muted/20 px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">{point.label}</span>
@@ -946,7 +1046,7 @@ const DemoDataProvenanceBanner = ({
 }) => {
   const provenance = preview.data_provenance;
   const declaredMode = provenance?.mode ?? preview.operations?.data_policy ?? null;
-  const isMixedPartitioned = declaredMode === 'mixed_partitioned' || provenance?.contains_synthetic === true;
+  const isMixedPartitioned = declaredMode === 'mixed_partitioned';
   const isSynthetic =
     provenance?.synthetic === true ||
     declaredMode === 'synthetic_demo_scenario' ||
@@ -1138,7 +1238,16 @@ const DemoChannelSummary = ({
   if (!summary) return null;
   const channels = Array.isArray(summary.channels) ? summary.channels : [];
   const whatsapp = summary.whatsapp;
-  const total = summary.total_interactions ?? summary.observed_items;
+  const totalSummary =
+    summary.total_interactions !== null && summary.total_interactions !== undefined
+      ? { label: 'Interacciones', value: summary.total_interactions }
+      : summary.total_cases !== null && summary.total_cases !== undefined
+        ? { label: 'Casos observados', value: summary.total_cases }
+        : summary.observed_cases !== null && summary.observed_cases !== undefined
+          ? { label: 'Casos observados', value: summary.observed_cases }
+          : summary.observed_items !== null && summary.observed_items !== undefined
+            ? { label: 'Elementos observados', value: summary.observed_items }
+            : null;
   const hasWhatsappMetrics = Boolean(
     whatsapp &&
       [whatsapp.conversations, whatsapp.first_response_minutes, whatsapp.resolved_without_handoff_pct].some(
@@ -1159,10 +1268,10 @@ const DemoChannelSummary = ({
             {summary.label?.trim() || 'WhatsApp y nivel de servicio'}
           </h3>
         </div>
-        {total !== null && total !== undefined ? (
+        {totalSummary ? (
           <div className="rounded-xl border bg-muted/20 px-3 py-2 text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Interacciones</p>
-            <p className="text-lg font-black text-foreground">{readSummaryValue(total)}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{totalSummary.label}</p>
+            <p className="text-lg font-black text-foreground">{readSummaryValue(totalSummary.value)}</p>
           </div>
         ) : null}
       </div>
@@ -1260,16 +1369,26 @@ export const DemoAdminPreview = ({
   const executiveKpis = metrics.length ? metrics : cards;
   const timeline = normalizePreviewTimeline(preview);
   const previewCases = normalizePreviewCases(preview);
+  const surveyVoting = normalizePreviewSurveyVoting(preview);
   const runtimeMapPoints = runtimeEventsToMapPoints(runtimeEvents);
   const previewMap = runtimeMapPoints.length
     ? mergePreviewMapWithRuntime(null, runtimeMapPoints)
     : normalizePreviewMap(preview);
   const runtimeTickets = runtimeEvents.filter((event) => event.ticket || event.ticketId);
   const declaredDataMode = preview.data_provenance?.mode ?? preview.operations?.data_policy ?? null;
-  const isMixedPartitioned =
-    declaredDataMode === 'mixed_partitioned' || preview.data_provenance?.contains_synthetic === true;
+  const isMixedPartitioned = declaredDataMode === 'mixed_partitioned';
   const isSyntheticPreview =
     preview.data_provenance?.synthetic === true || declaredDataMode === 'synthetic_demo_scenario';
+  const hasSessionCases =
+    runtimeTickets.length > 0 ||
+    previewCases.some((item) => item.dataMode === 'session_generated_events');
+  const caseSourceLabel = hasSessionCases
+    ? 'Eventos reales de esta sesión'
+    : isSyntheticPreview || previewCases.some((item) => item.dataMode === 'synthetic_demo_scenario')
+      ? 'Casos simulados'
+      : 'Casos del panel';
+  const caseSourceIsSession = hasSessionCases;
+  const caseSample = preview.case_sample;
   const activeModule = modules.find((module) => module.target === activeTarget) ?? modules[0];
   const title = preview.title?.trim() || rubro || readSectorLabel(null, sector);
   const subtitle = preview.subtitle?.trim() || rubro || readSectorLabel(null, sector);
@@ -1405,13 +1524,21 @@ export const DemoAdminPreview = ({
                   </p>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                  runtimeTickets.length
+                  caseSourceIsSession
                     ? 'border-primary/25 bg-primary/10 text-primary'
                     : 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
                 }`}>
-                  {runtimeTickets.length ? 'Eventos reales de esta sesión' : 'Casos simulados'}
+                  {caseSourceLabel}
                 </span>
               </div>
+              {caseSample?.sample === true ? (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-xs leading-5 text-foreground">
+                  <p className="font-semibold">
+                    Muestra visible: {readSummaryValue(caseSample.displayed_cases)} de {readSummaryValue(caseSample.total_cases)} casos del escenario.
+                  </p>
+                  {caseSample.label ? <p className="mt-1 text-muted-foreground">{caseSample.label}</p> : null}
+                </div>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2">
               {runtimeTickets.length ? (
                 runtimeTickets.map((event) => (
@@ -1543,6 +1670,11 @@ export const DemoAdminPreview = ({
                   points={previewMap.points}
                   dataMode={previewMap.dataMode}
                   label={previewMap.label}
+                  sample={previewMap.sample}
+                  displayedPoints={previewMap.displayedPoints}
+                  representedCases={previewMap.representedCases}
+                  totalCases={previewMap.totalCases}
+                  coverageNote={previewMap.coverageNote}
                   zoom={previewMap.zoom}
                   mapCenter={previewMap.center}
                 />
@@ -1555,35 +1687,100 @@ export const DemoAdminPreview = ({
           ) : null}
 
           {showSurveys ? (
-            <section className="grid gap-3" aria-labelledby="demo-surveys-title">
+            <section className="grid gap-3" aria-labelledby="demo-surveys-title" data-demo-survey-voting>
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                <h3 id="demo-surveys-title" className="text-sm font-semibold text-foreground">
-                  {labels.surveys_title ?? labels.surveys ?? activeModule?.label}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {labels.surveys_description ??
-                    'Este panel muestra respuestas, comentarios y acciones ciudadanas capturadas durante la demo.'}
-                </p>
-                <div className="mt-4 grid gap-2 text-xs">
-                  {runtimeEvents.length ? (
-                    runtimeEvents.map((event) => (
-                      <div key={`survey-${event.id}`} className="rounded-lg border bg-muted/20 px-3 py-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium text-foreground">{readDemoEventTicketLabel(event)}</span>
-                          {event.status ? <span className="text-muted-foreground">{event.status}</span> : null}
-                        </div>
-                        {event.requestId ? (
-                          <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{event.requestId}</p>
-                        ) : null}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-lg border border-dashed bg-muted/10 px-3 py-3 text-muted-foreground">
-                      Las respuestas aparecen cuando el usuario envia feedback o comentarios desde el chat.
-                    </div>
-                  )}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Participación ciudadana</p>
+                    <h3 id="demo-surveys-title" className="mt-1 text-base font-bold text-foreground">
+                      {surveyVoting?.title || labels.surveys_title || labels.surveys || activeModule?.label || 'Encuestas y votaciones'}
+                    </h3>
+                  </div>
+                  {surveyVoting ? (
+                    <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                      {surveyVoting.totalAvailable} encuestas demo
+                    </span>
+                  ) : null}
                 </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {surveyVoting?.description || labels.surveys_description ||
+                    'Resultados separados por fuente para demostrar votaciones y analítica sin presentarlos como información oficial.'}
+                </p>
+                {surveyVoting && surveyVoting.realPeople === false ? (
+                  <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-foreground" role="note">
+                    Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.
+                  </div>
+                ) : null}
               </div>
+
+              {surveyVoting?.items.length ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {surveyVoting.items.map((survey) => (
+                    <article key={survey.id} className="rounded-2xl border border-border/70 bg-background/75 p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                            {survey.status || 'Encuesta publicada'}
+                          </p>
+                          <h4 className="mt-1 text-base font-bold leading-6 text-foreground">{survey.title}</h4>
+                        </div>
+                        <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${
+                          survey.isSynthetic
+                            ? 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                            : 'border-primary/25 bg-primary/10 text-primary'
+                        }`}>
+                          {survey.totalResponses} {survey.isSynthetic ? 'respuestas sintéticas' : 'respuestas'}
+                        </span>
+                      </div>
+                      {survey.description ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{survey.description}</p> : null}
+                      {survey.question ? <p className="mt-3 text-sm font-semibold text-foreground">{survey.question}</p> : null}
+                      <div className="mt-3 grid gap-2">
+                        {survey.options.length ? (
+                          survey.options.map((option) => (
+                            <div key={option.id}>
+                              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                                <span className="font-medium text-foreground">{option.label}</span>
+                                <span className="tabular-nums text-muted-foreground">
+                                  {option.count} · {EXECUTIVE_NUMBER_FORMATTER.format(option.percentage)}%
+                                </span>
+                              </div>
+                              <div
+                                className="h-2 overflow-hidden rounded-full bg-muted"
+                                role="progressbar"
+                                aria-label={`${option.label}: ${EXECUTIVE_NUMBER_FORMATTER.format(option.percentage)} %`}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Math.round(option.percentage)}
+                              >
+                                <div
+                                  className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
+                                  style={{ width: `${option.percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="rounded-lg border border-dashed bg-muted/10 px-3 py-3 text-xs text-muted-foreground">
+                            La encuesta está disponible, pero este contrato todavía no publicó resultados.
+                          </p>
+                        )}
+                      </div>
+                      {survey.publicPagePath ? (
+                        <a
+                          href={survey.publicPagePath}
+                          className="mt-4 inline-flex rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          Abrir encuesta demo
+                        </a>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
+                  El backend no devolvió una encuesta publicada para este escenario.
+                </div>
+              )}
             </section>
           ) : null}
         </div>

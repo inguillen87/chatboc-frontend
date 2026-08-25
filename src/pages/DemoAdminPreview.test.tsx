@@ -6,8 +6,8 @@ import type { DemoAdminPreviewResponse } from '@/features/demo/demoTypes';
 import { DemoAdminPreview } from './Demo';
 
 vi.mock('@/components/MapLibreMap', () => ({
-  default: ({ heatmapData }: { heatmapData: unknown[] }) => (
-    <div data-testid="maplibre-preview">{heatmapData.length} puntos en mapa</div>
+  default: ({ heatmapData, ariaLabel }: { heatmapData: unknown[]; ariaLabel?: string }) => (
+    <div data-testid="maplibre-preview" role="region" aria-label={ariaLabel}>{heatmapData.length} puntos en mapa</div>
   ),
 }));
 
@@ -28,6 +28,7 @@ const executivePreview: DemoAdminPreviewResponse = {
     contract_version: 'demo.executive_provenance.v1',
     mode: 'synthetic_demo_scenario',
     synthetic: true,
+    contains_synthetic: true,
     municipal_truth: false,
     suitable_for_product_demonstration: true,
     suitable_for_government_decisions: false,
@@ -83,8 +84,21 @@ const executivePreview: DemoAdminPreviewResponse = {
       data_mode: 'synthetic_demo_scenario',
     },
   ],
+  case_sample: {
+    contract_version: 'demo.case_sample.v1',
+    sample: true,
+    total_cases: 184,
+    displayed_cases: 1,
+    represented_cases_on_map: 18,
+    label: 'Muestra del escenario; no representa el universo municipal.',
+  },
   map: {
     enabled: true,
+    sample: true,
+    displayed_points: 1,
+    represented_cases: 18,
+    total_cases: 184,
+    coverage_note: 'Una zona de muestra representa 18 de 184 reclamos del escenario.',
     title: 'Mapa operativo del escenario',
     label: 'Puntos simulados',
     data_mode: 'synthetic_demo_scenario',
@@ -102,6 +116,36 @@ const executivePreview: DemoAdminPreviewResponse = {
       },
     ],
   },
+  survey_voting: {
+    contract_version: 'demo.surveys_votings.v1',
+    enabled: true,
+    demo_mode: true,
+    label: 'Encuestas y votaciones',
+    description: 'Sondeos ciudadanos con resultados demo.',
+    total_available: 6,
+    seed_policy: { responses_per_item: 100, real_people: false, deterministic: true },
+    items: [
+      {
+        id: 'survey-1',
+        title: 'Votación de prioridades barriales',
+        description: 'Prioridades para los próximos 90 días.',
+        question: '¿Qué tema debería resolverse primero?',
+        status: 'demo_publicada',
+        demo_mode: true,
+        data_provenance: { mode: 'synthetic', contains_synthetic: true, synthetic_responses_included: 100 },
+        results: {
+          total_respuestas: 100,
+          options: [
+            { label: 'Luminarias', count: 45, porcentaje: 45 },
+            { label: 'Bacheo', count: 18, porcentaje: 18 },
+            { label: 'Limpieza', count: 25, porcentaje: 25 },
+            { label: 'Espacios verdes', count: 12, porcentaje: 12 },
+          ],
+        },
+        links: { public_page_path: '/e/demo-prioridades-barriales' },
+      },
+    ],
+  },
 };
 
 describe('DemoAdminPreview executive snapshot', () => {
@@ -113,6 +157,7 @@ describe('DemoAdminPreview executive snapshot', () => {
     );
     expect(screen.getByRole('note')).toHaveTextContent('No representa datos oficiales ni relevamiento municipal.');
     expect(screen.getByRole('note')).toHaveTextContent('Ámbito del escenario: Junín, Mendoza');
+    expect(screen.queryByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Centro de comando ciudadano' })).toBeVisible();
     expect(screen.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
 
@@ -143,6 +188,7 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('Casos simulados')).toBeVisible();
     expect(screen.getByText('REC-2026-0184')).toBeVisible();
     expect(screen.getByText('Luminaria sin servicio')).toBeVisible();
+    expect(screen.getByText('Muestra visible: 1 de 184 casos del escenario.')).toBeVisible();
     expect(screen.queryByText('Eventos reales de esta sesión', { exact: true })).not.toBeInTheDocument();
   });
 
@@ -158,6 +204,64 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Mapa operativo del escenario' })).toBeVisible();
     expect(screen.getByText('Puntos simulados')).toBeVisible();
     expect(await screen.findByTestId('maplibre-preview')).toHaveTextContent('1 puntos en mapa');
+    expect(screen.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
+    expect(screen.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
+  });
+
+  it('renders the seeded survey contract instead of treating runtime tickets as responses', () => {
+    render(
+      <DemoAdminPreview
+        sector="gobierno"
+        preview={executivePreview}
+        activeTarget="surveys"
+        runtimeEvents={[{ id: 'ticket:55', ticketId: '55', status: 'abierto', updatedAt: '2026-08-25T12:00:00Z' }]}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Encuestas y votaciones' })).toBeVisible();
+    expect(screen.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
+    expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
+    expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
+    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute('href', '/e/demo-prioridades-barriales');
+    expect(screen.queryByText('55', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('keeps reloaded session cases and their counts labeled as observed session data', () => {
+    render(
+      <DemoAdminPreview
+        sector="gobierno"
+        preview={{
+          ...executivePreview,
+          data_provenance: {
+            ...executivePreview.data_provenance,
+            mode: 'mixed_partitioned',
+            synthetic: false,
+            contains_synthetic: true,
+          },
+          cases: [{
+            id: 'session-case-1',
+            case_code: 'REAL-DEMO-7101',
+            title: 'Luminaria reportada en la sesión',
+            data_mode: 'session_generated_events',
+          }],
+          case_sample: null,
+          channel_summary: {
+            contract_version: 'demo.channel_summary.v1',
+            data_mode: 'session_generated_events',
+            total_interactions: null,
+            total_cases: 1,
+            observed_cases: 1,
+            label: 'Solo actividad observada en esta sesión.',
+          },
+        }}
+        activeTarget="claims"
+      />,
+    );
+
+    expect(screen.getByText('Eventos reales de esta sesión')).toBeVisible();
+    expect(screen.getByText('REAL-DEMO-7101')).toBeVisible();
+    expect(screen.queryByText('Casos simulados')).not.toBeInTheDocument();
   });
 
   it('renders only real session cases when runtime activity exists', () => {

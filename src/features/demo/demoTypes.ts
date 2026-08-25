@@ -127,6 +127,11 @@ export interface DemoAdminPreviewMapPoint {
 
 export interface DemoAdminPreviewMap {
   enabled?: boolean | null;
+  sample?: boolean | null;
+  displayed_points?: string | number | null;
+  represented_cases?: string | number | null;
+  total_cases?: string | number | null;
+  coverage_note?: string | null;
   title?: string | null;
   label?: string | null;
   description?: string | null;
@@ -198,6 +203,8 @@ export interface DemoAdminPreviewChannelSummary {
   data_mode?: string | null;
   total_interactions?: string | number | null;
   observed_items?: string | number | null;
+  total_cases?: string | number | null;
+  observed_cases?: string | number | null;
   note?: string | null;
   label?: string | null;
   channels?: DemoAdminPreviewChannelItem[] | null;
@@ -205,6 +212,79 @@ export interface DemoAdminPreviewChannelSummary {
     conversations?: string | number | null;
     first_response_minutes?: string | number | null;
     resolved_without_handoff_pct?: string | number | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewCaseSample {
+  contract_version?: string | null;
+  sample?: boolean | null;
+  total_cases?: string | number | null;
+  displayed_cases?: string | number | null;
+  represented_cases_on_map?: string | number | null;
+  label?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyOption {
+  label?: string | null;
+  texto?: string | null;
+  count?: string | number | null;
+  votos?: string | number | null;
+  porcentaje?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyItem {
+  id?: string | number | null;
+  slug?: string | null;
+  title?: string | null;
+  titulo?: string | null;
+  description?: string | null;
+  descripcion?: string | null;
+  question?: string | null;
+  status?: string | null;
+  estado?: string | null;
+  demo_mode?: boolean | null;
+  results?: {
+    total_respuestas?: string | number | null;
+    seeded_responses?: string | number | null;
+    options?: DemoAdminPreviewSurveyOption[] | null;
+    [key: string]: unknown;
+  } | null;
+  data_provenance?: {
+    mode?: string | null;
+    contains_synthetic?: boolean | null;
+    real_responses_included?: string | number | null;
+    synthetic_responses_included?: string | number | null;
+    [key: string]: unknown;
+  } | null;
+  links?: {
+    public_page_path?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyVoting {
+  contract_version?: string | null;
+  enabled?: boolean | null;
+  demo_mode?: boolean | null;
+  label?: string | null;
+  description?: string | null;
+  total_available?: string | number | null;
+  items?: DemoAdminPreviewSurveyItem[] | null;
+  all_items?: DemoAdminPreviewSurveyItem[] | null;
+  seed_policy?: {
+    responses_per_item?: string | number | null;
+    real_people?: boolean | null;
+    deterministic?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  frontend_contract?: {
+    render_as?: string | null;
+    empty_state_behavior?: string | null;
     [key: string]: unknown;
   } | null;
   [key: string]: unknown;
@@ -227,7 +307,9 @@ export interface DemoAdminPreviewResponse {
   timeline?: DemoAdminPreviewTimelineItem[];
   map?: DemoAdminPreviewMap | null;
   cases?: DemoAdminPreviewCase[];
+  case_sample?: DemoAdminPreviewCaseSample | null;
   channel_summary?: DemoAdminPreviewChannelSummary | null;
+  survey_voting?: DemoAdminPreviewSurveyVoting | null;
   data_provenance?: DemoAdminPreviewDataProvenance | null;
   operations?: {
     data_policy?: string | null;
