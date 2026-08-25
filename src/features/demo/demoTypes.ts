@@ -236,6 +236,12 @@ export interface DemoAdminPreviewSurveyOption {
   [key: string]: unknown;
 }
 
+export interface DemoAdminPreviewSurveySegmentItem {
+  label?: string | null;
+  count?: string | number | null;
+  [key: string]: unknown;
+}
+
 export interface DemoAdminPreviewSurveyItem {
   id?: string | number | null;
   slug?: string | null;
@@ -257,6 +263,8 @@ export interface DemoAdminPreviewSurveyItem {
     interactive_demo_responses?: string | number | null;
     verified_citizen_responses?: string | number | null;
     options?: DemoAdminPreviewSurveyOption[] | null;
+    segment_scope?: string | null;
+    segments?: Record<string, DemoAdminPreviewSurveySegmentItem[] | null> | null;
     [key: string]: unknown;
   } | null;
   data_provenance?: {

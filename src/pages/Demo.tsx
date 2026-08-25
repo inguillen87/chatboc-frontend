@@ -26,6 +26,7 @@ import type { Rubro } from "@/types/rubro";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
+import ExecutiveSurveyPanel from '@/features/demo/ExecutiveSurveyPanel';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
@@ -702,6 +703,26 @@ const normalizePreviewSurveyVoting = (preview: DemoAdminPreviewResponse | null) 
           };
         })
         .filter((option): option is NonNullable<typeof option> => Boolean(option));
+      const segments = item.results?.segments && typeof item.results.segments === 'object'
+        ? Object.entries(item.results.segments)
+            .map(([key, values]) => {
+              if (!Array.isArray(values)) return null;
+              const items = values
+                .map((value, segmentIndex) => {
+                  const label = value?.label?.trim();
+                  const count = readFiniteNumber(value?.count);
+                  if (!label || count === null || count < 0) return null;
+                  return {
+                    id: `${String(item.id ?? item.slug ?? index)}-${key}-${segmentIndex}`,
+                    label,
+                    count,
+                  };
+                })
+                .filter((value): value is NonNullable<typeof value> => Boolean(value));
+              return items.length ? { key, items } : null;
+            })
+            .filter((value): value is NonNullable<typeof value> => Boolean(value))
+        : [];
       const publicPagePath = item.links?.public_page_path?.trim();
       const isSynthetic =
         item.demo_mode === true ||
@@ -719,6 +740,8 @@ const normalizePreviewSurveyVoting = (preview: DemoAdminPreviewResponse | null) 
         verifiedCitizenResponses,
         hasPartitionedDemoComposition,
         options,
+        segments,
+        segmentScope: item.results?.segment_scope?.trim() || null,
         isSynthetic,
         publicPagePath: publicPagePath?.startsWith('/e/') ? publicPagePath : null,
       };
@@ -1818,119 +1841,12 @@ export const DemoAdminPreview = ({
           ) : null}
 
           {showSurveys ? (
-            <section className="grid gap-3" aria-labelledby="demo-surveys-title" data-demo-survey-voting>
-              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Participación ciudadana</p>
-                    <h3 id="demo-surveys-title" className="mt-1 text-base font-bold text-foreground">
-                      {surveyVoting?.title || labels.surveys_title || labels.surveys || activeModule?.label || 'Encuestas y votaciones'}
-                    </h3>
-                  </div>
-                  {surveyVoting ? (
-                    <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                      {surveyInventoryLabel}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {surveyVoting?.description || labels.surveys_description ||
-                    'Resultados separados por fuente para demostrar votaciones y analítica sin presentarlos como información oficial.'}
-                </p>
-                {surveyVoting && surveyVoting.realPeople === false ? (
-                  <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-foreground" role="note">
-                    Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.
-                  </div>
-                ) : null}
-              </div>
-
-              {surveyVoting?.items.length ? (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {surveyVoting.items.map((survey) => (
-                    <article key={survey.id} className="rounded-2xl border border-border/70 bg-background/75 p-4 shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                            {formatDemoPresentationLabel(survey.status || 'Encuesta publicada')}
-                          </p>
-                          <h4 className="mt-1 text-base font-bold leading-6 text-foreground">{survey.title}</h4>
-                        </div>
-                        <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${
-                          survey.isSynthetic
-                            ? 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                            : 'border-primary/25 bg-primary/10 text-primary'
-                        }`}>
-                          {survey.totalResponses} {survey.hasPartitionedDemoComposition
-                            ? 'respuestas demo'
-                            : survey.isSynthetic
-                              ? 'respuestas sintéticas'
-                              : 'respuestas'}
-                        </span>
-                      </div>
-                      {survey.description ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{survey.description}</p> : null}
-                      {survey.hasPartitionedDemoComposition ? (
-                        <div
-                          className="mt-3 rounded-xl border border-primary/15 bg-primary/[0.04] px-3 py-2 text-xs leading-5 text-foreground"
-                          role="note"
-                          aria-label={`Composición de respuestas de ${survey.title}`}
-                          data-demo-survey-composition
-                        >
-                          <span className="font-semibold">Composición verificable · </span>
-                          <span className="tabular-nums">
-                            {survey.seededResponses} base sintética + {survey.interactiveDemoResponses} participaciones demo = {survey.totalResponses} total
-                          </span>
-                          <span className="block text-foreground">0 respuestas ciudadanas verificadas.</span>
-                        </div>
-                      ) : null}
-                      {survey.question ? <p className="mt-3 text-sm font-semibold text-foreground">{survey.question}</p> : null}
-                      <div className="mt-3 grid gap-2">
-                        {survey.options.length ? (
-                          survey.options.map((option) => (
-                            <div key={option.id}>
-                              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-                                <span className="font-medium text-foreground">{option.label}</span>
-                                <span className="tabular-nums text-muted-foreground">
-                                  {option.count} · {EXECUTIVE_NUMBER_FORMATTER.format(option.percentage)}%
-                                </span>
-                              </div>
-                              <div
-                                className="h-2 overflow-hidden rounded-full bg-muted"
-                                role="progressbar"
-                                aria-label={`${option.label}: ${EXECUTIVE_NUMBER_FORMATTER.format(option.percentage)} %`}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-valuenow={Math.round(option.percentage)}
-                              >
-                                <div
-                                  className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
-                                  style={{ width: `${option.percentage}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="rounded-lg border border-dashed bg-muted/10 px-3 py-3 text-xs text-muted-foreground">
-                            La encuesta está disponible, pero este contrato todavía no publicó resultados.
-                          </p>
-                        )}
-                      </div>
-                      {survey.publicPagePath ? (
-                        <a
-                          href={survey.publicPagePath}
-                          className="mt-4 inline-flex rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        >
-                          Abrir encuesta demo
-                        </a>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
-                  El backend no devolvió una encuesta publicada para este escenario.
-                </div>
-              )}
-            </section>
+            <ExecutiveSurveyPanel
+              surveyVoting={surveyVoting}
+              inventoryLabel={surveyInventoryLabel}
+              fallbackTitle={labels.surveys_title || labels.surveys || activeModule?.label || 'Encuestas y votaciones'}
+              fallbackDescription={labels.surveys_description || undefined}
+            />
           ) : null}
         </div>
       </div>

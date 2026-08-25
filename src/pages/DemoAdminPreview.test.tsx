@@ -151,6 +151,17 @@ const executivePreview: DemoAdminPreviewResponse = {
         data_provenance: { mode: 'synthetic', contains_synthetic: true, synthetic_responses_included: 100 },
         results: {
           total_respuestas: 100,
+          segment_scope: 'seeded_synthetic_responses_only',
+          segments: {
+            zona: [
+              { label: 'Oeste', count: 35 },
+              { label: 'Centro', count: 25 },
+            ],
+            canal: [
+              { label: 'whatsapp', count: 58 },
+              { label: 'web', count: 42 },
+            ],
+          },
           options: [
             { label: 'Luminarias', count: 45, porcentaje: 45 },
             { label: 'Bacheo', count: 18, porcentaje: 18 },
@@ -246,6 +257,9 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
     expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
+    expect(screen.getByRole('button', { name: 'Zona' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Oeste')).toBeVisible();
+    expect(screen.getByText('Segmentación calculada exclusivamente sobre la base sintética del escenario.')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute('href', '/e/demo-prioridades-barriales');
     expect(screen.queryByText('55', { exact: true })).not.toBeInTheDocument();
   });
