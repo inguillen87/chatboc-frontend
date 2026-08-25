@@ -74,8 +74,15 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const DENSITY_LEGEND_GRADIENT =
   'linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(45,212,191,.62) 18%, rgba(59,130,246,.72) 36%, rgba(168,85,247,.76) 58%, rgba(251,191,36,.84) 78%, rgba(244,63,94,.96) 100%)';
-const POINTS_LEGEND_GRADIENT =
-  'linear-gradient(90deg, #38bdf8 0%, #2563eb 30%, #1d4ed8 58%, #ef4444 100%)';
+const POINTS_COLOR_STOPS = [
+  { position: 0, color: '#38bdf8' },
+  { position: 0.3, color: '#2563eb' },
+  { position: 0.58, color: '#1d4ed8' },
+  { position: 1, color: '#ef4444' },
+] as const;
+const POINTS_LEGEND_GRADIENT = `linear-gradient(90deg, ${POINTS_COLOR_STOPS.map(
+  ({ position, color }) => `${color} ${Number((position * 100).toFixed(2))}%`,
+).join(', ')})`;
 
 const SURVEY_MAP_BOUNDS_PADDING = { top: 72, right: 52, bottom: 92, left: 52 } as const;
 
@@ -215,18 +222,45 @@ const resolveJurisdiction = (heatmap?: SurveyLiveHeatmap | null): ResolvedJurisd
   };
 };
 
+const interpolateHexColor = (start: string, end: string, ratio: number) => {
+  const startValue = Number.parseInt(start.slice(1), 16);
+  const endValue = Number.parseInt(end.slice(1), 16);
+  const channel = (shift: number) => {
+    const from = (startValue >> shift) & 0xff;
+    const to = (endValue >> shift) & 0xff;
+    return Math.round(from + (to - from) * ratio);
+  };
+  return `#${[channel(16), channel(8), channel(0)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')}`;
+};
+
+const resolveRelativePointColor = (value: number, minValue: number, maxValue: number) => {
+  if (maxValue <= minValue) return POINTS_COLOR_STOPS[POINTS_COLOR_STOPS.length - 1].color;
+
+  const relativeValue = Math.max(0, Math.min(1, (value - minValue) / (maxValue - minValue)));
+  const upperIndex = POINTS_COLOR_STOPS.findIndex(({ position }) => position >= relativeValue);
+  if (upperIndex <= 0) return POINTS_COLOR_STOPS[0].color;
+  const lower = POINTS_COLOR_STOPS[upperIndex - 1];
+  const upper = POINTS_COLOR_STOPS[upperIndex];
+  const segmentRatio = (relativeValue - lower.position) / (upper.position - lower.position);
+  return interpolateHexColor(lower.color, upper.color, segmentRatio);
+};
+
 const buildMapLibreHeatmapData = (items: TerritorialDatum[]): HeatPoint[] => {
   const mapped = items.filter(
     (item): item is TerritorialDatum & { lat: number; lng: number } =>
       isValidCoordinatePair(item.lat ?? Number.NaN, item.lng ?? Number.NaN),
   );
-  const maxValue = Math.max(1, ...mapped.map((item) => item.value));
+  const minValue = Math.min(...mapped.map((item) => item.value));
+  const observedMaxValue = Math.max(...mapped.map((item) => item.value));
+  const weightMaxValue = Math.max(1, observedMaxValue);
 
   return mapped.map((item) => ({
     lat: item.lat,
     lng: item.lng,
-    weight: item.value / maxValue,
-    intensity: item.value / maxValue,
+    weight: item.value / weightMaxValue,
+    intensity: item.value / weightMaxValue,
     totalWeight: item.value,
     averageWeight: item.value,
     clusterSize: Math.max(1, Math.round(item.value)),
@@ -239,6 +273,7 @@ const buildMapLibreHeatmapData = (items: TerritorialDatum[]): HeatPoint[] => {
     cellId: item.kind === 'cell' ? item.id : undefined,
     source: item.kind === 'point' ? 'survey_live_point' : 'survey_live_cell',
     total: item.value,
+    categoryColor: resolveRelativePointColor(item.value, minValue, observedMaxValue),
   }));
 };
 
@@ -637,6 +672,7 @@ export function SurveyLiveHeatmapPreview({
                 <div
                   className="mt-2 h-2.5 rounded-full border border-white/10"
                   style={{ background: mapMode === 'density' ? DENSITY_LEGEND_GRADIENT : POINTS_LEGEND_GRADIENT }}
+                  data-testid="survey-live-heatmap-color-ramp"
                 />
                 <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-slate-400" aria-hidden="true">
                   <span>Menor</span>

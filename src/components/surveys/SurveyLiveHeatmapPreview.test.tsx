@@ -12,7 +12,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     fitBoundsRequestKey,
     popupContext,
   }: {
-    heatmapData?: unknown[];
+    heatmapData?: Array<{ categoryColor?: string }>;
     evidence?: { usingSyntheticPoints?: boolean; label?: string };
     showHeatmap?: boolean;
     ariaLabel?: string;
@@ -27,6 +27,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-show-heatmap={String(Boolean(showHeatmap))}
       data-fit-request={String(fitBoundsRequestKey ?? 0)}
       data-popup-context={popupContext}
+      data-category-colors={heatmapData?.map((point) => point.categoryColor ?? '').join(',')}
       aria-label={ariaLabel}
     >
       mapa live {heatmapData?.length ?? 0}
@@ -142,6 +143,37 @@ describe('SurveyLiveHeatmapPreview', () => {
 
     fireEvent.click(fitButton);
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-fit-request', '1');
+  });
+
+  it('uses the point legend palette for relative minimum, intermediate and maximum volumes', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          jurisdiction,
+          points: [
+            { lat: -33.14, lng: -68.48, count: 1, label: 'Mínima' },
+            { lat: -33.145, lng: -68.485, count: 4, label: 'Intermedia' },
+            { lat: -33.15, lng: -68.49, count: 7, label: 'Máxima' },
+          ],
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute(
+      'data-category-colors',
+      '#38bdf8,#1f54dd,#ef4444',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Puntos' }));
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mín. 1');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mediana 4');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('máx. 7');
+
+    const colorRamp = screen.getByTestId('survey-live-heatmap-color-ramp');
+    expect(colorRamp.getAttribute('style')).toContain('#38bdf8 0%');
+    expect(colorRamp.getAttribute('style')).toContain('#1d4ed8 58%');
+    expect(colorRamp.getAttribute('style')).toContain('#ef4444 100%');
   });
 
   it('does not invent geographic positions when aggregates lack coordinates', () => {
