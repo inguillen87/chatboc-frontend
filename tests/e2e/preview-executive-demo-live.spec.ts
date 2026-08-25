@@ -7,6 +7,10 @@ const previewQaEnabled = process.env.CHATBOC_REMOTE_PREVIEW_QA === '1';
 const previewOrigin = process.env.PLAYWRIGHT_BASE_URL || 'https://chatboc-r2-preview.vercel.app';
 const expectedHost = process.env.CHATBOC_PREVIEW_FRONTEND_HOST || 'chatboc-r2-preview.vercel.app';
 const remoteTimeout = 120_000;
+// Clerk's fail-closed bootstrap has a deliberate 5 s ceiling. Keep enough
+// margin for the already-prefetched route to render after that boundary on a
+// cold backend, while still requiring an immediate branded loading surface.
+const publicBootstrapTimeout = 10_000;
 
 test.describe('remote Preview executive government demo', () => {
   test.skip(!previewQaEnabled, 'Runs only against the explicit Vercel Preview QA target.');
@@ -58,9 +62,13 @@ test.describe('remote Preview executive government demo', () => {
       timeout: remoteTimeout,
     });
     expect(navigation?.status()).toBe(200);
+    await expect(page.locator('main')).toContainText(
+      /Preparando (Chatboc|tu espacio de trabajo)|Probá una conversación real/,
+      { timeout: 2_000 },
+    );
     await expect(
       page.getByRole('heading', { name: 'Probá una conversación real y mirá qué queda listo para operar.' }),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: publicBootstrapTimeout });
     await expect(page.getByRole('heading', { name: 'Elegí una operación real para probar' })).toHaveCount(0);
 
     const response = await adminPreviewResponse;
