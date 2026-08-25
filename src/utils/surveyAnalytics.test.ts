@@ -1,12 +1,33 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const postAnalyticsEventMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/services/analyticsService', () => ({
+  postAnalyticsEvent: postAnalyticsEventMock,
+}));
 
 import {
   trackSurveyAnswerSelected,
   trackSurveyDemoInteraction,
+  trackSurveyPageView,
   trackSurveySubmitError,
 } from '@/utils/surveyAnalytics';
 
 describe('surveyAnalytics events', () => {
+  beforeEach(() => {
+    postAnalyticsEventMock.mockReset();
+    postAnalyticsEventMock.mockResolvedValue({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'access_denied',
+      request_id: 'req-public-telemetry',
+      tenant_id: 142,
+    });
+  });
+
   afterEach(() => {
     const windowLike = window as unknown as { dataLayer?: Array<Record<string, unknown>> };
     delete windowLike.dataLayer;
@@ -122,5 +143,28 @@ describe('surveyAnalytics events', () => {
       .map(([event]) => event as CustomEvent)
       .find((event) => event.type === 'chatboc:survey-demo-interaction');
     expect(demoEvent).toBeDefined();
+  });
+
+  it('treats the backend fail-closed ignored ack as a handled public telemetry decision', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    trackSurveyPageView({
+      slug: 'demo-gobierno-municipio-prioridades-barriales',
+      host: 'chatboc-r2-preview.vercel.app',
+      tenant: 'municipio',
+    });
+
+    await vi.waitFor(() => expect(postAnalyticsEventMock).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+
+    expect(postAnalyticsEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'survey_page_view',
+        event_name: 'survey_page_view',
+        tenant: 'municipio',
+      }),
+      'municipio',
+    );
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

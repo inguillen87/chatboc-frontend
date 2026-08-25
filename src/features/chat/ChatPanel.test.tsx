@@ -276,4 +276,72 @@ describe('ChatPanel structured CTA routing', () => {
     expect(screen.getByLabelText('Correo electronico')).toBeInTheDocument();
     expect(sendChatBootstrapMessageMock).not.toHaveBeenCalled();
   });
+
+  it('renders survey contracts as compact cards without raw URLs or duplicated actions', async () => {
+    const items = Array.from({ length: 5 }, (_, index) => ({
+      id: index + 1,
+      slug: `consulta-${index + 1}`,
+      titulo: `Consulta ciudadana ${index + 1}`,
+      descripcion: `Tema territorial ${index + 1}`,
+      tipo: index === 0 ? 'votacion' : 'encuesta',
+      public_url: `https://preview.chatboc.ar/e/consulta-${index + 1}`,
+      whatsapp_share_url: `https://wa.me/?text=consulta-${index + 1}`,
+      demo_mode: true,
+      seed: { responses: 100, real_people: false },
+    }));
+    sendChatBootstrapMessageMock.mockResolvedValueOnce({
+      fuente: 'demo_encuestas_menu_v1',
+      accion_backend: 'demo_encuestas_menu',
+      message_body: items
+        .map((item) => `*${item.titulo}*\nAbrir: ${item.public_url}\nCompartir por WhatsApp: ${item.whatsapp_share_url}`)
+        .join('\n'),
+      options_list: [
+        ...items.flatMap((item) => [
+          { texto: `Abrir ${item.titulo}`, url: item.public_url, type: 'url' },
+          { texto: `Compartir ${item.titulo}`, url: item.whatsapp_share_url, type: 'url' },
+        ]),
+        { texto: 'Ver más', action_id: 'mostrar_menu_encuestas::2' },
+        { texto: 'Volver', action_id: 'volver_menu_municipio' },
+      ],
+      data: {
+        surveys_votings: {
+          contract_version: 'demo.surveys_votings.v1',
+          label: 'Encuestas y votaciones',
+          description: 'Consultas vigentes para la demostración.',
+          total_available: 6,
+          items,
+        },
+      },
+    });
+
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          sector: 'gobierno',
+          tenantSlug: 'junin',
+          chatBootstrap,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mensaje'), { target: { value: 'Encuestas y votaciones' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(await screen.findByRole('region', { name: 'Encuestas y votaciones disponibles' })).toBeInTheDocument();
+    expect(screen.queryByText(/Abrir: https:\/\/preview\.chatboc\.ar/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Abrir Consulta ciudadana/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Compartir Consulta ciudadana/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar sugerencia: Ver más' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar sugerencia: Volver' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Enviar sugerencia:/ })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar sugerencia: Ver más' }));
+    await waitFor(() => expect(sendChatBootstrapMessageMock).toHaveBeenCalledTimes(2));
+    expect(sendChatBootstrapMessageMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ endpoint: '/api/ask/municipio' }),
+      expect.objectContaining({ action_id: 'mostrar_menu_encuestas::2' }),
+      'junin',
+    );
+  });
 });

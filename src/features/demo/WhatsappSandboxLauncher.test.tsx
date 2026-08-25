@@ -139,6 +139,10 @@ describe('WhatsappSandboxLauncher', () => {
     expect(primaryLink.getAttribute('href')).toBe('https://wa.me/5492610000000');
     expect(primaryLink.getAttribute('target')).toBe('_blank');
     expect(primaryLink.getAttribute('rel')).toContain('noopener');
+    expect(primaryLink.className).toContain('bg-[hsl(var(--primary-dark))]');
+    expect(screen.getByText('Se abrirá WhatsApp con esta demo lista para probar.').className).toContain(
+      'text-foreground/75',
+    );
     expect(screen.getByText('Mostrar código QR')).toBeTruthy();
     expect(screen.getAllByAltText('Código QR para abrir la demo de WhatsApp')).toHaveLength(2);
   });

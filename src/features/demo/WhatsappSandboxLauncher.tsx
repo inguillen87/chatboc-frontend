@@ -467,7 +467,10 @@ export default function WhatsappSandboxLauncher({
 
           {deeplink ? (
             <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 p-3">
-              <Button asChild className="w-full shadow-sm">
+              <Button
+                asChild
+                className="w-full bg-[hsl(var(--primary-dark))] text-primary-foreground shadow-sm hover:brightness-95"
+              >
                 <a
                   href={deeplink}
                   target="_blank"
@@ -481,7 +484,7 @@ export default function WhatsappSandboxLauncher({
                   </span>
                 </a>
               </Button>
-              <p className="mt-2 text-center text-[11px] leading-4 text-muted-foreground">
+              <p className="mt-2 text-center text-[11px] leading-4 text-foreground/75">
                 Se abrirá WhatsApp con esta demo lista para probar.
               </p>
             </div>

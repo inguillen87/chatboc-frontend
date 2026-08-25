@@ -38,6 +38,7 @@ import type {
   ChatLeadCaptureField,
   ChatMediaCapabilities,
 } from '@/types/chat';
+import { isSurveyMenuNavigationAction, normalizeSurveyChatMenu } from './surveyChatMenu';
 
 interface FeatureChatPanelProps {
   variant?: 'legacy-widget' | 'standalone';
@@ -384,7 +385,7 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
     .filter(Boolean) as QuickReplyItem[];
 };
 
-const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
+const extractRuntimeQuickReplies = (response: unknown, surveyMenu = false): QuickReplyItem[] => {
   if (!isRecord(response)) return [];
   const data = readNestedRecord(response, ['data']);
   const agent = readNestedRecord(response, ['agent']);
@@ -408,7 +409,8 @@ const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
     normalized?.next_actions,
   ].find(Array.isArray) ?? [];
   if (!Array.isArray(source)) return [];
-  return normalizeQuickMenu(source);
+  const compactSource = surveyMenu ? source.filter(isSurveyMenuNavigationAction).slice(0, 3) : source;
+  return normalizeQuickMenu(compactSource);
 };
 
 const normalizeActionMenuAsCtas = (quickMenu: unknown): ChatConversionCtaAction[] => {
@@ -883,19 +885,23 @@ function StandaloneChatPanel({
             throw new Error('Respuesta tecnica del runtime de chat demo.');
           }
           const runtimeLeadResult = extractRuntimeLeadResult(response);
+          const surveyMenu = normalizeSurveyChatMenu(response);
           if (runtimeLeadResult) {
             setLeadResult(runtimeLeadResult);
           }
           onRuntimeResult?.(response, runtimeLeadResult);
-          setRuntimeReplies(extractRuntimeQuickReplies(response));
+          setRuntimeReplies(extractRuntimeQuickReplies(response, Boolean(surveyMenu)));
           if (!replyText) return;
           setMessages((prev) => [
             ...prev,
             {
               id: `a-${Date.now()}`,
               role: 'assistant',
-              text: replyText,
+              text: surveyMenu
+                ? 'Estas son las consultas disponibles para participar.'
+                : replyText,
               timestamp: new Date().toISOString(),
+              surveyMenu,
             },
           ]);
         };
