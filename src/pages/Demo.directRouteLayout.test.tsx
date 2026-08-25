@@ -269,4 +269,48 @@ describe('Demo direct-route layout stability', () => {
       expect.objectContaining({ tenant_slug: '../tenant-ajeno' }),
     ]);
   });
+
+  it.each([
+    '/demo?sector=gobierno',
+    '/demo?rubro=municipio',
+    '/demo?tenant_slug=junin',
+    '/demo?tenant=junin',
+    '/demo?sector=gobierno&tenant_slug=junin',
+    '/demo?rubro=municipio&tenant_slug=junin',
+  ])('does not restore a conflicting persisted workspace for partial selection %s', async (entry) => {
+    localStorage.setItem('demoSectorSeleccionado', 'empresas');
+    localStorage.setItem('rubroSeleccionado', 'ferreteria');
+    localStorage.setItem('rubroSeleccionado_label', 'Ferretería');
+    localStorage.setItem(DEMO_TENANT_STORAGE_KEY, 'tenant-empresa');
+    demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
+    demoApiMocks.createDemoSession.mockResolvedValue({
+      tenant_slug: 'tenant-empresa',
+      workspace: { title: 'Workspace persistido que no debe abrirse' },
+    });
+    demoApiMocks.getDemoAdminPreview.mockResolvedValue(preview);
+
+    render(
+      <MemoryRouter initialEntries={[entry]}>
+        <Demo />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('demo-sector-selector')).toBeInTheDocument();
+    expect(screen.queryByTestId('demo-route-shell')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('demo-workspace')).not.toBeInTheDocument();
+    expect(demoApiMocks.createDemoSession).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(demoApiMocks.getDemoCatalog).toHaveBeenCalled();
+    });
+
+    expect(demoApiMocks.createDemoSession).not.toHaveBeenCalled();
+    expect(demoApiMocks.createDemoSession).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        sector: 'empresas',
+        rubro: 'ferreteria',
+        tenant_slug: 'tenant-empresa',
+      }),
+    );
+  });
 });

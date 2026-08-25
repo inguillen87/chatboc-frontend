@@ -324,9 +324,13 @@ const readPersistedDemoSelection = (): DemoInitialSelection | null => {
   };
 };
 
-const resolveInitialDemoSelection = (
-  directRouteSelection: DemoDirectRouteSelection | null,
-): DemoInitialSelection | null => {
+const hasExplicitDemoSelectionQuery = (search: string) => {
+  const query = new URLSearchParams(search);
+  return ['sector', 'rubro', 'tenant_slug', 'tenant'].some((key) => query.has(key));
+};
+
+const resolveInitialDemoSelection = (search: string): DemoInitialSelection | null => {
+  const directRouteSelection = readDemoDirectRouteSelection(search);
   if (directRouteSelection) {
     return {
       ...directRouteSelection,
@@ -337,6 +341,8 @@ const resolveInitialDemoSelection = (
       ),
     };
   }
+
+  if (hasExplicitDemoSelectionQuery(search)) return null;
 
   return readPersistedDemoSelection();
 };
@@ -1936,7 +1942,7 @@ export const DemoAdminPreview = ({
 const Demo = () => {
   const location = useLocation();
   const [initialSelection] = useState(
-    () => resolveInitialDemoSelection(readDemoDirectRouteSelection(location.search)),
+    () => resolveInitialDemoSelection(location.search),
   );
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
     () => initialSelection?.rubroLabel ?? null,
@@ -2194,12 +2200,13 @@ const Demo = () => {
     if (initialDemoLoadRef.current) return;
     initialDemoLoadRef.current = true;
 
-    const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
-    const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
-    const storedSector = safeLocalStorage.getItem("demoSectorSeleccionado");
-    const storedDemoTenantSlug = normalizeRequestedDemoTenantSlug(
-      safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY),
-    );
+    const hasExplicitSelection = hasExplicitDemoSelectionQuery(location.search);
+    const storedClave = hasExplicitSelection ? null : safeLocalStorage.getItem("rubroSeleccionado");
+    const storedLabel = hasExplicitSelection ? null : safeLocalStorage.getItem("rubroSeleccionado_label");
+    const storedSector = hasExplicitSelection ? null : safeLocalStorage.getItem("demoSectorSeleccionado");
+    const storedDemoTenantSlug = hasExplicitSelection
+      ? null
+      : normalizeRequestedDemoTenantSlug(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY));
     const requestedSector = new URLSearchParams(location.search).get('sector') as DemoSector | null;
     const normalizedRequestedSector =
       requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
