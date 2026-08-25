@@ -14,6 +14,7 @@ const previewQaEnabled = process.env.CHATBOC_REMOTE_PREVIEW_QA === '1';
 const previewWriteQaEnabled = process.env.CHATBOC_REMOTE_PREVIEW_WRITE_QA === '1';
 const REMOTE_WAIT_MS = 90_000;
 const SURVEY_SLUG = 'demo-gobierno-junin-prioridades-barriales';
+const SURVEY_ROOM = `encuesta:junin:${SURVEY_SLUG}`;
 const SURVEY_PATH = `/e/${SURVEY_SLUG}?tenant_slug=junin&remote_preview_qa=1`;
 const SURVEY_DETAIL_PATH = `/api/v2/public/surveys/${SURVEY_SLUG}`;
 const SURVEY_LIVE_PATH = `${SURVEY_DETAIL_PATH}/live-results`;
@@ -112,6 +113,33 @@ const isSurveyResponseRequest = (request: Request) => {
 
 const socketFrameText = (payload: string | Buffer) =>
   typeof payload === 'string' ? payload : payload.toString('utf8');
+
+const parseSocketIoEventFrame = (frame: string): unknown[] | null => {
+  const payloadStart = frame.indexOf('[');
+  if (payloadStart < 0) return null;
+  try {
+    const payload = JSON.parse(frame.slice(payloadStart));
+    return Array.isArray(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+};
+
+const isSurveyJoinAck = (frame: string) => {
+  const event = parseSocketIoEventFrame(frame);
+  const payload = isRecord(event?.[1]) ? event[1] : null;
+  return (
+    event?.[0] === 'join_ack' &&
+    payload?.room === SURVEY_ROOM &&
+    payload?.access_mode === 'public_survey_room'
+  );
+};
+
+const isSurveyJoinError = (frame: string) => {
+  const event = parseSocketIoEventFrame(frame);
+  const payload = isRecord(event?.[1]) ? event[1] : null;
+  return event?.[0] === 'join_error' && payload?.room === SURVEY_ROOM;
+};
 
 const attachRemoteEvidence = (page: Page): RemoteEvidence => {
   const evidence: RemoteEvidence = {
@@ -406,6 +434,16 @@ const assertDirectRealtime = async (evidence: RemoteEvidence) => {
       },
     )
     .toBe(true);
+  await expect
+    .poll(() => evidence.socketFramesReceived.some(isSurveyJoinAck), {
+      message: `Backend must acknowledge membership in the exact tenant-scoped room ${SURVEY_ROOM}.`,
+      timeout: REMOTE_WAIT_MS,
+    })
+    .toBe(true);
+  expect(
+    evidence.socketFramesReceived.filter(isSurveyJoinError),
+    `Backend rejected the canonical survey room ${SURVEY_ROOM}.`,
+  ).toEqual([]);
   expect(evidence.socketErrors, evidence.socketErrors.join('\n')).toEqual([]);
 };
 
