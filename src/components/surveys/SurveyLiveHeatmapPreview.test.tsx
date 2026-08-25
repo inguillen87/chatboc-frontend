@@ -282,10 +282,11 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-synthetic', 'true');
-    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-evidence-label', 'Escenario sintético');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-evidence-label', 'Escenario demostrativo');
     expect(screen.getByTestId('survey-live-heatmap-provenance')).toHaveTextContent('Datos sintéticos de demostración');
-    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Respuestas sintéticas determinísticas');
-    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Motor de escenarios Chatboc');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Simulación controlada para demostración');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Generador de escenario territorial');
+    expect(screen.getByTestId('survey-live-heatmap-legend-summary')).toHaveTextContent('Densidad relativa');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('1 ubicación');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('100 respuestas representadas');
   });

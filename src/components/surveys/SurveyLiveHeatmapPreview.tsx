@@ -3,6 +3,7 @@ import {
   Activity,
   BarChart3,
   BrainCircuit,
+  ChevronDown,
   Database,
   Layers3,
   MapPin,
@@ -65,15 +66,15 @@ interface SurveyLiveHeatmapPreviewProps {
 const NUMBER_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
 const SOURCE_LABELS: Record<string, string> = {
-  demo_seeded_responses: 'Respuestas sintéticas determinísticas',
-  backend_demo_contract: 'Contrato demostrativo del backend',
-  chatboc_demo_seed: 'Motor de escenarios Chatboc',
-  tenant_demo_profile: 'Perfil territorial del municipio',
-  generic_demo_anchor: 'Anclaje territorial genérico',
+  demo_seeded_responses: 'Simulación controlada para demostración',
+  backend_demo_contract: 'Escenario demostrativo verificable',
+  chatboc_demo_seed: 'Generador de escenario territorial',
+  tenant_demo_profile: 'Perfil territorial configurado',
+  generic_demo_anchor: 'Referencia territorial genérica',
 };
 
 const DENSITY_LEGEND_GRADIENT =
-  'linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(45,212,191,.62) 18%, rgba(59,130,246,.72) 36%, rgba(168,85,247,.76) 58%, rgba(251,191,36,.84) 78%, rgba(244,63,94,.96) 100%)';
+  'linear-gradient(90deg, rgba(68,1,84,0) 0%, rgba(68,1,84,.62) 18%, rgba(59,82,139,.72) 38%, rgba(33,145,140,.78) 58%, rgba(94,201,98,.86) 78%, rgba(253,231,37,.96) 100%)';
 const POINTS_COLOR_STOPS = [
   { position: 0, color: '#38bdf8' },
   { position: 0.3, color: '#2563eb' },
@@ -637,14 +638,14 @@ export function SurveyLiveHeatmapPreview({
                   ariaDescribedBy={mapDescriptionId}
                   evidence={{
                     metadata,
-                    source,
-                    provider,
+                    source: usesSyntheticPoints ? undefined : source,
+                    provider: usesSyntheticPoints ? undefined : provider,
                     contractVersion,
                     usingSyntheticPoints: usesSyntheticPoints,
                     synthetic: usesSyntheticPoints,
                     pointCount: rawPointsCount,
                     cellCount: rawCellsCount,
-                    label: usesSyntheticPoints ? 'Escenario sintético' : 'Datos territoriales informados',
+                    label: usesSyntheticPoints ? 'Escenario demostrativo' : 'Datos territoriales informados',
                   }}
                 />
               </div>
@@ -663,30 +664,44 @@ export function SurveyLiveHeatmapPreview({
             )}
 
             {hasMappedData ? (
-              <div
-                className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-slate-700/80 bg-slate-950/90 px-3 py-2.5 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
+              <details
+                className="group absolute bottom-3 left-3 right-3 z-10 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950/90 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
                 aria-label={`${mapMode === 'density' ? 'Escala relativa de densidad espacial' : 'Escala de volumen por ubicación'}. Volumen observado: mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
                 data-testid="survey-live-heatmap-quantitative-legend"
               >
-                <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                  <span>{mapMode === 'density' ? 'Densidad espacial relativa' : 'Volumen por ubicación'}</span>
-                  <span>{mapMode === 'density' ? 'Densidad' : 'Puntos'}</span>
+                <summary
+                  className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 sm:hidden [&::-webkit-details-marker]:hidden"
+                  data-testid="survey-live-heatmap-legend-summary"
+                >
+                  <span className="uppercase tracking-wide">
+                    {mapMode === 'density' ? 'Densidad relativa' : 'Volumen por ubicación'}
+                  </span>
+                  <span className="flex items-center gap-2 whitespace-nowrap text-slate-400">
+                    {formatMetric(intensityScale.min)}–{formatMetric(intensityScale.max)}
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="hidden px-3 py-2.5 group-open:block sm:block">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                    <span>{mapMode === 'density' ? 'Densidad espacial relativa' : 'Volumen por ubicación'}</span>
+                    <span>{mapMode === 'density' ? 'Densidad' : 'Puntos'}</span>
+                  </div>
+                  <div
+                    className="mt-2 h-2.5 rounded-full border border-white/10"
+                    style={{ background: mapMode === 'density' ? DENSITY_LEGEND_GRADIENT : POINTS_LEGEND_GRADIENT }}
+                    data-testid="survey-live-heatmap-color-ramp"
+                  />
+                  <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-slate-400" aria-hidden="true">
+                    <span>Menor</span>
+                    <span>Intermedia</span>
+                    <span>Mayor</span>
+                  </div>
+                  <div className="mt-2 border-t border-slate-700/80 pt-2 text-[11px] text-slate-300">
+                    <span className="font-semibold text-slate-200">Volumen observado:</span>{' '}
+                    mín. {formatMetric(intensityScale.min)} · mediana {formatMetric(intensityScale.median)} · máx. {formatMetric(intensityScale.max)}
+                  </div>
                 </div>
-                <div
-                  className="mt-2 h-2.5 rounded-full border border-white/10"
-                  style={{ background: mapMode === 'density' ? DENSITY_LEGEND_GRADIENT : POINTS_LEGEND_GRADIENT }}
-                  data-testid="survey-live-heatmap-color-ramp"
-                />
-                <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-slate-400" aria-hidden="true">
-                  <span>Menor</span>
-                  <span>Intermedia</span>
-                  <span>Mayor</span>
-                </div>
-                <div className="mt-2 border-t border-slate-700/80 pt-2 text-[11px] text-slate-300">
-                  <span className="font-semibold text-slate-200">Volumen observado:</span>{' '}
-                  mín. {formatMetric(intensityScale.min)} · mediana {formatMetric(intensityScale.median)} · máx. {formatMetric(intensityScale.max)}
-                </div>
-              </div>
+              </details>
             ) : null}
           </div>
         </div>

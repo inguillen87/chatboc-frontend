@@ -301,6 +301,9 @@ const assertMapReady = async (
   const attribution = mapRegion.locator('.maplibregl-ctrl-attrib').first();
   await expect(attribution).toBeVisible({ timeout: REMOTE_WAIT_MS });
   await expect(attribution).toContainText(/MapTiler|OpenStreetMap/i);
+  await expect(mapRegion).toContainText('Escenario demostrativo');
+  await expect(mapRegion).toContainText('No representa datos municipales reales.');
+  await expect(mapRegion).not.toContainText('demo_seeded_responses');
   await expect
     .poll(() => evidence.mapSuccesses.length, {
       message: 'The map must load at least one real style, tile, sprite, or font resource.',
@@ -409,6 +412,30 @@ const assertResponsiveMap = async (page: Page, testInfo: TestInfo) => {
       expect(box, `${controlName} must have measurable geometry at ${viewport.label}.`).not.toBeNull();
       expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(viewport.width + 1);
+    }
+
+    const quantitativeLegend = page.getByTestId('survey-live-heatmap-quantitative-legend');
+    const compactLegendSummary = page.getByTestId('survey-live-heatmap-legend-summary');
+    await expect(quantitativeLegend).toBeVisible();
+    if (viewport.width < 640) {
+      await expect(compactLegendSummary).toBeVisible();
+      const legendBox = await quantitativeLegend.boundingBox();
+      expect(legendBox, 'The compact mobile legend must have measurable geometry.').not.toBeNull();
+      expect(
+        legendBox?.height ?? Number.POSITIVE_INFINITY,
+        'The collapsed mobile legend must preserve the decision canvas.',
+      ).toBeLessThanOrEqual(64);
+
+      const evidenceBadgeBox = await mapRegion.getByTestId('map-evidence-badge').boundingBox();
+      const nativeControlsBox = await mapRegion.locator('.maplibregl-ctrl-top-right').first().boundingBox();
+      expect(evidenceBadgeBox, 'The map evidence badge must have measurable geometry.').not.toBeNull();
+      expect(nativeControlsBox, 'The native MapLibre controls must have measurable geometry.').not.toBeNull();
+      expect(
+        (evidenceBadgeBox?.x ?? 0) + (evidenceBadgeBox?.width ?? 0),
+        'The evidence badge must reserve the mobile control column.',
+      ).toBeLessThanOrEqual(nativeControlsBox?.x ?? 0);
+    } else {
+      await expect(compactLegendSummary).toBeHidden();
     }
 
     await mapRegion.screenshot({

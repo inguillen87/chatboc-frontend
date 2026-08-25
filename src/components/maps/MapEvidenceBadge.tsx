@@ -212,7 +212,7 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
     },
     synthetic: {
       Icon: AlertTriangle,
-      title: normalized.label ?? "Demo sintetico",
+      title: normalized.label ?? "Escenario demostrativo",
       className: "border-amber-300/55 bg-amber-950/85 text-amber-50 shadow-amber-950/25",
       dot: "bg-amber-300",
     },
@@ -232,14 +232,24 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
 
   const details = [
     normalized.pointCount
-      ? formatCount(normalized.pointCount, "punto", "puntos")
+      ? formatCount(
+          normalized.pointCount,
+          variant === "synthetic" ? "ubicación simulada" : "punto",
+          variant === "synthetic" ? "ubicaciones simuladas" : "puntos",
+        )
       : normalized.featureCount
-        ? formatCount(normalized.featureCount, "geometria", "geometrias")
+        ? formatCount(normalized.featureCount, "geometría", "geometrías")
         : normalized.cellCount
           ? formatCount(normalized.cellCount, "celda", "celdas")
           : null,
     normalized.coveragePct !== undefined ? `Cobertura ${normalized.coveragePct}%` : null,
-    normalized.source ? `Fuente ${normalized.source}` : normalized.provider ? `Mapa ${normalized.provider}` : null,
+    variant === "synthetic"
+      ? "Simulación controlada"
+      : normalized.source
+        ? `Fuente ${normalized.source}`
+        : normalized.provider
+          ? `Mapa ${normalized.provider}`
+          : null,
     normalized.updatedAt ? `Act. ${formatShortDate(normalized.updatedAt)}` : null,
     normalized.requestId ? `Req ${normalized.requestId.slice(0, 8)}` : null,
   ].filter(Boolean);
@@ -248,6 +258,7 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
 
   return (
     <div
+      data-testid="map-evidence-badge"
       className={cn(
         "pointer-events-none max-w-[min(82vw,24rem)] rounded-xl border px-3 py-2 text-xs shadow-xl backdrop-blur-md",
         config.className,
@@ -265,6 +276,11 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
             <span key={detail}>{detail}</span>
           ))}
         </div>
+      ) : null}
+      {variant === "synthetic" ? (
+        <p className="mt-1 border-t border-amber-200/20 pt-1 text-[10px] leading-snug text-amber-100/90">
+          No representa datos municipales reales.
+        </p>
       ) : null}
     </div>
   );

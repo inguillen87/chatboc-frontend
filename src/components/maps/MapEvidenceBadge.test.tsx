@@ -16,9 +16,12 @@ describe("MapEvidenceBadge", () => {
       />,
     );
 
-    expect(screen.getByText("Demo sintetico")).toBeInTheDocument();
-    expect(screen.getByText("4 puntos")).toBeInTheDocument();
+    expect(screen.getByText("Escenario demostrativo")).toBeInTheDocument();
+    expect(screen.getByText("4 ubicaciones simuladas")).toBeInTheDocument();
     expect(screen.getByText("Cobertura 35%")).toBeInTheDocument();
+    expect(screen.getByText("Simulación controlada")).toBeInTheDocument();
+    expect(screen.getByText("No representa datos municipales reales.")).toBeInTheDocument();
+    expect(screen.queryByText(/survey_heatmap/i)).not.toBeInTheDocument();
   });
 
   it("normalizes backend metadata into verified evidence", () => {

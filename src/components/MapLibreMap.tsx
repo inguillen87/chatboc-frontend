@@ -1031,17 +1031,17 @@ export default function MapLibreMap({
                 ["linear"],
                 ["heatmap-density"],
                 0,
-                "rgba(56, 189, 248, 0)",
+                "rgba(68, 1, 84, 0)",
                 0.18,
-                "rgba(45, 212, 191, 0.62)",
-                0.36,
-                "rgba(59, 130, 246, 0.72)",
+                "rgba(68, 1, 84, 0.62)",
+                0.38,
+                "rgba(59, 82, 139, 0.72)",
                 0.58,
-                "rgba(168, 85, 247, 0.76)",
+                "rgba(33, 145, 140, 0.78)",
                 0.78,
-                "rgba(251, 191, 36, 0.84)",
+                "rgba(94, 201, 98, 0.86)",
                 1,
-                "rgba(244, 63, 94, 0.96)",
+                "rgba(253, 231, 37, 0.96)",
               ],
             },
           });
@@ -1783,7 +1783,10 @@ export default function MapLibreMap({
       aria-describedby={ariaDescribedBy}
     >
       <div ref={mapContainerRef} className="h-full w-full" />
-      <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
+      <MapEvidenceBadge
+        evidence={mapEvidence}
+        className="absolute left-3 right-14 top-3 z-10 max-w-none sm:right-auto sm:max-w-[min(82vw,24rem)]"
+      />
       {providerFallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           {providerFallbackMessage}
