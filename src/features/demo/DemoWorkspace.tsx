@@ -18,10 +18,12 @@ import {
 } from 'lucide-react';
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import { formatDemoPresentationLabel } from './demoPresentationLabels';
 import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
 import { readWorkspaceActionMenu } from '@/utils/widgetActionMenu';
 
-const readSectorLabel = (sector?: DemoSector | null) => (sector ? String(sector) : null);
+const readSectorLabel = (sector?: DemoSector | null) =>
+  sector ? formatDemoPresentationLabel(String(sector)) : null;
 
 const readWorkspaceLabel = (
   workspace: DemoWorkspaceConfig | null | undefined,
@@ -119,7 +121,7 @@ const DemoRubroToolsPanel = ({
                     <p className="min-w-0 break-words text-sm font-semibold text-foreground">{tool.label}</p>
                     {tool.statusLabel ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
-                        {tool.statusLabel}
+                        {formatDemoPresentationLabel(tool.statusLabel)}
                       </span>
                     ) : null}
                   </div>
@@ -203,7 +205,9 @@ export default function DemoWorkspace({
     .filter(([, config]) => config?.enabled !== false)
     .map(([key, config]) => {
       const label = (config as { label?: unknown } | undefined)?.label;
-      return typeof label === 'string' && label.trim() ? label.trim() : key;
+      return formatDemoPresentationLabel(
+        typeof label === 'string' && label.trim() ? label.trim() : key,
+      );
     })
     .filter((label) => label.trim().length > 0);
 
@@ -229,7 +233,7 @@ export default function DemoWorkspace({
             ) : runtimeAvailable ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-semibold text-success">
                 <CheckCircle2 className="h-3 w-3" />
-                online
+                En línea
               </span>
             ) : null}
           </div>
@@ -340,7 +344,11 @@ export default function DemoWorkspace({
             <div key={card.key || `${card.title}-${index}`} className="rounded-xl border bg-background/70 p-3">
               <p className="font-medium text-foreground">{card.title}</p>
               {card.desc || card.description ? <p className="text-muted-foreground">{card.desc || card.description}</p> : null}
-              {card.status ? <p className="mt-2 text-[11px] text-muted-foreground">{card.status}</p> : null}
+              {card.status ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {formatDemoPresentationLabel(card.status)}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>

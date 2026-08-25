@@ -28,6 +28,7 @@ import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
+import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
 import { normalizeRequestedDemoTenantSlug, resolveDemoTenantSlug } from '@/features/demo/demoTenantSelection';
 import type { LeadCaptureResponse, OperationalTicketResult } from '@/features/chat/chatApi';
 import type {
@@ -129,7 +130,7 @@ const findSectorGroup = (
 
 const readSectorLabel = (group: DemoSectorGroup | null, sector: DemoSector | null) => {
   if (group?.label?.trim()) return group.label.trim();
-  return sector ? String(sector) : 'Demo';
+  return sector ? formatDemoPresentationLabel(String(sector)) : 'Demo';
 };
 
 const readSectorTenantSlug = (group: DemoSectorGroup | null) => {
@@ -360,7 +361,10 @@ const normalizePreviewCards = (preview: DemoAdminPreviewResponse | null) => {
       return {
         id: String(card.id ?? card.key ?? `${label}-${index}`),
         label: String(label),
-        value: card.value ?? card.status ?? '',
+        value:
+          typeof (card.value ?? card.status) === 'string'
+            ? formatDemoPresentationLabel(String(card.value ?? card.status))
+            : (card.value ?? card.status ?? ''),
         detail: card.description ?? card.detail ?? '',
         period: card.period ?? null,
         dataMode: card.data_mode ?? null,
@@ -938,7 +942,7 @@ const DemoPreviewMap = ({
               {point.zone ? <span className="text-muted-foreground">{point.zone}</span> : null}
               {point.status ? (
                 <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-                  {point.status}
+                  {formatDemoPresentationLabel(point.status)}
                 </span>
               ) : null}
             </div>
@@ -989,7 +993,7 @@ const DemoDetailDrawer = ({
             {event.status ? (
               <div className="rounded-lg border bg-muted/20 px-3 py-2">
                 <p className="font-medium text-muted-foreground">Estado</p>
-                <p className="mt-1 text-foreground">{event.status}</p>
+                <p className="mt-1 text-foreground">{formatDemoPresentationLabel(event.status)}</p>
               </div>
             ) : null}
             {ticket?.categoria ? (
@@ -1435,7 +1439,8 @@ export const DemoAdminPreview = ({
   const outcome = preview.description?.trim() || preview.outcome?.trim() || "";
   const adminLabel = labels.admin_preview ?? labels.admin ?? 'Admin demo';
   const viewLabel = labels.overview ?? labels.view ?? 'Vista 360';
-  const statusLabel = preview.status_label?.trim() || labels.status || null;
+  const rawStatusLabel = preview.status_label?.trim() || labels.status || null;
+  const statusLabel = rawStatusLabel ? formatDemoPresentationLabel(rawStatusLabel) : null;
   const timelineTitle = labels.timeline_title ?? labels.timeline ?? 'Recorrido visible para el equipo';
   const timelineBadge = labels.timeline_badge ?? null;
   const timelineDetail = labels.timeline_detail ?? null;
@@ -1445,6 +1450,12 @@ export const DemoAdminPreview = ({
   const showClaims = activeModule?.target === 'claims';
   const showMap = activeModule?.target === 'map';
   const showSurveys = activeModule?.target === 'surveys';
+  const visibleSurveyCount = surveyVoting?.items.length ?? 0;
+  const surveyInventoryLabel = surveyVoting
+    ? surveyVoting.totalAvailable > visibleSurveyCount
+      ? `${visibleSurveyCount} ${visibleSurveyCount === 1 ? 'visible' : 'visibles'} de ${surveyVoting.totalAvailable} encuestas demo`
+      : `${surveyVoting.totalAvailable} encuestas demo`
+    : null;
 
   return (
     <section
@@ -1534,8 +1545,8 @@ export const DemoAdminPreview = ({
                             ) : null}
                             {step.channel || step.status ? (
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {step.channel ? <span className="rounded-full border bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">{step.channel}</span> : null}
-                                {step.status ? <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary">{step.status}</span> : null}
+                                {step.channel ? <span className="rounded-full border bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">{formatDemoPresentationLabel(step.channel)}</span> : null}
+                                {step.status ? <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary">{formatDemoPresentationLabel(step.status)}</span> : null}
                               </div>
                             ) : null}
                           </div>
@@ -1586,7 +1597,7 @@ export const DemoAdminPreview = ({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                          {event.ticket?.canal_ingreso ?? event.result?.ticket_type ?? 'Caso'}
+                          {formatDemoPresentationLabel(event.ticket?.canal_ingreso ?? event.result?.ticket_type ?? 'Caso')}
                         </p>
                         <h4 className="mt-1 text-lg font-bold text-foreground">
                           {readDemoEventTicketLabel(event)}
@@ -1594,7 +1605,7 @@ export const DemoAdminPreview = ({
                       </div>
                       {event.status ? (
                         <span className="rounded-full border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
-                          {event.status}
+                          {formatDemoPresentationLabel(event.status)}
                         </span>
                       ) : null}
                     </div>
@@ -1651,7 +1662,7 @@ export const DemoAdminPreview = ({
                       </div>
                       {item.status ? (
                         <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
-                          {item.status}
+                          {formatDemoPresentationLabel(item.status)}
                         </span>
                       ) : null}
                     </div>
@@ -1666,13 +1677,13 @@ export const DemoAdminPreview = ({
                       {item.priority ? (
                         <div className="rounded-lg border bg-muted/15 px-3 py-2">
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</dt>
-                          <dd className="mt-1 font-medium text-foreground">{item.priority}</dd>
+                          <dd className="mt-1 font-medium text-foreground">{formatDemoPresentationLabel(item.priority)}</dd>
                         </div>
                       ) : null}
                       {item.channel ? (
                         <div className="rounded-lg border bg-muted/15 px-3 py-2">
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</dt>
-                          <dd className="mt-1 font-medium text-foreground">{item.channel}</dd>
+                          <dd className="mt-1 font-medium text-foreground">{formatDemoPresentationLabel(item.channel)}</dd>
                         </div>
                       ) : null}
                       {item.zone ? (
@@ -1685,7 +1696,7 @@ export const DemoAdminPreview = ({
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
                       {item.slaStatus ? (
                         <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 font-semibold text-primary">
-                          SLA · {item.slaStatus}
+                          SLA · {formatDemoPresentationLabel(item.slaStatus)}
                         </span>
                       ) : null}
                       {item.openedAtLabel ? <span className="text-muted-foreground">{item.openedAtLabel}</span> : null}
@@ -1738,7 +1749,7 @@ export const DemoAdminPreview = ({
                   </div>
                   {surveyVoting ? (
                     <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                      {surveyVoting.totalAvailable} encuestas demo
+                      {surveyInventoryLabel}
                     </span>
                   ) : null}
                 </div>
@@ -1760,7 +1771,7 @@ export const DemoAdminPreview = ({
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                            {survey.status || 'Encuesta publicada'}
+                            {formatDemoPresentationLabel(survey.status || 'Encuesta publicada')}
                           </p>
                           <h4 className="mt-1 text-base font-bold leading-6 text-foreground">{survey.title}</h4>
                         </div>

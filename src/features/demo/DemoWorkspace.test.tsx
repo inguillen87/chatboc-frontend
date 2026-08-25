@@ -105,4 +105,25 @@ describe('DemoWorkspace rubro tools', () => {
     expect(screen.getByText('Preparando conversación operativa')).toBeInTheDocument();
     expect(screen.queryByText('Demo conversacional no disponible')).not.toBeInTheDocument();
   });
+
+  it('presents backend enums as professional Spanish labels', () => {
+    const workspace = {
+      chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+      media_capabilities: {
+        input_modes: {
+          audio: { enabled: true },
+          location: { enabled: true },
+        },
+      },
+      value_cards: [{ key: 'status', title: 'Estado operativo', status: 'ready' }],
+    } as DemoWorkspaceConfig;
+
+    render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
+
+    expect(screen.getByText('En línea')).toBeInTheDocument();
+    expect(screen.getByText('Gobierno')).toBeInTheDocument();
+    expect(screen.getByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('Ubicación')).toBeInTheDocument();
+    expect(screen.getByText('Listo')).toBeInTheDocument();
+  });
 });

@@ -238,6 +238,7 @@ describe('DemoAdminPreview executive snapshot', () => {
 
     expect(screen.getByRole('heading', { level: 3, name: 'Encuestas y votaciones' })).toBeVisible();
     expect(screen.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
+    expect(screen.getByText('1 visible de 6 encuestas demo')).toBeVisible();
     expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
     expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
