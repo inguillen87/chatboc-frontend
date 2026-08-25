@@ -21,6 +21,11 @@ export interface NormalizedDemoRubroTool {
   fields: NormalizedDemoToolField[];
 }
 
+interface NormalizedDemoRubroToolCandidate {
+  tool: NormalizedDemoRubroTool;
+  semanticKey: string;
+}
+
 const TOOL_SOURCES = [
   'rubro_tools',
   'business_tools',
@@ -119,11 +124,56 @@ const collectTools = (workspace?: DemoWorkspaceConfig | null) => {
   ];
 };
 
+const normalizeSemanticText = (value?: string) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
+const buildSemanticKey = (
+  tool: NormalizedDemoRubroTool,
+  source: UnknownRecord,
+) => {
+  const semanticKind =
+    readString(source, ['kind', 'type', 'category', 'tool_type']) || tool.kind;
+  const fields = tool.fields
+    .map((field) =>
+      `${normalizeSemanticText(field.label)}=${normalizeSemanticText(field.value)}`,
+    )
+    .sort();
+
+  return JSON.stringify({
+    kind: normalizeSemanticText(semanticKind),
+    label: normalizeSemanticText(tool.label),
+    actionHref: tool.actionHref?.trim() || '',
+    endpoint: tool.endpoint?.trim() || '',
+    method: normalizeSemanticText(tool.method),
+    fields,
+  });
+};
+
+const deduplicateTools = (
+  candidates: NormalizedDemoRubroToolCandidate[],
+): NormalizedDemoRubroTool[] => {
+  const seen = new Set<string>();
+  const tools: NormalizedDemoRubroTool[] = [];
+
+  for (const candidate of candidates) {
+    if (seen.has(candidate.semanticKey)) continue;
+    seen.add(candidate.semanticKey);
+    tools.push(candidate.tool);
+  }
+
+  return tools;
+};
+
 export const normalizeDemoRubroTools = (
   workspace?: DemoWorkspaceConfig | null,
-): NormalizedDemoRubroTool[] =>
-  collectTools(workspace)
-    .map((candidate, index): NormalizedDemoRubroTool | null => {
+): NormalizedDemoRubroTool[] => {
+  const candidates = collectTools(workspace)
+    .map((candidate, index): NormalizedDemoRubroToolCandidate | null => {
       const tool = asRecord(candidate);
       if (!tool || tool.enabled !== true) return null;
 
@@ -138,7 +188,7 @@ export const normalizeDemoRubroTools = (
       const itemFields = normalizeFields(firstItemRecord(tool));
       const fields = normalizeFields(tool.fields);
 
-      return {
+      const normalizedTool: NormalizedDemoRubroTool = {
         id,
         kind,
         label,
@@ -150,5 +200,13 @@ export const normalizeDemoRubroTools = (
         method: readString(tool, ['method']),
         fields: fields.length ? fields : dataFields.length ? dataFields : itemFields,
       };
+
+      return {
+        tool: normalizedTool,
+        semanticKey: buildSemanticKey(normalizedTool, tool),
+      };
     })
-    .filter((tool): tool is NormalizedDemoRubroTool => tool !== null);
+    .filter((tool): tool is NormalizedDemoRubroToolCandidate => tool !== null);
+
+  return deduplicateTools(candidates);
+};

@@ -43,4 +43,27 @@ describe('DemoWorkspace rubro tools', () => {
       ),
     ).toBe(false);
   });
+
+  it('renders a mirrored municipal tool only once', () => {
+    const catalog = {
+      id: 'catalog',
+      kind: 'rubro_tool',
+      label: 'Catalogo municipal',
+      enabled: true,
+      action_label: 'Abrir catalogo',
+      items: [{ url: '/api/v2/demo/catalogo.pdf' }],
+      fields: [{ label: 'Recursos', value: 4 }],
+    };
+    const workspace = {
+      rubro_tools: {
+        enabled_tools: [catalog],
+        tools: [{ ...catalog }],
+      },
+    } as DemoWorkspaceConfig;
+
+    render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
+
+    expect(screen.getAllByText('Catalogo municipal')).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: /abrir catalogo/i })).toHaveLength(1);
+  });
 });
