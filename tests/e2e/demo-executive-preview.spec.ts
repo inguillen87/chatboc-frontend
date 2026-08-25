@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { expectNoHorizontalOverflow } from './e2e-helpers';
+
 const VIEWPORTS = [
   { name: 'mobile-390', width: 390, height: 844 },
   { name: 'desktop', width: 1440, height: 900 },
@@ -303,6 +305,54 @@ test.describe('government executive demo preview', () => {
       ).toEqual([]);
     });
   }
+
+  test('reconciles the synthetic base and durable Preview participation without calling it citizen truth', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const baselineSurvey = executivePreview.survey_voting.items[0];
+    const partitionedPreview = {
+      ...executivePreview,
+      survey_voting: {
+        ...executivePreview.survey_voting,
+        durable_demo_participation: true,
+        municipal_truth: false,
+        verified_citizen_responses: 0,
+        items: [{
+          ...baselineSurvey,
+          seeded_responses: 100,
+          interactive_demo_responses: 2,
+          total_respuestas: 102,
+          verified_citizen_responses: 0,
+          results: {
+            ...baselineSurvey.results,
+            seeded_responses: 100,
+            interactive_demo_responses: 2,
+            total_respuestas: 102,
+            verified_citizen_responses: 0,
+            options: [
+              { label: 'Luminarias', count: 47, porcentaje: 46.08 },
+              ...baselineSurvey.results.options.slice(1),
+            ],
+          },
+        }],
+      },
+    };
+    await prepareExecutiveDemo(page, partitionedPreview);
+
+    await page.goto('/demo', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Gobiernos/i }).click();
+    await page.getByRole('button', { name: /Iniciar demo pública/i }).click();
+
+    const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
+    await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
+    const composition = panel.getByRole('note', {
+      name: 'Composición de respuestas de Votación de prioridades barriales',
+    });
+    await expect(composition).toContainText('100 base sintética + 2 participaciones demo = 102 total');
+    await expect(composition).toContainText('0 respuestas ciudadanas verificadas');
+    await expect(panel.getByText('102 respuestas demo', { exact: true })).toBeVisible();
+    await expect(panel.getByText('102 respuestas sintéticas', { exact: true })).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  });
 
   test('preserves the selected executive panel while a delayed session hydrates', async ({ page }) => {
     const adminPreviewRequests = await prepareExecutiveDemo(page, executivePreview, {

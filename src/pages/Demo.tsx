@@ -482,6 +482,11 @@ const readFiniteNumber = (...values: unknown[]): number | null => {
   return null;
 };
 
+const readNonNegativeInteger = (...values: unknown[]): number | null => {
+  const parsed = readFiniteNumber(...values);
+  return parsed !== null && Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
 const readMapPointText = (point: DemoAdminPreviewMapPoint, keys: string[]) => {
   for (const key of keys) {
     const value = point[key];
@@ -577,9 +582,27 @@ const normalizePreviewSurveyVoting = (preview: DemoAdminPreviewResponse | null) 
       if (!title) return null;
       const totalResponses = readFiniteNumber(
         item.results?.total_respuestas,
+        item.total_respuestas,
         item.results?.seeded_responses,
         surveyVoting.seed_policy?.responses_per_item,
       ) ?? 0;
+      const seededResponses = readNonNegativeInteger(
+        item.results?.seeded_responses,
+        item.seeded_responses,
+      );
+      const interactiveDemoResponses = readNonNegativeInteger(
+        item.results?.interactive_demo_responses,
+        item.interactive_demo_responses,
+      );
+      const verifiedCitizenResponses = readNonNegativeInteger(
+        item.results?.verified_citizen_responses,
+        item.verified_citizen_responses,
+      );
+      const hasPartitionedDemoComposition =
+        seededResponses !== null &&
+        interactiveDemoResponses !== null &&
+        verifiedCitizenResponses === 0 &&
+        totalResponses === seededResponses + interactiveDemoResponses;
       const options = (Array.isArray(item.results?.options) ? item.results.options : [])
         .map((option, optionIndex) => {
           const label = option.label?.trim() || option.texto?.trim();
@@ -610,6 +633,10 @@ const normalizePreviewSurveyVoting = (preview: DemoAdminPreviewResponse | null) 
         question: item.question?.trim() || null,
         status: item.status?.trim() || item.estado?.trim() || null,
         totalResponses,
+        seededResponses,
+        interactiveDemoResponses,
+        verifiedCitizenResponses,
+        hasPartitionedDemoComposition,
         options,
         isSynthetic,
         publicPagePath: publicPagePath?.startsWith('/e/') ? publicPagePath : null,
@@ -1734,10 +1761,28 @@ export const DemoAdminPreview = ({
                             ? 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
                             : 'border-primary/25 bg-primary/10 text-primary'
                         }`}>
-                          {survey.totalResponses} {survey.isSynthetic ? 'respuestas sintéticas' : 'respuestas'}
+                          {survey.totalResponses} {survey.hasPartitionedDemoComposition
+                            ? 'respuestas demo'
+                            : survey.isSynthetic
+                              ? 'respuestas sintéticas'
+                              : 'respuestas'}
                         </span>
                       </div>
                       {survey.description ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{survey.description}</p> : null}
+                      {survey.hasPartitionedDemoComposition ? (
+                        <div
+                          className="mt-3 rounded-xl border border-primary/15 bg-primary/[0.04] px-3 py-2 text-xs leading-5 text-foreground"
+                          role="note"
+                          aria-label={`Composición de respuestas de ${survey.title}`}
+                          data-demo-survey-composition
+                        >
+                          <span className="font-semibold">Composición verificable · </span>
+                          <span className="tabular-nums">
+                            {survey.seededResponses} base sintética + {survey.interactiveDemoResponses} participaciones demo = {survey.totalResponses} total
+                          </span>
+                          <span className="block text-muted-foreground">0 respuestas ciudadanas verificadas.</span>
+                        </div>
+                      ) : null}
                       {survey.question ? <p className="mt-3 text-sm font-semibold text-foreground">{survey.question}</p> : null}
                       <div className="mt-3 grid gap-2">
                         {survey.options.length ? (

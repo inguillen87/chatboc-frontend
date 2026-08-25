@@ -247,9 +247,15 @@ export interface DemoAdminPreviewSurveyItem {
   status?: string | null;
   estado?: string | null;
   demo_mode?: boolean | null;
+  seeded_responses?: string | number | null;
+  interactive_demo_responses?: string | number | null;
+  total_respuestas?: string | number | null;
+  verified_citizen_responses?: string | number | null;
   results?: {
     total_respuestas?: string | number | null;
     seeded_responses?: string | number | null;
+    interactive_demo_responses?: string | number | null;
+    verified_citizen_responses?: string | number | null;
     options?: DemoAdminPreviewSurveyOption[] | null;
     [key: string]: unknown;
   } | null;

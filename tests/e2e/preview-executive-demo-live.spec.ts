@@ -83,10 +83,18 @@ test.describe('remote Preview executive government demo', () => {
       requested_tenant_slug: 'junin',
       scenario_scope: 'Junín, Mendoza',
     });
+    const firstSurvey = payload.survey_voting.items[0];
+    const firstSurveyResults = firstSurvey.results;
     expect(payload.metrics.find((metric: { id?: string }) => metric.id === 'survey_valid_votes')?.value).toBe(
-      payload.survey_voting.items[0].results.total_respuestas,
+      firstSurveyResults.total_respuestas,
     );
-    const firstSurveyOptions = payload.survey_voting.items[0].results.options as Array<{
+    expect(firstSurveyResults.seeded_responses).toBe(100);
+    expect(firstSurveyResults.interactive_demo_responses).toBeGreaterThanOrEqual(1);
+    expect(firstSurveyResults.verified_citizen_responses).toBe(0);
+    expect(firstSurveyResults.total_respuestas).toBe(
+      firstSurveyResults.seeded_responses + firstSurveyResults.interactive_demo_responses,
+    );
+    const firstSurveyOptions = firstSurveyResults.options as Array<{
       label: string;
       count: number;
       porcentaje: number;
@@ -100,7 +108,14 @@ test.describe('remote Preview executive government demo', () => {
     );
     await expect(panel.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toHaveCount(0);
     await expect(panel.getByText('184 casos')).toBeVisible();
-    await expect(panel.getByText('100 respuestas sintéticas', { exact: true })).toBeVisible();
+    await expect(
+      panel.getByRole('note', { name: `Composición de respuestas de ${firstSurvey.title}` }),
+    ).toContainText(
+      `${firstSurveyResults.seeded_responses} base sintética + ${firstSurveyResults.interactive_demo_responses} participaciones demo = ${firstSurveyResults.total_respuestas} total`,
+    );
+    await expect(
+      panel.getByRole('note', { name: `Composición de respuestas de ${firstSurvey.title}` }),
+    ).toContainText('0 respuestas ciudadanas verificadas');
 
     await panel.getByRole('button', { name: 'Reclamos', exact: true }).click();
     await expect(panel.getByText('Casos simulados')).toBeVisible();

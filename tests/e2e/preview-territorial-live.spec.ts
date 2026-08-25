@@ -141,6 +141,26 @@ const isSurveyJoinError = (frame: string) => {
   return event?.[0] === 'join_error' && payload?.room === SURVEY_ROOM;
 };
 
+const isCommittedSurveyUpdate = (
+  frame: string,
+  responseId: unknown,
+  expectedTotal: number,
+) => {
+  const socketEvent = parseSocketIoEventFrame(frame);
+  const payload = isRecord(socketEvent?.[1]) ? socketEvent[1] : null;
+  const event = isRecord(payload?.event) ? payload.event : null;
+  return (
+    socketEvent?.[0] === 'survey_update_v2' &&
+    payload?.contract_version === 'surveys.live_results.v2' &&
+    payload?.slug === SURVEY_SLUG &&
+    payload?.tenant_slug === 'junin' &&
+    payload?.total_respuestas === expectedTotal &&
+    payload?.result_version === expectedTotal &&
+    event?.event_name === 'survey.response.committed' &&
+    event?.response_id === responseId
+  );
+};
+
 const attachRemoteEvidence = (page: Page): RemoteEvidence => {
   const evidence: RemoteEvidence = {
     apiFailures: [],
@@ -766,6 +786,7 @@ test.describe('remote Preview durable demo participation gate', () => {
 
   test('persists exactly one isolated QA interaction and exposes its durable receipt', async ({ page }) => {
     test.setTimeout(240_000);
+    const evidence = attachRemoteEvidence(page);
     const submittedRequests: Request[] = [];
     page.on('request', (request) => {
       if (isSurveyResponseRequest(request)) submittedRequests.push(request);
@@ -786,6 +807,7 @@ test.describe('remote Preview durable demo participation gate', () => {
     if (initialTotal === null || seededResponses === null) {
       throw new Error('Preview demo live results omitted the dynamic total or seeded baseline.');
     }
+    await assertDirectRealtime(evidence);
     expect(Number.isSafeInteger(initialTotal)).toBe(true);
     expect(Number.isSafeInteger(seededResponses)).toBe(true);
     expect(initialTotal).toBeGreaterThanOrEqual(seededResponses);
@@ -835,6 +857,12 @@ test.describe('remote Preview durable demo participation gate', () => {
     expect(responsePayload.municipal_truth).toBe(false);
     expect(responsePayload.response_origin).toBe('interactive_demo');
     expect(responsePayload.slug).toBe(SURVEY_SLUG);
+    expect(responsePayload.realtime).toMatchObject({
+      room: SURVEY_ROOM,
+      primary_room: SURVEY_ROOM,
+      rooms: [SURVEY_ROOM],
+      delivery: 'publish_accepted',
+    });
     expect(responsePayload.seeded_responses_before).toBe(seededResponses);
     expect(responsePayload.seeded_responses_after).toBe(seededResponses);
     expect(responsePayload.total_responses_after).toBe(initialTotal + 1);
@@ -864,6 +892,18 @@ test.describe('remote Preview durable demo participation gate', () => {
       persisted: true,
       replayed: false,
     });
+    await expect
+      .poll(
+        () =>
+          evidence.socketFramesReceived.some((frame) =>
+            isCommittedSurveyUpdate(frame, responsePayload.response_id, initialTotal + 1),
+          ),
+        {
+          message: 'The committed QA participation must reach the exact joined room as survey_update_v2.',
+          timeout: REMOTE_WAIT_MS,
+        },
+      )
+      .toBe(true);
 
     await expect(page.getByRole('heading', { name: 'Participación demo guardada en Preview' })).toBeVisible({
       timeout: REMOTE_WAIT_MS,
