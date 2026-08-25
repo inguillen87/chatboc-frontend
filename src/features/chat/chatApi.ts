@@ -207,6 +207,37 @@ const collectOperationalAttachments = (source: Record<string, unknown>): Operati
     });
 };
 
+const hasExplicitTicketSignal = (source: unknown) => {
+  if (!isRecord(source)) return false;
+  return [
+    'nro_ticket',
+    'ticket_number',
+    'ticket_id',
+    'reclamo_id',
+    'case_id',
+    'nro_caso',
+    'ticket_type',
+    'categoria',
+    'category',
+    'direccion',
+    'address',
+    'latitud',
+    'latitude',
+    'longitud',
+    'longitude',
+    'nombre_vecino',
+    'telefono_vecino',
+  ].some((key) => source[key] !== undefined && source[key] !== null && source[key] !== '');
+};
+
+const hasTicketActionSignal = (source: Record<string, unknown>) => {
+  const action = [source.accion_backend, source.action_id, source.fuente, source.ticket_type]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+  return /reclamo|ticket|school[_ -]?case|caso[_ -]?(?:creado|escolar|municipal)/.test(action);
+};
+
 const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | null => {
   if (!isRecord(source)) return null;
   const location = isRecord(source.location) ? source.location : {};
@@ -301,25 +332,29 @@ const normalizeOperationalOrder = (source: unknown): OperationalOrderResult | nu
 };
 
 const extractOperationalTicket = (source: Record<string, unknown>): OperationalTicketResult | null => {
+  const data = readNestedRecord(source, ['data']);
+  const createdEntity = isRecord(source.created_entity) ? source.created_entity : null;
+  const dataCreatedEntity = isRecord(data?.created_entity) ? data.created_entity : null;
   const candidates = [
     source.ticket,
-    source.created_entity,
     source.reclamo,
     source.claim,
     source.case,
-    readNestedRecord(source, ['data']),
-    readNestedRecord(source, ['data'])?.school_case,
-    readNestedRecord(source, ['data'])?.created_entity,
+    data?.school_case,
     readNestedRecord(source, ['lead'])?.ticket,
     readNestedRecord(source, ['lead'])?.reclamo,
-    readNestedRecord(source, ['data'])?.ticket,
-    readNestedRecord(source, ['data'])?.reclamo,
+    data?.ticket,
+    data?.reclamo,
+    hasExplicitTicketSignal(data) ? data : null,
+    hasExplicitTicketSignal(createdEntity) || hasTicketActionSignal(source) ? createdEntity : null,
+    hasExplicitTicketSignal(dataCreatedEntity) || hasTicketActionSignal(source) ? dataCreatedEntity : null,
+    hasExplicitTicketSignal(source) ? source : null,
   ];
   for (const candidate of candidates) {
     const normalized = normalizeOperationalTicket(candidate);
     if (normalized) return normalized;
   }
-  return normalizeOperationalTicket(source);
+  return null;
 };
 
 const extractOperationalOrder = (source: Record<string, unknown>): OperationalOrderResult | null => {

@@ -709,6 +709,7 @@ describe('normalizePublicSurveyLiveResults', () => {
     });
 
     expect(normalized.preguntas?.[0]?.total_votos).toBe(100);
+    expect(normalized.preguntas?.[0]?.id).toBe('prioridad');
     expect(normalized.preguntas?.[0]?.opciones?.map((option) => option.porcentaje)).toEqual([
       45,
       18,
@@ -759,10 +760,12 @@ describe('normalizePublicSurveyLiveResults', () => {
     expect(normalized.total_respuestas).toBe(21);
     expect(normalized.preguntas).toHaveLength(1);
     expect(normalized.preguntas?.[0]).toMatchObject({
+      id: 'q1',
       titulo: 'Prioridad del barrio',
       total_votos: 21,
     });
     expect(normalized.preguntas?.[0]?.opciones?.[0]).toMatchObject({
+      id: 'a',
       texto: 'Luminaria',
       votos: 12,
       porcentaje: 57.1,

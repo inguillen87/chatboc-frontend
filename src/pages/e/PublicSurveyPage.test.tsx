@@ -89,4 +89,63 @@ describe('PublicSurveyPage loading experience', () => {
     expect(mocks.useSurveyPublic).toHaveBeenCalledTimes(1);
     expect(mocks.useSurveyPublic.mock.calls[0]?.[1]).toEqual({ tenantSlug: 'municipio' });
   });
+
+  it('shows the server synchronization time instead of mislabeling the survey closing date', async () => {
+    const serverTime = '2026-08-24T22:46:37.889652-03:00';
+    const closingTime = '2026-09-23T22:46:37.891057-03:00';
+    mocks.useSurveyPublic.mockReturnValue({
+      survey: {
+        slug: 'prioridades-barriales',
+        titulo: 'Prioridades barriales',
+        descripcion: 'Consulta pública',
+        tipo: 'votacion',
+        inicio_at: '2026-08-01T00:00:00-03:00',
+        fin_at: closingTime,
+        politica_unicidad: 'libre',
+        preguntas: [
+          {
+            id: 1,
+            orden: 1,
+            tipo: 'opcion_unica',
+            texto: '¿Qué tema debería resolverse primero?',
+            obligatoria: true,
+            opciones: [{ id: 10, orden: 1, texto: 'Luminarias' }],
+          },
+        ],
+        es_votacion_envivo: true,
+        mostrar_resultados_envivo: false,
+        public_state: { server_time: serverTime, is_open: true, accepts_responses: true },
+      },
+      isLoading: false,
+      isRefetching: false,
+      failureCount: 0,
+      error: null,
+      errorStatus: null,
+      errorDetails: null,
+      errorReasonCode: null,
+      isTransientError: false,
+      retryLoad: vi.fn(),
+      submit: vi.fn(),
+      isSubmitting: false,
+      submitError: null,
+      submitStatus: null,
+      submitErrorDetails: null,
+      submitReasonCode: null,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/e/prioridades-barriales?tenant_slug=junin']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/e/:slug" element={<PublicSurveyPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const timestamp = await screen.findByTestId('survey-last-updated');
+    expect(timestamp).toHaveTextContent(new Date(serverTime).toLocaleString());
+    expect(timestamp).not.toHaveTextContent(new Date(closingTime).toLocaleString());
+  });
 });

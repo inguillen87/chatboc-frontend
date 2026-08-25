@@ -541,12 +541,20 @@ const PublicSurveyPage = () => {
       : liveStatus.status === 'empty' || liveStatus.status === 'stale'
         ? 'border-slate-500/30 bg-slate-500/10 text-slate-700'
         : 'border-amber-500/40 bg-amber-500/10 text-amber-700';
+  const publicState = useMemo(
+    () => (survey?.public_state && typeof survey.public_state === 'object'
+      ? survey.public_state as Record<string, unknown>
+      : undefined),
+    [survey?.public_state],
+  );
   const updatedAtLabel = useMemo(() => {
-    if (!liveDashboard?.updated_at) return null;
-    const date = new Date(liveDashboard.updated_at);
+    const serverTime = typeof publicState?.server_time === 'string' ? publicState.server_time : null;
+    const timestamp = liveDashboard?.updated_at || serverTime;
+    if (!timestamp) return null;
+    const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleString();
-  }, [liveDashboard?.updated_at]);
+  }, [liveDashboard?.updated_at, publicState?.server_time]);
   const refreshIntervalLabel = useMemo(() => {
     if (!pollingIntervalMs) return null;
     const seconds = Math.max(1, Math.round(pollingIntervalMs / 1000));
@@ -887,9 +895,9 @@ const PublicSurveyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <Timer className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_tiempo_label, 'Última actualización')}</p>
-                    <p className="text-lg font-semibold">
-                      {survey.fin_at ? new Date(survey.fin_at).toLocaleString() : '—'}
+                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_tiempo_label, 'Última sincronización')}</p>
+                    <p className="text-lg font-semibold" data-testid="survey-last-updated">
+                      {updatedAtLabel ?? '—'}
                     </p>
                   </div>
                 </div>

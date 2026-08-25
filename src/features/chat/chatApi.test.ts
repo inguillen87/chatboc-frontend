@@ -393,6 +393,27 @@ describe('sendChatBootstrapMessage', () => {
 });
 
 describe('normalizeLeadCaptureResponse operational results', () => {
+  it('does not classify survey menu resources as a created claim', () => {
+    const normalized = normalizeLeadCaptureResponse({
+      success: true,
+      contract_version: 'chat.response.v1',
+      fuente: 'demo_encuestas_menu_v1',
+      accion_backend: 'demo_encuestas_menu',
+      created_entity: null,
+      ticket: null,
+      adjuntos: [{ id: 'survey-share', url: 'https://example.test/e/prioridades' }],
+      lead: { created: false, lead_id: null, ticket_id: null },
+      data: {
+        chat_id: 'demo-chat',
+        sector: 'gobierno',
+        tenant_slug: 'junin',
+        surveys_votings: { items: [{ public_url: 'https://example.test/e/prioridades' }] },
+      },
+    });
+
+    expect(normalized.ticket).toBeNull();
+  });
+
   it('keeps real municipal ticket evidence and location fields', () => {
     const normalized = normalizeLeadCaptureResponse({
       ok: true,

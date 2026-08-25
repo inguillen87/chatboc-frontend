@@ -240,6 +240,19 @@ const arrayFromUnknown = (value: unknown): unknown[] => {
   return [];
 };
 
+const keyedRecordsFromUnknown = (
+  value: unknown,
+  identityKeys: string[],
+): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (!isRecord(value)) return [];
+
+  return Object.entries(value).map(([key, item]) => {
+    if (!isRecord(item) || firstDefined(item, identityKeys) !== undefined) return item;
+    return { ...item, id: key };
+  });
+};
+
 const unwrapSurveyEnvelope = <T>(payload: unknown): T => {
   if (!isRecord(payload)) {
     return payload as T;
@@ -610,7 +623,7 @@ const normalizeLiveQuestion = (
 ): NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number] | null => {
   if (!isRecord(value)) return null;
   const rawOptions = firstDefined(value, ['opciones', 'options', 'choices', 'resultados', 'results']);
-  const opciones = arrayFromUnknown(rawOptions)
+  const opciones = keyedRecordsFromUnknown(rawOptions, ['id', 'option_id', 'key'])
     .map(normalizeLiveOption)
     .filter((option): option is NonNullable<NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number]['opciones']>[number] =>
       Boolean(option),
@@ -686,7 +699,7 @@ export const normalizePublicSurveyLiveResults = (payload: unknown): SurveyLivePu
     toFiniteNumberOrUndefined(rawResultVersion) ?? toTrimmedStringOrUndefined(rawResultVersion);
   const snapshotVersion = toTrimmedStringOrUndefined(firstDefined(payload, ['snapshot_version', 'snapshotVersion']));
   const rawQuestions = firstDefined(payload, ['preguntas', 'questions', 'resultados', 'results']);
-  const preguntas = arrayFromUnknown(rawQuestions)
+  const preguntas = keyedRecordsFromUnknown(rawQuestions, ['id', 'pregunta_id', 'question_id', 'key'])
     .map(normalizeLiveQuestion)
     .filter((question): question is NonNullable<SurveyLivePublicResultsPayload['preguntas']>[number] => Boolean(question));
 
