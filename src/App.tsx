@@ -45,6 +45,18 @@ import {
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
+// The public executive demo is a primary presentation surface. Start fetching
+// its route chunk while the optional auth runtime is being resolved so the
+// security bootstrap and code download happen in parallel on a cold visit.
+if (
+  typeof window !== 'undefined' &&
+  (window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/'))
+) {
+  void import('@/pages/Demo').catch((error) => {
+    console.warn('[Demo] No se pudo precargar la ruta publica', error);
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
