@@ -28,7 +28,7 @@ const renderMessageText = (text: string) =>
 
 export default function ChatMessageList({ messages }: { messages: ChatUiMessage[] }) {
   return (
-    <div className="space-y-2" aria-label="Lista de mensajes">
+    <div className="space-y-2" role="log" aria-label="Lista de mensajes" aria-live="polite">
       {messages.map((message) => (
         <div
           key={message.id}

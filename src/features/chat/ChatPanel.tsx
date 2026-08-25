@@ -1059,7 +1059,7 @@ function StandaloneChatPanel({
         }}
       />
       {visibleCtas.length ? (
-        <div className="flex flex-wrap gap-2" aria-label="Acciones sugeridas">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Acciones sugeridas">
           {visibleCtas.map((action) => (
             <Button
               key={action.id}

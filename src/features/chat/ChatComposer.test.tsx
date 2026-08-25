@@ -21,6 +21,16 @@ describe('ChatComposer attachment validation', () => {
     vi.mocked(uploadChatAttachment).mockReset();
   });
 
+  it('uses explicit accessible foreground and background colors for the message field', () => {
+    render(<ChatComposer onSend={vi.fn()} />);
+
+    expect(screen.getByLabelText('Mensaje')).toHaveClass(
+      'bg-background',
+      'text-foreground',
+      'placeholder:text-muted-foreground',
+    );
+  });
+
   it('blocks unsupported public widget files before upload', async () => {
     render(
       <ChatComposer

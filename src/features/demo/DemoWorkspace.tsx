@@ -231,7 +231,7 @@ export default function DemoWorkspace({
                 conectando
               </span>
             ) : runtimeAvailable ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-semibold text-success">
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
                 <CheckCircle2 className="h-3 w-3" />
                 En línea
               </span>
@@ -329,9 +329,9 @@ export default function DemoWorkspace({
         </div>
 
         <div className="flex flex-wrap gap-2 px-3 py-3 text-xs text-muted-foreground">
-          {sector ? <span className="rounded-full bg-muted px-3 py-1">{readSectorLabel(sector)}</span> : null}
+          {sector ? <span className="rounded-full bg-muted px-3 py-1 text-foreground">{readSectorLabel(sector)}</span> : null}
           {availableModes.slice(0, 4).map((mode) => (
-            <span key={mode} className="rounded-full bg-muted px-3 py-1">{mode}</span>
+            <span key={mode} className="rounded-full bg-muted px-3 py-1 text-foreground">{mode}</span>
           ))}
         </div>
       </section>
