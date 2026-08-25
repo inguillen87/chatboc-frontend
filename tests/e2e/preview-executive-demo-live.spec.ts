@@ -115,7 +115,7 @@ test.describe('remote Preview executive government demo', () => {
 
     await panel.getByRole('button', { name: 'Reclamos', exact: true }).click();
     await expect(panel.getByText('Casos simulados')).toBeVisible();
-    await expect(panel.getByText('Muestra visible: 5 de 184 casos del escenario.')).toBeVisible();
+    await expect(panel.getByText('5 de 184 casos informados por el contrato.')).toBeVisible();
     await expect(panel.getByText('JN-DEMO-1042')).toBeVisible();
 
     await panel.getByRole('button', { name: 'Mapa demostrativo', exact: true }).click();
@@ -126,7 +126,12 @@ test.describe('remote Preview executive government demo', () => {
 
     await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
     await expect(panel.getByText('6 encuestas demo')).toBeVisible();
-    await expect(panel.getByText('Votacion de prioridades barriales')).toBeVisible();
+    const firstSurveyTrigger = panel.getByRole('button', { name: new RegExp(`^${firstSurvey.title}:`) });
+    await expect(firstSurveyTrigger).toBeVisible();
+    if ((await firstSurveyTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await firstSurveyTrigger.click();
+    }
+    await expect(firstSurveyTrigger).toHaveAttribute('aria-expanded', 'true');
     const surveyComposition = panel.getByRole('note', {
       name: `Composición de respuestas de ${firstSurvey.title}`,
     });
@@ -137,7 +142,7 @@ test.describe('remote Preview executive government demo', () => {
         name: new RegExp(`^${topSurveyOption.label}:`),
       }),
     ).toHaveAttribute('aria-valuenow', String(Math.round(topSurveyOption.porcentaje)));
-    await expect(panel.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveCount(5);
+    await expect(panel.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveCount(1);
 
     const accessibility = await new AxeBuilder({ page })
       .include('[data-demo-admin-preview]')

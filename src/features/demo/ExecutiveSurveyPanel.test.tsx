@@ -47,6 +47,45 @@ const surveyVoting: ExecutiveSurveyVoting = {
   }],
 };
 
+const multiSurveyVoting: ExecutiveSurveyVoting = {
+  ...surveyVoting,
+  items: [
+    surveyVoting.items[0],
+    {
+      ...surveyVoting.items[0],
+      id: 'survey-2',
+      title: 'Destino del presupuesto participativo',
+      description: 'Selección de proyectos para el próximo trimestre.',
+      question: '¿Qué proyecto debería priorizarse?',
+      totalResponses: 160,
+      seededResponses: 160,
+      publicPagePath: '/e/demo-presupuesto-participativo',
+      options: [
+        { id: 'plaza', label: 'Plaza central', count: 96, percentage: 60 },
+        { id: 'ciclovia', label: 'Ciclovía', count: 64, percentage: 40 },
+      ],
+      segments: [],
+      segmentScope: null,
+    },
+    {
+      ...surveyVoting.items[0],
+      id: 'survey-3',
+      title: 'Horarios de atención municipal',
+      description: null,
+      question: '¿Qué franja horaria resulta más conveniente?',
+      totalResponses: 80,
+      seededResponses: 80,
+      publicPagePath: '/e/demo-horarios-atencion',
+      options: [
+        { id: 'manana', label: 'Mañana', count: 44, percentage: 55 },
+        { id: 'tarde', label: 'Tarde', count: 36, percentage: 45 },
+      ],
+      segments: [],
+      segmentScope: null,
+    },
+  ],
+};
+
 describe('ExecutiveSurveyPanel', () => {
   it('turns the API distribution into a truthful executive readout', () => {
     render(
@@ -107,6 +146,56 @@ describe('ExecutiveSurveyPanel', () => {
     expect(screen.getByText('Web')).toBeVisible();
     expect(screen.queryByText('Chat web')).not.toBeInTheDocument();
     expect(screen.getByText('Segmentación calculada exclusivamente sobre la base sintética del escenario.')).toBeVisible();
+  });
+
+  it('renders one accessible detail view and keeps the remaining surveys compact', () => {
+    render(
+      <ExecutiveSurveyPanel
+        surveyVoting={multiSurveyVoting}
+        inventoryLabel="3 visibles de 6 encuestas demo"
+        fallbackTitle="Encuestas"
+      />,
+    );
+
+    expect(screen.getByText('3 visibles de 6 encuestas demo')).toBeVisible();
+    expect(screen.getByText('2 de 3 en detalle')).toBeVisible();
+    expect(screen.getByLabelText('Síntesis global de encuestas')).toHaveTextContent(
+      /Destino del presupuesto participativo.*mayor volumen visible/i,
+    );
+
+    const leaderTrigger = screen.getByRole('button', { name: /Destino del presupuesto participativo/i });
+    const firstTrigger = screen.getByRole('button', { name: /Votación de prioridades barriales/i });
+    const thirdTrigger = screen.getByRole('button', { name: /Horarios de atención municipal/i });
+
+    expect(leaderTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(firstTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(thirdTrigger).toHaveAttribute('aria-expanded', 'false');
+    const detailRegionId = leaderTrigger.getAttribute('aria-controls');
+    const detailRegion = detailRegionId ? document.getElementById(detailRegionId) : null;
+    expect(detailRegionId).toBeTruthy();
+    expect(detailRegion).not.toBeNull();
+    expect(detailRegion).toBeVisible();
+    expect(screen.getAllByRole('link', { name: 'Abrir encuesta demo' })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute(
+      'href',
+      '/e/demo-presupuesto-participativo',
+    );
+    expect(screen.queryByRole('region', { name: 'Distribución de respuestas de Votación de prioridades barriales' })).not.toBeInTheDocument();
+
+    firstTrigger.focus();
+    expect(firstTrigger).toHaveFocus();
+    fireEvent.click(firstTrigger);
+
+    expect(firstTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(leaderTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('1 de 3 en detalle')).toBeVisible();
+    expect(detailRegion).toHaveAccessibleName('Votación de prioridades barriales: análisis visible');
+    expect(screen.getByRole('region', { name: 'Distribución de respuestas de Votación de prioridades barriales' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute(
+      'href',
+      '/e/demo-prioridades-barriales',
+    );
+    expect(screen.queryByRole('region', { name: 'Distribución de respuestas de Destino del presupuesto participativo' })).not.toBeInTheDocument();
   });
 
   it('keeps an explicit empty state instead of fabricating metrics', () => {

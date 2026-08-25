@@ -67,7 +67,20 @@ type LegacyChatPanelProps = React.ComponentProps<typeof LegacyChatPanel> & {
 type StandaloneChatPanelProps = Omit<FeatureChatPanelProps, 'variant'>;
 
 const isHumanRequest = (text: string) => /human|persona|operador|agente/i.test(text);
-const HIGH_INTENT_TERMS = ['checkout', 'pedido', 'derivar_humano', 'humano', 'reclamo', 'estado'];
+const EXPLICIT_LEAD_CAPTURE_INTENTS = new Set([
+  'capturar_lead',
+  'capturar_lead_comercial',
+  'capture_lead',
+  'contact_sales',
+  'contactar_ventas',
+  'crear_lead',
+  'lead_capture',
+  'request_demo',
+  'solicitar_contacto_comercial',
+  'solicitar_demo',
+]);
+const EXPLICIT_LEAD_REQUEST =
+  /\b(asesor(?:a)? comercial|contactar (?:a )?ventas|que me contacten|que me llamen|solicitar (?:una )?demo)\b/i;
 const WIDGET_ASSISTED_ORDER_TERMS =
   /\b(pedido|cotiza|cotizacion|cotización|presupuesto|comprar|compra|stock|precio|factura|recibo|boleta|certificado|comprobante)\b/i;
 const WIDGET_QUANTITY_HINT = /\b\d+\s*(x|un|una|unidad|unidades|caja|cajas|bolsa|bolsas|kg|litro|litros|metro|metros)?\b/i;
@@ -445,6 +458,15 @@ const leadFieldLabel = (field: ChatLeadCaptureField, index: number) =>
 const isLeadEndpoint = (endpoint?: string | null) =>
   typeof endpoint === 'string' && endpoint.toLowerCase().includes('lead-capture');
 
+const isExplicitLeadCaptureIntent = (intent?: string | null) => {
+  const normalized = intent?.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    EXPLICIT_LEAD_CAPTURE_INTENTS.has(normalized) ||
+    /(?:^|[_-])(?:lead|ventas|sales)(?:[_-]|$)/.test(normalized)
+  );
+};
+
 const isTechnicalAssistantReply = (response: unknown, replyText?: string | null) => {
   if (response && typeof response === 'object' && !Array.isArray(response)) {
     const record = response as Record<string, unknown>;
@@ -686,10 +708,13 @@ function StandaloneChatPanel({
     if (!leadEnabled || !resolvedLeadCapture) return false;
     if (isLeadEndpoint(candidate.endpoint)) return true;
     const intent = candidate.intent?.trim().toLowerCase();
-    if (intent && leadTriggers.includes(intent)) return true;
+    if (intent) {
+      const isConfiguredLeadIntent = leadTriggers.includes(intent);
+      return isExplicitLeadCaptureIntent(intent) && (isConfiguredLeadIntent || EXPLICIT_LEAD_CAPTURE_INTENTS.has(intent));
+    }
     const text = candidate.text?.trim().toLowerCase() || '';
     if (!text) return false;
-    return HIGH_INTENT_TERMS.some((term) => text.includes(term));
+    return EXPLICIT_LEAD_REQUEST.test(text);
   };
 
   const shouldCreateWidgetAssistedOrder = (candidate: {

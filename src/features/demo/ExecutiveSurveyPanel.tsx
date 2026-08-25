@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, Gauge, Medal, Users } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+import { BarChart3, CheckCircle2, ChevronRight, Gauge, Medal, Users } from 'lucide-react';
 
 import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
 
@@ -63,6 +63,21 @@ const SEGMENT_LABELS: Record<string, string> = {
 
 const segmentTitle = (key: string) => SEGMENT_LABELS[key] ?? formatDemoPresentationLabel(key);
 
+const rankSurveyOptions = (survey: ExecutiveSurveyItem) => (
+  [...survey.options].sort((left, right) => right.percentage - left.percentage || right.count - left.count)
+);
+
+const getVolumeLeader = (surveys: ExecutiveSurveyItem[]) => surveys.reduce<ExecutiveSurveyItem | null>(
+  (currentLeader, survey) => (
+    currentLeader === null || survey.totalResponses > currentLeader.totalResponses ? survey : currentLeader
+  ),
+  null,
+);
+
+const surveyControlId = (instanceId: string, surveyId: string, index: number) => (
+  `${instanceId}-survey-trigger-${index}-${surveyId.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+);
+
 const segmentValueLabel = (value: string) => {
   const normalized = value.trim().toLowerCase();
   const known: Record<string, string> = {
@@ -94,7 +109,7 @@ const ExecutiveMetric = ({
 
 const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
   const rankedOptions = useMemo(
-    () => [...survey.options].sort((left, right) => right.percentage - left.percentage || right.count - left.count),
+    () => rankSurveyOptions(survey),
     [survey.options],
   );
   const [activeSegmentKey, setActiveSegmentKey] = useState(() => survey.segments[0]?.key ?? null);
@@ -326,18 +341,95 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
   );
 };
 
+const ExecutiveSurveySelector = ({
+  survey,
+  index,
+  isActive,
+  instanceId,
+  detailPanelId,
+  onSelect,
+}: {
+  survey: ExecutiveSurveyItem;
+  index: number;
+  isActive: boolean;
+  instanceId: string;
+  detailPanelId: string;
+  onSelect: () => void;
+}) => {
+  const responseLabel = survey.hasPartitionedDemoComposition
+    ? 'respuestas demo'
+    : survey.isSynthetic
+      ? 'respuestas sintéticas'
+      : 'respuestas';
+
+  return (
+    <button
+      id={surveyControlId(instanceId, survey.id, index)}
+      type="button"
+      aria-label={`${survey.title}: ${isActive ? 'análisis visible' : 'mostrar análisis'}`}
+      aria-expanded={isActive}
+      aria-controls={detailPanelId}
+      onClick={onSelect}
+      className={`group grid w-full grid-cols-[2rem_minmax(0,1fr)_1.25rem] items-start gap-2.5 px-3 py-3 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-4 ${
+        isActive
+          ? 'bg-primary/[0.08] text-foreground'
+          : 'bg-background/80 text-foreground hover:bg-muted/45'
+      }`}
+    >
+      <span
+        className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold tabular-nums ${
+          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground group-hover:text-foreground'
+        }`}
+        aria-hidden="true"
+      >
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-bold leading-5">{survey.title}</span>
+          <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {formatDemoPresentationLabel(survey.status || 'Publicada')}
+          </span>
+        </span>
+        <span className="mt-1 block truncate text-[11px] leading-4 text-muted-foreground">
+          {survey.question || survey.description || 'Sin pregunta descriptiva publicada'}
+        </span>
+        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] leading-4 text-muted-foreground">
+          <span><strong className="font-bold tabular-nums text-foreground">{NUMBER_FORMATTER.format(survey.totalResponses)}</strong> {responseLabel}</span>
+          <span className={isActive ? 'font-semibold text-primary' : undefined}>
+            {isActive ? 'Análisis visible' : 'Ver análisis'}
+          </span>
+        </span>
+      </span>
+      <ChevronRight
+        className={`mt-1 h-4 w-4 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none ${
+          isActive ? 'rotate-90 text-primary' : 'group-hover:translate-x-0.5 motion-reduce:transform-none'
+        }`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+};
+
 const ExecutiveSurveyPanel = ({
   surveyVoting,
   inventoryLabel,
   fallbackTitle,
   fallbackDescription,
 }: ExecutiveSurveyPanelProps) => {
-  const totalVisibleResponses = surveyVoting?.items.reduce((sum, survey) => sum + survey.totalResponses, 0) ?? 0;
+  const instanceId = `demo-surveys-${useId().replace(/:/g, '')}`;
+  const surveys = surveyVoting?.items ?? [];
+  const volumeLeader = getVolumeLeader(surveys);
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(() => volumeLeader?.id ?? null);
+  const activeSurvey = surveys.find((survey) => survey.id === selectedSurveyId) ?? volumeLeader;
+  const activeSurveyIndex = activeSurvey ? surveys.findIndex((survey) => survey.id === activeSurvey.id) : -1;
+  const detailPanelId = `${instanceId}-active-detail`;
+  const totalVisibleResponses = surveys.reduce((sum, survey) => sum + survey.totalResponses, 0);
   const allCitizenCountsKnown = Boolean(
-    surveyVoting?.items.length && surveyVoting.items.every((survey) => survey.verifiedCitizenResponses !== null),
+    surveys.length && surveys.every((survey) => survey.verifiedCitizenResponses !== null),
   );
   const verifiedCitizenResponses = allCitizenCountsKnown
-    ? surveyVoting?.items.reduce((sum, survey) => sum + (survey.verifiedCitizenResponses ?? 0), 0) ?? 0
+    ? surveys.reduce((sum, survey) => sum + (survey.verifiedCitizenResponses ?? 0), 0)
     : null;
 
   return (
@@ -392,6 +484,18 @@ const ExecutiveSurveyPanel = ({
           </div>
         ) : null}
 
+        {volumeLeader ? (
+          <div className="border-t border-border/60 bg-muted/[0.12] px-4 py-3 sm:px-5" aria-label="Síntesis global de encuestas">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">Síntesis del inventario visible</p>
+            <p className="mt-1 text-xs leading-5 text-foreground">
+              <span className="font-semibold">{volumeLeader.title}</span> es la encuesta con mayor volumen visible: {' '}
+              <span className="font-semibold tabular-nums">{NUMBER_FORMATTER.format(volumeLeader.totalResponses)}</span> de {' '}
+              <span className="font-semibold tabular-nums">{NUMBER_FORMATTER.format(totalVisibleResponses)}</span> respuestas registradas en este escenario.
+              {' '}No se infiere participación ciudadana sin universo ni validación de identidad.
+            </p>
+          </div>
+        ) : null}
+
         {surveyVoting && surveyVoting.realPeople === false ? (
           <div className="border-t border-amber-500/20 bg-amber-500/[0.08] px-4 py-3 text-xs leading-5 text-foreground" role="note">
             Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.
@@ -399,9 +503,42 @@ const ExecutiveSurveyPanel = ({
         ) : null}
       </div>
 
-      {surveyVoting?.items.length ? (
-        <div className="grid gap-3 2xl:grid-cols-2">
-          {surveyVoting.items.map((survey) => <ExecutiveSurveyCard key={survey.id} survey={survey} />)}
+      {surveys.length && activeSurvey ? (
+        <div className="grid items-start gap-3 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.28fr)]" data-demo-survey-master-detail>
+          <aside className="overflow-hidden rounded-2xl border border-border/70 bg-background/75 shadow-sm lg:sticky lg:top-24" aria-labelledby="demo-survey-inventory-title">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/60 px-4 py-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">Explorador ejecutivo</p>
+                <h4 id="demo-survey-inventory-title" className="mt-0.5 text-sm font-bold text-foreground">Inventario de encuestas</h4>
+              </div>
+              <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold tabular-nums text-primary">
+                {activeSurveyIndex + 1} de {surveys.length} en detalle
+              </span>
+            </div>
+            <div role="list" aria-label="Seleccionar encuesta para analizar">
+              {surveys.map((survey, index) => (
+                <div key={survey.id} role="listitem" className="border-b border-border/60 last:border-b-0">
+                  <ExecutiveSurveySelector
+                    survey={survey}
+                    index={index}
+                    isActive={survey.id === activeSurvey.id}
+                    instanceId={instanceId}
+                    detailPanelId={detailPanelId}
+                    onSelect={() => setSelectedSurveyId(survey.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <div
+            id={detailPanelId}
+            role="region"
+            aria-labelledby={surveyControlId(instanceId, activeSurvey.id, activeSurveyIndex)}
+            className="min-w-0 scroll-mt-24"
+          >
+            <ExecutiveSurveyCard key={activeSurvey.id} survey={activeSurvey} />
+          </div>
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-6 text-center">

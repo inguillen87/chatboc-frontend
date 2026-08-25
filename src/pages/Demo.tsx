@@ -22,14 +22,21 @@ import {
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import RubroSelector from "@/components/chat/RubroSelector";
+import ExecutiveClaimsPanel, {
+  type ExecutiveClaimCase,
+  type ExecutiveClaimSourceKind,
+} from '@/components/demo/ExecutiveClaimsPanel';
+import ExecutiveOverviewPanel from '@/components/demo/ExecutiveOverviewPanel';
 import type { Rubro } from "@/types/rubro";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
+import { buildExecutiveOverviewModel } from '@/features/demo/buildExecutiveOverviewModel';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import ExecutiveSurveyPanel from '@/features/demo/ExecutiveSurveyPanel';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
+import { normalizeDemoDetailDestination } from '@/features/demo/normalizeDemoDetailDestination';
 import { DEMO_TENANT_STORAGE_KEY } from '@/features/demo/demoStorage';
 import { normalizeRequestedDemoTenantSlug, resolveDemoTenantSlug } from '@/features/demo/demoTenantSelection';
 import type { LeadCaptureResponse, OperationalTicketResult } from '@/features/chat/chatApi';
@@ -822,21 +829,71 @@ const readDemoEventDetailEndpoint = (event: DemoRuntimeEvent) =>
   readRecordString(readNestedRecord(event.result?.raw, 'ticket'), ['detail_endpoint', 'detail_url', 'endpoint']) ??
   readRecordString(readNestedRecord(event.result?.raw, 'lead'), ['detail_endpoint', 'detail_url', 'endpoint']);
 
-const normalizeDemoDetailEndpoint = (endpoint: string | null) => {
-  if (!endpoint || typeof window === 'undefined' || !window.location?.origin) return null;
-
-  try {
-    const url = new URL(endpoint, window.location.origin);
-    if (url.origin !== window.location.origin) return null;
-    if (!url.pathname.startsWith('/api/')) return null;
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return null;
-  }
-};
-
 const readDemoEventTicketLabel = (event: DemoRuntimeEvent) =>
-  event.ticketId ?? event.leadId ?? event.requestId ?? event.id;
+  stringifyId(event.ticket?.nro_ticket) ?? event.ticketId ?? event.leadId ?? event.requestId ?? event.id;
+
+const runtimeEventsToExecutiveClaims = (events: DemoRuntimeEvent[]): ExecutiveClaimCase[] =>
+  events.map((event) => {
+    const caseCode = readDemoEventTicketLabel(event);
+    const category = event.ticket?.categoria?.trim() || null;
+    const address = event.ticket?.direccion?.trim() || null;
+    return {
+      id: event.id,
+      caseCode,
+      title: category ? `Reclamo de ${category}` : `Caso ${caseCode}`,
+      description: address ? `Ubicación declarada: ${address}` : null,
+      category,
+      status: event.ticket?.status?.trim() || event.status?.trim() || null,
+      priority: null,
+      channel:
+        event.ticket?.canal_ingreso?.trim() ||
+        event.result?.ticket_type?.trim() ||
+        null,
+      zone: null,
+      slaStatus: null,
+      openedAtLabel: 'Creado en esta sesión demo',
+      dataMode: 'session_generated_events',
+      hasLocation: hasTicketLocation(event.ticket),
+    };
+  });
+
+const previewCasesToExecutiveClaims = (
+  cases: ReturnType<typeof normalizePreviewCases>,
+): ExecutiveClaimCase[] =>
+  cases.map((item) => ({
+    id: item.id,
+    caseCode: item.caseCode,
+    title: item.title,
+    description: item.description,
+    category: item.category,
+    status: item.status,
+    priority: item.priority,
+    channel: item.channel,
+    zone: item.zone,
+    slaStatus: item.slaStatus,
+    openedAtLabel: item.openedAtLabel,
+    dataMode: item.dataMode,
+    hasLocation: false,
+  }));
+
+const resolveExecutiveClaimSourceKind = ({
+  cases,
+  hasSessionCases,
+  isSyntheticPreview,
+  municipalTruth,
+}: {
+  cases: ExecutiveClaimCase[];
+  hasSessionCases: boolean;
+  isSyntheticPreview: boolean;
+  municipalTruth: boolean;
+}): ExecutiveClaimSourceKind => {
+  if (hasSessionCases) return 'session';
+  const dataModes = new Set(cases.map((item) => item.dataMode).filter((value): value is string => Boolean(value)));
+  if (dataModes.size > 1) return 'mixed';
+  if (isSyntheticPreview || dataModes.has('synthetic_demo_scenario')) return 'synthetic';
+  if (municipalTruth) return 'verified';
+  return 'unknown';
+};
 
 const runtimeEventsToMapPoints = (events: DemoRuntimeEvent[]): NormalizedPreviewMapPoint[] =>
   events
@@ -1142,7 +1199,7 @@ const DemoDetailDrawer = ({
       <div className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Vista 360</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Seguimiento del caso</p>
             <h3 className="mt-1 truncate text-lg font-bold text-foreground">{readDemoEventTicketLabel(event)}</h3>
           </div>
           <button
@@ -1165,26 +1222,14 @@ const DemoDetailDrawer = ({
             ) : null}
             {ticket?.categoria ? (
               <div className="rounded-lg border bg-muted/20 px-3 py-2">
-                <p className="font-medium text-muted-foreground">Categoria</p>
+                <p className="font-medium text-muted-foreground">Categoría</p>
                 <p className="mt-1 text-foreground">{ticket.categoria}</p>
               </div>
             ) : null}
             {ticket?.direccion ? (
               <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
-                <p className="font-medium text-muted-foreground">Direccion</p>
+                <p className="font-medium text-muted-foreground">Dirección</p>
                 <p className="mt-1 text-foreground">{ticket.direccion}</p>
-              </div>
-            ) : null}
-            {event.requestId ? (
-              <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
-                <p className="font-medium text-muted-foreground">request_id</p>
-                <p className="mt-1 break-all font-mono text-[11px] text-foreground">{event.requestId}</p>
-              </div>
-            ) : null}
-            {endpoint ? (
-              <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
-                <p className="font-medium text-muted-foreground">detail_endpoint</p>
-                <p className="mt-1 break-all font-mono text-[11px] text-foreground">{endpoint}</p>
               </div>
             ) : null}
           </div>
@@ -1198,12 +1243,36 @@ const DemoDetailDrawer = ({
               <DemoErrorPanel error={error} />
             </div>
           ) : detailJson ? (
-            <pre className="mt-4 max-h-72 overflow-auto rounded-xl border bg-muted/20 p-3 text-[11px] leading-5 text-foreground">
-              {detailJson}
-            </pre>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-start gap-3 rounded-xl border border-success/25 bg-success/10 p-4 text-sm text-foreground">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold">Detalle operativo sincronizado</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    El caso fue recuperado desde el backend y está disponible para seguimiento.
+                  </p>
+                </div>
+              </div>
+              <details className="rounded-xl border border-border/70 bg-muted/15">
+                <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                  Ver trazabilidad técnica
+                </summary>
+                <div className="border-t border-border/70 p-3">
+                  {event.requestId ? (
+                    <p className="mb-2 break-all font-mono text-[10px] text-muted-foreground">Solicitud: {event.requestId}</p>
+                  ) : null}
+                  {endpoint ? (
+                    <p className="mb-2 break-all font-mono text-[10px] text-muted-foreground">Origen: {endpoint}</p>
+                  ) : null}
+                  <pre className="max-h-64 overflow-auto rounded-lg bg-background/75 p-3 text-[11px] leading-5 text-foreground">
+                    {detailJson}
+                  </pre>
+                </div>
+              </details>
+            </div>
           ) : (
             <div className="mt-4 rounded-xl border border-dashed bg-muted/10 p-4 text-sm text-muted-foreground">
-              El backend no publico un detalle ampliado para este caso. Se muestra el snapshot recibido en la conversacion.
+              El backend no publicó un detalle ampliado. Se conserva la información confirmada durante la conversación.
             </div>
           )}
         </div>
@@ -1578,10 +1647,6 @@ export const DemoAdminPreview = ({
   const Icon = getDemoPreviewIcon(sector);
   const labels = preview?.labels ?? {};
   const modules = normalizePreviewModules(preview);
-  const cards = hydratePreviewCardsWithRuntime(normalizePreviewCards(preview), runtimeEvents);
-  const metrics = normalizePreviewMetrics(preview);
-  const executiveKpis = metrics.length ? metrics : cards;
-  const timeline = normalizePreviewTimeline(preview);
   const previewCases = normalizePreviewCases(preview);
   const surveyVoting = normalizePreviewSurveyVoting(preview);
   const runtimeMapPoints = runtimeEventsToMapPoints(runtimeEvents);
@@ -1590,7 +1655,6 @@ export const DemoAdminPreview = ({
     : normalizePreviewMap(preview);
   const runtimeTickets = runtimeEvents.filter((event) => event.ticket || event.ticketId);
   const declaredDataMode = preview.data_provenance?.mode ?? preview.operations?.data_policy ?? null;
-  const isMixedPartitioned = declaredDataMode === 'mixed_partitioned';
   const isSyntheticPreview =
     preview.data_provenance?.synthetic === true || declaredDataMode === 'synthetic_demo_scenario';
   const hasSessionCases =
@@ -1601,7 +1665,19 @@ export const DemoAdminPreview = ({
     : isSyntheticPreview || previewCases.some((item) => item.dataMode === 'synthetic_demo_scenario')
       ? 'Casos simulados'
       : 'Casos del panel';
-  const caseSourceIsSession = hasSessionCases;
+  const executiveClaimCases = runtimeTickets.length
+    ? runtimeEventsToExecutiveClaims(runtimeTickets)
+    : previewCasesToExecutiveClaims(previewCases);
+  const executiveClaimSourceKind = resolveExecutiveClaimSourceKind({
+    cases: executiveClaimCases,
+    hasSessionCases,
+    isSyntheticPreview,
+    municipalTruth: preview.data_provenance?.municipal_truth === true,
+  });
+  const runtimeClaimEventsById = new Map(runtimeTickets.map((event) => [event.id, event]));
+  const canOpenRuntimeCase = runtimeTickets.length > 0 && Boolean(onOpenEventDetail);
+  const canShowRuntimeCaseOnMap =
+    runtimeTickets.some((event) => hasTicketLocation(event.ticket)) && Boolean(onActiveTargetChange);
   const caseSample = preview.case_sample;
   const activeModule = modules.find((module) => module.target === activeTarget) ?? modules[0];
   const title = preview.title?.trim() || rubro || readSectorLabel(null, sector);
@@ -1611,11 +1687,12 @@ export const DemoAdminPreview = ({
   const viewLabel = labels.overview ?? labels.view ?? 'Vista 360';
   const rawStatusLabel = preview.status_label?.trim() || labels.status || null;
   const statusLabel = rawStatusLabel ? formatDemoPresentationLabel(rawStatusLabel) : null;
-  const timelineTitle = labels.timeline_title ?? labels.timeline ?? 'Recorrido visible para el equipo';
-  const timelineBadge = labels.timeline_badge ?? null;
-  const timelineDetail = labels.timeline_detail ?? null;
-  const summaryTitle = labels.summary_title ?? null;
-  const summaryDescription = labels.summary_description ?? null;
+  const executiveOverviewModel = {
+    ...buildExecutiveOverviewModel(preview),
+    title: 'Situación operativa y participación',
+    description:
+      'Volumen, nivel de servicio, canales y recorrido operativo con fuente y base declaradas por el backend.',
+  };
   const showSummary = activeModule?.target === 'summary';
   const showClaims = activeModule?.target === 'claims';
   const showMap = activeModule?.target === 'map';
@@ -1684,202 +1761,33 @@ export const DemoAdminPreview = ({
 
           <div role="region" aria-label={activeModule?.label ?? 'Resumen'}>
           {showSummary ? (
-            <>
-              <DemoExecutiveKpiGrid
-                items={executiveKpis}
-                isSynthetic={isSyntheticPreview}
-                isMixedPartitioned={isMixedPartitioned}
-              />
-
-              <div className="mt-4 grid gap-3">
-                <DemoChannelSummary summary={preview.channel_summary} isSynthetic={isSyntheticPreview} />
-                {timeline.length ? (
-                  <section className="rounded-2xl border border-border/70 bg-background/70 p-4" aria-labelledby="demo-timeline-title">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 id="demo-timeline-title" className="text-sm font-semibold text-foreground">{timelineTitle}</h3>
-                      {timelineBadge ? <span className="text-xs text-muted-foreground">{timelineBadge}</span> : null}
-                    </div>
-                    <ol className="space-y-3">
-                      {timeline.map((step, index) => (
-                        <li key={step.id} className="flex items-start gap-3">
-                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-[10px] font-black text-primary">
-                            {index + 1}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-foreground">{step.title}</p>
-                              {step.time ? <span className="text-[11px] font-semibold text-muted-foreground">{step.time}</span> : null}
-                            </div>
-                            {step.description || timelineDetail ? (
-                              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{step.description ?? timelineDetail}</p>
-                            ) : null}
-                            {step.channel || step.status ? (
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {step.channel ? <span className="rounded-full border bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">{formatDemoPresentationLabel(step.channel)}</span> : null}
-                                {step.status ? <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary">{formatDemoPresentationLabel(step.status)}</span> : null}
-                              </div>
-                            ) : null}
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                ) : null}
-                {summaryTitle || summaryDescription ? (
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                    {summaryTitle ? <p className="text-sm font-semibold text-foreground">{summaryTitle}</p> : null}
-                    {summaryDescription ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{summaryDescription}</p> : null}
-                  </div>
-                ) : null}
-              </div>
-            </>
+            <ExecutiveOverviewPanel model={executiveOverviewModel} showSourceDisclosure={false} />
           ) : null}
 
           {showClaims ? (
-            <section className="grid gap-3" aria-labelledby="demo-claims-title" data-demo-claims>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 id="demo-claims-title" className="text-base font-bold text-foreground">Reclamos y casos operativos</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Seguimiento priorizado con canal, zona y estado de SLA.
-                  </p>
-                </div>
-                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                  caseSourceIsSession
-                    ? 'border-primary/25 bg-primary/10 text-primary'
-                    : 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                }`}>
-                  {caseSourceLabel}
-                </span>
-              </div>
-              {caseSample?.sample === true ? (
-                <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-xs leading-5 text-foreground">
-                  <p className="font-semibold">
-                    Muestra visible: {readSummaryValue(caseSample.displayed_cases)} de {readSummaryValue(caseSample.total_cases)} casos del escenario.
-                  </p>
-                  {caseSample.label ? <p className="mt-1 text-muted-foreground">{caseSample.label}</p> : null}
-                </div>
-              ) : null}
-              <div className="grid gap-3 md:grid-cols-2">
-              {runtimeTickets.length ? (
-                runtimeTickets.map((event) => (
-                  <article key={event.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                          {formatDemoPresentationLabel(event.ticket?.canal_ingreso ?? event.result?.ticket_type ?? 'Caso')}
-                        </p>
-                        <h4 className="mt-1 text-lg font-bold text-foreground">
-                          {readDemoEventTicketLabel(event)}
-                        </h4>
-                      </div>
-                      {event.status ? (
-                        <span className="rounded-full border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
-                          {formatDemoPresentationLabel(event.status)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                      {event.ticket?.categoria ? (
-                        <div className="rounded-lg border bg-muted/20 px-3 py-2">
-                          <p className="font-medium text-muted-foreground">Categoria</p>
-                          <p className="mt-1 text-foreground">{event.ticket.categoria}</p>
-                        </div>
-                      ) : null}
-                      {event.ticket?.direccion ? (
-                        <div className="rounded-lg border bg-muted/20 px-3 py-2">
-                          <p className="font-medium text-muted-foreground">Direccion</p>
-                          <p className="mt-1 text-foreground">{event.ticket.direccion}</p>
-                        </div>
-                      ) : null}
-                      {event.requestId ? (
-                        <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
-                          <p className="font-medium text-muted-foreground">request_id</p>
-                          <p className="mt-1 break-all font-mono text-[11px] text-foreground">{event.requestId}</p>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onOpenEventDetail?.(event)}
-                        className="rounded-full border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
-                      >
-                        Ver detalle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onActiveTargetChange?.('map')}
-                        disabled={!hasTicketLocation(event.ticket)}
-                        className="rounded-full border bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Ver mapa
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : previewCases.length ? (
-                previewCases.map((item) => (
-                  <article
-                    key={item.id}
-                    className="rounded-2xl border border-border/70 bg-background/75 p-4 shadow-sm"
-                    data-demo-case-mode={item.dataMode ?? declaredDataMode ?? 'unspecified'}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">{item.caseCode}</p>
-                        <h4 className="mt-1 text-base font-bold leading-6 text-foreground">{item.title}</h4>
-                      </div>
-                      {item.status ? (
-                        <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
-                          {formatDemoPresentationLabel(item.status)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {item.description ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p> : null}
-                    <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      {item.category ? (
-                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
-                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Categoría</dt>
-                          <dd className="mt-1 font-medium text-foreground">{item.category}</dd>
-                        </div>
-                      ) : null}
-                      {item.priority ? (
-                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
-                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</dt>
-                          <dd className="mt-1 font-medium text-foreground">{formatDemoPresentationLabel(item.priority)}</dd>
-                        </div>
-                      ) : null}
-                      {item.channel ? (
-                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
-                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</dt>
-                          <dd className="mt-1 font-medium text-foreground">{formatDemoPresentationLabel(item.channel)}</dd>
-                        </div>
-                      ) : null}
-                      {item.zone ? (
-                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
-                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Zona</dt>
-                          <dd className="mt-1 font-medium text-foreground">{item.zone}</dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-                      {item.slaStatus ? (
-                        <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 font-semibold text-primary">
-                          SLA · {formatDemoPresentationLabel(item.slaStatus)}
-                        </span>
-                      ) : null}
-                      {item.openedAtLabel ? <span className="text-muted-foreground">{item.openedAtLabel}</span> : null}
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground md:col-span-2">
-                  El listado se completa cuando el chat crea un caso en esta sesion.
-                </div>
-              )}
-              </div>
-            </section>
+            <ExecutiveClaimsPanel
+              cases={executiveClaimCases}
+              sourceKind={executiveClaimSourceKind}
+              sourceLabel={caseSourceLabel}
+              showSourceDisclosure={false}
+              sample={caseSample ? {
+                isSample: caseSample.sample === true,
+                displayedCases: readNonNegativeInteger(caseSample.displayed_cases),
+                totalCases: readNonNegativeInteger(caseSample.total_cases),
+                label: caseSample.label ?? null,
+              } : null}
+              orderLabel={runtimeTickets.length
+                ? 'Casos creados durante esta sesión, en orden de actualización.'
+                : 'Orden priorizado publicado por el backend para la muestra visible.'}
+              emptyDescription="El listado se completa cuando el chat crea un caso en esta sesión o el backend publica una cola operativa."
+              onOpenCase={canOpenRuntimeCase ? (item) => {
+                const event = runtimeClaimEventsById.get(item.id);
+                if (event) onOpenEventDetail?.(event);
+              } : undefined}
+              onShowCaseOnMap={canShowRuntimeCaseOnMap
+                ? () => onActiveTargetChange?.('map')
+                : undefined}
+            />
           ) : null}
 
           {showMap ? (
@@ -2079,7 +1987,14 @@ const Demo = () => {
 
   const handleOpenDemoDetail = useCallback(
     (event: DemoRuntimeEvent) => {
-      const endpoint = normalizeDemoDetailEndpoint(readDemoEventDetailEndpoint(event));
+      const destination = normalizeDemoDetailDestination(readDemoEventDetailEndpoint(event));
+
+      if (destination.kind === 'public_tracking') {
+        window.open(destination.href, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const endpoint = destination.kind === 'api' ? destination.href : null;
       setDemoDetailDrawer({
         event,
         endpoint,
@@ -2638,6 +2553,27 @@ const Demo = () => {
               <DemoErrorPanel error={demoError} onRetry={sectorSeleccionado ? () => void startSectorDemo() : undefined} />
             </div>
           ) : null}
+          <details className="group mt-4 rounded-2xl border border-border/70 bg-background/65" data-demo-whatsapp-access>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
+              <span className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
+                Probar el mismo circuito por WhatsApp
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground group-open:hidden">
+                Abrir
+              </span>
+              <span className="hidden text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground group-open:inline">
+                Cerrar
+              </span>
+            </summary>
+            <div className="border-t border-border/70 p-3 sm:p-4">
+              <WhatsappSandboxLauncher
+                initialSector={sectorSeleccionado ?? requestedSandboxSector}
+                initialRubro={rubroClaveSeleccionado ?? requestedSandboxRubro}
+                initialTenantSlug={demoPreviewTenantSlug ?? requestedSandboxTenant}
+              />
+            </div>
+          </details>
         </section>
 
         <div

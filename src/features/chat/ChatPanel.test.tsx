@@ -186,3 +186,93 @@ describe('ChatPanel widget assisted orders', () => {
     expect(screen.queryByText(/Error 404/i)).not.toBeInTheDocument();
   });
 });
+
+describe('ChatPanel structured CTA routing', () => {
+  const chatBootstrap = {
+    contract_version: 'demo.chat_bootstrap.v1',
+    endpoint: '/api/ask/municipio',
+    method: 'POST',
+    payload: {
+      tipo_chat: 'municipio',
+      tenant_slug: 'junin',
+      demo_mode: true,
+    },
+  };
+
+  const leadCapture = {
+    enabled: true,
+    title: 'Datos para seguimiento',
+    fields: [{ name: 'email', label: 'Correo electronico', type: 'email', required: true }],
+    trigger_intents: [
+      'crear_reclamo',
+      'consultar_estado_reclamo',
+      'derivar_humano',
+      'capturar_lead_comercial',
+    ],
+  };
+
+  beforeEach(() => {
+    sendChatBootstrapMessageMock.mockReset();
+    submitWidgetAssistedOrderMock.mockReset();
+    sendChatBootstrapMessageMock.mockResolvedValue({ message_body: 'Accion recibida por el runtime.' });
+  });
+
+  it.each([
+    ['Crear reclamo', 'crear_reclamo'],
+    ['Consultar estado', 'consultar_estado_reclamo'],
+    ['Hablar con una persona', 'derivar_humano'],
+  ])('sends the operational CTA %s to the runtime before any contact capture', async (label, intent) => {
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          sector: 'gobierno',
+          tenantSlug: 'junin',
+          chatBootstrap,
+        }}
+        leadCapture={leadCapture}
+        conversionCtas={{
+          actions: [{ id: intent, label, intent }],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: label }));
+
+    await waitFor(() => expect(sendChatBootstrapMessageMock).toHaveBeenCalledTimes(1));
+    expect(sendChatBootstrapMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: '/api/ask/municipio' }),
+      expect.objectContaining({ text: label, intent, action_id: intent }),
+      'junin',
+    );
+    expect(screen.queryByLabelText('Correo electronico')).not.toBeInTheDocument();
+  });
+
+  it('keeps an explicit lead CTA on the contact capture flow', () => {
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          sector: 'gobierno',
+          tenantSlug: 'junin',
+          chatBootstrap,
+        }}
+        leadCapture={leadCapture}
+        conversionCtas={{
+          actions: [
+            {
+              id: 'capturar_lead_comercial',
+              label: 'Solicitar una demo',
+              intent: 'capturar_lead_comercial',
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar una demo' }));
+
+    expect(screen.getByLabelText('Correo electronico')).toBeInTheDocument();
+    expect(sendChatBootstrapMessageMock).not.toHaveBeenCalled();
+  });
+});

@@ -72,6 +72,9 @@ export interface DemoAdminPreviewCard {
   icon?: string | null;
   period?: string | null;
   data_mode?: string | null;
+  denominator?: { label?: string | null; value?: string | number | null } | null;
+  denominator_label?: string | null;
+  denominator_value?: string | number | null;
   [key: string]: unknown;
 }
 
@@ -87,6 +90,10 @@ export interface DemoAdminPreviewMetric {
   period?: string | null;
   data_mode?: string | null;
   icon?: string | null;
+  numerator?: { label?: string | null; value?: string | number | null } | null;
+  denominator?: { label?: string | null; value?: string | number | null } | null;
+  denominator_label?: string | null;
+  denominator_value?: string | number | null;
   [key: string]: unknown;
 }
 

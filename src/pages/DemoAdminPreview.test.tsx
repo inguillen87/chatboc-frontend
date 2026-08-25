@@ -194,22 +194,25 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Centro de comando ciudadano' })).toBeVisible();
     expect(screen.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
 
-    const grid = document.querySelector('[data-demo-kpi-list]');
+    expect(screen.getByRole('heading', { level: 3, name: 'Situación operativa y participación' })).toBeVisible();
+    const grid = document.querySelector('[data-executive-overview-scorecards] ul');
     expect(grid?.tagName).toBe('UL');
-    expect(grid).toHaveClass('grid-cols-2', '2xl:grid-cols-4');
+    expect(grid).toHaveClass('sm:grid-cols-2', '2xl:grid-cols-4');
     const kpiItems = within(grid as HTMLElement).getAllByRole('listitem');
     expect(kpiItems).toHaveLength(4);
     expect(kpiItems.every((item) => item.tagName === 'LI' && !item.hasAttribute('role'))).toBe(true);
     expect(screen.getByText('184 casos')).toBeVisible();
     expect(screen.getByText('87 %')).toBeVisible();
-    expect(screen.getAllByText('3,4 min')).toHaveLength(2);
+    expect(screen.getByText('3,4 min')).toBeVisible();
     expect(screen.getByText('100 votos')).toBeVisible();
+    expect(screen.getAllByText('demo.admin_preview.v1')).toHaveLength(4);
+    expect(screen.getAllByText('Base no informada')).toHaveLength(4);
     expect(screen.queryByText('Tarjeta anterior')).not.toBeInTheDocument();
 
     expect(screen.getByRole('heading', { level: 3, name: 'Canales y SLA del escenario' })).toBeVisible();
     expect(screen.getByText('298', { exact: true })).toBeVisible();
-    expect(screen.getByRole('progressbar', { name: 'WhatsApp: 70 %' })).toHaveAttribute('aria-valuenow', '70');
-    expect(screen.getByRole('heading', { level: 3, name: 'Recorrido visible para el equipo' })).toBeVisible();
+    expect(screen.getByRole('meter', { name: 'WhatsApp: 298, 70 %' })).toHaveAttribute('aria-valuenow', '70');
+    expect(screen.getByRole('heading', { level: 3, name: 'Circuito operativo visible' })).toBeVisible();
   });
 
   it('shows synthetic cases as a fallback and never labels them as real session events', () => {
@@ -225,7 +228,9 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('Casos simulados')).toBeVisible();
     expect(screen.getByText('REC-2026-0184')).toBeVisible();
     expect(screen.getByText('Luminaria sin servicio')).toBeVisible();
-    expect(screen.getByText('Muestra visible: 1 de 184 casos del escenario.')).toBeVisible();
+    expect(screen.getByText('1 de 184 casos informados por el contrato.')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Distribución por estado' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Demanda por categoría' })).toBeVisible();
     expect(screen.queryByText('Eventos reales de esta sesión', { exact: true })).not.toBeInTheDocument();
   });
 
@@ -274,7 +279,9 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Encuestas y votaciones' })).toBeVisible();
     expect(screen.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
     expect(screen.getByText('1 visible de 6 encuestas demo')).toBeVisible();
-    expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Votación de prioridades barriales' }),
+    ).toBeVisible();
     expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
     expect(screen.getByRole('button', { name: 'Zona' })).toHaveAttribute('aria-pressed', 'true');
@@ -341,7 +348,12 @@ describe('DemoAdminPreview executive snapshot', () => {
             ticketId: '991',
             status: 'abierto',
             updatedAt: '2026-08-25T12:00:00Z',
-            ticket: { ticket_id: 991, categoria: 'Arbolado', direccion: 'Plaza central' },
+            ticket: {
+              ticket_id: 991,
+              nro_ticket: 'JN-PUBLIC-991',
+              categoria: 'Arbolado',
+              direccion: 'Plaza central',
+            },
           },
         ]}
       />,
@@ -352,7 +364,8 @@ describe('DemoAdminPreview executive snapshot', () => {
       'Actividad de esta sesión + encuesta demo separada',
     );
     expect(screen.getByRole('note')).toHaveTextContent('partición sintética separada');
-    expect(screen.getByText('991')).toBeVisible();
+    expect(screen.getByText('JN-PUBLIC-991')).toBeVisible();
+    expect(screen.queryByText('991', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('REC-2026-0184')).not.toBeInTheDocument();
     expect(screen.queryByText('Casos simulados')).not.toBeInTheDocument();
   });
@@ -390,7 +403,7 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByText('Fuentes separadas')).toBeVisible();
+    expect(screen.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toBeVisible();
     expect(screen.getByText('Sesión actual')).toBeVisible();
     expect(screen.getByText('Demo sintética')).toBeVisible();
     expect(screen.getByText('100 votos')).toBeVisible();
