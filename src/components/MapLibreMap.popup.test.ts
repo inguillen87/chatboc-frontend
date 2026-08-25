@@ -52,4 +52,28 @@ describe('MapLibreMap popup content', () => {
     const links = Array.from(node.querySelectorAll('a')).map((link) => link.getAttribute('href'));
     expect(links).toEqual(['/chat/M-1', '/chat/M%2F%3C2%3E']);
   });
+
+  it('uses survey language and omits ticket actions for participation points', () => {
+    const node = buildMapClusterPopupContent({
+      popupContext: 'survey',
+      cluster: {
+        id: 42,
+        lat: -33.14,
+        lng: -68.48,
+        totalWeight: 27,
+        clusterSize: 27,
+        barrio: 'Centro',
+        canal: 'WhatsApp',
+        sampleTickets: ['M-1'],
+      },
+    });
+
+    expect(node).toHaveTextContent('Respuestas representadas: 27');
+    expect(node).toHaveTextContent('Zona: Centro');
+    expect(node).toHaveTextContent('Canal: WhatsApp');
+    expect(node).not.toHaveTextContent('Reportes en la zona');
+    expect(node).not.toHaveTextContent('Peso agregado');
+    expect(node).not.toHaveTextContent('Tickets relacionados');
+    expect(node.querySelector('a')).toBeNull();
+  });
 });

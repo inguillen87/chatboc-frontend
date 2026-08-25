@@ -326,6 +326,7 @@ describe("MapLibreMap lifecycle", () => {
         ariaDescribedBy="territory-map-description"
         fitToBounds={fitToBounds}
         fitBoundsRequestKey={0}
+        heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 1 }]}
         geoLayerConfig={configFor(sourceFor("junin", -68.48))}
       />,
     );
@@ -334,18 +335,52 @@ describe("MapLibreMap lifecycle", () => {
       screen.getByRole("region", { name: "Mapa de participación de Junin, Mendoza" }),
     ).toHaveAttribute("aria-describedby", "territory-map-description");
     await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(1));
+    const mapOptions = mapMocks.constructorCalls[0] as { container: HTMLElement };
+    expect(mapOptions.container).toHaveClass("h-full", "w-full");
+    expect(mapOptions.container).not.toHaveClass("absolute", "inset-0");
+
+    // A live vote changes weights and object identities, but not geography.
+    rerender(
+      <MapLibreMap
+        ariaLabel="Mapa de participación de Junin, Mendoza"
+        ariaDescribedBy="territory-map-description"
+        fitToBounds={fitToBounds.map(([lng, lat]) => [lng, lat] as [number, number])}
+        fitBoundsRequestKey={0}
+        heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 99 }]}
+        geoLayerConfig={configFor(sourceFor("junin", -68.48))}
+      />,
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(1);
+
+    const changedCoordinates: [number, number][] = [
+      [-68.5, -33.16],
+      [-68.44, -33.1],
+    ];
+    rerender(
+      <MapLibreMap
+        ariaLabel="Mapa de participación de Junin, Mendoza"
+        ariaDescribedBy="territory-map-description"
+        fitToBounds={changedCoordinates}
+        fitBoundsRequestKey={0}
+        heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 99 }]}
+        geoLayerConfig={configFor(sourceFor("junin", -68.48))}
+      />,
+    );
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2));
 
     rerender(
       <MapLibreMap
         ariaLabel="Mapa de participación de Junin, Mendoza"
         ariaDescribedBy="territory-map-description"
-        fitToBounds={fitToBounds}
+        fitToBounds={changedCoordinates}
         fitBoundsRequestKey={1}
+        heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 100 }]}
         geoLayerConfig={configFor(sourceFor("junin", -68.48))}
       />,
     );
 
-    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(3));
     expect(mapMocks.constructorCalls).toHaveLength(1);
     expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
   });

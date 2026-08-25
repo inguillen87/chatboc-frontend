@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SurveyLiveHeatmapPreview } from './SurveyLiveHeatmapPreview';
@@ -10,12 +10,14 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     showHeatmap,
     ariaLabel,
     fitBoundsRequestKey,
+    popupContext,
   }: {
     heatmapData?: unknown[];
     evidence?: { usingSyntheticPoints?: boolean; label?: string };
     showHeatmap?: boolean;
     ariaLabel?: string;
     fitBoundsRequestKey?: number;
+    popupContext?: string;
   }) => (
     <div
       data-testid="mock-survey-live-maplibre"
@@ -24,6 +26,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-evidence-label={evidence?.label}
       data-show-heatmap={String(Boolean(showHeatmap))}
       data-fit-request={String(fitBoundsRequestKey ?? 0)}
+      data-popup-context={popupContext}
       aria-label={ariaLabel}
     >
       mapa live {heatmapData?.length ?? 0}
@@ -88,8 +91,10 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('survey live results');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('WGS84');
-    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Mín. 3');
-    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Máx. 7');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Densidad espacial relativa');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mín. 3');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mediana 5');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('máx. 7');
     expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('Centro');
     expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('70%');
     expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('San Martin');
@@ -99,6 +104,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Fallback local seguro');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('encuesta o votacion');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusión por WhatsApp');
+    expect(screen.queryByText('share_public_link')).not.toBeInTheDocument();
     expect(screen.queryByText(/radar/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId('survey-live-heatmap-radar')).not.toBeInTheDocument();
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
@@ -106,6 +112,7 @@ describe('SurveyLiveHeatmapPreview', () => {
       'aria-label',
       'Mapa de participación de Junin, Mendoza',
     );
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-popup-context', 'survey');
   });
 
   it('offers keyboard-addressable density, point and fit controls', () => {
@@ -129,6 +136,9 @@ describe('SurveyLiveHeatmapPreview', () => {
     fireEvent.click(pointsButton);
     expect(pointsButton).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'false');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent(
+      'Volumen por ubicación',
+    );
 
     fireEvent.click(fitButton);
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-fit-request', '1');
@@ -149,6 +159,52 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByText(/no coordenadas suficientes/i)).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('La Colonia');
     expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('La Colonia');
+  });
+
+  it('rejects blank, out-of-range and zero-placeholder coordinates before rendering the map', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          jurisdiction,
+          points: [
+            { lat: '', lng: '', count: 1, barrio: 'Vacía' },
+            { lat: null, lng: null, count: 1, barrio: 'Nula' },
+            { lat: 91, lng: -68.48, count: 1, barrio: 'Latitud inválida' },
+            { lat: -33.14, lng: 181, count: 1, barrio: 'Longitud inválida' },
+            { lat: 0, lng: 0, count: 1, barrio: 'Marcador nulo' },
+            { lat: -33.144539, lng: -68.485729, count: 1, barrio: 'Centro' },
+          ] as any,
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('6');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '1');
+  });
+
+  it('reports every distinct zone while limiting the operational ranking to five', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          jurisdiction,
+          points: Array.from({ length: 7 }, (_, index) => ({
+            lat: -33.14 - index * 0.001,
+            lng: -68.48 - index * 0.001,
+            count: 7 - index,
+            barrio: `Zona ${index + 1}`,
+          })),
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-zones-count')).toHaveTextContent('7');
+    expect(screen.getByText('Top 5 de 7')).toBeInTheDocument();
+    const ranking = within(screen.getByTestId('survey-live-heatmap-zone-ranking'));
+    expect(ranking.getByText('Zona 5')).toBeInTheDocument();
+    expect(ranking.queryByText('Zona 6')).not.toBeInTheDocument();
+    expect(ranking.queryByText('Zona 7')).not.toBeInTheDocument();
   });
 
   it('keeps an actionable empty state while preserving jurisdiction evidence', () => {

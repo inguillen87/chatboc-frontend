@@ -105,7 +105,19 @@ export type MapLibreMapProps = {
   providerFallbackMessage?: string | null;
   ariaLabel?: string;
   ariaDescribedBy?: string;
+  popupContext?: "tickets" | "survey";
 };
+
+const isRenderableCoordinatePair = (lat: unknown, lng: unknown): lat is number =>
+  typeof lat === "number" &&
+  typeof lng === "number" &&
+  Number.isFinite(lat) &&
+  Number.isFinite(lng) &&
+  lat >= -90 &&
+  lat <= 90 &&
+  lng >= -180 &&
+  lng <= 180 &&
+  !(lat === 0 && lng === 0);
 
 const addLayer = (map: Map, layer: any) => {
   if (!map.getLayer(layer.id)) {
@@ -252,6 +264,10 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       id: p.id,
       ticket: p.ticket,
       categoria: p.categoria,
+      canal: p.canal,
+      fuente: p.fuente,
+      source: p.source,
+      total: p.total,
       categoryColor: p.categoryColor,
       direccion: p.direccion,
       distrito: p.distrito,
@@ -358,10 +374,12 @@ export const buildMapClusterPopupContent = ({
   cluster,
   properties,
   numberFormatter = popupNumberFormatter,
+  popupContext = "tickets",
 }: {
   cluster?: HeatPoint;
   properties?: Record<string, unknown>;
   numberFormatter?: Intl.NumberFormat;
+  popupContext?: "tickets" | "survey";
 }) => {
   const root = document.createElement("div");
   root.className = "max-w-xs space-y-1";
@@ -373,6 +391,25 @@ export const buildMapClusterPopupContent = ({
     const totalWeight = Number.isFinite(cluster.totalWeight)
       ? Number(cluster.totalWeight)
       : Number(cluster.weight ?? 0);
+
+    if (popupContext === "survey") {
+      const representedResponses = totalWeight > 0 ? totalWeight : clusterSize;
+      appendPopupText(
+        root,
+        "p",
+        `Respuestas representadas: ${numberFormatter.format(representedResponses)}`,
+        "text-sm font-semibold text-slate-800",
+      );
+
+      const zone = cluster.barrio ?? cluster.distrito;
+      if (zone) {
+        appendPopupText(root, "p", `Zona: ${zone}`, "text-xs text-slate-600");
+      }
+      if (cluster.canal) {
+        appendPopupText(root, "p", `Canal: ${cluster.canal}`, "text-xs text-slate-600");
+      }
+      return root;
+    }
 
     appendPopupText(
       root,
@@ -460,6 +497,34 @@ export const buildMapClusterPopupContent = ({
   const direccion = safeProperties.direccion;
   const distrito = safeProperties.distrito;
 
+  if (popupContext === "survey") {
+    const responseCandidates = [
+      safeProperties.totalWeight,
+      safeProperties.total,
+      safeProperties.clusterSize,
+      safeProperties.weight,
+    ];
+    const representedResponses = responseCandidates
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value) && value >= 0);
+    appendPopupText(
+      root,
+      "p",
+      Number.isFinite(representedResponses)
+        ? `Respuestas representadas: ${numberFormatter.format(representedResponses as number)}`
+        : "Participación territorial",
+      "text-sm font-semibold text-slate-800",
+    );
+    const zone = safeProperties.barrio ?? distrito;
+    if (zone) {
+      appendPopupText(root, "p", `Zona: ${String(zone)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.canal) {
+      appendPopupText(root, "p", `Canal: ${String(safeProperties.canal)}`, "text-xs text-slate-600");
+    }
+    return root;
+  }
+
   if (ticket || id) {
     appendPopupText(root, "p", `Ticket #${String(ticket ?? id)}`, "text-sm font-semibold");
   }
@@ -542,6 +607,7 @@ export default function MapLibreMap({
   providerFallbackMessage,
   ariaLabel,
   ariaDescribedBy,
+  popupContext = "tickets",
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapGeneration, setMapGeneration] = useState(0);
@@ -550,7 +616,7 @@ export default function MapLibreMap({
     () =>
       (heatmapData ?? []).filter(
         (point): point is HeatPoint & { lat: number; lng: number } =>
-          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+          Boolean(point) && isRenderableCoordinatePair(point.lat, point.lng),
       ),
     [heatmapData],
   );
@@ -663,6 +729,7 @@ export default function MapLibreMap({
   const configuredGeoSourceRef = useRef(configuredGeoSource);
   const configuredInteractionsRef = useRef(configuredInteractions);
   const contractVersionRef = useRef(geoLayerConfig?.contract_version ?? null);
+  const popupContextRef = useRef<"tickets" | "survey">(popupContext);
   const emitBackendMapEventRef = useRef(emitBackendMapEvent);
   const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
   const boundingBoxControllerRef = useRef<{ setEnabled: (enabled: boolean) => void } | null>(null);
@@ -693,6 +760,8 @@ export default function MapLibreMap({
   const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
   const initialZoomRef = useRef(initialZoom);
+  const prefersReducedMotionRef = useRef(prefersReducedMotion);
+  const boundsPaddingRef = useRef(boundsPadding);
 
   useEffect(() => {
     apiKeyRef.current = resolvedMaptilerKey;
@@ -723,6 +792,14 @@ export default function MapLibreMap({
   }, [initialZoom]);
 
   useEffect(() => {
+    prefersReducedMotionRef.current = prefersReducedMotion;
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    boundsPaddingRef.current = boundsPadding;
+  }, [boundsPadding]);
+
+  useEffect(() => {
     latestHeatmap.current = processedHeatmap;
   }, [processedHeatmap]);
 
@@ -737,6 +814,10 @@ export default function MapLibreMap({
   useEffect(() => {
     contractVersionRef.current = geoLayerConfig?.contract_version ?? null;
   }, [geoLayerConfig?.contract_version]);
+
+  useEffect(() => {
+    popupContextRef.current = popupContext;
+  }, [popupContext]);
 
   useEffect(() => {
     emitBackendMapEventRef.current = emitBackendMapEvent;
@@ -1263,7 +1344,11 @@ export default function MapLibreMap({
           const popup = new maplibre.Popup();
           popup
             .setLngLat(coords as LngLatLike)
-            .setDOMContent(buildMapClusterPopupContent({ cluster, properties }))
+            .setDOMContent(buildMapClusterPopupContent({
+              cluster,
+              properties,
+              popupContext: popupContextRef.current,
+            }))
             .addTo(mapInstance);
         };
 
@@ -1376,13 +1461,13 @@ export default function MapLibreMap({
 
     if (Number.isFinite(centerLng) && Number.isFinite(centerLat)) {
       const nextCenter: [number, number] = [centerLng as number, centerLat as number];
-      if (prefersReducedMotion) {
+      if (prefersReducedMotionRef.current) {
         map.jumpTo({ center: nextCenter, zoom: initialZoomRef.current });
       } else {
         map.flyTo({ center: nextCenter, zoom: initialZoomRef.current });
       }
     }
-  }, [centerLat, centerLng, mapGeneration, prefersReducedMotion]);
+  }, [centerLat, centerLng, mapGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1559,18 +1644,25 @@ export default function MapLibreMap({
     }
   }, [adminLocation, mapGeneration]);
 
+  const fitBoundsCoordinatesKey = JSON.stringify(
+    (fitToBounds ?? []).filter(
+      (value): value is [number, number] =>
+        Array.isArray(value) &&
+        value.length === 2 &&
+        isRenderableCoordinatePair(value[1], value[0]),
+    ),
+  );
+  const stableFitBoundsCoordinates = useMemo(
+    () => JSON.parse(fitBoundsCoordinatesKey) as [number, number][],
+    [fitBoundsCoordinatesKey],
+  );
+
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
     if (!map) return;
 
-    const coords = (fitToBounds ?? []).filter(
-      (value): value is [number, number] =>
-        Array.isArray(value) &&
-        value.length === 2 &&
-        Number.isFinite(value[0]) &&
-        Number.isFinite(value[1]),
-    );
+    const coords = stableFitBoundsCoordinates;
 
     if (!coords.length) {
       return;
@@ -1579,7 +1671,7 @@ export default function MapLibreMap({
     const applyBounds = () => {
       const moveTo = (nextCenter: [number, number]) => {
         const options = { center: nextCenter, zoom: initialZoomRef.current };
-        if (prefersReducedMotion) {
+        if (prefersReducedMotionRef.current) {
           map.jumpTo(options);
         } else {
           map.flyTo(options);
@@ -1609,8 +1701,8 @@ export default function MapLibreMap({
 
         try {
           map.fitBounds(bounds, {
-            padding: boundsPadding ?? 48,
-            duration: prefersReducedMotion ? 0 : 1000,
+            padding: boundsPaddingRef.current ?? 48,
+            duration: prefersReducedMotionRef.current ? 0 : 1000,
           });
           return;
         } catch (err) {
@@ -1629,7 +1721,7 @@ export default function MapLibreMap({
         map.off("load", applyBounds);
       };
     }
-  }, [boundsPadding, fitBoundsRequestKey, fitToBounds, mapGeneration, prefersReducedMotion]);
+  }, [fitBoundsCoordinatesKey, fitBoundsRequestKey, mapGeneration, stableFitBoundsCoordinates]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1688,7 +1780,7 @@ export default function MapLibreMap({
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
     >
-      <div ref={mapContainerRef} className="absolute inset-0" />
+      <div ref={mapContainerRef} className="h-full w-full" />
       <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
       {providerFallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">

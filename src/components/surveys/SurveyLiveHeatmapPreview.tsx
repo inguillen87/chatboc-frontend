@@ -72,13 +72,31 @@ const SOURCE_LABELS: Record<string, string> = {
   generic_demo_anchor: 'Anclaje territorial genérico',
 };
 
+const DENSITY_LEGEND_GRADIENT =
+  'linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(45,212,191,.62) 18%, rgba(59,130,246,.72) 36%, rgba(168,85,247,.76) 58%, rgba(251,191,36,.84) 78%, rgba(244,63,94,.96) 100%)';
+const POINTS_LEGEND_GRADIENT =
+  'linear-gradient(90deg, #38bdf8 0%, #2563eb 30%, #1d4ed8 58%, #ef4444 100%)';
+
+const SURVEY_MAP_BOUNDS_PADDING = { top: 72, right: 52, bottom: 92, left: 52 } as const;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const toFiniteNumber = (value: unknown, fallback = Number.NaN) => {
+  if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+  if (typeof value === 'string' && !value.trim()) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+
+const isValidCoordinatePair = (lat: number, lng: number) =>
+  Number.isFinite(lat) &&
+  Number.isFinite(lng) &&
+  lat >= -90 &&
+  lat <= 90 &&
+  lng >= -180 &&
+  lng <= 180 &&
+  !(lat === 0 && lng === 0);
 
 const readNumber = (item: Record<string, unknown>, keys: string[], fallback = Number.NaN) => {
   for (const key of keys) {
@@ -117,14 +135,15 @@ const normalizeDatum = (
   const record = item as Record<string, unknown>;
   const lat = readNumber(record, ['lat', 'latitude', 'centroid_lat']);
   const lng = readNumber(record, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']);
+  const hasValidCoordinates = isValidCoordinatePair(lat, lng);
 
   return {
     id: `${kind}-${readString(record, ['id', 'clusterId', 'cluster_id', 'cellId', 'cell_id']) ?? index}`,
     value: datumValue(record),
     label: readString(record, ['barrio', 'zona', 'distrito', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']),
     channel: readString(record, ['canal', 'channel', 'source', 'fuente']),
-    lat: Number.isFinite(lat) ? lat : undefined,
-    lng: Number.isFinite(lng) ? lng : undefined,
+    lat: hasValidCoordinates ? lat : undefined,
+    lng: hasValidCoordinates ? lng : undefined,
     kind,
   };
 };
@@ -141,20 +160,19 @@ const summarizeBy = (
   });
   return Array.from(totals.entries())
     .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
+    .sort((a, b) => b.value - a.value);
 };
 
 const parseJurisdictionCenter = (value: unknown): [number, number] | undefined => {
   if (Array.isArray(value) && value.length >= 2) {
     const lng = toFiniteNumber(value[0]);
     const lat = toFiniteNumber(value[1]);
-    return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : undefined;
+    return isValidCoordinatePair(lat, lng) ? [lng, lat] : undefined;
   }
   if (!isRecord(value)) return undefined;
   const lat = readNumber(value, ['lat', 'latitude']);
   const lng = readNumber(value, ['lng', 'lon', 'longitude']);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : undefined;
+  return isValidCoordinatePair(lat, lng) ? [lng, lat] : undefined;
 };
 
 const resolveJurisdiction = (heatmap?: SurveyLiveHeatmap | null): ResolvedJurisdiction | null => {
@@ -200,7 +218,7 @@ const resolveJurisdiction = (heatmap?: SurveyLiveHeatmap | null): ResolvedJurisd
 const buildMapLibreHeatmapData = (items: TerritorialDatum[]): HeatPoint[] => {
   const mapped = items.filter(
     (item): item is TerritorialDatum & { lat: number; lng: number } =>
-      Number.isFinite(item.lat) && Number.isFinite(item.lng),
+      isValidCoordinatePair(item.lat ?? Number.NaN, item.lng ?? Number.NaN),
   );
   const maxValue = Math.max(1, ...mapped.map((item) => item.value));
 
@@ -229,16 +247,10 @@ const resolveMapCenter = (
   jurisdictionCenter?: [number, number],
 ): [number, number] | undefined => {
   if (!points.length) return jurisdictionCenter;
-  const totalWeight = points.reduce((sum, point) => sum + Math.max(0, point.totalWeight ?? 0), 0);
-  const divisor = totalWeight > 0 ? totalWeight : points.length;
-  const lat = points.reduce(
-    (sum, point) => sum + point.lat * (totalWeight > 0 ? Math.max(0, point.totalWeight ?? 0) : 1),
-    0,
-  ) / divisor;
-  const lng = points.reduce(
-    (sum, point) => sum + point.lng * (totalWeight > 0 ? Math.max(0, point.totalWeight ?? 0) : 1),
-    0,
-  ) / divisor;
+  // The camera center must depend on geography, not on live vote weights. Otherwise
+  // every response can move the map while an operator is inspecting a location.
+  const lat = points.reduce((sum, point) => sum + point.lat, 0) / points.length;
+  const lng = points.reduce((sum, point) => sum + point.lng, 0) / points.length;
   return [lng, lat];
 };
 
@@ -255,10 +267,12 @@ const humanizeSource = (value?: string) => {
   return SOURCE_LABELS[value] ?? value.replace(/[_-]+/g, ' ');
 };
 
-const percentile = (values: number[], ratio: number) => {
+const median = (values: number[]) => {
   if (!values.length) return 0;
-  const index = Math.min(values.length - 1, Math.max(0, Math.round((values.length - 1) * ratio)));
-  return values[index];
+  const midpoint = Math.floor(values.length / 2);
+  return values.length % 2 === 0
+    ? ((values[midpoint - 1] ?? 0) + (values[midpoint] ?? 0)) / 2
+    : (values[midpoint] ?? 0);
 };
 
 function RankingList({
@@ -386,8 +400,10 @@ export function SurveyLiveHeatmapPreview({
   const provider = readString(metadata, ['provider', 'provider_hint']);
   const contractVersion = readString(metadata, ['contract_version']);
   const totalSignal = summaryData.reduce((sum, item) => sum + item.value, 0);
-  const topZones = useMemo(() => summarizeBy(summaryData, (item) => item.label), [summaryData]);
-  const topChannels = useMemo(() => summarizeBy(summaryData, (item) => item.channel), [summaryData]);
+  const zoneSummaries = useMemo(() => summarizeBy(summaryData, (item) => item.label), [summaryData]);
+  const channelSummaries = useMemo(() => summarizeBy(summaryData, (item) => item.channel), [summaryData]);
+  const topZones = useMemo(() => zoneSummaries.slice(0, 5), [zoneSummaries]);
+  const topChannels = useMemo(() => channelSummaries.slice(0, 5), [channelSummaries]);
   const focusZone = topZones[0];
   const dominantChannel = topChannels[0];
   const hasTerritorialData = summaryData.length > 0;
@@ -398,7 +414,7 @@ export function SurveyLiveHeatmapPreview({
   );
   const intensityScale = {
     min: values[0] ?? 0,
-    median: percentile(values, 0.5),
+    median: median(values),
     max: values[values.length - 1] ?? 0,
   };
   const provenanceLabel = usesSyntheticPoints
@@ -503,9 +519,9 @@ export function SurveyLiveHeatmapPreview({
               <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{cellsLabel}</p>
               <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatCount(rawCellsCount, totalCellsCount)}</p>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-zones-count">
               <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Zonas</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{topZones.length}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{zoneSummaries.length}</p>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
               <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Volumen</p>
@@ -572,8 +588,9 @@ export function SurveyLiveHeatmapPreview({
                   center={mapCenter}
                   fitToBounds={mapBounds}
                   fitBoundsRequestKey={fitBoundsRequestKey}
-                  boundsPadding={{ top: 72, right: 52, bottom: 92, left: 52 }}
+                  boundsPadding={SURVEY_MAP_BOUNDS_PADDING}
                   heatmapData={mapLibreHeatmapData}
+                  popupContext="survey"
                   showHeatmap={mapMode === 'density'}
                   disableClientClustering
                   initialZoom={11}
@@ -610,18 +627,25 @@ export function SurveyLiveHeatmapPreview({
             {hasMappedData ? (
               <div
                 className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-slate-700/80 bg-slate-950/90 px-3 py-2.5 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
-                aria-label={`Escala de intensidad. Mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
+                aria-label={`${mapMode === 'density' ? 'Escala relativa de densidad espacial' : 'Escala de volumen por ubicación'}. Volumen observado: mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
                 data-testid="survey-live-heatmap-quantitative-legend"
               >
                 <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                  <span>Respuestas por ubicación</span>
+                  <span>{mapMode === 'density' ? 'Densidad espacial relativa' : 'Volumen por ubicación'}</span>
                   <span>{mapMode === 'density' ? 'Densidad' : 'Puntos'}</span>
                 </div>
-                <div className="mt-2 h-2.5 rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-rose-500" />
-                <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px] text-slate-300">
-                  <span>Mín. {formatMetric(intensityScale.min)}</span>
-                  <span className="text-center">Mediana {formatMetric(intensityScale.median)}</span>
-                  <span className="text-right">Máx. {formatMetric(intensityScale.max)}</span>
+                <div
+                  className="mt-2 h-2.5 rounded-full border border-white/10"
+                  style={{ background: mapMode === 'density' ? DENSITY_LEGEND_GRADIENT : POINTS_LEGEND_GRADIENT }}
+                />
+                <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-slate-400" aria-hidden="true">
+                  <span>Menor</span>
+                  <span>Intermedia</span>
+                  <span>Mayor</span>
+                </div>
+                <div className="mt-2 border-t border-slate-700/80 pt-2 text-[11px] text-slate-300">
+                  <span className="font-semibold text-slate-200">Volumen observado:</span>{' '}
+                  mín. {formatMetric(intensityScale.min)} · mediana {formatMetric(intensityScale.median)} · máx. {formatMetric(intensityScale.max)}
                 </div>
               </div>
             ) : null}
@@ -711,7 +735,9 @@ export function SurveyLiveHeatmapPreview({
                 <Layers3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
                 <h4 id={`${reactId}-zones-ranking`} className="text-sm font-semibold text-white">Ranking territorial</h4>
               </div>
-              <span className="text-xs text-slate-400">Top {topZones.length}</span>
+              <span className="text-xs text-slate-400">
+                Top {topZones.length} de {zoneSummaries.length}
+              </span>
             </div>
             <RankingList
               items={topZones}
@@ -774,7 +800,6 @@ export function SurveyLiveHeatmapPreview({
                       className={`rounded-xl border px-3 py-2.5 ${priorityTone(action.priority)}`}
                     >
                       <p className="text-sm font-medium text-white">{displayText(action.label, 'Revisar señal territorial')}</p>
-                      {action.ui_hint ? <p className="mt-1 text-xs opacity-75">{displayText(action.ui_hint, '')}</p> : null}
                     </div>
                   ))}
                 </div>
