@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -368,7 +369,6 @@ function SafeAnimatePresence({ children = null, ...rest }: React.PropsWithChildr
 }
 
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
-const ChatPanel = React.lazy(() => import("@/features/chat/ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
 const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
@@ -3115,8 +3115,7 @@ function ChatWidgetInner({
                 >
                   <ChatPanel
                     key={`chat-panel-${chatPanelResetKey}`}
-                    variant="legacy-widget"
-                    mode={mode}
+                    mode={mode === "preview" ? "standalone" : mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
