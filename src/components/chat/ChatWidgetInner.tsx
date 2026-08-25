@@ -33,7 +33,8 @@ import {
   CHATBOC_AGENT_MARK,
   getChatbocBotAvatar,
 } from "@/utils/brandAssets";
-import { createDemoSession } from "@/features/demo/demoApi";
+import { createDemoSession, persistDemoRuntimeSession } from "@/features/demo/demoApi";
+import { normalizeRequestedDemoTenantSlug } from "@/features/demo/demoTenantSelection";
 import { clearDemoRuntimeStorage } from "@/features/demo/demoStorage";
 import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
@@ -417,6 +418,181 @@ function sanitizeTenantSlug(slug?: string | null) {
   }
 }
 
+export type PublicDemoSurveyBootstrap = {
+  key: string;
+  sector: "gobierno" | "empresas" | "educacion";
+  tenantSlug: string;
+  rubro: string;
+};
+
+const PUBLIC_DEMO_SURVEY_PATH = /^\/e\/demo-(gobierno|empresas|educacion)(?:-|\/|$)/;
+
+export const isPublicDemoSurveyPath = (pathname: string) =>
+  PUBLIC_DEMO_SURVEY_PATH.test(String(pathname || "").toLowerCase());
+
+export const resolvePublicDemoSurveyBootstrap = (
+  pathname: string,
+  search: string,
+): PublicDemoSurveyBootstrap | null => {
+  const match = String(pathname || "")
+    .toLowerCase()
+    .match(PUBLIC_DEMO_SURVEY_PATH);
+  if (!match) return null;
+
+  const params = new URLSearchParams(search || "");
+  const explicitTenantValues = [
+    ...params.getAll("tenant_slug"),
+    ...params.getAll("tenant"),
+  ];
+  if (!explicitTenantValues.length) return null;
+
+  const normalizedTenantValues = explicitTenantValues.map((value) =>
+    normalizeRequestedDemoTenantSlug(value),
+  );
+  if (normalizedTenantValues.some((value) => !value)) return null;
+
+  const uniqueTenantValues = new Set(normalizedTenantValues as string[]);
+  if (uniqueTenantValues.size !== 1) return null;
+  const normalizedTenant = normalizedTenantValues[0] as string;
+
+  const sector = match[1] as PublicDemoSurveyBootstrap["sector"];
+  return {
+    key: `${sector}:${normalizedTenant}`,
+    sector,
+    tenantSlug: normalizedTenant,
+    rubro: normalizedTenant,
+  };
+};
+
+const readCaseInsensitiveHeaders = (
+  headers: Record<string, unknown>,
+  headerName: string,
+) => {
+  return Object.entries(headers)
+    .filter(([key]) => key.toLowerCase() === headerName.toLowerCase())
+    .map(([, value]) => readFirstString(value));
+};
+
+const collectPublicDemoBootstrapTenantScopes = (bootstrap: unknown) => {
+  const values: unknown[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 8) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (!isPlainRecord(value)) return;
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey === "tenant_slug" ||
+        normalizedKey === "tenantslug" ||
+        normalizedKey === "x-tenant-slug"
+      ) {
+        values.push(nestedValue);
+      } else if (normalizedKey === "tenant") {
+        if (typeof nestedValue === "string") {
+          values.push(nestedValue);
+        } else if (isPlainRecord(nestedValue)) {
+          values.push(
+            nestedValue.slug,
+            nestedValue.tenant_slug,
+            nestedValue.tenantSlug,
+          );
+        }
+      }
+      visit(nestedValue, depth + 1);
+    }
+  };
+  visit(bootstrap, 0);
+  return values.filter((value) => value !== undefined && value !== null);
+};
+
+const collectPublicDemoBootstrapSessionIds = (
+  bootstrap: unknown,
+  targetKey: "chat_session_id" | "demo_session_id",
+) => {
+  const values: string[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 8) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (!isPlainRecord(value)) return;
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (key.toLowerCase() === targetKey) {
+        values.push(readFirstString(nestedValue));
+      }
+      visit(nestedValue, depth + 1);
+    }
+  };
+  visit(bootstrap, 0);
+  return values;
+};
+
+export const isPublicDemoChatBootstrapReady = ({
+  activeTenantSlug,
+  bootstrap,
+  chatSessionId,
+  demoSessionId,
+  expectedTenantSlug,
+}: {
+  activeTenantSlug?: string | null;
+  bootstrap?: unknown;
+  chatSessionId?: string | null;
+  demoSessionId?: string | null;
+  expectedTenantSlug?: string | null;
+}) => {
+  const expected = normalizeRequestedDemoTenantSlug(expectedTenantSlug);
+  const active = normalizeRequestedDemoTenantSlug(activeTenantSlug);
+  if (!expected || active !== expected || !isPlainRecord(bootstrap)) return false;
+
+  const headers = isPlainRecord(bootstrap.headers) ? bootstrap.headers : {};
+  const headerTenantValues = readCaseInsensitiveHeaders(headers, "X-Tenant-Slug");
+  if (
+    !headerTenantValues.length ||
+    headerTenantValues.some(
+      (value) => normalizeRequestedDemoTenantSlug(value) !== expected,
+    )
+  ) {
+    return false;
+  }
+
+  const optionalTenantScopes = collectPublicDemoBootstrapTenantScopes(bootstrap);
+  if (
+    optionalTenantScopes.some(
+      (value) => normalizeRequestedDemoTenantSlug(String(value)) !== expected,
+    )
+  ) {
+    return false;
+  }
+
+  const demoSessionHeaders = [
+    ...readCaseInsensitiveHeaders(headers, "X-Demo-Session-Id"),
+    ...readCaseInsensitiveHeaders(headers, "X-Demo-Session"),
+  ];
+  const chatSessionHeaders = readCaseInsensitiveHeaders(headers, "X-Chat-Session-Id");
+  const demoSessionValues = [
+    ...demoSessionHeaders,
+    ...collectPublicDemoBootstrapSessionIds(bootstrap, "demo_session_id"),
+    ...(demoSessionId ? [demoSessionId] : []),
+  ];
+  const chatSessionValues = [
+    ...chatSessionHeaders,
+    ...collectPublicDemoBootstrapSessionIds(bootstrap, "chat_session_id"),
+    ...(chatSessionId ? [chatSessionId] : []),
+  ];
+  return Boolean(
+    demoSessionHeaders.length &&
+      chatSessionHeaders.length &&
+      demoSessionValues.every(Boolean) &&
+      chatSessionValues.every(Boolean) &&
+      new Set(demoSessionValues).size === 1 &&
+      new Set(chatSessionValues).size === 1,
+  );
+};
+
 const readResponseTenantSlug = (value: unknown): string | null => {
   if (!isPlainRecord(value)) return null;
   const tenant = isPlainRecord(value.tenant) ? value.tenant : null;
@@ -583,6 +759,11 @@ function ChatWidgetInner({
   const [platformSelectionLoadingId, setPlatformSelectionLoadingId] = useState<string | null>(null);
   const [platformSelectionError, setPlatformSelectionError] = useState<string | null>(null);
   const [activeDemoTenantSlug, setActiveDemoTenantSlug] = useState<string | null>(null);
+  const autoDemoBootstrapAttemptRef = useRef<string | null>(null);
+  const publicDemoScopeKeyRef = useRef<string | null>(null);
+  const publicDemoManagedSessionRef = useRef(false);
+  const publicDemoRouteCleanupRef = useRef(false);
+  const [publicDemoBootstrapRetryNonce, setPublicDemoBootstrapRetryNonce] = useState(0);
   const [chatPanelResetKey, setChatPanelResetKey] = useState(0);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
@@ -999,6 +1180,47 @@ function ChatWidgetInner({
   }, [embeddedTenantSlug, isEmbedded, isPublicPlatformSurface, storedTenantSlug]);
   const chatTenantSlug = activeDemoTenantSlug || resolvedTenantSlug;
   const chatBootstrap = entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null;
+  const publicDemoSurveyBootstrap = useMemo(
+    () => resolvePublicDemoSurveyBootstrap(location.pathname, location.search),
+    [location.pathname, location.search],
+  );
+  const isPublicDemoSurveyRoute = isPublicDemoSurveyPath(location.pathname);
+  publicDemoScopeKeyRef.current = publicDemoSurveyBootstrap?.key ?? null;
+  const publicDemoScopeReady = Boolean(
+    publicDemoSurveyBootstrap &&
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: activeDemoTenantSlug,
+        bootstrap: chatBootstrap,
+        expectedTenantSlug: publicDemoSurveyBootstrap.tenantSlug,
+      }),
+  );
+  const isRetiringPublicDemoSession =
+    !isPublicDemoSurveyRoute && publicDemoManagedSessionRef.current;
+  useEffect(() => {
+    if (!isPublicDemoSurveyRoute) {
+      if (!publicDemoRouteCleanupRef.current) return;
+      publicDemoRouteCleanupRef.current = false;
+      setEntityInfo(null);
+      setActiveDemoTenantSlug(null);
+      setSelectedRubro(null);
+      setChatPanelResetKey((current) => current + 1);
+      return;
+    }
+
+    publicDemoRouteCleanupRef.current = false;
+    clearDemoRuntimeStorage();
+    setEntityInfo(null);
+    setActiveDemoTenantSlug(null);
+    return () => {
+      publicDemoRouteCleanupRef.current = true;
+      autoDemoBootstrapAttemptRef.current = null;
+      clearDemoRuntimeStorage();
+      if (publicDemoManagedSessionRef.current) {
+        resetChatSessionId();
+        publicDemoManagedSessionRef.current = false;
+      }
+    };
+  }, [isPublicDemoSurveyRoute, publicDemoSurveyBootstrap?.key]);
   const effectiveUiHints: ChatWidgetUiHints | null = useMemo(() => {
     const base = (entityInfo?.ui_hints ?? widgetCommerceSession?.ui_hints ?? null) as ChatWidgetUiHints | null;
     const accessibility =
@@ -1832,7 +2054,13 @@ function ChatWidgetInner({
     setSelectedRubro(normalized ?? null);
   }, []);
 
-  const handlePlatformSelection = useCallback(async (option: any) => {
+  const handlePlatformSelection = useCallback(async (
+    option: any,
+    constraints: {
+      expectedScopeKey?: string | null;
+      expectedTenantSlug?: string | null;
+    } = {},
+  ) => {
     if (!option || typeof option !== "object") return;
     if (platformSelectionLoadingId) return;
     const optionId = String(option.id || option.sector || option.label || "platform_option");
@@ -1860,6 +2088,10 @@ function ChatWidgetInner({
               ? option.sector
               : undefined;
     const tenantSlug = typeof option.tenant_slug === "string" ? option.tenant_slug : undefined;
+    const expectedTenantSlug = normalizeRequestedDemoTenantSlug(
+      constraints.expectedTenantSlug,
+    );
+    const selectionEntityInfo = expectedTenantSlug ? null : entityInfo;
     const optionPayload = isPlainRecord(option.payload) ? option.payload : {};
     const rubro = extractRubroKey(
       readFirstString(
@@ -1872,13 +2104,13 @@ function ChatWidgetInner({
       ),
     ) || (typeof tenantSlug === "string" ? tenantSlug : undefined);
     const isRubroSelectorStep =
-      entityInfo?.onboarding?.mode === "demo_rubro_selector" ||
-      entityInfo?.widget_onboarding?.status === "select_rubro" ||
-      entityInfo?.frontend_contract?.next_step === "select_rubro";
+      selectionEntityInfo?.onboarding?.mode === "demo_rubro_selector" ||
+      selectionEntityInfo?.widget_onboarding?.status === "select_rubro" ||
+      selectionEntityInfo?.frontend_contract?.next_step === "select_rubro";
     const isPlatformSectorSelector =
-      entityInfo?.onboarding?.mode === "platform_sector_selector" ||
-      entityInfo?.tenant?.tipo === "platform" ||
-      entityInfo?.tenant?.slug === "chatboc-platform";
+      selectionEntityInfo?.onboarding?.mode === "platform_sector_selector" ||
+      selectionEntityInfo?.tenant?.tipo === "platform" ||
+      selectionEntityInfo?.tenant?.slug === "chatboc-platform";
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     setWidgetCommerceSession(null);
@@ -1888,7 +2120,9 @@ function ChatWidgetInner({
     clearDemoRuntimeStorage();
     try {
       const label = readFirstString(option.label, option.title, option.name, option.sector, sector);
-      const chatSessionIdForDemo = resetChatSessionId();
+      const chatSessionIdForDemo = constraints.expectedScopeKey
+        ? null
+        : resetChatSessionId();
       const sessionPayload = isPlatformSectorSelector || isRubroSelectorStep
         ? {
             surface: "widget",
@@ -1896,37 +2130,85 @@ function ChatWidgetInner({
             sector: isRubroSelectorStep ? "empresas" : sector,
             label,
             ...(isRubroSelectorStep && rubro ? { rubro } : {}),
+            ...(expectedTenantSlug ? { tenant_slug: expectedTenantSlug } : {}),
             anon_id: getOrCreateAnonId() || null,
             chat_session_id: chatSessionIdForDemo || null,
           }
         : {
             sector,
-            tenant_slug: tenantSlug || null,
+            tenant_slug: expectedTenantSlug || tenantSlug || null,
             rubro,
           };
       const session = await createDemoSession(sessionPayload, {
-        strictSelection: !isPlatformSectorSelector,
+        strictSelection: Boolean(expectedTenantSlug) || !isPlatformSectorSelector,
+        expectedTenantSlug,
+        persistSession: !constraints.expectedScopeKey,
       });
+      if (expectedTenantSlug && isRubroSelectionDemoSession(session)) {
+        throw new Error('La demo solicitada no devolvió una conversación utilizable.');
+      }
+      if (
+        constraints.expectedScopeKey &&
+        publicDemoScopeKeyRef.current !== constraints.expectedScopeKey
+      ) {
+        return;
+      }
       const workspace = session.workspace || {};
+      const demoTenantSlug =
+        session.tenant?.slug ||
+        session.tenant_slug ||
+        session.session?.tenant_slug ||
+        (!expectedTenantSlug && !isPlatformSectorSelector ? tenantSlug : null) ||
+        null;
+      const demoChatSessionId =
+        session.session?.chat_session_id ||
+        session.chat_session_id ||
+        workspace.chat_bootstrap?.session?.chat_session_id ||
+        null;
+      const demoSessionIdForBootstrap =
+        session.demo_session_id ||
+        session.session?.demo_session_id ||
+        workspace.chat_bootstrap?.session?.demo_session_id ||
+        null;
+      const candidateChatBootstrap =
+        workspace.chat_bootstrap || session.chat_bootstrap || null;
+      if (
+        expectedTenantSlug &&
+        !isPublicDemoChatBootstrapReady({
+          activeTenantSlug: demoTenantSlug,
+          bootstrap: candidateChatBootstrap,
+          chatSessionId: demoChatSessionId,
+          demoSessionId: demoSessionIdForBootstrap,
+          expectedTenantSlug,
+        })
+      ) {
+        throw new Error('La demo no devolvió una sesión firmada y verificable.');
+      }
+      if (constraints.expectedScopeKey) {
+        publicDemoManagedSessionRef.current = true;
+      }
+      if (constraints.expectedScopeKey && !isRubroSelectionDemoSession(session)) {
+        persistDemoRuntimeSession(session);
+      }
       if (isRubroSelectionDemoSession(session)) {
         const selector = getSessionRubroSelector(session);
         const rubroOptions = normalizeRubroSelectorOptions(selector);
         const nextInfo = {
-          ...(entityInfo || {}),
+          ...(selectionEntityInfo || {}),
           ...workspace,
-          tenant: entityInfo?.tenant || session.tenant || null,
-          slug: entityInfo?.slug || null,
+          tenant: selectionEntityInfo?.tenant || session.tenant || null,
+          slug: selectionEntityInfo?.slug || null,
           tenant_slug: null,
           tipo_chat: "pyme",
           chat_bootstrap: null,
           quick_menu: rubroOptions,
           onboarding: {
-            ...(entityInfo?.onboarding || {}),
+            ...(selectionEntityInfo?.onboarding || {}),
             ...(session.widget_onboarding || {}),
             mode: "demo_rubro_selector",
             title:
-              readFirstString((selector as any)?.title, session.widget_onboarding?.title, entityInfo?.onboarding?.title) ||
-              entityInfo?.onboarding?.title ||
+              readFirstString((selector as any)?.title, session.widget_onboarding?.title, selectionEntityInfo?.onboarding?.title) ||
+              selectionEntityInfo?.onboarding?.title ||
               null,
             entry_question:
               readFirstString(
@@ -1934,8 +2216,8 @@ function ChatWidgetInner({
                 (selector as any)?.question,
                 (selector as any)?.label,
                 session.widget_onboarding?.entry_question,
-                entityInfo?.onboarding?.entry_question,
-              ) || entityInfo?.onboarding?.entry_question || null,
+                selectionEntityInfo?.onboarding?.entry_question,
+              ) || selectionEntityInfo?.onboarding?.entry_question || null,
             quick_menu: rubroOptions,
           },
           widget_onboarding: session.widget_onboarding || null,
@@ -1948,10 +2230,6 @@ function ChatWidgetInner({
         setResolvedTipoChat("pyme");
         return;
       }
-      const demoTenantSlug =
-        session.tenant?.slug || session.tenant_slug || session.session?.tenant_slug || (!isPlatformSectorSelector ? tenantSlug : null) || null;
-      const demoChatSessionId =
-        session.session?.chat_session_id || session.chat_session_id || workspace.chat_bootstrap?.session?.chat_session_id || null;
       if (demoChatSessionId) {
         persistChatSessionId(demoChatSessionId);
       }
@@ -1988,34 +2266,34 @@ function ChatWidgetInner({
               ? workspace.quick_replies
               : workspaceActionMenu;
       const nextInfo = {
-        ...(entityInfo || {}),
+        ...(selectionEntityInfo || {}),
         ...workspace,
-        tenant: session.tenant || entityInfo?.tenant || null,
-        slug: demoTenantSlug || entityInfo?.slug || null,
+        tenant: session.tenant || selectionEntityInfo?.tenant || null,
+        slug: demoTenantSlug || selectionEntityInfo?.slug || null,
         tenant_slug: demoTenantSlug,
-        nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
+        nombre_empresa: workspace.title || session.tenant?.nombre || selectionEntityInfo?.nombre_empresa || "Chatboc",
         tipo_chat: nextTipo,
-        rubro: backendRubro || rubro || entityInfo?.rubro || null,
-        rubro_clave: backendRubro || rubro || entityInfo?.rubro_clave || null,
+        rubro: backendRubro || rubro || selectionEntityInfo?.rubro || null,
+        rubro_clave: backendRubro || rubro || selectionEntityInfo?.rubro_clave || null,
         default_menu: primaryDefaultMenu,
         quick_menu: primaryQuickMenu,
         rubro_context: workspace.rubro_context || null,
         onboarding: {
-          ...(entityInfo?.onboarding || {}),
+          ...(selectionEntityInfo?.onboarding || {}),
           mode: "demo_session",
         },
-        ui_hints: entityInfo?.ui_hints || null,
+        ui_hints: selectionEntityInfo?.ui_hints || null,
         chat_bootstrap: workspace.chat_bootstrap || session.chat_bootstrap || null,
         widget_onboarding: session.widget_onboarding || null,
-        experience_blueprint: workspace.experience_blueprint || entityInfo?.experience_blueprint || null,
-        first_visit: workspace.first_visit || entityInfo?.first_visit || null,
-        sample_conversations: workspace.sample_conversations || entityInfo?.sample_conversations || [],
-        trust_signals: workspace.trust_signals || entityInfo?.trust_signals || [],
-        lead_capture: workspace.lead_capture || entityInfo?.lead_capture || null,
-        media_capabilities: workspace.media_capabilities || entityInfo?.media_capabilities || null,
-        conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
-        animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
-        empty_states: workspace.empty_states || entityInfo?.empty_states || null,
+        experience_blueprint: workspace.experience_blueprint || selectionEntityInfo?.experience_blueprint || null,
+        first_visit: workspace.first_visit || selectionEntityInfo?.first_visit || null,
+        sample_conversations: workspace.sample_conversations || selectionEntityInfo?.sample_conversations || [],
+        trust_signals: workspace.trust_signals || selectionEntityInfo?.trust_signals || [],
+        lead_capture: workspace.lead_capture || selectionEntityInfo?.lead_capture || null,
+        media_capabilities: workspace.media_capabilities || selectionEntityInfo?.media_capabilities || null,
+        conversion_ctas: workspace.conversion_ctas || selectionEntityInfo?.conversion_ctas || null,
+        animation_tokens: workspace.animation_tokens || selectionEntityInfo?.animation_tokens || null,
+        empty_states: workspace.empty_states || selectionEntityInfo?.empty_states || null,
         rubro_tools:
           workspace.rubro_tools ||
           workspace.business_tools ||
@@ -2037,6 +2315,44 @@ function ChatWidgetInner({
       setPlatformSelectionLoadingId(null);
     }
   }, [entityInfo, platformSelectionLoadingId]);
+
+  useEffect(() => {
+    const descriptor = publicDemoSurveyBootstrap;
+    if (!descriptor) {
+      autoDemoBootstrapAttemptRef.current = null;
+      return;
+    }
+    if (
+      mode !== "standalone" ||
+      isProfileLoading ||
+      publicDemoScopeReady ||
+      platformSelectionLoadingId ||
+      autoDemoBootstrapAttemptRef.current === descriptor.key
+    ) {
+      return;
+    }
+
+    autoDemoBootstrapAttemptRef.current = descriptor.key;
+    void handlePlatformSelection({
+      id: `public-demo-survey:${descriptor.key}`,
+      sector: descriptor.sector,
+      tenant_slug: descriptor.tenantSlug,
+      rubro: descriptor.rubro,
+    }, {
+      expectedScopeKey: descriptor.key,
+      expectedTenantSlug: descriptor.tenantSlug,
+    });
+  }, [
+    activeDemoTenantSlug,
+    chatBootstrap,
+    handlePlatformSelection,
+    isProfileLoading,
+    mode,
+    platformSelectionLoadingId,
+    publicDemoBootstrapRetryNonce,
+    publicDemoScopeReady,
+    publicDemoSurveyBootstrap,
+  ]);
 
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -2338,6 +2654,15 @@ function ChatWidgetInner({
   }, [entityInfo, isOpen]);
 
   useEffect(() => {
+    let isActive = true;
+    if (isPublicDemoSurveyRoute) {
+      setProfileError(null);
+      setProfileLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
     async function fetchEntityProfile() {
       if (resolvedTenantSlug) {
         setProfileLoading(true);
@@ -2346,6 +2671,7 @@ function ChatWidgetInner({
           if (resolvedTenantSlug) {
              try {
                 const rawPublicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                if (!isActive) return;
                 const publicConfigBase =
                   rawPublicConfig && typeof rawPublicConfig === 'object'
                     ? (rawPublicConfig as Record<string, any>)
@@ -2470,6 +2796,7 @@ function ChatWidgetInner({
                     setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                 }
              } catch (err) {
+                if (!isActive) return;
                 console.warn("Failed to fetch public widget config; trying ownerToken profile if available", err);
 
                   // If the public config is unavailable, keep the widget in a degraded no-content state.
@@ -2478,10 +2805,11 @@ function ChatWidgetInner({
                   if (is500 || !ownerToken) {
                      applyWidgetFallbackProfile();
                   } else if (ownerToken) {
-                     const data = await apiFetch<any>("/perfil", {
+                    const data = await apiFetch<any>("/perfil", {
                       entityToken: ownerToken,
                       isWidgetRequest: true,
                     });
+                    if (!isActive) return;
                     if (data && typeof data.esPublico === "boolean") {
                       setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
                     } else if (data && data.tipo_chat) {
@@ -2497,6 +2825,7 @@ function ChatWidgetInner({
               entityToken: ownerToken,
               isWidgetRequest: true,
             });
+            if (!isActive) return;
             if (data && typeof data.esPublico === "boolean") {
               setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
             } else if (data && data.tipo_chat) {
@@ -2505,10 +2834,11 @@ function ChatWidgetInner({
             setEntityInfo(data);
           }
         } catch (e) {
+          if (!isActive) return;
           console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
           applyWidgetFallbackProfile();
         } finally {
-          setProfileLoading(false);
+          if (isActive) setProfileLoading(false);
         }
         return;
       }
@@ -2518,6 +2848,7 @@ function ChatWidgetInner({
           console.warn("ChatWidget: no se pudo cargar widget-config plataforma.", error);
           return null;
         });
+        if (!isActive) return;
         const publicConfig: any = normalizePlatformWidgetConfig(rawPlatformConfig);
         if (!publicConfig) {
           applyWidgetFallbackProfile();
@@ -2569,6 +2900,7 @@ function ChatWidgetInner({
           entityToken: ownerToken,
           isWidgetRequest: true,
         });
+        if (!isActive) return;
         console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
           setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
@@ -2577,14 +2909,18 @@ function ChatWidgetInner({
         }
         setEntityInfo(data);
       } catch (e) {
+        if (!isActive) return;
         console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
         applyWidgetFallbackProfile();
       } finally {
-        setProfileLoading(false);
+        if (isActive) setProfileLoading(false);
       }
     }
     fetchEntityProfile();
-  }, [ownerToken, resolvedTenantSlug]);
+    return () => {
+      isActive = false;
+    };
+  }, [isPublicDemoSurveyRoute, ownerToken, resolvedTenantSlug]);
 
   useEffect(() => {
     let isActive = true;
@@ -3164,7 +3500,54 @@ function ChatWidgetInner({
                     </div>
                   }
                 >
-                  <ChatPanel
+                  {(isPublicDemoSurveyRoute && !publicDemoScopeReady) || isRetiringPublicDemoSession ? (
+                    <div
+                      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-2xl bg-card px-7 text-center"
+                      role={!isRetiringPublicDemoSession && (platformSelectionError || !publicDemoSurveyBootstrap) ? "alert" : "status"}
+                      aria-live="polite"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10 text-emerald-300">
+                        <span className="text-xl" aria-hidden="true">✓</span>
+                      </div>
+                      <div className="max-w-sm space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-400">
+                          Sesión protegida
+                        </p>
+                        <h3 className="text-base font-semibold text-foreground">
+                          {isRetiringPublicDemoSession
+                            ? "Actualizando el contexto del chat"
+                            : !publicDemoSurveyBootstrap
+                            ? "El enlace de la demo está incompleto"
+                            : platformSelectionError
+                              ? "No pudimos validar la demo"
+                              : "Preparando la conversación segura"}
+                        </h3>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          {isRetiringPublicDemoSession
+                            ? "Estamos cerrando la sesión de demostración antes de continuar."
+                            : !publicDemoSurveyBootstrap
+                            ? "Abrí nuevamente la demo desde su enlace oficial para identificar la organización."
+                            : platformSelectionError
+                              ? platformSelectionError
+                              : "Estamos vinculando el chat, los archivos y las respuestas con la organización correcta."}
+                        </p>
+                      </div>
+                      {!isRetiringPublicDemoSession && publicDemoSurveyBootstrap && platformSelectionError ? (
+                        <button
+                          type="button"
+                          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                          onClick={() => {
+                            autoDemoBootstrapAttemptRef.current = null;
+                            setPlatformSelectionError(null);
+                            setPublicDemoBootstrapRetryNonce((value) => value + 1);
+                          }}
+                        >
+                          Reintentar conexión
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <ChatPanel
                     key={`chat-panel-${chatPanelResetKey}`}
                     mode={mode === "preview" ? "standalone" : mode}
                     widgetId={widgetId}
@@ -3238,7 +3621,8 @@ function ChatWidgetInner({
                     realtimeVoice={realtimeVoice}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
-                  />
+                    />
+                  )}
                 </Suspense>
               )}
             </motion.div>

@@ -1,10 +1,143 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isPublicDemoChatBootstrapReady,
+  isPublicDemoSurveyPath,
   isUserPortalSurfacePath,
   restoreDialogFocus,
+  resolvePublicDemoSurveyBootstrap,
   resolveStandaloneLauncherBottom,
 } from './ChatWidgetInner';
+
+describe('ChatWidgetInner public demo survey bootstrap', () => {
+  it('binds demo survey routes to the explicit tenant and sector', () => {
+    expect(
+      resolvePublicDemoSurveyBootstrap(
+        '/e/demo-gobierno-municipio-prioridades-barriales',
+        '?tenant_slug=municipio',
+      ),
+    ).toEqual({
+      key: 'gobierno:municipio',
+      sector: 'gobierno',
+      tenantSlug: 'municipio',
+      rubro: 'municipio',
+    });
+  });
+
+  it('does not mint demo sessions for ordinary surveys or missing tenant scope', () => {
+    expect(
+      resolvePublicDemoSurveyBootstrap('/e/prioridades-barriales', '?tenant_slug=municipio'),
+    ).toBeNull();
+    expect(
+      resolvePublicDemoSurveyBootstrap('/e/demo-gobierno-prioridades', ''),
+    ).toBeNull();
+    expect(isPublicDemoSurveyPath('/e/demo-gobierno-prioridades')).toBe(true);
+    expect(isPublicDemoSurveyPath('/e/prioridades-barriales')).toBe(false);
+  });
+
+  it('recognizes the other explicit demo sectors without reading stale storage', () => {
+    expect(
+      resolvePublicDemoSurveyBootstrap(
+        '/e/demo-educacion-colegios-familias',
+        '?tenant=colegio-demo',
+      ),
+    ).toMatchObject({ sector: 'educacion', tenantSlug: 'colegio-demo' });
+    expect(
+      resolvePublicDemoSurveyBootstrap(
+        '/e/demo-empresas-bodega-clientes',
+        '?tenant_slug=bodega&tenant=bodega',
+      ),
+    ).toMatchObject({ sector: 'empresas', tenantSlug: 'bodega' });
+  });
+
+  it('rejects conflicting, duplicated, empty, and malformed tenant selectors', () => {
+    const path = '/e/demo-gobierno-prioridades';
+    expect(
+      resolvePublicDemoSurveyBootstrap(path, '?tenant_slug=municipio&tenant=junin'),
+    ).toBeNull();
+    expect(
+      resolvePublicDemoSurveyBootstrap(path, '?tenant_slug=municipio&tenant_slug=junin'),
+    ).toBeNull();
+    expect(resolvePublicDemoSurveyBootstrap(path, '?tenant_slug=')).toBeNull();
+    expect(
+      resolvePublicDemoSurveyBootstrap(path, '?tenant_slug=..%2Fotro'),
+    ).toBeNull();
+  });
+
+  it('requires an exact signed bootstrap before enabling the public demo chat', () => {
+    const bootstrap = {
+      headers: {
+        'X-Tenant-Slug': 'municipio',
+        'X-Demo-Session-Id': 'signed-demo-session',
+        'X-Chat-Session-Id': 'chat-session-1',
+      },
+      payload: { tenant_slug: 'municipio' },
+      query: { tenant_slug: 'municipio' },
+    };
+
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'municipio',
+        bootstrap,
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(true);
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'otro',
+        bootstrap,
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(false);
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'municipio',
+        bootstrap: {
+          ...bootstrap,
+          headers: { ...bootstrap.headers, 'X-Tenant-Slug': 'otro' },
+        },
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(false);
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'municipio',
+        bootstrap: {
+          ...bootstrap,
+          headers: { 'X-Tenant-Slug': 'municipio' },
+        },
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(false);
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'municipio',
+        bootstrap: {
+          ...bootstrap,
+          headers: {
+            ...bootstrap.headers,
+            'x-tenant-slug': 'otro',
+          },
+        },
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(false);
+    expect(
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: 'municipio',
+        bootstrap: {
+          ...bootstrap,
+          payload: {
+            ...bootstrap.payload,
+            demo_session_id: 'different-demo-session',
+          },
+        },
+        demoSessionId: 'signed-demo-session',
+        expectedTenantSlug: 'municipio',
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('ChatWidgetInner standalone launcher placement', () => {
   it('clears the mobile portal navigation at 390x844 including the safe area', () => {
