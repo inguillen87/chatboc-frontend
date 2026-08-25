@@ -113,7 +113,7 @@ describe('SurveyLiveResultsPanel', () => {
       'href',
       '/admin/encuestas/1/analytics?focus=heatmap&include_heatmap=1',
     );
-    expect(screen.getByRole('status')).toHaveTextContent('En vivo');
+    expect(screen.getByText('En vivo', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getByText('Prioridad barrial')).toBeInTheDocument();
     expect(screen.getByText('Centro concentra la actividad reciente.')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('SurveyLiveResultsPanel', () => {
       mocks.socketOptions.onUpdate(payloadFixture(24, 2));
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Socket live');
+    expect(screen.getByText('Socket live', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getAllByText('24').length).toBeGreaterThan(0);
   });
 
@@ -171,7 +171,7 @@ describe('SurveyLiveResultsPanel', () => {
       });
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Socket live');
+    expect(screen.getByText('Socket live', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getByText('Emergencia escolar')).toBeInTheDocument();
     expect(screen.getAllByText('31').length).toBeGreaterThan(0);
     const pointsCount = screen.getByTestId('survey-live-heatmap-points-count');

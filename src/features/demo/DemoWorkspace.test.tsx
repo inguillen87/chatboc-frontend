@@ -66,4 +66,28 @@ describe('DemoWorkspace rubro tools', () => {
     expect(screen.getAllByText('Catalogo municipal')).toHaveLength(1);
     expect(screen.getAllByRole('link', { name: /abrir catalogo/i })).toHaveLength(1);
   });
+
+  it('contains long contact values inside the responsive tool card', () => {
+    const longUrl = 'https://www.juninmendoza.gov.ar/participacion/consultas-y-reclamos';
+    const workspace = {
+      rubro_tools: [
+        {
+          id: 'municipal-contact',
+          kind: 'phone',
+          label: 'Telefono y contacto',
+          enabled: true,
+          fields: [
+            { label: 'Sitio oficial', value: longUrl },
+            { label: 'Telefono', value: '+54 9 261 555 0198 interno 1743' },
+          ],
+        },
+      ],
+    } as DemoWorkspaceConfig;
+
+    render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
+
+    const value = screen.getByText(longUrl);
+    expect(value).toHaveClass('min-w-0', 'break-words', '[overflow-wrap:anywhere]');
+    expect(value.closest('article')).toHaveClass('min-w-0', 'overflow-hidden');
+  });
 });

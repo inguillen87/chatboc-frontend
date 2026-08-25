@@ -106,14 +106,17 @@ const DemoRubroToolsPanel = ({
           const Icon = getToolIcon(tool.kind);
 
           return (
-            <article key={`${tool.id}-${toolIndex}`} className="rounded-xl border bg-card/70 p-3">
+            <article
+              key={`${tool.id}-${toolIndex}`}
+              className="min-w-0 overflow-hidden rounded-xl border bg-card/70 p-3"
+            >
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-foreground">{tool.label}</p>
+                    <p className="min-w-0 break-words text-sm font-semibold text-foreground">{tool.label}</p>
                     {tool.statusLabel ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                         {tool.statusLabel}
@@ -121,14 +124,19 @@ const DemoRubroToolsPanel = ({
                     ) : null}
                   </div>
                   {tool.description ? (
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{tool.description}</p>
+                    <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{tool.description}</p>
                   ) : null}
                   {tool.fields.length ? (
-                    <dl className="mt-2 grid gap-1 text-xs">
+                    <dl className="mt-2 grid gap-1.5 text-xs">
                       {tool.fields.slice(0, 4).map((field, fieldIndex) => (
-                        <div key={`${tool.id}-${field.label}-${fieldIndex}`} className="flex justify-between gap-3">
-                          <dt className="text-muted-foreground">{field.label}</dt>
-                          <dd className="text-right font-medium text-foreground">{field.value}</dd>
+                        <div
+                          key={`${tool.id}-${field.label}-${fieldIndex}`}
+                          className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3"
+                        >
+                          <dt className="min-w-0 break-words text-muted-foreground">{field.label}</dt>
+                          <dd className="min-w-0 break-words text-right font-medium text-foreground [overflow-wrap:anywhere]">
+                            {field.value}
+                          </dd>
                         </div>
                       ))}
                     </dl>
@@ -139,7 +147,7 @@ const DemoRubroToolsPanel = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       referrerPolicy="no-referrer"
-                      className="mt-3 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="mt-3 inline-flex max-w-full items-center gap-1 whitespace-normal break-words rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       {tool.actionLabel}
                       <ExternalLink className="h-3.5 w-3.5" />
