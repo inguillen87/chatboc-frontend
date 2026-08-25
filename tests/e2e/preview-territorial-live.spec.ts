@@ -33,9 +33,9 @@ const TARGET_PREVIEW_ORIGIN = (() => {
 })();
 
 const RESPONSIVE_VIEWPORTS = [
-  { label: 'mobile-390', width: 390, height: 844 },
-  { label: 'tablet-768', width: 768, height: 1024 },
-  { label: 'desktop-1440', width: 1440, height: 900 },
+  { label: 'mobile-390', width: 390, height: 844, minMapWidth: 300 },
+  { label: 'tablet-768', width: 768, height: 1024, minMapWidth: 600 },
+  { label: 'desktop-1440', width: 1440, height: 900, minMapWidth: 850 },
 ] as const;
 
 const MAP_RESOURCE_PATTERN =
@@ -395,6 +395,12 @@ const assertResponsiveMap = async (page: Page, testInfo: TestInfo) => {
         timeout: REMOTE_WAIT_MS,
       })
       .toBe(true);
+
+    const geometry = await readMapGeometry(page);
+    expect(
+      geometry.region?.width ?? 0,
+      `Territorial map must provide at least ${viewport.minMapWidth}px of decision canvas at ${viewport.label}.`,
+    ).toBeGreaterThanOrEqual(viewport.minMapWidth);
 
     for (const controlName of ['Densidad', 'Puntos', 'Ajustar área']) {
       const control = page.getByRole('button', { name: controlName });

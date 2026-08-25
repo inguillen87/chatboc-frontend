@@ -20,6 +20,7 @@ const Layout = () => {
   const isProfileAnalyticsWorkspace =
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
+  const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isFooterlessWorkspace = isTicketWorkspace || isProfileAnalyticsWorkspace;
 
   // Public navigation should land immediately at the top of the new screen.
@@ -94,6 +95,8 @@ const Layout = () => {
             ? 'flex min-h-0 w-full flex-1 overflow-hidden'
             : isProfileAnalyticsWorkspace
               ? 'flex-1 w-full pt-14'
+              : isPublicSurveyExperience
+                ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 pt-20 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >

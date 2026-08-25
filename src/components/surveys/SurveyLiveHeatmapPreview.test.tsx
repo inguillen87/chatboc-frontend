@@ -88,6 +88,14 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
+    const layout = screen.getByTestId('survey-live-heatmap-layout');
+    expect(layout).toHaveClass(
+      'p-2',
+      'sm:p-3',
+      'lg:p-4',
+      '2xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]',
+    );
+    expect(layout).not.toHaveClass('xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]');
     expect(screen.getByTestId('survey-live-heatmap-jurisdiction')).toHaveTextContent('Junin, Mendoza');
     expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('survey live results');

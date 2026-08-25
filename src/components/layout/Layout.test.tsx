@@ -28,6 +28,7 @@ const renderLayout = (initialEntry: string) =>
         <Route element={<Layout />}>
           <Route path="/perfil" element={<div>profile outlet</div>} />
           <Route path="/t/:tenant/reclamos" element={<div>tenant tickets outlet</div>} />
+          <Route path="/e/:slug" element={<div>survey outlet</div>} />
           <Route path="/otra" element={<div>other outlet</div>} />
         </Route>
       </Routes>
@@ -118,5 +119,15 @@ describe('Layout ticket workspace shell', () => {
     expect(main).toHaveClass('pt-20');
     expect(main).toHaveClass('max-w-7xl');
     expect(document.querySelector('style[data-ticket-workspace-chrome]')).not.toBeInTheDocument();
+  });
+
+  it('gives public survey dashboards a wider data-rich canvas without removing responsive gutters', () => {
+    renderLayout('/e/prioridades-barriales?tenant_slug=junin');
+
+    expect(screen.getByText('survey outlet')).toBeInTheDocument();
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('max-w-[96rem]', 'px-4', 'md:px-8', 'xl:px-12');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main).not.toHaveClass('lg:px-16');
   });
 });

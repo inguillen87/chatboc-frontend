@@ -463,7 +463,11 @@ const PublicSurveyPage = () => {
   }, []);
 
   // Embed Mode Styles
-  const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10";
+  const containerClass = mode === 'embed'
+    ? 'min-h-screen w-full bg-background'
+    : survey?.es_votacion_envivo
+      ? 'mx-auto w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10'
+      : 'mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10';
 
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
@@ -857,11 +861,14 @@ const PublicSurveyPage = () => {
   }
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} data-testid="public-survey-page">
       {survey.es_votacion_envivo ? (
         <div className="space-y-6 animate-in fade-in-50 duration-500">
           <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
-            <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+            <CardContent
+              className="space-y-6 px-2 py-6 sm:px-4 sm:py-8 lg:px-6"
+              data-testid="public-live-survey-content"
+            >
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -928,7 +935,10 @@ const PublicSurveyPage = () => {
               ) : null}
 
               {shouldRevealLiveResults && liveDashboard ? (
-                <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm sm:p-5">
+                <div
+                  className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-2 shadow-sm sm:p-3 lg:p-4"
+                  data-testid="public-survey-live-dashboard"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{textOr(liveResultsUi?.header_title, survey.titulo)}</span>

@@ -147,5 +147,11 @@ describe('PublicSurveyPage loading experience', () => {
     const timestamp = await screen.findByTestId('survey-last-updated');
     expect(timestamp).toHaveTextContent(new Date(serverTime).toLocaleString());
     expect(timestamp).not.toHaveTextContent(new Date(closingTime).toLocaleString());
+    expect(screen.getByTestId('public-survey-page')).toHaveClass('max-w-7xl', 'px-0');
+    expect(screen.getByTestId('public-live-survey-content')).toHaveClass(
+      'px-2',
+      'sm:px-4',
+      'lg:px-6',
+    );
   });
 });

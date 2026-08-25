@@ -566,7 +566,10 @@ export function SurveyLiveHeatmapPreview({
         </div>
       </header>
 
-      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.65fr)]">
+      <div
+        className="grid gap-4 p-2 sm:p-3 lg:p-4 2xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]"
+        data-testid="survey-live-heatmap-layout"
+      >
         <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
           <div className="flex flex-col gap-3 border-b border-slate-800 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
             <div>
@@ -739,7 +742,7 @@ export function SurveyLiveHeatmapPreview({
                 <BarChart3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
                 <h4 className="text-sm font-semibold text-white">Lectura ejecutiva</h4>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="mt-4 grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
                 <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
                   <p className="text-xs text-slate-400">Mayor participación</p>
                   <p className="mt-1 truncate font-semibold text-white">{focusZone?.label ?? 'Sin zona identificada'}</p>
