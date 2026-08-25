@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
+import { DEMO_TENANT_STORAGE_KEY } from '@/features/demo/demoStorage';
 import Demo from './Demo';
 
 const demoApiMocks = vi.hoisted(() => ({
@@ -84,9 +85,10 @@ describe('Demo direct-route layout stability', () => {
       resolvePreview = resolve;
     });
 
-    localStorage.setItem('demoSectorSeleccionado', 'gobierno');
-    localStorage.setItem('rubroSeleccionado', 'municipio');
-    localStorage.setItem('rubroSeleccionado_label', 'Municipio');
+    localStorage.setItem('demoSectorSeleccionado', 'empresas');
+    localStorage.setItem('rubroSeleccionado', 'ferreteria');
+    localStorage.setItem('rubroSeleccionado_label', 'Ferretería');
+    localStorage.setItem(DEMO_TENANT_STORAGE_KEY, 'tenant-anterior');
     demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
     demoApiMocks.createDemoSession.mockReturnValue(sessionPromise);
     demoApiMocks.getDemoAdminPreview.mockReturnValue(previewPromise);
@@ -149,5 +151,50 @@ describe('Demo direct-route layout stability', () => {
       expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'false');
     });
     expect(screen.getByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' })).toBeVisible();
+  });
+
+  it('restores the persisted tenant before warming a queryless demo preview', async () => {
+    localStorage.setItem('demoSectorSeleccionado', 'gobierno');
+    localStorage.setItem('rubroSeleccionado', 'municipio');
+    localStorage.setItem('rubroSeleccionado_label', 'Municipio');
+    localStorage.setItem(DEMO_TENANT_STORAGE_KEY, 'junin');
+    demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
+    demoApiMocks.createDemoSession.mockResolvedValue({
+      tenant_slug: 'junin',
+      workspace: {
+        title: 'Gestión ciudadana',
+        chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+      },
+    });
+    demoApiMocks.getDemoAdminPreview.mockResolvedValue(preview);
+
+    render(
+      <MemoryRouter initialEntries={['/demo']}>
+        <Demo />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(demoApiMocks.createDemoSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sector: 'gobierno',
+          pillar: 'gobierno',
+          rubro: 'municipio',
+          tenant_slug: 'junin',
+        }),
+      );
+      expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sector: 'gobierno',
+          tenant_slug: 'junin',
+          presentation_mode: 'executive',
+        }),
+      );
+    });
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
+    ).toBeVisible();
+    expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-sector', 'gobierno');
   });
 });

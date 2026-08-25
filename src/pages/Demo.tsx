@@ -29,6 +29,7 @@ import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
+import { DEMO_TENANT_STORAGE_KEY } from '@/features/demo/demoStorage';
 import { normalizeRequestedDemoTenantSlug, resolveDemoTenantSlug } from '@/features/demo/demoTenantSelection';
 import type { LeadCaptureResponse, OperationalTicketResult } from '@/features/chat/chatApi';
 import type {
@@ -2148,6 +2149,9 @@ const Demo = () => {
     const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
     const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
     const storedSector = safeLocalStorage.getItem("demoSectorSeleccionado");
+    const storedDemoTenantSlug = normalizeRequestedDemoTenantSlug(
+      safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY),
+    );
     const requestedSector = new URLSearchParams(location.search).get('sector') as DemoSector | null;
     const normalizedRequestedSector =
       requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
@@ -2297,17 +2301,21 @@ const Demo = () => {
           ? storedSector
           : null
       );
-      setSectorSeleccionado(restoredSector);
-      setDemoTenantSlug(
-        requestedDemoTenantSlug ?? readSectorCatalogSlug(restoredSector),
+      const restoredTenantSlug = resolveDemoTenantSlug(
+        requestedDemoTenantSlug,
+        storedDemoTenantSlug,
+        readSectorCatalogSlug(restoredSector),
       );
+      setSectorSeleccionado(restoredSector);
+      setDemoTenantSlug(restoredTenantSlug);
       setDemoSessionLoading(true);
       void createDemoSession({
         sector: restoredSector ?? undefined,
+        pillar: restoredSector ?? undefined,
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
         category_slug: normalizedClave,
-        tenant_slug: requestedDemoTenantSlug,
+        tenant_slug: restoredTenantSlug,
       })
         .then((session) => {
           setDemoError(null);
