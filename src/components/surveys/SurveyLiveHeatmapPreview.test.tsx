@@ -8,6 +8,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     heatmapData,
     evidence,
     showHeatmap,
+    showPoints,
     ariaLabel,
     fitBoundsRequestKey,
     popupContext,
@@ -15,6 +16,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     heatmapData?: Array<{ categoryColor?: string }>;
     evidence?: { usingSyntheticPoints?: boolean; label?: string };
     showHeatmap?: boolean;
+    showPoints?: boolean;
     ariaLabel?: string;
     fitBoundsRequestKey?: number;
     popupContext?: string;
@@ -25,6 +27,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-synthetic={String(Boolean(evidence?.usingSyntheticPoints))}
       data-evidence-label={evidence?.label}
       data-show-heatmap={String(Boolean(showHeatmap))}
+      data-show-points={String(Boolean(showPoints))}
       data-fit-request={String(fitBoundsRequestKey ?? 0)}
       data-popup-context={popupContext}
       data-category-colors={heatmapData?.map((point) => point.categoryColor ?? '').join(',')}
@@ -100,7 +103,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('survey live results');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('WGS84');
-    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Densidad espacial relativa');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Densidad y volumen combinados');
     expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mín. 3');
     expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('mediana 5');
     expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('máx. 7');
@@ -124,7 +127,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-popup-context', 'survey');
   });
 
-  it('offers keyboard-addressable density, point and fit controls', () => {
+  it('offers keyboard-addressable hybrid, density, point and fit controls', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
@@ -135,22 +138,69 @@ describe('SurveyLiveHeatmapPreview', () => {
       />,
     );
 
+    const hybridButton = screen.getByRole('button', { name: 'Calor + puntos' });
     const densityButton = screen.getByRole('button', { name: 'Densidad' });
     const pointsButton = screen.getByRole('button', { name: 'Puntos' });
     const fitButton = screen.getByRole('button', { name: 'Ajustar área' });
-    expect(densityButton).toHaveAttribute('aria-pressed', 'true');
+    expect(hybridButton).toHaveAttribute('aria-pressed', 'true');
+    expect(densityButton).toHaveAttribute('aria-pressed', 'false');
     expect(pointsButton).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'true');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-points', 'true');
+
+    fireEvent.click(densityButton);
+    expect(densityButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'true');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-points', 'false');
 
     fireEvent.click(pointsButton);
     expect(pointsButton).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'false');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-points', 'true');
     expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent(
       'Volumen por ubicación',
     );
 
     fireEvent.click(fitButton);
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-fit-request', '1');
+  });
+
+  it('filters the cartographic layer by zone and channel without changing the source totals', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          jurisdiction,
+          points: [
+            { lat: -33.14, lng: -68.48, count: 8, barrio: 'Centro', canal: 'whatsapp' },
+            { lat: -33.145, lng: -68.485, count: 5, barrio: 'Centro', canal: 'web' },
+            { lat: -33.15, lng: -68.49, count: 3, barrio: 'San Martin', canal: 'web' },
+          ],
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-map-filters')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('3 ubicaciones');
+    expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('16 respuestas representadas');
+
+    fireEvent.change(screen.getByLabelText('Zona'), { target: { value: 'Centro' } });
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
+    expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('13 respuestas representadas');
+    expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('Centro');
+
+    fireEvent.change(screen.getByLabelText('Canal'), { target: { value: 'whatsapp' } });
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '1');
+    expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('8 respuestas representadas');
+
+    fireEvent.change(screen.getByLabelText('Zona'), { target: { value: 'San Martin' } });
+    expect(screen.queryByTestId('mock-survey-live-maplibre')).not.toBeInTheDocument();
+    expect(screen.getByText('Sin coincidencias para estos filtros')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver todo el territorio' }));
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '3');
+
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('3');
+    expect(screen.getByText('Volumen').closest('div')).toHaveTextContent('16');
   });
 
   it('uses the point legend palette for relative minimum, intermediate and maximum volumes', () => {
@@ -286,7 +336,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-provenance')).toHaveTextContent('Datos sintéticos de demostración');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Simulación controlada para demostración');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Generador de escenario territorial');
-    expect(screen.getByTestId('survey-live-heatmap-legend-summary')).toHaveTextContent('Densidad relativa');
+    expect(screen.getByTestId('survey-live-heatmap-legend-summary')).toHaveTextContent('Densidad y volumen combinados');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('1 ubicación');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('100 respuestas representadas');
   });

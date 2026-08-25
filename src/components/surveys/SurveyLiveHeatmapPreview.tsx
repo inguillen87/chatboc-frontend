@@ -34,6 +34,8 @@ type HeatmapSummaryItem = {
   value: number;
 };
 
+type SurveyMapMode = 'hybrid' | 'density' | 'points';
+
 type ResolvedJurisdiction = {
   displayName: string;
   municipality?: string;
@@ -385,7 +387,9 @@ export function SurveyLiveHeatmapPreview({
 }: SurveyLiveHeatmapPreviewProps) {
   const reactId = useId().replace(/:/g, '');
   const mapDescriptionId = `${reactId}-territory-map-description`;
-  const [mapMode, setMapMode] = useState<'density' | 'points'>('density');
+  const [mapMode, setMapMode] = useState<SurveyMapMode>('hybrid');
+  const [selectedZone, setSelectedZone] = useState('all');
+  const [selectedChannel, setSelectedChannel] = useState('all');
   const [fitBoundsRequestKey, setFitBoundsRequestKey] = useState(0);
 
   const metadata = useMemo<Record<string, unknown>>(
@@ -401,9 +405,36 @@ export function SurveyLiveHeatmapPreview({
     [heatmap?.cells],
   );
   const summaryData = pointData.length ? pointData : cellData;
-  const mappedSource = pointData.some((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+  const mappedCandidates = pointData.some((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     ? pointData
     : cellData;
+  const baseMappedSource = useMemo(
+    () => mappedCandidates.filter((item) =>
+      isValidCoordinatePair(item.lat ?? Number.NaN, item.lng ?? Number.NaN),
+    ),
+    [mappedCandidates],
+  );
+  const mapZoneOptions = useMemo(
+    () => summarizeBy(baseMappedSource, (item) => item.label).slice(0, 8),
+    [baseMappedSource],
+  );
+  const mapChannelOptions = useMemo(
+    () => summarizeBy(baseMappedSource, (item) => item.channel).slice(0, 8),
+    [baseMappedSource],
+  );
+  const effectiveZone = selectedZone === 'all' || mapZoneOptions.some((item) => item.label === selectedZone)
+    ? selectedZone
+    : 'all';
+  const effectiveChannel = selectedChannel === 'all' || mapChannelOptions.some((item) => item.label === selectedChannel)
+    ? selectedChannel
+    : 'all';
+  const mappedSource = useMemo(
+    () => baseMappedSource.filter((item) =>
+      (effectiveZone === 'all' || item.label === effectiveZone) &&
+      (effectiveChannel === 'all' || item.channel === effectiveChannel),
+    ),
+    [baseMappedSource, effectiveChannel, effectiveZone],
+  );
   const mapLibreHeatmapData = useMemo(() => buildMapLibreHeatmapData(mappedSource), [mappedSource]);
   const jurisdiction = useMemo(() => resolveJurisdiction(heatmap), [heatmap]);
   const mapCenter = useMemo(
@@ -436,6 +467,7 @@ export function SurveyLiveHeatmapPreview({
   const provider = readString(metadata, ['provider', 'provider_hint']);
   const contractVersion = readString(metadata, ['contract_version']);
   const totalSignal = summaryData.reduce((sum, item) => sum + item.value, 0);
+  const visibleMapSignal = mappedSource.reduce((sum, item) => sum + item.value, 0);
   const zoneSummaries = useMemo(() => summarizeBy(summaryData, (item) => item.label), [summaryData]);
   const channelSummaries = useMemo(() => summarizeBy(summaryData, (item) => item.channel), [summaryData]);
   const topZones = useMemo(() => zoneSummaries.slice(0, 5), [zoneSummaries]);
@@ -443,10 +475,11 @@ export function SurveyLiveHeatmapPreview({
   const focusZone = topZones[0];
   const dominantChannel = topChannels[0];
   const hasTerritorialData = summaryData.length > 0;
+  const hasBaseMappedData = baseMappedSource.length > 0;
   const hasMappedData = mapLibreHeatmapData.length > 0;
   const values = useMemo(
-    () => summaryData.map((item) => item.value).filter((value) => value > 0).sort((a, b) => a - b),
-    [summaryData],
+    () => mappedSource.map((item) => item.value).filter((value) => value > 0).sort((a, b) => a - b),
+    [mappedSource],
   );
   const intensityScale = {
     min: values[0] ?? 0,
@@ -487,6 +520,16 @@ export function SurveyLiveHeatmapPreview({
   const mapAriaLabel = jurisdiction
     ? `Mapa de participación de ${jurisdiction.displayName}`
     : 'Mapa de participación territorial';
+  const mapLegendTitle = mapMode === 'hybrid'
+    ? 'Densidad y volumen combinados'
+    : mapMode === 'density'
+      ? 'Densidad espacial relativa'
+      : 'Volumen por ubicación';
+  const mapLegendShort = mapMode === 'hybrid'
+    ? 'Calor + puntos'
+    : mapMode === 'density'
+      ? 'Densidad'
+      : 'Puntos';
 
   return (
     <section
@@ -572,53 +615,107 @@ export function SurveyLiveHeatmapPreview({
         data-testid="survey-live-heatmap-layout"
       >
         <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
-          <div className="flex flex-col gap-3 border-b border-slate-800 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-            <div>
-              <p className="text-sm font-semibold text-white">Cobertura geográfica</p>
-              <p className="mt-0.5 text-xs text-slate-400">La intensidad representa volumen; no prioridad ni gravedad.</p>
-            </div>
-            {hasMappedData ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <div
-                  className="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1"
-                  role="group"
-                  aria-label="Modo de visualización territorial"
-                >
+          <div className="border-b border-slate-800 px-3 py-3 sm:px-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Cobertura geográfica</p>
+                <p className="mt-0.5 text-xs text-slate-400">La intensidad representa volumen; no prioridad ni gravedad.</p>
+              </div>
+              {hasBaseMappedData ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div
+                    className="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1"
+                    role="group"
+                    aria-label="Modo de visualización territorial"
+                  >
+                    {([
+                      ['hybrid', 'Calor + puntos'],
+                      ['density', 'Densidad'],
+                      ['points', 'Puntos'],
+                    ] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={`min-h-10 rounded-lg px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:px-3 ${
+                          mapMode === mode ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                        aria-pressed={mapMode === mode}
+                        onClick={() => setMapMode(mode)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
-                    className={`min-h-10 rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                      mapMode === 'density' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                    aria-pressed={mapMode === 'density'}
-                    onClick={() => setMapMode('density')}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                    onClick={() => setFitBoundsRequestKey((current) => current + 1)}
                   >
-                    Densidad
-                  </button>
-                  <button
-                    type="button"
-                    className={`min-h-10 rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                      mapMode === 'points' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                    aria-pressed={mapMode === 'points'}
-                    onClick={() => setMapMode('points')}
-                  >
-                    Puntos
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Ajustar área
                   </button>
                 </div>
+              ) : null}
+            </div>
+
+            {hasBaseMappedData && (mapZoneOptions.length > 1 || mapChannelOptions.length > 1) ? (
+              <div
+                className="mt-3 grid gap-2 rounded-xl border border-slate-800 bg-slate-950/75 p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+                data-testid="survey-live-heatmap-map-filters"
+              >
+                <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Zona
+                  <select
+                    className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/25"
+                    value={effectiveZone}
+                    onChange={(event) => setSelectedZone(event.target.value)}
+                  >
+                    <option value="all">Todas las zonas</option>
+                    {mapZoneOptions.map((item) => (
+                      <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Canal
+                  <select
+                    className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/25"
+                    value={effectiveChannel}
+                    onChange={(event) => setSelectedChannel(event.target.value)}
+                  >
+                    <option value="all">Todos los canales</option>
+                    {mapChannelOptions.map((item) => (
+                      <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                  onClick={() => setFitBoundsRequestKey((current) => current + 1)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={effectiveZone === 'all' && effectiveChannel === 'all'}
+                  onClick={() => {
+                    setSelectedZone('all');
+                    setSelectedChannel('all');
+                  }}
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                  Ajustar área
+                  Restablecer
                 </button>
               </div>
+            ) : null}
+
+            {hasBaseMappedData ? (
+              <p className="mt-2 text-xs text-slate-400" aria-live="polite" data-testid="survey-live-heatmap-visible-scope">
+                Mostrando <strong className="font-semibold text-slate-200">{formatLocations(mapLibreHeatmapData.length)}</strong>
+                {' · '}<strong className="font-semibold text-slate-200">{formatMetric(visibleMapSignal)} respuestas representadas</strong>
+                {effectiveZone !== 'all' ? ` · ${effectiveZone}` : ''}
+                {effectiveChannel !== 'all' ? ` · ${effectiveChannel}` : ''}
+              </p>
             ) : null}
           </div>
 
           <p id={mapDescriptionId} className="sr-only">
-            {mapAriaLabel}. Incluye {formatLocations(mapLibreHeatmapData.length)} cartografiable{mapLibreHeatmapData.length === 1 ? '' : 's'} y un volumen total representado de {formatMetric(totalSignal)} respuestas.
+            {mapAriaLabel}. Incluye {formatLocations(mapLibreHeatmapData.length)} cartografiable{mapLibreHeatmapData.length === 1 ? '' : 's'} y un volumen visible de {formatMetric(visibleMapSignal)} respuestas.
           </p>
           <div className="relative h-[19rem] scroll-mt-20 sm:h-[24rem] lg:h-[28rem]" data-testid="survey-live-heatmap-map-region">
             {hasMappedData ? (
@@ -630,7 +727,8 @@ export function SurveyLiveHeatmapPreview({
                   boundsPadding={SURVEY_MAP_BOUNDS_PADDING}
                   heatmapData={mapLibreHeatmapData}
                   popupContext="survey"
-                  showHeatmap={mapMode === 'density'}
+                  showHeatmap={mapMode !== 'points'}
+                  showPoints={mapMode !== 'density'}
                   disableClientClustering
                   initialZoom={11}
                   className="absolute inset-0 h-full rounded-none"
@@ -653,12 +751,29 @@ export function SurveyLiveHeatmapPreview({
               <div className="flex h-full items-center justify-center p-6 text-center">
                 <div className="max-w-md rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 p-6">
                   <MapPin className="mx-auto h-7 w-7 text-slate-400" aria-hidden="true" />
-                  <p className="mt-3 font-semibold text-slate-100">{emptyLabel}</p>
+                  <p className="mt-3 font-semibold text-slate-100">
+                    {hasBaseMappedData ? 'Sin coincidencias para estos filtros' : emptyLabel}
+                  </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                    {hasTerritorialData
+                    {hasBaseMappedData
+                      ? 'Probá otra combinación territorial o restablecé la vista completa.'
+                      : hasTerritorialData
                       ? 'El contrato tiene agregados territoriales, pero no coordenadas suficientes para ubicarlos en el mapa.'
                       : 'Ajustá los filtros o esperá nuevas respuestas con información territorial.'}
                   </p>
+                  {hasBaseMappedData ? (
+                    <button
+                      type="button"
+                      className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      onClick={() => {
+                        setSelectedZone('all');
+                        setSelectedChannel('all');
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Ver todo el territorio
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -666,16 +781,14 @@ export function SurveyLiveHeatmapPreview({
             {hasMappedData ? (
               <details
                 className="group absolute bottom-3 left-3 right-3 z-10 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950/90 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
-                aria-label={`${mapMode === 'density' ? 'Escala relativa de densidad espacial' : 'Escala de volumen por ubicación'}. Volumen observado: mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
+                aria-label={`${mapLegendTitle}. Volumen observado: mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
                 data-testid="survey-live-heatmap-quantitative-legend"
               >
                 <summary
                   className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 sm:hidden [&::-webkit-details-marker]:hidden"
                   data-testid="survey-live-heatmap-legend-summary"
                 >
-                  <span className="uppercase tracking-wide">
-                    {mapMode === 'density' ? 'Densidad relativa' : 'Volumen por ubicación'}
-                  </span>
+                  <span className="uppercase tracking-wide">{mapLegendTitle}</span>
                   <span className="flex items-center gap-2 whitespace-nowrap text-slate-400">
                     {formatMetric(intensityScale.min)}–{formatMetric(intensityScale.max)}
                     <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
@@ -683,14 +796,21 @@ export function SurveyLiveHeatmapPreview({
                 </summary>
                 <div className="hidden px-3 py-2.5 group-open:block sm:block">
                   <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                    <span>{mapMode === 'density' ? 'Densidad espacial relativa' : 'Volumen por ubicación'}</span>
-                    <span>{mapMode === 'density' ? 'Densidad' : 'Puntos'}</span>
+                    <span>{mapLegendTitle}</span>
+                    <span>{mapLegendShort}</span>
                   </div>
                   <div
                     className="mt-2 h-2.5 rounded-full border border-white/10"
-                    style={{ background: mapMode === 'density' ? DENSITY_LEGEND_GRADIENT : POINTS_LEGEND_GRADIENT }}
+                    style={{ background: mapMode === 'points' ? POINTS_LEGEND_GRADIENT : DENSITY_LEGEND_GRADIENT }}
                     data-testid="survey-live-heatmap-color-ramp"
                   />
+                  {mapMode === 'hybrid' ? (
+                    <div
+                      className="mt-1.5 h-2.5 rounded-full border border-white/10"
+                      style={{ background: POINTS_LEGEND_GRADIENT }}
+                      data-testid="survey-live-heatmap-point-ramp"
+                    />
+                  ) : null}
                   <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-slate-400" aria-hidden="true">
                     <span>Menor</span>
                     <span>Intermedia</span>

@@ -21,6 +21,8 @@ const mapMocks = vi.hoisted(() => ({
   googleModuleLoads: 0,
   reducedMotion: false,
   rafCallbacks: [] as FrameRequestCallback[],
+  addedLayers: [] as Array<Record<string, unknown>>,
+  layoutCalls: [] as Array<[string, string, unknown]>,
 }));
 
 vi.mock("@/components/GoogleHeatmapMap", () => {
@@ -87,15 +89,18 @@ vi.mock("maplibre-gl", () => {
       return this.sources.get(id);
     }
 
-    addLayer(layer: { id: string }) {
+    addLayer(layer: { id: string } & Record<string, unknown>) {
       this.layers.add(layer.id);
+      mapMocks.addedLayers.push(layer);
     }
 
     getLayer(id: string) {
       return this.layers.has(id) ? { id } : undefined;
     }
 
-    setLayoutProperty() {}
+    setLayoutProperty(layerId: string, property: string, value: unknown) {
+      mapMocks.layoutCalls.push([layerId, property, value]);
+    }
     setStyle() {}
     addImage() {}
     hasImage() {
@@ -229,6 +234,8 @@ describe("MapLibreMap lifecycle", () => {
     mapMocks.googleModuleLoads = 0;
     mapMocks.reducedMotion = false;
     mapMocks.rafCallbacks.length = 0;
+    mapMocks.addedLayers.length = 0;
+    mapMocks.layoutCalls.length = 0;
 
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -313,6 +320,44 @@ describe("MapLibreMap lifecycle", () => {
     const scheduledWork = mapMocks.rafCallbacks.splice(0);
     scheduledWork.forEach((callback) => callback(0));
     expect(mapMocks.rafCallbacks).toHaveLength(0);
+  });
+
+  it("renders an executive hybrid layer with density, points and aggregate labels", async () => {
+    const { rerender } = render(
+      <MapLibreMap
+        geoLayerConfig={configFor(sourceFor("hybrid", -60.93))}
+        showHeatmap
+        showPoints
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(mapMocks.addedLayers.some((layer) => layer.id === "territory-points-labels")).toBe(true),
+    );
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
+    expect(mapMocks.addedLayers.find((layer) => layer.id === "territory-points-labels")).toEqual(
+      expect.objectContaining({ type: "symbol", source: "points" }),
+    );
+    expect(mapMocks.constructorCalls[0]).toEqual(
+      expect.objectContaining({ cooperativeGestures: true, maxPitch: 60 }),
+    );
+
+    mapMocks.layoutCalls.length = 0;
+    rerender(
+      <MapLibreMap
+        geoLayerConfig={configFor(sourceFor("hybrid", -60.93))}
+        showHeatmap
+        showPoints={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]),
+    );
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
+    expect(mapMocks.constructorCalls).toHaveLength(1);
   });
 
   it("exposes an accessible map region and refits on an explicit request without recreating it", async () => {

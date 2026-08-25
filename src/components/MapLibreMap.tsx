@@ -59,6 +59,7 @@ export type MapLibreMapProps = {
   heatmapData?: HeatPoint[];
   polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
+  showPoints?: boolean;
   showPolygons?: boolean;
   marker?: [number, number];
   className?: string;
@@ -550,8 +551,9 @@ export const buildMapClusterPopupContent = ({
 const toggleLayers = (
   map: Map,
   showHeatmap: boolean,
+  showPoints: boolean,
   showPolygons: boolean,
-  layerIds: { heat: string; halo: string; circles: string },
+  layerIds: { heat: string; halo: string; circles: string; labels: string },
 ) => {
   if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
@@ -564,14 +566,21 @@ const toggleLayers = (
     map.setLayoutProperty(
       layerIds.halo,
       "visibility",
-      !showHeatmap && !showPolygons ? "visible" : "none",
+      showPoints && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer(layerIds.circles)) {
     map.setLayoutProperty(
       layerIds.circles,
       "visibility",
-      !showHeatmap && !showPolygons ? "visible" : "none",
+      showPoints && !showPolygons ? "visible" : "none",
+    );
+  }
+  if (map.getLayer(layerIds.labels)) {
+    map.setLayoutProperty(
+      layerIds.labels,
+      "visibility",
+      showPoints && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer("polygons-fill")) {
@@ -589,6 +598,7 @@ export default function MapLibreMap({
   heatmapData = [],
   polygons,
   showHeatmap = true,
+  showPoints,
   showPolygons = false,
   marker,
   className,
@@ -643,6 +653,7 @@ export default function MapLibreMap({
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
     [normalizedHeatmap, shouldCluster],
   );
+  const resolvedShowPoints = showPoints ?? (!showHeatmap && !showPolygons);
   const configuredGeoSource = useMemo(
     () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
     [geoLayerConfig?.source],
@@ -664,8 +675,9 @@ export default function MapLibreMap({
       heat: geoLayerConfig?.layers?.heatmap?.id?.trim() || "tickets-heat",
       halo: `${geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles"}-halo`,
       circles: geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles",
+      labels: geoLayerConfig?.layers?.clusters?.id?.trim() || `${geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles"}-labels`,
     }),
-    [geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
+    [geoLayerConfig?.layers?.clusters?.id, geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
   );
   const configuredInteractions = useMemo(
     () => ({
@@ -756,6 +768,7 @@ export default function MapLibreMap({
   const apiKeyRef = useRef(resolvedMaptilerKey);
   const centerRef = useRef(center);
   const showHeatmapRef = useRef(showHeatmap);
+  const showPointsRef = useRef(resolvedShowPoints);
   const showPolygonsRef = useRef(showPolygons);
   const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
@@ -774,6 +787,10 @@ export default function MapLibreMap({
   useEffect(() => {
     showHeatmapRef.current = showHeatmap;
   }, [showHeatmap]);
+
+  useEffect(() => {
+    showPointsRef.current = resolvedShowPoints;
+  }, [resolvedShowPoints]);
 
   useEffect(() => {
     showPolygonsRef.current = showPolygons;
@@ -912,6 +929,8 @@ export default function MapLibreMap({
           style: initialStyle,
           center: centerRef.current ?? [0, 0],
           zoom: initialZoomRef.current,
+          cooperativeGestures: true,
+          maxPitch: 60,
         });
 
         mapRef.current = mapInstance;
@@ -988,7 +1007,7 @@ export default function MapLibreMap({
             source: "points",
             maxzoom: 15,
             paint: {
-              "heatmap-weight": ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
+              "heatmap-weight": ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
               "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
               "heatmap-radius": [
                 "interpolate",
@@ -1000,7 +1019,7 @@ export default function MapLibreMap({
                   4,
                   [
                     "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
                     2.6,
                   ],
                 ],
@@ -1010,7 +1029,7 @@ export default function MapLibreMap({
                   14,
                   [
                     "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
                     4.8,
                   ],
                 ],
@@ -1020,7 +1039,7 @@ export default function MapLibreMap({
                   18,
                   [
                     "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
                     6.4,
                   ],
                 ],
@@ -1060,13 +1079,13 @@ export default function MapLibreMap({
                 [
                   "max",
                   12,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 3.2],
+                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 3.2],
                 ],
                 16,
                 [
                   "max",
                   24,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 5.2],
+                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 5.2],
                 ],
               ],
               "circle-color": [
@@ -1120,7 +1139,7 @@ export default function MapLibreMap({
                     4,
                     [
                       "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
                       1.2,
                     ],
                   ],
@@ -1134,7 +1153,7 @@ export default function MapLibreMap({
                     6,
                     [
                       "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
                       2.4,
                     ],
                   ],
@@ -1161,7 +1180,7 @@ export default function MapLibreMap({
               ],
               "circle-stroke-color": [
                 "case",
-                [">", ["coalesce", ["get", "clusterSize"], 1], 12],
+                [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 12],
                 "rgba(15, 23, 42, 0.35)",
                 "rgba(255, 255, 255, 0.95)",
               ],
@@ -1171,7 +1190,40 @@ export default function MapLibreMap({
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current, configuredLayerIds);
+          addLayer(map, {
+            id: configuredLayerIds.labels,
+            type: "symbol",
+            source: "points",
+            minzoom: 9,
+            layout: {
+              "text-field": [
+                "case",
+                [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 1],
+                [
+                  "to-string",
+                  [
+                    "coalesce",
+                    ["get", "totalWeight"],
+                    ["get", "total"],
+                    ["get", "point_count_abbreviated"],
+                    ["get", "clusterSize"],
+                  ],
+                ],
+                "",
+              ],
+              "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 15, 12],
+              "text-allow-overlap": false,
+              "text-ignore-placement": false,
+            },
+            paint: {
+              "text-color": "#ffffff",
+              "text-halo-color": "rgba(15, 23, 42, 0.72)",
+              "text-halo-width": 1,
+              "text-opacity": 0.96,
+            },
+          });
+
+          toggleLayers(map, showHeatmapRef.current, showPointsRef.current, showPolygonsRef.current, configuredLayerIds);
           const currentInteractions = configuredInteractionsRef.current;
           trackFrontendEvent("map_loaded", {
             provider: "maplibre",
@@ -1352,6 +1404,15 @@ export default function MapLibreMap({
             .addTo(mapInstance);
         };
 
+        const handlePointMouseEnter = () => {
+          if (!configuredInteractionsRef.current.hover) return;
+          mapInstance.getCanvas().style.cursor = "pointer";
+        };
+
+        const handlePointMouseLeave = () => {
+          mapInstance.getCanvas().style.cursor = "";
+        };
+
         const handleMissingImage = (e: any) => {
           const id = e.id;
           if (!mapInstance.hasImage(id)) {
@@ -1362,6 +1423,8 @@ export default function MapLibreMap({
 
         mapInstance.on("click", handleClick);
         mapInstance.on("click", configuredLayerIds.circles, handleCircleClick);
+        mapInstance.on("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
+        mapInstance.on("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
         mapInstance.on("styleimagemissing", handleMissingImage);
         const bboxEvents = [
           "boxzoomend",
@@ -1390,6 +1453,8 @@ export default function MapLibreMap({
         return () => {
           mapInstance.off("click", handleClick);
           mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
+          mapInstance.off("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
+          mapInstance.off("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
           mapInstance.off("styleimagemissing", handleMissingImage);
           bboxEvents.forEach((eventName) => mapInstance.off(eventName, scheduleBoundingBox));
           mapInstance.off("load", scheduleBoundingBox);
@@ -1442,6 +1507,7 @@ export default function MapLibreMap({
     configuredLayerIds.circles,
     configuredLayerIds.halo,
     configuredLayerIds.heat,
+    configuredLayerIds.labels,
     configuredSourceOptions.cluster,
     configuredSourceOptions.clusterMaxZoom,
     configuredSourceOptions.clusterRadius,
@@ -1511,23 +1577,25 @@ export default function MapLibreMap({
     if (!map) return;
 
     if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
-      const handler = () => toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+      const handler = () => toggleLayers(map, showHeatmap, resolvedShowPoints, showPolygons, configuredLayerIds);
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+    toggleLayers(map, showHeatmap, resolvedShowPoints, showPolygons, configuredLayerIds);
     trackFrontendEvent("map_layer_toggle", {
       provider: "maplibre",
       show_heatmap: showHeatmap,
+      show_points: resolvedShowPoints,
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
     emitBackendMapEvent("layer_toggle", {
       provider: "maplibre",
       show_heatmap: showHeatmap,
+      show_points: resolvedShowPoints,
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
@@ -1535,9 +1603,11 @@ export default function MapLibreMap({
     configuredLayerIds.circles,
     configuredLayerIds.halo,
     configuredLayerIds.heat,
+    configuredLayerIds.labels,
     emitBackendMapEvent,
     geoLayerConfig?.contract_version,
     mapGeneration,
+    resolvedShowPoints,
     showHeatmap,
     showPolygons,
   ]);
