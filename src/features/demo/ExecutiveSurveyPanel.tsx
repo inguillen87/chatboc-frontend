@@ -400,7 +400,7 @@ const ExecutiveSurveyPanel = ({
       </div>
 
       {surveyVoting?.items.length ? (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid gap-3 2xl:grid-cols-2">
           {surveyVoting.items.map((survey) => <ExecutiveSurveyCard key={survey.id} survey={survey} />)}
         </div>
       ) : (
