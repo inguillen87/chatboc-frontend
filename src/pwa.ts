@@ -38,6 +38,8 @@ const PUBLIC_RUNTIME_PREFIXES = [
   '/precios',
   '/casos',
   '/opinar',
+  '/encuestas',
+  '/e/',
   '/login',
   '/register',
   '/widget',
@@ -61,7 +63,7 @@ const dismissRefreshToast = () => {
   refreshToastId = undefined;
 };
 
-const shouldAutoApplyPublicRefresh = () => {
+export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
   const pathname = window.location.pathname || '/';
