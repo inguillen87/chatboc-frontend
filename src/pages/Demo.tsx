@@ -1805,6 +1805,7 @@ const Demo = () => {
   const [demoCatalog, setDemoCatalog] = useState<DemoCatalogResponse | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
+  const [demoSessionLoading, setDemoSessionLoading] = useState(false);
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
@@ -1856,6 +1857,7 @@ const Demo = () => {
     setSectorSeleccionado(null);
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
+    setDemoSessionLoading(false);
     setDemoAdminPreview(null);
     setDemoError(null);
     setDemoRuntimeEvents([]);
@@ -2025,6 +2027,7 @@ const Demo = () => {
     setRubroClaveSeleccionado(state.rubroSlug ?? rubroLabel);
     setDemoTenantSlug(session.tenant_slug ?? null);
     setDemoWorkspace(session.workspace ?? null);
+    setDemoSessionLoading(false);
     setEsperandoRubro(false);
     openDemoWidget();
     setDemoError(null);
@@ -2049,6 +2052,16 @@ const Demo = () => {
     const effectiveStoredLabel = effectiveStoredClave ? storedLabel : null;
 
     if (normalizedRequestedSector && requestedRubro && !effectiveStoredClave) {
+      // Deep links are presentation entry points. Move to the requested workspace
+      // immediately and warm the executive preview in parallel with catalog/session
+      // bootstrap instead of leaving the visitor on the generic sector selector.
+      setSectorSeleccionado(normalizedRequestedSector);
+      setRubroSeleccionado(requestedRubro);
+      setRubroClaveSeleccionado(requestedRubro);
+      setDemoTenantSlug(requestedDemoTenantSlug ?? readSectorCatalogSlug(normalizedRequestedSector));
+      setDemoWorkspace(null);
+      setDemoSessionLoading(true);
+      setEsperandoRubro(false);
       void (async () => {
         const data = demoCatalog ?? await getDemoCatalog();
         if (!demoCatalog) {
@@ -2084,9 +2097,11 @@ const Demo = () => {
         setRubroClaveSeleccionado(requestedRubro);
         setDemoTenantSlug(session.tenant_slug ?? sessionTenantSlug ?? null);
         setDemoWorkspace(session.workspace ?? null);
+        setDemoSessionLoading(false);
         setEsperandoRubro(false);
         openDemoWidget();
       })().catch((error) => {
+        setDemoSessionLoading(false);
         setSectorSeleccionado(normalizedRequestedSector);
         setRubroClaveSeleccionado(requestedRubro);
         setEsperandoRubro(true);
@@ -2155,11 +2170,13 @@ const Demo = () => {
           setRubroClaveSeleccionado(defaultRubro ?? normalizedRequestedSector);
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
+          setDemoSessionLoading(false);
           setEsperandoRubro(false);
           openDemoWidget();
           setDemoError(null);
         })
         .catch((error) => {
+          setDemoSessionLoading(false);
           setEsperandoRubro(true);
           setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
         });
@@ -2168,6 +2185,7 @@ const Demo = () => {
 
     if (effectiveStoredClave && !rubroClaveSeleccionado) {
       const normalizedClave = extractRubroKey(effectiveStoredClave) ?? effectiveStoredClave;
+      setDemoSessionLoading(true);
       void createDemoSession({
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
@@ -2182,11 +2200,13 @@ const Demo = () => {
           }
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
+          setDemoSessionLoading(false);
           setEsperandoRubro(false);
           openDemoWidget();
           setDemoError(null);
         })
         .catch((error) => {
+          setDemoSessionLoading(false);
           safeLocalStorage.removeItem("rubroSeleccionado");
           safeLocalStorage.removeItem("rubroSeleccionado_label");
           safeLocalStorage.removeItem("demoSectorSeleccionado");
@@ -2252,6 +2272,7 @@ const Demo = () => {
     safeLocalStorage.setItem("rubroSeleccionado", defaultRubro ?? sector);
     safeLocalStorage.setItem("rubroSeleccionado_label", label);
     openDemoWidget();
+    setDemoSessionLoading(true);
 
     try {
       const session = await createDemoSession({
@@ -2264,8 +2285,10 @@ const Demo = () => {
       });
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
+      setDemoSessionLoading(false);
       setDemoError(null);
     } catch (error) {
+      setDemoSessionLoading(false);
       setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
     }
   }, [demoCatalog, openDemoWidget, requestedDemoTenantSlug, sectorSeleccionado]);
@@ -2286,11 +2309,11 @@ const Demo = () => {
             />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo guiada</p>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Elegi una operacion real para probar</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Elegí una operación real para probar</h1>
             </div>
           </div>
           <p className="mb-5 max-w-2xl text-left text-sm leading-6 text-muted-foreground">
-            La demo muestra capacidades disponibles y permite ver como una conversacion se convierte en una accion operativa.
+            La demo muestra capacidades disponibles y permite ver cómo una conversación se convierte en una acción operativa.
           </p>
           {demoError ? (
             <div className="mb-4">
@@ -2313,7 +2336,7 @@ const Demo = () => {
             />
           </div>
           {sectorSeleccionado ? null : (
-            <p className="mb-3 text-xs text-muted-foreground">Selecciona un sector para iniciar una demo guiada.</p>
+            <p className="mb-3 text-xs text-muted-foreground">Seleccioná un sector para iniciar una demo guiada.</p>
           )}
           {sectorSeleccionado && visibleRubrosDisponibles.length === 0 ? (
             <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
@@ -2361,6 +2384,7 @@ const Demo = () => {
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
               setDemoError(null);
+              setDemoSessionLoading(true);
               openDemoWidget();
               void (async () => {
                 try {
@@ -2387,8 +2411,10 @@ const Demo = () => {
                   });
                   setDemoTenantSlug(session.tenant_slug ?? sessionTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
+                  setDemoSessionLoading(false);
                   setDemoError(null);
                 } catch (error) {
+                  setDemoSessionLoading(false);
                   setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
                 }
               })();
@@ -2434,10 +2460,10 @@ const Demo = () => {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
             <h1 className="mt-2 max-w-3xl text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-              Proba una conversacion real y mira que queda listo para operar.
+              Probá una conversación real y mirá qué queda listo para operar.
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actue.
+              El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actúe.
             </p>
           </div>
           {demoError ? (
@@ -2454,20 +2480,46 @@ const Demo = () => {
               sector={sectorSeleccionado}
               rubro={rubroSeleccionado}
               workspace={demoWorkspace}
+              loading={demoSessionLoading}
               onRuntimeResult={handleDemoRuntimeResult}
             />
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-            <DemoAdminPreview
-              sector={sectorSeleccionado}
-              rubro={rubroSeleccionado}
-              preview={demoAdminPreview}
-              runtimeEvents={demoRuntimeEvents}
-              activeTarget={demoAdminPanelTarget}
-              onActiveTargetChange={setDemoAdminPanelTarget}
-              onOpenEventDetail={handleOpenDemoDetail}
-            />
+            {demoSessionLoading && !demoAdminPreview ? (
+              <section
+                className="rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm"
+                role="status"
+                aria-live="polite"
+                aria-label="Preparando el tablero ejecutivo"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Vista ejecutiva</p>
+                <h2 className="mt-2 text-xl font-bold tracking-tight">Preparando tablero de Gobierno</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Sincronizando casos, participación y señales territoriales del escenario.
+                </p>
+                <div className="mt-5 grid animate-pulse gap-3 motion-reduce:animate-none sm:grid-cols-3" aria-hidden="true">
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                      <div className="h-3 w-20 rounded-full bg-muted" />
+                      <div className="mt-3 h-7 w-16 rounded-lg bg-muted" />
+                      <div className="mt-3 h-2.5 w-full rounded-full bg-muted/80" />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 h-64 animate-pulse rounded-2xl border border-border/60 bg-muted/50 motion-reduce:animate-none" aria-hidden="true" />
+              </section>
+            ) : (
+              <DemoAdminPreview
+                sector={sectorSeleccionado}
+                rubro={rubroSeleccionado}
+                preview={demoAdminPreview}
+                runtimeEvents={demoRuntimeEvents}
+                activeTarget={demoAdminPanelTarget}
+                onActiveTargetChange={setDemoAdminPanelTarget}
+                onOpenEventDetail={handleOpenDemoDetail}
+              />
+            )}
           </aside>
         </div>
         <DemoDetailDrawer detail={demoDetailDrawer} onClose={() => setDemoDetailDrawer(null)} />

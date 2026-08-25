@@ -168,12 +168,14 @@ export default function DemoWorkspace({
   sector,
   rubro,
   workspace,
+  loading = false,
   onRuntimeResult,
 }: {
   tenantSlug?: string | null;
   sector?: DemoSector | null;
   rubro?: string | null;
   workspace?: DemoWorkspaceConfig | null;
+  loading?: boolean;
   onRuntimeResult?: (response: unknown, result: unknown) => void;
 }) {
   const valueCards = workspace?.value_cards ?? [];
@@ -219,7 +221,12 @@ export default function DemoWorkspace({
                 <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
               </div>
             </div>
-            {runtimeAvailable ? (
+            {loading ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden="true" />
+                conectando
+              </span>
+            ) : runtimeAvailable ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-semibold text-success">
                 <CheckCircle2 className="h-3 w-3" />
                 online
@@ -228,7 +235,40 @@ export default function DemoWorkspace({
           </div>
 
           <div className="max-h-[720px] min-h-[560px] overflow-y-auto rounded-[1.2rem] border border-border/50 bg-muted/15 p-3">
-            {runtimeAvailable ? (
+            {loading ? (
+              <div
+                className="flex min-h-[520px] flex-col rounded-[1rem] border border-border/60 bg-card/50 p-5"
+                role="status"
+                aria-live="polite"
+                aria-label="Preparando la conversación de la demo"
+              >
+                <div className="flex items-center gap-3 border-b border-border/50 pb-4">
+                  <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-primary/15 motion-reduce:animate-none" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Preparando conversación operativa</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Conectando el canal y las herramientas del escenario.</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-4 animate-pulse motion-reduce:animate-none" aria-hidden="true">
+                  <div className="mr-10 rounded-2xl rounded-tl-sm bg-muted/80 p-4">
+                    <div className="h-3 w-4/5 rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-3/5 rounded-full bg-muted-foreground/15" />
+                  </div>
+                  <div className="ml-12 rounded-2xl rounded-tr-sm bg-primary/10 p-4">
+                    <div className="h-3 w-full rounded-full bg-primary/15" />
+                    <div className="mt-2 h-3 w-2/3 rounded-full bg-primary/15" />
+                  </div>
+                  <div className="mr-16 rounded-2xl rounded-tl-sm bg-muted/80 p-4">
+                    <div className="h-3 w-3/4 rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-full rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-1/2 rounded-full bg-muted-foreground/15" />
+                  </div>
+                </div>
+                <div className="mt-auto rounded-xl border border-border/60 bg-background/70 p-3" aria-hidden="true">
+                  <div className="h-10 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+                </div>
+              </div>
+            ) : runtimeAvailable ? (
               <ChatPanel
                 variant="standalone"
                 context={{

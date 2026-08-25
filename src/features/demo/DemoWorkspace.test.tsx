@@ -90,4 +90,19 @@ describe('DemoWorkspace rubro tools', () => {
     expect(value).toHaveClass('min-w-0', 'break-words', '[overflow-wrap:anywhere]');
     expect(value.closest('article')).toHaveClass('min-w-0', 'overflow-hidden');
   });
+
+  it('shows an intentional conversation skeleton while a direct demo session connects', () => {
+    render(
+      <DemoWorkspace
+        workspace={null}
+        sector="gobierno"
+        rubro="municipio"
+        loading
+      />,
+    );
+
+    expect(screen.getByRole('status', { name: /preparando la conversación de la demo/i })).toBeInTheDocument();
+    expect(screen.getByText('Preparando conversación operativa')).toBeInTheDocument();
+    expect(screen.queryByText('Demo conversacional no disponible')).not.toBeInTheDocument();
+  });
 });

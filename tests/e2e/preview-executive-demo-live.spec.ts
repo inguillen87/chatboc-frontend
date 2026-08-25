@@ -58,6 +58,10 @@ test.describe('remote Preview executive government demo', () => {
       timeout: remoteTimeout,
     });
     expect(navigation?.status()).toBe(200);
+    await expect(
+      page.getByRole('heading', { name: 'Probá una conversación real y mirá qué queda listo para operar.' }),
+    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Elegí una operación real para probar' })).toHaveCount(0);
 
     const response = await adminPreviewResponse;
     const payload = await response.json();
