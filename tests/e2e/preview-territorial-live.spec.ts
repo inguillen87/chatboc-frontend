@@ -278,9 +278,16 @@ const settleRenderedFrames = async (page: Page) => {
 
 const alignMapBelowFixedNavbar = async (page: Page) => {
   const mapRegion = page.getByTestId('survey-live-heatmap-map-region');
-  await mapRegion.evaluate((element) =>
-    element.scrollIntoView({ block: 'start', inline: 'nearest' }),
-  );
+  await mapRegion.evaluate(async (element) => {
+    const root = document.documentElement;
+    const previousScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    element.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    root.style.scrollBehavior = previousScrollBehavior;
+  });
   await settleRenderedFrames(page);
 
   const mapBox = await mapRegion.boundingBox();
