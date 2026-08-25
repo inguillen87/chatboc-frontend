@@ -353,9 +353,9 @@ export const PublicSurveyShareActions = ({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Difusion operativa
               </p>
-              <h3 className="mt-1 text-lg font-semibold tracking-normal text-foreground">
+              <h2 className="mt-1 text-lg font-semibold tracking-normal text-foreground">
                 QR, share y resultados listos para operar
-              </h3>
+              </h2>
             </div>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700">
