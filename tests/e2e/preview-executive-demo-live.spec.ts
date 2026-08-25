@@ -108,14 +108,10 @@ test.describe('remote Preview executive government demo', () => {
     );
     await expect(panel.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toHaveCount(0);
     await expect(panel.getByText('184 casos')).toBeVisible();
-    await expect(
-      panel.getByRole('note', { name: `Composición de respuestas de ${firstSurvey.title}` }),
-    ).toContainText(
-      `${firstSurveyResults.seeded_responses} base sintética + ${firstSurveyResults.interactive_demo_responses} participaciones demo = ${firstSurveyResults.total_respuestas} total`,
-    );
-    await expect(
-      panel.getByRole('note', { name: `Composición de respuestas de ${firstSurvey.title}` }),
-    ).toContainText('0 respuestas ciudadanas verificadas');
+    const compositionText =
+      `${firstSurveyResults.seeded_responses} base sintética + ${firstSurveyResults.interactive_demo_responses} participaciones demo = ${firstSurveyResults.total_respuestas} total`;
+    await expect(panel.getByText(compositionText, { exact: false }).first()).toBeVisible();
+    await expect(panel.getByText('0 respuestas ciudadanas verificadas', { exact: false }).first()).toBeVisible();
 
     await panel.getByRole('button', { name: 'Reclamos', exact: true }).click();
     await expect(panel.getByText('Casos simulados')).toBeVisible();
@@ -131,6 +127,11 @@ test.describe('remote Preview executive government demo', () => {
     await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
     await expect(panel.getByText('6 encuestas demo')).toBeVisible();
     await expect(panel.getByText('Votacion de prioridades barriales')).toBeVisible();
+    const surveyComposition = panel.getByRole('note', {
+      name: `Composición de respuestas de ${firstSurvey.title}`,
+    });
+    await expect(surveyComposition).toContainText(compositionText);
+    await expect(surveyComposition).toContainText('0 respuestas ciudadanas verificadas');
     await expect(
       panel.locator('[data-demo-survey-voting] article').first().getByRole('progressbar', {
         name: new RegExp(`^${topSurveyOption.label}:`),

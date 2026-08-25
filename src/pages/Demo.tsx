@@ -1780,7 +1780,7 @@ export const DemoAdminPreview = ({
                           <span className="tabular-nums">
                             {survey.seededResponses} base sintética + {survey.interactiveDemoResponses} participaciones demo = {survey.totalResponses} total
                           </span>
-                          <span className="block text-muted-foreground">0 respuestas ciudadanas verificadas.</span>
+                          <span className="block text-foreground">0 respuestas ciudadanas verificadas.</span>
                         </div>
                       ) : null}
                       {survey.question ? <p className="mt-3 text-sm font-semibold text-foreground">{survey.question}</p> : null}
