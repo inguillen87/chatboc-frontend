@@ -832,7 +832,12 @@ const DemoPreviewMap = ({
       ? ([mapCenter.lng, mapCenter.lat] as [number, number])
       : bounds[0];
   const isSynthetic = dataMode === 'synthetic_demo_scenario';
-  const provenanceLabel = label || (isSynthetic ? 'Datos simulados' : 'Eventos de esta sesión');
+  const provenanceLabel =
+    label && normalizeSearchText(label) !== normalizeSearchText(title)
+      ? label
+      : isSynthetic
+        ? 'Datos simulados'
+        : 'Eventos de esta sesión';
   const titleId = `demo-preview-map-${isSynthetic ? 'synthetic' : 'session'}`;
   const pointCount = displayedPoints ?? points.length;
   const hasCoverage =
