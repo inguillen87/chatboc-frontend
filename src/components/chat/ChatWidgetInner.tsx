@@ -1328,8 +1328,9 @@ function ChatWidgetInner({
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
       if (nextIsOpen && typeof document !== "undefined") {
-        lastFocusedElementRef.current = document.activeElement instanceof HTMLElement
-          ? document.activeElement
+        const activeElement = document.activeElement;
+        lastFocusedElementRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+          ? activeElement
           : launcherButtonRef.current;
       }
       if (!nextIsOpen) {
