@@ -162,7 +162,7 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
 
     const grid = document.querySelector('[data-demo-kpi-list]');
-    expect(grid).toHaveClass('grid-cols-2', 'lg:grid-cols-4');
+    expect(grid).toHaveClass('grid-cols-2', '2xl:grid-cols-4');
     expect(screen.getByText('184 casos')).toBeVisible();
     expect(screen.getByText('87 %')).toBeVisible();
     expect(screen.getAllByText('3,4 min')).toHaveLength(2);

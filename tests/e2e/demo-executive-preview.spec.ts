@@ -250,7 +250,7 @@ test.describe('government executive demo preview', () => {
       await expect(panel.getByText('No representa datos oficiales ni relevamiento municipal.')).toBeVisible();
       await expect(panel.getByRole('heading', { level: 3, name: 'Canales y SLA del escenario' })).toBeVisible();
       await expect(panel.locator('[data-demo-kpi-list]')).toHaveClass(/grid-cols-2/);
-      await expect(panel.locator('[data-demo-kpi-list]')).toHaveClass(/lg:grid-cols-4/);
+      await expect(panel.locator('[data-demo-kpi-list]')).toHaveClass(/2xl:grid-cols-4/);
 
       await expect(page.locator('main')).toHaveCount(1);
       await expect(page.locator('main main')).toHaveCount(0);

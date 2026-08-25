@@ -1170,7 +1170,7 @@ const DemoExecutiveKpiGrid = ({
           {isMixedPartitioned ? 'Fuentes separadas' : isSynthetic ? 'Escenario simulado' : 'Sesión actual'}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="list" data-demo-kpi-list>
+      <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4" role="list" data-demo-kpi-list>
         {items.map((item) => {
           const CardIcon = item.icon;
           const sourceLabel = item.dataMode === 'synthetic_demo_scenario'
