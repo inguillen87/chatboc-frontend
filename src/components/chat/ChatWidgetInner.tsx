@@ -2569,12 +2569,13 @@ function ChatWidgetInner({
     const isPlatformTenant = tenantSlug === "chatboc-platform";
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
 
-      if (isDemoSession || ((!tenantSlug || isPlatformTenant) && !widgetToken)) {
-        setWidgetCommerceSession(null);
-        setWidgetCommerceHistory(null);
-        setWidgetCommerceCart(null);
-        return;
-      }
+    // tenantSlug is public routing context, never authorization for commerce/session data.
+    if (isDemoSession || !widgetToken) {
+      setWidgetCommerceSession(null);
+      setWidgetCommerceHistory(null);
+      setWidgetCommerceCart(null);
+      return;
+    }
 
     const request = {
       tenantSlug: tenantSlug && !isPlatformTenant ? tenantSlug : null,
@@ -2583,15 +2584,12 @@ function ChatWidgetInner({
       anonId: getOrCreateAnonId(),
     };
 
-    const loadCommerceSession = (activeRequest: typeof request, retried = false): Promise<void> =>
+    const loadCommerceSession = (activeRequest: typeof request): Promise<void> =>
       getWidgetCommerceSession(activeRequest)
       .then((session) => {
         if (!isActive) return;
         if (!responseMatchesTenant(session, tenantSlug)) {
-          if (!retried && activeRequest.widgetToken) {
-            clearCachedWidgetToken();
-            return loadCommerceSession({ ...activeRequest, widgetToken: null }, true);
-          }
+          if (activeRequest.widgetToken) clearCachedWidgetToken();
           setWidgetCommerceSession(null);
           setWidgetCommerceHistory(null);
           setWidgetCommerceCart(null);
@@ -2633,7 +2631,8 @@ function ChatWidgetInner({
     const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
     const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
 
-    if (!historyEndpoint && !tenantSlug && !widgetToken) {
+    // History is user-scoped: do not downgrade a missing/invalid token to an anonymous request.
+    if (isDemoSession || !widgetToken) {
       setWidgetCommerceHistory(null);
       return;
     }
@@ -2645,15 +2644,12 @@ function ChatWidgetInner({
       anonId: getOrCreateAnonId(),
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     };
-    const loadTenantHistory = (activeRequest: typeof historyRequest, retried = false): Promise<void> =>
+    const loadTenantHistory = (activeRequest: typeof historyRequest): Promise<void> =>
       getWidgetTenantHistory(historyEndpoint || null, activeRequest)
       .then((history) => {
         if (isActive) {
           if (!responseMatchesTenant(history, tenantSlug)) {
-            if (!retried && activeRequest.widgetToken) {
-              clearCachedWidgetToken();
-              return loadTenantHistory({ ...activeRequest, widgetToken: null }, true);
-            }
+            if (activeRequest.widgetToken) clearCachedWidgetToken();
             setWidgetCommerceHistory(null);
             return;
           }
