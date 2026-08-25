@@ -457,7 +457,7 @@ const readShortChatSessionId = (value: unknown): string | null => {
 const readBootstrapSession = (bootstrap: ChatBootstrapConfig): Record<string, unknown> | undefined =>
   isRecord(bootstrap.session) ? bootstrap.session : undefined;
 
-const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
+export const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
   const headers = normalizeHeaders(bootstrap.headers) ?? {};
   const session = readBootstrapSession(bootstrap);
   const demoSessionId =

@@ -133,6 +133,8 @@ export interface ChatMediaInputModeConfig {
   multipart_field?: string | null;
   max_seconds?: number | null;
   max_file_mb?: number | null;
+  /** Canonical allowlist published by the live media-capabilities contract. */
+  accept?: string[] | null;
   accepted_mime_types?: string[] | null;
   accepted_extensions?: string[] | null;
   fields?: string[];

@@ -23,6 +23,34 @@ type DirectUploadPrepareResponse = {
   request_id?: string;
 };
 
+export type ChatAttachmentUploadContext = {
+  tenantSlug?: string | null;
+  demoSessionId?: string | null;
+  chatSessionId?: string | null;
+};
+
+const normalizeContextValue = (value?: string | null) => value?.trim() || null;
+
+export const resolveBoundChatAttachmentUploadContext = (
+  activeTenantSlug: string | null | undefined,
+  bootstrapContext: ChatAttachmentUploadContext = {},
+): ChatAttachmentUploadContext => {
+  const activeTenant = normalizeContextValue(activeTenantSlug);
+  const bootstrapTenant = normalizeContextValue(bootstrapContext.tenantSlug);
+  const tenantContextMatches = !activeTenant
+    || !bootstrapTenant
+    || activeTenant === bootstrapTenant;
+  return {
+    tenantSlug: activeTenant || bootstrapTenant,
+    demoSessionId: tenantContextMatches
+      ? normalizeContextValue(bootstrapContext.demoSessionId)
+      : null,
+    chatSessionId: tenantContextMatches
+      ? normalizeContextValue(bootstrapContext.chatSessionId)
+      : null,
+  };
+};
+
 const normalizeEndpointPath = (endpoint: string) => {
   const trimmed = endpoint.trim();
   if (!trimmed) return "";
@@ -63,12 +91,22 @@ const resolveApiAlias = (endpoint: string) => {
 const postUploadApi = async <T>(
   endpoint: string,
   body: FormData | Record<string, unknown>,
+  context: ChatAttachmentUploadContext = {},
 ): Promise<T> => {
+  const demoSessionId = context.demoSessionId?.trim() || "";
+  const tenantSlug = context.tenantSlug?.trim() || undefined;
+  const headers = demoSessionId
+    ? { "X-Demo-Session-Id": demoSessionId }
+    : undefined;
   try {
     return await apiFetch<T>(endpoint, {
       method: "POST",
       body,
+      headers,
       isWidgetRequest: true,
+      tenantSlug,
+      persistTenantSlug: false,
+      chatSessionId: context.chatSessionId,
       baseUrlOverride: resolveRootUploadBase(endpoint),
     });
   } catch (error) {
@@ -81,7 +119,11 @@ const postUploadApi = async <T>(
       return apiFetch<T>(aliasEndpoint, {
         method: "POST",
         body,
+        headers,
         isWidgetRequest: true,
+        tenantSlug,
+        persistTenantSlug: false,
+        chatSessionId: context.chatSessionId,
       });
     }
     throw error;
@@ -91,7 +133,8 @@ const postUploadApi = async <T>(
 const uploadWithLegacyMultipart = <T>(
   endpoint: string,
   createFormData: () => FormData,
-) => postUploadApi<T>(endpoint, createFormData());
+  context: ChatAttachmentUploadContext,
+) => postUploadApi<T>(endpoint, createFormData(), context);
 
 const readUploadFile = (formData: FormData): File | null => {
   const candidate = formData.get("file");
@@ -232,32 +275,41 @@ const putDirectlyToObjectStorage = async (
   }
 };
 
-const prepareDirectUpload = async (endpoint: string, file: File) => {
-  const preparedRaw = await postUploadApi<unknown>(endpoint, {
-    operation: "prepare_direct_upload",
-    filename: file.name,
-    mime_type: normalizeMimeType(file.type),
-    size_bytes: file.size,
-  });
+const prepareDirectUpload = async (
+  endpoint: string,
+  file: File,
+  context: ChatAttachmentUploadContext,
+) => {
+  const preparedRaw = await postUploadApi<unknown>(
+    endpoint,
+    {
+      operation: "prepare_direct_upload",
+      filename: file.name,
+      mime_type: normalizeMimeType(file.type),
+      size_bytes: file.size,
+    },
+    context,
+  );
   return parsePrepareResponse(preparedRaw, file);
 };
 
 export const uploadChatAttachment = async <T>(
   endpoint: string,
   createFormData: () => FormData,
+  context: ChatAttachmentUploadContext = {},
 ): Promise<T> => {
   if (!supportsDirectChatAttachmentUpload(endpoint)) {
-    return uploadWithLegacyMultipart<T>(endpoint, createFormData);
+    return uploadWithLegacyMultipart<T>(endpoint, createFormData, context);
   }
 
   const initialFormData = createFormData();
   const file = readUploadFile(initialFormData);
   if (!file) {
-    return postUploadApi<T>(endpoint, initialFormData);
+    return postUploadApi<T>(endpoint, initialFormData, context);
   }
   if (!file.name.trim() || !normalizeMimeType(file.type)) {
     if (file.size <= LEGACY_MULTIPART_MAX_FILE_BYTES) {
-      return postUploadApi<T>(endpoint, initialFormData);
+      return postUploadApi<T>(endpoint, initialFormData, context);
     }
     throw new ApiError("El archivo necesita un nombre y tipo validos para la carga segura.", 400, {
       code: "direct_upload_metadata_required",
@@ -266,21 +318,25 @@ export const uploadChatAttachment = async <T>(
 
   let prepared: DirectUploadPrepareResponse;
   try {
-    prepared = await prepareDirectUpload(endpoint, file);
+    prepared = await prepareDirectUpload(endpoint, file, context);
   } catch (error) {
     if (
       file.size <= LEGACY_MULTIPART_MAX_FILE_BYTES &&
       isDirectUploadCompatibilityError(error)
     ) {
-      return uploadWithLegacyMultipart<T>(endpoint, createFormData);
+      return uploadWithLegacyMultipart<T>(endpoint, createFormData, context);
     }
     throw error;
   }
 
   await putDirectlyToObjectStorage(prepared, file);
 
-  return postUploadApi<T>(endpoint, {
-    operation: "complete_direct_upload",
-    intent_token: prepared.intent_token,
-  });
+  return postUploadApi<T>(
+    endpoint,
+    {
+      operation: "complete_direct_upload",
+      intent_token: prepared.intent_token,
+    },
+    context,
+  );
 };

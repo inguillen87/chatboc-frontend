@@ -46,6 +46,8 @@ export const getChatAttachmentAcceptedTypes = (
   mode: ChatAttachmentMode,
   fallbackAcceptedTypes?: string[],
 ) => {
+  const canonical = readAccepted(modeConfig?.accept);
+  if (Array.isArray(modeConfig?.accept)) return canonical;
   const configured = [
     ...readAccepted(modeConfig?.accepted_mime_types),
     ...readAccepted(modeConfig?.accepted_extensions),
@@ -96,6 +98,7 @@ export const validateChatAttachment = (
   fallbackAcceptedTypes?: string[],
 ) => {
   const acceptedTypes = getChatAttachmentAcceptedTypes(modeConfig, mode, fallbackAcceptedTypes);
+  const hasCanonicalAllowlist = Array.isArray(modeConfig?.accept);
   const maxFileMb = getChatAttachmentMaxFileMb(modeConfig);
   const maxBytes = maxFileMb * 1024 * 1024;
 
@@ -103,7 +106,10 @@ export const validateChatAttachment = (
     return `El archivo supera el limite permitido de ${maxFileMb} MB.`;
   }
 
-  if (acceptedTypes.length && !acceptedTypes.some((accepted) => acceptedMatches(file, accepted))) {
+  if (
+    (hasCanonicalAllowlist && acceptedTypes.length === 0) ||
+    (acceptedTypes.length && !acceptedTypes.some((accepted) => acceptedMatches(file, accepted)))
+  ) {
     return 'Formato no permitido para este canal. Proba con una imagen, PDF, documento o archivo habilitado por el administrador.';
   }
 

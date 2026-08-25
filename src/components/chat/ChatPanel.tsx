@@ -53,6 +53,7 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import {
   createLeadCaptureIdempotencyKey,
+  getBootstrapSessionValues,
   submitLeadCapture,
   type LeadCaptureNextAction,
 } from "@/features/chat/chatApi";
@@ -65,6 +66,7 @@ import {
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
+import { resolveBoundChatAttachmentUploadContext } from "@/features/chat/uploadChatAttachment";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
 import { resolveLiveChatRequestAction } from "@/utils/liveChatCta";
@@ -3370,6 +3372,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     ? null
     : "Para atenderte mejor, primero podes decirme tu nombre.";
   const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
+  const attachmentUploadContext = useMemo(() => {
+    const bootstrapSession = chatBootstrap
+      ? getBootstrapSessionValues(chatBootstrap)
+      : {};
+    return resolveBoundChatAttachmentUploadContext(tenantSlug, bootstrapSession);
+  }, [chatBootstrap, tenantSlug]);
   const bootstrapDemoMetadata = bootstrapPayload?.demo_metadata as Record<string, unknown> | undefined;
   const bootstrapWorkspace = bootstrapPayload?.workspace as Record<string, unknown> | undefined;
   const demoWorkspace = bootstrapDemoMetadata?.workspace as Record<string, unknown> | undefined;
@@ -4821,6 +4829,9 @@ const ChatPanel = (props: ChatPanelProps) => {
             uiHints={uiHints}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
+            tenantSlug={attachmentUploadContext.tenantSlug}
+            demoSessionId={attachmentUploadContext.demoSessionId}
+            chatSessionId={attachmentUploadContext.chatSessionId}
           />
         )}
       </div>

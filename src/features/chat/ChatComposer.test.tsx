@@ -71,6 +71,9 @@ describe('ChatComposer attachment validation', () => {
     render(
       <ChatComposer
         onSend={onSend}
+        tenantSlug="municipio"
+        demoSessionId="signed-demo-session"
+        chatSessionId="sid_demo_session"
         mediaCapabilities={{
           composer: {
             actions: [{ id: 'file', type: 'file', label: 'Adjuntar archivo' }],
@@ -97,6 +100,15 @@ describe('ChatComposer attachment validation', () => {
     await waitFor(() => {
       expect(uploadChatAttachment).toHaveBeenCalled();
     });
+    expect(uploadChatAttachment).toHaveBeenCalledWith(
+      '/archivos/upload/chat_attachment',
+      expect.any(Function),
+      {
+        tenantSlug: 'municipio',
+        demoSessionId: 'signed-demo-session',
+        chatSessionId: 'sid_demo_session',
+      },
+    );
     expect(onSend).toHaveBeenCalledWith(
       expect.objectContaining({
         attachmentInfo: { url: 'https://cdn.example.com/boleta.pdf', name: 'boleta.pdf' },

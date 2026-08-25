@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiFetch } from "@/utils/api";
-import { uploadChatAttachment } from "./uploadChatAttachment";
+import {
+  resolveBoundChatAttachmentUploadContext,
+  uploadChatAttachment,
+} from "./uploadChatAttachment";
 
 const DIRECT_CONTRACT = "chat.attachment.direct.v1";
 const normalizedMime = (file: File) => file.type.split(";", 1)[0].trim().toLowerCase();
@@ -46,6 +49,39 @@ describe("uploadChatAttachment direct R2 transport", () => {
     vi.unstubAllGlobals();
   });
 
+  it("fails closed when the active tenant and signed bootstrap tenant disagree", () => {
+    expect(
+      resolveBoundChatAttachmentUploadContext("tenant-active", {
+        tenantSlug: "tenant-stale",
+        demoSessionId: "signed-stale-demo",
+        chatSessionId: "sid_stale",
+      }),
+    ).toEqual({
+      tenantSlug: "tenant-active",
+      demoSessionId: null,
+      chatSessionId: null,
+    });
+  });
+
+  it("normalizes a missing tenant to undefined so widget upload cannot reuse stale storage", async () => {
+    const file = new File(["pdf"], "nota.pdf", { type: "application/pdf" });
+    apiFetchMock.mockResolvedValueOnce({ ok: true });
+
+    await uploadChatAttachment(
+      "/legacy/upload",
+      createFileForm(file),
+      { tenantSlug: null },
+    );
+
+    expect(apiFetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        isWidgetRequest: true,
+        tenantSlug: undefined,
+        persistTenantSlug: false,
+      }),
+    );
+  });
+
   it("prepares, uploads raw bytes without Chatboc credentials, completes, and preserves attachmentInfo", async () => {
     const file = new File(["pdf-content"], "boleta.pdf", { type: "application/pdf" });
     const completedPayload = {
@@ -69,6 +105,11 @@ describe("uploadChatAttachment direct R2 transport", () => {
     const result = await uploadChatAttachment<typeof completedPayload>(
       "/archivos/upload/chat_attachment",
       createFileForm(file),
+      {
+        tenantSlug: "municipio",
+        demoSessionId: "signed-demo-session",
+        chatSessionId: "sid_demo_session",
+      },
     );
 
     expect(result).toBe(completedPayload);
@@ -83,6 +124,10 @@ describe("uploadChatAttachment direct R2 transport", () => {
           size_bytes: file.size,
         },
         isWidgetRequest: true,
+        tenantSlug: "municipio",
+        persistTenantSlug: false,
+        chatSessionId: "sid_demo_session",
+        headers: { "X-Demo-Session-Id": "signed-demo-session" },
       }),
     );
     expect(apiFetchMock.mock.calls[1]?.[1]).toEqual(
@@ -93,6 +138,10 @@ describe("uploadChatAttachment direct R2 transport", () => {
           intent_token: "intent-token-123",
         },
         isWidgetRequest: true,
+        tenantSlug: "municipio",
+        persistTenantSlug: false,
+        chatSessionId: "sid_demo_session",
+        headers: { "X-Demo-Session-Id": "signed-demo-session" },
       }),
     );
 

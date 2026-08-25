@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import LegacyChatPanel from '@/components/chat/ChatPanel';
 import ChatMessageList from './ChatMessageList';
 import ChatComposer, { type ChatComposerPayload } from './ChatComposer';
+import { resolveBoundChatAttachmentUploadContext } from './uploadChatAttachment';
 import QuickReplies from './QuickReplies';
 import HandoffBanner from './HandoffBanner';
 import ConversationRating from './ConversationRating';
@@ -14,6 +15,7 @@ import { ExternalLink, FileText, Image as ImageIcon, MapPin, Mic, PackageCheck, 
 import {
   createLeadCaptureIdempotencyKey,
   extractChatBootstrapReplyText,
+  getBootstrapSessionValues,
   normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
   submitWidgetAssistedOrder,
@@ -598,6 +600,10 @@ function StandaloneChatPanel({
   const resolvedAnimationTokens =
     animationTokens ?? resolvedContext.animationTokens ?? resolvedBlueprint?.animation_tokens ?? null;
   const resolvedChatBootstrap = resolvedContext.chatBootstrap ?? null;
+  const attachmentUploadContext = resolveBoundChatAttachmentUploadContext(
+    resolvedContext.tenantSlug,
+    resolvedChatBootstrap ? getBootstrapSessionValues(resolvedChatBootstrap) : {},
+  );
   const resolvedEmptyStates = {
     ...(resolvedBlueprint?.empty_states ?? {}),
     ...(resolvedContext.emptyStates ?? {}),
@@ -1192,6 +1198,9 @@ function StandaloneChatPanel({
         draftText={composerDraft}
         intent={composerIntent}
         payload={composerPayload}
+        tenantSlug={attachmentUploadContext.tenantSlug}
+        demoSessionId={attachmentUploadContext.demoSessionId}
+        chatSessionId={attachmentUploadContext.chatSessionId}
         disabled={!hasRuntimeChat}
       />
       <ConversationRating conversationId={conversationId} />

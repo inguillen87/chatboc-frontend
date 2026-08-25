@@ -654,6 +654,11 @@ interface ApiFetchOptions {
    */
   omitChatSessionId?: boolean;
   /**
+   * Uses an already-issued chat session instead of the browser-global fallback.
+   * Demo bootstraps bind this value to their signed demo session.
+   */
+  chatSessionId?: string | null;
+  /**
    * When true, avoids sending browser cookies with the request.
    * Useful for widget requests where the visitor should remain anonymous.
    */
@@ -863,6 +868,7 @@ export async function apiFetch<T>(
     omitCredentials,
     isWidgetRequest,
     omitChatSessionId,
+    chatSessionId: explicitChatSessionId,
     tenantSlug,
     persistTenantSlug,
     baseUrlOverride,
@@ -966,7 +972,9 @@ export async function apiFetch<T>(
     }
   }
   const shouldAttachChatSession = !omitChatSessionId;
-  const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
+  const chatSessionId = shouldAttachChatSession
+    ? normalizeHeaderValue(explicitChatSessionId) || getOrCreateChatSessionId()
+    : null;
 
   const anonId = getOrCreateAnonId();
 
