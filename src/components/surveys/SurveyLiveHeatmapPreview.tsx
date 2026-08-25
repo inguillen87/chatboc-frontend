@@ -620,7 +620,7 @@ export function SurveyLiveHeatmapPreview({
           <p id={mapDescriptionId} className="sr-only">
             {mapAriaLabel}. Incluye {formatLocations(mapLibreHeatmapData.length)} cartografiable{mapLibreHeatmapData.length === 1 ? '' : 's'} y un volumen total representado de {formatMetric(totalSignal)} respuestas.
           </p>
-          <div className="relative h-[19rem] sm:h-[24rem] lg:h-[28rem]" data-testid="survey-live-heatmap-map-region">
+          <div className="relative h-[19rem] scroll-mt-20 sm:h-[24rem] lg:h-[28rem]" data-testid="survey-live-heatmap-map-region">
             {hasMappedData ? (
               <div className="absolute inset-0" data-testid="survey-live-heatmap-maplibre">
                 <LazyMapLibreMap

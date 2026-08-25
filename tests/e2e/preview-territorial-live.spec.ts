@@ -276,13 +276,30 @@ const settleRenderedFrames = async (page: Page) => {
   );
 };
 
+const alignMapBelowFixedNavbar = async (page: Page) => {
+  const mapRegion = page.getByTestId('survey-live-heatmap-map-region');
+  await mapRegion.evaluate((element) =>
+    element.scrollIntoView({ block: 'start', inline: 'nearest' }),
+  );
+  await settleRenderedFrames(page);
+
+  const mapBox = await mapRegion.boundingBox();
+  const navbarBox = await page.locator('.chatboc-brand-navbar').first().boundingBox();
+  expect(mapBox, 'The territorial map must have measurable viewport geometry.').not.toBeNull();
+  expect(navbarBox, 'The fixed brand navbar must have measurable viewport geometry.').not.toBeNull();
+  expect(
+    mapBox?.y ?? 0,
+    'The fixed navbar must not cover the territorial evidence or native map controls.',
+  ).toBeGreaterThanOrEqual((navbarBox?.y ?? 0) + (navbarBox?.height ?? 0));
+};
+
 const assertMapReady = async (
   page: Page,
   evidence: RemoteEvidence,
   testInfo: TestInfo,
 ) => {
   const mapRegion = page.getByTestId('survey-live-heatmap-map-region');
-  await mapRegion.scrollIntoViewIfNeeded();
+  await alignMapBelowFixedNavbar(page);
   await expect(page.getByText('Cargando mapa...', { exact: true })).toHaveCount(0, {
     timeout: REMOTE_WAIT_MS,
   });
@@ -389,8 +406,7 @@ const assertResponsiveMap = async (page: Page, testInfo: TestInfo) => {
   const mapRegion = page.getByTestId('survey-live-heatmap-map-region');
   for (const viewport of RESPONSIVE_VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await mapRegion.scrollIntoViewIfNeeded();
-    await settleRenderedFrames(page);
+    await alignMapBelowFixedNavbar(page);
     await expectNoHorizontalOverflow(page);
     await expect
       .poll(async () => hasProportionalMapGeometry(await readMapGeometry(page)), {
