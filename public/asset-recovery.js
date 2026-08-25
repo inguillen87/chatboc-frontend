@@ -115,7 +115,10 @@
   // Vite emits this event when a hashed dynamic import disappeared during a
   // deployment cutover. Handle it directly because some browsers consume the
   // underlying promise rejection before the generic listener can observe it.
-  window.addEventListener('vite:preloadError', function handleVitePreloadError() {
+  window.addEventListener('vite:preloadError', function handleVitePreloadError(event) {
+    if (event && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
     void recover('vite-preload');
   });
 

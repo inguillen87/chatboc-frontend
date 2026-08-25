@@ -133,10 +133,12 @@ describe('asset recovery bootstrap', () => {
 
   it('executes recovery for Vite dynamic-import cutovers', async () => {
     const runtime = buildRuntime();
+    const preventDefault = vi.fn();
 
-    runtime.listeners.get('vite:preloadError')?.({});
+    runtime.listeners.get('vite:preloadError')?.({ preventDefault });
 
     await vi.waitFor(() => expect(runtime.replace).toHaveBeenCalledOnce());
+    expect(preventDefault).toHaveBeenCalledOnce();
     expect(runtime.replace.mock.calls[0][0]).toContain('__chatboc_reason=vite-preload');
     expect(runtime.unregister).toHaveBeenCalledOnce();
     expect(runtime.deleteCache).toHaveBeenCalledTimes(2);
