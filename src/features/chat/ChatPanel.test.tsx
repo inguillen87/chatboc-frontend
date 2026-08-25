@@ -96,7 +96,6 @@ describe('ChatPanel widget assisted orders', () => {
       ticket_id: 42,
       ticket: {
         id: 42,
-        nro_ticket: '123456',
         consulta_pin: '654321',
         status: 'nuevo',
         category: 'Baches y calzada',
@@ -147,6 +146,8 @@ describe('ChatPanel widget assisted orders', () => {
     const trackingLink = await screen.findByRole('link', { name: /Ver seguimiento/i });
     expect(trackingLink).toHaveAttribute('href', '/tracking/claim/123456#pin=654321');
     expect(trackingLink.getAttribute('href')).not.toContain('/api/v2/inbox/omnichannel');
+    expect(screen.getByText('123456', { exact: true })).toBeVisible();
+    expect(screen.queryByText('42', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Ver en panel')).not.toBeInTheDocument();
   });
 

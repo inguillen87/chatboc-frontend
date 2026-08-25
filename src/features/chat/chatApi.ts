@@ -248,13 +248,17 @@ const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | 
   const location = isRecord(source.location) ? source.location : {};
   const map = isRecord(source.map) ? source.map : {};
   const contact = isRecord(source.contact) ? source.contact : {};
+  const publicStatusHint = isRecord(source.public_status_hint) ? source.public_status_hint : {};
   const archivos = collectOperationalAttachments(source);
   const archivosRaw = readFirstValue(source, ['archivos', 'archivos_count', 'cantidad_archivos', 'attachments_count']);
   const archivosCount = Array.isArray(archivosRaw)
     ? archivosRaw.length
     : readNumber(source, ['archivos_count', 'cantidad_archivos', 'attachments_count']);
   const ticket: OperationalTicketResult = {
-    nro_ticket: readString(source, ['nro_ticket', 'ticket_number', 'ticket_id', 'id']),
+    nro_ticket:
+      readString(source, ['nro_ticket', 'ticket_number']) ??
+      readString(publicStatusHint, ['ticket', 'code', 'nro_ticket']) ??
+      readString(source, ['ticket_id', 'id']),
     ticket_id: readString(source, ['ticket_id', 'id']),
     chat_id: readString(source, ['chat_id', 'case_id', 'nro_caso']),
     status: readString(source, ['status', 'estado']),

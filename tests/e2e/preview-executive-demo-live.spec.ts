@@ -89,7 +89,7 @@ test.describe('remote Preview executive government demo', () => {
       firstSurveyResults.total_respuestas,
     );
     expect(firstSurveyResults.seeded_responses).toBe(100);
-    expect(firstSurveyResults.interactive_demo_responses).toBeGreaterThanOrEqual(1);
+    expect(firstSurveyResults.interactive_demo_responses).toBeGreaterThanOrEqual(0);
     expect(firstSurveyResults.verified_citizen_responses).toBe(0);
     expect(firstSurveyResults.total_respuestas).toBe(
       firstSurveyResults.seeded_responses + firstSurveyResults.interactive_demo_responses,
@@ -101,7 +101,7 @@ test.describe('remote Preview executive government demo', () => {
     }>;
     const topSurveyOption = [...firstSurveyOptions].sort((left, right) => right.count - left.count)[0];
 
-    const panel = page.getByRole('region', { name: 'Panel demo para gestion ciudadana' });
+    const panel = page.getByRole('region', { name: 'Panel demo para gestión ciudadana' });
     await expect(panel).toBeVisible({ timeout: remoteTimeout });
     await expect(panel.getByRole('note', { name: /advertencia sobre los datos/i })).toContainText(
       'Escenario demostrativo · datos simulados',

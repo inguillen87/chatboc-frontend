@@ -378,7 +378,7 @@ const ExecutiveSurveySelector = ({
     >
       <span
         className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold tabular-nums ${
-          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground group-hover:text-foreground'
+          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
         }`}
         aria-hidden="true"
       >
@@ -387,16 +387,16 @@ const ExecutiveSurveySelector = ({
       <span className="min-w-0">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="truncate text-sm font-bold leading-5">{survey.title}</span>
-          <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <span className="rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground">
             {formatDemoPresentationLabel(survey.status || 'Publicada')}
           </span>
         </span>
-        <span className="mt-1 block truncate text-[11px] leading-4 text-muted-foreground">
+        <span className="mt-1 block truncate text-[11px] font-medium leading-4 text-foreground">
           {survey.question || survey.description || 'Sin pregunta descriptiva publicada'}
         </span>
-        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] leading-4 text-muted-foreground">
+        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium leading-4 text-foreground">
           <span><strong className="font-bold tabular-nums text-foreground">{NUMBER_FORMATTER.format(survey.totalResponses)}</strong> {responseLabel}</span>
-          <span className={isActive ? 'font-semibold text-primary' : undefined}>
+          <span className={isActive ? 'font-bold text-foreground' : undefined}>
             {isActive ? 'Análisis visible' : 'Ver análisis'}
           </span>
         </span>

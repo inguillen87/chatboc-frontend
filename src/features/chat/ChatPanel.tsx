@@ -1240,11 +1240,13 @@ function LeadCaptureResult({
   result: LeadCaptureResponse;
   onOpenResult?: () => void;
 }) {
-  const traceItems = [
-    result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
-    result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
-    result.status ? { label: 'Estado', value: result.status } : null,
-  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const traceItems = result.ticket
+    ? []
+    : [
+        result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
+        result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
+        result.status ? { label: 'Estado', value: result.status } : null,
+      ].filter((item): item is { label: string; value: string } => Boolean(item));
   const ticketTrackingEndpoint = result.ticket ? resolveTicketTrackingEndpoint(result.ticket) : null;
   const visibleActions = (result.next_actions ?? []).filter((action) => {
     if (!result.ticket) return true;
@@ -1280,7 +1282,14 @@ function LeadCaptureResult({
       ) : null}
       {hasActions ? <LeadCaptureNextActions actions={visibleActions} onOpenResult={onOpenResult} /> : null}
       {result.request_id ? (
-        <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
+        <details className="rounded-md border border-border/70 bg-background/65">
+          <summary className="cursor-pointer px-2.5 py-2 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            Trazabilidad técnica
+          </summary>
+          <p className="break-all border-t border-border/70 px-2.5 py-2 font-mono text-[10px] text-muted-foreground">
+            Solicitud: {result.request_id}
+          </p>
+        </details>
       ) : null}
     </div>
   );
@@ -1332,10 +1341,10 @@ function OperationalTicketCard({
     ticket.nro_ticket ? { label: 'Ticket', value: String(ticket.nro_ticket) } : null,
     ticket.chat_id ? { label: 'Caso', value: String(ticket.chat_id) } : null,
     ticket.status ? { label: 'Estado', value: ticket.status } : null,
-    ticket.categoria ? { label: 'Categoria', value: ticket.categoria } : null,
-    ticket.direccion ? { label: 'Direccion', value: ticket.direccion } : null,
+    ticket.categoria ? { label: 'Categoría', value: ticket.categoria } : null,
+    ticket.direccion ? { label: 'Dirección', value: ticket.direccion } : null,
     ticket.nombre_vecino ? { label: 'Vecino', value: ticket.nombre_vecino } : null,
-    ticket.telefono_vecino ? { label: 'Telefono', value: ticket.telefono_vecino } : null,
+    ticket.telefono_vecino ? { label: 'Teléfono', value: ticket.telefono_vecino } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item));
   const hasLocation = hasFiniteCoordinates(ticket);
   const whatsappCase = ticket.canal_ingreso?.trim().toLowerCase() === 'whatsapp';

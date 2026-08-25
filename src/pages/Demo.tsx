@@ -1770,7 +1770,7 @@ export const DemoAdminPreview = ({
               sourceKind={executiveClaimSourceKind}
               sourceLabel={caseSourceLabel}
               showSourceDisclosure={false}
-              sample={caseSample ? {
+              sample={!runtimeTickets.length && caseSample ? {
                 isSample: caseSample.sample === true,
                 displayedCases: readNonNegativeInteger(caseSample.displayed_cases),
                 totalCases: readNonNegativeInteger(caseSample.total_cases),
