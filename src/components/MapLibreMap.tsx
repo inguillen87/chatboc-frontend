@@ -1650,6 +1650,8 @@ export default function MapLibreMap({
         Array.isArray(value) &&
         value.length === 2 &&
         isRenderableCoordinatePair(value[1], value[0]),
+    ).sort(([leftLng, leftLat], [rightLng, rightLat]) =>
+      leftLng - rightLng || leftLat - rightLat,
     ),
   );
   const stableFitBoundsCoordinates = useMemo(

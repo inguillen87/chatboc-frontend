@@ -369,11 +369,27 @@ describe("MapLibreMap lifecycle", () => {
     );
     await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2));
 
+    // API ranking changes may reorder the exact same geography after a vote.
+    // Reordering must not move the camera while an operator is inspecting it.
+    const reorderedCoordinates = [...changedCoordinates].reverse();
     rerender(
       <MapLibreMap
         ariaLabel="Mapa de participación de Junin, Mendoza"
         ariaDescribedBy="territory-map-description"
-        fitToBounds={changedCoordinates}
+        fitToBounds={reorderedCoordinates}
+        fitBoundsRequestKey={0}
+        heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 100 }]}
+        geoLayerConfig={configFor(sourceFor("junin", -68.48))}
+      />,
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <MapLibreMap
+        ariaLabel="Mapa de participación de Junin, Mendoza"
+        ariaDescribedBy="territory-map-description"
+        fitToBounds={reorderedCoordinates}
         fitBoundsRequestKey={1}
         heatmapData={[{ lat: -33.16, lng: -68.5, totalWeight: 100 }]}
         geoLayerConfig={configFor(sourceFor("junin", -68.48))}
