@@ -174,7 +174,9 @@ describe('SurveyLiveResultsPanel', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Socket live');
     expect(screen.getByText('Emergencia escolar')).toBeInTheDocument();
     expect(screen.getAllByText('31').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 1');
+    const pointsCount = screen.getByTestId('survey-live-heatmap-points-count');
+    expect(pointsCount).toHaveTextContent('Puntos');
+    expect(pointsCount).toHaveTextContent('1');
   });
 
   it('shows validated citizen provenance on the public live surface', () => {

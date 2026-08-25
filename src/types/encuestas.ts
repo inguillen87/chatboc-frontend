@@ -223,9 +223,31 @@ export interface SurveyLiveHeatmapCell {
   [key: string]: unknown;
 }
 
+export interface SurveyHeatmapJurisdiction {
+  contract_version?: string;
+  country?: string | null;
+  province?: string | null;
+  municipality?: string | null;
+  display_name?: string | null;
+  center?:
+    | {
+        lat?: number | string;
+        lng?: number | string;
+        lon?: number | string;
+        [key: string]: unknown;
+      }
+    | [number, number]
+    | null;
+  coordinate_reference?: string | null;
+  coordinate_source?: string | null;
+  [key: string]: unknown;
+}
+
 export interface SurveyLiveHeatmap {
   points?: SurveyLiveHeatmapPoint[];
   cells?: SurveyLiveHeatmapCell[];
+  source?: string;
+  jurisdiction?: SurveyHeatmapJurisdiction | string | null;
   metadata?: Record<string, unknown>;
 }
 

@@ -480,7 +480,7 @@ export function SurveyLiveResultsPanel({
                 heatmap={payload?.heatmap}
                 aiSignal={payload?.ai_signal}
                 operatorRecommendations={payload?.operator_recommendations}
-                title="Mapa live de participacion"
+                title="Distribución territorial de respuestas"
                 subtitle="Zonas y canales activos con privacidad protegida"
                 emptyLabel="Sin actividad territorial para esta ventana"
               />

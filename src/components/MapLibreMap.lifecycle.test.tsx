@@ -315,6 +315,41 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.rafCallbacks).toHaveLength(0);
   });
 
+  it("exposes an accessible map region and refits on an explicit request without recreating it", async () => {
+    const fitToBounds: [number, number][] = [
+      [-68.5, -33.16],
+      [-68.46, -33.12],
+    ];
+    const { rerender } = render(
+      <MapLibreMap
+        ariaLabel="Mapa de participación de Junin, Mendoza"
+        ariaDescribedBy="territory-map-description"
+        fitToBounds={fitToBounds}
+        fitBoundsRequestKey={0}
+        geoLayerConfig={configFor(sourceFor("junin", -68.48))}
+      />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Mapa de participación de Junin, Mendoza" }),
+    ).toHaveAttribute("aria-describedby", "territory-map-description");
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <MapLibreMap
+        ariaLabel="Mapa de participación de Junin, Mendoza"
+        ariaDescribedBy="territory-map-description"
+        fitToBounds={fitToBounds}
+        fitBoundsRequestKey={1}
+        geoLayerConfig={configFor(sourceFor("junin", -68.48))}
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2));
+    expect(mapMocks.constructorCalls).toHaveLength(1);
+    expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
+  });
+
   it("debounces bounding-box events, toggles callbacks without recreating the map, and cleans up", async () => {
     const firstCallback = vi.fn();
     const secondCallback = vi.fn();

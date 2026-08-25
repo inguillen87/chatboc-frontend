@@ -1,23 +1,47 @@
-import { useId, useMemo } from 'react';
-import { Activity, BrainCircuit, Layers3, MapPin, Radio, ShieldCheck } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+import {
+  Activity,
+  BarChart3,
+  BrainCircuit,
+  Database,
+  Layers3,
+  MapPin,
+  RotateCcw,
+  ShieldCheck,
+} from 'lucide-react';
 
 import LazyMapLibreMap from '@/components/LazyMapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
-import type { SurveyLiveHeatmap } from '@/types/encuestas';
+import type {
+  SurveyLiveHeatmap,
+  SurveyLiveHeatmapCell,
+  SurveyLiveHeatmapPoint,
+} from '@/types/encuestas';
 
-type HeatmapDatum = {
+type TerritorialDatum = {
   id: string;
-  x: number;
-  y: number;
   value: number;
   label?: string;
   channel?: string;
+  lat?: number;
+  lng?: number;
   kind: 'point' | 'cell';
 };
 
 type HeatmapSummaryItem = {
   label: string;
   value: number;
+};
+
+type ResolvedJurisdiction = {
+  displayName: string;
+  municipality?: string;
+  province?: string;
+  country?: string;
+  contractVersion?: string;
+  coordinateReference?: string;
+  coordinateSource?: string;
+  center?: [number, number];
 };
 
 interface SurveyLiveHeatmapPreviewProps {
@@ -38,30 +62,27 @@ interface SurveyLiveHeatmapPreviewProps {
   emptyLabel?: string;
 }
 
-const VIEWBOX_WIDTH = 640;
-const VIEWBOX_HEIGHT = 320;
-const CELL_COLUMNS = 8;
-const CELL_ROWS = 4;
-const MAX_SVG_POINTS = 28;
-const MAX_SVG_CELLS = CELL_COLUMNS * CELL_ROWS;
-const TELEMETRY_PARTICLES = [
-  { cx: 88, cy: 82, r: 1.8, delay: '0s', color: '#67e8f9' },
-  { cx: 148, cy: 236, r: 1.5, delay: '-1.4s', color: '#34d399' },
-  { cx: 248, cy: 72, r: 1.7, delay: '-2.8s', color: '#facc15' },
-  { cx: 392, cy: 254, r: 1.6, delay: '-3.6s', color: '#60a5fa' },
-  { cx: 528, cy: 102, r: 1.9, delay: '-4.6s', color: '#a78bfa' },
-];
+const NUMBER_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
-const toFiniteNumber = (value: unknown, fallback = 0) => {
+const SOURCE_LABELS: Record<string, string> = {
+  demo_seeded_responses: 'Respuestas sintéticas determinísticas',
+  backend_demo_contract: 'Contrato demostrativo del backend',
+  chatboc_demo_seed: 'Motor de escenarios Chatboc',
+  tenant_demo_profile: 'Perfil territorial del municipio',
+  generic_demo_anchor: 'Anclaje territorial genérico',
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const toFiniteNumber = (value: unknown, fallback = Number.NaN) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-
 const readNumber = (item: Record<string, unknown>, keys: string[], fallback = Number.NaN) => {
   for (const key of keys) {
-    const value = toFiniteNumber(item[key], Number.NaN);
+    const value = toFiniteNumber(item[key]);
     if (Number.isFinite(value)) return value;
   }
   return fallback;
@@ -76,667 +97,693 @@ const readString = (item: Record<string, unknown>, keys: string[]) => {
   return undefined;
 };
 
-const datumValue = (item: Record<string, unknown>) =>
-  Math.max(1, readNumber(item, ['value', 'respuestas', 'votos', 'count', 'total', 'weight', 'intensity'], 1));
-
-const readMetadataNumber = (metadata: Record<string, unknown>, keys: string[], fallback = 0) => {
-  for (const key of keys) {
-    const value = toFiniteNumber(metadata[key], Number.NaN);
-    if (Number.isFinite(value)) return value;
-  }
-  return fallback;
-};
-
-const readMetadataFlag = (metadata: Record<string, unknown>, keys: string[]) =>
+const readFlag = (item: Record<string, unknown>, keys: string[]) =>
   keys.some((key) => {
-    const value = metadata[key];
+    const value = item[key];
     if (value === true) return true;
     if (typeof value === 'number') return value > 0;
-    if (typeof value === 'string') return ['true', '1', 'yes', 'si'].includes(value.trim().toLowerCase());
+    if (typeof value === 'string') return ['true', '1', 'yes', 'si', 'sí'].includes(value.trim().toLowerCase());
     return false;
   });
 
-const scaleCoordinates = <T extends { item: Record<string, unknown>; index: number; lat: number; lng: number }>(
-  points: T[],
-  kind: HeatmapDatum['kind'],
-): HeatmapDatum[] => {
-  const lats = points.map((point) => point.lat);
-  const lngs = points.map((point) => point.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const latSpan = Math.max(0.0001, maxLat - minLat);
-  const lngSpan = Math.max(0.0001, maxLng - minLng);
+const datumValue = (item: Record<string, unknown>) =>
+  Math.max(0, readNumber(item, ['value', 'respuestas', 'votos', 'count', 'total', 'weight', 'intensity'], 0));
 
-  return points.map(({ item, index, lat, lng }) => ({
-    id: `${kind}-${readString(item, ['id', 'cellId', 'cell_id']) ?? index}`,
-    x: 56 + ((lng - minLng) / lngSpan) * 528,
-    y: 52 + (1 - (lat - minLat) / latSpan) * 214,
-    value: datumValue(item),
-    label: readString(item, ['barrio', 'zona', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']),
-    channel: readString(item, ['canal', 'channel', 'source']),
+const normalizeDatum = (
+  item: SurveyLiveHeatmapPoint | SurveyLiveHeatmapCell,
+  index: number,
+  kind: TerritorialDatum['kind'],
+): TerritorialDatum => {
+  const record = item as Record<string, unknown>;
+  const lat = readNumber(record, ['lat', 'latitude', 'centroid_lat']);
+  const lng = readNumber(record, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']);
+
+  return {
+    id: `${kind}-${readString(record, ['id', 'clusterId', 'cluster_id', 'cellId', 'cell_id']) ?? index}`,
+    value: datumValue(record),
+    label: readString(record, ['barrio', 'zona', 'distrito', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']),
+    channel: readString(record, ['canal', 'channel', 'source', 'fuente']),
+    lat: Number.isFinite(lat) ? lat : undefined,
+    lng: Number.isFinite(lng) ? lng : undefined,
     kind,
-  }));
+  };
 };
 
-const normalizeGeoPoints = (heatmap: SurveyLiveHeatmap): HeatmapDatum[] => {
-  const points = [...(heatmap.points ?? [])]
-    .sort((a, b) => datumValue(b) - datumValue(a))
-    .slice(0, MAX_SVG_POINTS);
-  const numericPoints = points
-    .map((point, index) => ({
-      point,
-      index,
-      lat: readNumber(point, ['lat', 'latitude', 'centroid_lat']),
-      lng: readNumber(point, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']),
-    }))
-    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
-
-  if (!numericPoints.length) {
-    return points.map((point, index) => ({
-      id: `point-${index}`,
-      x: 70 + ((index * 87) % 500),
-      y: 62 + ((index * 53) % 190),
-      value: datumValue(point),
-      label: readString(point, ['barrio', 'zona', 'ciudad', 'label', 'name', 'categoria']),
-      channel: readString(point, ['canal', 'channel', 'source']),
-      kind: 'point',
-    }));
-  }
-
-  return scaleCoordinates(
-    numericPoints.map(({ point, index, lat, lng }) => ({ item: point, index, lat, lng })),
-    'point',
-  );
-};
-
-const normalizeCells = (heatmap: SurveyLiveHeatmap): HeatmapDatum[] => {
-  const cells = [...(heatmap.cells ?? [])]
-    .sort((a, b) => datumValue(b) - datumValue(a))
-    .slice(0, MAX_SVG_CELLS);
-  const numericCells = cells
-    .map((cell, index) => ({
-      item: cell,
-      index,
-      lat: readNumber(cell, ['lat', 'latitude', 'centroid_lat']),
-      lng: readNumber(cell, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']),
-    }))
-    .filter((cell) => Number.isFinite(cell.lat) && Number.isFinite(cell.lng));
-
-  if (numericCells.length) return scaleCoordinates(numericCells, 'cell');
-
-  return cells.map((cell, index) => {
-    const column = index % CELL_COLUMNS;
-    const row = Math.floor(index / CELL_COLUMNS);
-    return {
-      id: `cell-${readString(cell, ['id', 'cellId', 'cell_id']) ?? index}`,
-      x: 50 + column * 67,
-      y: 48 + row * 52,
-      value: datumValue(cell),
-      label: readString(cell, ['barrio', 'zona', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']),
-      channel: readString(cell, ['canal', 'channel', 'source']),
-      kind: 'cell',
-    };
-  });
-};
-
-const summarizeBy = (items: HeatmapDatum[], picker: (item: HeatmapDatum) => string | undefined): HeatmapSummaryItem[] => {
+const summarizeBy = (
+  items: TerritorialDatum[],
+  picker: (item: TerritorialDatum) => string | undefined,
+): HeatmapSummaryItem[] => {
   const totals = new Map<string, number>();
   items.forEach((item) => {
     const label = picker(item);
-    if (!label) return;
+    if (!label || item.value <= 0) return;
     totals.set(label, (totals.get(label) ?? 0) + item.value);
   });
   return Array.from(totals.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 4);
+    .slice(0, 5);
 };
 
-const asDisplayText = (value: unknown, fallback = '-') => {
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  if (typeof value === 'boolean') return value ? 'si' : 'no';
-  return fallback;
-};
-
-const normalizePriorityTone = (value: unknown) => {
-  const priority = asDisplayText(value, 'medium').toLowerCase();
-  if (priority === 'high' || priority === 'critical' || priority === 'alta') return 'text-rose-200 border-rose-300/25 bg-rose-400/10';
-  if (priority === 'low' || priority === 'baja') return 'text-slate-300 border-white/10 bg-white/[0.04]';
-  return 'text-amber-100 border-amber-200/20 bg-amber-300/10';
-};
-
-const privacyPrecisionLabel = (value: unknown) => {
-  const precision = asDisplayText(value, '').toLowerCase();
-  if (!precision) return '';
-  if (precision.includes('rounded') || precision.includes('approx') || precision.includes('cell')) {
-    return 'coordenadas aproximadas';
+const parseJurisdictionCenter = (value: unknown): [number, number] | undefined => {
+  if (Array.isArray(value) && value.length >= 2) {
+    const lng = toFiniteNumber(value[0]);
+    const lat = toFiniteNumber(value[1]);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : undefined;
   }
-  return precision.replace(/_/g, ' ');
+  if (!isRecord(value)) return undefined;
+  const lat = readNumber(value, ['lat', 'latitude']);
+  const lng = readNumber(value, ['lng', 'lon', 'longitude']);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : undefined;
 };
 
-const buildTelemetryPath = (from: HeatmapDatum, to: HeatmapDatum) => {
-  const controlX = (from.x + to.x) / 2;
-  const controlY = Math.min(from.y, to.y) - 74;
-  return `M${from.x} ${from.y} Q${controlX} ${controlY} ${to.x} ${to.y}`;
+const resolveJurisdiction = (heatmap?: SurveyLiveHeatmap | null): ResolvedJurisdiction | null => {
+  if (!heatmap) return null;
+  const metadata = isRecord(heatmap.metadata) ? heatmap.metadata : {};
+  const raw = heatmap.jurisdiction ?? metadata.jurisdiction ?? metadata.jurisdiccion;
+  if (typeof raw === 'string' && raw.trim()) return { displayName: raw.trim() };
+
+  const jurisdiction: Record<string, unknown> = isRecord(raw)
+    ? raw
+    : {
+        display_name: metadata.jurisdiction_name ?? metadata.jurisdiccion_nombre,
+        municipality: metadata.municipality ?? metadata.municipio,
+        province: metadata.province ?? metadata.provincia,
+        country: metadata.country ?? metadata.pais,
+        center: metadata.center ?? metadata.centro,
+        contract_version: metadata.jurisdiction_contract_version,
+        coordinate_reference: metadata.coordinate_reference,
+        coordinate_source: metadata.coordinate_source,
+      };
+
+  const municipality = readString(jurisdiction, ['municipality', 'municipio', 'city', 'locality']);
+  const province = readString(jurisdiction, ['province', 'provincia', 'state']);
+  const country = readString(jurisdiction, ['country', 'pais']);
+  const assembledName = [municipality, province].filter(Boolean).join(', ');
+  const displayName =
+    readString(jurisdiction, ['display_name', 'displayName', 'label', 'name']) ??
+    (assembledName || country);
+
+  if (!displayName) return null;
+  return {
+    displayName,
+    municipality,
+    province,
+    country,
+    contractVersion: readString(jurisdiction, ['contract_version']),
+    coordinateReference: readString(jurisdiction, ['coordinate_reference', 'crs']),
+    coordinateSource: readString(jurisdiction, ['coordinate_source', 'source']),
+    center: parseJurisdictionCenter(jurisdiction.center),
+  };
 };
 
-const extractCoordinate = (item: Record<string, unknown>) => {
-  const lat = readNumber(item, ['lat', 'latitude', 'centroid_lat']);
-  const lng = readNumber(item, ['lng', 'lon', 'longitude', 'centroid_lng', 'centroid_lon']);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
+const buildMapLibreHeatmapData = (items: TerritorialDatum[]): HeatPoint[] => {
+  const mapped = items.filter(
+    (item): item is TerritorialDatum & { lat: number; lng: number } =>
+      Number.isFinite(item.lat) && Number.isFinite(item.lng),
+  );
+  const maxValue = Math.max(1, ...mapped.map((item) => item.value));
+
+  return mapped.map((item) => ({
+    lat: item.lat,
+    lng: item.lng,
+    weight: item.value / maxValue,
+    intensity: item.value / maxValue,
+    totalWeight: item.value,
+    averageWeight: item.value,
+    clusterSize: Math.max(1, Math.round(item.value)),
+    barrio: item.label,
+    distrito: item.label,
+    canal: item.channel,
+    fuente: item.channel,
+    categoria: item.kind === 'point' ? 'respuesta' : 'celda agregada',
+    clusterId: item.id,
+    cellId: item.kind === 'cell' ? item.id : undefined,
+    source: item.kind === 'point' ? 'survey_live_point' : 'survey_live_cell',
+    total: item.value,
+  }));
 };
 
-const buildMapLibreHeatmapData = (heatmap?: SurveyLiveHeatmap | null): HeatPoint[] => {
-  if (!heatmap) return [];
-  const pointSource = (heatmap.points ?? []).filter((point) => extractCoordinate(point));
-  const usingPoints = pointSource.length > 0;
-  const source = usingPoints ? pointSource : (heatmap.cells ?? []).filter((cell) => extractCoordinate(cell));
-
-  return source.map((item, index) => {
-    const coords = extractCoordinate(item) || { lat: 0, lng: 0 };
-    const weight = datumValue(item);
-    const label = readString(item, ['barrio', 'zona', 'ciudad', 'label', 'name', 'categoria', 'cellId', 'cell_id']);
-    const channel = readString(item, ['canal', 'channel', 'source']);
-    const clusterSize = Math.max(1, readNumber(item, ['point_count', 'points_count', 'count', 'respuestas', 'value'], weight));
-
-    return {
-      lat: coords.lat,
-      lng: coords.lng,
-      weight,
-      totalWeight: weight,
-      averageWeight: clusterSize > 0 ? Number((weight / clusterSize).toFixed(2)) : weight,
-      clusterSize,
-      barrio: label,
-      distrito: label,
-      canal: channel,
-      fuente: channel,
-      categoria: readString(item, ['categoria', 'category', 'tipo', 'intent']) || (usingPoints ? 'respuesta' : 'celda'),
-      clusterId: readString(item, ['clusterId', 'cluster_id', 'cellId', 'cell_id', 'id']) || `survey-${usingPoints ? 'point' : 'cell'}-${index}`,
-      cellId: readString(item, ['cellId', 'cell_id', 'id']),
-      source: usingPoints ? 'survey_live_point' : 'survey_live_cell',
-      total: weight,
-    };
-  });
-};
-
-const resolveMapCenter = (points: HeatPoint[]): [number, number] | undefined => {
-  if (!points.length) return undefined;
-  const totalWeight = points.reduce((sum, point) => sum + (point.totalWeight ?? point.weight ?? 1), 0);
+const resolveMapCenter = (
+  points: HeatPoint[],
+  jurisdictionCenter?: [number, number],
+): [number, number] | undefined => {
+  if (!points.length) return jurisdictionCenter;
+  const totalWeight = points.reduce((sum, point) => sum + Math.max(0, point.totalWeight ?? 0), 0);
   const divisor = totalWeight > 0 ? totalWeight : points.length;
-  const lat = points.reduce((sum, point) => sum + point.lat * (point.totalWeight ?? point.weight ?? 1), 0) / divisor;
-  const lng = points.reduce((sum, point) => sum + point.lng * (point.totalWeight ?? point.weight ?? 1), 0) / divisor;
+  const lat = points.reduce(
+    (sum, point) => sum + point.lat * (totalWeight > 0 ? Math.max(0, point.totalWeight ?? 0) : 1),
+    0,
+  ) / divisor;
+  const lng = points.reduce(
+    (sum, point) => sum + point.lng * (totalWeight > 0 ? Math.max(0, point.totalWeight ?? 0) : 1),
+    0,
+  ) / divisor;
   return [lng, lat];
 };
 
-const formatCount = (visible: number, total: number) => (total > visible ? `${visible}/${total}` : String(visible));
+const formatMetric = (value: number) => NUMBER_FORMAT.format(value);
+const formatPercent = (value: number, total: number) =>
+  total > 0 ? `${NUMBER_FORMAT.format((value / total) * 100)}%` : '0%';
+const formatCount = (visible: number, total: number) =>
+  total > visible ? `${visible}/${total}` : String(visible);
+const formatLocations = (count: number) =>
+  `${formatMetric(count)} ${count === 1 ? 'ubicación' : 'ubicaciones'}`;
+
+const humanizeSource = (value?: string) => {
+  if (!value) return 'No informada por el contrato';
+  return SOURCE_LABELS[value] ?? value.replace(/[_-]+/g, ' ');
+};
+
+const percentile = (values: number[], ratio: number) => {
+  if (!values.length) return 0;
+  const index = Math.min(values.length - 1, Math.max(0, Math.round((values.length - 1) * ratio)));
+  return values[index];
+};
+
+function RankingList({
+  items,
+  total,
+  emptyLabel,
+  testId,
+}: {
+  items: HeatmapSummaryItem[];
+  total: number;
+  emptyLabel: string;
+  testId: string;
+}) {
+  if (!items.length) return <p className="text-sm text-slate-400">{emptyLabel}</p>;
+
+  return (
+    <ol className="space-y-3" data-testid={testId}>
+      {items.map((item, index) => {
+        const percentage = total > 0 ? (item.value / total) * 100 : 0;
+        return (
+          <li key={item.label} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-xs font-semibold text-slate-300">
+              {index + 1}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="truncate font-medium text-slate-100">{item.label}</span>
+                <span className="shrink-0 text-xs text-slate-400">{formatPercent(item.value, total)}</span>
+              </div>
+              <div
+                className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-800"
+                role="meter"
+                aria-label={`${item.label}: ${formatMetric(item.value)} respuestas representadas`}
+                aria-valuemin={0}
+                aria-valuemax={Math.max(total, item.value)}
+                aria-valuenow={item.value}
+              >
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-amber-400"
+                  style={{ width: `${Math.max(3, Math.min(100, percentage))}%` }}
+                />
+              </div>
+            </div>
+            <strong className="tabular-nums text-sm text-white">{formatMetric(item.value)}</strong>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const priorityTone = (value: unknown) => {
+  const priority = String(value ?? 'medium').trim().toLowerCase();
+  if (['high', 'critical', 'alta'].includes(priority)) return 'border-rose-300/25 bg-rose-400/10 text-rose-50';
+  if (['low', 'baja'].includes(priority)) return 'border-slate-700 bg-slate-900 text-slate-200';
+  return 'border-amber-200/20 bg-amber-300/10 text-amber-50';
+};
+
+const displayText = (value: unknown, fallback: string) => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+};
 
 export function SurveyLiveHeatmapPreview({
   heatmap,
   aiSignal,
   operatorRecommendations,
-  title = 'Mapa de calor ciudadano',
-  subtitle = 'Actividad geolocalizada de respuestas en vivo',
+  title = 'Distribución territorial de respuestas',
+  subtitle = 'Muestra geolocalizada para los filtros activos, con fuente, tamaño y procedencia verificables.',
   pointsLabel = 'Puntos',
   cellsLabel = 'Celdas',
   emptyLabel = 'Sin actividad geolocalizada para los filtros actuales',
 }: SurveyLiveHeatmapPreviewProps) {
-  const reactId = useId();
-  const svgId = reactId.replace(/:/g, '');
-  const gridId = `${svgId}-survey-heatmap-grid`;
-  const pointGradientId = `${svgId}-survey-heatmap-point`;
-  const routeGradientId = `${svgId}-survey-heatmap-route`;
-  const radarGradientId = `${svgId}-survey-heatmap-radar`;
-  const cellGradientId = `${svgId}-survey-heatmap-cell`;
+  const reactId = useId().replace(/:/g, '');
+  const mapDescriptionId = `${reactId}-territory-map-description`;
+  const [mapMode, setMapMode] = useState<'density' | 'points'>('density');
+  const [fitBoundsRequestKey, setFitBoundsRequestKey] = useState(0);
 
-  const points = useMemo(() => (heatmap ? normalizeGeoPoints(heatmap) : []), [heatmap]);
-  const cells = useMemo(() => (heatmap ? normalizeCells(heatmap) : []), [heatmap]);
-  const allData = useMemo(() => [...points, ...cells], [points, cells]);
-  const heatmapMetadata = heatmap?.metadata && typeof heatmap.metadata === 'object' ? heatmap.metadata : {};
-  const mapLibreHeatmapData = useMemo(() => buildMapLibreHeatmapData(heatmap), [heatmap]);
-  const mapCenter = useMemo(() => resolveMapCenter(mapLibreHeatmapData), [mapLibreHeatmapData]);
+  const metadata = useMemo<Record<string, unknown>>(
+    () => (isRecord(heatmap?.metadata) ? heatmap?.metadata ?? {} : {}),
+    [heatmap?.metadata],
+  );
+  const pointData = useMemo(
+    () => (heatmap?.points ?? []).map((point, index) => normalizeDatum(point, index, 'point')),
+    [heatmap?.points],
+  );
+  const cellData = useMemo(
+    () => (heatmap?.cells ?? []).map((cell, index) => normalizeDatum(cell, index, 'cell')),
+    [heatmap?.cells],
+  );
+  const summaryData = pointData.length ? pointData : cellData;
+  const mappedSource = pointData.some((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+    ? pointData
+    : cellData;
+  const mapLibreHeatmapData = useMemo(() => buildMapLibreHeatmapData(mappedSource), [mappedSource]);
+  const jurisdiction = useMemo(() => resolveJurisdiction(heatmap), [heatmap]);
+  const mapCenter = useMemo(
+    () => resolveMapCenter(mapLibreHeatmapData, jurisdiction?.center),
+    [jurisdiction?.center, mapLibreHeatmapData],
+  );
   const mapBounds = useMemo(
     () => mapLibreHeatmapData.map((point) => [point.lng, point.lat] as [number, number]),
     [mapLibreHeatmapData],
   );
+
   const rawPointsCount = heatmap?.points?.length ?? 0;
   const rawCellsCount = heatmap?.cells?.length ?? 0;
   const totalPointsCount = Math.max(
     rawPointsCount,
-    readMetadataNumber(heatmapMetadata, ['points_count', 'point_count', 'total_points', 'raw_points_count'], rawPointsCount),
+    readNumber(metadata, ['points_count', 'point_count', 'total_points', 'raw_points_count'], rawPointsCount),
   );
   const totalCellsCount = Math.max(
     rawCellsCount,
-    readMetadataNumber(heatmapMetadata, ['cells_count', 'cell_count', 'total_cells'], rawCellsCount),
+    readNumber(metadata, ['cells_count', 'cell_count', 'total_cells'], rawCellsCount),
   );
-  const backendDatasetLimited = readMetadataFlag(heatmapMetadata, ['truncated_points', 'truncated_cells']);
-  const localHudLimited = rawPointsCount > points.length || rawCellsCount > cells.length;
-  const privacyMode = asDisplayText(heatmapMetadata.privacy_mode, '').toLowerCase();
-  const usesSyntheticPoints = readMetadataFlag(heatmapMetadata, [
-    'using_synthetic_points',
-    'synthetic',
-    'demo_mode',
-  ]);
-  const privacyProtected = heatmapMetadata.raw_points_redacted === true || privacyMode === 'public_aggregated';
-  const privacyLabel = privacyProtected
-    ? 'Privacidad protegida'
-    : privacyMode === 'raw'
-      ? 'Coordenadas exactas'
-      : '';
-  const precisionLabel = privacyPrecisionLabel(heatmapMetadata.coordinate_precision);
-  const summaryData = useMemo(
-    () => (privacyProtected && points.length > 0 && cells.length > 0 ? points : allData),
-    [allData, cells.length, points, privacyProtected],
+  const datasetLimited = readFlag(metadata, ['truncated_points', 'truncated_cells']);
+  const usesSyntheticPoints = readFlag(metadata, ['using_synthetic_points', 'synthetic', 'demo_mode']);
+  const privacyMode = readString(metadata, ['privacy_mode'])?.toLowerCase();
+  const privacyProtected = metadata.raw_points_redacted === true || privacyMode === 'public_aggregated';
+  const source = readString(
+    { ...metadata, heatmap_source: heatmap?.source },
+    ['heatmap_source', 'source', 'fuente'],
   );
+  const provider = readString(metadata, ['provider', 'provider_hint']);
+  const contractVersion = readString(metadata, ['contract_version']);
+  const totalSignal = summaryData.reduce((sum, item) => sum + item.value, 0);
   const topZones = useMemo(() => summarizeBy(summaryData, (item) => item.label), [summaryData]);
   const topChannels = useMemo(() => summarizeBy(summaryData, (item) => item.channel), [summaryData]);
-  const maxValue = Math.max(1, ...points.map((point) => point.value), ...cells.map((cell) => cell.value));
-  const hasData = points.length > 0 || cells.length > 0;
-  const totalSignal = summaryData.reduce((sum, item) => sum + item.value, 0);
-  const datasetLimitLabel = backendDatasetLimited
-    ? `Dataset limitado por backend: ${formatCount(rawPointsCount, totalPointsCount)} puntos, ${formatCount(rawCellsCount, totalCellsCount)} celdas`
-    : localHudLimited
-      ? `HUD prioriza ${formatCount(points.length, rawPointsCount)} puntos y ${formatCount(cells.length, rawCellsCount)} celdas`
-      : '';
-  const focusDatum = useMemo(
-    () => [...summaryData].sort((a, b) => b.value - a.value)[0],
+  const focusZone = topZones[0];
+  const dominantChannel = topChannels[0];
+  const hasTerritorialData = summaryData.length > 0;
+  const hasMappedData = mapLibreHeatmapData.length > 0;
+  const values = useMemo(
+    () => summaryData.map((item) => item.value).filter((value) => value > 0).sort((a, b) => a - b),
     [summaryData],
   );
-  const originDatum = useMemo(
-    () =>
-      [...summaryData]
-        .filter((item) => item.id !== focusDatum?.id)
-        .sort((a, b) => b.value - a.value)[0],
-    [focusDatum?.id, summaryData],
-  );
-  const telemetryPath = focusDatum && originDatum ? buildTelemetryPath(originDatum, focusDatum) : null;
+  const intensityScale = {
+    min: values[0] ?? 0,
+    median: percentile(values, 0.5),
+    max: values[values.length - 1] ?? 0,
+  };
+  const provenanceLabel = usesSyntheticPoints
+    ? 'Datos sintéticos de demostración'
+    : privacyProtected
+      ? 'Datos agregados con privacidad'
+      : source
+        ? 'Datos informados por el contrato'
+        : 'Procedencia no informada';
+  const datasetLimitLabel = datasetLimited
+    ? `Dataset limitado por backend: ${formatCount(rawPointsCount, totalPointsCount)} puntos y ${formatCount(rawCellsCount, totalCellsCount)} celdas`
+    : null;
+
   const aiSummary = aiSignal?.summary ?? {};
   const hfStatus = aiSignal?.hf_status ?? {};
   const aiRecommendations = useMemo(() => {
-    const source = operatorRecommendations?.length ? operatorRecommendations : aiSignal?.recommended_actions;
-    return (source ?? [])
+    const sourceRecommendations = operatorRecommendations?.length
+      ? operatorRecommendations
+      : aiSignal?.recommended_actions;
+    return (sourceRecommendations ?? [])
       .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
       .slice(0, 4);
   }, [aiSignal?.recommended_actions, operatorRecommendations]);
   const hasAiSignal = Boolean(aiSignal || aiRecommendations.length);
-  const hfConfigured = hfStatus.configured === true;
-  const hfUsed = hfStatus.used === true;
-  const aiModeLabel = hfUsed
+  const aiModeLabel = hfStatus.used === true
     ? 'Hugging Face activo'
-    : hfConfigured
+    : hfStatus.configured === true
       ? 'HF listo con fallback'
       : 'Fallback local seguro';
-  const dominantIntent = asDisplayText(aiSummary.dominant_intent_label ?? aiSummary.dominant_intent, 'consulta general');
-  const riskLevel = asDisplayText(aiSummary.risk_level ?? aiSummary.risk_signal, 'normal');
+  const dominantIntent = displayText(aiSummary.dominant_intent_label ?? aiSummary.dominant_intent, 'Consulta general');
+  const riskLevel = displayText(aiSummary.risk_level ?? aiSummary.risk_signal, 'Normal');
   const humanAttention = aiSummary.requires_human_attention === true;
-  const mainActionLabel = asDisplayText(aiRecommendations[0]?.label, 'Monitorear evolucion');
-  const focusLabel = focusDatum?.label || topZones[0]?.label || 'Actividad geolocalizada';
-  const dominantChannel = topChannels[0]?.label || focusDatum?.channel || 'sin canal';
-  const intelligenceGridClass =
-    hasAiSignal && hasData
-      ? 'lg:grid-cols-[0.85fr_1fr_1fr]'
-      : hasAiSignal
-        ? 'lg:grid-cols-[0.9fr_1.1fr]'
-        : 'lg:grid-cols-1';
+  const mainActionLabel = displayText(aiRecommendations[0]?.label, 'No informada por el contrato');
+  const mapAriaLabel = jurisdiction
+    ? `Mapa de participación de ${jurisdiction.displayName}`
+    : 'Mapa de participación territorial';
 
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-950 text-slate-50 shadow-sm"
-      aria-label={title}
+      className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-slate-50 shadow-xl shadow-slate-950/10"
+      aria-labelledby={`${reactId}-title`}
       data-testid="survey-live-heatmap-preview"
     >
-      <div className="flex flex-col gap-3 border-b border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-200">
-            <MapPin className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="mt-1 text-xs text-slate-300">{subtitle}</p>
-            {privacyLabel ? (
-              <span
-                className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100"
-                data-testid="survey-live-heatmap-privacy"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                {privacyLabel}
-                {precisionLabel ? <span className="font-medium text-emerald-100/70">- {precisionLabel}</span> : null}
-              </span>
-            ) : null}
-            {datasetLimitLabel ? (
-              <span
-                className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100"
-                data-testid="survey-live-heatmap-dataset-limit"
-              >
-                {datasetLimitLabel}
-              </span>
-            ) : null}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200" data-testid="survey-live-heatmap-points-count">
-            {pointsLabel}: <strong className="text-white">{formatCount(rawPointsCount, totalPointsCount)}</strong>
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200" data-testid="survey-live-heatmap-cells-count">
-            {cellsLabel}: <strong className="text-white">{formatCount(rawCellsCount, totalCellsCount)}</strong>
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200">
-            Zonas: <strong className="text-white">{topZones.length}</strong>
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-slate-200">
-            Senal: <strong className="text-white">{totalSignal}</strong>
-          </span>
-        </div>
-      </div>
-
-      <div className="relative aspect-[2/1] min-h-[230px]">
-        {mapLibreHeatmapData.length ? (
-          <div className="absolute inset-0" data-testid="survey-live-heatmap-maplibre">
-            <LazyMapLibreMap
-              center={mapCenter}
-              fitToBounds={mapBounds}
-              boundsPadding={44}
-              heatmapData={mapLibreHeatmapData}
-              showHeatmap
-              disableClientClustering
-              initialZoom={12}
-              className="absolute inset-0 h-full rounded-none"
-              evidence={{
-                metadata: heatmapMetadata,
-                usingSyntheticPoints: usesSyntheticPoints,
-                synthetic: usesSyntheticPoints,
-                pointCount: rawPointsCount,
-                cellCount: rawCellsCount,
-                label: usesSyntheticPoints ? 'Escenario sintético' : undefined,
-              }}
-            />
-          </div>
-        ) : null}
-        <svg className="pointer-events-none h-full w-full" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} role="img">
-          <defs>
-            <pattern id={gridId} width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth="1" />
-            </pattern>
-            <radialGradient id={pointGradientId} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(253, 224, 71, 0.95)" />
-              <stop offset="42%" stopColor="rgba(16, 185, 129, 0.7)" />
-              <stop offset="100%" stopColor="rgba(14, 165, 233, 0)" />
-            </radialGradient>
-            <radialGradient id={radarGradientId} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(14, 165, 233, 0.22)" />
-              <stop offset="55%" stopColor="rgba(34, 211, 238, 0.08)" />
-              <stop offset="100%" stopColor="rgba(15, 23, 42, 0)" />
-            </radialGradient>
-            <linearGradient id={cellGradientId} x1="0%" x2="100%" y1="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(45, 212, 191, 0.82)" />
-              <stop offset="100%" stopColor="rgba(59, 130, 246, 0.34)" />
-            </linearGradient>
-            <linearGradient id={routeGradientId} x1="0%" x2="100%" y1="0%" y2="0%">
-              <stop offset="0%" stopColor="#22d3ee" />
-              <stop offset="55%" stopColor="#34d399" />
-              <stop offset="100%" stopColor="#facc15" />
-            </linearGradient>
-          </defs>
-
-          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={mapLibreHeatmapData.length ? 'rgba(2, 6, 23, 0.22)' : '#020617'} />
-          <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${gridId})`} opacity={mapLibreHeatmapData.length ? 0.72 : 1} />
-          <circle cx="320" cy="160" r="150" fill={`url(#${radarGradientId})`} opacity="0.78" />
-          {hasData
-            ? TELEMETRY_PARTICLES.map((particle, index) => (
-                <circle key={`${particle.cx}-${particle.cy}`} cx={particle.cx} cy={particle.cy} r={particle.r} fill={particle.color} opacity="0.22">
-                  <animate attributeName="opacity" values="0.08;0.65;0.08" dur={`${3.6 + index * 0.35}s`} begin={particle.delay} repeatCount="indefinite" />
-                  <animateTransform
-                    attributeName="transform"
-                    type="translate"
-                    values="0 0; 10 -8; -8 7; 0 0"
-                    dur={`${8 + index * 0.55}s`}
-                    begin={particle.delay}
-                    repeatCount="indefinite"
-                  />
-                </circle>
-              ))
-            : null}
-          {hasData ? (
-            <g data-testid="survey-live-heatmap-radar" transform="translate(320 160)">
-              <path d="M0 0 L144 -16 A145 145 0 0 1 144 16 Z" fill="rgba(34, 211, 238, 0.18)">
-                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
-              </path>
-              <circle r="62" fill="none" stroke="rgba(103, 232, 249, 0.16)" strokeWidth="1" />
-              <circle r="112" fill="none" stroke="rgba(103, 232, 249, 0.12)" strokeWidth="1" />
-            </g>
-          ) : null}
-          <path
-            d="M58 244 C150 104 262 258 346 116 C424 12 506 92 584 56"
-            fill="none"
-            stroke={`url(#${routeGradientId})`}
-            strokeDasharray="7 12"
-            strokeLinecap="round"
-            strokeWidth="2"
-            opacity="0.36"
-          />
-          {hasData ? (
-            <circle r="4" fill="#67e8f9" opacity="0.95">
-              <animateMotion dur="6.5s" repeatCount="indefinite" path="M58 244 C150 104 262 258 346 116 C424 12 506 92 584 56" />
-            </circle>
-          ) : null}
-          {telemetryPath ? (
-            <g data-testid="survey-live-heatmap-telemetry-route">
-              <path
-                d={telemetryPath}
-                fill="none"
-                stroke={`url(#${routeGradientId})`}
-                strokeDasharray="5 10"
-                strokeLinecap="round"
-                strokeWidth="2.5"
-                opacity="0.82"
-              >
-                <animate attributeName="stroke-dashoffset" from="0" to="-90" dur="4.5s" repeatCount="indefinite" />
-              </path>
-              <circle r="5" fill="#facc15" opacity="0.95">
-                <animateMotion dur="4.5s" repeatCount="indefinite" path={telemetryPath} />
-              </circle>
-            </g>
-          ) : null}
-
-          {cells.map((cell) => {
-            const intensity = clamp(cell.value / maxValue, 0.12, 1);
-            return (
-              <g key={cell.id}>
-                <rect
-                  x={cell.x}
-                  y={cell.y}
-                  width="54"
-                  height="40"
-                  rx="10"
-                  fill={`url(#${cellGradientId})`}
-                  opacity={0.16 + intensity * 0.56}
-                  stroke={`rgba(167, 243, 208, ${0.16 + intensity * 0.45})`}
-                  strokeWidth="1"
+      <header className="border-b border-slate-800 bg-slate-950/95 p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+              <MapPin className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h3 id={`${reactId}-title`} className="text-base font-semibold tracking-tight text-white sm:text-lg">
+                {title}
+              </h3>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-300">{subtitle}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200"
+                  data-testid="survey-live-heatmap-jurisdiction"
                 >
-                  <title>{`${cell.label || 'Zona'}: ${cell.value}`}</title>
-                </rect>
-                {intensity > 0.55 ? (
-                  <circle cx={cell.x + 27} cy={cell.y + 20} r={16 + intensity * 10} fill="none" stroke="#a7f3d0" strokeWidth="1" opacity="0.28" />
+                  <MapPin className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
+                  <span className="text-slate-400">Jurisdicción</span>
+                  <strong className="font-semibold text-white">{jurisdiction?.displayName ?? 'No informada'}</strong>
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    usesSyntheticPoints
+                      ? 'border-amber-300/30 bg-amber-300/10 text-amber-100'
+                      : 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+                  }`}
+                  data-testid="survey-live-heatmap-provenance"
+                >
+                  {usesSyntheticPoints ? <Database className="h-3.5 w-3.5" aria-hidden="true" /> : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {provenanceLabel}
+                </span>
+                {privacyProtected ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-xs font-medium text-emerald-100"
+                    data-testid="survey-live-heatmap-privacy"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                    Privacidad protegida
+                  </span>
                 ) : null}
-              </g>
-            );
-          })}
-
-          {points.map((point, index) => {
-            const intensity = clamp(point.value / maxValue, 0.18, 1);
-            const radius = 16 + intensity * 25;
-            return (
-              <g key={point.id}>
-                <circle cx={point.x} cy={point.y} r={radius} fill={`url(#${pointGradientId})`} opacity={0.44 + intensity * 0.38} />
-                <circle cx={point.x} cy={point.y} r={5 + intensity * 4} fill="#f8fafc" stroke="#34d399" strokeWidth="2">
-                  <title>{`${point.label || 'Respuesta'}${point.channel ? ` - ${point.channel}` : ''}: ${point.value}`}</title>
-                </circle>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={10 + intensity * 8}
-                  fill="none"
-                  stroke="#67e8f9"
-                  strokeDasharray="3 5"
-                  strokeWidth="1"
-                  opacity={0.55}
-                  className={index % 2 === 0 ? 'animate-pulse' : ''}
-                />
-              </g>
-            );
-          })}
-
-          {focusDatum ? (
-            <g
-              data-testid="survey-live-heatmap-focus-lock"
-              transform={`translate(${focusDatum.x} ${focusDatum.y})`}
-            >
-              <circle r="34" fill="none" stroke="#facc15" strokeWidth="1.2" opacity="0.76">
-                <animate attributeName="r" values="22;46;22" dur="4.8s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.2;0.78;0.2" dur="4.8s" repeatCount="indefinite" />
-              </circle>
-              <circle r="50" fill="none" stroke="#67e8f9" strokeWidth="1" strokeDasharray="4 9" opacity="0.42">
-                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="12s" repeatCount="indefinite" />
-              </circle>
-              <path d="M-54 0 H-24 M24 0 H54 M0 -54 V-24 M0 24 V54" stroke="#e0f2fe" strokeWidth="1.4" strokeLinecap="round" opacity="0.76" />
-              <circle r="7" fill="#020617" stroke="#facc15" strokeWidth="2" />
-            </g>
-          ) : null}
-
-          {!hasData ? (
-            <g>
-              <rect x="142" y="116" width="356" height="86" rx="22" fill="rgba(15, 23, 42, 0.82)" stroke="rgba(148, 163, 184, 0.28)" />
-              <text x="320" y="151" textAnchor="middle" fill="#e2e8f0" fontSize="15" fontWeight="700">
-                {emptyLabel}
-              </text>
-              <text x="320" y="176" textAnchor="middle" fill="#94a3b8" fontSize="12">
-                Ajusta filtros o espera nuevas respuestas en vivo.
-              </text>
-            </g>
-          ) : null}
-        </svg>
-
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 backdrop-blur">
-            <Radio className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
-            En vivo
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 backdrop-blur">
-            <Activity className="h-3.5 w-3.5 text-emerald-200" aria-hidden="true" />
-            Intensidad por volumen de respuestas
-          </span>
-        </div>
-      </div>
-
-      {hasAiSignal || hasData ? (
-        <div
-          className={`grid gap-3 border-t border-white/10 bg-slate-950/90 p-4 text-xs text-slate-200 ${intelligenceGridClass}`}
-          data-testid="survey-live-heatmap-ai-signal"
-        >
-          {hasAiSignal ? (
-            <>
-              <div className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.06] p-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-100">
-                  <BrainCircuit className="h-3.5 w-3.5" aria-hidden="true" />
-                  Senales IA
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-                  <div>
-                    <p className="text-slate-400">Modo</p>
-                    <p className="font-semibold text-white">{aiModeLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Intencion dominante</p>
-                    <p className="font-semibold text-white">{dominantIntent}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Riesgo operativo</p>
-                    <p className={humanAttention ? 'font-semibold text-rose-100' : 'font-semibold text-emerald-100'}>
-                      {riskLevel}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
-                {aiRecommendations.length ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {aiRecommendations.map((action, index) => (
-                      <div
-                        key={`${asDisplayText(action.id, 'action')}-${index}`}
-                        className={`rounded-xl border px-3 py-2 ${normalizePriorityTone(action.priority)}`}
-                      >
-                        <p className="font-medium text-white">{asDisplayText(action.label, 'Revisar senal IA')}</p>
-                        <p className="mt-1 text-[11px] opacity-80">
-                          {asDisplayText(action.ui_hint, 'open_ai_summary')}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
-                )}
-              </div>
-            </>
-          ) : null}
-          {hasData ? (
-            <div
-              className="rounded-2xl border border-emerald-200/15 bg-emerald-400/[0.055] p-3"
-              data-testid="survey-live-heatmap-decision-radar"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100">Radar de decision</p>
-              <div className="mt-3 grid gap-2">
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
-                  <p className="text-slate-400">Zona caliente</p>
-                  <p className="truncate font-semibold text-white">{focusLabel}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
-                  <p className="text-slate-400">Canal dominante</p>
-                  <p className="truncate font-semibold text-white">{dominantChannel}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2">
-                  <p className="text-slate-400">Proxima accion</p>
-                  <p className="font-semibold text-white">{mainActionLabel}</p>
-                </div>
+                {datasetLimitLabel ? (
+                  <span
+                    className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-medium text-amber-100"
+                    data-testid="survey-live-heatmap-dataset-limit"
+                  >
+                    {datasetLimitLabel}
+                  </span>
+                ) : null}
               </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[31rem]" aria-live="polite">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-points-count">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{pointsLabel}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatCount(rawPointsCount, totalPointsCount)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-cells-count">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{cellsLabel}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatCount(rawCellsCount, totalCellsCount)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Zonas</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{topZones.length}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Volumen</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatMetric(totalSignal)}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.65fr)]">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
+          <div className="flex flex-col gap-3 border-b border-slate-800 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Cobertura geográfica</p>
+              <p className="mt-0.5 text-xs text-slate-400">La intensidad representa volumen; no prioridad ni gravedad.</p>
+            </div>
+            {hasMappedData ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div
+                  className="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1"
+                  role="group"
+                  aria-label="Modo de visualización territorial"
+                >
+                  <button
+                    type="button"
+                    className={`min-h-10 rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                      mapMode === 'density' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                    aria-pressed={mapMode === 'density'}
+                    onClick={() => setMapMode('density')}
+                  >
+                    Densidad
+                  </button>
+                  <button
+                    type="button"
+                    className={`min-h-10 rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                      mapMode === 'points' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                    aria-pressed={mapMode === 'points'}
+                    onClick={() => setMapMode('points')}
+                  >
+                    Puntos
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                  onClick={() => setFitBoundsRequestKey((current) => current + 1)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Ajustar área
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <p id={mapDescriptionId} className="sr-only">
+            {mapAriaLabel}. Incluye {formatLocations(mapLibreHeatmapData.length)} cartografiable{mapLibreHeatmapData.length === 1 ? '' : 's'} y un volumen total representado de {formatMetric(totalSignal)} respuestas.
+          </p>
+          <div className="relative h-[19rem] sm:h-[24rem] lg:h-[28rem]" data-testid="survey-live-heatmap-map-region">
+            {hasMappedData ? (
+              <div className="absolute inset-0" data-testid="survey-live-heatmap-maplibre">
+                <LazyMapLibreMap
+                  center={mapCenter}
+                  fitToBounds={mapBounds}
+                  fitBoundsRequestKey={fitBoundsRequestKey}
+                  boundsPadding={{ top: 72, right: 52, bottom: 92, left: 52 }}
+                  heatmapData={mapLibreHeatmapData}
+                  showHeatmap={mapMode === 'density'}
+                  disableClientClustering
+                  initialZoom={11}
+                  className="absolute inset-0 h-full rounded-none"
+                  ariaLabel={mapAriaLabel}
+                  ariaDescribedBy={mapDescriptionId}
+                  evidence={{
+                    metadata,
+                    source,
+                    provider,
+                    contractVersion,
+                    usingSyntheticPoints: usesSyntheticPoints,
+                    synthetic: usesSyntheticPoints,
+                    pointCount: rawPointsCount,
+                    cellCount: rawCellsCount,
+                    label: usesSyntheticPoints ? 'Escenario sintético' : 'Datos territoriales informados',
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center p-6 text-center">
+                <div className="max-w-md rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 p-6">
+                  <MapPin className="mx-auto h-7 w-7 text-slate-400" aria-hidden="true" />
+                  <p className="mt-3 font-semibold text-slate-100">{emptyLabel}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                    {hasTerritorialData
+                      ? 'El contrato tiene agregados territoriales, pero no coordenadas suficientes para ubicarlos en el mapa.'
+                      : 'Ajustá los filtros o esperá nuevas respuestas con información territorial.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {hasMappedData ? (
+              <div
+                className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-slate-700/80 bg-slate-950/90 px-3 py-2.5 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
+                aria-label={`Escala de intensidad. Mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
+                data-testid="survey-live-heatmap-quantitative-legend"
+              >
+                <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                  <span>Respuestas por ubicación</span>
+                  <span>{mapMode === 'density' ? 'Densidad' : 'Puntos'}</span>
+                </div>
+                <div className="mt-2 h-2.5 rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-rose-500" />
+                <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px] text-slate-300">
+                  <span>Mín. {formatMetric(intensityScale.min)}</span>
+                  <span className="text-center">Mediana {formatMetric(intensityScale.median)}</span>
+                  <span className="text-right">Máx. {formatMetric(intensityScale.max)}</span>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <aside className="grid content-start gap-4" aria-label="Resumen ejecutivo territorial">
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-4" data-testid="survey-live-heatmap-evidence-summary">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+              <h4 className="text-sm font-semibold text-white">Ficha de evidencia</h4>
+            </div>
+            <dl className="mt-4 divide-y divide-slate-800 text-sm">
+              <div className="grid gap-1 py-2.5 first:pt-0">
+                <dt className="text-xs text-slate-400">Jurisdicción</dt>
+                <dd className="font-medium text-slate-100">{jurisdiction?.displayName ?? 'No informada por el contrato'}</dd>
+              </div>
+              <div className="grid gap-1 py-2.5">
+                <dt className="text-xs text-slate-400">Fuente</dt>
+                <dd className="font-medium capitalize text-slate-100">{humanizeSource(source)}</dd>
+              </div>
+              <div className="grid gap-1 py-2.5">
+                <dt className="text-xs text-slate-400">Proveedor / proceso</dt>
+                <dd className="font-medium capitalize text-slate-100">{humanizeSource(provider)}</dd>
+              </div>
+              <div className="grid gap-1 py-2.5">
+                <dt className="text-xs text-slate-400">Tamaño cartográfico</dt>
+                <dd className="font-medium text-slate-100">
+                  {formatLocations(mapLibreHeatmapData.length)} · {formatMetric(totalSignal)} respuestas representadas
+                </dd>
+              </div>
+              <div className="grid gap-1 py-2.5">
+                <dt className="text-xs text-slate-400">Procedencia</dt>
+                <dd className={usesSyntheticPoints ? 'font-medium text-amber-100' : 'font-medium text-emerald-100'}>
+                  {provenanceLabel}
+                </dd>
+              </div>
+              {(jurisdiction?.coordinateReference || jurisdiction?.coordinateSource) ? (
+                <div className="grid gap-1 py-2.5 last:pb-0">
+                  <dt className="text-xs text-slate-400">Referencia territorial</dt>
+                  <dd className="font-medium text-slate-100">
+                    {[jurisdiction.coordinateReference, humanizeSource(jurisdiction.coordinateSource)].filter(Boolean).join(' · ')}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+
+          {hasTerritorialData ? (
+            <section
+              className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.055] p-4"
+              data-testid="survey-live-heatmap-executive-summary"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+                <h4 className="text-sm font-semibold text-white">Lectura ejecutiva</h4>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
+                  <p className="text-xs text-slate-400">Mayor participación</p>
+                  <p className="mt-1 truncate font-semibold text-white">{focusZone?.label ?? 'Sin zona identificada'}</p>
+                  {focusZone ? <p className="mt-0.5 text-xs text-cyan-100">{formatMetric(focusZone.value)} · {formatPercent(focusZone.value, totalSignal)}</p> : null}
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
+                  <p className="text-xs text-slate-400">Canal principal</p>
+                  <p className="mt-1 truncate font-semibold text-white">{dominantChannel?.label ?? 'No informado'}</p>
+                  {dominantChannel ? <p className="mt-0.5 text-xs text-cyan-100">{formatMetric(dominantChannel.value)} · {formatPercent(dominantChannel.value, totalSignal)}</p> : null}
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
+                  <p className="text-xs text-slate-400">Próxima acción</p>
+                  <p className="mt-1 font-semibold text-white">{mainActionLabel}</p>
+                </div>
+              </div>
+            </section>
           ) : null}
+        </aside>
+      </div>
+
+      {hasTerritorialData ? (
+        <div
+          className="grid gap-4 border-t border-slate-800 bg-slate-950/85 p-4 sm:p-5 lg:grid-cols-2"
+          data-testid="survey-live-heatmap-operational-summary"
+        >
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4" aria-labelledby={`${reactId}-zones-ranking`}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Layers3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+                <h4 id={`${reactId}-zones-ranking`} className="text-sm font-semibold text-white">Ranking territorial</h4>
+              </div>
+              <span className="text-xs text-slate-400">Top {topZones.length}</span>
+            </div>
+            <RankingList
+              items={topZones}
+              total={totalSignal}
+              emptyLabel="El contrato no incluye nombres de zonas para construir el ranking."
+              testId="survey-live-heatmap-zone-ranking"
+            />
+          </section>
+
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4" aria-labelledby={`${reactId}-channels-ranking`}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-emerald-200" aria-hidden="true" />
+                <h4 id={`${reactId}-channels-ranking`} className="text-sm font-semibold text-white">Distribución por canal</h4>
+              </div>
+              <span className="text-xs text-slate-400">{topChannels.length} canales</span>
+            </div>
+            <RankingList
+              items={topChannels}
+              total={totalSignal}
+              emptyLabel="El origen de las respuestas no fue informado por el contrato."
+              testId="survey-live-heatmap-channel-ranking"
+            />
+          </section>
         </div>
       ) : null}
 
-      {hasData ? (
-        <div
-          className="grid gap-3 border-t border-white/10 bg-white/[0.03] p-4 text-xs text-slate-200 md:grid-cols-[1.2fr_0.8fr]"
-          data-testid="survey-live-heatmap-operational-summary"
+      {hasAiSignal ? (
+        <section
+          className="border-t border-slate-800 bg-slate-900/30 p-4 sm:p-5"
+          data-testid="survey-live-heatmap-ai-signal"
+          aria-labelledby={`${reactId}-ai-analysis`}
         >
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              <Layers3 className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
-              Zonas activas
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(topZones.length ? topZones : [{ label: 'Actividad geolocalizada', value: totalSignal }]).map((zone) => (
-                <div key={zone.label} className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2">
-                  <p className="truncate font-medium text-white">{zone.label}</p>
-                  <p className="text-[11px] text-slate-400">{zone.value} senales ponderadas</p>
+          <div className="flex items-center gap-2">
+            <BrainCircuit className="h-4 w-4 text-violet-200" aria-hidden="true" />
+            <h4 id={`${reactId}-ai-analysis`} className="text-sm font-semibold text-white">Asistencia analítica</h4>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(15rem,0.7fr)_minmax(0,1.3fr)]">
+            <dl className="grid gap-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm sm:grid-cols-3 lg:grid-cols-1">
+              <div>
+                <dt className="text-xs text-slate-400">Modo</dt>
+                <dd className="mt-1 font-semibold text-white">{aiModeLabel}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Intención dominante</dt>
+                <dd className="mt-1 font-semibold text-white">{dominantIntent}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Riesgo operativo</dt>
+                <dd className={`mt-1 font-semibold ${humanAttention ? 'text-rose-100' : 'text-emerald-100'}`}>{riskLevel}</dd>
+              </div>
+            </dl>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
+              {aiRecommendations.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {aiRecommendations.map((action, index) => (
+                    <div
+                      key={`${displayText(action.id, 'action')}-${index}`}
+                      className={`rounded-xl border px-3 py-2.5 ${priorityTone(action.priority)}`}
+                    >
+                      <p className="text-sm font-medium text-white">{displayText(action.label, 'Revisar señal territorial')}</p>
+                      {action.ui_hint ? <p className="mt-1 text-xs opacity-75">{displayText(action.ui_hint, '')}</p> : null}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <p className="mt-3 text-sm text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
+              )}
             </div>
           </div>
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Canales</p>
-            <div className="flex flex-wrap gap-2">
-              {(topChannels.length ? topChannels : [{ label: 'sin canal', value: totalSignal }]).map((channel) => (
-                <span key={channel.label} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1">
-                  {channel.label}: <strong className="text-white">{channel.value}</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
+        </section>
       ) : null}
     </section>
   );

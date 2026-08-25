@@ -92,6 +92,7 @@ export type MapLibreMapProps = {
   } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
+  fitBoundsRequestKey?: string | number;
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProviderUnavailable?: (
@@ -102,6 +103,8 @@ export type MapLibreMapProps = {
   disableClientClustering?: boolean;
   evidence?: MapEvidenceInput | null;
   providerFallbackMessage?: string | null;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -531,11 +534,14 @@ export default function MapLibreMap({
   geoLayerConfig,
   adminLocation,
   fitToBounds,
+  fitBoundsRequestKey,
   boundsPadding,
   onBoundingBoxChange,
   disableClientClustering = false,
   evidence,
   providerFallbackMessage,
+  ariaLabel,
+  ariaDescribedBy,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapGeneration, setMapGeneration] = useState(0);
@@ -1623,7 +1629,7 @@ export default function MapLibreMap({
         map.off("load", applyBounds);
       };
     }
-  }, [boundsPadding, fitToBounds, mapGeneration, prefersReducedMotion]);
+  }, [boundsPadding, fitBoundsRequestKey, fitToBounds, mapGeneration, prefersReducedMotion]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1676,7 +1682,12 @@ export default function MapLibreMap({
   );
 
   return (
-    <div className={containerClassName}>
+    <div
+      className={containerClassName}
+      role={ariaLabel ? "region" : undefined}
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+    >
       <div ref={mapContainerRef} className="absolute inset-0" />
       <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
       {providerFallbackMessage && (

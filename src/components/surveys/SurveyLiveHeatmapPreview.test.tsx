@@ -1,26 +1,54 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SurveyLiveHeatmapPreview } from './SurveyLiveHeatmapPreview';
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
-  default: ({ heatmapData, evidence }: { heatmapData?: unknown[]; evidence?: { usingSyntheticPoints?: boolean; label?: string } }) => (
+  default: ({
+    heatmapData,
+    evidence,
+    showHeatmap,
+    ariaLabel,
+    fitBoundsRequestKey,
+  }: {
+    heatmapData?: unknown[];
+    evidence?: { usingSyntheticPoints?: boolean; label?: string };
+    showHeatmap?: boolean;
+    ariaLabel?: string;
+    fitBoundsRequestKey?: number;
+  }) => (
     <div
       data-testid="mock-survey-live-maplibre"
       data-points={String(heatmapData?.length ?? 0)}
       data-synthetic={String(Boolean(evidence?.usingSyntheticPoints))}
       data-evidence-label={evidence?.label}
+      data-show-heatmap={String(Boolean(showHeatmap))}
+      data-fit-request={String(fitBoundsRequestKey ?? 0)}
+      aria-label={ariaLabel}
     >
       mapa live {heatmapData?.length ?? 0}
     </div>
   ),
 }));
 
+const jurisdiction = {
+  contract_version: 'demo.jurisdiction.v1',
+  country: 'Argentina',
+  province: 'Mendoza',
+  municipality: 'Junin',
+  display_name: 'Junin, Mendoza',
+  center: { lat: -33.144539, lng: -68.485729 },
+  coordinate_reference: 'WGS84',
+  coordinate_source: 'tenant_demo_profile',
+};
+
 describe('SurveyLiveHeatmapPreview', () => {
-  it('renders a premium live territory summary from points and centroid cells', () => {
+  it('renders an executive, source-backed territorial dashboard without decorative radar UI', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
+          source: 'survey_live_results',
+          jurisdiction,
           points: [
             { lat: -33.079, lon: -68.47, respuestas: 7, barrio: 'Centro', canal: 'whatsapp' },
             { lat: -33.081, lng: -68.475, respuestas: 3, barrio: 'San Martin', canal: 'web' },
@@ -32,6 +60,7 @@ describe('SurveyLiveHeatmapPreview', () => {
             privacy_mode: 'public_aggregated',
             raw_points_redacted: true,
             coordinate_precision: 'rounded_3_decimals',
+            provider: 'municipal_analytics',
           },
         }}
         aiSignal={{
@@ -46,7 +75,7 @@ describe('SurveyLiveHeatmapPreview', () => {
         operatorRecommendations={[
           {
             id: 'share_survey_now',
-            label: 'Reforzar difusion por WhatsApp',
+            label: 'Reforzar difusión por WhatsApp',
             priority: 'high',
             ui_hint: 'share_public_link',
           },
@@ -55,66 +84,100 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-jurisdiction')).toHaveTextContent('Junin, Mendoza');
     expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
-    expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('coordenadas aproximadas');
-    expect(screen.getByTestId('survey-live-heatmap-radar')).toBeInTheDocument();
-    expect(screen.getByTestId('survey-live-heatmap-telemetry-route')).toBeInTheDocument();
-    expect(screen.getByTestId('survey-live-heatmap-focus-lock')).toBeInTheDocument();
-    expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('Zonas activas');
-    expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('Centro');
-    expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('San Martin');
-    expect(screen.getByTestId('survey-live-heatmap-operational-summary')).toHaveTextContent('whatsapp');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('survey live results');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('WGS84');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Mín. 3');
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent('Máx. 7');
+    expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('Centro');
+    expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('70%');
+    expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('San Martin');
+    expect(screen.getByTestId('survey-live-heatmap-channel-ranking')).toHaveTextContent('whatsapp');
+    expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('Mayor participación');
+    expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('Centro');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Fallback local seguro');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('encuesta o votacion');
-    expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusion por WhatsApp');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Radar de decision');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Zona caliente');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Centro');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Canal dominante');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('whatsapp');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Proxima accion');
-    expect(screen.getByTestId('survey-live-heatmap-maplibre')).toBeInTheDocument();
-    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
-    expect(screen.getByText(/Senal:/)).toHaveTextContent('10');
-  });
-
-  it('keeps an actionable empty state when there is no geolocated activity', () => {
-    render(<SurveyLiveHeatmapPreview heatmap={{ points: [], cells: [] }} emptyLabel="Sin actividad territorial" />);
-
-    expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusión por WhatsApp');
+    expect(screen.queryByText(/radar/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId('survey-live-heatmap-radar')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('survey-live-heatmap-telemetry-route')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('survey-live-heatmap-focus-lock')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('survey-live-heatmap-operational-summary')).not.toBeInTheDocument();
-    expect(screen.getByText('Sin actividad territorial')).toBeInTheDocument();
-    expect(screen.getByText('Ajusta filtros o espera nuevas respuestas en vivo.')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute(
+      'aria-label',
+      'Mapa de participación de Junin, Mendoza',
+    );
   });
 
-  it('keeps the decision radar available without an AI provider payload', () => {
+  it('offers keyboard-addressable density, point and fit controls', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
-          points: [{ lat: -33.079, lon: -68.47, respuestas: 5, barrio: 'La Colonia', canal: 'widget' }],
+          jurisdiction,
+          points: [{ lat: -33.144539, lng: -68.485729, count: 12, label: 'Centro' }],
           cells: [],
         }}
       />,
     );
 
-    expect(screen.getByTestId('survey-live-heatmap-focus-lock')).toBeInTheDocument();
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('La Colonia');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('widget');
-    expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Monitorear evolucion');
-    expect(screen.queryByText('Senales IA')).not.toBeInTheDocument();
+    const densityButton = screen.getByRole('button', { name: 'Densidad' });
+    const pointsButton = screen.getByRole('button', { name: 'Puntos' });
+    const fitButton = screen.getByRole('button', { name: 'Ajustar área' });
+    expect(densityButton).toHaveAttribute('aria-pressed', 'true');
+    expect(pointsButton).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'true');
+
+    fireEvent.click(pointsButton);
+    expect(pointsButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-show-heatmap', 'false');
+
+    fireEvent.click(fitButton);
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-fit-request', '1');
   });
 
-  it('marks deterministic demo points as synthetic evidence on the rendered map', () => {
+  it('does not invent geographic positions when aggregates lack coordinates', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
-          points: [{ lat: -34.5889, lng: -60.9462, count: 100, label: 'Junín' }],
+          jurisdiction,
+          points: [{ respuestas: 5, barrio: 'La Colonia', canal: 'widget' }],
+          cells: [],
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId('survey-live-heatmap-maplibre')).not.toBeInTheDocument();
+    expect(screen.getByText(/no coordenadas suficientes/i)).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('La Colonia');
+    expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('La Colonia');
+  });
+
+  it('keeps an actionable empty state while preserving jurisdiction evidence', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{ jurisdiction, points: [], cells: [] }}
+        emptyLabel="Sin actividad territorial"
+      />,
+    );
+
+    expect(screen.getByTestId('survey-live-heatmap-jurisdiction')).toHaveTextContent('Junin, Mendoza');
+    expect(screen.queryByTestId('survey-live-heatmap-maplibre')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('survey-live-heatmap-operational-summary')).not.toBeInTheDocument();
+    expect(screen.getByText('Sin actividad territorial')).toBeInTheDocument();
+    expect(screen.getByText(/Ajustá los filtros/i)).toBeInTheDocument();
+  });
+
+  it('marks deterministic demo points as synthetic and exposes source, size and provenance', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          source: 'demo_seeded_responses',
+          jurisdiction,
+          points: [{ lat: -33.144539, lng: -68.485729, count: 100, label: 'Junín' }],
           cells: [],
           metadata: {
+            provider: 'chatboc_demo_seed',
             source: 'demo_seeded_responses',
+            point_count: 1,
             using_synthetic_points: true,
             synthetic: true,
           },
@@ -123,13 +186,15 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-synthetic', 'true');
-    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute(
-      'data-evidence-label',
-      'Escenario sintético',
-    );
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-evidence-label', 'Escenario sintético');
+    expect(screen.getByTestId('survey-live-heatmap-provenance')).toHaveTextContent('Datos sintéticos de demostración');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Respuestas sintéticas determinísticas');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('Motor de escenarios Chatboc');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('1 ubicación');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('100 respuestas representadas');
   });
 
-  it('shows backend and local dataset limits instead of silently truncating the map HUD', () => {
+  it('shows backend dataset limits instead of silently truncating evidence', () => {
     const points = Array.from({ length: 40 }, (_, index) => ({
       lat: -33.08 - index * 0.001,
       lng: -68.47 + index * 0.001,
@@ -149,6 +214,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
+          jurisdiction,
           points,
           cells,
           metadata: {
@@ -161,8 +227,8 @@ describe('SurveyLiveHeatmapPreview', () => {
       />,
     );
 
-    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 40/120');
-    expect(screen.getByTestId('survey-live-heatmap-cells-count')).toHaveTextContent('Celdas: 40/64');
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('40/120');
+    expect(screen.getByTestId('survey-live-heatmap-cells-count')).toHaveTextContent('40/64');
     expect(screen.getByTestId('survey-live-heatmap-dataset-limit')).toHaveTextContent('Dataset limitado por backend');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '40');
   });
