@@ -616,8 +616,13 @@ const PublicSurveyPage = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${liveSlug || slug || 'encuesta'}-live-results.csv`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 1_000);
   }, [liveDashboard, liveQuestions, liveSlug, slug]);
 
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
