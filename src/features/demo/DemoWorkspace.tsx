@@ -22,6 +22,33 @@ import { formatDemoPresentationLabel } from './demoPresentationLabels';
 import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
 import { readWorkspaceActionMenu } from '@/utils/widgetActionMenu';
 
+const DEMO_COPY_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bCatalogo\b/g, 'Catálogo'],
+  [/\bcatalogo\b/g, 'catálogo'],
+  [/\bTramites\b/g, 'Trámites'],
+  [/\btramites\b/g, 'trámites'],
+  [/\bUbicacion\b/g, 'Ubicación'],
+  [/\bubicacion\b/g, 'ubicación'],
+  [/\bTelefono\b/g, 'Teléfono'],
+  [/\btelefono\b/g, 'teléfono'],
+  [/\bAtencion\b/g, 'Atención'],
+  [/\batencion\b/g, 'atención'],
+  [/\bPublico\b/g, 'Público'],
+  [/\bpublico\b/g, 'público'],
+  [/\bEnvian\b/g, 'Envían'],
+  [/\benvian\b/g, 'envían'],
+  [/\bTodavia\b/g, 'Todavía'],
+  [/\btodavia\b/g, 'todavía'],
+  [/\bJunin\b/g, 'Junín'],
+  [/\bno esta\b/g, 'no está'],
+];
+
+const polishDemoCopy = (value: string) =>
+  DEMO_COPY_REPLACEMENTS.reduce(
+    (copy, [pattern, replacement]) => copy.replace(pattern, replacement),
+    value,
+  );
+
 const readSectorLabel = (sector?: DemoSector | null) =>
   sector ? formatDemoPresentationLabel(String(sector)) : null;
 
@@ -35,10 +62,10 @@ const readWorkspaceLabel = (
 
   for (const key of keys) {
     const value = labels?.[key] ?? (source as Record<string, unknown> | undefined)?.[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'string' && value.trim()) return polishDemoCopy(value.trim());
   }
 
-  return fallback;
+  return polishDemoCopy(fallback);
 };
 
 const hasChatRuntime = (workspace: DemoWorkspaceConfig | null | undefined) =>
@@ -54,15 +81,19 @@ const readRuntimeUnavailableState = (workspace: DemoWorkspaceConfig | null | und
     workspace?.experience_blueprint?.empty_states?.runtime_unavailable;
 
   return {
-    title: state?.title || state?.label || 'Demo conversacional no disponible',
-    description:
+    title: polishDemoCopy(state?.title || state?.label || 'Demo conversacional no disponible'),
+    description: polishDemoCopy(
       state?.description ||
       state?.detail ||
       state?.subtitle ||
       state?.text ||
-      'Esta experiencia todavia no esta disponible para probar en vivo.',
+      'Esta experiencia todavía no está disponible para probar en vivo.',
+    ),
   };
 };
+
+const isContactTool = (kind: string) =>
+  ['contact', 'phone', 'telefono', 'whatsapp'].some((token) => kind.includes(token));
 
 const getToolIcon = (kind: string) => {
   if (kind.includes('catalog') || kind.includes('product')) return ShoppingCart;
@@ -94,7 +125,7 @@ const DemoRubroToolsPanel = ({
   const description = readWorkspaceLabel(
     workspace,
     ['rubro_tools_description', 'tools_description', 'toolkit_description'],
-    'Catalogo, precios, ubicacion, horarios y consultas disponibles para esta demo.',
+    'Catálogo, precios, ubicación, horarios y consultas disponibles para esta demo.',
   );
 
   return (
@@ -106,11 +137,14 @@ const DemoRubroToolsPanel = ({
       <div className="grid gap-2 sm:grid-cols-2">
         {tools.map((tool, toolIndex) => {
           const Icon = getToolIcon(tool.kind);
+          const contactTool = isContactTool(tool.kind);
 
           return (
             <article
               key={`${tool.id}-${toolIndex}`}
-              className="min-w-0 overflow-hidden rounded-xl border bg-card/70 p-3"
+              className={`min-w-0 overflow-hidden rounded-xl border bg-card/70 p-3 ${
+                contactTool ? 'sm:col-span-2' : ''
+              }`}
             >
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -118,7 +152,9 @@ const DemoRubroToolsPanel = ({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-0 break-words text-sm font-semibold text-foreground">{tool.label}</p>
+                    <p className="min-w-0 break-words text-sm font-semibold text-foreground">
+                      {polishDemoCopy(tool.label)}
+                    </p>
                     {tool.statusLabel ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                         {formatDemoPresentationLabel(tool.statusLabel)}
@@ -126,17 +162,41 @@ const DemoRubroToolsPanel = ({
                     ) : null}
                   </div>
                   {tool.description ? (
-                    <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{tool.description}</p>
+                    <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
+                      {polishDemoCopy(tool.description)}
+                    </p>
                   ) : null}
                   {tool.fields.length ? (
-                    <dl className="mt-2 grid gap-1.5 text-xs">
+                    <dl
+                      className={
+                        contactTool
+                          ? 'mt-3 grid min-w-0 gap-2 text-xs'
+                          : 'mt-2 grid gap-1.5 text-xs'
+                      }
+                    >
                       {tool.fields.slice(0, 4).map((field, fieldIndex) => (
                         <div
                           key={`${tool.id}-${field.label}-${fieldIndex}`}
-                          className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3"
+                          className={
+                            contactTool
+                              ? 'min-w-0 rounded-lg border border-border/60 bg-background/70 px-3 py-2.5'
+                              : 'grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3'
+                          }
                         >
-                          <dt className="min-w-0 break-words text-muted-foreground">{field.label}</dt>
-                          <dd className="min-w-0 break-words text-right font-medium text-foreground [overflow-wrap:anywhere]">
+                          <dt
+                            className={
+                              contactTool
+                                ? 'min-w-0 break-words text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground'
+                                : 'min-w-0 break-words text-muted-foreground'
+                            }
+                          >
+                            {polishDemoCopy(field.label)}
+                          </dt>
+                          <dd
+                            className={`min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere] ${
+                              contactTool ? 'mt-1 text-left leading-5' : 'text-right'
+                            }`}
+                          >
                             {field.value}
                           </dd>
                         </div>
@@ -151,7 +211,7 @@ const DemoRubroToolsPanel = ({
                       referrerPolicy="no-referrer"
                       className="mt-3 inline-flex max-w-full items-center gap-1 whitespace-normal break-words rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
-                      {tool.actionLabel}
+                      {polishDemoCopy(tool.actionLabel)}
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : null}

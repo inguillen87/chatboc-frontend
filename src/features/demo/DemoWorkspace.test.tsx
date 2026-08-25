@@ -35,8 +35,11 @@ describe('DemoWorkspace rubro tools', () => {
 
     render(<DemoWorkspace workspace={workspace} sector="empresas" rubro="ferreteria" />);
 
-    expect(screen.getByText('Catalogo principal')).toBeInTheDocument();
-    expect(screen.getByText('Catalogo mayorista')).toBeInTheDocument();
+    expect(screen.getByText('Catálogo principal')).toBeInTheDocument();
+    expect(screen.getByText('Catálogo mayorista')).toBeInTheDocument();
+    expect(
+      screen.getByText('Catálogo, precios, ubicación, horarios y consultas disponibles para esta demo.'),
+    ).toBeInTheDocument();
     expect(
       consoleError.mock.calls.some((call) =>
         call.some((item) => String(item).includes('Encountered two children with the same key')),
@@ -51,8 +54,9 @@ describe('DemoWorkspace rubro tools', () => {
       label: 'Catalogo municipal',
       enabled: true,
       action_label: 'Abrir catalogo',
+      description: 'Portal publico de tramites',
       items: [{ url: '/api/v2/demo/catalogo.pdf' }],
-      fields: [{ label: 'Recursos', value: 4 }],
+      fields: [{ label: 'Ubicacion', value: 'Delegacion central' }],
     };
     const workspace = {
       rubro_tools: {
@@ -63,13 +67,16 @@ describe('DemoWorkspace rubro tools', () => {
 
     render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
 
-    expect(screen.getAllByText('Catalogo municipal')).toHaveLength(1);
-    expect(screen.getAllByRole('link', { name: /abrir catalogo/i })).toHaveLength(1);
+    expect(screen.getAllByText('Catálogo municipal')).toHaveLength(1);
+    expect(screen.getByText('Portal público de trámites')).toBeInTheDocument();
+    expect(screen.getByText('Ubicación')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /abrir catálogo/i })).toHaveLength(1);
   });
 
   it('contains long contact values inside the responsive tool card', () => {
     const longUrl = 'https://www.juninmendoza.gov.ar/participacion/consultas-y-reclamos';
     const workspace = {
+      title: 'Municipalidad de Junin',
       rubro_tools: [
         {
           id: 'municipal-contact',
@@ -87,8 +94,21 @@ describe('DemoWorkspace rubro tools', () => {
     render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
 
     const value = screen.getByText(longUrl);
-    expect(value).toHaveClass('min-w-0', 'break-words', '[overflow-wrap:anywhere]');
-    expect(value.closest('article')).toHaveClass('min-w-0', 'overflow-hidden');
+    const contactCard = value.closest('article');
+    expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
+    expect(screen.getByText('Teléfono y contacto')).toBeInTheDocument();
+    expect(screen.getByText('Teléfono')).toBeInTheDocument();
+    expect(value).toHaveClass(
+      'min-w-0',
+      'break-words',
+      'text-left',
+      'leading-5',
+      '[overflow-wrap:anywhere]',
+    );
+    expect(value.parentElement).toHaveClass('min-w-0', 'rounded-lg', 'px-3', 'py-2.5');
+    expect(value.closest('dl')).toHaveClass('min-w-0', 'grid', 'gap-2');
+    expect(value.closest('dl')).not.toHaveClass('md:grid-cols-2');
+    expect(contactCard).toHaveClass('min-w-0', 'overflow-hidden', 'sm:col-span-2');
   });
 
   it('shows an intentional conversation skeleton while a direct demo session connects', () => {
@@ -104,6 +124,24 @@ describe('DemoWorkspace rubro tools', () => {
     expect(screen.getByRole('status', { name: /preparando la conversación de la demo/i })).toBeInTheDocument();
     expect(screen.getByText('Preparando conversación operativa')).toBeInTheDocument();
     expect(screen.queryByText('Demo conversacional no disponible')).not.toBeInTheDocument();
+  });
+
+  it('uses polished Spanish copy for the unavailable runtime state', () => {
+    const workspace = {
+      empty_states: {
+        runtime_unavailable: {
+          title: 'Atencion en Junin',
+          description: 'Esta experiencia todavia no esta disponible para probar en vivo.',
+        },
+      },
+    } as DemoWorkspaceConfig;
+
+    render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
+
+    expect(screen.getByText('Atención en Junín')).toBeInTheDocument();
+    expect(
+      screen.getByText('Esta experiencia todavía no está disponible para probar en vivo.'),
+    ).toBeInTheDocument();
   });
 
   it('presents backend enums as professional Spanish labels', () => {
