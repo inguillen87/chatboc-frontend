@@ -72,6 +72,30 @@ type DemoDetailDrawerState = {
   error: DemoUiError | null;
 } | null;
 
+type DemoDirectRouteSelection = {
+  sector: DemoSector;
+  rubro: string;
+  tenantSlug: string | null;
+};
+
+const readDemoDirectRouteSelection = (search: string): DemoDirectRouteSelection | null => {
+  const query = new URLSearchParams(search);
+  const requestedSector = query.get('sector');
+  const sector =
+    requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
+      ? requestedSector
+      : null;
+  const rubro = query.get('rubro')?.trim() ?? '';
+
+  if (!sector || !rubro) return null;
+
+  return {
+    sector,
+    rubro,
+    tenantSlug: normalizeRequestedDemoTenantSlug(query.get('tenant_slug') ?? query.get('tenant')),
+  };
+};
+
 const readRequestIdFromError = (error: unknown): string | null => {
   if (error instanceof ApiError) {
     return error.requestId ?? error.body?.request_id ?? null;
@@ -1861,15 +1885,27 @@ export const DemoAdminPreview = ({
 
 const Demo = () => {
   const location = useLocation();
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
-  const [rubroClaveSeleccionado, setRubroClaveSeleccionado] = useState<string | null>(null);
+  const directRouteSelection = useMemo(
+    () => readDemoDirectRouteSelection(location.search),
+    [location.search],
+  );
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
+    () => directRouteSelection?.rubro ?? null,
+  );
+  const [rubroClaveSeleccionado, setRubroClaveSeleccionado] = useState<string | null>(
+    () => directRouteSelection?.rubro ?? null,
+  );
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
-  const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
+  const [esperandoRubro, setEsperandoRubro] = useState(() => !directRouteSelection);
+  const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(
+    () => directRouteSelection?.sector ?? null,
+  );
   const [demoCatalog, setDemoCatalog] = useState<DemoCatalogResponse | null>(null);
-  const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
+  const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(
+    () => directRouteSelection?.tenantSlug ?? readSectorCatalogSlug(directRouteSelection?.sector ?? null),
+  );
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
-  const [demoSessionLoading, setDemoSessionLoading] = useState(false);
+  const [demoSessionLoading, setDemoSessionLoading] = useState(() => Boolean(directRouteSelection));
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
@@ -2122,7 +2158,7 @@ const Demo = () => {
       normalizedRequestedSector && storedSector !== normalizedRequestedSector ? null : storedClave;
     const effectiveStoredLabel = effectiveStoredClave ? storedLabel : null;
 
-    if (normalizedRequestedSector && requestedRubro && !effectiveStoredClave) {
+    if (normalizedRequestedSector && requestedRubro) {
       // Deep links are presentation entry points. Move to the requested workspace
       // immediately and warm the executive preview in parallel with catalog/session
       // bootstrap instead of leaving the visitor on the generic sector selector.
@@ -2256,8 +2292,18 @@ const Demo = () => {
 
     if (effectiveStoredClave && !rubroClaveSeleccionado) {
       const normalizedClave = extractRubroKey(effectiveStoredClave) ?? effectiveStoredClave;
+      const restoredSector = normalizedRequestedSector ?? (
+        storedSector === 'educacion' || storedSector === 'gobierno' || storedSector === 'empresas'
+          ? storedSector
+          : null
+      );
+      setSectorSeleccionado(restoredSector);
+      setDemoTenantSlug(
+        requestedDemoTenantSlug ?? readSectorCatalogSlug(restoredSector),
+      );
       setDemoSessionLoading(true);
       void createDemoSession({
+        sector: restoredSector ?? undefined,
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
         category_slug: normalizedClave,
@@ -2498,7 +2544,11 @@ const Demo = () => {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center bg-background text-foreground">
+    <div
+      className="flex min-h-screen w-full flex-col items-center bg-background text-foreground"
+      data-testid="demo-route-shell"
+      data-demo-route-state={demoSessionLoading ? 'loading' : 'ready'}
+    >
       <header className="sticky top-0 z-20 w-full border-b border-border bg-card/80 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
@@ -2526,7 +2576,7 @@ const Demo = () => {
         </div>
       </header>
 
-      <div className="w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
+      <div className="min-h-[calc(100dvh-4.25rem)] w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
         <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
@@ -2544,8 +2594,11 @@ const Demo = () => {
           ) : null}
         </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]">
-          <div className="min-w-0">
+        <div
+          className="grid gap-5 xl:min-h-[720px] xl:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]"
+          data-demo-workspace-shell
+        >
+          <div className="min-w-0 xl:min-h-[680px]">
             <DemoWorkspace
               tenantSlug={demoTenantSlug}
               sector={sectorSeleccionado}
@@ -2556,13 +2609,17 @@ const Demo = () => {
             />
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+          <aside
+            className="space-y-5 xl:min-h-[680px] xl:sticky xl:top-24 xl:self-start"
+            data-demo-admin-shell
+          >
             {demoSessionLoading && !demoAdminPreview ? (
               <section
-                className="rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm"
+                className="min-h-[520px] rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm xl:min-h-[680px]"
                 role="status"
                 aria-live="polite"
                 aria-label="Preparando el tablero ejecutivo"
+                data-testid="demo-direct-loading-shell"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Vista ejecutiva</p>
                 <h2 className="mt-2 text-xl font-bold tracking-tight">Preparando tablero de Gobierno</h2>
