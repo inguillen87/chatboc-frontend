@@ -1389,16 +1389,27 @@ function ChatWidgetInner({
       return;
     }
 
-    const timer = window.setTimeout(() => {
+    let frameId = 0;
+    let attempts = 0;
+    const focusOpenPanel = () => {
       const panel = openPanelRef.current;
+      if (!panel && attempts < 12) {
+        attempts += 1;
+        frameId = window.requestAnimationFrame(focusOpenPanel);
+        return;
+      }
       if (!panel) return;
-      const firstFocusable = panel.querySelector<HTMLElement>(
-        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
+      const focusableElements = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ) as HTMLElement[];
+      const firstFocusable = focusableElements.find((element) => element.offsetParent !== null);
       (firstFocusable ?? panel).focus();
-    }, 0);
+    };
+    frameId = window.requestAnimationFrame(focusOpenPanel);
 
-    return () => window.clearTimeout(timer);
+    return () => window.cancelAnimationFrame(frameId);
   }, [isOpen]);
 
   const handleProactiveClick = useCallback(() => {
