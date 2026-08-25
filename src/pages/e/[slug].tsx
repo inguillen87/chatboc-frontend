@@ -622,7 +622,7 @@ const PublicSurveyPage = () => {
     window.setTimeout(() => {
       a.remove();
       URL.revokeObjectURL(url);
-    }, 1_000);
+    }, 60_000);
   }, [liveDashboard, liveQuestions, liveSlug, slug]);
 
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
