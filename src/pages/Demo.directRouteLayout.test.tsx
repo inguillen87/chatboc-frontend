@@ -154,25 +154,35 @@ describe('Demo direct-route layout stability', () => {
   });
 
   it('restores the persisted tenant before warming a queryless demo preview', async () => {
+    let resolveSession!: (value: unknown) => void;
+    let resolvePreview!: (value: unknown) => void;
+    const sessionPromise = new Promise((resolve) => {
+      resolveSession = resolve;
+    });
+    const previewPromise = new Promise((resolve) => {
+      resolvePreview = resolve;
+    });
+
     localStorage.setItem('demoSectorSeleccionado', 'gobierno');
     localStorage.setItem('rubroSeleccionado', 'municipio');
     localStorage.setItem('rubroSeleccionado_label', 'Municipio');
     localStorage.setItem(DEMO_TENANT_STORAGE_KEY, 'junin');
     demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
-    demoApiMocks.createDemoSession.mockResolvedValue({
-      tenant_slug: 'junin',
-      workspace: {
-        title: 'Gestión ciudadana',
-        chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
-      },
-    });
-    demoApiMocks.getDemoAdminPreview.mockResolvedValue(preview);
+    demoApiMocks.createDemoSession.mockReturnValue(sessionPromise);
+    demoApiMocks.getDemoAdminPreview.mockReturnValue(previewPromise);
 
     render(
       <MemoryRouter initialEntries={['/demo']}>
         <Demo />
       </MemoryRouter>,
     );
+
+    expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'loading');
+    expect(screen.getByTestId('demo-direct-loading-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-sector', 'gobierno');
+    expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'true');
+    expect(screen.queryByTestId('demo-sector-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('demo-rubro-selector')).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(demoApiMocks.createDemoSession).toHaveBeenCalledWith(
@@ -192,9 +202,71 @@ describe('Demo direct-route layout stability', () => {
       );
     });
 
+    await act(async () => {
+      resolvePreview(preview);
+    });
+
     expect(
       await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
     ).toBeVisible();
+
+    await act(async () => {
+      resolveSession({
+        tenant_slug: 'junin',
+        workspace: {
+          title: 'Gestión ciudadana',
+          chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'ready');
+      expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'false');
+    });
     expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-sector', 'gobierno');
+  });
+
+  it('normalizes an invalid persisted tenant before the first queryless request', async () => {
+    localStorage.setItem('demoSectorSeleccionado', 'gobierno');
+    localStorage.setItem('rubroSeleccionado', 'municipio');
+    localStorage.setItem('rubroSeleccionado_label', 'Municipio');
+    localStorage.setItem(DEMO_TENANT_STORAGE_KEY, '../tenant-ajeno');
+    demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
+    demoApiMocks.createDemoSession.mockResolvedValue({
+      tenant_slug: 'junin',
+      workspace: {
+        title: 'Gestión ciudadana',
+        chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+      },
+    });
+    demoApiMocks.getDemoAdminPreview.mockResolvedValue(preview);
+
+    render(
+      <MemoryRouter initialEntries={['/demo']}>
+        <Demo />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'loading');
+    expect(screen.queryByTestId('demo-sector-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('demo-rubro-selector')).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(demoApiMocks.createDemoSession).toHaveBeenCalledWith(
+        expect.objectContaining({ tenant_slug: 'municipio' }),
+      );
+      expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ tenant_slug: 'municipio' }),
+      );
+    });
+
+    const requests = [
+      ...demoApiMocks.createDemoSession.mock.calls,
+      ...demoApiMocks.getDemoAdminPreview.mock.calls,
+    ];
+    expect(requests).not.toContainEqual([
+      expect.objectContaining({ tenant_slug: '../tenant-ajeno' }),
+    ]);
   });
 });

@@ -79,6 +79,10 @@ type DemoDirectRouteSelection = {
   tenantSlug: string | null;
 };
 
+type DemoInitialSelection = DemoDirectRouteSelection & {
+  rubroLabel: string;
+};
+
 const readDemoDirectRouteSelection = (search: string): DemoDirectRouteSelection | null => {
   const query = new URLSearchParams(search);
   const requestedSector = query.get('sector');
@@ -293,6 +297,48 @@ const readSectorCatalogSlug = (sector: DemoSector | null) => {
   if (sector === 'empresas') return null;
   if (sector === 'educacion') return 'colegio-demo';
   return null;
+};
+
+const readPersistedDemoSelection = (): DemoInitialSelection | null => {
+  const storedSector = safeLocalStorage.getItem('demoSectorSeleccionado');
+  const sector =
+    storedSector === 'educacion' || storedSector === 'gobierno' || storedSector === 'empresas'
+      ? storedSector
+      : null;
+  const storedRubro = safeLocalStorage.getItem('rubroSeleccionado');
+  const rubro = extractRubroKey(storedRubro);
+
+  if (!sector || !rubro) return null;
+
+  const storedLabel = extractRubroLabel(safeLocalStorage.getItem('rubroSeleccionado_label'));
+  const tenantSlug = resolveDemoTenantSlug(
+    normalizeRequestedDemoTenantSlug(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)),
+    readSectorCatalogSlug(sector),
+  );
+
+  return {
+    sector,
+    rubro,
+    rubroLabel: storedLabel ?? extractRubroLabel(storedRubro) ?? rubro,
+    tenantSlug,
+  };
+};
+
+const resolveInitialDemoSelection = (
+  directRouteSelection: DemoDirectRouteSelection | null,
+): DemoInitialSelection | null => {
+  if (directRouteSelection) {
+    return {
+      ...directRouteSelection,
+      rubroLabel: directRouteSelection.rubro,
+      tenantSlug: resolveDemoTenantSlug(
+        directRouteSelection.tenantSlug,
+        readSectorCatalogSlug(directRouteSelection.sector),
+      ),
+    };
+  }
+
+  return readPersistedDemoSelection();
 };
 
 const getDemoPreviewIcon = (sector: DemoSector | null) => {
@@ -1889,27 +1935,26 @@ export const DemoAdminPreview = ({
 
 const Demo = () => {
   const location = useLocation();
-  const directRouteSelection = useMemo(
-    () => readDemoDirectRouteSelection(location.search),
-    [location.search],
+  const [initialSelection] = useState(
+    () => resolveInitialDemoSelection(readDemoDirectRouteSelection(location.search)),
   );
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
-    () => directRouteSelection?.rubro ?? null,
+    () => initialSelection?.rubroLabel ?? null,
   );
   const [rubroClaveSeleccionado, setRubroClaveSeleccionado] = useState<string | null>(
-    () => directRouteSelection?.rubro ?? null,
+    () => initialSelection?.rubro ?? null,
   );
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(() => !directRouteSelection);
+  const [esperandoRubro, setEsperandoRubro] = useState(() => !initialSelection);
   const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(
-    () => directRouteSelection?.sector ?? null,
+    () => initialSelection?.sector ?? null,
   );
   const [demoCatalog, setDemoCatalog] = useState<DemoCatalogResponse | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(
-    () => directRouteSelection?.tenantSlug ?? readSectorCatalogSlug(directRouteSelection?.sector ?? null),
+    () => initialSelection?.tenantSlug ?? null,
   );
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
-  const [demoSessionLoading, setDemoSessionLoading] = useState(() => Boolean(directRouteSelection));
+  const [demoSessionLoading, setDemoSessionLoading] = useState(() => Boolean(initialSelection));
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
@@ -2160,7 +2205,7 @@ const Demo = () => {
       requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
         ? requestedSector
         : null;
-    const requestedRubro = new URLSearchParams(location.search).get('rubro');
+    const requestedRubro = new URLSearchParams(location.search).get('rubro')?.trim() || null;
     const effectiveStoredClave =
       normalizedRequestedSector && storedSector !== normalizedRequestedSector ? null : storedClave;
     const effectiveStoredLabel = effectiveStoredClave ? storedLabel : null;
@@ -2297,7 +2342,7 @@ const Demo = () => {
       return;
     }
 
-    if (effectiveStoredClave && !rubroClaveSeleccionado) {
+    if (effectiveStoredClave) {
       const normalizedClave = extractRubroKey(effectiveStoredClave) ?? effectiveStoredClave;
       const restoredSector = normalizedRequestedSector ?? (
         storedSector === 'educacion' || storedSector === 'gobierno' || storedSector === 'empresas'
