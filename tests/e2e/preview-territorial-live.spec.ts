@@ -693,9 +693,16 @@ test.describe('remote Preview single-write QA vote', () => {
     const turnstile = page.getByTestId('survey-turnstile-challenge');
     await expect(turnstile).toBeVisible({ timeout: REMOTE_WAIT_MS });
     await expect(turnstile).toContainText('Validado', { timeout: REMOTE_WAIT_MS });
-    await expect(page.locator('iframe[src*="challenges.cloudflare.com"]').first()).toBeVisible({
-      timeout: REMOTE_WAIT_MS,
-    });
+    await expect(page.locator('script#chatboc-cloudflare-turnstile')).toHaveAttribute(
+      'src',
+      /challenges\.cloudflare\.com\/turnstile\/v0\/api\.js/,
+    );
+    await expect
+      .poll(() => page.evaluate(() => Boolean(window.turnstile)), {
+        message: 'Cloudflare Turnstile must initialize before the QA vote is enabled.',
+        timeout: REMOTE_WAIT_MS,
+      })
+      .toBe(true);
 
     const selectedOption = page.getByRole('radio', { name: /Luminarias 26% \(26\)/ });
     await selectedOption.check();
