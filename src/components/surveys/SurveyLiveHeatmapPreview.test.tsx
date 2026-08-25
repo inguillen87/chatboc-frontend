@@ -4,8 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { SurveyLiveHeatmapPreview } from './SurveyLiveHeatmapPreview';
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
-  default: ({ heatmapData }: { heatmapData?: unknown[] }) => (
-    <div data-testid="mock-survey-live-maplibre" data-points={String(heatmapData?.length ?? 0)}>
+  default: ({ heatmapData, evidence }: { heatmapData?: unknown[]; evidence?: { usingSyntheticPoints?: boolean; label?: string } }) => (
+    <div
+      data-testid="mock-survey-live-maplibre"
+      data-points={String(heatmapData?.length ?? 0)}
+      data-synthetic={String(Boolean(evidence?.usingSyntheticPoints))}
+      data-evidence-label={evidence?.label}
+    >
       mapa live {heatmapData?.length ?? 0}
     </div>
   ),
@@ -100,6 +105,28 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('widget');
     expect(screen.getByTestId('survey-live-heatmap-decision-radar')).toHaveTextContent('Monitorear evolucion');
     expect(screen.queryByText('Senales IA')).not.toBeInTheDocument();
+  });
+
+  it('marks deterministic demo points as synthetic evidence on the rendered map', () => {
+    render(
+      <SurveyLiveHeatmapPreview
+        heatmap={{
+          points: [{ lat: -34.5889, lng: -60.9462, count: 100, label: 'Junín' }],
+          cells: [],
+          metadata: {
+            source: 'demo_seeded_responses',
+            using_synthetic_points: true,
+            synthetic: true,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-synthetic', 'true');
+    expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute(
+      'data-evidence-label',
+      'Escenario sintético',
+    );
   });
 
   it('shows backend and local dataset limits instead of silently truncating the map HUD', () => {

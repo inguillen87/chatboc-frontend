@@ -600,7 +600,7 @@ const normalizeLiveOption = (
     texto: toTrimmedStringOrUndefined(firstDefined(value, ['texto', 'label', 'opcion', 'title', 'name'])),
     value: toTrimmedStringOrUndefined(firstDefined(value, ['value', 'key', 'id', 'label', 'texto'])),
     votos: toFiniteNumberOrUndefined(firstDefined(value, ['votos', 'votes', 'count', 'total', 'respuestas'])) ?? 0,
-    porcentaje: toFiniteNumberOrUndefined(firstDefined(value, ['porcentaje', 'percentage', 'percent', 'pct'])) ?? 0,
+    porcentaje: toFiniteNumberOrUndefined(firstDefined(value, ['porcentaje', 'percentage', 'percent', 'pct'])),
   };
 };
 
@@ -618,6 +618,17 @@ const normalizeLiveQuestion = (
   const totalVotes =
     toFiniteNumberOrUndefined(firstDefined(value, ['total_votos', 'total_votes', 'votos', 'votes', 'respuestas', 'total'])) ??
     opciones.reduce((sum, option) => sum + (option.votos ?? 0), 0);
+  const opcionesConPorcentaje = opciones.map((option) => {
+    const explicitPercentage = toFiniteNumberOrUndefined(option.porcentaje);
+    const calculatedPercentage = totalVotes > 0
+      ? Math.round((((option.votos ?? 0) / totalVotes) * 100) * 10) / 10
+      : 0;
+
+    return {
+      ...option,
+      porcentaje: Math.max(0, Math.min(100, explicitPercentage ?? calculatedPercentage)),
+    };
+  });
 
   return {
     id: firstDefined(value, ['id', 'pregunta_id', 'question_id', 'key']) as string | number | undefined,
@@ -625,7 +636,7 @@ const normalizeLiveQuestion = (
     texto: toTrimmedStringOrUndefined(firstDefined(value, ['texto', 'titulo', 'title', 'pregunta', 'label'])),
     titulo: toTrimmedStringOrUndefined(firstDefined(value, ['titulo', 'title', 'texto', 'pregunta', 'label'])) ?? `Pregunta ${index + 1}`,
     total_votos: totalVotes,
-    opciones,
+    opciones: opcionesConPorcentaje,
   };
 };
 

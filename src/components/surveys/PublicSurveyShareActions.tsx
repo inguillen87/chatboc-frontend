@@ -437,7 +437,7 @@ export const PublicSurveyShareActions = ({
           <div className="flex items-center gap-2 text-left">
             <TrendingUp className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Analíticas capturadas
+              {submission ? 'Analíticas capturadas' : 'Analíticas preparadas'}
             </span>
           </div>
           {analyticsHighlights.length ? (
@@ -451,7 +451,7 @@ export const PublicSurveyShareActions = ({
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
-              La respuesta se integró a los tableros en tiempo real con sus metadatos de difusión, demografía y ubicación.
+              Al responder, el tablero recibirá los metadatos autorizados de difusión, demografía y ubicación.
             </p>
           )}
         </div>

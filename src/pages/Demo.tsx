@@ -23,6 +23,7 @@ import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
+import { normalizeRequestedDemoTenantSlug, resolveDemoTenantSlug } from '@/features/demo/demoTenantSelection';
 import type { LeadCaptureResponse, OperationalTicketResult } from '@/features/chat/chatApi';
 import type {
   DemoAdminPreviewResponse,
@@ -1066,6 +1067,10 @@ const Demo = () => {
   const requestedSandboxSector = demoQuery.get('sector');
   const requestedSandboxRubro = demoQuery.get('rubro');
   const requestedSandboxTenant = demoQuery.get('tenant_slug') ?? demoQuery.get('tenant');
+  const requestedDemoTenantSlug = useMemo(
+    () => normalizeRequestedDemoTenantSlug(requestedSandboxTenant),
+    [requestedSandboxTenant],
+  );
 
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
@@ -1073,8 +1078,13 @@ const Demo = () => {
     [rubrosDisponibles, sectorSeleccionado],
   );
   const demoPreviewTenantSlug = useMemo(
-    () => demoTenantSlug ?? readSectorTenantSlug(selectedSectorGroup) ?? readSectorCatalogSlug(sectorSeleccionado),
-    [demoTenantSlug, sectorSeleccionado, selectedSectorGroup],
+    () => resolveDemoTenantSlug(
+      requestedDemoTenantSlug,
+      demoTenantSlug,
+      readSectorTenantSlug(selectedSectorGroup),
+      readSectorCatalogSlug(sectorSeleccionado),
+    ),
+    [demoTenantSlug, requestedDemoTenantSlug, sectorSeleccionado, selectedSectorGroup],
   );
   const demoPreviewChatSessionId = useMemo(
     () => readDemoWorkspaceChatSessionId(demoWorkspace),
@@ -1299,10 +1309,12 @@ const Demo = () => {
         const sectorRubros = getRubrosForSector(data, normalizedRequestedSector);
         const requestedRubroMeta = findRubroByKey(sectorRubros, requestedRubro);
         const sessionPayload = requestedRubroMeta ? readRubroSessionPayload(requestedRubroMeta) : {};
-        const sessionTenantSlug =
-          (requestedRubroMeta ? readRubroTenantSlug(requestedRubroMeta) : null) ??
-          readSectorTenantSlug(catalogGroup) ??
-          readSectorCatalogSlug(normalizedRequestedSector);
+        const sessionTenantSlug = resolveDemoTenantSlug(
+          requestedDemoTenantSlug,
+          requestedRubroMeta ? readRubroTenantSlug(requestedRubroMeta) : null,
+          readSectorTenantSlug(catalogGroup),
+          readSectorCatalogSlug(normalizedRequestedSector),
+        );
         safeLocalStorage.setItem("demoSectorSeleccionado", normalizedRequestedSector);
         safeLocalStorage.setItem("rubroSeleccionado", requestedRubro);
         safeLocalStorage.setItem("rubroSeleccionado_label", requestedRubro);
@@ -1371,7 +1383,11 @@ const Demo = () => {
         safeLocalStorage.setItem("rubroSeleccionado_label", label);
         const session = await createDemoSession({
           sector: normalizedRequestedSector,
-          tenant_slug: readSectorTenantSlug(catalogGroup) ?? readSectorCatalogSlug(normalizedRequestedSector),
+          tenant_slug: resolveDemoTenantSlug(
+            requestedDemoTenantSlug,
+            readSectorTenantSlug(catalogGroup),
+            readSectorCatalogSlug(normalizedRequestedSector),
+          ),
           rubro: defaultRubro ?? normalizedRequestedSector,
           rubro_slug: defaultRubro ?? normalizedRequestedSector,
           pillar: normalizedRequestedSector,
@@ -1405,6 +1421,7 @@ const Demo = () => {
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
         category_slug: normalizedClave,
+        tenant_slug: requestedDemoTenantSlug,
       })
         .then((session) => {
           setDemoError(null);
@@ -1439,7 +1456,7 @@ const Demo = () => {
           setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
         });
     }
-  }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, openDemoWidget]);
+  }, [location.search, location.state, requestedDemoTenantSlug, rubroClaveSeleccionado, rubroSeleccionado, openDemoWidget]);
 
   const startSectorDemo = useCallback(async () => {
     if (!sectorSeleccionado) return;
@@ -1447,7 +1464,7 @@ const Demo = () => {
     const group = findSectorGroup(demoCatalog, sector);
     const sectorRubros = getRubrosForSector(demoCatalog, sector);
     const label = readSectorLabel(group, sector);
-    const tenantSlug = readSectorTenantSlug(group);
+    const tenantSlug = resolveDemoTenantSlug(requestedDemoTenantSlug, readSectorTenantSlug(group));
     const defaultRubro = readSectorDefaultRubro(group, sector);
 
     if (sector === 'empresas') {
@@ -1500,7 +1517,7 @@ const Demo = () => {
     } catch (error) {
       setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
     }
-  }, [demoCatalog, openDemoWidget, sectorSeleccionado]);
+  }, [demoCatalog, openDemoWidget, requestedDemoTenantSlug, sectorSeleccionado]);
 
   // Rubros selector UI
   if (esperandoRubro) {
@@ -1604,7 +1621,11 @@ const Demo = () => {
                     (typeof rubroAny.category_slug === 'string' ? rubroAny.category_slug : null) ??
                     etiqueta ??
                     rubro.nombre;
-                  const sessionTenantSlug = readRubroTenantSlug(rubro) ?? readSectorTenantSlug(selectedSectorGroup);
+                  const sessionTenantSlug = resolveDemoTenantSlug(
+                    requestedDemoTenantSlug,
+                    readRubroTenantSlug(rubro),
+                    readSectorTenantSlug(selectedSectorGroup),
+                  );
                   const session = await createDemoSession({
                     ...sessionPayload,
                     sector: sectorSeleccionado,

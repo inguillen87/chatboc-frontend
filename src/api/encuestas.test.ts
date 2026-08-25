@@ -692,6 +692,31 @@ describe('survey anchor containment contract', () => {
 });
 
 describe('normalizePublicSurveyLiveResults', () => {
+  it('calculates option percentages when legacy live results only provide vote counts', () => {
+    const normalized = normalizePublicSurveyLiveResults({
+      contract_version: 'surveys.live_results.v2',
+      preguntas: {
+        prioridad: {
+          texto: 'Que tema deberia resolverse primero?',
+          opciones: [
+            { texto: 'Luminarias', votos: 45 },
+            { texto: 'Bacheo', votos: 18 },
+            { texto: 'Limpieza', votos: 25 },
+            { texto: 'Espacios verdes', votos: 12 },
+          ],
+        },
+      },
+    });
+
+    expect(normalized.preguntas?.[0]?.total_votos).toBe(100);
+    expect(normalized.preguntas?.[0]?.opciones?.map((option) => option.porcentaje)).toEqual([
+      45,
+      18,
+      25,
+      12,
+    ]);
+  });
+
   it('normalizes mixed backend live-results shapes for webviews and public dashboards', () => {
     const normalized = normalizePublicSurveyLiveResults({
       contract_version: 'surveys.live_results.v2',

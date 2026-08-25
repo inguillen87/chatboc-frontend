@@ -683,9 +683,22 @@ const PublicSurveyPage = () => {
 
   if (showLoadingSkeleton || isLoading) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10">
+      <div
+        className="mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10"
+        aria-busy="true"
+        aria-describedby="survey-loading-status"
+      >
         <Card className="w-full border border-border/60">
           <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+            <div
+              id="survey-loading-status"
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              <span>Cargando encuesta y resultados en vivo...</span>
+            </div>
             <div className="space-y-3">
               <Skeleton className="h-9 w-4/5" />
               <Skeleton className="h-5 w-2/3" />

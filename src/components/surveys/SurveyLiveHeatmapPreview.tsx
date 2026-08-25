@@ -315,6 +315,11 @@ export function SurveyLiveHeatmapPreview({
   const backendDatasetLimited = readMetadataFlag(heatmapMetadata, ['truncated_points', 'truncated_cells']);
   const localHudLimited = rawPointsCount > points.length || rawCellsCount > cells.length;
   const privacyMode = asDisplayText(heatmapMetadata.privacy_mode, '').toLowerCase();
+  const usesSyntheticPoints = readMetadataFlag(heatmapMetadata, [
+    'using_synthetic_points',
+    'synthetic',
+    'demo_mode',
+  ]);
   const privacyProtected = heatmapMetadata.raw_points_redacted === true || privacyMode === 'public_aggregated';
   const privacyLabel = privacyProtected
     ? 'Privacidad protegida'
@@ -439,6 +444,14 @@ export function SurveyLiveHeatmapPreview({
               disableClientClustering
               initialZoom={12}
               className="absolute inset-0 h-full rounded-none"
+              evidence={{
+                metadata: heatmapMetadata,
+                usingSyntheticPoints: usesSyntheticPoints,
+                synthetic: usesSyntheticPoints,
+                pointCount: rawPointsCount,
+                cellCount: rawCellsCount,
+                label: usesSyntheticPoints ? 'Escenario sintético' : undefined,
+              }}
             />
           </div>
         ) : null}
