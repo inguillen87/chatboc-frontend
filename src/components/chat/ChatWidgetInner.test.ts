@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isUserPortalSurfacePath,
+  restoreDialogFocus,
   resolveStandaloneLauncherBottom,
 } from './ChatWidgetInner';
 
@@ -53,5 +54,41 @@ describe('ChatWidgetInner standalone launcher placement', () => {
         closedOffsetBottom: 24,
       }),
     ).toBe('24px');
+  });
+});
+
+describe('ChatWidgetInner dialog focus restoration', () => {
+  it('focuses the newly mounted launcher when the opening launcher was unmounted', () => {
+    const openingLauncher = document.createElement('button');
+    document.body.append(openingLauncher);
+    openingLauncher.focus();
+    openingLauncher.remove();
+
+    const mountedLauncher = document.createElement('button');
+    document.body.append(mountedLauncher);
+
+    expect(restoreDialogFocus(openingLauncher, mountedLauncher)).toBe(true);
+    expect(document.activeElement).toBe(mountedLauncher);
+
+    mountedLauncher.remove();
+  });
+
+  it('preserves a connected external trigger instead of moving focus to the launcher', () => {
+    const externalTrigger = document.createElement('button');
+    const mountedLauncher = document.createElement('button');
+    document.body.append(externalTrigger, mountedLauncher);
+    mountedLauncher.focus();
+
+    expect(restoreDialogFocus(externalTrigger, mountedLauncher)).toBe(true);
+    expect(document.activeElement).toBe(externalTrigger);
+
+    externalTrigger.remove();
+    mountedLauncher.remove();
+  });
+
+  it('keeps restoration pending when neither target is mounted yet', () => {
+    const detachedOpeningLauncher = document.createElement('button');
+
+    expect(restoreDialogFocus(detachedOpeningLauncher, null)).toBe(false);
   });
 });

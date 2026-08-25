@@ -112,6 +112,23 @@ export const resolveStandaloneLauncherBottom = ({
     : `${closedOffsetBottom}px`;
 };
 
+export const restoreDialogFocus = (
+  previousElement: HTMLElement | null,
+  launcherElement: HTMLElement | null,
+) => {
+  const candidates = [previousElement, launcherElement].filter(
+    (element, index, elements): element is HTMLElement =>
+      Boolean(element?.isConnected) && elements.indexOf(element) === index,
+  );
+
+  for (const candidate of candidates) {
+    candidate.focus({ preventScroll: true });
+    if (document.activeElement === candidate) return true;
+  }
+
+  return false;
+};
+
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -599,6 +616,18 @@ function ChatWidgetInner({
   const openPanelRef = useRef<HTMLDivElement>(null);
   const launcherButtonRef = useRef<HTMLButtonElement>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const restoreFocusPendingRef = useRef(false);
+  const wasOpenRef = useRef(isOpen);
+  const registerLauncherButton = useCallback((button: HTMLButtonElement | null) => {
+    launcherButtonRef.current = button;
+    if (
+      button &&
+      restoreFocusPendingRef.current &&
+      restoreDialogFocus(lastFocusedElementRef.current, button)
+    ) {
+      restoreFocusPendingRef.current = false;
+    }
+  }, []);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -1385,10 +1414,20 @@ function ChatWidgetInner({
   }, []);
 
   useEffect(() => {
+    const didClose = wasOpenRef.current && !isOpen;
+    wasOpenRef.current = isOpen;
+
     if (!isOpen) {
-      lastFocusedElementRef.current?.focus?.();
+      if (!didClose) return;
+
+      restoreFocusPendingRef.current = true;
+      if (restoreDialogFocus(lastFocusedElementRef.current, launcherButtonRef.current)) {
+        restoreFocusPendingRef.current = false;
+      }
       return;
     }
+
+    restoreFocusPendingRef.current = false;
 
     let frameId = 0;
     let attempts = 0;
@@ -3247,7 +3286,7 @@ function ChatWidgetInner({
                 </motion.button>
               )}
               <motion.button
-                ref={launcherButtonRef}
+                ref={registerLauncherButton}
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
