@@ -130,4 +130,15 @@ describe('asset recovery bootstrap', () => {
     expect(runtime.unrelatedUnregister).not.toHaveBeenCalled();
     expect(runtime.deleteCache).toHaveBeenCalledTimes(2);
   });
+
+  it('executes recovery for Vite dynamic-import cutovers', async () => {
+    const runtime = buildRuntime();
+
+    runtime.listeners.get('vite:preloadError')?.({});
+
+    await vi.waitFor(() => expect(runtime.replace).toHaveBeenCalledOnce());
+    expect(runtime.replace.mock.calls[0][0]).toContain('__chatboc_reason=vite-preload');
+    expect(runtime.unregister).toHaveBeenCalledOnce();
+    expect(runtime.deleteCache).toHaveBeenCalledTimes(2);
+  });
 });
