@@ -134,7 +134,15 @@ const executivePreview = {
   },
 };
 
-const prepareExecutiveDemo = async (page: Page, previewResponse: unknown = executivePreview) => {
+type PrepareExecutiveDemoOptions = {
+  sessionDelayMs?: number;
+};
+
+const prepareExecutiveDemo = async (
+  page: Page,
+  previewResponse: unknown = executivePreview,
+  options: PrepareExecutiveDemoOptions = {},
+) => {
   const adminPreviewRequests: string[] = [];
 
   await page.addInitScript(() => {
@@ -191,6 +199,9 @@ const prepareExecutiveDemo = async (page: Page, previewResponse: unknown = execu
       return;
     }
     if (path.endsWith('/api/v2/demo/session')) {
+      if (options.sessionDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.sessionDelayMs));
+      }
       await json(route, {
         contract_version: 'demo.session.v2',
         demo_session_id: 'demo-government-e2e',
@@ -292,6 +303,43 @@ test.describe('government executive demo preview', () => {
       ).toEqual([]);
     });
   }
+
+  test('preserves the selected executive panel while a delayed session hydrates', async ({ page }) => {
+    const adminPreviewRequests = await prepareExecutiveDemo(page, executivePreview, {
+      sessionDelayMs: 1_200,
+    });
+    const sessionBoundPreview = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname.endsWith('/api/v2/demo/admin-preview') &&
+        url.searchParams.get('chat_session_id') === 'sid-government-e2e' &&
+        response.status() === 200
+      );
+    });
+
+    await page.goto('/demo?sector=gobierno&rubro=municipio&tenant_slug=municipio', {
+      waitUntil: 'domcontentloaded',
+    });
+
+    const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
+    await expect(panel).toBeVisible();
+    const mapButton = panel.getByRole('button', { name: 'Mapa operativo', exact: true });
+    await mapButton.click();
+    await expect(mapButton).toHaveAttribute('aria-current', 'page');
+    await expect(panel.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
+
+    await sessionBoundPreview;
+    await expect
+      .poll(() =>
+        adminPreviewRequests.some((requestUrl) => {
+          const url = new URL(requestUrl);
+          return url.searchParams.get('chat_session_id') === 'sid-government-e2e';
+        }),
+      )
+      .toBe(true);
+    await expect(mapButton).toHaveAttribute('aria-current', 'page');
+    await expect(panel.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
+  });
 
   test('keeps real session activity separate from the synthetic survey partition', async ({ page }) => {
     const mixedPreview = {

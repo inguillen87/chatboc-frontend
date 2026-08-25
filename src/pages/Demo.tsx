@@ -1912,8 +1912,15 @@ const Demo = () => {
 
   useEffect(() => {
     setDemoRuntimeEvents([]);
-    setDemoAdminPanelTarget('summary');
   }, [demoPreviewChatSessionId]);
+
+  // A late demo-session bootstrap must not erase a panel the visitor already
+  // selected. Reset navigation only when the actual demo scope changes; the
+  // chat session can hydrate or rotate independently while the operator keeps
+  // working in the same executive view.
+  useEffect(() => {
+    setDemoAdminPanelTarget('summary');
+  }, [demoPreviewTenantSlug, rubroClaveSeleccionado, sectorSeleccionado]);
 
   const handleDemoRuntimeResult = useCallback(
     (response: unknown, result: LeadCaptureResponse | null) => {
