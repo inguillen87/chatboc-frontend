@@ -1033,7 +1033,7 @@ const DemoPreviewMap = ({
             <button
               key={mode}
               type="button"
-              className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:px-3 ${
+              className={`min-h-9 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:px-3 ${
                 mapMode === mode
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1074,8 +1074,8 @@ const DemoPreviewMap = ({
         />
       </React.Suspense>
       <div className="border-t border-border/70 bg-muted/15 px-4 py-3" data-testid="demo-map-volume-legend">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 sm:max-w-sm sm:flex-1">
+        <div className="grid gap-2">
+          <div className="min-w-0 w-full">
             <div
               className="h-2.5 rounded-full border border-border/70 bg-[linear-gradient(90deg,rgba(68,1,84,.72),rgba(59,82,139,.82),rgba(33,145,140,.88),rgba(94,201,98,.92),rgba(253,231,37,.98))]"
               aria-hidden="true"
