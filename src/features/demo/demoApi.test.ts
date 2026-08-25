@@ -108,23 +108,33 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
   });
 
-  it('requests admin preview by demo_session_id when available', async () => {
+  it('sends the demo session only in headers and never exposes it in the admin preview URL', async () => {
     demoGetMock.mockResolvedValue({
       contract_version: 'demo.admin_preview.v1',
       metrics: {},
     });
+    const demoJwt = 'eyJhbGciOiJIUzI1NiJ9.demo-session.signature';
 
     await getDemoAdminPreview({
       sector: 'empresas',
       tenant_slug: 'ferreteria',
       chat_session_id: 'sid_demo_ferreteria',
-      demo_session_id: 'demo_ferreteria_1',
+      demo_session_id: demoJwt,
     });
 
     expect(demoGetMock).toHaveBeenCalledWith(
-      '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria&demo_session_id=demo_ferreteria_1',
-      { baseUrlOverride: '/api' },
+      '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria',
+      {
+        baseUrlOverride: '/api',
+        headers: {
+          'X-Demo-Session-Id': demoJwt,
+          'X-Demo-Session': demoJwt,
+        },
+      },
     );
+    const [requestUrl] = demoGetMock.mock.calls[0] as [string];
+    expect(requestUrl).not.toContain(demoJwt);
+    expect(new URL(requestUrl, 'https://chatboc.test').searchParams.has('demo_session_id')).toBe(false);
   });
 
   it('accepts backend-canonicalized demo tenants when sector and rubro match the selector', async () => {

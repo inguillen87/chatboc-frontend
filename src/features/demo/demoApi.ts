@@ -50,11 +50,19 @@ export const getDemoAdminPreview = async (params: {
   if (params.sector) query.set('sector', String(params.sector));
   if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
   if (params.chat_session_id) query.set('chat_session_id', params.chat_session_id);
-  if (params.demo_session_id) query.set('demo_session_id', params.demo_session_id);
   if (params.presentation_mode) query.set('presentation_mode', params.presentation_mode);
   const suffix = query.toString() ? `?${query.toString()}` : '';
+  const demoSessionId = params.demo_session_id?.trim();
   return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
     baseUrlOverride: '/api',
+    ...(demoSessionId
+      ? {
+          headers: {
+            'X-Demo-Session-Id': demoSessionId,
+            'X-Demo-Session': demoSessionId,
+          },
+        }
+      : {}),
   });
 };
 
