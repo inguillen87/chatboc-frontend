@@ -6,8 +6,24 @@ import type { DemoAdminPreviewResponse } from '@/features/demo/demoTypes';
 import { DemoAdminPreview } from './Demo';
 
 vi.mock('@/components/MapLibreMap', () => ({
-  default: ({ heatmapData, ariaLabel }: { heatmapData: unknown[]; ariaLabel?: string }) => (
-    <div data-testid="maplibre-preview" role="region" aria-label={ariaLabel}>{heatmapData.length} puntos en mapa</div>
+  default: ({
+    heatmapData,
+    ariaLabel,
+    evidence,
+  }: {
+    heatmapData: unknown[];
+    ariaLabel?: string;
+    evidence?: { label?: string; synthetic?: boolean };
+  }) => (
+    <div
+      data-testid="maplibre-preview"
+      data-evidence-label={evidence?.label}
+      data-evidence-synthetic={String(evidence?.synthetic)}
+      role="region"
+      aria-label={ariaLabel}
+    >
+      {heatmapData.length} puntos en mapa
+    </div>
   ),
 }));
 
@@ -204,6 +220,8 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Mapa operativo del escenario' })).toBeVisible();
     expect(screen.getByText('Puntos simulados')).toBeVisible();
     expect(await screen.findByTestId('maplibre-preview')).toHaveTextContent('1 puntos en mapa');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-label', 'Puntos simulados');
+    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-synthetic', 'true');
     expect(screen.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
     expect(screen.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
   });

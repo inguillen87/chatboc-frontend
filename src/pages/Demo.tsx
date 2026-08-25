@@ -913,6 +913,14 @@ const DemoPreviewMap = ({
           fitToBounds={bounds.length ? bounds : undefined}
           initialZoom={zoom ?? (bounds.length > 1 ? 12 : 14)}
           disableClientClustering
+          evidence={{
+            label: isSynthetic ? 'Puntos simulados' : 'Eventos de esta sesión',
+            synthetic: isSynthetic,
+            usingSyntheticPoints: isSynthetic,
+            pointCount,
+            provider: 'MapLibre',
+            source: isSynthetic ? 'demo_scenario' : 'session_events',
+          }}
           ariaLabel={accessibleMapLabel}
         />
       </React.Suspense>
