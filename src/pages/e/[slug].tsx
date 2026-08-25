@@ -492,8 +492,8 @@ const PublicSurveyPage = () => {
   const containerClass = mode === 'embed'
     ? 'min-h-screen w-full bg-background'
     : survey?.es_votacion_envivo
-      ? 'mx-auto w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10'
-      : 'mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10';
+      ? 'mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10'
+      : 'mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10';
 
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
@@ -724,9 +724,10 @@ const PublicSurveyPage = () => {
   if (showLoadingSkeleton || isLoading) {
     return (
       <div
-        className="mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10"
+        className="mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10"
         aria-busy="true"
         aria-describedby="survey-loading-status"
+        data-testid="public-survey-loading-shell"
       >
         <Card className="w-full border border-border/60">
           <CardContent className="space-y-6 px-6 py-8 sm:px-8">

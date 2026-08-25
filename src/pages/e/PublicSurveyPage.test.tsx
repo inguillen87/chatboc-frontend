@@ -125,6 +125,11 @@ describe('PublicSurveyPage loading experience', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Cargando encuesta y resultados en vivo...');
     expect(screen.getByText('Cargando encuesta y resultados en vivo...').closest('[aria-busy="true"]'))
       .toBeInTheDocument();
+    expect(screen.getByTestId('public-survey-loading-shell')).toHaveClass(
+      'min-h-[calc(100dvh-5rem)]',
+      'max-w-7xl',
+      'px-0',
+    );
     expect(mocks.useSurveyPublic).toHaveBeenCalledTimes(1);
     expect(mocks.useSurveyPublic.mock.calls[0]?.[1]).toEqual({ tenantSlug: 'municipio' });
   });
