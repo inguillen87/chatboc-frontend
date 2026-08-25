@@ -2,6 +2,10 @@ import { panelApi } from '@/api/v2/client';
 import { ApiError, apiFetch } from '@/utils/api';
 import { getOrCreateAnonId } from '@/utils/anonIdGenerator';
 import { createLeadCaptureIdempotencyKey } from '@/utils/leadCapture';
+import {
+  createMunicipalChatIdempotencyKey,
+  normalizeMunicipalChatIdempotencyKey,
+} from '@/utils/municipalChatIdempotency';
 import type { ChatBootstrapConfig, ChatRatingValue } from './chatTypes';
 import type { ChatLeadCaptureConfig } from '@/types/chat';
 
@@ -20,6 +24,7 @@ export interface ChatBootstrapMessagePayload {
   audioEndpoint?: string;
   action_id?: string | null;
   extraPayload?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 export interface LeadCaptureNextAction {
@@ -541,6 +546,52 @@ const normalizeChatBootstrapEndpoint = (endpoint: string) => {
   return `/${trimmed.replace(/^\/+/, '').replace(/^ask\b/i, 'api/ask')}`;
 };
 
+const readChatVertical = (value: unknown): 'municipio' | 'pyme' | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'municipio' || normalized === 'pyme' ? normalized : null;
+};
+
+const isMunicipalChatEndpoint = (endpoint: string) => {
+  const withoutQuery = endpoint.trim().split(/[?#]/, 1)[0]?.toLowerCase() ?? '';
+  try {
+    const path = /^https?:\/\//i.test(withoutQuery)
+      ? new URL(withoutQuery).pathname.toLowerCase()
+      : withoutQuery;
+    return /\/(?:api\/)?ask\/municipio(?:\/|$)/.test(path);
+  } catch {
+    return false;
+  }
+};
+
+const isMunicipalBootstrapRequest = (
+  bootstrap: ChatBootstrapConfig,
+  payload: ChatBootstrapMessagePayload,
+  endpoint: string,
+) => {
+  const verticals = [
+    readChatVertical(payload.extraPayload?.tipo_chat),
+    readChatVertical(bootstrap.payload?.tipo_chat),
+    readChatVertical(bootstrap.query?.tipo_chat),
+  ].filter((vertical): vertical is 'municipio' | 'pyme' => Boolean(vertical));
+
+  // A contradictory contract must fail closed: never attach municipal
+  // idempotency credentials to an explicitly PYME request.
+  if (verticals.includes('pyme')) return false;
+  if (verticals.includes('municipio')) return true;
+
+  return [endpoint, bootstrap.same_origin_endpoint, bootstrap.endpoint].some(
+    (candidate) => typeof candidate === 'string' && isMunicipalChatEndpoint(candidate),
+  );
+};
+
+const removeHeader = (headers: Record<string, string>, headerName: string) => {
+  const normalizedName = headerName.toLowerCase();
+  Object.keys(headers).forEach((key) => {
+    if (key.toLowerCase() === normalizedName) delete headers[key];
+  });
+};
+
 const resolveSameOriginChatBase = (endpoint: string) => {
   if (!isBackendRootChatEndpoint(endpoint)) return undefined;
   if (typeof window === 'undefined' || !window.location?.origin) return undefined;
@@ -899,18 +950,30 @@ export const sendChatBootstrapMessage = async (
     throw new ApiError('El contrato de chat demo no incluye endpoint.', 400);
   }
   const endpoint = normalizeChatBootstrapEndpoint(rawEndpoint);
+  const isMunicipalRequest = isMunicipalBootstrapRequest(bootstrap, payload, endpoint);
+  const suppliedIdempotencyKey = normalizeMunicipalChatIdempotencyKey(payload.idempotencyKey);
+  if (payload.idempotencyKey !== undefined && !suppliedIdempotencyKey) {
+    throw new ApiError('La Idempotency-Key municipal no cumple el contrato.', 400);
+  }
+  const idempotencyKey = isMunicipalRequest
+    ? suppliedIdempotencyKey || createMunicipalChatIdempotencyKey()
+    : null;
 
   const requestEndpoint = async (target: string) =>
     apiFetch<unknown>(appendQuery(target, sanitizeBootstrapQuery(bootstrap)), {
       method: resolveBootstrapMethod(bootstrap.method),
       body: payload.audioBlob ? buildAudioPayload(bootstrap, payload) : buildJsonPayload(bootstrap, payload),
       headers: (() => {
-        const headers = normalizeBootstrapHeaders(bootstrap);
-        if (payload.audioBlob && headers) {
+        const headers = normalizeBootstrapHeaders(bootstrap) ?? {};
+        removeHeader(headers, 'Idempotency-Key');
+        if (idempotencyKey) {
+          headers['Idempotency-Key'] = idempotencyKey;
+        }
+        if (payload.audioBlob) {
           delete headers['Content-Type'];
           delete headers['content-type'];
         }
-        return headers;
+        return Object.keys(headers).length ? headers : undefined;
       })(),
       skipAuth: true,
       isWidgetRequest: true,
