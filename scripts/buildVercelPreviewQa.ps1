@@ -15,6 +15,8 @@ $compiledConfig = Join-Path $projectRoot ".vercel\output\config.json"
 $previousBackendUrl = $env:VITE_BACKEND_URL
 $previousApiUrl = $env:VITE_API_URL
 $previousSocketUrl = $env:VITE_SOCKET_URL
+$previousEffectiveVercelConfig = $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG
+$previousPrebuiltLocalConfigBinding = $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND
 
 try {
     # HTTP traffic remains same-origin and reaches the backend through the
@@ -24,12 +26,33 @@ try {
     $env:VITE_BACKEND_URL = $previewFrontendOrigin
     $env:VITE_API_URL = $previewFrontendOrigin
     $env:VITE_SOCKET_URL = $previewBackendOrigin
+    $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG = $previewConfig
+    $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND = "1"
 
     Push-Location $projectRoot
     try {
         & node "scripts\generateVercelPreviewConfig.mjs"
         if ($LASTEXITCODE -ne 0) {
             throw "Preview routing generation failed with exit code $LASTEXITCODE."
+        }
+
+        $previousVercelEnvironment = $env:VERCEL_ENV
+        $guardExitCode = 0
+        try {
+            $env:VERCEL_ENV = "preview"
+            & node "scripts\guardVercelPreviewRewrites.mjs"
+            $guardExitCode = $LASTEXITCODE
+        }
+        finally {
+            if ($null -eq $previousVercelEnvironment) {
+                Remove-Item Env:VERCEL_ENV -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:VERCEL_ENV = $previousVercelEnvironment
+            }
+        }
+        if ($guardExitCode -ne 0) {
+            throw "Preview routing guard failed with exit code $guardExitCode."
         }
 
         & vercel build --yes --scope $Scope --local-config $previewConfig
@@ -109,5 +132,19 @@ finally {
     }
     else {
         $env:VITE_SOCKET_URL = $previousSocketUrl
+    }
+
+    if ($null -eq $previousEffectiveVercelConfig) {
+        Remove-Item Env:CHATBOC_VERCEL_EFFECTIVE_CONFIG -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG = $previousEffectiveVercelConfig
+    }
+
+    if ($null -eq $previousPrebuiltLocalConfigBinding) {
+        Remove-Item Env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND = $previousPrebuiltLocalConfigBinding
     }
 }

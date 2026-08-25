@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "guard:vercel-rewrites": "node scripts/guardVercelPreviewRewrites.mjs",
+    "build": "npm run guard:vercel-rewrites && vite build",
+    "vercel-build": "npm run build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
