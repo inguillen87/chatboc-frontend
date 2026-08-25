@@ -44,12 +44,14 @@ export const getDemoAdminPreview = async (params: {
   tenant_slug?: string | null;
   chat_session_id?: string | null;
   demo_session_id?: string | null;
+  presentation_mode?: 'executive' | (string & {}) | null;
 }): Promise<DemoAdminPreviewResponse> => {
   const query = new URLSearchParams();
   if (params.sector) query.set('sector', String(params.sector));
   if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
   if (params.chat_session_id) query.set('chat_session_id', params.chat_session_id);
   if (params.demo_session_id) query.set('demo_session_id', params.demo_session_id);
+  if (params.presentation_mode) query.set('presentation_mode', params.presentation_mode);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
     baseUrlOverride: '/api',

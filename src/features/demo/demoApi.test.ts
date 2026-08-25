@@ -558,10 +558,11 @@ describe('demo admin preview API', () => {
       sector: 'gobierno',
       tenant_slug: 'municipio',
       chat_session_id: 'sid_demo_gobierno_123',
+      presentation_mode: 'executive',
     });
 
     expect(demoGetMock).toHaveBeenCalledWith(
-      '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123',
+      '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123&presentation_mode=executive',
       { baseUrlOverride: '/api' },
     );
   });

@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
   CheckCircle2,
   Clock3,
   FileText,
+  Gauge,
   GraduationCap,
   Inbox,
   MapPinned,
   MessageSquareText,
+  Radio,
+  ShieldAlert,
   ShoppingCart,
+  Timer,
   Users,
   X,
 } from "lucide-react";
@@ -38,6 +43,7 @@ import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 
 const MapLibreMap = React.lazy(() => import('@/components/MapLibreMap'));
+const EXECUTIVE_NUMBER_FORMATTER = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
 type DemoUiError = {
   message: string;
@@ -270,12 +276,14 @@ const getDemoPreviewIcon = (sector: DemoSector | null) => {
 };
 
 const DEMO_PREVIEW_ICONS = {
+  activity: Activity,
   analytics: BarChart3,
   bar: BarChart3,
   cart: ShoppingCart,
   catalog: FileText,
   commerce: ShoppingCart,
   education: GraduationCap,
+  gauge: Gauge,
   inbox: Inbox,
   lead: Users,
   map: MapPinned,
@@ -284,6 +292,7 @@ const DEMO_PREVIEW_ICONS = {
   school: GraduationCap,
   ticket: Inbox,
   time: Clock3,
+  timer: Timer,
   users: Users,
 } as const;
 
@@ -345,19 +354,74 @@ const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null) => {
 const normalizePreviewCards = (preview: DemoAdminPreviewResponse | null) => {
   const cards = Array.isArray(preview?.cards) ? preview.cards : [];
   return cards
-    .map((card) => {
+    .map((card, index) => {
       const label = card.label ?? card.title ?? card.id ?? card.key;
       if (!label) return null;
       return {
+        id: String(card.id ?? card.key ?? `${label}-${index}`),
         label: String(label),
         value: card.value ?? card.status ?? '',
         detail: card.description ?? card.detail ?? '',
+        period: card.period ?? null,
+        dataMode: card.data_mode ?? null,
         icon: resolvePreviewIcon(card.icon ?? card.id ?? card.key ?? card.label),
       };
     })
-    .filter((card): card is { label: string; value: string | number; detail: string; icon: React.ElementType } =>
+    .filter((card): card is {
+      id: string;
+      label: string;
+      value: string | number;
+      detail: string;
+      period: string | null;
+      dataMode: string | null;
+      icon: React.ElementType;
+    } =>
       Boolean(card),
     );
+};
+
+const formatExecutiveMetricValue = (value: string | number, unit?: string | null) => {
+  const formatted =
+    typeof value === 'number'
+      ? EXECUTIVE_NUMBER_FORMATTER.format(value)
+      : String(value);
+  return unit?.trim() ? `${formatted} ${unit.trim()}` : formatted;
+};
+
+const resolveExecutiveMetricIcon = (value?: string | null) => {
+  const normalized = normalizeSearchText(value);
+  if (normalized.includes('sla') || normalized.includes('cumplimiento')) return Gauge;
+  if (normalized.includes('whatsapp') || normalized.includes('respuesta')) return MessageSquareText;
+  if (normalized.includes('encuesta') || normalized.includes('voto')) return BarChart3;
+  if (normalized.includes('reclamo') || normalized.includes('caso')) return Inbox;
+  return resolvePreviewIcon(value);
+};
+
+const normalizePreviewMetrics = (preview: DemoAdminPreviewResponse | null) => {
+  const metrics = Array.isArray(preview?.metrics) ? preview.metrics : [];
+  return metrics
+    .map((metric, index) => {
+      const label = metric.label ?? metric.title ?? metric.id ?? metric.key;
+      if (!label || (typeof metric.value !== 'string' && typeof metric.value !== 'number')) return null;
+      return {
+        id: String(metric.id ?? metric.key ?? `${label}-${index}`),
+        label: String(label),
+        value: formatExecutiveMetricValue(metric.value, metric.unit),
+        detail: metric.detail ?? metric.description ?? '',
+        period: metric.period ?? null,
+        dataMode: metric.data_mode ?? null,
+        icon: resolveExecutiveMetricIcon(metric.icon ?? metric.id ?? metric.key ?? metric.label),
+      };
+    })
+    .filter((metric): metric is {
+      id: string;
+      label: string;
+      value: string;
+      detail: string;
+      period: string | null;
+      dataMode: string | null;
+      icon: React.ElementType;
+    } => Boolean(metric));
 };
 
 const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null) => {
@@ -366,11 +430,48 @@ const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null) => {
     .map((item) => ({
       id: item.id ?? item.title ?? item.label ?? item.description,
       title: item.title ?? item.label ?? item.description,
-      description: item.description ?? null,
+      description: item.detail ?? item.description ?? null,
+      time: item.time ?? null,
+      status: item.status ?? null,
+      channel: item.channel ?? null,
+      dataMode: item.data_mode ?? null,
     }))
-    .filter((item): item is { id: string; title: string; description: string | null } =>
+    .filter((item): item is {
+      id: string;
+      title: string;
+      description: string | null;
+      time: string | null;
+      status: string | null;
+      channel: string | null;
+      dataMode: string | null;
+    } =>
       typeof item.id === 'string' && typeof item.title === 'string' && item.title.trim().length > 0,
     );
+};
+
+const normalizePreviewCases = (preview: DemoAdminPreviewResponse | null) => {
+  const cases = Array.isArray(preview?.cases) ? preview.cases : [];
+  return cases
+    .map((item, index) => {
+      const id = String(item.id ?? item.case_code ?? `case-${index}`).trim();
+      const title = item.title?.trim() || item.case_code?.trim();
+      if (!id || !title) return null;
+      return {
+        id,
+        caseCode: item.case_code?.trim() || id,
+        title,
+        description: item.description?.trim() || null,
+        category: item.category?.trim() || null,
+        status: item.status?.trim() || null,
+        priority: item.priority?.trim() || null,
+        channel: item.channel?.trim() || null,
+        zone: item.zone?.trim() || null,
+        slaStatus: item.sla_status?.trim() || null,
+        openedAtLabel: item.opened_at_label?.trim() || null,
+        dataMode: item.data_mode?.trim() || null,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 };
 
 const readFiniteNumber = (...values: unknown[]): number | null => {
@@ -397,7 +498,10 @@ type NormalizedPreviewMapPoint = {
   lng: number;
   address?: string | null;
   category?: string | null;
+  zone?: string | null;
   status?: string | null;
+  weight?: number | null;
+  dataMode?: string | null;
 };
 
 const normalizePreviewMap = (preview: DemoAdminPreviewResponse | null) => {
@@ -423,16 +527,34 @@ const normalizePreviewMap = (preview: DemoAdminPreviewResponse | null) => {
         lng,
         address: readMapPointText(point, ['address', 'direccion']),
         category: readMapPointText(point, ['category', 'categoria']),
+        zone: readMapPointText(point, ['zone', 'zona']),
         status: readMapPointText(point, ['status', 'estado']),
+        weight: readFiniteNumber(point.weight),
+        dataMode: readMapPointText(point, ['data_mode']),
       };
     })
     .filter((point): point is NormalizedPreviewMapPoint => Boolean(point));
 
   if (!normalizedPoints.length) return null;
+  const dataMode = map.data_mode?.trim() || preview?.data_provenance?.mode?.trim() || null;
+  const isSynthetic = dataMode === 'synthetic_demo_scenario' || preview?.data_provenance?.synthetic === true;
   return {
-    title: map.title?.trim() || map.label?.trim() || preview?.labels?.map_title || 'Ubicaciones reales',
+    title:
+      map.title?.trim() ||
+      map.label?.trim() ||
+      preview?.labels?.map_title ||
+      (isSynthetic ? 'Mapa operativo del escenario' : 'Ubicaciones de la sesión'),
     description: map.description?.trim() || preview?.labels?.map_description || null,
     points: normalizedPoints,
+    dataMode,
+    label: map.label?.trim() || null,
+    zoom: readFiniteNumber(map.zoom),
+    center: map.center
+      ? {
+          lat: readFiniteNumber(map.center.lat, map.center.latitude),
+          lng: readFiniteNumber(map.center.lng, map.center.longitude),
+        }
+      : null,
   };
 };
 
@@ -531,6 +653,7 @@ const runtimeEventsToMapPoints = (events: DemoRuntimeEvent[]): NormalizedPreview
         address: ticket?.direccion ?? null,
         category: ticket?.categoria ?? null,
         status: event.status ?? null,
+        dataMode: 'session_generated_events',
       };
     })
     .filter((point): point is NormalizedPreviewMapPoint => Boolean(point));
@@ -545,6 +668,10 @@ const mergePreviewMapWithRuntime = (
       title: 'Ubicaciones capturadas',
       description: null,
       points: runtimePoints,
+      dataMode: 'session_generated_events',
+      label: 'Eventos reales de esta sesión',
+      zoom: null,
+      center: null,
     };
   }
 
@@ -589,35 +716,61 @@ const DemoPreviewMap = ({
   title,
   description,
   points,
+  dataMode,
+  label,
+  zoom,
+  mapCenter,
 }: {
   title: string;
   description?: string | null;
   points: NormalizedPreviewMapPoint[];
+  dataMode?: string | null;
+  label?: string | null;
+  zoom?: number | null;
+  mapCenter?: { lat: number | null; lng: number | null } | null;
 }) => {
   const heatmapData: HeatPoint[] = points.map((point, index) => ({
     id: index + 1,
     ticket: point.label,
     lat: point.lat,
     lng: point.lng,
-    weight: 1,
-    totalWeight: 1,
+    weight: point.weight ?? 1,
+    totalWeight: point.weight ?? 1,
     categoria: point.category ?? undefined,
     direccion: point.address ?? undefined,
     estado: point.status ?? undefined,
   }));
   const bounds = points.map((point) => [point.lng, point.lat] as [number, number]);
-  const center = bounds[0];
+  const center =
+    mapCenter?.lat !== null &&
+    mapCenter?.lat !== undefined &&
+    mapCenter?.lng !== null &&
+    mapCenter?.lng !== undefined
+      ? ([mapCenter.lng, mapCenter.lat] as [number, number])
+      : bounds[0];
+  const isSynthetic = dataMode === 'synthetic_demo_scenario';
+  const provenanceLabel = label || (isSynthetic ? 'Datos simulados' : 'Eventos de esta sesión');
+  const titleId = `demo-preview-map-${isSynthetic ? 'synthetic' : 'session'}`;
 
   return (
-    <div className="rounded-xl border border-border/70 bg-background/70 p-4" aria-label="Ubicaciones reales del admin preview">
+    <section
+      className="rounded-2xl border border-border/70 bg-background/70 p-4"
+      aria-labelledby={titleId}
+      data-demo-map-mode={dataMode ?? 'unspecified'}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <h3 id={titleId} className="text-sm font-semibold text-foreground">{title}</h3>
           {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
         </div>
-        <span className="rounded-full border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-          {points.length}
-        </span>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <span className="rounded-full border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+            {points.length} puntos
+          </span>
+          <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+            {provenanceLabel}
+          </span>
+        </div>
       </div>
       <React.Suspense
         fallback={
@@ -632,7 +785,7 @@ const DemoPreviewMap = ({
           showHeatmap={false}
           center={center}
           fitToBounds={bounds.length ? bounds : undefined}
-          initialZoom={bounds.length > 1 ? 12 : 14}
+          initialZoom={zoom ?? (bounds.length > 1 ? 12 : 14)}
           disableClientClustering
         />
       </React.Suspense>
@@ -642,6 +795,7 @@ const DemoPreviewMap = ({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">{point.label}</span>
               {point.category ? <span className="text-muted-foreground">{point.category}</span> : null}
+              {point.zone ? <span className="text-muted-foreground">{point.zone}</span> : null}
               {point.status ? (
                 <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
                   {point.status}
@@ -655,7 +809,7 @@ const DemoPreviewMap = ({
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 };
 
@@ -781,7 +935,305 @@ const readDemoWorkspaceDemoSessionId = (workspace?: DemoWorkspaceConfig | null) 
   return null;
 };
 
-const DemoAdminPreview = ({
+type ExecutiveKpi = ReturnType<typeof normalizePreviewMetrics>[number] | ReturnType<typeof normalizePreviewCards>[number];
+
+const DemoDataProvenanceBanner = ({
+  preview,
+  hasRuntimeEvents,
+}: {
+  preview: DemoAdminPreviewResponse;
+  hasRuntimeEvents: boolean;
+}) => {
+  const provenance = preview.data_provenance;
+  const declaredMode = provenance?.mode ?? preview.operations?.data_policy ?? null;
+  const isMixedPartitioned = declaredMode === 'mixed_partitioned' || provenance?.contains_synthetic === true;
+  const isSynthetic =
+    provenance?.synthetic === true ||
+    declaredMode === 'synthetic_demo_scenario' ||
+    preview.operations?.data_policy === 'synthetic_demo_scenario';
+  const hasSessionEvents =
+    !isSynthetic &&
+    (hasRuntimeEvents || provenance?.mode === 'session_generated_events' || preview.session_activity?.has_session_data === true);
+
+  if (isMixedPartitioned) {
+    return (
+      <div
+        className="border-b border-primary/30 bg-primary/10 px-4 py-4 text-foreground sm:px-5"
+        role="note"
+        aria-label="Fuentes separadas del panel demostrativo"
+        data-demo-provenance="mixed-partitioned"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-background/80 text-primary">
+            <Activity className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-black uppercase tracking-[0.08em]">
+              Actividad de esta sesión + encuesta demo separada
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6">
+              Reclamos, ubicaciones y conversaciones corresponden a esta sesión demo. La encuesta pertenece a una
+              partición sintética separada.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-foreground">
+              La encuesta no representa datos oficiales ni relevamiento municipal y no debe usarse para decisiones públicas.
+            </p>
+            {provenance?.label ? <p className="mt-1 text-xs leading-5 text-foreground">{provenance.label}</p> : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSynthetic) {
+    return (
+      <div
+        className="border-b border-amber-500/35 bg-amber-400/15 px-4 py-4 text-amber-950 dark:bg-amber-400/10 dark:text-amber-100 sm:px-5"
+        role="note"
+        aria-label="Advertencia sobre los datos del escenario demostrativo"
+        data-demo-provenance="synthetic"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-500/35 bg-amber-400/20">
+            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-black uppercase tracking-[0.08em]">
+              Escenario demostrativo · datos simulados
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6">
+              No representa datos oficiales ni relevamiento municipal.
+            </p>
+            {provenance?.label ? (
+              <p className="mt-1 text-xs leading-5 text-amber-900/85 dark:text-amber-100/80">{provenance.label}</p>
+            ) : null}
+            {provenance?.scenario_scope ? (
+              <p className="mt-1 text-xs font-semibold text-amber-900/85 dark:text-amber-100/80">
+                Ámbito del escenario: {provenance.scenario_scope}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasSessionEvents) return null;
+
+  return (
+    <div
+      className="border-b border-primary/25 bg-primary/10 px-4 py-3 text-foreground sm:px-5"
+      role="status"
+      data-demo-provenance="session"
+    >
+      <div className="flex items-start gap-3">
+        <Radio className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-bold">Eventos reales de esta sesión demo</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+            Esta vista muestra únicamente actividad generada durante la sesión actual; no se mezcla con el escenario simulado.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DemoExecutiveKpiGrid = ({
+  items,
+  isSynthetic,
+  isMixedPartitioned,
+}: {
+  items: ExecutiveKpi[];
+  isSynthetic: boolean;
+  isMixedPartitioned: boolean;
+}) => {
+  if (!items.length) return null;
+
+  return (
+    <section aria-labelledby="demo-executive-kpis-title" data-demo-kpi-grid>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 id="demo-executive-kpis-title" className="text-sm font-bold text-foreground">
+            Indicadores ejecutivos
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Lectura rápida de volumen, atención y nivel de servicio.
+          </p>
+        </div>
+        <span className="rounded-full border bg-muted/30 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+          {isMixedPartitioned ? 'Fuentes separadas' : isSynthetic ? 'Escenario simulado' : 'Sesión actual'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="list" data-demo-kpi-list>
+        {items.map((item) => {
+          const CardIcon = item.icon;
+          const sourceLabel = item.dataMode === 'synthetic_demo_scenario'
+            ? 'Demo sintética'
+            : item.dataMode === 'session_generated_events'
+              ? 'Sesión actual'
+              : null;
+          return (
+            <article
+              key={item.id}
+              className="min-w-0 rounded-2xl border border-border/70 bg-background/80 p-3 shadow-sm sm:p-4"
+              role="listitem"
+            >
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <CardIcon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="flex min-w-0 flex-col items-end gap-1">
+                  {item.period ? (
+                    <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {item.period}
+                    </span>
+                  ) : null}
+                  {isMixedPartitioned && sourceLabel ? (
+                    <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${
+                      item.dataMode === 'synthetic_demo_scenario'
+                        ? 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                        : 'border-primary/25 bg-primary/5 text-foreground'
+                    }`}>
+                      {sourceLabel}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <dl>
+                <dt className="text-xs font-medium leading-4 text-muted-foreground">{item.label}</dt>
+                <dd className="mt-1 break-words text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                  {item.value}
+                </dd>
+              </dl>
+              {item.detail ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{item.detail}</p> : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const readSummaryValue = (value: string | number | null | undefined, suffix = '') => {
+  if (typeof value === 'number') {
+    return `${EXECUTIVE_NUMBER_FORMATTER.format(value)}${suffix}`;
+  }
+  if (typeof value === 'string' && value.trim()) return `${value.trim()}${suffix}`;
+  return '—';
+};
+
+const readSharePercentage = (value: string | number | null | undefined) => {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : null;
+};
+
+const DemoChannelSummary = ({
+  summary,
+  isSynthetic,
+}: {
+  summary: DemoAdminPreviewResponse['channel_summary'];
+  isSynthetic: boolean;
+}) => {
+  if (!summary) return null;
+  const channels = Array.isArray(summary.channels) ? summary.channels : [];
+  const whatsapp = summary.whatsapp;
+  const total = summary.total_interactions ?? summary.observed_items;
+  const hasWhatsappMetrics = Boolean(
+    whatsapp &&
+      [whatsapp.conversations, whatsapp.first_response_minutes, whatsapp.resolved_without_handoff_pct].some(
+        (value) => value !== null && value !== undefined,
+      ),
+  );
+
+  return (
+    <section
+      className="rounded-2xl border border-border/70 bg-background/70 p-4"
+      aria-labelledby="demo-channel-summary-title"
+      data-demo-channel-summary
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Atención omnicanal</p>
+          <h3 id="demo-channel-summary-title" className="mt-1 text-base font-bold text-foreground">
+            {summary.label?.trim() || 'WhatsApp y nivel de servicio'}
+          </h3>
+        </div>
+        {total !== null && total !== undefined ? (
+          <div className="rounded-xl border bg-muted/20 px-3 py-2 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Interacciones</p>
+            <p className="text-lg font-black text-foreground">{readSummaryValue(total)}</p>
+          </div>
+        ) : null}
+      </div>
+
+      {hasWhatsappMetrics ? (
+        <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border bg-muted/15 p-3">
+            <dt className="text-[10px] leading-4 text-muted-foreground">Conversaciones WhatsApp</dt>
+            <dd className="mt-1 text-lg font-black text-foreground">{readSummaryValue(whatsapp?.conversations)}</dd>
+          </div>
+          <div className="rounded-xl border bg-muted/15 p-3">
+            <dt className="text-[10px] leading-4 text-muted-foreground">Primera respuesta</dt>
+            <dd className="mt-1 text-lg font-black text-foreground">
+              {readSummaryValue(whatsapp?.first_response_minutes, ' min')}
+            </dd>
+          </div>
+          <div className="rounded-xl border bg-muted/15 p-3">
+            <dt className="text-[10px] leading-4 text-muted-foreground">Resueltas sin derivación</dt>
+            <dd className="mt-1 text-lg font-black text-foreground">
+              {readSummaryValue(whatsapp?.resolved_without_handoff_pct, ' %')}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {channels.length ? (
+        <ul className="mt-4 space-y-3" aria-label="Participación por canal">
+          {channels.map((channel, index) => {
+            const share = readSharePercentage(channel.share_pct);
+            const label = channel.label?.trim() || channel.id?.trim() || `Canal ${index + 1}`;
+            return (
+              <li key={channel.id ?? `${label}-${index}`}>
+                <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                  <span className="font-semibold text-foreground">{label}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {readSummaryValue(channel.value)}{share !== null ? ` · ${readSummaryValue(share, ' %')}` : ''}
+                  </span>
+                </div>
+                {share !== null ? (
+                  <div
+                    className="h-1.5 overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-label={`${label}: ${share} %`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={share}
+                  >
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      {summary.note ? (
+        <p className="mt-4 rounded-xl border border-dashed bg-muted/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
+          {summary.note}
+        </p>
+      ) : null}
+      {isSynthetic ? (
+        <p className="mt-3 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+          Métricas simuladas para demostrar capacidades del producto; no aptas para decisiones públicas.
+        </p>
+      ) : null}
+    </section>
+  );
+};
+
+export const DemoAdminPreview = ({
   sector,
   rubro,
   preview,
@@ -804,10 +1256,20 @@ const DemoAdminPreview = ({
   const labels = preview?.labels ?? {};
   const modules = normalizePreviewModules(preview);
   const cards = hydratePreviewCardsWithRuntime(normalizePreviewCards(preview), runtimeEvents);
+  const metrics = normalizePreviewMetrics(preview);
+  const executiveKpis = metrics.length ? metrics : cards;
   const timeline = normalizePreviewTimeline(preview);
+  const previewCases = normalizePreviewCases(preview);
   const runtimeMapPoints = runtimeEventsToMapPoints(runtimeEvents);
-  const previewMap = mergePreviewMapWithRuntime(normalizePreviewMap(preview), runtimeMapPoints);
+  const previewMap = runtimeMapPoints.length
+    ? mergePreviewMapWithRuntime(null, runtimeMapPoints)
+    : normalizePreviewMap(preview);
   const runtimeTickets = runtimeEvents.filter((event) => event.ticket || event.ticketId);
+  const declaredDataMode = preview.data_provenance?.mode ?? preview.operations?.data_policy ?? null;
+  const isMixedPartitioned =
+    declaredDataMode === 'mixed_partitioned' || preview.data_provenance?.contains_synthetic === true;
+  const isSyntheticPreview =
+    preview.data_provenance?.synthetic === true || declaredDataMode === 'synthetic_demo_scenario';
   const activeModule = modules.find((module) => module.target === activeTarget) ?? modules[0];
   const title = preview.title?.trim() || rubro || readSectorLabel(null, sector);
   const subtitle = preview.subtitle?.trim() || rubro || readSectorLabel(null, sector);
@@ -829,19 +1291,21 @@ const DemoAdminPreview = ({
     <section
       className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur"
       data-demo-admin-preview
+      aria-labelledby="demo-admin-preview-title"
     >
+      <DemoDataProvenanceBanner preview={preview} hasRuntimeEvents={runtimeEvents.length > 0} />
       <div className="grid gap-0">
         <aside className="border-b border-border/70 bg-muted/25 p-4 sm:p-5">
           <div className="mb-5 flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{adminLabel}</p>
-              <h3 className="text-lg font-bold text-foreground">{subtitle}</h3>
+              <p className="truncate text-lg font-bold text-foreground">{subtitle}</p>
             </div>
           </div>
-          <nav className="grid gap-2">
+          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Secciones del panel ejecutivo">
             {modules.map((module) => {
               const active = module.id === activeModule?.id;
               return (
@@ -849,14 +1313,15 @@ const DemoAdminPreview = ({
                 key={module.id}
                 type="button"
                 onClick={() => onActiveTargetChange?.(module.target)}
+                aria-current={active ? 'page' : undefined}
                 className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
                   active
-                    ? 'border-primary/30 bg-primary/10 text-primary'
+                    ? 'border-primary/40 bg-primary/10 font-semibold text-foreground shadow-sm'
                     : 'border-border/60 bg-background/60 text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <span>{module.label}</span>
-                {active ? <CheckCircle2 className="h-4 w-4" /> : null}
+                {active ? <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
               </button>
               );
             })}
@@ -867,7 +1332,7 @@ const DemoAdminPreview = ({
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{viewLabel}</p>
-              <h3 className="mt-1 text-2xl font-bold tracking-tight text-foreground">{title}</h3>
+              <h2 id="demo-admin-preview-title" className="mt-1 text-2xl font-bold tracking-tight text-foreground">{title}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{outcome}</p>
             </div>
             {statusLabel ? (
@@ -877,43 +1342,48 @@ const DemoAdminPreview = ({
             ) : null}
           </div>
 
+          <div role="region" aria-label={activeModule?.label ?? 'Resumen'}>
           {showSummary ? (
             <>
-              <div className="grid gap-3">
-                {cards.map((card) => {
-                  const CardIcon = card.icon;
-                  return (
-                    <div key={card.label} className="rounded-xl border border-border/70 bg-background/70 p-4">
-                      <CardIcon className="mb-4 h-5 w-5 text-primary" />
-                      <p className="text-sm text-muted-foreground">{card.label}</p>
-                      <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{card.value}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.detail}</p>
-                    </div>
-                  );
-                })}
-              </div>
+              <DemoExecutiveKpiGrid
+                items={executiveKpis}
+                isSynthetic={isSyntheticPreview}
+                isMixedPartitioned={isMixedPartitioned}
+              />
 
               <div className="mt-4 grid gap-3">
+                <DemoChannelSummary summary={preview.channel_summary} isSynthetic={isSyntheticPreview} />
                 {timeline.length ? (
-                  <div className="rounded-xl border border-border/70 bg-background/70 p-4">
+                  <section className="rounded-2xl border border-border/70 bg-background/70 p-4" aria-labelledby="demo-timeline-title">
                     <div className="mb-3 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-foreground">{timelineTitle}</p>
+                      <h3 id="demo-timeline-title" className="text-sm font-semibold text-foreground">{timelineTitle}</h3>
                       {timelineBadge ? <span className="text-xs text-muted-foreground">{timelineBadge}</span> : null}
                     </div>
-                    <div className="space-y-3">
+                    <ol className="space-y-3">
                       {timeline.map((step, index) => (
-                        <div key={step.id} className="flex items-start gap-3">
-                          <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index < 2 ? 'bg-success' : index === 2 ? 'bg-primary' : 'bg-muted-foreground/35'}`} />
-                          <div>
+                        <li key={step.id} className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-[10px] font-black text-primary">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium text-foreground">{step.title}</p>
+                              {step.time ? <span className="text-[11px] font-semibold text-muted-foreground">{step.time}</span> : null}
+                            </div>
                             {step.description || timelineDetail ? (
-                              <p className="text-xs text-muted-foreground">{step.description ?? timelineDetail}</p>
+                              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{step.description ?? timelineDetail}</p>
+                            ) : null}
+                            {step.channel || step.status ? (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {step.channel ? <span className="rounded-full border bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">{step.channel}</span> : null}
+                                {step.status ? <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary">{step.status}</span> : null}
+                              </div>
                             ) : null}
                           </div>
-                        </div>
+                        </li>
                       ))}
-                    </div>
-                  </div>
+                    </ol>
+                  </section>
                 ) : null}
                 {summaryTitle || summaryDescription ? (
                   <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -926,10 +1396,26 @@ const DemoAdminPreview = ({
           ) : null}
 
           {showClaims ? (
-            <div className="grid gap-3">
+            <section className="grid gap-3" aria-labelledby="demo-claims-title" data-demo-claims>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 id="demo-claims-title" className="text-base font-bold text-foreground">Reclamos y casos operativos</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Seguimiento priorizado con canal, zona y estado de SLA.
+                  </p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  runtimeTickets.length
+                    ? 'border-primary/25 bg-primary/10 text-primary'
+                    : 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                }`}>
+                  {runtimeTickets.length ? 'Eventos reales de esta sesión' : 'Casos simulados'}
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
               {runtimeTickets.length ? (
                 runtimeTickets.map((event) => (
-                  <div key={event.id} className="rounded-xl border border-border/70 bg-background/70 p-4">
+                  <article key={event.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
@@ -982,14 +1468,70 @@ const DemoAdminPreview = ({
                         Ver mapa
                       </button>
                     </div>
-                  </div>
+                  </article>
+                ))
+              ) : previewCases.length ? (
+                previewCases.map((item) => (
+                  <article
+                    key={item.id}
+                    className="rounded-2xl border border-border/70 bg-background/75 p-4 shadow-sm"
+                    data-demo-case-mode={item.dataMode ?? declaredDataMode ?? 'unspecified'}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">{item.caseCode}</p>
+                        <h4 className="mt-1 text-base font-bold leading-6 text-foreground">{item.title}</h4>
+                      </div>
+                      {item.status ? (
+                        <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
+                          {item.status}
+                        </span>
+                      ) : null}
+                    </div>
+                    {item.description ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p> : null}
+                    <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      {item.category ? (
+                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Categoría</dt>
+                          <dd className="mt-1 font-medium text-foreground">{item.category}</dd>
+                        </div>
+                      ) : null}
+                      {item.priority ? (
+                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</dt>
+                          <dd className="mt-1 font-medium text-foreground">{item.priority}</dd>
+                        </div>
+                      ) : null}
+                      {item.channel ? (
+                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</dt>
+                          <dd className="mt-1 font-medium text-foreground">{item.channel}</dd>
+                        </div>
+                      ) : null}
+                      {item.zone ? (
+                        <div className="rounded-lg border bg-muted/15 px-3 py-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Zona</dt>
+                          <dd className="mt-1 font-medium text-foreground">{item.zone}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                      {item.slaStatus ? (
+                        <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 font-semibold text-primary">
+                          SLA · {item.slaStatus}
+                        </span>
+                      ) : null}
+                      {item.openedAtLabel ? <span className="text-muted-foreground">{item.openedAtLabel}</span> : null}
+                    </div>
+                  </article>
                 ))
               ) : (
-                <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground md:col-span-2">
                   El listado se completa cuando el chat crea un caso en esta sesion.
                 </div>
               )}
-            </div>
+              </div>
+            </section>
           ) : null}
 
           {showMap ? (
@@ -999,6 +1541,10 @@ const DemoAdminPreview = ({
                   title={previewMap.title}
                   description={previewMap.description}
                   points={previewMap.points}
+                  dataMode={previewMap.dataMode}
+                  label={previewMap.label}
+                  zoom={previewMap.zoom}
+                  mapCenter={previewMap.center}
                 />
               ) : (
                 <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
@@ -1009,11 +1555,11 @@ const DemoAdminPreview = ({
           ) : null}
 
           {showSurveys ? (
-            <div className="grid gap-3">
-              <div className="rounded-xl border border-border/70 bg-background/70 p-4">
-                <p className="text-sm font-semibold text-foreground">
+            <section className="grid gap-3" aria-labelledby="demo-surveys-title">
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <h3 id="demo-surveys-title" className="text-sm font-semibold text-foreground">
                   {labels.surveys_title ?? labels.surveys ?? activeModule?.label}
-                </p>
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {labels.surveys_description ??
                     'Este panel muestra respuestas, comentarios y acciones ciudadanas capturadas durante la demo.'}
@@ -1038,9 +1584,10 @@ const DemoAdminPreview = ({
                   )}
                 </div>
               </div>
-            </div>
+            </section>
           ) : null}
         </div>
+      </div>
       </div>
     </section>
   );
@@ -1149,6 +1696,7 @@ const Demo = () => {
         tenant_slug: demoPreviewTenantSlug,
         chat_session_id: demoPreviewChatSessionId,
         demo_session_id: demoPreviewDemoSessionId,
+        presentation_mode: sectorSeleccionado === 'gobierno' ? 'executive' : null,
       });
       setDemoAdminPreview(preview);
       return preview;
@@ -1238,6 +1786,7 @@ const Demo = () => {
       tenant_slug: demoPreviewTenantSlug,
       chat_session_id: demoPreviewChatSessionId,
       demo_session_id: demoPreviewDemoSessionId,
+      presentation_mode: sectorSeleccionado === 'gobierno' ? 'executive' : null,
     })
       .then((preview) => {
         if (active) setDemoAdminPreview(preview);
@@ -1678,7 +2227,7 @@ const Demo = () => {
         </div>
       </header>
 
-      <main className="w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
+      <div className="w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
         <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
@@ -1720,7 +2269,7 @@ const Demo = () => {
           </aside>
         </div>
         <DemoDetailDrawer detail={demoDetailDrawer} onClose={() => setDemoDetailDrawer(null)} />
-      </main>
+      </div>
     </div>
   );
 };
