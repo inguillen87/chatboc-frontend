@@ -14,13 +14,16 @@ $compiledConfig = Join-Path $projectRoot ".vercel\output\config.json"
 
 $previousBackendUrl = $env:VITE_BACKEND_URL
 $previousApiUrl = $env:VITE_API_URL
+$previousSocketUrl = $env:VITE_SOCKET_URL
 
 try {
-    # Browser traffic remains same-origin and reaches the backend through the
-    # eight audited Vercel rewrites. This avoids cross-origin auth/CORS drift
-    # while preventing stale Preview variables from sending traffic to Render.
+    # HTTP traffic remains same-origin and reaches the backend through the
+    # eight audited Vercel rewrites. Socket.IO connects to the exact backend
+    # Preview origin because a cross-project rewrite cannot forward the
+    # WebSocket upgrade. The backend allows this one browser origin explicitly.
     $env:VITE_BACKEND_URL = $previewFrontendOrigin
     $env:VITE_API_URL = $previewFrontendOrigin
+    $env:VITE_SOCKET_URL = $previewBackendOrigin
 
     Push-Location $projectRoot
     try {
@@ -57,15 +60,21 @@ try {
     }
 
     $bundleContainsPreviewFrontend = $false
+    $bundleContainsPreviewSocketOrigin = $false
     foreach ($asset in Get-ChildItem -LiteralPath (Join-Path $projectRoot "dist\assets") -Filter "*.js") {
         if (Select-String -LiteralPath $asset.FullName -SimpleMatch $previewFrontendOrigin -Quiet) {
             $bundleContainsPreviewFrontend = $true
-            break
+        }
+        if (Select-String -LiteralPath $asset.FullName -SimpleMatch $previewBackendOrigin -Quiet) {
+            $bundleContainsPreviewSocketOrigin = $true
         }
     }
 
     if (-not $bundleContainsPreviewFrontend) {
         throw "The same-origin Preview URL was not embedded in the frontend bundle."
+    }
+    if (-not $bundleContainsPreviewSocketOrigin) {
+        throw "The direct Socket.IO Preview origin was not embedded in the frontend bundle."
     }
 
     [pscustomobject]@{
@@ -76,6 +85,7 @@ try {
         compiled_preview_routes = $previewRouteCount
         compiled_render_routes = $renderRouteCount
         bundle_contains_same_origin = $bundleContainsPreviewFrontend
+        bundle_contains_direct_socket_origin = $bundleContainsPreviewSocketOrigin
         deploy_command = "vercel deploy --prebuilt --scope $Scope"
     } | ConvertTo-Json -Compress
 }
@@ -92,5 +102,12 @@ finally {
     }
     else {
         $env:VITE_API_URL = $previousApiUrl
+    }
+
+    if ($null -eq $previousSocketUrl) {
+        Remove-Item Env:VITE_SOCKET_URL -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:VITE_SOCKET_URL = $previousSocketUrl
     }
 }

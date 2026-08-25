@@ -3,6 +3,7 @@
 // This file is the single source of truth for all backend URLs.
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL;
+const VITE_SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 const CANONICAL_BACKEND_URL = 'https://api.chatboc.ar';
 const IS_DEV = import.meta.env.DEV;
 const IS_TEST = import.meta.env.MODE === 'test';
@@ -230,11 +231,25 @@ export const API_BASE_CANDIDATES = API_BASE_CANDIDATE_ORDER
  * @returns The full WebSocket URL.
  */
 export const getSocketUrl = (): string => {
-  const socketBackendUrl = sanitizeBaseUrl(RESOLVED_BACKEND_URL || CANONICAL_BACKEND_URL);
+  const socketCandidates = [VITE_SOCKET_URL, RESOLVED_BACKEND_URL, CANONICAL_BACKEND_URL]
+    .map((candidate) => sanitizeBaseUrl(candidate))
+    .filter(
+      (candidate, index, values) => Boolean(candidate) && values.indexOf(candidate) === index,
+    );
 
-  if (socketBackendUrl) {
+  for (const socketBackendUrl of socketCandidates) {
     try {
       const url = new URL(socketBackendUrl);
+      if (
+        !['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        (url.pathname && url.pathname !== '/') ||
+        url.search ||
+        url.hash
+      ) {
+        throw new Error('Socket URL must be an exact HTTP(S) or WS(S) origin.');
+      }
       url.protocol = url.protocol.replace('http', 'ws');
       return url.origin;
     } catch (e) {
