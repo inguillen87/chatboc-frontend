@@ -32,6 +32,9 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import { buildExecutiveOverviewModel } from '@/features/demo/buildExecutiveOverviewModel';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
+import ExecutiveDemoJourney, {
+  type ExecutiveDemoJourneyTarget,
+} from '@/features/demo/ExecutiveDemoJourney';
 import ExecutiveSurveyPanel from '@/features/demo/ExecutiveSurveyPanel';
 import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
@@ -1856,6 +1859,7 @@ const Demo = () => {
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
   const [demoAdminPanelTarget, setDemoAdminPanelTarget] = useState<DemoAdminPanelTarget>('summary');
+  const [demoJourneyTarget, setDemoJourneyTarget] = useState<ExecutiveDemoJourneyTarget>('conversation');
   const [demoDetailDrawer, setDemoDetailDrawer] = useState<DemoDetailDrawerState>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
@@ -1909,6 +1913,7 @@ const Demo = () => {
     setDemoRuntimeEvents([]);
     setDemoDetailDrawer(null);
     setDemoAdminPanelTarget('summary');
+    setDemoJourneyTarget('conversation');
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
@@ -1966,7 +1971,34 @@ const Demo = () => {
   // working in the same executive view.
   useEffect(() => {
     setDemoAdminPanelTarget('summary');
+    setDemoJourneyTarget('conversation');
   }, [demoPreviewTenantSlug, rubroClaveSeleccionado, sectorSeleccionado]);
+
+  const handleDemoAdminPanelTargetChange = useCallback((target: DemoAdminPanelTarget) => {
+    setDemoAdminPanelTarget(target);
+    setDemoJourneyTarget(target === 'claims' || target === 'surveys' ? target : 'analytics');
+  }, []);
+
+  const handleDemoJourneySelect = useCallback((target: ExecutiveDemoJourneyTarget) => {
+    setDemoJourneyTarget(target);
+
+    if (target !== 'conversation') {
+      setDemoAdminPanelTarget(target === 'analytics' ? 'summary' : target);
+    }
+
+    window.requestAnimationFrame(() => {
+      const destinationId = target === 'conversation' ? 'demo-conversation-workspace' : 'demo-executive-workspace';
+      const destination = document.getElementById(destinationId);
+      if (!destination) return;
+
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      destination.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+      destination.focus({ preventScroll: true });
+    });
+  }, []);
 
   const handleDemoRuntimeResult = useCallback(
     (response: unknown, result: LeadCaptureResponse | null) => {
@@ -1978,6 +2010,7 @@ const Demo = () => {
         });
         if (event.ticket || event.ticketId) {
           setDemoAdminPanelTarget('claims');
+          setDemoJourneyTarget('claims');
         }
       }
       void refreshDemoAdminPreview();
@@ -2576,11 +2609,30 @@ const Demo = () => {
           </details>
         </section>
 
+        <ExecutiveDemoJourney
+          activeTarget={demoJourneyTarget}
+          onSelect={handleDemoJourneySelect}
+          scenarioContext={demoAdminPreview?.survey_voting?.items
+            ?.flatMap((survey) => [survey.slug, survey.title, survey.titulo, survey.question])
+            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            .join(' ')}
+          scenarioScope={
+            demoAdminPreview?.data_provenance?.scenario_scope ??
+            demoAdminPreview?.data_provenance?.tenant_scope ??
+            demoWorkspace?.label ??
+            formatDemoPresentationLabel(demoPreviewTenantSlug)
+          }
+        />
+
         <div
           className="grid gap-5 xl:min-h-[720px] xl:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]"
           data-demo-workspace-shell
         >
-          <div className="min-w-0 xl:min-h-[680px]">
+          <div
+            id="demo-conversation-workspace"
+            className="min-w-0 scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 xl:min-h-[680px]"
+            tabIndex={-1}
+          >
             <DemoWorkspace
               tenantSlug={demoTenantSlug}
               sector={sectorSeleccionado}
@@ -2592,8 +2644,10 @@ const Demo = () => {
           </div>
 
           <aside
-            className="space-y-5 xl:min-h-[680px] xl:sticky xl:top-24 xl:self-start"
+            id="demo-executive-workspace"
+            className="scroll-mt-24 space-y-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 xl:min-h-[680px] xl:sticky xl:top-24 xl:self-start"
             data-demo-admin-shell
+            tabIndex={-1}
           >
             {demoSessionLoading && !demoAdminPreview ? (
               <section
@@ -2626,7 +2680,7 @@ const Demo = () => {
                 preview={demoAdminPreview}
                 runtimeEvents={demoRuntimeEvents}
                 activeTarget={demoAdminPanelTarget}
-                onActiveTargetChange={setDemoAdminPanelTarget}
+                onActiveTargetChange={handleDemoAdminPanelTargetChange}
                 onOpenEventDetail={handleOpenDemoDetail}
               />
             )}
