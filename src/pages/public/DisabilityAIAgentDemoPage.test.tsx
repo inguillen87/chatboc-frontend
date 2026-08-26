@@ -220,6 +220,10 @@ describe('DisabilityAIAgentDemoPage', () => {
     vi.useFakeTimers();
     const { unmount } = render(<DisabilityAIAgentDemoPage />);
     const progress = screen.getByRole('progressbar', { name: /Progreso de sincronización/i });
+    expect(screen.getByTestId('tdf-sequence-toggle')).toHaveClass('bg-[#075f91]');
+    expect(screen.getByTestId('tdf-sync-progress-fill')).toHaveClass(
+      'bg-[linear-gradient(90deg,#075f91,#28c8e8)]',
+    );
     expect(progress).toHaveAttribute('aria-valuenow', '0');
 
     await act(async () => {

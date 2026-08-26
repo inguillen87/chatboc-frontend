@@ -92,7 +92,7 @@ const iconByKey: Record<DemoIconKey, LucideIcon> = {
 };
 
 const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#087f73] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f7f5]';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#28c8e8] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f7f5]';
 const faroBlueFocusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#28c8e8] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
@@ -157,11 +157,11 @@ const SectionHeading = ({
   id: string;
 }) => (
   <div className="max-w-3xl">
-    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#066b63]">{eyebrow}</p>
-    <h2 id={id} className="mt-3 text-balance text-3xl font-semibold tracking-[-0.035em] text-[#102f2e] sm:text-4xl">
+    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#075f91]">{eyebrow}</p>
+    <h2 id={id} className="mt-3 text-balance text-3xl font-semibold tracking-[-0.035em] text-[#071f38] sm:text-4xl">
       {title}
     </h2>
-    <p className="mt-4 max-w-2xl text-pretty text-base leading-7 text-[#536765]">{description}</p>
+    <p className="mt-4 max-w-2xl text-pretty text-base leading-7 text-[#526b7d]">{description}</p>
   </div>
 );
 
@@ -884,8 +884,8 @@ const InteractiveScenarioWorkspace = ({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0 }, transition: { duration: 0.28 } };
 
   return (
-    <div ref={workspaceRef} className="overflow-hidden rounded-[1.75rem] border border-[#b7cac5] bg-white shadow-[0_28px_80px_-48px_rgba(18,60,57,0.48)]" data-testid="interactive-scenario-workspace">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5e1] bg-[#f8faf9] px-4 py-3 sm:px-5">
+    <div ref={workspaceRef} className="overflow-hidden rounded-[1.75rem] border border-[#b8d0df] bg-white shadow-[0_28px_80px_-48px_rgba(7,95,145,0.42)]" data-testid="interactive-scenario-workspace">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d6e4ed] bg-[#f8fbfd] px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <motion.img
             src={FARO_ICON_ASSET}
@@ -898,53 +898,53 @@ const InteractiveScenarioWorkspace = ({
             transition={{ duration: reduceMotion ? 0 : 0.48, ease: 'easeOut' }}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-[#173a38]">{content.brand.product}</p>
-            <p className="truncate text-xs text-[#647775]">{content.brand.agentMeaning}</p>
+            <p className="truncate text-sm font-bold text-[#071f38]">{content.brand.product}</p>
+            <p className="truncate text-xs text-[#526b7d]">{content.brand.agentMeaning}</p>
           </div>
         </div>
-        <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-[#9fc6bd] bg-[#eaf6f2] px-3 text-xs font-bold text-[#086c62]">
-          <span className={`h-2 w-2 rounded-full ${isPlaying ? 'bg-[#12a594]' : 'bg-[#d2a23c]'}`} aria-hidden="true" />
+        <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-[#b8d0df] bg-[#edf6fb] px-3 text-xs font-bold text-[#075f91]">
+          <span className={`h-2 w-2 rounded-full ${isPlaying ? 'bg-[#28c8e8]' : 'bg-[#d2a23c]'}`} aria-hidden="true" />
           Secuencia local · sin conexión a CRM
         </span>
       </div>
 
-      <div className="border-b border-[#dbe5e1] bg-white px-3 py-3 sm:px-5">
+      <div className="border-b border-[#d6e4ed] bg-white px-3 py-3 sm:px-5">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0b5f58] px-3 text-xs font-bold text-white disabled:opacity-45`} onClick={() => setIsPlaying((value) => !value)} disabled={step >= DEMO_FINAL_STEP} aria-label={isPlaying ? 'Pausar demostración' : 'Reanudar demostración'}>
+          <button type="button" data-testid="tdf-sequence-toggle" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#075f91] px-3 text-xs font-bold text-white shadow-[0_8px_20px_rgba(7,95,145,0.18)] transition-colors hover:bg-[#064d78] disabled:opacity-45`} onClick={() => setIsPlaying((value) => !value)} disabled={step >= DEMO_FINAL_STEP} aria-label={isPlaying ? 'Pausar demostración' : 'Reanudar demostración'}>
             {isPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
             {isPlaying ? 'Pausar' : step >= DEMO_FINAL_STEP ? 'Finalizada' : 'Reanudar'}
           </button>
-          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c5d5d0] bg-white px-3 text-xs font-bold text-[#315550] disabled:opacity-45`} onClick={() => { setIsPlaying(false); setStep((current) => Math.min(DEMO_FINAL_STEP, current + 1)); }} disabled={step >= DEMO_FINAL_STEP} aria-label="Siguiente paso">
+          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#b8d0df] bg-white px-3 text-xs font-bold text-[#173c57] transition-colors hover:border-[#70b8d9] hover:bg-[#edf6fb] disabled:opacity-45`} onClick={() => { setIsPlaying(false); setStep((current) => Math.min(DEMO_FINAL_STEP, current + 1)); }} disabled={step >= DEMO_FINAL_STEP} aria-label="Siguiente paso">
             <SkipForward className="h-4 w-4" aria-hidden="true" />Siguiente
           </button>
-          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c5d5d0] bg-white px-3 text-xs font-bold text-[#315550]`} onClick={restart} aria-label="Reproducir nuevamente">
+          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#b8d0df] bg-white px-3 text-xs font-bold text-[#173c57] transition-colors hover:border-[#70b8d9] hover:bg-[#edf6fb]`} onClick={restart} aria-label="Reproducir nuevamente">
             <RotateCcw className="h-4 w-4" aria-hidden="true" />Reiniciar
           </button>
-          <button type="button" className={`${focusRing} min-h-11 rounded-xl border border-[#c5d5d0] bg-[#f5f8f7] px-3 text-xs font-bold text-[#315550]`} onClick={revealAll}>Ver secuencia completa</button>
-          <span className="ml-auto text-xs font-bold text-[#315550]">Paso {step} de {DEMO_FINAL_STEP} · {currentLabel}</span>
+          <button type="button" className={`${focusRing} min-h-11 rounded-xl border border-[#b8d0df] bg-[#f4f8fb] px-3 text-xs font-bold text-[#173c57] transition-colors hover:border-[#70b8d9] hover:bg-[#e7f3f9]`} onClick={revealAll}>Ver secuencia completa</button>
+          <span className="ml-auto text-xs font-bold text-[#173c57]">Paso {step} de {DEMO_FINAL_STEP} · {currentLabel}</span>
         </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e2ebe8]" role="progressbar" aria-label="Progreso de sincronización WhatsApp a CRM" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`Paso ${step} de ${DEMO_FINAL_STEP}: ${currentLabel}`}>
-          <motion.div className="h-full rounded-full bg-[linear-gradient(90deg,#0b766d,#2bb7a4)]" animate={{ width: `${progress}%` }} transition={{ duration: reduceMotion ? 0 : 0.3 }} />
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#dfeaf1]" role="progressbar" aria-label="Progreso de sincronización WhatsApp a CRM" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`Paso ${step} de ${DEMO_FINAL_STEP}: ${currentLabel}`}>
+          <motion.div data-testid="tdf-sync-progress-fill" className="h-full rounded-full bg-[linear-gradient(90deg,#075f91,#28c8e8)] shadow-[0_0_16px_rgba(40,200,232,0.42)]" animate={{ width: `${progress}%` }} transition={{ duration: reduceMotion ? 0 : 0.3 }} />
         </div>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{`Paso ${step}: ${currentLabel}`}</p>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-[#dbe5e1] bg-white p-2 [scrollbar-width:thin]" role="tablist" aria-label="Cinco ejes de atención accesible">
+      <div className="flex gap-1 overflow-x-auto border-b border-[#d6e4ed] bg-white p-2 [scrollbar-width:thin]" role="tablist" aria-label="Cinco ejes de atención accesible">
         {content.scenarios.map((item, index) => (
-          <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`interactive-scenario-tab-${item.id}`} type="button" role="tab" aria-selected={activeScenario === item.id} aria-controls="interactive-scenario-panel" tabIndex={activeScenario === item.id ? 0 : -1} className={`${focusRing} min-h-11 shrink-0 rounded-xl px-3.5 text-left text-xs font-bold transition-colors ${activeScenario === item.id ? 'bg-[#dff2ed] text-[#075f57]' : 'text-[#5d6f6d] hover:bg-[#f1f5f3]'}`} onClick={() => onScenarioChange(item.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}>
+          <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`interactive-scenario-tab-${item.id}`} type="button" role="tab" aria-selected={activeScenario === item.id} aria-controls="interactive-scenario-panel" tabIndex={activeScenario === item.id ? 0 : -1} className={`${focusRing} min-h-11 shrink-0 rounded-xl px-3.5 text-left text-xs font-bold transition-colors ${activeScenario === item.id ? 'bg-[#dff3f9] text-[#07527f]' : 'text-[#4a6275] hover:bg-[#edf6fb]'}`} onClick={() => onScenarioChange(item.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}>
             {item.tabLabel}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-1 border-b border-[#dbe5e1] bg-[#edf4f1] p-2 xl:hidden" role="group" aria-label="Vista móvil sincronizada">
+      <div className="grid grid-cols-2 gap-1 border-b border-[#d6e4ed] bg-[#eef5f9] p-2 xl:hidden" role="group" aria-label="Vista móvil sincronizada">
         {([['chat', 'Conversación'], ['crm', `CRM · ${progress}%`]] as const).map(([pane, label]) => (
-          <button key={pane} type="button" aria-pressed={mobilePane === pane} className={`${focusRing} min-h-11 rounded-xl text-xs font-bold ${mobilePane === pane ? 'bg-[#0b5f58] text-white' : 'bg-white text-[#315550]'}`} onClick={() => setMobilePane(pane)}>{label}</button>
+          <button key={pane} type="button" aria-pressed={mobilePane === pane} className={`${focusRing} min-h-11 rounded-xl text-xs font-bold ${mobilePane === pane ? 'bg-[#075f91] text-white' : 'bg-white text-[#173c57]'}`} onClick={() => setMobilePane(pane)}>{label}</button>
         ))}
       </div>
 
       <div id="interactive-scenario-panel" role="tabpanel" aria-labelledby={`interactive-scenario-tab-${scenario.id}`} className="grid min-h-[34rem] xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
-        <section className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} min-w-0 flex-col bg-[#edf4f1] xl:flex`} aria-label="Conversación de WhatsApp representativa">
+        <section className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} min-w-0 flex-col bg-[#eef5f9] xl:flex`} aria-label="Conversación de WhatsApp representativa">
           <header className="flex items-center justify-between gap-3 border-b border-[#c8d8d3] bg-[#0b4b47] px-4 py-3 text-white sm:px-5">
             <div className="flex min-w-0 items-center gap-3">
               <motion.img
@@ -966,7 +966,7 @@ const InteractiveScenarioWorkspace = ({
             <div className="max-w-[92%] rounded-2xl rounded-bl-md bg-white px-3.5 py-3 text-sm text-[#274541] shadow-sm">
               <p className="font-semibold">¿Para quién es la consulta?</p>
               <div className="mt-2 flex flex-wrap gap-2" aria-label="Rol de la persona en la consulta">
-                {(['Para mí', 'Familia / red'] as const).map((role) => <button key={role} type="button" aria-pressed={selectedRole === role} className={`${focusRing} min-h-11 rounded-full border px-3 text-xs font-bold ${selectedRole === role ? 'border-[#0b665e] bg-[#dff2ed] text-[#075f57]' : 'border-[#c7d5d1] bg-[#f7faf8] text-[#506560]'}`} onClick={() => { setSelectedRole(role); setNotice(`Rol de muestra seleccionado: ${role}.`); }}>{role}</button>)}
+                {(['Para mí', 'Familia / red'] as const).map((role) => <button key={role} type="button" aria-pressed={selectedRole === role} className={`${focusRing} min-h-11 rounded-full border px-3 text-xs font-bold ${selectedRole === role ? 'border-[#7fb9db] bg-[#e6f3fa] text-[#075f91]' : 'border-[#c7d9e5] bg-[#f8fbfd] text-[#526b7d]'}`} onClick={() => { setSelectedRole(role); setNotice(`Rol de muestra seleccionado: ${role}.`); }}>{role}</button>)}
               </div>
               <p className="mt-2 text-[11px] leading-4 text-[#526863]">La orientación general continúa sin pedir DNI.</p>
             </div>
@@ -978,7 +978,7 @@ const InteractiveScenarioWorkspace = ({
                   {scenario.citizenAsset.kind === 'audio' ? (
                     <div>
                       <button type="button" className={`${focusRing} flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left`} aria-label={audioPlaying ? 'Pausar audio simulado' : 'Reproducir audio simulado'} onClick={() => { setAudioPlaying((value) => !value); setIsPlaying(false); setNotice('Audio simulado: reproducción local, sin sonido real ni datos personales.'); }}>
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0b5f58] text-white">{audioPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}</span>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#075f91] text-white">{audioPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}</span>
                         <span className="min-w-0 flex-1"><span className="flex h-5 items-center gap-1" aria-hidden="true">{[8,14,10,18,12,16,9,15,7,12,6,10].map((height,index) => <span key={`${height}-${index}`} className={`w-1 rounded-full bg-[#3d8179] ${audioPlaying && !reduceMotion ? 'animate-pulse' : ''}`} style={{ height }} />)}</span><span className="mt-1 block text-xs font-bold text-[#214b46]">{scenario.citizenAsset.label}</span><span className="block text-[11px] text-[#4b625d]">{scenario.citizenAsset.detail}</span></span>
                       </button>
                       <details className="border-t border-[#b9d2ca] bg-white/70 px-3.5 py-2"><summary className={`${focusRing} min-h-11 cursor-pointer py-2 text-xs font-bold text-[#214b46]`}>Ver transcripción accesible</summary><p className="pb-2 text-xs leading-5 text-[#4b625d]">{scenario.citizenAsset.transcript ?? scenario.citizenAsset.detail}</p></details>
@@ -1002,7 +1002,7 @@ const InteractiveScenarioWorkspace = ({
 
             {step >= 6 ? <div className="flex flex-wrap gap-1.5" aria-label="Controles accesibles de la conversación">{[['Hablar con una persona','Solicitud de atención humana registrada en la demostración.'],['Repetir','La última respuesta se repetiría en el formato accesible elegido.'],['Corregir','Podés corregir el dato anterior sin reiniciar el caso.'],['Volver','Volvemos al paso anterior y conservamos el contexto.']].map(([label,message]) => <button key={label} type="button" className={`${focusRing} min-h-11 rounded-full border border-[#b8cec8] bg-white px-3 text-[11px] font-bold text-[#315550]`} onClick={() => { if (label === 'Hablar con una persona') setStep((current) => Math.max(current, 8)); setNotice(message); }}>{label}</button>)}</div> : null}
 
-            {csatOpen ? <div className="max-w-[94%] rounded-2xl rounded-bl-md border border-[#b8cec8] bg-white p-3.5 shadow-sm" data-testid="csat-close-step"><p className="text-sm font-bold text-[#214b46]">¿Cómo fue la atención?</p><p className="mt-1 text-xs leading-5 text-[#526863]">Cierre accesible de muestra. Elegí una valoración del 1 al 5.</p><div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Valoración de satisfacción de 1 a 5">{[1,2,3,4,5].map((rating) => <button key={rating} type="button" aria-label={`${rating} de 5`} aria-pressed={csatRating === rating} className={`${focusRing} grid h-11 w-11 place-items-center rounded-full border text-sm font-bold ${csatRating === rating ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#b8cec8] bg-[#f7faf8] text-[#315550]'}`} onClick={() => { setCsatRating(rating); setNotice(`Valoración de muestra registrada: ${rating} de 5. Cierre simulado auditado · CSAT ${rating}/5.`); }}>{rating}</button>)}</div></div> : null}
+            {csatOpen ? <div className="max-w-[94%] rounded-2xl rounded-bl-md border border-[#b8d0df] bg-white p-3.5 shadow-sm" data-testid="csat-close-step"><p className="text-sm font-bold text-[#173c57]">¿Cómo fue la atención?</p><p className="mt-1 text-xs leading-5 text-[#526b7d]">Cierre accesible de muestra. Elegí una valoración del 1 al 5.</p><div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Valoración de satisfacción de 1 a 5">{[1,2,3,4,5].map((rating) => <button key={rating} type="button" aria-label={`${rating} de 5`} aria-pressed={csatRating === rating} className={`${focusRing} grid h-11 w-11 place-items-center rounded-full border text-sm font-bold ${csatRating === rating ? 'border-[#075f91] bg-[#075f91] text-white' : 'border-[#c7d9e5] bg-[#f8fbfd] text-[#173c57]'}`} onClick={() => { setCsatRating(rating); setNotice(`Valoración de muestra registrada: ${rating} de 5. Cierre simulado auditado · CSAT ${rating}/5.`); }}>{rating}</button>)}</div></div> : null}
 
             <p className="min-h-4 text-[11px] leading-4 text-[#4b625d]">{notice}</p>
             <button type="button" className={`${focusRing} mt-auto min-h-11 rounded-xl border border-[#9fc6bd] bg-white px-3 text-xs font-bold text-[#075f57] xl:hidden`} onClick={() => setMobilePane('crm')}>Ver CRM actualizado · {progress}%</button>
@@ -1407,27 +1407,27 @@ const DisabilityAIAgentDemoPage = () => {
     <>
       <a className="tdf-demo-skip-link" href="#main-content">Saltar al contenido principal</a>
       <div
-      className="min-h-screen overflow-x-clip bg-[#f4f7f5] font-sans text-[#173a38] selection:bg-[#bfe7de] selection:text-[#103c38]"
+      className="min-h-screen overflow-x-clip bg-[#f4f8fb] font-sans text-[#173c57] selection:bg-[#dceffa] selection:text-[#071f38]"
       data-testid="tdf-disability-demo"
       data-reduced-motion={shouldReduceMotion ? 'true' : 'false'}
     >
       <aside aria-label="Estado de la demostración" className="bg-[#0b3f3c] px-4 py-2 text-center text-xs font-semibold tracking-wide text-white">
         <span className="inline-flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-[#8be0d3]" aria-hidden="true" />
+          <ShieldCheck className="h-4 w-4 text-[#7de7f3]" aria-hidden="true" />
           {content.truthNotice.title}
           <span className="hidden font-normal text-white/70 md:inline">· {content.truthNotice.detail}</span>
         </span>
       </aside>
 
-      <header className="sticky top-0 z-40 border-b border-[#d8e3df] bg-[#f8faf9]">
+      <header className="sticky top-0 z-40 border-b border-[#d6e4ed] bg-[#f8fbfd]">
         <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <a href="#inicio" className={`${focusRing} flex min-h-11 min-w-0 items-center gap-3 rounded-xl`}>
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#0b4b47] shadow-[0_8px_20px_-12px_rgba(11,75,71,0.9)]" aria-hidden="true">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#0b4b47] shadow-[0_8px_20px_-12px_rgba(7,95,145,0.72)]" aria-hidden="true">
               <motion.img src={FARO_ICON_ASSET} alt="" className="h-10 w-10 object-contain" width="40" height="40" whileHover={shouldReduceMotion ? undefined : { rotate: -4, scale: 1.06 }} transition={{ duration: 0.2 }} />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-bold text-[#123b38]">{content.brand.product}</span>
-              <span className="block truncate text-[11px] font-medium text-[#526662]">{content.brand.slogan}</span>
+              <span className="block truncate text-sm font-bold text-[#071f38]">{content.brand.product}</span>
+              <span className="block truncate text-[11px] font-medium text-[#526b7d]">{content.brand.slogan}</span>
             </span>
           </a>
 
@@ -1436,14 +1436,14 @@ const DisabilityAIAgentDemoPage = () => {
               <a
                 key={item.href}
                 href={item.href}
-                className={`${focusRing} flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-[#536865] transition-colors hover:bg-white hover:text-[#0b5f58]`}
+                className={`${focusRing} flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-[#526b7d] transition-colors hover:bg-white hover:text-[#075f91]`}
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          <span className="hidden min-h-9 items-center rounded-full border border-[#bfd3cd] bg-white px-3 text-xs font-semibold text-[#46615e] sm:inline-flex">
+          <span className="hidden min-h-9 items-center rounded-full border border-[#b8d0df] bg-white px-3 text-xs font-semibold text-[#173c57] sm:inline-flex">
             {content.brand.entity} · {content.brand.whiteLabel}
           </span>
           <InstitutionalAccessibilityControls
@@ -1451,29 +1451,29 @@ const DisabilityAIAgentDemoPage = () => {
             onReducedMotionChange={setUserReducedMotion}
           />
         </div>
-        <nav className="mx-auto flex w-full max-w-[90rem] gap-1 overflow-x-auto border-t border-[#d8e3df] px-3 py-1.5 [scrollbar-width:thin] xl:hidden" aria-label="Secciones de la demostración en móvil">
+        <nav className="mx-auto flex w-full max-w-[90rem] gap-1 overflow-x-auto border-t border-[#d6e4ed] px-3 py-1.5 [scrollbar-width:thin] xl:hidden" aria-label="Secciones de la demostración en móvil">
           {content.navigation.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className={`${focusRing} flex min-h-11 shrink-0 items-center rounded-xl px-3 text-xs font-bold text-[#315550] hover:bg-white`}
+              className={`${focusRing} flex min-h-11 shrink-0 items-center rounded-xl px-3 text-xs font-bold text-[#173c57] hover:bg-white`}
             >
               {item.label}
             </a>
           ))}
-          <span className="sticky right-0 grid min-h-11 w-9 shrink-0 place-items-center bg-gradient-to-l from-[#f8faf9] via-[#f8faf9] to-transparent pl-2 text-lg font-bold text-[#52706a]" aria-hidden="true">→</span>
+          <span className="sticky right-0 grid min-h-11 w-9 shrink-0 place-items-center bg-gradient-to-l from-[#f8fbfd] via-[#f8fbfd] to-transparent pl-2 text-lg font-bold text-[#526b7d]" aria-hidden="true">→</span>
         </nav>
       </header>
 
       <main id="main-content" tabIndex={-1}>
         <section
           id="inicio"
-          className="relative scroll-mt-24 border-b border-[#d9e4e0] bg-[radial-gradient(circle_at_88%_8%,rgba(216,238,232,0.8),transparent_34%),radial-gradient(circle_at_8%_94%,rgba(233,223,196,0.52),transparent_30%)]"
+          className="relative scroll-mt-24 border-b border-[#d6e4ed] bg-[radial-gradient(circle_at_88%_8%,rgba(220,239,250,0.82),transparent_34%),radial-gradient(circle_at_8%_94%,rgba(233,223,196,0.45),transparent_30%)]"
           aria-labelledby="hero-title"
         >
           <div className="relative mx-auto grid w-full max-w-[90rem] gap-10 px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)] xl:items-center xl:py-20">
             <Reveal reduceMotion={shouldReduceMotion}>
-              <div className="mb-6 inline-flex items-center gap-3 rounded-2xl border border-[#bfd4ce] bg-white/82 p-2.5 pr-4 shadow-[0_16px_44px_-32px_rgba(17,62,58,0.72)] backdrop-blur">
+              <div className="mb-6 inline-flex items-center gap-3 rounded-2xl border border-[#b8d0df] bg-white/82 p-2.5 pr-4 shadow-[0_16px_44px_-32px_rgba(7,95,145,0.52)] backdrop-blur">
                 <motion.img
                   src={FARO_ASSET}
                   alt="Faro, identidad visual del Agente de IA accesible"
@@ -1484,38 +1484,38 @@ const DisabilityAIAgentDemoPage = () => {
                   transition={shouldReduceMotion ? undefined : { duration: 2.8, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }}
                 />
                 <div>
-                  <p className="text-sm font-extrabold text-[#103c38]">{content.brand.product}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#5b706c]">{content.brand.slogan}</p>
+                  <p className="text-sm font-extrabold text-[#071f38]">{content.brand.product}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#526b7d]">{content.brand.slogan}</p>
                 </div>
               </div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#066b63]">{content.hero.eyebrow}</p>
-              <h1 id="hero-title" className="mt-4 max-w-3xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.05em] text-[#102f2e] sm:text-5xl xl:text-[3.65rem]">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#075f91]">{content.hero.eyebrow}</p>
+              <h1 id="hero-title" className="mt-4 max-w-3xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.05em] text-[#071f38] sm:text-5xl xl:text-[3.65rem]">
                 {content.hero.title}
               </h1>
-              <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-[#536765] sm:text-lg sm:leading-8">
+              <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-[#526b7d] sm:text-lg sm:leading-8">
                 {content.hero.description}
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
                 <a
                   href={content.hero.primaryAction.href}
-                  className={`${focusRing} inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0b5f58] px-5 text-sm font-bold text-white shadow-[0_12px_28px_-14px_rgba(11,95,88,0.85)] transition-colors hover:bg-[#094d48]`}
+                  className={`${focusRing} inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#075f91] px-5 text-sm font-bold text-white shadow-[0_12px_28px_-14px_rgba(7,95,145,0.7)] transition-colors hover:bg-[#064d78]`}
                 >
                   {content.hero.primaryAction.label}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </a>
                 <a
                   href={content.hero.secondaryAction.href}
-                  className={`${focusRing} inline-flex min-h-12 items-center justify-center rounded-xl border border-[#b7cbc5] bg-white px-5 text-sm font-bold text-[#174a45] transition-colors hover:bg-[#edf5f2]`}
+                  className={`${focusRing} inline-flex min-h-12 items-center justify-center rounded-xl border border-[#b8d0df] bg-white px-5 text-sm font-bold text-[#173c57] transition-colors hover:bg-[#edf6fb]`}
                 >
                   {content.hero.secondaryAction.label}
                 </a>
               </div>
 
-              <ul className="mt-8 grid gap-2 text-sm text-[#405e59] sm:grid-cols-2" aria-label="Alcance de la propuesta">
+              <ul className="mt-8 grid gap-2 text-sm text-[#244c69] sm:grid-cols-2" aria-label="Alcance de la propuesta">
                 {content.hero.highlights.map((highlight) => (
-                  <li key={highlight} className="flex min-h-10 items-center gap-2 rounded-xl border border-[#d6e3df] bg-white/70 px-3">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#168c7e]" aria-hidden="true" />
+                  <li key={highlight} className="flex min-h-10 items-center gap-2 rounded-xl border border-[#d6e4ed] bg-white/70 px-3">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#075f91]" aria-hidden="true" />
                     <span className="font-medium">{highlight}</span>
                   </li>
                 ))}
@@ -1815,7 +1815,7 @@ const DisabilityAIAgentDemoPage = () => {
                           key={city}
                           type="button"
                           aria-pressed={cityFilter === city}
-                          className={`${focusRing} min-h-11 rounded-xl border px-3 text-xs font-bold ${cityFilter === city ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#c9d8d4] bg-[#f7faf8] text-[#315550]'}`}
+                          className={`${focusRing} min-h-11 rounded-xl border px-3 text-xs font-bold ${cityFilter === city ? 'border-[#075f91] bg-[#075f91] text-white' : 'border-[#c7d9e5] bg-[#f8fbfd] text-[#173c57]'}`}
                           onClick={() => {
                             setCityFilter(city);
                             setNeighborhoodFilter('Todos');
@@ -2252,7 +2252,7 @@ const DisabilityAIAgentDemoPage = () => {
             <h2 id="closing-title" className="mx-auto mt-3 max-w-3xl text-balance text-3xl font-semibold tracking-[-0.035em] text-[#102f2e] sm:text-4xl">{content.closing.title}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#4d625d]">{content.closing.description}</p>
             <div className="mt-7 flex flex-wrap justify-center gap-3">
-              <a href={content.closing.primaryAction.href} className={`${focusRing} inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#0b5f58] px-5 text-sm font-bold text-white hover:bg-[#094d48]`}>
+              <a href={content.closing.primaryAction.href} className={`${focusRing} inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#075f91] px-5 text-sm font-bold text-white hover:bg-[#064d78]`}>
                 {content.closing.primaryAction.label}<ChevronRight className="h-4 w-4" aria-hidden="true" />
               </a>
               <a href={content.closing.secondaryAction.href} className={`${focusRing} inline-flex min-h-12 items-center rounded-xl border border-[#b7cbc5] px-5 text-sm font-bold text-[#174a45] hover:bg-[#edf5f2]`}>

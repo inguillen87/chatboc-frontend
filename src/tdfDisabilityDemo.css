@@ -1,7 +1,7 @@
 [data-testid='tdf-disability-demo'] {
   --faro-navy: #071f38;
   --faro-navy-soft: #0a3048;
-  --faro-teal: #087c81;
+  --faro-blue: #075f91;
   --faro-cyan: #69d5df;
   --faro-amber: #f2b84b;
 }
@@ -23,7 +23,7 @@
 }
 
 [data-testid='tdf-disability-demo'] [class~='bg-[#0b5f58]'] {
-  background-color: var(--faro-teal);
+  background-color: var(--faro-blue);
 }
 
 [data-testid='tdf-disability-demo'] [class~='bg-[#7dd6c9]'] {
@@ -50,7 +50,7 @@
   transform: translateY(-160%);
   border-radius: 0.75rem;
   background: #ffffff;
-  color: #0b4b47;
+  color: #071f38;
   padding: 0.75rem 1rem;
   font-weight: 800;
   box-shadow: 0 12px 32px rgba(16, 47, 46, 0.24);
@@ -58,7 +58,7 @@
 
 .tdf-demo-skip-link:focus {
   transform: translateY(0);
-  outline: 3px solid #0b5f58;
+  outline: 3px solid #28c8e8;
   outline-offset: 3px;
 }
 
