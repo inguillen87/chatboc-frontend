@@ -102,11 +102,11 @@ const FARO_ASSET = '/branding/faro-agent-accessible-v1.webp';
 const FARO_ICON_ASSET = '/branding/faro-agent-icon-v1.webp';
 
 const TERRITORY_CATEGORY_META = [
-  { label: 'CUD / CMO', short: 'C', color: '#087c81' },
-  { label: 'Salud y prestaciones', short: 'S', color: '#d55d39' },
-  { label: 'Educación y apoyos', short: 'E', color: '#2563eb' },
-  { label: 'RUPE y licencias', short: 'R', color: '#b7791f' },
-  { label: 'Inclusión laboral', short: 'I', color: '#7c3aed' },
+  { label: 'CUD / CMO', short: 'C', color: '#087c81', textColor: '#ffffff' },
+  { label: 'Salud y prestaciones', short: 'S', color: '#d55d39', textColor: '#071f38' },
+  { label: 'Educación y apoyos', short: 'E', color: '#2563eb', textColor: '#ffffff' },
+  { label: 'RUPE y licencias', short: 'R', color: '#b7791f', textColor: '#071f38' },
+  { label: 'Inclusión laboral', short: 'I', color: '#7c3aed', textColor: '#ffffff' },
 ] as const;
 
 const territoryPointKey = (point: (typeof content.territory.points)[number]) =>
@@ -1926,7 +1926,7 @@ const DisabilityAIAgentDemoPage = () => {
                     {territoryCategoryBreakdown.map((category) => (
                       <li key={category.label} className="flex items-center justify-between gap-3 rounded-xl border border-[#e1e9e6] bg-[#f8faf9] px-3 py-2.5">
                         <span className="flex min-w-0 items-center gap-3">
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-white text-xs font-black text-white shadow-sm" style={{ backgroundColor: category.color }} aria-hidden="true">{category.short}</span>
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-white text-xs font-black shadow-sm" style={{ backgroundColor: category.color, color: category.textColor }} aria-hidden="true">{category.short}</span>
                           <span className="truncate text-xs font-bold text-[#31524e]">{category.label}</span>
                         </span>
                         <span className="shrink-0 text-[11px] font-bold text-[#647773]">{category.points}/{category.totalPoints}</span>
@@ -1977,10 +1977,10 @@ const DisabilityAIAgentDemoPage = () => {
             </Reveal>
 
             <Reveal reduceMotion={shouldReduceMotion} delay={0.08} className="mt-5">
-              <div data-testid="tdf-map-point-directory" aria-label="Ubicaciones representativas disponibles" className="overflow-hidden rounded-[1.6rem] border border-[#d4e0dc] bg-white">
+              <div data-testid="tdf-map-point-directory" role="region" aria-labelledby="tdf-territory-directory-title" className="overflow-hidden rounded-[1.6rem] border border-[#d4e0dc] bg-white">
                 <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#dce6e2] p-5 sm:p-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-[#173c39]">Directorio territorial de muestra</h3>
+                  <h3 id="tdf-territory-directory-title" className="text-lg font-semibold text-[#173c39]">Directorio territorial de muestra</h3>
                   <p className="mt-1 text-xs leading-5 text-[#5d716d]">Los mismos puntos del mapa, disponibles como lista accesible y verificable.</p>
                 </div>
                 <span className="rounded-full border border-[#c9d8d4] bg-[#f7faf8] px-3 py-1.5 text-[11px] font-bold text-[#315550]">{filteredTerritoryPoints.length} visibles · datos simulados</span>
@@ -1988,7 +1988,7 @@ const DisabilityAIAgentDemoPage = () => {
                 <div className="grid items-start lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
                 <div className="max-h-[34rem] overflow-y-auto p-3 [scrollbar-width:thin] sm:p-4">
                   {filteredTerritoryPoints.length ? (
-                    <ul className="grid gap-2 sm:grid-cols-2">
+                    <ul aria-label="Ubicaciones representativas disponibles" className="grid gap-2 sm:grid-cols-2">
                       {filteredTerritoryPoints.map((point, index) => {
                         const category = TERRITORY_CATEGORY_META.find((item) => item.label === point.categoria) ?? TERRITORY_CATEGORY_META[0];
                         const isSelected = territoryPointKey(point) === territoryPointKey(selectedTerritoryPoint ?? point);
@@ -2002,7 +2002,7 @@ const DisabilityAIAgentDemoPage = () => {
                               className={`${focusRing} flex min-h-[7.4rem] w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${isSelected ? 'border-[#5cae9f] bg-[#edf8f5]' : 'border-[#e0e8e5] bg-[#f9fbfa] hover:border-[#a9cbc3] hover:bg-white'}`}
                               onClick={() => setSelectedTerritoryPointKey(territoryPointKey(point))}
                             >
-                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ backgroundColor: category.color }} aria-hidden="true">{category.short}</span>
+                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black" style={{ backgroundColor: category.color, color: category.textColor }} aria-hidden="true">{category.short}</span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-sm font-bold text-[#173c39]">{point.barrio}</span>
                                 <span className="mt-0.5 block text-xs text-[#60736f]">{point.ciudad} · {point.categoria}</span>

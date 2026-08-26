@@ -3,7 +3,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // Vite dev does not execute Vercel rewrites. Target the physical HTML entry
 // locally; remote smoke separately verifies the extensionless public URL.
-const DEMO_PATH = '/demo/institucional/tdf-discapacidad/index.html';
+const DEMO_PATH =
+  process.env.PLAYWRIGHT_TDF_DEMO_PATH ||
+  '/demo/institucional/tdf-discapacidad/index.html';
 
 const viewports = [
   { label: 'desktop', width: 1920, height: 1080 },

@@ -54,6 +54,16 @@ describe('Vercel routing contract', () => {
     };
     const rewrites = config.rewrites ?? [];
 
+    const faroRootIndex = rewrites.findIndex(
+      (rule) =>
+        rule.source === '/' &&
+        rule.destination === '/demo/institucional/tdf-discapacidad/index.html' &&
+        rule.has?.some(
+          (condition) =>
+            condition.type === 'host' &&
+            condition.value === 'faro-tdf.vercel.app',
+        ),
+    );
     const institutionalEntryIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/demo/institucional/tdf-discapacidad' &&
@@ -65,7 +75,8 @@ describe('Vercel routing contract', () => {
         rule.destination === '/index.html',
     );
 
-    expect(institutionalEntryIndex).toBeGreaterThanOrEqual(0);
+    expect(faroRootIndex).toBeGreaterThanOrEqual(0);
+    expect(institutionalEntryIndex).toBeGreaterThan(faroRootIndex);
     expect(catchAllIndex).toBeGreaterThan(institutionalEntryIndex);
 
     const institutionalHtmlPath = resolve(
@@ -80,16 +91,16 @@ describe('Vercel routing contract', () => {
       '<meta property="og:site_name" content="Faro TDF" />',
     );
     expect(institutionalHtml).toContain(
-      '<meta property="og:image" content="https://chatboc-r2-preview.vercel.app/images/og-tdf-discapacidad.png" />',
+      '<meta property="og:image" content="https://faro-tdf.vercel.app/images/og-tdf-discapacidad.png" />',
     );
     expect(institutionalHtml).toContain(
-      '<link\n      rel="canonical"\n      href="https://chatboc-r2-preview.vercel.app/demo/institucional/tdf-discapacidad"',
+      '<link\n      rel="canonical"\n      href="https://faro-tdf.vercel.app/demo/institucional/tdf-discapacidad"',
     );
     expect(institutionalHtml).toContain(
       '<link rel="icon" type="image/webp" href="/branding/faro-agent-icon-v1.webp" />',
     );
     const institutionalVisibleMetadata = institutionalHtml.replaceAll(
-      'https://chatboc-r2-preview.vercel.app',
+      'https://faro-tdf.vercel.app',
       'https://preview.example',
     );
     expect(institutionalVisibleMetadata).not.toMatch(/Chatboc|manifest\.webmanifest|chatboc-favicon/i);

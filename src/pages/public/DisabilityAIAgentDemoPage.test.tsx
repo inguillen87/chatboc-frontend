@@ -302,8 +302,11 @@ describe('DisabilityAIAgentDemoPage', () => {
     render(<DisabilityAIAgentDemoPage />);
 
     const pointDirectory = screen.getByTestId('tdf-map-point-directory');
-    expect(pointDirectory).toHaveAccessibleName('Ubicaciones representativas disponibles');
-    const pointRows = within(pointDirectory).getAllByTestId(/^tdf-map-point-row-/);
+    expect(pointDirectory).toHaveAccessibleName('Directorio territorial de muestra');
+    const pointList = within(pointDirectory).getByRole('list', {
+      name: 'Ubicaciones representativas disponibles',
+    });
+    const pointRows = within(pointList).getAllByTestId(/^tdf-map-point-row-/);
     expect(pointRows).toHaveLength(24);
     const rioGrandeCenter = pointRows.find((row) =>
       row.textContent?.includes('Centro') &&
