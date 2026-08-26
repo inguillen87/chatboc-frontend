@@ -5,6 +5,7 @@ import AccessibilityToggle, {
   applyAccessibilityPrefs,
   readAccessibilityPrefs,
 } from "@/components/chat/AccessibilityToggle";
+import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
 
 const DOCK_HIDDEN_SEGMENTS = new Set(["iframe", "integracion"]);
 const PUBLIC_TICKET_SEGMENTS = new Set(["chat", "ticket"]);
@@ -27,7 +28,11 @@ function isPublicTicketRoute(pathname: string) {
 
 function isFocusedPublicRoute(pathname: string) {
   const normalizedPath = pathname.toLowerCase().replace(/\/+$/, '') || '/';
-  return normalizedPath === '/demo' || /^\/e\/[^/]+$/.test(normalizedPath);
+  return (
+    normalizedPath === '/demo' ||
+    /^\/e\/[^/]+$/.test(normalizedPath) ||
+    isDisabilityAIAgentDemoPath(normalizedPath)
+  );
 }
 
 export function AppAccessibility() {

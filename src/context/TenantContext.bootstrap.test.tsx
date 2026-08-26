@@ -98,6 +98,63 @@ describe('TenantProvider global route bootstrap', () => {
     expect((window as any).currentTenantSlug).toBeNull();
   });
 
+  it('keeps the exact institutional demo independent from ambient or persisted tenants', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'junin');
+    (window as any).CHATBOC_CONFIG = {
+      tenantSlug: 'config-tenant',
+      entityToken: 'widget-token-from-config',
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/demo/institucional/tdf-discapacidad?tenant_slug=query-tenant&widget_token=query-token',
+        ]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('ready:none')).toBeInTheDocument());
+
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
+    expect((window as any).currentTenantSlug).toBeNull();
+  });
+
+  it('does not broaden tenant suppression to similar demo URLs', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({
+      slug: 'institucional',
+      nombre: 'Tenant de prueba',
+      logo_url: null,
+      tema: null,
+      tipo: 'municipio',
+      descripcion: null,
+      public_base_url: null,
+      public_cart_url: null,
+      public_catalog_url: null,
+      whatsapp_share_url: null,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/demo/institucional/otra']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalled());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('institucional', null);
+  });
+
   it('keeps /perfil tenant-aware with the stored tenant preference', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
     tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({

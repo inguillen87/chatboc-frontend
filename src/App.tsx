@@ -39,25 +39,35 @@ import {
 } from '@/components/auth/ClerkRuntimeContext';
 import {
   buildClerkBackendUnavailableRuntime,
-  buildPublicPreviewPresentationRuntime,
+  buildPublicClerkBypassRuntime,
   buildClerkRuntimeFromEnv,
   CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS,
   isClerkOriginCompatible,
-  isPublicPreviewPresentation,
+  isPublicClerkBypassPresentation,
   shouldReloadAfterPublicPreviewNavigation,
 } from '@/components/auth/clerkRuntimeResolver';
+import {
+  DISABILITY_AI_AGENT_DEMO_PATH,
+  resolvePublicDemoPreloadTarget,
+} from '@/config/publicPresentationRoutes';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
-// The public executive demo is a primary presentation surface. Start fetching
-// its route chunk while the optional auth runtime is being resolved so the
-// security bootstrap and code download happen in parallel on a cold visit.
-if (
-  typeof window !== 'undefined' &&
-  (window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/'))
-) {
-  void import('@/pages/Demo').catch((error) => {
-    console.warn('[Demo] No se pudo precargar la ruta publica', error);
+// Public demo routes are presentation surfaces. Preload only the chunk that
+// owns the exact URL while the optional auth runtime is being resolved.
+if (typeof window !== 'undefined') {
+  const preloadTarget = resolvePublicDemoPreloadTarget(window.location.pathname);
+  const preloadPromise =
+    preloadTarget === 'disability-ai-agent'
+      ? import('@/pages/public/DisabilityAIAgentDemoPage')
+      : preloadTarget === 'executive-demo'
+        ? import('@/pages/Demo')
+        : preloadTarget === 'sector-landing'
+          ? import('@/pages/DemoLandingPage')
+          : null;
+
+  void preloadPromise?.catch((error) => {
+    console.warn('[Demo] No se pudo precargar la ruta pública', error);
   });
 }
 
@@ -168,16 +178,16 @@ const AppBootstrapFallback = () => (
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
-  const [publicPreviewPresentation] = React.useState(() =>
-    typeof window !== 'undefined' && isPublicPreviewPresentation({
+  const [publicClerkBypassPresentation] = React.useState(() =>
+    typeof window !== 'undefined' && isPublicClerkBypassPresentation({
       hostname: window.location.hostname,
       pathname: window.location.pathname,
       search: window.location.search,
     }),
   );
   const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
-    publicPreviewPresentation
-      ? buildPublicPreviewPresentationRuntime(CLERK_PUBLISHABLE_KEY)
+    publicClerkBypassPresentation
+      ? buildPublicClerkBypassRuntime(CLERK_PUBLISHABLE_KEY)
       : buildClerkRuntimeFromEnv({
           allowEnvFallback,
           envEnabled: CLERK_AUTH_ENABLED,
@@ -187,11 +197,10 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   );
 
   React.useEffect(() => {
-    // The explicit remote Preview presentation is guest-only and never needs
-    // Clerk. Resolve it synchronously so a cold auth backend cannot block the
-    // public executive demo; all normal and private routes keep the fail-closed
-    // bootstrap below.
-    if (publicPreviewPresentation) return undefined;
+    // Explicit public presentations are guest-only and never need Clerk.
+    // Resolve them synchronously; all normal and private routes keep the
+    // fail-closed bootstrap below.
+    if (publicClerkBypassPresentation) return undefined;
 
     let cancelled = false;
     let settled = false;
@@ -280,7 +289,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
       cancelled = true;
       if (timeoutId !== null) clearTimeout(timeoutId);
     };
-  }, [allowEnvFallback, publicPreviewPresentation]);
+  }, [allowEnvFallback, publicClerkBypassPresentation]);
 
   return runtime;
 };
@@ -301,9 +310,8 @@ function AppRoutes() {
       return;
     }
 
-    // The Preview presentation deliberately mounts without Clerk. Once the
-    // visitor leaves that public URL, reload the new route so the normal
-    // fail-closed auth topology is restored before login or private UI mounts.
+    // Crossing into or out of a no-Clerk presentation requires one reload so
+    // the provider topology stays stable before any private UI can mount.
     window.location.reload();
   }, [clerkRuntime, location.pathname, location.search]);
 
@@ -334,7 +342,12 @@ function AppRoutes() {
        console.warn("Failed to initialize anon session", e);
     }
   }, []);
-  const layoutExcludedPaths = ['/iframe', '/sso-callback', '/auth/sso-callback'];
+  const layoutExcludedPaths = [
+    '/iframe',
+    '/sso-callback',
+    '/auth/sso-callback',
+    DISABILITY_AI_AGENT_DEMO_PATH,
+  ];
   const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
   const portalRoutes = routes.filter(({ userPortal }) => userPortal);
   const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);

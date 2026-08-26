@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Propuesta ejecutiva para un Agente de IA Accesible y una Mesa Única de Discapacidad en Tierra del Fuego." />
+    <meta name="author" content="Marcelo Guillén, Ingeniero en Informática y Telecomunicaciones, fundador y CEO de Inmovar Latam" />
+    <title>Propuesta ejecutiva | Agente de IA Accesible y Mesa Única</title>
+    <style>
+      :root {
+        --ink: #123b38; --muted: #5e726e; --teal: #0b5f58; --teal-dark: #0b3f3c;
+        --teal-soft: #dff2ed; --teal-pale: #f2f7f5; --gold: #b88a25;
+        --gold-soft: #f4ebd7; --line: #d6e2de; --navy: #102f2e;
+        --white: #ffffff; --red: #943c3c;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; background: #e7ecea; color: var(--ink);
+        font-family: "Segoe UI", Arial, sans-serif; font-size: 10pt; line-height: 1.38;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+      @page { size: A4; margin: 0; }
+      main { margin: 0; }
+      .page {
+        position: relative; width: 210mm; height: 297mm; margin: 0 auto;
+        padding: 15mm 15mm 14mm; overflow: hidden; background: var(--white);
+        break-after: page; page-break-after: always;
+      }
+      .page:last-child { break-after: auto; page-break-after: auto; }
+      .page-header { margin-bottom: 7mm; }
+      .eyebrow {
+        margin: 0 0 3mm; color: var(--teal); font-size: 7.6pt; font-weight: 700;
+        letter-spacing: .13em; text-transform: uppercase;
+      }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { margin-bottom: 5mm; font-size: 32pt; line-height: 1.03; letter-spacing: -.035em; }
+      h2 { margin-bottom: 3mm; font-size: 22pt; line-height: 1.08; letter-spacing: -.025em; }
+      h3 { margin-bottom: 2mm; font-size: 10.8pt; line-height: 1.22; }
+      .subtitle { margin: 0; max-width: 172mm; color: var(--muted); font-size: 10.2pt; line-height: 1.45; }
+      .page-footer {
+        position: absolute; right: 15mm; bottom: 7mm; left: 15mm; display: flex;
+        align-items: center; justify-content: space-between; color: var(--muted); font-size: 6.8pt;
+      }
+      .cover { color: var(--white); background: var(--teal-dark); }
+      .cover::before, .cover::after { position: absolute; z-index: 0; border-radius: 50%; content: ""; }
+      .cover::before { top: -32mm; right: -27mm; width: 112mm; height: 112mm; background: #155c56; }
+      .cover::after { bottom: -26mm; left: -26mm; width: 88mm; height: 88mm; background: #0e4a46; }
+      .cover > * { position: relative; z-index: 1; }
+      .cover .eyebrow {
+        display: inline-flex; padding: 3mm 5mm; border: 1px solid rgba(255,255,255,.2);
+        border-radius: 99px; color: #9be8dc; background: rgba(255,255,255,.08);
+      }
+      .cover h1 { max-width: 156mm; margin-top: 24mm; }
+      .cover .lead { max-width: 150mm; color: rgba(255,255,255,.78); font-size: 14pt; line-height: 1.45; }
+      .brand-lockup {
+        display: flex; align-items: center; gap: 3mm; margin-top: 7mm; color: rgba(255,255,255,.8);
+        font-size: 8pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+      }
+      .author-credit {
+        max-width: 142mm; margin-top: 8mm; color: rgba(255,255,255,.72);
+        font-size: 8.3pt; line-height: 1.5;
+      }
+      .author-credit strong { color: var(--white); }
+      .brand-mark {
+        display: grid; width: 10mm; height: 10mm; border: 1px solid rgba(255,255,255,.38);
+        border-radius: 3mm; place-items: center; background: rgba(255,255,255,.1);
+        color: #9be8dc; font-size: 12pt; font-weight: 700;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 2.5mm; margin-top: 10mm; }
+      .chip {
+        padding: 2.1mm 4mm; border: 1px solid rgba(255,255,255,.2); border-radius: 99px;
+        color: var(--white); background: rgba(255,255,255,.08); font-size: 7.5pt; font-weight: 700;
+      }
+      .investment-cover {
+        position: absolute; right: 15mm; bottom: 36mm; left: 15mm; padding: 7mm;
+        border: 1px solid rgba(255,255,255,.2); border-radius: 5mm; background: rgba(255,255,255,.08);
+      }
+      .investment-cover .label {
+        color: #9be8dc; font-size: 7.4pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      }
+      .investment-cover strong { display: block; margin: 2.5mm 0 1mm; font-size: 22pt; letter-spacing: -.02em; }
+      .investment-cover small { color: rgba(255,255,255,.7); font-size: 8.2pt; }
+      .cover .page-footer { position: absolute; color: rgba(255,255,255,.66); }
+      .callout { padding: 7mm; border-radius: 5mm; color: var(--white); background: var(--teal-dark); font-size: 12.5pt; font-weight: 700; line-height: 1.45; }
+      .card-grid-3 { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4mm; margin-top: 6mm; }
+      .card-grid-2 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4mm; }
+      .card { min-height: 34mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--white); }
+      .card .number, .role-card .number {
+        display: grid; width: 8mm; height: 8mm; border-radius: 2.5mm; place-items: center;
+        color: var(--teal); background: var(--teal-soft); font-size: 7.5pt; font-weight: 800;
+      }
+      .card .number { margin-bottom: 4mm; }
+      .card p, .role-card p { margin: 0; color: var(--muted); font-size: 8.1pt; line-height: 1.45; }
+      .soft-panel, .gold-panel { padding: 6mm; border: 1px solid var(--line); border-radius: 4.5mm; background: var(--teal-pale); }
+      .gold-panel { border-color: #e2d2aa; background: var(--gold-soft); }
+      .panel-title { margin-bottom: 3mm; color: var(--teal); font-size: 7.4pt; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      ul.clean { margin: 0; padding: 0; list-style: none; }
+      ul.clean li { position: relative; margin: 0 0 3.4mm; padding-left: 5.5mm; color: var(--ink); font-size: 8.6pt; line-height: 1.4; }
+      ul.clean li:last-child { margin-bottom: 0; }
+      ul.clean li::before { position: absolute; top: .48em; left: 0; width: 2.2mm; height: 2.2mm; border-radius: 50%; background: var(--teal); content: ""; }
+      .spacer-8 { height: 8mm; }
+      .journey { display: grid; gap: 3mm; margin: 0; padding: 0; list-style: none; }
+      .journey li {
+        display: grid; min-height: 25mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm;
+        grid-template-columns: 12mm 44mm 1fr; align-items: center; background: var(--white);
+      }
+      .step-number { display: grid; width: 10mm; height: 10mm; border-radius: 3mm; place-items: center; color: var(--teal); background: var(--teal-soft); font-weight: 800; }
+      .journey strong { font-size: 9.5pt; }
+      .journey span:last-child { color: var(--muted); font-size: 8.4pt; }
+      .accessibility-strip { margin-top: 5mm; padding: 5mm; border: 1px solid #e2d2aa; border-radius: 4mm; color: #665026; background: var(--gold-soft); }
+      .accessibility-strip strong { display: block; margin-bottom: 1.5mm; font-size: 9pt; }
+      .accessibility-strip p { margin: 0; font-size: 8pt; }
+      .experience-grid { display: grid; min-height: 176mm; grid-template-columns: .83fr 1.17fr; gap: 4mm; }
+      .phone, .crm { overflow: hidden; border-radius: 5mm; }
+      .phone { border: 1px solid var(--line); background: #edf4f1; }
+      .phone-head { padding: 5mm; color: var(--white); background: var(--teal-dark); }
+      .phone-head strong, .phone-head small { display: block; }
+      .phone-head small { margin-top: 1mm; color: rgba(255,255,255,.7); font-size: 7pt; }
+      .chat { display: flex; flex-direction: column; gap: 3mm; padding: 5mm; }
+      .bubble { max-width: 94%; margin: 0; padding: 3.3mm 4mm; border-radius: 3mm; color: var(--ink); background: var(--white); font-size: 8pt; line-height: 1.42; }
+      .bubble.user { align-self: flex-end; background: #d8f5dc; }
+      .attachment { display: flex; align-items: center; gap: 3mm; margin-top: 2mm; padding: 2.5mm; border: 1px solid var(--line); border-radius: 3mm; background: rgba(255,255,255,.66); }
+      .attachment-icon { display: grid; width: 8mm; height: 8mm; border-radius: 2mm; place-items: center; color: var(--white); background: var(--teal); font-size: 6.5pt; font-weight: 800; }
+      .crm { padding: 6mm; color: var(--white); background: var(--navy); }
+      .crm .panel-title { color: #8be0d3; }
+      .crm h3 { margin-bottom: 5mm; color: var(--white); font-size: 15pt; }
+      .crm-field { margin-bottom: 3mm; padding: 3.4mm; border: 1px solid rgba(255,255,255,.12); border-radius: 3mm; background: rgba(255,255,255,.06); }
+      .crm-field dt { color: rgba(255,255,255,.55); font-size: 6.7pt; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      .crm-field dd { margin: 1mm 0 0; color: var(--white); font-size: 8.4pt; font-weight: 700; }
+      .crm-actions { display: grid; grid-template-columns: repeat(2,1fr); gap: 2.5mm; margin-top: 4mm; }
+      .crm-action { padding: 3mm; border: 1px solid #2d756d; border-radius: 3mm; background: #123e3a; }
+      .crm-action strong, .crm-action small { display: block; }
+      .crm-action strong { color: #8be0d3; font-size: 8pt; }
+      .crm-action small { margin-top: 1mm; color: rgba(255,255,255,.72); font-size: 6.8pt; }
+      table { width: 100%; border-collapse: separate; border-spacing: 0 3mm; }
+      th { padding: 0 4mm 1mm; color: var(--muted); font-size: 6.7pt; letter-spacing: .09em; text-align: left; text-transform: uppercase; }
+      td { padding: 4mm; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--white); font-size: 8pt; vertical-align: middle; }
+      td:first-child { border-left: 1px solid var(--line); border-radius: 4mm 0 0 4mm; }
+      td:last-child { border-right: 1px solid var(--line); border-radius: 0 4mm 4mm 0; }
+      td.axis-number { width: 12mm; color: var(--teal); font-weight: 800; text-align: center; }
+      td.axis-title { width: 38mm; font-weight: 700; }
+      td.axis-owner { width: 42mm; color: var(--muted); font-size: 7.3pt; font-weight: 600; }
+      .layers { display: grid; gap: 3mm; }
+      .layer { padding: 4mm; border: 1px solid var(--line); border-radius: 3.5mm; background: var(--white); font-size: 9pt; font-weight: 700; text-align: center; }
+      .layer:nth-child(even) { border-color: var(--teal-dark); color: var(--white); background: var(--teal-dark); }
+      .control-card { min-height: 50mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--teal-pale); }
+      .control-card p { margin: 0; color: var(--muted); font-size: 8.4pt; }
+      .warning { margin-top: 4mm; color: var(--red); font-size: 7.7pt; font-weight: 700; }
+      .metric-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 3mm; }
+      .metric { min-height: 25mm; padding: 3.5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--white); }
+      .metric strong, .metric span, .metric small { display: block; }
+      .metric strong { font-size: 16pt; line-height: 1; }
+      .metric span { margin-top: 2mm; font-size: 7.2pt; font-weight: 700; }
+      .metric small { margin-top: 1mm; color: var(--muted); font-size: 5.9pt; }
+      .dashboard-grid { display: grid; grid-template-columns: .86fr 1.14fr; gap: 4mm; margin-top: 5mm; }
+      .bar-chart, .heatmap { min-height: 74mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--white); }
+      .bar-row { display: grid; grid-template-columns: 34mm 1fr 9mm; gap: 2mm; align-items: center; margin-top: 3mm; font-size: 7.2pt; }
+      .bar-track { height: 3mm; overflow: hidden; border-radius: 2mm; background: #e5ece9; }
+      .bar-fill { height: 100%; border-radius: 2mm; background: var(--teal); }
+      .heatmap-box { position: relative; height: 52mm; margin-top: 3mm; overflow: hidden; border-radius: 3mm; background: linear-gradient(rgba(11,95,88,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(11,95,88,.08) 1px,transparent 1px),#edf5f2; background-size: 10mm 10mm; }
+      .zone { position: absolute; display: grid; border: 2px solid rgba(255,255,255,.82); border-radius: 50%; place-items: center; color: var(--white); background: rgba(11,95,88,.78); box-shadow: 0 0 0 5mm rgba(11,95,88,.12); font-size: 6.7pt; font-weight: 800; }
+      .zone.one { top: 8mm; left: 20mm; width: 18mm; height: 18mm; }
+      .zone.two { right: 18mm; bottom: 9mm; width: 22mm; height: 22mm; background: rgba(184,138,37,.84); box-shadow: 0 0 0 6mm rgba(184,138,37,.16); }
+      .zone.three { right: 48mm; top: 14mm; width: 13mm; height: 13mm; background: rgba(33,137,126,.8); box-shadow: 0 0 0 4mm rgba(33,137,126,.13); }
+      .map-note { margin: 3mm 0 0; color: var(--muted); font-size: 6.6pt; }
+      .timeline { display: grid; gap: 3mm; margin: 0; padding: 0; list-style: none; }
+      .timeline li { display: grid; min-height: 35mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; grid-template-columns: 27mm 43mm 1fr 38mm; gap: 4mm; align-items: start; }
+      .phase { padding: 2mm; border-radius: 99px; color: var(--teal); background: var(--teal-soft); font-size: 7.4pt; font-weight: 800; text-align: center; }
+      .timeline strong { font-size: 9.2pt; }
+      .timeline p, .timeline .result { margin: 0; color: var(--muted); font-size: 7.7pt; }
+      .timeline .result { color: var(--ink); font-weight: 700; }
+      .role-card { min-height: 38mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--white); }
+      .role-card .role-head { display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm; }
+      .investment-band { padding: 6mm; border-radius: 5mm; color: var(--white); background: var(--teal-dark); }
+      .investment-band span, .investment-band strong, .investment-band small { display: block; }
+      .investment-band span { color: #8be0d3; font-size: 7.2pt; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+      .investment-band strong { margin: 2mm 0; font-size: 23pt; }
+      .investment-band small { color: rgba(255,255,255,.7); font-size: 7.8pt; }
+      .investment-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 5mm; }
+      .investment-columns > section { min-height: 96mm; padding: 5mm; border: 1px solid var(--line); border-radius: 4mm; background: var(--white); }
+      .investment-columns > section:nth-child(2) { background: var(--teal-pale); }
+      .investment-columns ul.clean li { margin-bottom: 2.4mm; font-size: 7.8pt; }
+      .next-steps { margin-top: 5mm; }
+      .next-steps ul.clean li { margin-bottom: 2.2mm; color: #5f4b22; font-size: 7.8pt; }
+    </style>
+  </head>
+  <body>
+    <main aria-label="Propuesta ejecutiva de Agente de IA Accesible y Mesa Única">
+      <section class="page cover" aria-labelledby="cover-title">
+        <p class="eyebrow">Propuesta ejecutiva | Alcance discapacidad</p>
+        <div class="brand-lockup" aria-label="Solución institucional de marca blanca"><span class="brand-mark" aria-hidden="true">IA</span><span>Solución institucional de marca blanca</span></div>
+        <h1 id="cover-title">Agente de IA Accesible + Mesa Única</h1>
+        <p class="lead">Una puerta de entrada accesible, un caso único y una gestión trazable para personas con discapacidad y sus redes de apoyo.</p>
+        <p class="author-credit">Hecho por <strong>Marcelo Guillén</strong>, Ingeniero en Informática y Telecomunicaciones, fundador y CEO de Inmovar Latam.</p>
+        <div class="chips" aria-label="Capacidades principales"><span class="chip">WhatsApp + CRM</span><span class="chip">Atención humana</span><span class="chip">Marca blanca</span><span class="chip">Analítica agregada</span></div>
+        <aside class="investment-cover" aria-label="Rango mensual propuesto"><span class="label">Rango mensual de servicio integral</span><strong>ARS 3.500.000 - 5.000.000</strong><small>Según alcance, complejidad, volumen, integraciones y nivel de soporte acordado.</small></aside>
+        <footer class="page-footer"><span>Propuesta conceptual | 26 de agosto de 2026</span><span>01 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="summary-title">
+        <header class="page-header"><p class="eyebrow">01 | Resumen ejecutivo</p><h2 id="summary-title">Del canal fragmentado a una Mesa Única</h2><p class="subtitle">El MVP centraliza la orientación en un canal conocido y conserva el contexto operativo en un CRM único.</p></header>
+        <p class="callout">WhatsApp facilita la consulta; el CRM asigna responsables, registra el próximo paso y permite continuar cada caso sin pedirle a la persona que vuelva a empezar.</p>
+        <div class="card-grid-3" aria-label="Resultados esperados">
+          <article class="card"><span class="number">01</span><h3>Menos traslados</h3><p>Orientación clara para personas con discapacidad, familias y redes de apoyo.</p></article>
+          <article class="card"><span class="number">02</span><h3>Continuidad real</h3><p>Atención humana visible, con contexto, registro, responsable y seguimiento.</p></article>
+          <article class="card"><span class="number">03</span><h3>Gestión medible</h3><p>Demanda, tiempos, derivaciones, preevaluación y satisfacción.</p></article>
+        </div>
+        <div class="spacer-8"></div>
+        <aside class="soft-panel" aria-labelledby="limits-title"><h3 class="panel-title" id="limits-title">Límites del MVP</h3><ul class="clean">
+          <li>No reemplaza profesionales ni automatiza decisiones médicas, legales o de elegibilidad.</li>
+          <li>No accede a registros sensibles sin base legal, autorización, custodio y controles aprobados.</li>
+          <li>Las métricas, coordenadas y casos de la demostración son sintéticos y no sirven para decisiones públicas.</li>
+          <li>La accesibilidad, seguridad e interoperabilidad se verifican antes de producción.</li>
+        </ul></aside>
+        <footer class="page-footer"><span>Propuesta conceptual | Datos representativos</span><span>02 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="journey-title">
+        <header class="page-header"><p class="eyebrow">02 | Experiencia ciudadana</p><h2 id="journey-title">Accesibilidad desde el primer contacto</h2><p class="subtitle">La orientación general puede comenzar sin DNI. La identidad se solicita únicamente si el trámite lo exige y mediante una fuente autorizada.</p></header>
+        <ol class="journey" aria-label="Recorrido de atención accesible">
+          <li><span class="step-number">1</span><strong>Orientación</strong><span>Consulta inicial en lectura clara, con opciones breves y comprensibles.</span></li>
+          <li><span class="step-number">2</span><strong>Formato accesible</strong><span>Texto, nota de voz, imagen, documento o ubicación voluntaria.</span></li>
+          <li><span class="step-number">3</span><strong>Pre-evaluación</strong><span>Lista de cotejo orientativa para CUD, CMO o RUPE.</span></li>
+          <li><span class="step-number">4</span><strong>Respuesta útil</strong><span>PDF, catálogo, formulario, contacto, turno o solicitud de devolución de llamada.</span></li>
+          <li><span class="step-number">5</span><strong>Continuidad</strong><span>Derivación humana con contexto, número de caso y encuesta de satisfacción.</span></li>
+        </ol>
+        <aside class="accessibility-strip" aria-label="Controles de accesibilidad siempre visibles"><strong>Siempre visible: Hablar con una persona | Repetir | Corregir | Volver</strong><p>Audio con transcripción; documentos en formatos permitidos; ubicación solo con consentimiento.</p></aside>
+        <footer class="page-footer"><span>Experiencia en lenguaje claro</span><span>03 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="crm-title">
+        <header class="page-header"><p class="eyebrow">03 | WhatsApp + CRM</p><h2 id="crm-title">Un mismo caso, dos experiencias coordinadas</h2><p class="subtitle">La persona conversa en un canal cotidiano; el equipo opera con contexto, SLA, responsable, adjuntos y próxima acción.</p></header>
+        <div class="experience-grid">
+          <article class="phone" aria-labelledby="whatsapp-demo-title">
+            <header class="phone-head"><strong id="whatsapp-demo-title">WhatsApp | Mesa Única</strong><small>Escenario conceptual accesible</small></header>
+            <div class="chat">
+              <p class="bubble">¿Te orientamos sobre CUD, salud, RUPE, apoyos o trabajo? También podés hablar con una persona.</p>
+              <p class="bubble user">Necesito revisar los documentos para renovar mi CUD.</p>
+              <p class="bubble">Hagamos una lista de cotejo. No envíes DNI en esta demo. Puedo compartirte la planilla o derivarte al equipo.</p>
+              <div class="attachment" aria-label="Adjunto PDF accesible"><span class="attachment-icon" aria-hidden="true">PDF</span><div><strong>Guía de renovación CUD</strong><br /><small>PDF accesible | 2 páginas</small></div></div>
+              <p class="bubble user">Te mando una nota de voz y una foto de la constancia.</p>
+              <div class="attachment" aria-label="Nota de voz transcripta"><span class="attachment-icon" aria-hidden="true">VOZ</span><div><strong>Audio 00:18</strong><br /><small>Transcripción disponible</small></div></div>
+              <p class="bubble">Recibido. ¿Querés completar un formulario breve o preferís que te llame una persona?</p>
+            </div>
+          </article>
+          <article class="crm" aria-labelledby="crm-demo-title">
+            <p class="panel-title">CRM de discapacidad</p><h3 id="crm-demo-title">Pre-evaluación CUD</h3>
+            <dl>
+              <div class="crm-field"><dt>Caso</dt><dd>DEMO-DISC-0142</dd></div>
+              <div class="crm-field"><dt>Estado</dt><dd>Orientación inicial</dd></div>
+              <div class="crm-field"><dt>Responsable</dt><dd>Mesa Única | Equipo CUD</dd></div>
+              <div class="crm-field"><dt>Próxima acción</dt><dd>Completar cotejo y ofrecer turno</dd></div>
+              <div class="crm-field"><dt>Formatos recibidos</dt><dd>Audio, imagen y texto</dd></div>
+            </dl>
+            <div class="crm-actions" aria-label="Acciones operativas">
+              <div class="crm-action"><strong>Derivación asistida</strong><small>Contexto completo</small></div>
+              <div class="crm-action"><strong>Formulario</strong><small>Enlace seguro</small></div>
+              <div class="crm-action"><strong>Mapa</strong><small>Ubicación consentida</small></div>
+              <div class="crm-action"><strong>Cierre</strong><small>Registro + CSAT</small></div>
+            </div>
+          </article>
+        </div>
+        <footer class="page-footer"><span>CRM responsive | Sin pérdida de contexto</span><span>04 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="axes-title">
+        <header class="page-header"><p class="eyebrow">04 | Matriz de contenidos</p><h2 id="axes-title">Cinco ejes con propietario y circuito</h2><p class="subtitle">Cada contenido requiere fuente oficial, organismo responsable, fecha de revisión y una regla clara de derivación.</p></header>
+        <table aria-label="Cinco ejes de atención de discapacidad">
+          <thead><tr><th>#</th><th>Eje</th><th>Alcance inicial</th><th>Responsables institucionales</th></tr></thead>
+          <tbody>
+            <tr><td class="axis-number">01</td><td class="axis-title">Documentación</td><td>CUD, CMO, juntas, requisitos y prórrogas.</td><td class="axis-owner">Salud | UATID | Juntas</td></tr>
+            <tr><td class="axis-number">02</td><td class="axis-title">Salud y prestaciones</td><td>Terapias, controles, recetas, derivaciones y ortopedia.</td><td class="axis-owner">Salud | Rehabilitación | OSEF</td></tr>
+            <tr><td class="axis-number">03</td><td class="axis-title">Pensión y licencias</td><td>RUPE, fe de vida, pensión y licencias de cuidado.</td><td class="axis-owner">Bienestar Ciudadano y Justicia</td></tr>
+            <tr><td class="axis-number">04</td><td class="axis-title">Apoyos integrales</td><td>Educación, vacantes, recreación, cobertura y vida diaria.</td><td class="axis-owner">Educación | Deportes | Cultura</td></tr>
+            <tr><td class="axis-number">05</td><td class="axis-title">Inclusión laboral</td><td>Registro Único, Ley 48, cursos y apoyo para CV.</td><td class="axis-owner">Trabajo | Educación</td></tr>
+          </tbody>
+        </table>
+        <aside class="gold-panel" aria-labelledby="alerts-title"><h3 class="panel-title" id="alerts-title">Alertas preventivas previstas</h3><p style="margin:0;font-size:8.6pt;font-weight:700;color:#665026;">CUD a 90 días | Turnos | RUPE y fe de vida | Farmacia | Inscripciones educativas</p><p style="margin:2mm 0 0;font-size:7.7pt;color:#75623d;">Solo con fuente vigente, base legal, permiso de contacto y circuitos institucionales aprobados.</p></aside>
+        <footer class="page-footer"><span>Catálogo institucional accesible</span><span>05 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="architecture-title">
+        <header class="page-header"><p class="eyebrow">05 | Arquitectura y controles</p><h2 id="architecture-title">Tecnología licenciada, operación institucional</h2><p class="subtitle">La solución se configura con marca blanca y separa canal, inteligencia, fuentes autorizadas, operación y analítica.</p></header>
+        <div class="layers" aria-label="Capas de la solución"><div class="layer">WhatsApp oficial | Widget | Voz opcional</div><div class="layer">Agente de IA | Lectura clara | Listas de cotejo</div><div class="layer">Orquestación | Reglas | Fuentes autorizadas</div><div class="layer">CRM | Mesa Única | Derivación humana</div><div class="layer">Analítica agregada | Alertas | Auditoría</div></div>
+        <div class="spacer-8"></div>
+        <div class="card-grid-2"><article class="control-card"><h3>Accesibilidad objetivo WCAG 2.2 AA</h3><p>Teclado, lector de pantalla, contraste, foco visible, controles grandes, transcripción, movimiento reducido y alternativas equivalentes.</p></article><article class="control-card"><h3>Privacidad y seguridad gobernadas</h3><p>Roles, trazabilidad, consentimiento, minimización, retención, cifrado según arquitectura, backups, monitoreo, incidentes y revisión humana.</p></article></div>
+        <p class="warning">La conformidad, seguridad e interoperabilidad se validan antes de producción. Esta propuesta no constituye una certificación independiente.</p>
+        <footer class="page-footer"><span>Diseño seguro y accesible por proceso</span><span>06 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="dashboard-title">
+        <header class="page-header"><p class="eyebrow">06 | Dashboard ejecutivo</p><h2 id="dashboard-title">Demanda, resolución, tiempos y territorio</h2><p class="subtitle">Todos los valores de esta página son una muestra conceptual. Los indicadores reales requieren eventos productivos, definiciones aprobadas y umbrales de privacidad.</p></header>
+        <div class="metric-grid" aria-label="Indicadores de muestra conceptual">
+          <article class="metric"><strong>320</strong><span>Interacciones</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>68%</strong><span>Cierre autónomo</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>18%</strong><span>Derivación humana</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>82%</strong><span>Pre-evaluación</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>1m 40s</strong><span>Primera respuesta</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>38 min</strong><span>Resolución</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>4,6/5</strong><span>CSAT</span><small>Muestra conceptual</small></article>
+          <article class="metric"><strong>74%</strong><span>Alertas completadas</span><small>Muestra conceptual</small></article>
+        </div>
+        <div class="dashboard-grid">
+          <figure class="bar-chart" aria-labelledby="themes-caption"><figcaption class="panel-title" id="themes-caption">Mapa de calor temático | Muestra conceptual</figcaption><div class="bar-row"><span>CUD y CMO</span><span class="bar-track"><span class="bar-fill" style="display:block;width:100%"></span></span><strong>28%</strong></div><div class="bar-row"><span>Salud y prestaciones</span><span class="bar-track"><span class="bar-fill" style="display:block;width:86%"></span></span><strong>24%</strong></div><div class="bar-row"><span>RUPE y licencias</span><span class="bar-track"><span class="bar-fill" style="display:block;width:75%"></span></span><strong>21%</strong></div><div class="bar-row"><span>Apoyos integrales</span><span class="bar-track"><span class="bar-fill" style="display:block;width:54%"></span></span><strong>15%</strong></div><div class="bar-row"><span>Inclusión laboral</span><span class="bar-track"><span class="bar-fill" style="display:block;width:43%"></span></span><strong>12%</strong></div></figure>
+          <figure class="heatmap" aria-labelledby="map-caption"><figcaption class="panel-title" id="map-caption">Mapa territorial agregado | Muestra conceptual</figcaption><div class="heatmap-box" aria-label="Muestra sintética de demanda agregada en Ushuaia, Río Grande y Tolhuin"><span class="zone one">Río Grande</span><span class="zone two">Ushuaia</span><span class="zone three">Tolhuin</span></div><p class="map-note">Agregación mínima y sin puntos individuales. Sirve para logística, no para perfilar personas.</p></figure>
+        </div>
+        <footer class="page-footer"><span>Datos sintéticos | No aptos para decisión pública</span><span>07 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="roadmap-title">
+        <header class="page-header"><p class="eyebrow">07 | Hoja de ruta</p><h2 id="roadmap-title">Cuatro fases con puertas de aprobación</h2><p class="subtitle">El calendario definitivo depende de accesos, fuentes, aprobaciones, integraciones y disponibilidad de responsables.</p></header>
+        <ol class="timeline" aria-label="Fases del proyecto">
+          <li><span class="phase">Fase 1</span><strong>Simplificar y aprobar</strong><p>Mesa interinstitucional, fuentes, responsables y árbol en lectura clara.</p><span class="result">Base de conocimiento aprobada</span></li>
+          <li><span class="phase">Fase 2</span><strong>Configurar el MVP</strong><p>Marca blanca, WhatsApp en pruebas, CRM, cinco ejes y dashboard base.</p><span class="result">Entorno técnico verificable</span></li>
+          <li><span class="phase">Fase 3</span><strong>Pilotear con personas</strong><p>Pruebas con PCD, redes de apoyo y operadores; accesibilidad, privacidad y UX.</p><span class="result">Ajustes finales validados</span></li>
+          <li><span class="phase">Fase 4</span><strong>Operar y mejorar</strong><p>Producción, capacitación, difusión, monitoreo y mejora continua.</p><span class="result">Servicio gobernado</span></li>
+        </ol>
+        <aside class="soft-panel" style="margin-top:5mm;padding:5mm;"><h3 class="panel-title">Criterio de avance</h3><p style="margin:0;font-size:8pt;color:var(--muted);">Cada fase termina con evidencia, responsables y criterios de aceptación. Ningún acceso sensible se habilita por defecto.</p></aside>
+        <footer class="page-footer"><span>Implementación progresiva y gobernada</span><span>08 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="governance-title">
+        <header class="page-header"><p class="eyebrow">08 | Gobernanza</p><h2 id="governance-title">Responsabilidades claras para sostener la operación</h2><p class="subtitle">La tecnología no reemplaza la coordinación: cada actor conserva decisiones, contenidos y obligaciones explícitas.</p></header>
+        <div class="card-grid-2" aria-label="Matriz de responsabilidades">
+          <article class="role-card"><div class="role-head"><span class="number">01</span><h3>Mesa Única</h3></div><p>Product owner, coordinación, derivación, SLA y operación diaria.</p></article>
+          <article class="role-card"><div class="role-head"><span class="number">02</span><h3>Áreas sectoriales</h3></div><p>Salud, Bienestar, Educación y Trabajo: contenido oficial, turnos y escalamiento.</p></article>
+          <article class="role-card"><div class="role-head"><span class="number">03</span><h3>Agencia de Innovación Fueguina</h3></div><p>Coordinación técnica institucional, datos, accesos, integraciones y validación.</p></article>
+          <article class="role-card"><div class="role-head"><span class="number">04</span><h3>Proveedor tecnológico</h3></div><p>Licencia, marca blanca, Agente + CRM, infraestructura gestionada, soporte, capacitación y mantenimiento.</p></article>
+          <article class="role-card"><div class="role-head"><span class="number">05</span><h3>Jurídico y seguridad</h3></div><p>Bases legales, NDA, tratamiento de datos, evaluaciones, incidentes y auditoría.</p></article>
+          <article class="role-card"><div class="role-head"><span class="number">06</span><h3>PCD y organizaciones</h3></div><p>Co-diseño y pruebas reales de usabilidad, lenguaje claro y accesibilidad.</p></article>
+        </div>
+        <aside class="gold-panel" style="margin-top:6mm;"><h3 class="panel-title">Regla de publicación</h3><p style="margin:0;font-size:8.3pt;color:#665026;">Ninguna respuesta sensible se publica sin fuente, propietario, vigencia y ruta de derivación aprobadas.</p></aside>
+        <footer class="page-footer"><span>Gobernanza interinstitucional</span><span>09 / 10</span></footer>
+      </section>
+
+      <section class="page" aria-labelledby="investment-title">
+        <header class="page-header"><p class="eyebrow">09 | Alcance presupuestable</p><h2 id="investment-title">Servicio integral con mejora continua</h2><p class="subtitle">Rango mensual preliminar en pesos argentinos. El importe final se define por alcance, volumen, integraciones y nivel de soporte acordado.</p></header>
+        <div class="investment-band" aria-label="Rango mensual de inversión"><span>Rango mensual</span><strong>ARS 3.500.000 - 5.000.000</strong><small>Valores de referencia | Condiciones contractuales e impositivas a definir.</small></div>
+        <div class="investment-columns">
+          <section aria-labelledby="included-title"><h3 class="panel-title" id="included-title">Incluido en el servicio</h3><ul class="clean"><li>Licencia y marca blanca del Agente de IA y CRM.</li><li>Mejoras, actualizaciones y mantenimiento mensual.</li><li>Hosting gestionado, dominio o subdominio y base de datos.</li><li>Backups, redundancia y continuidad operativa acordada.</li><li>Monitoreo, observabilidad y mantenimiento de ciberseguridad.</li><li>Soporte, capacitación y acompañamiento de operación.</li><li>NDA y acuerdo de tratamiento de datos.</li></ul></section>
+          <section aria-labelledby="evolution-title"><h3 class="panel-title" id="evolution-title">Evolución acordada</h3><ul class="clean"><li>La operación e infraestructura estándar quedan incluidas dentro de la capacidad acordada.</li><li>El rango puede revisarse ante crecimiento material de volumen, usuarios o áreas.</li><li>También ante nuevas integraciones, ambientes, SLA o módulos solicitados.</li><li>Cualquier modificación se formaliza mediante alcance, impacto y aprobación de ambas partes.</li><li>El organismo no administra servidores, bases de datos ni credenciales técnicas.</li></ul></section>
+        </div>
+        <aside class="gold-panel next-steps" aria-labelledby="next-title"><h3 class="panel-title" id="next-title">Próximos pasos</h3><ul class="clean"><li>Aprobar cinco ejes, responsables y consultas que funcionan sin DNI.</li><li>Inventariar fuentes, sistemas, formularios, directorios y número oficial de WhatsApp.</li><li>Acordar piloto, SLA, métricas, criterios de aceptación y condiciones económicas finales.</li></ul></aside>
+        <footer class="page-footer"><span>Propuesta sujeta a alcance y acuerdo definitivo</span><span>10 / 10</span></footer>
+      </section>
+    </main>
+  </body>
+</html>

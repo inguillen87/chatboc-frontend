@@ -22,6 +22,7 @@ const renderAt = (pathname: string) =>
 describe('AppAccessibility focused public routes', () => {
   it.each([
     '/demo?sector=gobierno',
+    '/demo/institucional/tdf-discapacidad',
     '/e/demo-gobierno-junin-participa-prioridades-barriales',
   ])('keeps the accessibility control out of the mobile header on %s', (pathname) => {
     renderAt(pathname);

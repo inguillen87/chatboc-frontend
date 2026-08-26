@@ -82,8 +82,16 @@ const keepInitialPwaShell = (manifestEntries: PwaManifestEntry[]) => {
     for (const importedEntry of chunk.imports ?? []) addViteEntry(importedEntry);
   };
 
-  addViteEntry('index.html');
-  addViteEntry('portal/index.html');
+  for (const htmlEntryKey of ['index.html', 'portal/index.html']) {
+    if (viteManifest[htmlEntryKey]) addViteEntry(htmlEntryKey);
+  }
+  // When two HTML shells share the same application bootstrap, Rollup may
+  // expose that bootstrap as a shared manifest chunk instead of retaining an
+  // `index.html` key. The URLs parsed from each generated HTML file remain the
+  // source of truth, so follow every matching chunk and its imports.
+  for (const [entryKey, chunk] of Object.entries(viteManifest)) {
+    if (shellUrls.has(normalizePwaAssetUrl(chunk.file))) addViteEntry(entryKey);
+  }
   for (const source of offlineEntrySources) addViteEntry(source);
 
   // Registration itself lazy-loads Workbox Window. Keeping this tiny helper
@@ -108,6 +116,23 @@ const deferredModulePreloadPatterns = [
 
 const shouldDeferModulePreload = (dependencyPath: string) =>
   deferredModulePreloadPatterns.some((pattern) => pattern.test(dependencyPath));
+
+const institutionalDisabilityShell = () => ({
+  name: 'institutional-disability-shell',
+  enforce: 'post' as const,
+  transformIndexHtml: {
+    order: 'post' as const,
+    handler(html: string, context: { filename: string }) {
+      const normalizedFilename = context.filename.replaceAll('\\', '/');
+      if (!normalizedFilename.endsWith('/demo/institucional/tdf-discapacidad/index.html')) {
+        return html;
+      }
+      // This presentation is a separate white-label entry and must not expose
+      // the global Chatboc installation manifest.
+      return html.replace(/\s*<link\s+rel=["']manifest["'][^>]*>/gi, '');
+    },
+  },
+});
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -199,6 +224,7 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [
             /^\/(?:api|ask|archivos|public|socket\.io)(?:\/|$)/,
             /^\/(?:iframe|widget)(?:\/|$)/,
+            /^\/demo\/institucional\/tdf-discapacidad(?:\/|$)/,
             /^\/widget\.js$/,
             /^\/portal(?:\/|$)/,
             /^\/iframe\.html$/,
@@ -254,7 +280,8 @@ export default defineConfig(({ mode }) => {
             }
           ]
         }
-      })
+      }),
+      institutionalDisabilityShell(),
     ],
     server: {
       port: 5173,
@@ -332,6 +359,10 @@ export default defineConfig(({ mode }) => {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
           portal: path.resolve(__dirname, "portal/index.html"),
+          tdfDisabilityDemo: path.resolve(
+            __dirname,
+            "demo/institucional/tdf-discapacidad/index.html",
+          ),
         },
         output: {
           manualChunks(id) {

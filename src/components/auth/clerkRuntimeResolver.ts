@@ -2,6 +2,7 @@ import {
   DEFAULT_CLERK_RUNTIME,
   type ClerkRuntimeValue,
 } from '@/components/auth/ClerkRuntimeContext';
+import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
 
 export const CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS = 5_000;
 
@@ -33,6 +34,11 @@ export const isPublicPreviewPresentation = ({
     return false;
   }
 };
+
+export const isPublicClerkBypassPresentation = (
+  options: PublicPreviewPresentationOptions,
+): boolean =>
+  isDisabilityAIAgentDemoPath(options.pathname) || isPublicPreviewPresentation(options);
 
 interface ClerkEnvRuntimeOptions {
   allowEnvFallback: boolean;
@@ -122,12 +128,40 @@ export const buildPublicPreviewPresentationRuntime = (
   ],
 });
 
+export const buildPublicClerkBypassRuntime = (
+  publishableKey: string,
+): ClerkRuntimeValue => ({
+  ...buildClerkRuntimeFromEnv({
+    allowEnvFallback: false,
+    envEnabled: false,
+    loading: false,
+    publishableKey,
+  }),
+  configurationWarnings: [
+    {
+      code: 'public_clerk_bypass_presentation',
+      message: 'Clerk queda deshabilitado exclusivamente en esta presentación pública estática.',
+    },
+  ],
+});
+
 export const isPublicPreviewPresentationRuntime = (
   runtime: Pick<ClerkRuntimeValue, 'configurationWarnings'>,
 ): boolean =>
   Boolean(
     runtime.configurationWarnings?.some(
       (warning) => warning.code === 'public_preview_presentation',
+    ),
+  );
+
+export const isPublicClerkBypassRuntime = (
+  runtime: Pick<ClerkRuntimeValue, 'configurationWarnings'>,
+): boolean =>
+  Boolean(
+    runtime.configurationWarnings?.some(
+      (warning) =>
+        warning.code === 'public_preview_presentation' ||
+        warning.code === 'public_clerk_bypass_presentation',
     ),
   );
 
@@ -139,5 +173,5 @@ export const shouldReloadAfterPublicPreviewNavigation = ({
   runtime,
   ...location
 }: PublicPreviewExitOptions): boolean =>
-  isPublicPreviewPresentationRuntime(runtime) &&
-  !isPublicPreviewPresentation(location);
+  isPublicClerkBypassRuntime(runtime) !==
+  isPublicClerkBypassPresentation(location);

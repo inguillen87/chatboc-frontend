@@ -11,6 +11,9 @@ import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
 const ClerkSsoCallbackPage = React.lazy(() => import('@/pages/ClerkSsoCallbackPage'));
 const Demo = React.lazy(() => import('@/pages/Demo'));
+const DisabilityAIAgentDemoPage = React.lazy(
+  () => import('@/pages/public/DisabilityAIAgentDemoPage'),
+);
 const DemoCatalogDownloadPage = React.lazy(() => import('@/pages/DemoCatalogDownloadPage'));
 const Perfil = React.lazy(() => import('@/pages/Perfil'));
 const UserAccount = React.lazy(() => import('@/pages/UserAccount'));
@@ -34,6 +37,7 @@ import { buildTenantPath, TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getReservedPublicSlugRedirect } from '@/utils/publicRoutes';
 import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
+import { DISABILITY_AI_AGENT_DEMO_PATH } from '@/config/publicPresentationRoutes';
 const ProductCatalog = React.lazy(() => import('@/pages/ProductCatalog'));
 const MunicipalMessageMetrics = React.lazy(() => import('@/pages/MunicipalMessageMetrics'));
 const NotificationSettings = React.lazy(() => import('@/pages/NotificationSettings'));
@@ -532,6 +536,11 @@ const routes: RouteConfig[] = [
   { path: '/demo', element: <Demo /> },
   { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
+  {
+    path: DISABILITY_AI_AGENT_DEMO_PATH,
+    element: <DisabilityAIAgentDemoPage />,
+    allowGuest: true,
+  },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
   { path: '/casos', element: <Navigate to="/demo" replace /> },
   { path: '/casos-de-uso', element: <Navigate to="/demo" replace /> },

@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClerkBackendUnavailableRuntime,
+  buildPublicClerkBypassRuntime,
   buildPublicPreviewPresentationRuntime,
   buildClerkRuntimeFromEnv,
   isClerkOriginCompatible,
+  isPublicClerkBypassPresentation,
+  isPublicClerkBypassRuntime,
   isPublicPreviewPresentation,
   isPublicPreviewPresentationRuntime,
   shouldReloadAfterPublicPreviewNavigation,
@@ -96,6 +99,54 @@ describe('clerkRuntimeResolver', () => {
       pathname: '/demo',
       search: '?remote_preview_qa=1',
     })).toBe(false);
+  });
+
+  it('bypasses Clerk only for the exact static institutional presentation', () => {
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
+    })).toBe(true);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo/institucional/tdf-discapacidad/',
+      search: '',
+    })).toBe(true);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad/interno',
+      search: '',
+    })).toBe(false);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/otra-presentacion',
+      search: '',
+    })).toBe(false);
+  });
+
+  it('reloads when crossing either side of the public no-Clerk topology', () => {
+    const runtime = buildPublicClerkBypassRuntime('pk_live_public_key');
+
+    expect(isPublicClerkBypassRuntime(runtime)).toBe(true);
+    expect(runtime.enabled).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
+    })).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc.ar',
+      pathname: '/perfil',
+      search: '',
+    })).toBe(true);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime: { configurationWarnings: [] },
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
+    })).toBe(true);
   });
 
   it('keeps production fail-closed when the backend contract is unavailable', () => {

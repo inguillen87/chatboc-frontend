@@ -21,6 +21,7 @@
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
     "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:tdf-mobile": "playwright test --config=playwright.tdf-mobile.config.ts",
     "catalogs:generate": "node scripts/generateDemoCatalogs.mjs",
     "tools:twilio:version": "npx --yes twilio-cli --version",
     "tools:ngrok:version": "npx --yes ngrok --version"

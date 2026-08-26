@@ -16,6 +16,8 @@ const bootstrapMocks = vi.hoisted(() => ({
   publicMounts: vi.fn(),
   publicMutation: vi.fn(),
   publicUnmounts: vi.fn(),
+  anonId: vi.fn(),
+  widgetMounts: vi.fn(),
 }));
 
 const clerkMocks = vi.hoisted(() => ({
@@ -145,6 +147,15 @@ vi.mock('./routesConfig', async () => {
         allowGuest: true,
       },
       {
+        path: '/demo/institucional/tdf-discapacidad',
+        element: ReactModule.createElement(
+          'main',
+          { id: 'main-content', tabIndex: -1 },
+          'presentación institucional discapacidad',
+        ),
+        allowGuest: true,
+      },
+      {
         path: '/admin',
         element: ReactModule.createElement(Navigate, { to: '/perfil', replace: true }),
         requiresSession: true,
@@ -186,7 +197,7 @@ vi.mock('@/api/clerkAuth', () => ({
 }));
 
 vi.mock('@/utils/anonId', () => ({
-  ensureRemoteAnonId: vi.fn().mockResolvedValue('anon-test'),
+  ensureRemoteAnonId: bootstrapMocks.anonId,
 }));
 
 vi.mock('@/components/app-shell/AppShellStatusBar', () => ({
@@ -206,7 +217,10 @@ vi.mock('@/components/guidance/ScrollMascotGuide', () => ({
 }));
 
 vi.mock('@/components/chat/ChatWidget', () => ({
-  default: () => null,
+  default: () => {
+    bootstrapMocks.widgetMounts();
+    return null;
+  },
 }));
 
 import App from './App';
@@ -268,6 +282,8 @@ describe('App session bootstrap ordering', () => {
     bootstrapMocks.publicMounts.mockReset();
     bootstrapMocks.publicMutation.mockReset().mockResolvedValue({ ok: true });
     bootstrapMocks.publicUnmounts.mockReset();
+    bootstrapMocks.anonId.mockResolvedValue('anon-test');
+    bootstrapMocks.widgetMounts.mockReset();
   });
 
   it.each([
@@ -432,6 +448,27 @@ describe('App session bootstrap ordering', () => {
     expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
     expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
     expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+  });
+
+  it('mounts the exact institutional presentation standalone without Clerk, tenant or widget', async () => {
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    safeLocalStorage.setItem('tenantSlug', 'junin');
+    window.history.replaceState({}, '', '/demo/institucional/tdf-discapacidad');
+
+    render(<App />);
+
+    expect(
+      await screen.findByText('presentación institucional discapacidad'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.anonId).not.toHaveBeenCalled();
+    expectNoPrivateBootstrapCalls();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
   });
 
   it('reaches /403 from a sessionless tenant inbox with zero tenant, cart or private calls', async () => {

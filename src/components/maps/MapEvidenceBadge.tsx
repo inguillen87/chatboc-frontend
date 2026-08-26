@@ -19,6 +19,7 @@ export type MapEvidenceInput = {
   generatedAt?: string | null;
   empty?: boolean | null;
   label?: string | null;
+  syntheticDisclaimer?: string | null;
   metadata?: Record<string, unknown> | null;
   locationQuality?: Record<string, unknown> | null;
 };
@@ -38,6 +39,7 @@ export type MapEvidence = {
   updatedAt?: string;
   empty: boolean;
   label?: string;
+  syntheticDisclaimer?: string;
 };
 
 type BuildMapEvidenceArgs = {
@@ -184,6 +186,7 @@ export function buildMapEvidence({
     updatedAt: pickString(evidence?.updatedAt, evidence?.generatedAt, mergedMetadata.generated_at, mergedMetadata.updated_at),
     empty: Boolean(evidence?.empty) || pointCount + featureCount + cellCount === 0,
     label: pickString(evidence?.label),
+    syntheticDisclaimer: pickString(evidence?.syntheticDisclaimer),
   };
 }
 
@@ -279,7 +282,7 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
       ) : null}
       {variant === "synthetic" ? (
         <p className="mt-1 border-t border-amber-200/20 pt-1 text-[10px] leading-snug text-amber-100/90">
-          No representa datos municipales reales.
+          {normalized.syntheticDisclaimer ?? "No representa datos municipales reales."}
         </p>
       ) : null}
     </div>

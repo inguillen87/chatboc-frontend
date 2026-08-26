@@ -1,0 +1,52 @@
+.tdf-demo-skip-link {
+  position: fixed;
+  z-index: 100;
+  left: 1rem;
+  top: 0.75rem;
+  transform: translateY(-160%);
+  border-radius: 0.75rem;
+  background: #ffffff;
+  color: #0b4b47;
+  padding: 0.75rem 1rem;
+  font-weight: 800;
+  box-shadow: 0 12px 32px rgba(16, 47, 46, 0.24);
+}
+
+.tdf-demo-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid #0b5f58;
+  outline-offset: 3px;
+}
+
+.tdf-demo-large-text {
+  font-size: 112.5%;
+}
+
+.tdf-demo-high-contrast [data-testid='tdf-disability-demo'] {
+  filter: contrast(1.18);
+}
+
+.tdf-demo-high-contrast [data-testid='tdf-disability-demo'] :is(a, button, summary):focus-visible {
+  outline: 3px solid #ffbf00 !important;
+  outline-offset: 3px !important;
+}
+
+.tdf-demo-reduced-motion *,
+.tdf-demo-reduced-motion *::before,
+.tdf-demo-reduced-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+[data-testid='tdf-disability-demo'] .maplibregl-ctrl button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 639px) {
+  [data-testid='tdf-disability-demo'] section[id] {
+    scroll-margin-top: 8.5rem;
+  }
+}

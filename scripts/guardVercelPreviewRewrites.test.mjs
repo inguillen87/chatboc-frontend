@@ -38,6 +38,10 @@ const safePreviewConfig = () => ({
     { source: '/terminos', destination: '/terminos/index.html' },
     { source: '/eliminacion-datos', destination: '/eliminacion-datos/index.html' },
     {
+      source: '/demo/institucional/tdf-discapacidad',
+      destination: '/demo/institucional/tdf-discapacidad/index.html',
+    },
+    {
       source: '/((?!assets/|api/|ask/|archivos/|public/|socket.io/).*)',
       destination: '/index.html',
     },

@@ -44,6 +44,21 @@ describe("MapEvidenceBadge", () => {
     expect(evidence.pointCount).toBe(2);
   });
 
+  it("supports a provincial synthetic disclaimer without changing the municipal default", () => {
+    render(
+      <MapEvidenceBadge
+        evidence={{
+          usingSyntheticPoints: true,
+          pointCount: 6,
+          syntheticDisclaimer: "No representa datos provinciales ni casos reales.",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("No representa datos provinciales ni casos reales.")).toBeInTheDocument();
+    expect(screen.queryByText("No representa datos municipales reales.")).not.toBeInTheDocument();
+  });
+
   it("surfaces aggregated cells when raw points are not shown", () => {
     render(
       <MapEvidenceBadge
