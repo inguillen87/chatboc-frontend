@@ -94,7 +94,7 @@ describe('Vercel routing contract', () => {
       '<meta property="og:image" content="https://faro-tdf.vercel.app/images/og-tdf-discapacidad.png" />',
     );
     expect(institutionalHtml).toContain(
-      '<link\n      rel="canonical"\n      href="https://faro-tdf.vercel.app/demo/institucional/tdf-discapacidad"',
+      '<link\n      rel="canonical"\n      href="https://faro-tdf.vercel.app/"',
     );
     expect(institutionalHtml).toContain(
       '<link rel="icon" type="image/webp" href="/branding/faro-agent-icon-v1.webp" />',
