@@ -9,6 +9,7 @@ const mapMocks = vi.hoisted(() => ({
   instances: [] as Array<{
     remove: ReturnType<typeof vi.fn>;
     resize: ReturnType<typeof vi.fn>;
+    setStyle: ReturnType<typeof vi.fn>;
     setPaintProperty: ReturnType<typeof vi.fn>;
     flyTo: ReturnType<typeof vi.fn>;
     jumpTo: ReturnType<typeof vi.fn>;
@@ -101,7 +102,7 @@ vi.mock("maplibre-gl", () => {
     setLayoutProperty(layerId: string, property: string, value: unknown) {
       mapMocks.layoutCalls.push([layerId, property, value]);
     }
-    setStyle() {}
+    setStyle = vi.fn();
     addImage() {}
     hasImage() {
       return false;
@@ -504,6 +505,30 @@ describe("MapLibreMap lifecycle", () => {
     map.emit("moveend");
     await new Promise((resolve) => window.setTimeout(resolve, 120));
     expect(secondCallback).not.toHaveBeenCalled();
+  });
+
+  it("does not rotate styles when teardown aborts an in-flight map request", async () => {
+    const { unmount } = render(
+      <MapLibreMap geoLayerConfig={configFor(sourceFor("teardown", -60.93))} />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    const map = mapMocks.instances[0];
+    map.remove.mockImplementation(() => {
+      map.emit("error", {
+        resourceType: "style",
+        error: {
+          name: "AbortError",
+          message: "signal is aborted without reason",
+          status: 0,
+        },
+      });
+    });
+
+    unmount();
+
+    expect(map.remove).toHaveBeenCalledTimes(1);
+    expect(map.setStyle).not.toHaveBeenCalled();
   });
 
   it("keeps Google unloaded on the MapLibre route", async () => {

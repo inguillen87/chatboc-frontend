@@ -1248,7 +1248,7 @@ export default function MapLibreMap({
         };
 
         const cycleStyle = (reason?: string) => {
-          if (tileStyle || exhaustedStyles || styleCandidates.length === 0) {
+          if (!isMounted || tileStyle || exhaustedStyles || styleCandidates.length === 0) {
             return;
           }
 
@@ -1267,7 +1267,10 @@ export default function MapLibreMap({
         };
 
         const handleStyleError = (event: any) => {
-          if (exhaustedStyles) return;
+          // MapLibre aborts in-flight style/tile requests as part of remove().
+          // Teardown is expected and must never start a fallback style cycle on
+          // an instance that is already being destroyed.
+          if (!isMounted || exhaustedStyles) return;
           const resourceType = event?.resourceType;
           const status = event?.error?.status ?? event?.error?.code;
           const message = event?.error?.message;

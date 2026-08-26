@@ -24,9 +24,18 @@ test.describe('remote Preview executive government demo', () => {
 
     const browserErrors: string[] = [];
     const apiFailures: string[] = [];
+    const clerkWarnings: string[] = [];
+    const clerkConfigRequests: string[] = [];
     page.on('pageerror', (error) => browserErrors.push(`pageerror: ${error.message}`));
     page.on('console', (message) => {
       if (message.type() === 'error') browserErrors.push(`console: ${message.text()}`);
+      if (message.type() === 'warning' && message.text().includes('[Clerk]')) {
+        clerkWarnings.push(message.text());
+      }
+    });
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/auth/clerk/config') clerkConfigRequests.push(url.toString());
     });
     page.on('response', (response) => {
       const url = new URL(response.url());
@@ -84,6 +93,14 @@ test.describe('remote Preview executive government demo', () => {
       scenario_scope: 'Junín, Mendoza',
     });
     const firstSurvey = payload.survey_voting.items[0];
+    expect(payload.survey_voting.total_available).toBe(9);
+    expect(
+      payload.survey_voting.items.slice(0, 3).map((survey: { slug?: string }) => survey.slug),
+    ).toEqual([
+      'demo-gobierno-junin-participa-prioridades-barriales',
+      'demo-gobierno-junin-90-dias-obras-servicios',
+      'demo-gobierno-junin-digital-tramites-atencion',
+    ]);
     const firstSurveyResults = firstSurvey.results;
     expect(payload.metrics.find((metric: { id?: string }) => metric.id === 'survey_valid_votes')?.value).toBe(
       firstSurveyResults.total_respuestas,
@@ -125,8 +142,8 @@ test.describe('remote Preview executive government demo', () => {
     await expect(panel.getByText('Revisión de señalización')).toBeVisible();
 
     await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
-    await expect(panel.getByText('6 encuestas demo')).toBeVisible();
-    const firstSurveyTrigger = panel.getByRole('button', { name: new RegExp(`^${firstSurvey.title}:`) });
+    await expect(panel.getByText('9 encuestas demo')).toBeVisible();
+    const firstSurveyTrigger = panel.getByRole('button').filter({ hasText: firstSurvey.title });
     await expect(firstSurveyTrigger).toBeVisible();
     if ((await firstSurveyTrigger.getAttribute('aria-expanded')) !== 'true') {
       await firstSurveyTrigger.click();
@@ -159,5 +176,7 @@ test.describe('remote Preview executive government demo', () => {
     await expect(panel.getByRole('heading', { level: 3, name: 'Encuestas y votaciones' })).toBeVisible();
     expect(apiFailures, apiFailures.join('\n')).toEqual([]);
     expect(browserErrors, browserErrors.join('\n')).toEqual([]);
+    expect(clerkWarnings, clerkWarnings.join('\n')).toEqual([]);
+    expect(clerkConfigRequests, clerkConfigRequests.join('\n')).toEqual([]);
   });
 });
