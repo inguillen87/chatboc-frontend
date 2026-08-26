@@ -360,7 +360,7 @@ test.describe('Faro TDF disability institutional demo', () => {
     }
 
     const pointDirectory = territory.getByTestId('tdf-map-point-directory');
-    await expect(pointDirectory).toHaveAccessibleName('Ubicaciones representativas disponibles');
+    await expect(pointDirectory).toHaveAccessibleName('Directorio territorial de muestra');
     const pointRows = pointDirectory.getByTestId(/^tdf-map-point-row-/);
     await expect(pointRows).toHaveCount(24);
     const rioGrandeCenter = pointRows.filter({
