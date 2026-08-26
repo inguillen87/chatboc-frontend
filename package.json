@@ -67,6 +67,7 @@
     "@types/google.maps": "^3.58.1",
     "@types/maplibre-gl": "^1.13.2",
     "@types/uuid": "^10.0.0",
+    "@vercel/functions": "3.9.5",
     "@vercel/speed-insights": "^1.2.0",
     "chart.js": "^4.5.0",
     "class-variance-authority": "^0.7.0",

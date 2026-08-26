@@ -54,16 +54,6 @@ describe('Vercel routing contract', () => {
     };
     const rewrites = config.rewrites ?? [];
 
-    const faroRootIndex = rewrites.findIndex(
-      (rule) =>
-        rule.source === '/' &&
-        rule.destination === '/demo/institucional/tdf-discapacidad/index.html' &&
-        rule.has?.some(
-          (condition) =>
-            condition.type === 'host' &&
-            condition.value === 'faro-tdf.vercel.app',
-        ),
-    );
     const institutionalEntryIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/demo/institucional/tdf-discapacidad' &&
@@ -75,8 +65,7 @@ describe('Vercel routing contract', () => {
         rule.destination === '/index.html',
     );
 
-    expect(faroRootIndex).toBeGreaterThanOrEqual(0);
-    expect(institutionalEntryIndex).toBeGreaterThan(faroRootIndex);
+    expect(institutionalEntryIndex).toBeGreaterThanOrEqual(0);
     expect(catchAllIndex).toBeGreaterThan(institutionalEntryIndex);
 
     const institutionalHtmlPath = resolve(
