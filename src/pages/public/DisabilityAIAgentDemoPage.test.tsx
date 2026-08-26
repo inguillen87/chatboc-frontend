@@ -1,6 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import DisabilityAIAgentDemoPage from './DisabilityAIAgentDemoPage';
 
@@ -20,6 +20,19 @@ vi.mock('@/components/MapLibreMap', () => ({
       Mapa conceptual MapLibre
     </div>
   ),
+}));
+
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-chart">{children}</div>,
+  AreaChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
+  BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Area: () => null,
+  Bar: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  CartesianGrid: () => null,
+  Cell: () => null,
+  Tooltip: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
 }));
 
 beforeAll(() => {
@@ -49,29 +62,35 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
+
 describe('DisabilityAIAgentDemoPage', () => {
   it('renders a truthful, white-label and explicitly multimodal executive proposal', async () => {
     render(<DisabilityAIAgentDemoPage />);
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Una puerta de entrada accesible',
-    );
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Faro: una puerta de entrada accesible');
     expect(screen.getAllByText('Demostración conceptual · datos representativos').length).toBeGreaterThan(0);
-    expect(screen.getByText('Identidad institucional configurable')).toBeInTheDocument();
+    expect(screen.getByText(/Tierra del Fuego · Identidad institucional configurable/)).toBeInTheDocument();
     expect(screen.getByText('WhatsApp + CRM sincronizados')).toBeInTheDocument();
     expect(screen.getByText('Tecnología licenciada · experiencia de marca blanca')).toBeInTheDocument();
     expect(screen.getByText('Responsive en iPhone y Android')).toBeInTheDocument();
     expect(screen.getByText(/Hecho por Marcelo Guillén, Ingeniero en Informática y Telecomunicaciones/i)).toBeInTheDocument();
-    expect(screen.getByText('Nota de voz · 00:24')).toBeInTheDocument();
+    expect(screen.getAllByText('Faro TDF').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Facilitador Accesible de Respuestas y Orientación/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Ver secuencia completa' }));
+    expect(screen.getAllByText('Nota de voz · 00:24').length).toBeGreaterThan(0);
     expect(screen.getByText('Transcripción accesible preparada')).toBeInTheDocument();
-    expect(screen.getByText('Guía CUD · PDF')).toBeInTheDocument();
-    expect(screen.getByText('Formulario guiado')).toBeInTheDocument();
+    expect(screen.getAllByText('Guía CUD · PDF').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Formulario guiado').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Orientación CUD').length).toBeGreaterThan(1);
     expect(screen.getByText('Muestra · 1ª respuesta en 4 min')).toBeInTheDocument();
     expect(screen.getByText('Ushuaia · muestra')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Para mí' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Hablar con una persona' }));
-    expect(screen.getByText(/atención humana registrada/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solicitud de atención humana registrada/i)).toBeInTheDocument();
 
     for (const input of ['Texto', 'Voz', 'Imagen', 'Documento', 'Ubicación']) {
       expect(screen.getAllByText(input).length).toBeGreaterThan(0);
@@ -100,6 +119,10 @@ describe('DisabilityAIAgentDemoPage', () => {
       '/propuestas/propuesta-ejecutiva-agente-ia-discapacidad-tdf.pdf',
     );
     expect(screen.queryByRole('form')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Dashboard' })[0]).toHaveAttribute('href', '#dashboard');
+    expect(screen.getByText('Matriz de canales y acciones')).toBeInTheDocument();
+    expect(screen.getAllByText('Llamada entrante').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Llamada saliente').length).toBeGreaterThan(0);
   });
 
   it('presents the five service axes, preventive alerts, accountable parties and conceptual KPIs', () => {
@@ -122,9 +145,6 @@ describe('DisabilityAIAgentDemoPage', () => {
       'cierre autónomo',
       'derivación humana',
       'completitud de preevaluación',
-      'tiempo de primera respuesta',
-      'tiempo medio de resolución',
-      'CSAT al cierre',
     ]) {
       expect(screen.getAllByText(metric).length).toBeGreaterThan(0);
     }
@@ -136,35 +156,38 @@ describe('DisabilityAIAgentDemoPage', () => {
     expect(screen.getByText('Fase 04')).toBeInTheDocument();
   });
 
-  it('keeps the three WhatsApp and CRM scenarios synchronized with keyboard tabs', () => {
+  it('keeps the five WhatsApp and CRM service axes synchronized with keyboard tabs', () => {
     render(<DisabilityAIAgentDemoPage />);
 
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
+    expect(tabs).toHaveLength(5);
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver secuencia completa' }));
     expect(screen.getByText('DEMO-DISC-0142')).toBeInTheDocument();
 
     fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
     expect(tabs[1]).toHaveFocus();
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver secuencia completa' }));
     expect(screen.getByText('DEMO-DISC-0187')).toBeInTheDocument();
     expect(screen.getByText(/RUPE, pensión y fe de vida/i)).toBeInTheDocument();
     expect(screen.getByText('Estado RUPE por validar')).toBeInTheDocument();
-    expect(screen.getByText('Captura compartida')).toBeInTheDocument();
+    expect(screen.getAllByText('Captura compartida').length).toBeGreaterThan(0);
     expect(screen.getByText('Muestra · callback en 30 min')).toBeInTheDocument();
 
-    fireEvent.keyDown(tabs[1], { key: 'End' });
+    fireEvent.keyDown(tabs[1], { key: 'ArrowRight' });
+    fireEvent.click(screen.getByRole('button', { name: 'Ver secuencia completa' }));
     expect(tabs[2]).toHaveFocus();
     expect(screen.getByText('DEMO-DISC-0214')).toBeInTheDocument();
     expect(screen.getByText('Revisión humana')).toBeInTheDocument();
     expect(screen.getByText('DER-DEMO-0214')).toBeInTheDocument();
     expect(screen.getByText('Encuesta final 1–5 · pendiente de cierre')).toBeInTheDocument();
-    expect(screen.getByText('Ubicación voluntaria')).toBeInTheDocument();
+    expect(screen.getAllByText('Ubicación voluntaria').length).toBeGreaterThan(0);
     expect(screen.getByText('Muestra · atención humana en 12 min')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tomar caso' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Simular toma' }));
     expect(screen.getByText(/caso tomado por el operador/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Preparar transferencia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Simular transferencia' }));
     expect(screen.getByText(/Transferencia preparada: Persona DEMO/i)).toBeInTheDocument();
     expect(screen.getByText(/contacto protegido/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar + CSAT' }));
@@ -172,11 +195,53 @@ describe('DisabilityAIAgentDemoPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '5 de 5' }));
     expect(screen.getByText(/Valoración de muestra registrada: 5 de 5/i)).toBeInTheDocument();
     expect(screen.getByText(/Cierre simulado auditado · CSAT 5\/5/i)).toBeInTheDocument();
-    expect(screen.getByText('Bandeja Mesa Única')).toBeInTheDocument();
-    expect(screen.getByText('SLA en riesgo 3')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
-    expect(screen.getByText('Inspector de muestra: Historial.')).toBeInTheDocument();
     expect(screen.getByTestId('crm-inspector-panel')).toHaveTextContent('Historial del caso');
+
+    fireEvent.keyDown(tabs[2], { key: 'End' });
+    expect(tabs[4]).toHaveFocus();
+    expect(tabs[4]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver secuencia completa' }));
+    expect(screen.getByText('DEMO-DISC-0273')).toBeInTheDocument();
+    expect(screen.getAllByText('CV de muestra').length).toBeGreaterThan(0);
+  });
+
+  it('advances deterministically, pauses and cleans its timer', async () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<DisabilityAIAgentDemoPage />);
+    const progress = screen.getByRole('progressbar', { name: /Progreso de sincronización/i });
+    expect(progress).toHaveAttribute('aria-valuenow', '0');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1450);
+    });
+    expect(progress).toHaveAttribute('aria-valuenow', '11');
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar demostración' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(14500);
+    });
+    expect(progress).toHaveAttribute('aria-valuenow', '11');
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente paso' }));
+    expect(progress).toHaveAttribute('aria-valuenow', '22');
+
+    unmount();
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(1);
+  });
+
+  it('offers dyslexia-friendly preferences and a non-networked Faro widget', () => {
+    render(<DisabilityAIAgentDemoPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir preferencias de accesibilidad' }));
+    const readingMode = screen.getByRole('button', { name: 'Lectura clara / dislexia' });
+    const spacingMode = screen.getByRole('button', { name: 'Espaciado amplio' });
+    fireEvent.click(readingMode);
+    fireEvent.click(spacingMode);
+    expect(document.documentElement).toHaveClass('tdf-demo-reading-friendly');
+    expect(document.documentElement).toHaveClass('tdf-demo-wide-spacing');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir chat de Faro' }));
+    expect(screen.getByRole('dialog', { name: 'Faro TDF' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'CUD y CMO' }));
+    expect(screen.getByText(/Quiero saber qué necesito para iniciar el CUD/i)).toBeInTheDocument();
   });
 
   it('offers a non-mutating map view control and preserves the simulation warning', async () => {
@@ -190,5 +255,8 @@ describe('DisabilityAIAgentDemoPage', () => {
       name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
     })).toHaveAttribute('data-heatmap', 'off');
     expect(screen.getByText(/no deben utilizarse para decisiones de política pública/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Río Grande' }));
+    expect(screen.getByText('8 ubicaciones simuladas')).toBeInTheDocument();
+    expect(screen.getAllByText(/Margen Sur/).length).toBeGreaterThan(0);
   });
 });

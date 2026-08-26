@@ -1,7 +1,10 @@
 import { chromium } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const outputPath = resolve(process.cwd(), 'public/images/og-tdf-discapacidad.png');
+const faroAssetPath = resolve(process.cwd(), 'public/branding/faro-agent-icon-v1.webp');
+const faroAsset = `data:image/webp;base64,${readFileSync(faroAssetPath).toString('base64')}`;
 
 const html = String.raw`<!doctype html>
 <html lang="es-AR">
@@ -22,7 +25,12 @@ const html = String.raw`<!doctype html>
       .left { display: flex; min-width: 0; flex-direction: column; }
       .kicker { display: inline-flex; width: fit-content; align-items: center; gap: 9px; padding: 8px 12px; border: 1px solid #9fc6bd; border-radius: 999px; background: rgba(255,255,255,.76); color: #08675f; font-size: 13px; font-weight: 800; letter-spacing: .06em; }
       .kicker-dot { width: 9px; height: 9px; border-radius: 50%; background: #11a594; box-shadow: 0 0 0 5px rgba(17,165,148,.12); }
-      h1 { margin: 24px 0 0; max-width: 480px; color: #102f2e; font-size: 46px; line-height: 1.02; letter-spacing: -.045em; font-weight: 720; }
+      .identity { display: flex; align-items: center; gap: 13px; margin-top: 17px; }
+      .identity-portrait { display: grid; width: 72px; height: 72px; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid #afccc4; border-radius: 20px; background: #0b4b47; box-shadow: 0 14px 34px rgba(16,61,57,.16); }
+      .identity-portrait img { width: 68px; height: 68px; object-fit: contain; }
+      .identity-copy strong { display: block; color: #103c38; font-size: 22px; letter-spacing: -.025em; }
+      .identity-copy span { display: block; margin-top: 4px; color: #4b6661; font-size: 13px; font-weight: 700; }
+      h1 { margin: 18px 0 0; max-width: 480px; color: #102f2e; font-size: 43px; line-height: 1.02; letter-spacing: -.045em; font-weight: 720; }
       .lead { margin: 20px 0 0; max-width: 462px; color: #4c625e; font-size: 18px; line-height: 1.46; }
       .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
       .chip { padding: 8px 11px; border: 1px solid #c6d7d2; border-radius: 10px; background: rgba(255,255,255,.9); color: #315550; font-size: 13px; font-weight: 700; }
@@ -32,7 +40,8 @@ const html = String.raw`<!doctype html>
       .window { height: 498px; overflow: hidden; border-radius: 21px; background: #fff; }
       .window-bar { display: flex; height: 57px; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid #d8e3df; background: #f8faf9; }
       .program { display: flex; align-items: center; gap: 10px; color: #173b38; font-size: 15px; font-weight: 800; }
-      .mark { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: #0b4b47; color: #fff; font-size: 18px; }
+      .mark { display: grid; width: 36px; height: 36px; place-items: center; overflow: hidden; border-radius: 11px; background: #0b4b47; }
+      .mark img { width: 34px; height: 34px; object-fit: contain; }
       .sample { padding: 7px 10px; border-radius: 999px; background: #e5f4ef; color: #087066; font-size: 11px; font-weight: 800; }
       .workspace { display: grid; grid-template-columns: 248px 1fr; height: 441px; }
       .phone { background: #edf4f1; border-right: 1px solid #cad9d4; }
@@ -74,7 +83,11 @@ const html = String.raw`<!doctype html>
     <main class="canvas">
       <section class="left">
         <div class="kicker"><span class="kicker-dot"></span> PROPUESTA EJECUTIVA · TIERRA DEL FUEGO</div>
-        <h1>Una puerta de entrada accesible para discapacidad</h1>
+        <div class="identity">
+          <span class="identity-portrait"><img src="${faroAsset}" alt="" /></span>
+          <span class="identity-copy"><strong>Faro TDF</strong><span>El agente que guía y acompaña</span></span>
+        </div>
+        <h1>Atención accesible, clara y conectada</h1>
         <p class="lead">WhatsApp y un CRM operativo trabajan sobre el mismo caso para orientar, derivar y acompañar sin volver a empezar.</p>
         <div class="chips">
           <span class="chip">WhatsApp + CRM</span>
@@ -90,12 +103,12 @@ const html = String.raw`<!doctype html>
       <section class="stage" aria-label="Vista de WhatsApp y CRM">
         <div class="window">
           <header class="window-bar">
-            <div class="program"><span class="mark">♿</span> Mesa Única de Discapacidad</div>
+            <div class="program"><span class="mark"><img src="${faroAsset}" alt="" /></span> Faro TDF · Mesa Única</div>
             <span class="sample">MUESTRA NAVEGABLE</span>
           </header>
           <div class="workspace">
             <div class="phone">
-              <div class="phone-head"><div><strong>Agente de IA</strong><span>WhatsApp accesible</span></div><b>•••</b></div>
+              <div class="phone-head"><div><strong>Faro TDF</strong><span>Agente de IA · WhatsApp accesible</span></div><b>•••</b></div>
               <div class="messages">
                 <div class="bubble">Hola. Puedo orientarte con CUD, RUPE, salud, educación o empleo. ¿Para quién es la consulta?</div>
                 <div class="bubble me">Necesito saber qué documentación llevar para renovar el CUD.</div>

@@ -38,10 +38,10 @@ def build_pdf(output: Path = OUTPUT) -> Path:
         writer.clone_document_from_reader(reader)
         writer.add_metadata(
             {
-                "/Title": "Propuesta ejecutiva | Agente de IA Accesible y Mesa Única",
+                "/Title": "Faro TDF | Agente de IA para Atención Ciudadana y Mesa Única",
                 "/Author": AUTHOR,
-                "/Subject": "MVP accesible de WhatsApp y CRM para la Mesa Única de Discapacidad de Tierra del Fuego",
-                "/Keywords": "Agente de IA, accesibilidad, discapacidad, Tierra del Fuego, WhatsApp, CRM, Mesa Única",
+                "/Subject": "Propuesta conceptual de WhatsApp y CRM accesibles para la Mesa Única de Discapacidad de Tierra del Fuego",
+                "/Keywords": "Faro TDF, Agente de IA, accesibilidad, discapacidad, Tierra del Fuego, WhatsApp, CRM, Mesa Única",
             }
         )
         with output.open("wb") as stream:

@@ -74,10 +74,10 @@ describe('Vercel routing contract', () => {
     );
     const institutionalHtml = readFileSync(institutionalHtmlPath, 'utf8');
     expect(institutionalHtml).toContain(
-      '<title>Agente de IA Accesible · Mesa Única de Discapacidad</title>',
+      '<title>Faro TDF · El agente que guía y acompaña</title>',
     );
     expect(institutionalHtml).toContain(
-      '<meta property="og:site_name" content="Mesa Única de Discapacidad" />',
+      '<meta property="og:site_name" content="Faro TDF" />',
     );
     expect(institutionalHtml).toContain(
       '<meta property="og:image" content="https://chatboc-r2-preview.vercel.app/images/og-tdf-discapacidad.png" />',
@@ -86,7 +86,7 @@ describe('Vercel routing contract', () => {
       '<link\n      rel="canonical"\n      href="https://chatboc-r2-preview.vercel.app/demo/institucional/tdf-discapacidad"',
     );
     expect(institutionalHtml).toContain(
-      '<link rel="icon" type="image/svg+xml" href="/images/tdf-disability-mark.svg" />',
+      '<link rel="icon" type="image/webp" href="/branding/faro-agent-icon-v1.webp" />',
     );
     const institutionalVisibleMetadata = institutionalHtml.replaceAll(
       'https://chatboc-r2-preview.vercel.app',
@@ -98,7 +98,7 @@ describe('Vercel routing contract', () => {
       resolve(process.cwd(), 'src/tdfDisabilityDemoEntry.tsx'),
       'utf8',
     );
-    expect(institutionalEntry).toContain("from './pages/public/DisabilityAIAgentDemoPage'");
+    expect(institutionalEntry).toContain("import('./pages/public/DisabilityAIAgentDemoPage')");
     expect(institutionalEntry).not.toMatch(/(?:import\s+['"]\.\/main['"]|setupPWA|<App\s*\/>)/);
 
     const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');

@@ -50,9 +50,10 @@ export type DemoScenario = {
     transfer: string;
   };
   citizenAsset: {
-    kind: "audio" | "image" | "location";
+    kind: "audio" | "image" | "location" | "document";
     label: string;
     detail: string;
+    transcript?: string;
   };
   deliverables: Array<{
     icon: DemoIconKey;
@@ -64,9 +65,12 @@ export type DemoScenario = {
 
 export const disabilityAIAgentDemoContent = {
   metadata: {
-    title: "Agente de IA de Discapacidad | Demostración ejecutiva",
+    title: "Faro TDF · El agente que guía y acompaña",
     description:
-      "Demostración conceptual de atención accesible por WhatsApp y gestión sincronizada en CRM para el área de discapacidad de Tierra del Fuego.",
+      "Demostración conceptual de Faro TDF: atención accesible por WhatsApp y gestión sincronizada en CRM para el área de discapacidad de Tierra del Fuego.",
+    image: "/images/og-tdf-discapacidad.png",
+    icon: "/branding/faro-agent-icon-v1.webp",
+    appleTouchIcon: "/branding/faro-agent-icon-v1.png",
   },
   truthNotice: {
     title: "Demostración conceptual · datos representativos",
@@ -76,10 +80,14 @@ export const disabilityAIAgentDemoContent = {
   brand: {
     entity: "Tierra del Fuego",
     program: "Atención integral en discapacidad",
-    product: "Agente de IA de Discapacidad",
+    product: "Faro TDF · Agente de IA Accesible",
+    agentName: "Faro",
+    agentMeaning: "Facilitador Accesible de Respuestas y Orientación",
+    slogan: "El agente que guía y acompaña",
     whiteLabel: "Identidad institucional configurable",
   },
   navigation: [
+    { label: "Dashboard", href: "#dashboard" },
     { label: "Atención", href: "#atencion" },
     { label: "Experiencia", href: "#experiencia" },
     { label: "Operación", href: "#operacion" },
@@ -88,7 +96,7 @@ export const disabilityAIAgentDemoContent = {
   ],
   hero: {
     eyebrow: "Propuesta ejecutiva · alcance exclusivo discapacidad",
-    title: "Una puerta de entrada accesible para orientar, gestionar y acompañar",
+    title: "Faro: una puerta de entrada accesible para orientar, gestionar y acompañar",
     description:
       "WhatsApp y el CRM trabajan sobre el mismo caso: la persona conversa en un canal conocido y el equipo recibe contexto, trazabilidad y próximos pasos en un centro operativo único.",
     primaryAction: { label: "Ver experiencia", href: "#experiencia" },
@@ -100,7 +108,7 @@ export const disabilityAIAgentDemoContent = {
       "Marca blanca configurable",
       "Responsive en iPhone y Android",
     ],
-    visualLabel: "Vista sincronizada de muestra",
+    visualLabel: "Faro en acción · WhatsApp y CRM",
   },
   scenarios: [
     {
@@ -135,6 +143,7 @@ export const disabilityAIAgentDemoContent = {
         kind: "audio",
         label: "Nota de voz · 00:24",
         detail: "Transcripción accesible preparada",
+        transcript: "Necesito saber qué papeles me faltan para iniciar el CUD sin viajar dos veces.",
       },
       deliverables: [
         { icon: "pdf", label: "Guía CUD · PDF", detail: "Documento de muestra" },
@@ -182,23 +191,23 @@ export const disabilityAIAgentDemoContent = {
       history: ["Imagen recibida", "Consulta separada por gestión", "Callback solicitado"],
     },
     {
-      id: "support",
-      tabLabel: "Caso complejo",
-      title: "Derivación humana con contexto completo",
-      citizenMessage: "Necesito ayuda con medicación, apoyo escolar y una gestión que no pude resolver.",
+      id: "health",
+      tabLabel: "Salud y apoyos",
+      title: "Salud, medicación y derivación con contexto",
+      citizenMessage: "Necesito ayuda con mi medicación y una derivación que no pude resolver.",
       roleChoice: "Para mí",
       agentMessages: [
-        "Organizo salud, farmacia, educación y apoyos en un mismo caso. La identidad solo se solicita si el trámite y una fuente oficial lo requieren.",
+        "Organizo salud, farmacia, terapias y apoyos en un mismo caso. La identidad solo se solicita si el trámite y una fuente oficial lo requieren.",
         "Por la complejidad, genero la derivación conceptual DER-DEMO-0214. Al cierre se ofrece una encuesta CSAT accesible de 1 a 5.",
       ],
       caseCode: "DEMO-DISC-0214",
-      category: "Salud · educación · apoyos",
+      category: "Salud · terapias · medicación",
       status: "Revisión humana",
       owner: "Equipo territorial",
       nextStep: "Ventana humana propuesta 09:00–13:00, con resumen y prioridad",
       audience: "Persona con discapacidad + red de apoyo",
-      checklist: ["Necesidad de salud", "Apoyo educativo", "Criterio de derivación"],
-      alert: "Seguimiento conceptual de farmacia y ciclo educativo",
+      checklist: ["Necesidad de salud", "Cobertura o farmacia", "Criterio de derivación"],
+      alert: "Seguimiento conceptual de farmacia, recetas y derivaciones",
       registration: "DER-DEMO-0214",
       csat: "Encuesta final 1–5 · pendiente de cierre",
       operational: {
@@ -220,6 +229,84 @@ export const disabilityAIAgentDemoContent = {
       ],
       history: ["Necesidad priorizada", "Ubicación consentida", "Derivación preparada"],
     },
+    {
+      id: "education",
+      tabLabel: "Educación y apoyos",
+      title: "Apoyos educativos y recreación accesible",
+      citizenMessage: "Busco apoyo escolar y una actividad recreativa accesible cerca de mi barrio.",
+      roleChoice: "Familia / red",
+      agentMessages: [
+        "Faro ordena la consulta por educación, apoyos y recreación, y ubica alternativas representativas por localidad.",
+        "La muestra prepara un catálogo territorial y deja una articulación humana lista, sin afirmar cupos ni disponibilidad real.",
+      ],
+      caseCode: "DEMO-DISC-0248",
+      category: "Educación · recreación · apoyos",
+      status: "Articulación preparada",
+      owner: "Inclusión educativa",
+      nextStep: "Compartir catálogo accesible y solicitar articulación con Educación",
+      audience: "Familia o red de apoyo",
+      checklist: ["Tipo de apoyo", "Localidad y zona general", "Preferencia de contacto"],
+      alert: "Aviso conceptual de inscripción y actividades accesibles",
+      registration: "REG-DEMO-EDU-0248",
+      csat: "Se ofrece al cierre · escala accesible 1–5",
+      operational: {
+        queue: "Educación y apoyos",
+        priority: "Media",
+        sla: "Muestra · articulación en 45 min",
+        locality: "Tolhuin · muestra",
+        attachments: "2 entregables",
+        transfer: "Disponible al equipo de inclusión",
+      },
+      citizenAsset: {
+        kind: "location",
+        label: "Zona general compartida",
+        detail: "Tolhuin · ubicación simulada y consentida",
+      },
+      deliverables: [
+        { icon: "catalog", label: "Catálogo de apoyos", detail: "Oferta territorial de muestra" },
+        { icon: "contact", label: "Articulación con Educación", detail: "Contacto conceptual" },
+      ],
+      history: ["Consulta educativa recibida", "Zona general consentida", "Articulación preparada"],
+    },
+    {
+      id: "employment",
+      tabLabel: "Trabajo y cursos",
+      title: "Inclusión laboral y formación accesible",
+      citizenMessage: "Quiero inscribirme para buscar trabajo y necesito ayuda para preparar mi CV.",
+      roleChoice: "Para mí",
+      agentMessages: [
+        "Faro separa inscripción, Ley 48, formación y apoyo para CV. En esta muestra no valida requisitos ni incorpora datos reales.",
+        "Puedo devolver un formulario guiado, una plantilla accesible y derivar la consulta al área competente conservando el contexto.",
+      ],
+      caseCode: "DEMO-DISC-0273",
+      category: "Inclusión laboral · Ley 48",
+      status: "Orientación preparada",
+      owner: "Trabajo e inclusión",
+      nextStep: "Entregar formulario guiado y opción de apoyo para CV",
+      audience: "Persona con discapacidad",
+      checklist: ["Interés laboral", "CUD por validar", "Apoyo para CV"],
+      alert: "Aviso conceptual de cursos y convocatorias accesibles",
+      registration: "REG-DEMO-LAB-0273",
+      csat: "Se ofrece al cierre · escala accesible 1–5",
+      operational: {
+        queue: "Inclusión laboral",
+        priority: "Media",
+        sla: "Muestra · orientación en 15 min",
+        locality: "Ushuaia · muestra",
+        attachments: "2 documentos",
+        transfer: "Disponible al área de Trabajo",
+      },
+      citizenAsset: {
+        kind: "document",
+        label: "CV de muestra",
+        detail: "Documento simulado · sin datos personales",
+      },
+      deliverables: [
+        { icon: "form", label: "Formulario Ley 48", detail: "Recorrido guiado de muestra" },
+        { icon: "document", label: "Plantilla de CV accesible", detail: "Documento conceptual" },
+      ],
+      history: ["Interés laboral registrado", "Documento identificado", "Orientación preparada"],
+    },
   ] satisfies DemoScenario[],
   experience: {
     eyebrow: "Experiencia omnicanal",
@@ -235,8 +322,8 @@ export const disabilityAIAgentDemoContent = {
       { icon: "location", label: "Ubicación", detail: "Pin territorial con consentimiento" },
     ] as { icon: DemoIconKey; label: string; detail: string }[],
     bridge: {
-      label: "Agente de IA",
-      title: "Comprende, ordena y registra",
+      label: "Faro TDF · Agente de IA",
+      title: "Comprende, ordena, orienta y registra",
       detail: "Sin cambiar de conversación",
     },
     outputsTitle: "El circuito puede devolver",
@@ -358,7 +445,7 @@ export const disabilityAIAgentDemoContent = {
       "El mapa combina ubicaciones de muestra y volumen representativo para mostrar cómo podrían detectarse patrones por zona sin exponer identidades personales.",
     mapTitle: "Mapa de demanda representativa",
     mapDescription:
-      "Seis ubicaciones simuladas en Tierra del Fuego. El color expresa volumen de interacciones de muestra, no personas ni casos reales.",
+      "Veinticuatro ubicaciones simuladas en Ushuaia, Río Grande y Tolhuin. El color expresa volumen de interacciones de muestra, no personas ni casos reales.",
     viewLabel: "Perspectiva territorial",
     views: {
       thematic: "Mapa de calor",
@@ -384,12 +471,32 @@ export const disabilityAIAgentDemoContent = {
     note:
       "Las cifras, categorías y coordenadas de esta sección son representativas y no deben utilizarse para decisiones de política pública.",
     points: [
-      { lat: -53.786, lng: -67.7, weight: 92, totalWeight: 92, categoria: "Orientación CUD", barrio: "Río Grande", canal: "WhatsApp", source: "conceptual_demo" },
-      { lat: -53.817, lng: -67.724, weight: 41, totalWeight: 41, categoria: "Accesibilidad y apoyos", barrio: "Margen Sur", canal: "WhatsApp", source: "conceptual_demo" },
-      { lat: -54.8019, lng: -68.303, weight: 78, totalWeight: 78, categoria: "RUPE y prestaciones", barrio: "Ushuaia", canal: "WhatsApp", source: "conceptual_demo" },
-      { lat: -54.833, lng: -68.36, weight: 45, totalWeight: 45, categoria: "Turnos y servicios", barrio: "Río Pipo", canal: "WhatsApp", source: "conceptual_demo" },
-      { lat: -54.51, lng: -67.195, weight: 28, totalWeight: 28, categoria: "Orientación CUD", barrio: "Tolhuin", canal: "WhatsApp", source: "conceptual_demo" },
-      { lat: -53.58, lng: -68.05, weight: 36, totalWeight: 36, categoria: "Accesibilidad y apoyos", barrio: "Zona norte", canal: "WhatsApp", source: "conceptual_demo" },
+      { lat: -54.8062, lng: -68.3031, weight: 58, totalWeight: 58, categoria: "CUD / CMO", barrio: "Centro", ciudad: "Ushuaia", canal: "WhatsApp", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.8327, lng: -68.3615, weight: 46, totalWeight: 46, categoria: "Salud y prestaciones", barrio: "Río Pipo", ciudad: "Ushuaia", canal: "WhatsApp", estado: "Derivación", tipo_ticket: "Reclamo", source: "conceptual_demo" },
+      { lat: -54.7869, lng: -68.326, weight: 34, totalWeight: 34, categoria: "Educación y apoyos", barrio: "Andorra", ciudad: "Ushuaia", canal: "Widget", estado: "Seguimiento", tipo_ticket: "Solicitud", source: "conceptual_demo" },
+      { lat: -54.8155, lng: -68.3212, weight: 29, totalWeight: 29, categoria: "RUPE y licencias", barrio: "Kuanip", ciudad: "Ushuaia", canal: "WhatsApp", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
+      { lat: -54.8205, lng: -68.3042, weight: 26, totalWeight: 26, categoria: "Salud y prestaciones", barrio: "Bahía Golondrina", ciudad: "Ushuaia", canal: "Llamada", estado: "Callback", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.7994, lng: -68.3276, weight: 24, totalWeight: 24, categoria: "Inclusión laboral", barrio: "San Vicente", ciudad: "Ushuaia", canal: "Widget", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.7944, lng: -68.3127, weight: 22, totalWeight: 22, categoria: "Educación y apoyos", barrio: "Los Fueguinos", ciudad: "Ushuaia", canal: "WhatsApp", estado: "Seguimiento", tipo_ticket: "Solicitud", source: "conceptual_demo" },
+      { lat: -54.8046, lng: -68.3174, weight: 20, totalWeight: 20, categoria: "CUD / CMO", barrio: "Sector Magallanes", ciudad: "Ushuaia", canal: "WhatsApp", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
+
+      { lat: -53.7865, lng: -67.7002, weight: 64, totalWeight: 64, categoria: "CUD / CMO", barrio: "Centro", ciudad: "Río Grande", canal: "WhatsApp", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -53.8169, lng: -67.7238, weight: 52, totalWeight: 52, categoria: "Salud y prestaciones", barrio: "Margen Sur", ciudad: "Río Grande", canal: "WhatsApp", estado: "Derivación", tipo_ticket: "Reclamo", source: "conceptual_demo" },
+      { lat: -53.769, lng: -67.7116, weight: 39, totalWeight: 39, categoria: "RUPE y licencias", barrio: "Chacra II", ciudad: "Río Grande", canal: "Widget", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
+      { lat: -53.7753, lng: -67.726, weight: 35, totalWeight: 35, categoria: "Educación y apoyos", barrio: "Chacra IV", ciudad: "Río Grande", canal: "WhatsApp", estado: "Seguimiento", tipo_ticket: "Solicitud", source: "conceptual_demo" },
+      { lat: -53.7989, lng: -67.7166, weight: 31, totalWeight: 31, categoria: "Inclusión laboral", barrio: "AGP", ciudad: "Río Grande", canal: "WhatsApp", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -53.781, lng: -67.7382, weight: 28, totalWeight: 28, categoria: "Salud y prestaciones", barrio: "CGT", ciudad: "Río Grande", canal: "Llamada", estado: "Callback", tipo_ticket: "Reclamo", source: "conceptual_demo" },
+      { lat: -53.7665, lng: -67.7339, weight: 25, totalWeight: 25, categoria: "CUD / CMO", barrio: "Mutual", ciudad: "Río Grande", canal: "Widget", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
+      { lat: -53.7935, lng: -67.6898, weight: 23, totalWeight: 23, categoria: "RUPE y licencias", barrio: "INTEVU", ciudad: "Río Grande", canal: "WhatsApp", estado: "Seguimiento", tipo_ticket: "Consulta", source: "conceptual_demo" },
+
+      { lat: -54.5106, lng: -67.1953, weight: 34, totalWeight: 34, categoria: "CUD / CMO", barrio: "Centro", ciudad: "Tolhuin", canal: "WhatsApp", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.5156, lng: -67.2044, weight: 25, totalWeight: 25, categoria: "Salud y prestaciones", barrio: "9 de Octubre", ciudad: "Tolhuin", canal: "WhatsApp", estado: "Derivación", tipo_ticket: "Reclamo", source: "conceptual_demo" },
+      { lat: -54.5053, lng: -67.1886, weight: 21, totalWeight: 21, categoria: "Educación y apoyos", barrio: "Provincias Unidas", ciudad: "Tolhuin", canal: "Widget", estado: "Seguimiento", tipo_ticket: "Solicitud", source: "conceptual_demo" },
+      { lat: -54.5017, lng: -67.2019, weight: 18, totalWeight: 18, categoria: "RUPE y licencias", barrio: "Altos de la Montaña", ciudad: "Tolhuin", canal: "WhatsApp", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
+      { lat: -54.5177, lng: -67.1833, weight: 16, totalWeight: 16, categoria: "Inclusión laboral", barrio: "Laguna Khami", ciudad: "Tolhuin", canal: "Llamada", estado: "Callback", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.5241, lng: -67.1968, weight: 14, totalWeight: 14, categoria: "Salud y prestaciones", barrio: "Zona del Lago", ciudad: "Tolhuin", canal: "WhatsApp", estado: "Seguimiento", tipo_ticket: "Solicitud", source: "conceptual_demo" },
+      { lat: -54.5071, lng: -67.2122, weight: 12, totalWeight: 12, categoria: "Educación y apoyos", barrio: "Sector Norte", ciudad: "Tolhuin", canal: "Widget", estado: "Orientado", tipo_ticket: "Consulta", source: "conceptual_demo" },
+      { lat: -54.5128, lng: -67.1774, weight: 10, totalWeight: 10, categoria: "CUD / CMO", barrio: "Sector Este", ciudad: "Tolhuin", canal: "WhatsApp", estado: "Preevaluación", tipo_ticket: "Trámite", source: "conceptual_demo" },
     ] satisfies HeatPoint[],
     center: [-67.9, -54.2] as [number, number],
     fitToBounds: [
@@ -407,8 +514,10 @@ export const disabilityAIAgentDemoContent = {
       "Navegación completa por teclado y foco visible",
       "Etiquetas y estructura semántica para tecnologías de asistencia",
       "Contraste legible y objetivos táctiles de al menos 44 px",
-      "Animaciones reducidas cuando el dispositivo lo solicita",
-      "Alternativas de texto, voz, imagen, documento y ubicación",
+      "Texto grande, alto contraste, espaciado amplio y modo de lectura clara configurable",
+      "Animaciones reducidas y reproducción manual cuando el dispositivo lo solicita",
+      "Transcripción de audios, lectura en voz alta y mensajes en lenguaje claro",
+      "Alternativas de texto, voz, imagen, documento, ubicación, llamada y atención humana",
     ],
     controlsTitle: "Controles previstos",
     controlsItems: [

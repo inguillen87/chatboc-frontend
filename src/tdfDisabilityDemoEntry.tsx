@@ -1,8 +1,12 @@
+import { lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import './index.css';
 import './tdfDisabilityDemo.css';
-import DisabilityAIAgentDemoPage from './pages/public/DisabilityAIAgentDemoPage';
+
+const DisabilityAIAgentDemoPage = lazy(
+  () => import('./pages/public/DisabilityAIAgentDemoPage'),
+);
 
 const GLOBAL_APP_SW_PATH = '/sw.js';
 const RELOAD_GUARD = 'institutional-demo-sw-detached';
@@ -42,7 +46,29 @@ const mountInstitutionalDemo = () => {
   const container = document.getElementById('root');
   if (!container) throw new Error('No se encontro el contenedor de la demostracion institucional.');
 
-  createRoot(container).render(<DisabilityAIAgentDemoPage />);
+  createRoot(container).render(
+    <Suspense
+      fallback={(
+        <main
+          aria-busy="true"
+          aria-label="Cargando la demostración de Faro TDF"
+          style={{
+            minHeight: '100vh',
+            display: 'grid',
+            placeItems: 'center',
+            background: '#f4f7f5',
+            color: '#173a38',
+            fontFamily: 'system-ui, sans-serif',
+            fontWeight: 700,
+          }}
+        >
+          Preparando la experiencia accesible…
+        </main>
+      )}
+    >
+      <DisabilityAIAgentDemoPage />
+    </Suspense>,
+  );
 };
 
 void detachGlobalAppServiceWorker()

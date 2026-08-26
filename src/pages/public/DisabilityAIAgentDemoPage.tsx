@@ -1,8 +1,10 @@
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 import {
   Accessibility,
+  Activity,
+  AlignLeft,
   ArrowRight,
   BarChart3,
   BellRing,
@@ -24,13 +26,36 @@ import {
   MapPin,
   MessageCircle,
   Mic,
+  Pause,
   Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Play,
+  RotateCcw,
   Route,
+  Send,
   ShieldCheck,
+  SkipForward,
+  Sparkles,
   UserRound,
   Users,
+  Volume2,
+  VolumeX,
   WalletCards,
+  X,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import {
@@ -68,6 +93,24 @@ const iconByKey: Record<DemoIconKey, LucideIcon> = {
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#087f73] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f7f5]';
+
+const DEMO_FINAL_STEP = 9;
+const DEMO_STEP_MS = 1450;
+const FARO_ASSET = '/branding/faro-agent-accessible-v1.webp';
+const FARO_ICON_ASSET = '/branding/faro-agent-icon-v1.webp';
+
+const demoStepLabels = [
+  'Canal listo',
+  'Consulta recibida',
+  'Adjunto accesible',
+  'Procesamiento simulado',
+  'Categoría y prioridad',
+  'Respuesta en preparación',
+  'Orientación enviada',
+  'Entregables enviados',
+  'Seguimiento y derivación',
+  'CSAT disponible',
+] as const;
 
 type RevealProps = {
   children: React.ReactNode;
@@ -119,21 +162,62 @@ const InstitutionalAccessibilityControls = ({
   const [open, setOpen] = React.useState(false);
   const [largeText, setLargeText] = React.useState(false);
   const [highContrast, setHighContrast] = React.useState(false);
+  const [readingFriendly, setReadingFriendly] = React.useState(false);
+  const [wideSpacing, setWideSpacing] = React.useState(false);
+  const [readingFocus, setReadingFocus] = React.useState(false);
+  const [speaking, setSpeaking] = React.useState(false);
+  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
   React.useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle('tdf-demo-large-text', largeText);
     root.classList.toggle('tdf-demo-high-contrast', highContrast);
+    root.classList.toggle('tdf-demo-reading-friendly', readingFriendly);
+    root.classList.toggle('tdf-demo-wide-spacing', wideSpacing);
+    root.classList.toggle('tdf-demo-reading-focus', readingFocus);
     root.classList.toggle('tdf-demo-reduced-motion', reducedMotion);
 
     return () => {
-      root.classList.remove('tdf-demo-large-text', 'tdf-demo-high-contrast', 'tdf-demo-reduced-motion');
+      root.classList.remove(
+        'tdf-demo-large-text',
+        'tdf-demo-high-contrast',
+        'tdf-demo-reading-friendly',
+        'tdf-demo-wide-spacing',
+        'tdf-demo-reading-focus',
+        'tdf-demo-reduced-motion',
+      );
     };
-  }, [largeText, highContrast, reducedMotion]);
+  }, [largeText, highContrast, readingFriendly, wideSpacing, readingFocus, reducedMotion]);
+
+  React.useEffect(() => () => {
+    if (speechSupported) window.speechSynthesis.cancel();
+  }, [speechSupported]);
+
+  const toggleReadAloud = () => {
+    if (!speechSupported) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const readableText = document.querySelector('main')?.textContent?.replace(/\s+/g, ' ').trim();
+    if (!readableText) return;
+    const utterance = new SpeechSynthesisUtterance(readableText.slice(0, 8500));
+    utterance.lang = 'es-AR';
+    utterance.rate = 0.9;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
+  };
 
   const preferences = [
     { label: 'Texto grande', pressed: largeText, toggle: () => setLargeText((value) => !value) },
     { label: 'Alto contraste', pressed: highContrast, toggle: () => setHighContrast((value) => !value) },
+    { label: 'Lectura clara / dislexia', pressed: readingFriendly, toggle: () => setReadingFriendly((value) => !value) },
+    { label: 'Espaciado amplio', pressed: wideSpacing, toggle: () => setWideSpacing((value) => !value) },
+    { label: 'Foco de lectura', pressed: readingFocus, toggle: () => setReadingFocus((value) => !value) },
     { label: 'Reducir movimiento', pressed: reducedMotion, toggle: () => onReducedMotionChange(!reducedMotion) },
   ];
 
@@ -147,7 +231,7 @@ const InstitutionalAccessibilityControls = ({
           aria-label="Preferencias de accesibilidad"
         >
           <p className="px-1 text-sm font-bold text-[#173a38]">Accesibilidad</p>
-          <p className="mt-1 px-1 text-xs leading-5 text-[#4d625d]">Ajustes locales para esta demostración.</p>
+          <p className="mt-1 px-1 text-xs leading-5 text-[#4d625d]">Preferencias locales. No se guardan ni se envían.</p>
           <div className="mt-3 grid gap-2">
             {preferences.map(({ label, pressed, toggle }) => (
               <button
@@ -164,6 +248,19 @@ const InstitutionalAccessibilityControls = ({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            disabled={!speechSupported}
+            aria-pressed={speaking}
+            className={`${focusRing} mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0b5f58] px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50`}
+            onClick={toggleReadAloud}
+          >
+            {speaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+            {speaking ? 'Detener lectura' : 'Escuchar contenido'}
+          </button>
+          <p className="mt-2 px-1 text-[11px] leading-4 text-[#61736f]">
+            El modo de lectura cambia tipografía, espaciado y ancho de línea; no presupone una única necesidad visual.
+          </p>
         </div>
       ) : null}
       <button
@@ -624,7 +721,401 @@ const ScenarioWorkspace = ({
   );
 };
 
-const ConceptualTerritoryMap = ({ mapView }: { mapView: 'thematic' | 'geographic' }) => {
+const InteractiveScenarioWorkspace = ({
+  scenario,
+  activeScenario,
+  onScenarioChange,
+  reduceMotion,
+}: {
+  scenario: DemoScenario;
+  activeScenario: string;
+  onScenarioChange: (scenarioId: string) => void;
+  reduceMotion: boolean;
+}) => {
+  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const workspaceRef = React.useRef<HTMLDivElement | null>(null);
+  const [hasEnteredViewport, setHasEnteredViewport] = React.useState(false);
+  const [step, setStep] = React.useState(0);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [mobilePane, setMobilePane] = React.useState<'chat' | 'crm'>('chat');
+  const [selectedRole, setSelectedRole] = React.useState<'Para mí' | 'Familia / red'>(scenario.roleChoice);
+  const [notice, setNotice] = React.useState('');
+  const [inspectorView, setInspectorView] = React.useState('Resumen');
+  const [audioPlaying, setAudioPlaying] = React.useState(false);
+  const [csatOpen, setCsatOpen] = React.useState(false);
+  const [csatRating, setCsatRating] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    setStep(0);
+    setIsPlaying(hasEnteredViewport && !reduceMotion);
+    setMobilePane('chat');
+    setSelectedRole(scenario.roleChoice);
+    setNotice('');
+    setInspectorView('Resumen');
+    setAudioPlaying(false);
+    setCsatOpen(false);
+    setCsatRating(null);
+  }, [scenario.id, scenario.roleChoice]);
+
+  React.useEffect(() => {
+    const element = workspaceRef.current;
+    if (!element) return undefined;
+    if (typeof IntersectionObserver === 'undefined') {
+      setHasEnteredViewport(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setHasEnteredViewport(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.22, rootMargin: '0px 0px -8% 0px' },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  React.useEffect(() => {
+    if (hasEnteredViewport && !reduceMotion && step === 0) setIsPlaying(true);
+  }, [hasEnteredViewport, reduceMotion, step]);
+
+  React.useEffect(() => {
+    if (reduceMotion) setIsPlaying(false);
+  }, [reduceMotion]);
+
+  React.useEffect(() => {
+    const pauseWhenHidden = () => {
+      if (document.hidden) setIsPlaying(false);
+    };
+    document.addEventListener('visibilitychange', pauseWhenHidden);
+    return () => document.removeEventListener('visibilitychange', pauseWhenHidden);
+  }, []);
+
+  React.useEffect(() => {
+    if (!hasEnteredViewport || !isPlaying || step >= DEMO_FINAL_STEP) return undefined;
+    const timer = window.setTimeout(() => {
+      setStep((current) => Math.min(DEMO_FINAL_STEP, current + 1));
+    }, DEMO_STEP_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasEnteredViewport, isPlaying, step]);
+
+  React.useEffect(() => {
+    if (step >= DEMO_FINAL_STEP) setIsPlaying(false);
+  }, [step]);
+
+  const progress = Math.round((step / DEMO_FINAL_STEP) * 100);
+  const currentLabel = demoStepLabels[step] ?? demoStepLabels[0];
+  const visibleHistory = scenario.history.slice(0, Math.max(0, Math.min(scenario.history.length, step - 3)));
+  const crmStatus = step < 1
+    ? 'Esperando evento'
+    : step < 3
+      ? 'Ingreso registrado'
+      : step < 4
+        ? 'Procesamiento simulado'
+        : step < 6
+          ? 'Clasificado'
+          : scenario.status;
+
+  const eventRows = [
+    { at: 1, label: 'Mensaje recibido', detail: 'Caso creado desde WhatsApp', icon: MessageCircle },
+    { at: 2, label: 'Adjunto accesible', detail: scenario.citizenAsset.label, icon: scenario.citizenAsset.kind === 'audio' ? Mic : scenario.citizenAsset.kind === 'location' ? MapPin : scenario.citizenAsset.kind === 'image' ? ImageIcon : FileText },
+    { at: 4, label: 'Clasificación asistida', detail: `${scenario.category} · ${scenario.operational.priority}`, icon: Sparkles },
+    { at: 6, label: 'Respuesta enviada', detail: 'Orientación entregada en el mismo hilo', icon: Send },
+    { at: 7, label: 'Entregables', detail: scenario.deliverables.map((item) => item.label).join(' · '), icon: FileText },
+    { at: 8, label: 'Continuidad humana', detail: 'Llamada o transferencia disponible', icon: PhoneOutgoing },
+  ];
+
+  const inspectorContent: Record<string, { title: string; detail: string }> = {
+    Resumen: { title: 'Resumen operativo', detail: step >= 4 ? `${crmStatus} · ${scenario.operational.priority} · ${scenario.operational.queue}.` : 'El resumen se completa a medida que avanza la secuencia.' },
+    Persona: { title: 'Persona y red de apoyo', detail: step >= 2 ? `Persona DEMO · ${selectedRole} · identidad protegida · ${scenario.operational.locality}.` : 'Sin identidad ni datos personales en esta muestra.' },
+    Trámite: { title: 'Trámite y próximo paso', detail: step >= 6 ? `${scenario.category}. ${scenario.nextStep}` : 'Motivo todavía en clasificación conceptual.' },
+    Adjuntos: { title: 'Adjuntos y entregables', detail: step >= 7 ? `${scenario.operational.attachments}. ${scenario.deliverables.map((item) => item.label).join(' · ')}.` : step >= 2 ? scenario.citizenAsset.label : 'Todavía no hay adjuntos.' },
+    Historial: { title: 'Historial del caso', detail: visibleHistory.length ? visibleHistory.join(' · ') : 'El historial aparecerá evento por evento.' },
+  };
+
+  const focusScenario = React.useCallback((index: number) => {
+    const target = content.scenarios[index];
+    if (!target) return;
+    onScenarioChange(target.id);
+    tabRefs.current[index]?.focus();
+  }, [onScenarioChange]);
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Home') return focusScenario(0);
+    if (event.key === 'End') return focusScenario(content.scenarios.length - 1);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    focusScenario((index + direction + content.scenarios.length) % content.scenarios.length);
+  };
+
+  const restart = () => {
+    setStep(0);
+    setIsPlaying(!reduceMotion);
+    setNotice('Secuencia reiniciada.');
+    setAudioPlaying(false);
+    setCsatOpen(false);
+    setCsatRating(null);
+  };
+
+  const revealAll = () => {
+    setStep(DEMO_FINAL_STEP);
+    setIsPlaying(false);
+    setNotice('Secuencia completa visible.');
+  };
+
+  const motionProps = reduceMotion
+    ? { initial: false as const, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0 }, transition: { duration: 0.28 } };
+
+  return (
+    <div ref={workspaceRef} className="overflow-hidden rounded-[1.75rem] border border-[#b7cac5] bg-white shadow-[0_28px_80px_-48px_rgba(18,60,57,0.48)]" data-testid="interactive-scenario-workspace">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5e1] bg-[#f8faf9] px-4 py-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <motion.img
+            src={FARO_ICON_ASSET}
+            alt=""
+            className="h-12 w-12 shrink-0 object-contain"
+            width="48"
+            height="48"
+            initial={reduceMotion ? false : { opacity: 0.72, scale: 0.94, rotate: -3 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.48, ease: 'easeOut' }}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-[#173a38]">{content.brand.product}</p>
+            <p className="truncate text-xs text-[#647775]">{content.brand.agentMeaning}</p>
+          </div>
+        </div>
+        <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-[#9fc6bd] bg-[#eaf6f2] px-3 text-xs font-bold text-[#086c62]">
+          <span className={`h-2 w-2 rounded-full ${isPlaying ? 'bg-[#12a594]' : 'bg-[#d2a23c]'}`} aria-hidden="true" />
+          Secuencia local · sin conexión a CRM
+        </span>
+      </div>
+
+      <div className="border-b border-[#dbe5e1] bg-white px-3 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0b5f58] px-3 text-xs font-bold text-white disabled:opacity-45`} onClick={() => setIsPlaying((value) => !value)} disabled={step >= DEMO_FINAL_STEP} aria-label={isPlaying ? 'Pausar demostración' : 'Reanudar demostración'}>
+            {isPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+            {isPlaying ? 'Pausar' : step >= DEMO_FINAL_STEP ? 'Finalizada' : 'Reanudar'}
+          </button>
+          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c5d5d0] bg-white px-3 text-xs font-bold text-[#315550] disabled:opacity-45`} onClick={() => { setIsPlaying(false); setStep((current) => Math.min(DEMO_FINAL_STEP, current + 1)); }} disabled={step >= DEMO_FINAL_STEP} aria-label="Siguiente paso">
+            <SkipForward className="h-4 w-4" aria-hidden="true" />Siguiente
+          </button>
+          <button type="button" className={`${focusRing} inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c5d5d0] bg-white px-3 text-xs font-bold text-[#315550]`} onClick={restart} aria-label="Reproducir nuevamente">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />Reiniciar
+          </button>
+          <button type="button" className={`${focusRing} min-h-11 rounded-xl border border-[#c5d5d0] bg-[#f5f8f7] px-3 text-xs font-bold text-[#315550]`} onClick={revealAll}>Ver secuencia completa</button>
+          <span className="ml-auto text-xs font-bold text-[#315550]">Paso {step} de {DEMO_FINAL_STEP} · {currentLabel}</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e2ebe8]" role="progressbar" aria-label="Progreso de sincronización WhatsApp a CRM" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`Paso ${step} de ${DEMO_FINAL_STEP}: ${currentLabel}`}>
+          <motion.div className="h-full rounded-full bg-[linear-gradient(90deg,#0b766d,#2bb7a4)]" animate={{ width: `${progress}%` }} transition={{ duration: reduceMotion ? 0 : 0.3 }} />
+        </div>
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{`Paso ${step}: ${currentLabel}`}</p>
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto border-b border-[#dbe5e1] bg-white p-2 [scrollbar-width:thin]" role="tablist" aria-label="Cinco ejes de atención accesible">
+        {content.scenarios.map((item, index) => (
+          <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`interactive-scenario-tab-${item.id}`} type="button" role="tab" aria-selected={activeScenario === item.id} aria-controls="interactive-scenario-panel" tabIndex={activeScenario === item.id ? 0 : -1} className={`${focusRing} min-h-11 shrink-0 rounded-xl px-3.5 text-left text-xs font-bold transition-colors ${activeScenario === item.id ? 'bg-[#dff2ed] text-[#075f57]' : 'text-[#5d6f6d] hover:bg-[#f1f5f3]'}`} onClick={() => onScenarioChange(item.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}>
+            {item.tabLabel}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 border-b border-[#dbe5e1] bg-[#edf4f1] p-2 xl:hidden" role="group" aria-label="Vista móvil sincronizada">
+        {([['chat', 'Conversación'], ['crm', `CRM · ${progress}%`]] as const).map(([pane, label]) => (
+          <button key={pane} type="button" aria-pressed={mobilePane === pane} className={`${focusRing} min-h-11 rounded-xl text-xs font-bold ${mobilePane === pane ? 'bg-[#0b5f58] text-white' : 'bg-white text-[#315550]'}`} onClick={() => setMobilePane(pane)}>{label}</button>
+        ))}
+      </div>
+
+      <div id="interactive-scenario-panel" role="tabpanel" aria-labelledby={`interactive-scenario-tab-${scenario.id}`} className="grid min-h-[34rem] xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
+        <section className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} min-w-0 flex-col bg-[#edf4f1] xl:flex`} aria-label="Conversación de WhatsApp representativa">
+          <header className="flex items-center justify-between gap-3 border-b border-[#c8d8d3] bg-[#0b4b47] px-4 py-3 text-white sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <motion.img
+                src={FARO_ICON_ASSET}
+                alt=""
+                className="h-10 w-10 shrink-0 object-contain"
+                width="40"
+                height="40"
+                animate={reduceMotion ? undefined : isPlaying ? { scale: [1, 1.05, 1], y: [0, -2, 0] } : { scale: 1, y: 0 }}
+                transition={reduceMotion ? undefined : { duration: 2.2, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
+              />
+              <div className="min-w-0"><p className="truncate text-sm font-semibold">Faro TDF</p><p className="text-xs text-white/75">Agente de IA · WhatsApp conceptual</p></div>
+            </div>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold">Muestra</span>
+          </header>
+
+          <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5" role="log" aria-label="Mensajes de la secuencia simulada">
+            <p className="mx-auto rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#637471] shadow-sm">Caso de muestra · sin datos personales</p>
+            <div className="max-w-[92%] rounded-2xl rounded-bl-md bg-white px-3.5 py-3 text-sm text-[#274541] shadow-sm">
+              <p className="font-semibold">¿Para quién es la consulta?</p>
+              <div className="mt-2 flex flex-wrap gap-2" aria-label="Rol de la persona en la consulta">
+                {(['Para mí', 'Familia / red'] as const).map((role) => <button key={role} type="button" aria-pressed={selectedRole === role} className={`${focusRing} min-h-11 rounded-full border px-3 text-xs font-bold ${selectedRole === role ? 'border-[#0b665e] bg-[#dff2ed] text-[#075f57]' : 'border-[#c7d5d1] bg-[#f7faf8] text-[#506560]'}`} onClick={() => { setSelectedRole(role); setNotice(`Rol de muestra seleccionado: ${role}.`); }}>{role}</button>)}
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-[#526863]">La orientación general continúa sin pedir DNI.</p>
+            </div>
+
+            <AnimatePresence initial={false}>
+              {step >= 1 ? <motion.div key="citizen-message" {...motionProps} className="ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-[#d8f5dc] px-3.5 py-3 text-sm leading-6 text-[#183833] shadow-sm">{scenario.citizenMessage}</motion.div> : null}
+              {step >= 2 ? (
+                <motion.div key="citizen-asset" {...motionProps} className="ml-auto w-[88%] max-w-sm overflow-hidden rounded-2xl rounded-br-md border border-[#b9d2ca] bg-[#d8f5dc] shadow-sm">
+                  {scenario.citizenAsset.kind === 'audio' ? (
+                    <div>
+                      <button type="button" className={`${focusRing} flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left`} aria-label={audioPlaying ? 'Pausar audio simulado' : 'Reproducir audio simulado'} onClick={() => { setAudioPlaying((value) => !value); setIsPlaying(false); setNotice('Audio simulado: reproducción local, sin sonido real ni datos personales.'); }}>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0b5f58] text-white">{audioPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}</span>
+                        <span className="min-w-0 flex-1"><span className="flex h-5 items-center gap-1" aria-hidden="true">{[8,14,10,18,12,16,9,15,7,12,6,10].map((height,index) => <span key={`${height}-${index}`} className={`w-1 rounded-full bg-[#3d8179] ${audioPlaying && !reduceMotion ? 'animate-pulse' : ''}`} style={{ height }} />)}</span><span className="mt-1 block text-xs font-bold text-[#214b46]">{scenario.citizenAsset.label}</span><span className="block text-[11px] text-[#4b625d]">{scenario.citizenAsset.detail}</span></span>
+                      </button>
+                      <details className="border-t border-[#b9d2ca] bg-white/70 px-3.5 py-2"><summary className={`${focusRing} min-h-11 cursor-pointer py-2 text-xs font-bold text-[#214b46]`}>Ver transcripción accesible</summary><p className="pb-2 text-xs leading-5 text-[#4b625d]">{scenario.citizenAsset.transcript ?? scenario.citizenAsset.detail}</p></details>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)]">
+                      <span className="grid min-h-20 place-items-center bg-[linear-gradient(145deg,#b8d8cf,#7fb6aa)] text-[#0b4b47]" aria-hidden="true">{scenario.citizenAsset.kind === 'image' ? <ImageIcon className="h-6 w-6" /> : scenario.citizenAsset.kind === 'location' ? <MapPin className="h-6 w-6" /> : <FileText className="h-6 w-6" />}</span>
+                      <span className="min-w-0 px-3 py-3"><span className="block text-xs font-bold text-[#214b46]">{scenario.citizenAsset.label}</span><span className="mt-1 block text-[11px] leading-4 text-[#4b625d]">{scenario.citizenAsset.detail}</span></span>
+                    </div>
+                  )}
+                </motion.div>
+              ) : null}
+              {step >= 3 && step < 6 ? <motion.div key="typing" {...motionProps} className="flex w-fit items-center gap-2 rounded-2xl rounded-bl-md bg-white px-3.5 py-3 text-xs font-semibold text-[#526863] shadow-sm"><span className="flex gap-1" aria-hidden="true"><span className="h-1.5 w-1.5 rounded-full bg-[#0b766d]" /><span className="h-1.5 w-1.5 rounded-full bg-[#0b766d]" /><span className="h-1.5 w-1.5 rounded-full bg-[#0b766d]" /></span>Faro está {step < 4 ? 'procesando el formato' : 'preparando una respuesta'}…</motion.div> : null}
+              {step >= 6 ? <motion.div key="agent-one" {...motionProps} className="max-w-[92%] rounded-2xl rounded-bl-md bg-white px-3.5 py-3 text-sm leading-6 text-[#274541] shadow-sm">{scenario.agentMessages[0]}</motion.div> : null}
+              {step >= 7 ? <motion.div key="agent-two" {...motionProps} className="max-w-[92%] rounded-2xl rounded-bl-md bg-white px-3.5 py-3 text-sm leading-6 text-[#274541] shadow-sm">{scenario.agentMessages[1]}</motion.div> : null}
+            </AnimatePresence>
+
+            {step >= 7 ? <div className="grid max-w-[94%] gap-2 sm:grid-cols-2" aria-label="Entregables simulados">{scenario.deliverables.map((deliverable) => { const DeliverableIcon = iconByKey[deliverable.icon]; return <button key={deliverable.label} type="button" className={`${focusRing} flex min-h-14 min-w-0 items-center gap-2.5 rounded-xl border border-[#cad9d4] bg-white p-3 text-left shadow-sm`} onClick={() => setNotice(`${deliverable.label}: vista conceptual preparada.`)}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#e6f2ee] text-[#087a70]" aria-hidden="true"><DeliverableIcon className="h-4 w-4" /></span><span className="min-w-0"><span className="block text-xs font-bold text-[#214b46]">{deliverable.label}</span><span className="mt-0.5 block text-[11px] leading-4 text-[#526863]">{deliverable.detail}</span></span></button>; })}</div> : null}
+
+            {step >= 8 ? <div className="grid gap-2 sm:grid-cols-2" aria-label="Telefonía y atención humana simuladas"><button type="button" className={`${focusRing} flex min-h-14 items-center gap-3 rounded-xl border border-[#b8cec8] bg-white p-3 text-left`} onClick={() => setNotice('Llamada entrante simulada registrada en el historial del CRM.')}><PhoneIncoming className="h-5 w-5 text-[#087a70]" aria-hidden="true" /><span><span className="block text-xs font-bold">Llamada entrante</span><span className="text-[11px] text-[#526863]">Registrar contacto en el caso</span></span></button><button type="button" className={`${focusRing} flex min-h-14 items-center gap-3 rounded-xl border border-[#b8cec8] bg-white p-3 text-left`} onClick={() => setNotice('Devolución de llamada simulada preparada para el equipo humano.')}><PhoneOutgoing className="h-5 w-5 text-[#087a70]" aria-hidden="true" /><span><span className="block text-xs font-bold">Llamada saliente</span><span className="text-[11px] text-[#526863]">Preparar callback humano</span></span></button></div> : null}
+
+            {step >= 6 ? <div className="flex flex-wrap gap-1.5" aria-label="Controles accesibles de la conversación">{[['Hablar con una persona','Solicitud de atención humana registrada en la demostración.'],['Repetir','La última respuesta se repetiría en el formato accesible elegido.'],['Corregir','Podés corregir el dato anterior sin reiniciar el caso.'],['Volver','Volvemos al paso anterior y conservamos el contexto.']].map(([label,message]) => <button key={label} type="button" className={`${focusRing} min-h-11 rounded-full border border-[#b8cec8] bg-white px-3 text-[11px] font-bold text-[#315550]`} onClick={() => { if (label === 'Hablar con una persona') setStep((current) => Math.max(current, 8)); setNotice(message); }}>{label}</button>)}</div> : null}
+
+            {csatOpen ? <div className="max-w-[94%] rounded-2xl rounded-bl-md border border-[#b8cec8] bg-white p-3.5 shadow-sm" data-testid="csat-close-step"><p className="text-sm font-bold text-[#214b46]">¿Cómo fue la atención?</p><p className="mt-1 text-xs leading-5 text-[#526863]">Cierre accesible de muestra. Elegí una valoración del 1 al 5.</p><div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Valoración de satisfacción de 1 a 5">{[1,2,3,4,5].map((rating) => <button key={rating} type="button" aria-label={`${rating} de 5`} aria-pressed={csatRating === rating} className={`${focusRing} grid h-11 w-11 place-items-center rounded-full border text-sm font-bold ${csatRating === rating ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#b8cec8] bg-[#f7faf8] text-[#315550]'}`} onClick={() => { setCsatRating(rating); setNotice(`Valoración de muestra registrada: ${rating} de 5. Cierre simulado auditado · CSAT ${rating}/5.`); }}>{rating}</button>)}</div></div> : null}
+
+            <p className="min-h-4 text-[11px] leading-4 text-[#4b625d]">{notice}</p>
+            <button type="button" className={`${focusRing} mt-auto min-h-11 rounded-xl border border-[#9fc6bd] bg-white px-3 text-xs font-bold text-[#075f57] xl:hidden`} onClick={() => setMobilePane('crm')}>Ver CRM actualizado · {progress}%</button>
+          </div>
+        </section>
+
+        <section className={`${mobilePane === 'crm' ? 'block' : 'hidden'} min-w-0 bg-[#102d2c] p-4 text-white sm:p-5 xl:block`} aria-label="Caso CRM sincronizado representativo">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/12 pb-4"><div className="flex min-w-0 items-center gap-3"><img src={FARO_ICON_ASSET} alt="" className="h-11 w-11 shrink-0 object-contain" width="44" height="44" /><div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#7dd6c9]">Faro TDF · CRM Mesa Única</p><h2 className="mt-1 truncate text-lg font-semibold">{scenario.title}</h2><p className="mt-0.5 text-[11px] text-white/55">{content.brand.slogan}</p></div></div><span className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-1 text-xs font-semibold text-white/85">{step >= 1 ? scenario.caseCode : 'CASO PENDIENTE'}</span></div>
+
+          <div className="mt-3 rounded-xl border border-[#7dd6c9]/25 bg-[#123e3a] p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#8be0d3]">Actualización sincronizada</p><p className="mt-1 text-sm font-semibold">{currentLabel}</p></div><span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold">{progress}%</span></div><p className="mt-2 text-xs leading-5 text-white/65">Origen: Faro / WhatsApp · secuencia local demostrativa.</p></div>
+
+          <dl className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-5" aria-label="Control operativo del caso">{[['Estado',crmStatus],['Cola',step >= 4 ? scenario.operational.queue : 'Por clasificar'],['Prioridad',step >= 4 ? scenario.operational.priority : 'Pendiente'],['SLA',step >= 4 ? scenario.operational.sla : 'Sin iniciar'],['Localidad',step >= 2 ? scenario.operational.locality : 'Pendiente']].map(([label,value]) => <div key={label} className="min-w-0 rounded-xl border border-white/10 bg-black/10 p-2.5"><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</dt><dd className="mt-1 break-words text-xs font-semibold leading-4 text-white/90">{value}</dd></div>)}</dl>
+
+          <div className="mt-3 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black/10 p-1" role="group" aria-label="Vistas del inspector del caso CRM">{['Resumen','Persona','Trámite','Adjuntos','Historial'].map((view) => <button key={view} type="button" aria-pressed={inspectorView === view} className={`${focusRing} min-h-11 shrink-0 rounded-lg px-2.5 text-[11px] font-bold ${inspectorView === view ? 'bg-[#7dd6c9] text-[#073c38]' : 'text-white/70 hover:bg-white/[0.08]'}`} onClick={() => setInspectorView(view)}>{view}</button>)}</div>
+          <div className="mt-2 rounded-xl border border-[#7dd6c9]/20 bg-[#123e3a] p-3" data-testid="crm-inspector-panel"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8be0d3]">{inspectorContent[inspectorView]?.title}</p><p className="mt-1.5 text-xs leading-5 text-white/78">{inspectorContent[inspectorView]?.detail}</p></div>
+
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.045] p-3" aria-label="Eventos sincronizados del caso"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">Actividad multicanal</p><span className="text-[11px] font-semibold text-[#8be0d3]">{eventRows.filter((event) => step >= event.at).length}/{eventRows.length} eventos</span></div><ol className="mt-3 grid gap-2">{eventRows.map((event) => { const EventIcon = event.icon; const active = step >= event.at; return <li key={event.label} className={`flex items-start gap-3 rounded-lg border p-2.5 ${active ? 'border-[#64cbbb]/25 bg-[#64cbbb]/8' : 'border-white/8 bg-black/10 opacity-45'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${active ? 'bg-[#7dd6c9] text-[#073c38]' : 'bg-white/10 text-white/60'}`}><EventIcon className="h-4 w-4" aria-hidden="true" /></span><span><span className="block text-xs font-bold">{event.label}</span><span className="mt-0.5 block text-[11px] leading-4 text-white/60">{active ? event.detail : 'Pendiente en la secuencia'}</span></span></li>; })}</ol></div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">Responsable</p><p className="mt-1 text-xs font-semibold">{step >= 8 ? scenario.owner : 'Sin asignar'}</p></div><div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">Próximo paso</p><p className="mt-1 text-xs leading-5 text-white/80">{step >= 6 ? scenario.nextStep : 'Se definirá con la orientación'}</p></div></div>
+
+          {step >= 4 ? <div className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">Lista de cotejo orientativa</p><ul className="mt-2 grid gap-2 sm:grid-cols-3">{scenario.checklist.map((item) => <li key={item} className="flex items-start gap-2 text-[11px] leading-4 text-white/70"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8be0d3]" aria-hidden="true" /><span>{item}</span></li>)}</ul></div> : null}
+
+          {step >= DEMO_FINAL_STEP ? <dl className="mt-3 grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-white/[0.055] p-3"><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">Registro conceptual</dt><dd className="mt-1 text-xs font-semibold text-white/90">{scenario.registration}</dd></div><div className="rounded-xl border border-white/10 bg-white/[0.055] p-3"><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">CSAT al cierre</dt><dd className="mt-1 text-xs font-semibold leading-5 text-white/90">{scenario.csat}</dd></div></dl> : null}
+
+          <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={step < 6} className={`${focusRing} min-h-11 rounded-xl bg-[#7dd6c9] px-3 text-xs font-bold text-[#073c38] disabled:cursor-not-allowed disabled:opacity-40`} onClick={() => setNotice('Simulación: caso tomado por el operador de Mesa Única.')}>Simular toma</button><button type="button" disabled={step < 8} className={`${focusRing} min-h-11 rounded-xl border border-white/18 bg-white/[0.07] px-3 text-xs font-bold text-white disabled:opacity-40`} onClick={() => setNotice(`Transferencia preparada: Persona DEMO · ${scenario.operational.locality} · contacto protegido.`)}>Simular transferencia</button><button type="button" disabled={step < DEMO_FINAL_STEP} className={`${focusRing} min-h-11 rounded-xl border border-[#f1c96b]/35 bg-[#f1c96b]/10 px-3 text-xs font-bold text-[#f7dda0] disabled:opacity-40`} onClick={() => { setCsatOpen(true); setMobilePane('chat'); setNotice('Encuesta CSAT simulada enviada al mismo hilo.'); }}>Cerrar + CSAT</button></div>
+          <p className="mt-3 text-[11px] leading-5 text-white/55">Las acciones son demostrativas y no escriben en bases, telefonía ni servicios externos.</p>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+const ExecutiveDashboard = ({
+  reduceMotion,
+  onOpenScenario,
+}: {
+  reduceMotion: boolean;
+  onOpenScenario: (scenarioId: string) => void;
+}) => {
+  const demandTrend = [
+    { day: 'Lun', whatsapp: 32, widget: 9, calls: 5 },
+    { day: 'Mar', whatsapp: 41, widget: 11, calls: 7 },
+    { day: 'Mié', whatsapp: 38, widget: 13, calls: 9 },
+    { day: 'Jue', whatsapp: 52, widget: 15, calls: 8 },
+    { day: 'Vie', whatsapp: 49, widget: 12, calls: 11 },
+    { day: 'Sáb', whatsapp: 27, widget: 8, calls: 4 },
+    { day: 'Dom', whatsapp: 21, widget: 6, calls: 3 },
+  ];
+  const resolutionMix = [
+    { name: 'Orientación autónoma', value: 68, color: '#0b766d' },
+    { name: 'Derivación humana', value: 18, color: '#d5a52f' },
+    { name: 'Seguimiento', value: 14, color: '#6a7e79' },
+  ];
+  const capabilities = [
+    { label: 'Texto', detail: 'Consulta en lenguaje cotidiano', icon: MessageCircle, status: 'Entrada' },
+    { label: 'Nota de voz', detail: 'Audio con transcripción visible', icon: Mic, status: 'Entrada' },
+    { label: 'Imagen', detail: 'Captura o foto contextual', icon: ImageIcon, status: 'Entrada' },
+    { label: 'Ubicación', detail: 'Zona general con consentimiento', icon: MapPin, status: 'Entrada' },
+    { label: 'PDF y formulario', detail: 'Entrega accesible en el mismo hilo', icon: FileText, status: 'Salida' },
+    { label: 'Llamada entrante', detail: 'Registro y resumen en el caso', icon: PhoneIncoming, status: 'Telefonía' },
+    { label: 'Llamada saliente', detail: 'Callback humano preparado', icon: PhoneOutgoing, status: 'Telefonía' },
+    { label: 'Atención humana', detail: 'Transferencia con contexto completo', icon: Headphones, status: 'Equipo' },
+  ];
+
+  return (
+    <section id="dashboard" className="scroll-mt-24 border-b border-[#d9e3df] bg-[#0d2928] py-16 text-white sm:py-20" aria-labelledby="dashboard-title">
+      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-6 lg:px-10">
+        <Reveal reduceMotion={reduceMotion}>
+          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+            <div className="max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#88ded1]">Dashboard ejecutivo · muestra navegable</p>
+              <h2 id="dashboard-title" className="mt-3 text-balance text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Todo el circuito ciudadano, visible en un solo centro de control</h2>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-white/65">Cada texto, audio, imagen, ubicación, documento, llamada o derivación se convierte en un evento trazable. Los datos de esta sección son simulados y sirven para validar el MVP.</p>
+            </div>
+            <a href="#inicio" className={`${focusRing} inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#f3d98e] px-4 text-sm font-bold text-[#3e3218] focus-visible:ring-[#f3d98e] focus-visible:ring-offset-[#0d2928]`}>Ver conversación sincronizada <ArrowRight className="h-4 w-4" aria-hidden="true" /></a>
+          </div>
+        </Reveal>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores ejecutivos simulados">
+          {[['320','interacciones de muestra','WhatsApp, widget y llamadas'],['68%','resolución orientativa','Sin intervención humana'],['18%','derivación asistida','Casos complejos o solicitados'],['4,6 / 5','claridad percibida','CSAT conceptual al cierre']].map(([value,label,detail], index) => <Reveal key={label} reduceMotion={reduceMotion} delay={index * 0.035} className="rounded-2xl border border-white/12 bg-white/[0.055] p-4"><p className="text-3xl font-semibold tracking-[-0.04em] text-[#f5e1a8]">{value}</p><p className="mt-1 text-sm font-bold">{label}</p><p className="mt-2 text-xs text-white/55">{detail}</p></Reveal>)}
+        </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+          <Reveal reduceMotion={reduceMotion} className="rounded-[1.6rem] border border-white/12 bg-white/[0.055] p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-semibold">Demanda multicanal · 7 días</h3><p className="mt-1 text-xs text-white/55">Volumen representativo por canal; no son registros provinciales.</p></div><span className="rounded-full border border-[#7dd6c9]/25 bg-[#7dd6c9]/10 px-3 py-1 text-[11px] font-bold text-[#9ce4d9]">Recharts · muestra local</span></div>
+            <figure className="mt-5 h-72" aria-label="Gráfico de área de demanda simulada por WhatsApp, widget y llamadas durante siete días">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={demandTrend} accessibilityLayer margin={{ top: 8, right: 6, left: -22, bottom: 0 }}>
+                  <defs><linearGradient id="whatsappArea" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#7dd6c9" stopOpacity={0.55} /><stop offset="95%" stopColor="#7dd6c9" stopOpacity={0.02} /></linearGradient></defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.1)" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fill: 'rgba(255,255,255,.62)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,.5)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: '#102f2e', border: '1px solid rgba(255,255,255,.18)', borderRadius: 12, color: 'white' }} labelStyle={{ color: '#9ce4d9', fontWeight: 700 }} />
+                  <Area type="monotone" dataKey="whatsapp" name="WhatsApp" stroke="#7dd6c9" fill="url(#whatsappArea)" strokeWidth={3} isAnimationActive={!reduceMotion} />
+                  <Area type="monotone" dataKey="widget" name="Widget" stroke="#f3d98e" fill="transparent" strokeWidth={2} isAnimationActive={!reduceMotion} />
+                  <Area type="monotone" dataKey="calls" name="Llamadas" stroke="#9fb5ff" fill="transparent" strokeWidth={2} isAnimationActive={!reduceMotion} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </figure>
+            <table className="sr-only"><caption>Demanda simulada por día y canal</caption><thead><tr><th>Día</th><th>WhatsApp</th><th>Widget</th><th>Llamadas</th></tr></thead><tbody>{demandTrend.map((row) => <tr key={row.day}><th>{row.day}</th><td>{row.whatsapp}</td><td>{row.widget}</td><td>{row.calls}</td></tr>)}</tbody></table>
+          </Reveal>
+
+          <Reveal reduceMotion={reduceMotion} delay={0.05} className="rounded-[1.6rem] border border-white/12 bg-white/[0.055] p-4 sm:p-5">
+            <h3 className="text-lg font-semibold">Resultado de atención</h3><p className="mt-1 text-xs text-white/55">Distribución conceptual sobre 100 interacciones.</p>
+            <figure className="mt-5 h-72" aria-label="Gráfico de barras del resultado simulado de atención">
+              <ResponsiveContainer width="100%" height="100%"><BarChart data={resolutionMix} layout="vertical" accessibilityLayer margin={{ top: 10, right: 22, left: 4, bottom: 0 }}><CartesianGrid stroke="rgba(255,255,255,0.1)" horizontal={false} /><XAxis type="number" domain={[0,100]} tick={{ fill: 'rgba(255,255,255,.52)', fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="name" width={118} tick={{ fill: 'rgba(255,255,255,.72)', fontSize: 11 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: '#102f2e', border: '1px solid rgba(255,255,255,.18)', borderRadius: 12, color: 'white' }} formatter={(value) => [`${value}%`, 'Participación']} /><Bar dataKey="value" radius={[0,8,8,0]} isAnimationActive={!reduceMotion}>{resolutionMix.map((item) => <Cell key={item.name} fill={item.color} />)}</Bar></BarChart></ResponsiveContainer>
+            </figure>
+          </Reveal>
+        </div>
+
+        <Reveal reduceMotion={reduceMotion} delay={0.08} className="mt-5 rounded-[1.6rem] border border-white/12 bg-white/[0.055] p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">Matriz de canales y acciones</h3><p className="mt-1 text-xs text-white/55">Ejemplos funcionales del MVP; ninguna tarjeta ejecuta una integración externa.</p></div><span className="rounded-full bg-[#f3d98e]/12 px-3 py-1 text-[11px] font-bold text-[#f5e1a8]">8 capacidades demostrables</span></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{capabilities.map((item, index) => { const CapabilityIcon = item.icon; return <motion.div key={item.label} className="group rounded-xl border border-white/10 bg-black/10 p-3.5" whileHover={reduceMotion ? undefined : { y: -3, borderColor: 'rgba(125,214,201,.45)' }} transition={{ duration: 0.2 }}><div className="flex items-start justify-between gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#7dd6c9]/12 text-[#9ce4d9]"><CapabilityIcon className="h-5 w-5" aria-hidden="true" /></span><span className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white/55">{item.status}</span></div><p className="mt-3 text-sm font-bold">{item.label}</p><p className="mt-1 text-xs leading-5 text-white/55">{item.detail}</p>{index < content.scenarios.length ? <button type="button" className={`${focusRing} mt-3 min-h-11 w-full rounded-lg border border-white/10 px-2 text-xs font-bold text-[#9ce4d9] hover:bg-white/[0.06] focus-visible:ring-[#88ded1] focus-visible:ring-offset-[#0d2928]`} onClick={() => onOpenScenario(content.scenarios[index].id)}>Ver caso de muestra</button> : null}</motion.div>; })}</div>
+        </Reveal>
+      </div>
+    </section>
+  );
+};
+
+const ConceptualTerritoryMap = ({
+  mapView,
+  points,
+}: {
+  mapView: 'thematic' | 'geographic';
+  points: Array<(typeof content.territory.points)[number]>;
+}) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [shouldLoad, setShouldLoad] = React.useState(false);
 
@@ -648,6 +1139,16 @@ const ConceptualTerritoryMap = ({ mapView }: { mapView: 'thematic' | 'geographic
     return () => observer.disconnect();
   }, []);
 
+  const fitToBounds = React.useMemo(() => {
+    if (!points.length) return content.territory.fitToBounds;
+    const longitudes = points.map((point) => point.lng);
+    const latitudes = points.map((point) => point.lat);
+    return [
+      [Math.min(...longitudes), Math.min(...latitudes)],
+      [Math.max(...longitudes), Math.max(...latitudes)],
+    ] as [number, number][];
+  }, [points]);
+
   return (
     <div ref={containerRef} className="min-h-[25rem] sm:min-h-[30rem]" data-testid="tdf-map-viewport">
       {shouldLoad ? (
@@ -658,9 +1159,10 @@ const ConceptualTerritoryMap = ({ mapView }: { mapView: 'thematic' | 'geographic
             className="h-[25rem] rounded-none border-0 sm:h-[30rem]"
             center={content.territory.center}
             initialZoom={7}
-            fitToBounds={content.territory.fitToBounds}
+            fitToBounds={fitToBounds}
+            fitBoundsRequestKey={`${points.map((point) => `${point.ciudad}-${point.barrio}`).join('|')}-${mapView}`}
             boundsPadding={52}
-            heatmapData={[...content.territory.points]}
+            heatmapData={[...points]}
             showHeatmap={mapView === 'thematic'}
             showPoints
             disableClientClustering
@@ -672,7 +1174,7 @@ const ConceptualTerritoryMap = ({ mapView }: { mapView: 'thematic' | 'geographic
               provider: 'MapLibre',
               synthetic: true,
               usingSyntheticPoints: true,
-              pointCount: content.territory.points.length,
+              pointCount: points.length,
               syntheticDisclaimer: 'No representa datos provinciales ni casos reales.',
             }}
           />
@@ -686,14 +1188,148 @@ const ConceptualTerritoryMap = ({ mapView }: { mapView: 'thematic' | 'geographic
   );
 };
 
+const FaroChatWidget = ({
+  reduceMotion,
+  onOpenScenario,
+}: {
+  reduceMotion: boolean;
+  onOpenScenario: (scenarioId: string) => void;
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const [typing, setTyping] = React.useState(false);
+  const [selectedScenario, setSelectedScenario] = React.useState<string | null>(null);
+  const [citizenMessage, setCitizenMessage] = React.useState('');
+  const [agentMessage, setAgentMessage] = React.useState('');
+  const timerRef = React.useRef<number | null>(null);
+  const launcherRef = React.useRef<HTMLButtonElement | null>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+
+  const quickActions = [
+    { label: 'CUD y CMO', scenario: 'cud', prompt: 'Quiero saber qué necesito para iniciar el CUD.', response: 'Puedo ayudarte con una lista de cotejo clara, una guía PDF y la opción de atención humana. Esta muestra no solicita DNI ni documentos reales.' },
+    { label: 'RUPE y pensión', scenario: 'rupe', prompt: 'Necesito orientación sobre RUPE y fe de vida.', response: 'Voy a separar requisitos, fe de vida, licencias y próximos pasos. También puedo dejar preparada una devolución de llamada.' },
+    { label: 'Salud y medicación', scenario: 'health', prompt: 'Tengo un problema con medicación y necesito ayuda.', response: 'Voy a ordenar la urgencia, cobertura y derivación. Si el caso lo requiere, queda listo para el equipo humano con el contexto preservado.' },
+    { label: 'Trabajo y cursos', scenario: 'employment', prompt: 'Quiero buscar trabajo y preparar mi CV.', response: 'Puedo orientar sobre inclusión laboral, cursos y una plantilla de CV accesible, siempre sujeto a validación oficial.' },
+  ];
+
+  React.useEffect(() => () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const focusTimer = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setOpen(false);
+      window.requestAnimationFrame(() => launcherRef.current?.focus());
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  const closeWidget = () => {
+    setOpen(false);
+    window.requestAnimationFrame(() => launcherRef.current?.focus());
+  };
+
+  const runQuickAction = (action: (typeof quickActions)[number]) => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    setSelectedScenario(action.scenario);
+    setCitizenMessage(action.prompt);
+    setAgentMessage('');
+    setTyping(true);
+    const complete = () => {
+      setTyping(false);
+      setAgentMessage(action.response);
+      timerRef.current = null;
+    };
+    if (reduceMotion) complete();
+    else timerRef.current = window.setTimeout(complete, 680);
+  };
+
+  const openInCrm = () => {
+    if (!selectedScenario) return;
+    setOpen(false);
+    onOpenScenario(selectedScenario);
+  };
+
+  return (
+    <div className="tdf-faro-widget fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3">
+      <AnimatePresence>
+        {open ? (
+          <motion.aside
+            key="faro-widget-panel"
+            id="faro-widget-panel"
+            role="dialog"
+            aria-modal="false"
+            aria-labelledby="faro-widget-title"
+            className="max-h-[min(36rem,calc(100vh-7rem))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.5rem] border border-[#a9c4bd] bg-white shadow-[0_26px_80px_rgba(11,61,57,0.3)]"
+            initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: reduceMotion ? 0 : 0.24 }}
+          >
+            <header className="flex items-center gap-3 rounded-t-[1.45rem] bg-[#0b4b47] p-4 text-white">
+              <motion.img src={FARO_ICON_ASSET} alt="" className="h-14 w-14 shrink-0 object-contain" width="56" height="56" initial={reduceMotion ? false : { opacity: 0.7, rotate: 4, scale: 0.94 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} transition={{ duration: reduceMotion ? 0 : 0.4 }} />
+              <div className="min-w-0 flex-1"><p id="faro-widget-title" className="text-base font-bold">Faro TDF</p><p className="text-xs leading-5 text-white/72">{content.brand.slogan}</p></div>
+              <button ref={closeButtonRef} type="button" className={`${focusRing} grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white focus-visible:ring-white focus-visible:ring-offset-[#0b4b47]`} aria-label="Cerrar chat de Faro" onClick={closeWidget}><X className="h-5 w-5" aria-hidden="true" /></button>
+            </header>
+            <div className="p-4">
+              <span className="inline-flex rounded-full bg-[#edf5f2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#0b665e]">Muestra conceptual · no envía datos</span>
+              <div className="mt-3 rounded-2xl rounded-bl-md bg-[#edf4f1] p-3 text-sm leading-6 text-[#274541]">Hola, soy Faro. Elegí un tema y te muestro cómo una consulta podría pasar del chat al CRM.</div>
+              <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Consultas rápidas de Faro">{quickActions.map((action) => <button key={action.label} type="button" className={`${focusRing} min-h-12 rounded-xl border border-[#c8d8d3] bg-white px-2.5 text-xs font-bold text-[#315550] hover:bg-[#edf5f2]`} onClick={() => runQuickAction(action)}>{action.label}</button>)}</div>
+              {citizenMessage ? <div className="mt-3 ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-[#d8f5dc] p-3 text-sm leading-6 text-[#183833]">{citizenMessage}</div> : null}
+              <div role="status" aria-live="polite" aria-atomic="true">
+                {typing ? <div className="mt-3 w-fit rounded-2xl rounded-bl-md bg-[#edf4f1] px-3 py-2 text-xs font-semibold text-[#526863]">Faro está preparando la orientación…</div> : null}
+                {agentMessage ? <div className="mt-3 rounded-2xl rounded-bl-md bg-[#edf4f1] p-3 text-sm leading-6 text-[#274541]">{agentMessage}</div> : null}
+              </div>
+              {agentMessage ? <button type="button" className={`${focusRing} mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0b5f58] px-4 text-sm font-bold text-white`} onClick={openInCrm}><Activity className="h-4 w-4" aria-hidden="true" />Ver cómo llega al CRM</button> : null}
+              <p className="mt-3 text-[11px] leading-4 text-[#61736f]">No reemplaza información oficial ni atención profesional. La versión funcional requerirá fuentes, permisos y validaciones.</p>
+            </div>
+          </motion.aside>
+        ) : null}
+      </AnimatePresence>
+      <button ref={launcherRef} type="button" className={`${focusRing} flex min-h-14 items-center gap-2 rounded-full border border-white/40 bg-[#0b5f58] p-1.5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(11,61,57,0.34)] focus-visible:ring-[#f3d98e] focus-visible:ring-offset-2 sm:pl-2 sm:pr-4`} aria-label={open ? 'Cerrar chat de Faro' : 'Abrir chat de Faro'} aria-controls="faro-widget-panel" aria-expanded={open} onClick={() => { if (open) closeWidget(); else setOpen(true); }}><motion.img src={FARO_ICON_ASSET} alt="" className="h-11 w-11 object-contain" width="44" height="44" animate={reduceMotion || open ? undefined : { y: [0,-2,0] }} transition={reduceMotion || open ? undefined : { duration: 2.1, repeat: Infinity, repeatDelay: 4.2, ease: 'easeInOut' }} /><span className="hidden sm:inline">{open ? 'Cerrar' : 'Hablar con Faro'}</span></button>
+    </div>
+  );
+};
+
 const DisabilityAIAgentDemoPage = () => {
   const operatingSystemReducedMotion = useReducedMotion() ?? false;
   const [userReducedMotion, setUserReducedMotion] = React.useState(false);
   const shouldReduceMotion = operatingSystemReducedMotion || userReducedMotion;
   const [activeScenarioId, setActiveScenarioId] = React.useState(content.scenarios[0].id);
   const [mapView, setMapView] = React.useState<'thematic' | 'geographic'>('thematic');
+  const [cityFilter, setCityFilter] = React.useState('Todas');
+  const [categoryFilter, setCategoryFilter] = React.useState('Todas');
   const activeScenario =
     content.scenarios.find((scenario) => scenario.id === activeScenarioId) ?? content.scenarios[0];
+  const cityOptions = ['Todas', 'Ushuaia', 'Río Grande', 'Tolhuin'];
+  const categoryOptions = ['Todas', ...Array.from(new Set(content.territory.points.map((point) => point.categoria)))];
+  const filteredTerritoryPoints = React.useMemo(
+    () => content.territory.points.filter((point) =>
+      (cityFilter === 'Todas' || point.ciudad === cityFilter) &&
+      (categoryFilter === 'Todas' || point.categoria === categoryFilter)),
+    [cityFilter, categoryFilter],
+  );
+  const filteredTerritoryVolume = filteredTerritoryPoints.reduce((sum, point) => sum + (point.totalWeight ?? point.weight ?? 0), 0);
+  const topNeighborhoods = [...filteredTerritoryPoints]
+    .sort((left, right) => (right.totalWeight ?? right.weight ?? 0) - (left.totalWeight ?? left.weight ?? 0))
+    .slice(0, 6);
+
+  const openScenario = React.useCallback((scenarioId: string) => {
+    setActiveScenarioId(scenarioId);
+    window.requestAnimationFrame(() => {
+      document.getElementById('inicio')?.scrollIntoView({
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+  }, [shouldReduceMotion]);
 
   usePageMetadata(content.metadata);
 
@@ -716,12 +1352,12 @@ const DisabilityAIAgentDemoPage = () => {
       <header className="sticky top-0 z-40 border-b border-[#d8e3df] bg-[#f8faf9]">
         <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <a href="#inicio" className={`${focusRing} flex min-h-11 min-w-0 items-center gap-3 rounded-xl`}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#0b4b47] text-white" aria-hidden="true">
-              <Accessibility className="h-5 w-5" />
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#0b4b47] shadow-[0_8px_20px_-12px_rgba(11,75,71,0.9)]" aria-hidden="true">
+              <motion.img src={FARO_ICON_ASSET} alt="" className="h-10 w-10 object-contain" width="40" height="40" whileHover={shouldReduceMotion ? undefined : { rotate: -4, scale: 1.06 }} transition={{ duration: 0.2 }} />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-bold text-[#123b38]">{content.brand.program}</span>
-              <span className="block truncate text-[11px] font-medium text-[#526662]">{content.brand.entity} · propuesta conceptual</span>
+              <span className="block truncate text-sm font-bold text-[#123b38]">{content.brand.product}</span>
+              <span className="block truncate text-[11px] font-medium text-[#526662]">{content.brand.slogan}</span>
             </span>
           </a>
 
@@ -738,10 +1374,10 @@ const DisabilityAIAgentDemoPage = () => {
           </nav>
 
           <span className="hidden min-h-9 items-center rounded-full border border-[#bfd3cd] bg-white px-3 text-xs font-semibold text-[#46615e] sm:inline-flex">
-            {content.brand.whiteLabel}
+            {content.brand.entity} · {content.brand.whiteLabel}
           </span>
           <InstitutionalAccessibilityControls
-            reducedMotion={userReducedMotion}
+            reducedMotion={shouldReduceMotion}
             onReducedMotionChange={setUserReducedMotion}
           />
         </div>
@@ -767,6 +1403,21 @@ const DisabilityAIAgentDemoPage = () => {
         >
           <div className="relative mx-auto grid w-full max-w-[90rem] gap-10 px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)] xl:items-center xl:py-20">
             <Reveal reduceMotion={shouldReduceMotion}>
+              <div className="mb-6 inline-flex items-center gap-3 rounded-2xl border border-[#bfd4ce] bg-white/82 p-2.5 pr-4 shadow-[0_16px_44px_-32px_rgba(17,62,58,0.72)] backdrop-blur">
+                <motion.img
+                  src={FARO_ASSET}
+                  alt="Faro, identidad visual del Agente de IA accesible"
+                  className="h-14 w-14 shrink-0 object-contain"
+                  width="56"
+                  height="56"
+                  animate={shouldReduceMotion ? undefined : { y: [0, -3, 0], rotate: [0, -1.5, 0] }}
+                  transition={shouldReduceMotion ? undefined : { duration: 2.8, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }}
+                />
+                <div>
+                  <p className="text-sm font-extrabold text-[#103c38]">{content.brand.product}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#5b706c]">{content.brand.slogan}</p>
+                </div>
+              </div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#066b63]">{content.hero.eyebrow}</p>
               <h1 id="hero-title" className="mt-4 max-w-3xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.05em] text-[#102f2e] sm:text-5xl xl:text-[3.65rem]">
                 {content.hero.title}
@@ -802,14 +1453,17 @@ const DisabilityAIAgentDemoPage = () => {
             </Reveal>
 
             <Reveal reduceMotion={shouldReduceMotion} delay={0.08} className="min-w-0" >
-              <ScenarioWorkspace
+              <InteractiveScenarioWorkspace
                 scenario={activeScenario}
                 activeScenario={activeScenarioId}
                 onScenarioChange={setActiveScenarioId}
+                reduceMotion={shouldReduceMotion}
               />
             </Reveal>
           </div>
         </section>
+
+        <ExecutiveDashboard reduceMotion={shouldReduceMotion} onOpenScenario={openScenario} />
 
         <section id="atencion" className="scroll-mt-24 bg-white py-16 sm:py-20" aria-labelledby="service-model-title">
           <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-6 lg:px-10">
@@ -930,9 +1584,7 @@ const DisabilityAIAgentDemoPage = () => {
               </Reveal>
 
               <Reveal reduceMotion={shouldReduceMotion} delay={0.05} className="flex min-h-44 flex-col items-center justify-center rounded-[1.6rem] border border-[#8fbab1] bg-[#0c4b47] p-6 text-center text-white">
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10" aria-hidden="true">
-                  <Accessibility className="h-6 w-6" />
-                </span>
+                <motion.img src={FARO_ASSET} alt="" className="h-20 w-20 object-contain" width="80" height="80" initial={shouldReduceMotion ? false : { opacity: 0.75, scale: 0.92, rotate: -3 }} whileInView={{ opacity: 1, scale: 1, rotate: 0 }} viewport={{ once: true, amount: 0.45 }} transition={{ duration: shouldReduceMotion ? 0 : 0.5, ease: 'easeOut' }} />
                 <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-[#91dfd2]">{content.experience.bridge.label}</p>
                 <h3 className="mt-2 text-xl font-semibold">{content.experience.bridge.title}</h3>
                 <p className="mt-2 text-sm text-white/70">{content.experience.bridge.detail}</p>
@@ -1072,12 +1724,26 @@ const DisabilityAIAgentDemoPage = () => {
               />
             </Reveal>
 
+            <Reveal reduceMotion={shouldReduceMotion} className="mt-7 rounded-2xl border border-[#d4e0dc] bg-white p-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[#173c39]">Filtrar territorio simulado</p>
+                  <p className="mt-1 text-xs leading-5 text-[#5d716d]">Compará ciudades y motivos sin mezclar la muestra con datos oficiales.</p>
+                </div>
+                <div className="flex flex-col gap-3 lg:flex-row">
+                  <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Ciudad</p><div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar mapa por ciudad">{cityOptions.map((city) => <button key={city} type="button" aria-pressed={cityFilter === city} className={`${focusRing} min-h-11 rounded-xl border px-3 text-xs font-bold ${cityFilter === city ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#c9d8d4] bg-[#f7faf8] text-[#315550]'}`} onClick={() => setCityFilter(city)}>{city}</button>)}</div></div>
+                  <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Motivo</p><div className="flex max-w-3xl gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Filtrar mapa por motivo">{categoryOptions.map((category) => <button key={category} type="button" aria-pressed={categoryFilter === category} className={`${focusRing} min-h-11 shrink-0 rounded-xl border px-3 text-xs font-bold ${categoryFilter === category ? 'border-[#0b665e] bg-[#dff2ed] text-[#075f57]' : 'border-[#c9d8d4] bg-white text-[#315550]'}`} onClick={() => setCategoryFilter(category)}>{category}</button>)}</div></div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-[#315550]" aria-live="polite"><span className="rounded-full bg-[#e7f3ef] px-3 py-1.5">{filteredTerritoryPoints.length} ubicaciones simuladas</span><span className="rounded-full bg-[#f3eddd] px-3 py-1.5">Volumen ponderado {filteredTerritoryVolume}</span><span className="rounded-full bg-[#eef1f0] px-3 py-1.5">{cityFilter} · {categoryFilter}</span></div>
+            </Reveal>
+
             <div className="mt-9 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">
               <Reveal reduceMotion={shouldReduceMotion} className="overflow-hidden rounded-[1.6rem] border border-[#cbdcd7] bg-white">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#dce6e2] p-4 sm:p-5">
                   <div className="max-w-xl">
                     <h3 className="text-lg font-semibold text-[#173c39]">{content.territory.mapTitle}</h3>
-                    <p id="territory-map-description" className="mt-1 text-xs leading-5 text-[#687a77]">{content.territory.mapDescription}</p>
+                    <p id="territory-map-description" className="mt-1 text-xs leading-5 text-[#687a77]">{content.territory.mapDescription} Vista actual: {cityFilter}, {categoryFilter}.</p>
                   </div>
                   <div className="inline-flex rounded-xl border border-[#c9d8d4] bg-[#f2f6f4] p-1" role="group" aria-label={content.territory.viewLabel}>
                     {(['thematic', 'geographic'] as const).map((view) => (
@@ -1093,7 +1759,7 @@ const DisabilityAIAgentDemoPage = () => {
                     ))}
                   </div>
                 </div>
-                <ConceptualTerritoryMap mapView={mapView} />
+                <ConceptualTerritoryMap mapView={mapView} points={filteredTerritoryPoints} />
                 <p className="border-t border-[#dce6e2] bg-[#f8faf9] px-4 py-3 text-xs leading-5 text-[#5d706d] sm:px-5">
                   {content.territory.note}
                 </p>
@@ -1101,13 +1767,18 @@ const DisabilityAIAgentDemoPage = () => {
 
               <div className="grid gap-5">
                 <Reveal reduceMotion={shouldReduceMotion} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-                  {content.territory.metrics.map((metric) => (
+                  {content.territory.metrics.slice(0, 4).map((metric) => (
                     <div key={metric.label} className="rounded-2xl border border-[#d4e0dc] bg-white p-4">
                       <p className="text-3xl font-semibold tracking-[-0.04em] text-[#123c39]">{metric.value}</p>
                       <p className="mt-1 text-sm font-semibold text-[#31524e]">{metric.label}</p>
                       <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#536864]">{metric.detail}</p>
                     </div>
                   ))}
+                </Reveal>
+
+                <Reveal reduceMotion={shouldReduceMotion} delay={0.04} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
+                  <div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[#173c39]">Zonas con mayor intensidad</h3><p className="mt-1 text-xs leading-5 text-[#5d716d]">Ranking de la muestra filtrada.</p></div><MapPin className="h-5 w-5 text-[#087a70]" aria-hidden="true" /></div>
+                  {topNeighborhoods.length ? <ol className="mt-4 space-y-3">{topNeighborhoods.map((point, index) => { const value = point.totalWeight ?? point.weight ?? 0; const maxValue = topNeighborhoods[0]?.totalWeight ?? topNeighborhoods[0]?.weight ?? 1; return <li key={`${point.ciudad}-${point.barrio}`}><div className="flex items-end justify-between gap-3 text-xs"><span className="min-w-0"><span className="font-bold text-[#31524e]">{index + 1}. {point.barrio}</span><span className="ml-1 text-[#687a77]">· {point.ciudad}</span></span><span className="font-bold text-[#173c39]">{value}</span></div><div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#e5ece9]"><motion.div className="h-full rounded-full bg-[#168c7e]" initial={shouldReduceMotion ? false : { width: 0 }} whileInView={{ width: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }} viewport={{ once: true }} transition={{ duration: shouldReduceMotion ? 0 : 0.55 }} /></div></li>; })}</ol> : <p className="mt-4 rounded-xl bg-[#f7faf8] p-4 text-sm text-[#5d716d]">No hay puntos para esta combinación de filtros.</p>}
                 </Reveal>
 
                 <Reveal reduceMotion={shouldReduceMotion} delay={0.06} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
@@ -1138,6 +1809,11 @@ const DisabilityAIAgentDemoPage = () => {
                 </Reveal>
               </div>
             </div>
+
+            <Reveal reduceMotion={shouldReduceMotion} delay={0.08} className="mt-5 rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-semibold text-[#173c39]">Casos territoriales de muestra</h3><p className="mt-1 text-xs leading-5 text-[#5d716d]">Cómo se verían reclamos, consultas y trámites priorizados por zona.</p></div><span className="rounded-full border border-[#c9d8d4] bg-[#f7faf8] px-3 py-1 text-[11px] font-bold text-[#315550]">Sin personas ni domicilios reales</span></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{filteredTerritoryPoints.slice(0, 4).map((point, index) => <article key={`${point.ciudad}-${point.barrio}-case`} className="rounded-xl border border-[#dce6e2] bg-[#f8faf9] p-4"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#087a70]">DEMO-TERR-{String(index + 1).padStart(2, '0')}</span><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#526863]">{point.canal}</span></div><h4 className="mt-3 text-sm font-bold text-[#173c39]">{point.tipo_ticket} · {point.categoria}</h4><p className="mt-1 text-xs text-[#526863]">{point.barrio} · {point.ciudad}</p><div className="mt-3 flex items-center justify-between gap-2 border-t border-[#dce6e2] pt-3 text-[11px]"><span className="font-semibold text-[#526863]">Estado</span><span className="font-bold text-[#0b665e]">{point.estado}</span></div></article>)}</div>
+            </Reveal>
           </div>
         </section>
 
@@ -1345,6 +2021,7 @@ const DisabilityAIAgentDemoPage = () => {
           <p className="font-semibold">{content.footer.disclaimer}</p>
         </div>
       </footer>
+      <FaroChatWidget reduceMotion={shouldReduceMotion} onOpenScenario={openScenario} />
       </div>
     </>
   );
