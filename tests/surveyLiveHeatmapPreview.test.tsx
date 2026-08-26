@@ -31,7 +31,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-cells-count')).toHaveTextContent('1');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
     expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent(
-      'Densidad espacial relativa',
+      'Densidad y volumen combinados',
     );
     expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('Centro');
     expect(preview).not.toHaveTextContent(/radar/i);

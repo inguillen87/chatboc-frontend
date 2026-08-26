@@ -95,7 +95,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(layout).toHaveClass(
       'p-0',
       'sm:p-4',
-      'lg:p-5',
+      'lg:py-5',
       'xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]',
     );
     expect(screen.getByText('Cobertura')).toBeInTheDocument();
