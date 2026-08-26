@@ -253,6 +253,23 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.getByTestId('survey-territory-telemetry')).toBeInTheDocument();
   });
 
+  it('uses an evidence-first empty state instead of drawing synthetic territory', () => {
+    render(
+      <SurveyAnalytics
+        summary={{ ...summaryFixture(), total_respuestas: 18 }}
+        heatmap={[]}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const commandCenter = screen.getByTestId('survey-territory-command-center');
+    expect(commandCenter).toHaveTextContent('Cobertura territorial pendiente');
+    expect(commandCenter).toHaveTextContent('18');
+    expect(commandCenter).toHaveTextContent('0 registros georreferenciados');
+    expect(commandCenter).toHaveTextContent('No se generan puntos');
+    expect(screen.queryByTestId('survey-territory-telemetry')).not.toBeInTheDocument();
+  });
+
   it('marks synthetic survey heatmap data as fallback instead of real territory', () => {
     render(
       <SurveyAnalytics

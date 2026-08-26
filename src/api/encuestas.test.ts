@@ -1164,6 +1164,21 @@ describe('postPublicResponse', () => {
     );
   });
 
+  it('does not fan out a backend 502 across legacy admin aliases', async () => {
+    const gatewayFailure = new ApiError('El servidor no pudo responder correctamente.', 502, {
+      reason_code: 'upstream_bad_gateway',
+    });
+    apiFetchMock.mockRejectedValueOnce(gatewayFailure);
+
+    await expect(getSurveyDashboardBundle(635, {}, { tenantSlug: 'junin' })).rejects.toBe(gatewayFailure);
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas/635/analytics/dashboard',
+      expect.objectContaining({ tenantSlug: 'junin' }),
+    );
+  });
+
   it('sends nested territorial metadata without rewriting the public response payload', async () => {
     const payload = {
       submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394872',

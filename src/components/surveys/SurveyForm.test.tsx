@@ -694,7 +694,7 @@ describe('SurveyForm security contract', () => {
 
     render(<SurveyForm survey={liveSurvey} onSubmit={onSubmit} />);
 
-    expect(screen.getByText(/datos demogr/i)).toBeInTheDocument();
+    expect(screen.getByText(/agregar información opcional/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/provincia/i), { target: { value: 'Mendoza' } });
     fireEvent.change(screen.getByLabelText(/ciudad/i), { target: { value: 'Junin' } });
@@ -758,7 +758,7 @@ describe('SurveyForm security contract', () => {
 
     expect(screen.getByText(/usaste whatsapp/i)).toBeInTheDocument();
     expect(screen.queryByText(/como fue la experiencia/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Pregunta 1 de 1')).toBeInTheDocument();
+    expect(screen.queryByText('Pregunta 1 de 1')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Si'));
     expect(await screen.findByText(/como fue la experiencia/i)).toBeInTheDocument();

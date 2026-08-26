@@ -341,7 +341,7 @@ function RankingList({
                 <span className="shrink-0 text-xs text-slate-400">{formatPercent(item.value, total)}</span>
               </div>
               <div
-                className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-800"
+                className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-800"
                 role="meter"
                 aria-label={`${item.label}: ${formatMetric(item.value)} respuestas representadas`}
                 aria-valuemin={0}
@@ -349,7 +349,7 @@ function RankingList({
                 aria-valuenow={item.value}
               >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-amber-400"
+                  className="h-full rounded-full bg-blue-400"
                   style={{ width: `${Math.max(3, Math.min(100, percentage))}%` }}
                 />
               </div>
@@ -516,7 +516,7 @@ export function SurveyLiveHeatmapPreview({
   const dominantIntent = displayText(aiSummary.dominant_intent_label ?? aiSummary.dominant_intent, 'Consulta general');
   const riskLevel = displayText(aiSummary.risk_level ?? aiSummary.risk_signal, 'Normal');
   const humanAttention = aiSummary.requires_human_attention === true;
-  const mainActionLabel = displayText(aiRecommendations[0]?.label, 'No informada por el contrato');
+  const mainActionLabel = displayText(aiRecommendations[0]?.label, 'Sin recomendación informada');
   const mapAriaLabel = jurisdiction
     ? `Mapa de participación de ${jurisdiction.displayName}`
     : 'Mapa de participación territorial';
@@ -533,44 +533,47 @@ export function SurveyLiveHeatmapPreview({
 
   return (
     <section
-      className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-slate-50 shadow-xl shadow-slate-950/10"
+      className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-50 shadow-lg shadow-slate-950/10"
       aria-labelledby={`${reactId}-title`}
       data-testid="survey-live-heatmap-preview"
     >
-      <header className="border-b border-slate-800 bg-slate-950/95 p-4 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+      <header className="border-b border-slate-800 bg-slate-950/95 p-5 sm:p-6">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-300/20 bg-blue-400/10 text-blue-100">
               <MapPin className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h3 id={`${reactId}-title`} className="text-base font-semibold tracking-tight text-white sm:text-lg">
+              <h3 id={`${reactId}-title`} className="text-lg font-semibold tracking-tight text-white sm:text-xl">
                 {title}
               </h3>
-              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-300">{subtitle}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-300">{subtitle}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-200"
                   data-testid="survey-live-heatmap-jurisdiction"
                 >
-                  <MapPin className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
-                  <span className="text-slate-400">Jurisdicción</span>
+                  <MapPin className="h-3.5 w-3.5 text-blue-200" aria-hidden="true" />
                   <strong className="font-semibold text-white">{jurisdiction?.displayName ?? 'No informada'}</strong>
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium ${
                     usesSyntheticPoints
                       ? 'border-amber-300/30 bg-amber-300/10 text-amber-100'
-                      : 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+                      : source || privacyProtected
+                        ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+                        : 'border-slate-700 bg-slate-900 text-slate-300'
                   }`}
                   data-testid="survey-live-heatmap-provenance"
                 >
-                  {usesSyntheticPoints ? <Database className="h-3.5 w-3.5" aria-hidden="true" /> : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {usesSyntheticPoints || (!source && !privacyProtected)
+                    ? <Database className="h-3.5 w-3.5" aria-hidden="true" />
+                    : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
                   {provenanceLabel}
                 </span>
                 {privacyProtected ? (
                   <span
-                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-xs font-medium text-emerald-100"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 font-medium text-emerald-100"
                     data-testid="survey-live-heatmap-privacy"
                   >
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -579,7 +582,7 @@ export function SurveyLiveHeatmapPreview({
                 ) : null}
                 {datasetLimitLabel ? (
                   <span
-                    className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-medium text-amber-100"
+                    className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 font-medium text-amber-100"
                     data-testid="survey-live-heatmap-dataset-limit"
                   >
                     {datasetLimitLabel}
@@ -589,42 +592,71 @@ export function SurveyLiveHeatmapPreview({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[31rem]" aria-live="polite">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-points-count">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{pointsLabel}</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatCount(rawPointsCount, totalPointsCount)}</p>
+          <dl className="grid grid-cols-3 gap-2 lg:min-w-[25rem]" aria-live="polite">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Cobertura</dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-white">{formatLocations(baseMappedSource.length)}</dd>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-cells-count">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{cellsLabel}</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatCount(rawCellsCount, totalCellsCount)}</p>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Volumen</dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-white">{formatMetric(totalSignal)}</dd>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5" data-testid="survey-live-heatmap-zones-count">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Zonas</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{zoneSummaries.length}</p>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3" data-testid="survey-live-heatmap-zones-count">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Zonas</dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-white">{zoneSummaries.length}</dd>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Volumen</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-white">{formatMetric(totalSignal)}</p>
-            </div>
-          </div>
+          </dl>
         </div>
       </header>
 
       <div
-        className="grid gap-4 p-2 sm:p-3 lg:p-4 2xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]"
+        className="grid gap-4 p-3 sm:p-4 lg:p-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]"
         data-testid="survey-live-heatmap-layout"
       >
-        <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
-          <div className="border-b border-slate-800 px-3 py-3 sm:px-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-white">Cobertura geográfica</p>
-                <p className="mt-0.5 text-xs text-slate-400">La intensidad representa volumen; no prioridad ni gravedad.</p>
-              </div>
+        <div className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/45">
+          <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Mapa de cobertura</p>
               {hasBaseMappedData ? (
-                <div className="flex flex-wrap items-center gap-2">
+                <p className="mt-1 text-xs text-slate-400" aria-live="polite" data-testid="survey-live-heatmap-visible-scope">
+                  <strong className="font-semibold text-slate-200">{formatLocations(mapLibreHeatmapData.length)}</strong>
+                  {' · '}<strong className="font-semibold text-slate-200">{formatMetric(visibleMapSignal)} respuestas representadas</strong>
+                  {effectiveZone !== 'all' ? ` · ${effectiveZone}` : ''}
+                  {effectiveChannel !== 'all' ? ` · ${effectiveChannel}` : ''}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-400">La intensidad representa volumen, no prioridad ni gravedad.</p>
+              )}
+            </div>
+            {hasBaseMappedData ? (
+              <button
+                type="button"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                onClick={() => setFitBoundsRequestKey((current) => current + 1)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Ajustar área
+              </button>
+            ) : null}
+          </div>
+
+          {hasBaseMappedData ? (
+            <details className="group border-b border-slate-800 bg-slate-950/45" data-testid="survey-live-heatmap-map-options">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 [&::-webkit-details-marker]:hidden">
+                <span>Opciones del mapa</span>
+                <span className="flex items-center gap-2 font-normal text-slate-400">
+                  {mapLegendShort}
+                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-slate-800 px-4 py-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-200">Representación</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Elegí densidad, ubicaciones o ambas capas.</p>
+                  </div>
                   <div
-                    className="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1"
+                    className="inline-flex w-fit rounded-lg border border-slate-700 bg-slate-950 p-1"
                     role="group"
                     aria-label="Modo de visualización territorial"
                   >
@@ -636,8 +668,8 @@ export function SurveyLiveHeatmapPreview({
                       <button
                         key={mode}
                         type="button"
-                        className={`min-h-10 rounded-lg px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:px-3 ${
-                          mapMode === mode ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        className={`min-h-9 rounded-md px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 sm:px-3 ${
+                          mapMode === mode ? 'bg-slate-100 text-slate-950 shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                         }`}
                         aria-pressed={mapMode === mode}
                         onClick={() => setMapMode(mode)}
@@ -646,78 +678,61 @@ export function SurveyLiveHeatmapPreview({
                       </button>
                     ))}
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                    onClick={() => setFitBoundsRequestKey((current) => current + 1)}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                    Ajustar área
-                  </button>
                 </div>
-              ) : null}
-            </div>
 
-            {hasBaseMappedData && (mapZoneOptions.length > 1 || mapChannelOptions.length > 1) ? (
-              <div
-                className="mt-3 grid gap-2 rounded-xl border border-slate-800 bg-slate-950/75 p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
-                data-testid="survey-live-heatmap-map-filters"
-              >
-                <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Zona
-                  <select
-                    className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/25"
-                    value={effectiveZone}
-                    onChange={(event) => setSelectedZone(event.target.value)}
+                {mapZoneOptions.length > 1 || mapChannelOptions.length > 1 ? (
+                  <div
+                    className="grid gap-2 rounded-lg border border-slate-800 bg-slate-900/60 p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+                    data-testid="survey-live-heatmap-map-filters"
                   >
-                    <option value="all">Todas las zonas</option>
-                    {mapZoneOptions.map((item) => (
-                      <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Canal
-                  <select
-                    className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/25"
-                    value={effectiveChannel}
-                    onChange={(event) => setSelectedChannel(event.target.value)}
-                  >
-                    <option value="all">Todos los canales</option>
-                    {mapChannelOptions.map((item) => (
-                      <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={effectiveZone === 'all' && effectiveChannel === 'all'}
-                  onClick={() => {
-                    setSelectedZone('all');
-                    setSelectedChannel('all');
-                  }}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                  Restablecer
-                </button>
+                    <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Zona
+                      <select
+                        className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-300/25"
+                        value={effectiveZone}
+                        onChange={(event) => setSelectedZone(event.target.value)}
+                      >
+                        <option value="all">Todas las zonas</option>
+                        {mapZoneOptions.map((item) => (
+                          <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Canal
+                      <select
+                        className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm font-medium normal-case tracking-normal text-white outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-300/25"
+                        value={effectiveChannel}
+                        onChange={(event) => setSelectedChannel(event.target.value)}
+                      >
+                        <option value="all">Todos los canales</option>
+                        {mapChannelOptions.map((item) => (
+                          <option key={item.label} value={item.label}>{item.label} · {formatMetric(item.value)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45"
+                      disabled={effectiveZone === 'all' && effectiveChannel === 'all'}
+                      onClick={() => {
+                        setSelectedZone('all');
+                        setSelectedChannel('all');
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Restablecer
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-
-            {hasBaseMappedData ? (
-              <p className="mt-2 text-xs text-slate-400" aria-live="polite" data-testid="survey-live-heatmap-visible-scope">
-                Mostrando <strong className="font-semibold text-slate-200">{formatLocations(mapLibreHeatmapData.length)}</strong>
-                {' · '}<strong className="font-semibold text-slate-200">{formatMetric(visibleMapSignal)} respuestas representadas</strong>
-                {effectiveZone !== 'all' ? ` · ${effectiveZone}` : ''}
-                {effectiveChannel !== 'all' ? ` · ${effectiveChannel}` : ''}
-              </p>
-            ) : null}
-          </div>
+            </details>
+          ) : null}
 
           <p id={mapDescriptionId} className="sr-only">
             {mapAriaLabel}. Incluye {formatLocations(mapLibreHeatmapData.length)} cartografiable{mapLibreHeatmapData.length === 1 ? '' : 's'} y un volumen visible de {formatMetric(visibleMapSignal)} respuestas.
           </p>
-          <div className="relative h-[19rem] scroll-mt-20 sm:h-[24rem] lg:h-[28rem]" data-testid="survey-live-heatmap-map-region">
+          <div className="relative h-[21rem] scroll-mt-20 sm:h-[27rem] lg:h-[31rem]" data-testid="survey-live-heatmap-map-region">
             {hasMappedData ? (
               <div className="absolute inset-0" data-testid="survey-live-heatmap-maplibre">
                 <LazyMapLibreMap
@@ -749,7 +764,7 @@ export function SurveyLiveHeatmapPreview({
               </div>
             ) : (
               <div className="flex h-full items-center justify-center p-6 text-center">
-                <div className="max-w-md rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 p-6">
+                <div className="max-w-md rounded-xl border border-dashed border-slate-700 bg-slate-950/70 p-6">
                   <MapPin className="mx-auto h-7 w-7 text-slate-400" aria-hidden="true" />
                   <p className="mt-3 font-semibold text-slate-100">
                     {hasBaseMappedData ? 'Sin coincidencias para estos filtros' : emptyLabel}
@@ -758,13 +773,13 @@ export function SurveyLiveHeatmapPreview({
                     {hasBaseMappedData
                       ? 'Probá otra combinación territorial o restablecé la vista completa.'
                       : hasTerritorialData
-                      ? 'El contrato tiene agregados territoriales, pero no coordenadas suficientes para ubicarlos en el mapa.'
-                      : 'Ajustá los filtros o esperá nuevas respuestas con información territorial.'}
+                        ? 'El contrato tiene agregados territoriales, pero no coordenadas suficientes para ubicarlos en el mapa.'
+                        : 'Ajustá los filtros o esperá nuevas respuestas con información territorial.'}
                   </p>
                   {hasBaseMappedData ? (
                     <button
                       type="button"
-                      className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                       onClick={() => {
                         setSelectedZone('all');
                         setSelectedChannel('all');
@@ -780,12 +795,12 @@ export function SurveyLiveHeatmapPreview({
 
             {hasMappedData ? (
               <details
-                className="group absolute bottom-3 left-3 right-3 z-10 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950/90 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
+                className="group absolute bottom-3 left-3 right-3 z-10 overflow-hidden rounded-lg border border-slate-700/80 bg-slate-950/90 shadow-lg backdrop-blur sm:left-4 sm:right-auto sm:w-[min(25rem,calc(100%-2rem))]"
                 aria-label={`${mapLegendTitle}. Volumen observado: mínimo ${formatMetric(intensityScale.min)}, mediana ${formatMetric(intensityScale.median)}, máximo ${formatMetric(intensityScale.max)}`}
                 data-testid="survey-live-heatmap-quantitative-legend"
               >
                 <summary
-                  className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 sm:hidden [&::-webkit-details-marker]:hidden"
+                  className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 sm:hidden [&::-webkit-details-marker]:hidden"
                   data-testid="survey-live-heatmap-legend-summary"
                 >
                   <span className="uppercase tracking-wide">{mapLegendTitle}</span>
@@ -827,163 +842,213 @@ export function SurveyLiveHeatmapPreview({
         </div>
 
         <aside className="grid content-start gap-4" aria-label="Resumen ejecutivo territorial">
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-4" data-testid="survey-live-heatmap-evidence-summary">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-cyan-200" aria-hidden="true" />
-              <h4 className="text-sm font-semibold text-white">Ficha de evidencia</h4>
-            </div>
-            <dl className="mt-4 divide-y divide-slate-800 text-sm">
-              <div className="grid gap-1 py-2.5 first:pt-0">
+          {hasTerritorialData ? (
+            <section
+              className="rounded-xl border border-blue-200/15 bg-blue-400/[0.055] p-4 sm:p-5"
+              data-testid="survey-live-heatmap-executive-summary"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-blue-200" aria-hidden="true" />
+                <h4 className="text-sm font-semibold text-white">Lectura ejecutiva</h4>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                Síntesis descriptiva de la muestra visible. No implica prioridad, causalidad ni representatividad estadística.
+              </p>
+              <dl className="mt-4 divide-y divide-slate-800">
+                <div className="py-3 first:pt-0">
+                  <dt className="text-xs text-slate-400">Mayor participación</dt>
+                  <dd className="mt-1 font-semibold text-white">{focusZone?.label ?? 'Sin zona identificada'}</dd>
+                  {focusZone ? <p className="mt-0.5 text-xs text-blue-100">{formatMetric(focusZone.value)} · {formatPercent(focusZone.value, totalSignal)}</p> : null}
+                </div>
+                <div className="py-3">
+                  <dt className="text-xs text-slate-400">Canal principal</dt>
+                  <dd className="mt-1 font-semibold text-white">{dominantChannel?.label ?? 'No informado'}</dd>
+                  {dominantChannel ? <p className="mt-0.5 text-xs text-blue-100">{formatMetric(dominantChannel.value)} · {formatPercent(dominantChannel.value, totalSignal)}</p> : null}
+                </div>
+                <div className="py-3 last:pb-0">
+                  <dt className="text-xs text-slate-400">Próxima acción</dt>
+                  <dd className="mt-1 text-sm font-semibold leading-snug text-white">{mainActionLabel}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : (
+            <section className="rounded-xl border border-slate-800 bg-slate-900/45 p-4 sm:p-5">
+              <h4 className="text-sm font-semibold text-white">Lectura ejecutiva</h4>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                Todavía no hay evidencia territorial suficiente para elaborar una lectura responsable.
+              </p>
+            </section>
+          )}
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/45 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Cómo leer el mapa</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              Más intensidad significa más respuestas registradas en esa ubicación. La escala se recalcula con la selección visible.
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      <div className="grid gap-3 border-t border-slate-800 bg-slate-950/75 p-3 sm:p-4 lg:p-5">
+        <details
+          className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/45"
+          data-testid="survey-live-heatmap-evidence-summary"
+        >
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-blue-200" aria-hidden="true" />
+              Evidencia y metodología
+            </span>
+            <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+              {humanizeSource(source)}
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+            </span>
+          </summary>
+          <div className="border-t border-slate-800 px-4 py-4">
+            <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
                 <dt className="text-xs text-slate-400">Jurisdicción</dt>
-                <dd className="font-medium text-slate-100">{jurisdiction?.displayName ?? 'No informada por el contrato'}</dd>
+                <dd className="mt-1 font-medium text-slate-100">{jurisdiction?.displayName ?? 'No informada por el contrato'}</dd>
               </div>
-              <div className="grid gap-1 py-2.5">
+              <div>
                 <dt className="text-xs text-slate-400">Fuente</dt>
-                <dd className="font-medium capitalize text-slate-100">{humanizeSource(source)}</dd>
+                <dd className="mt-1 font-medium capitalize text-slate-100">{humanizeSource(source)}</dd>
               </div>
-              <div className="grid gap-1 py-2.5">
+              <div>
                 <dt className="text-xs text-slate-400">Proveedor / proceso</dt>
-                <dd className="font-medium capitalize text-slate-100">{humanizeSource(provider)}</dd>
+                <dd className="mt-1 font-medium capitalize text-slate-100">{humanizeSource(provider)}</dd>
               </div>
-              <div className="grid gap-1 py-2.5">
-                <dt className="text-xs text-slate-400">Tamaño cartográfico</dt>
-                <dd className="font-medium text-slate-100">
-                  {formatLocations(mapLibreHeatmapData.length)} · {formatMetric(totalSignal)} respuestas representadas
-                </dd>
-              </div>
-              <div className="grid gap-1 py-2.5">
+              <div>
                 <dt className="text-xs text-slate-400">Procedencia</dt>
-                <dd className={usesSyntheticPoints ? 'font-medium text-amber-100' : 'font-medium text-emerald-100'}>
+                <dd className={usesSyntheticPoints ? 'mt-1 font-medium text-amber-100' : 'mt-1 font-medium text-emerald-100'}>
                   {provenanceLabel}
                 </dd>
               </div>
+              <div data-testid="survey-live-heatmap-points-count">
+                <dt className="text-xs text-slate-400">{pointsLabel} recibidos</dt>
+                <dd className="mt-1 font-medium tabular-nums text-slate-100">{formatCount(rawPointsCount, totalPointsCount)}</dd>
+              </div>
+              <div data-testid="survey-live-heatmap-cells-count">
+                <dt className="text-xs text-slate-400">{cellsLabel} agregadas</dt>
+                <dd className="mt-1 font-medium tabular-nums text-slate-100">{formatCount(rawCellsCount, totalCellsCount)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Tamaño cartográfico</dt>
+                <dd className="mt-1 font-medium text-slate-100">
+                  {formatLocations(baseMappedSource.length)} · {formatMetric(totalSignal)} respuestas representadas
+                </dd>
+              </div>
               {(jurisdiction?.coordinateReference || jurisdiction?.coordinateSource) ? (
-                <div className="grid gap-1 py-2.5 last:pb-0">
+                <div>
                   <dt className="text-xs text-slate-400">Referencia territorial</dt>
-                  <dd className="font-medium text-slate-100">
+                  <dd className="mt-1 font-medium text-slate-100">
                     {[jurisdiction.coordinateReference, humanizeSource(jurisdiction.coordinateSource)].filter(Boolean).join(' · ')}
                   </dd>
                 </div>
               ) : null}
             </dl>
-          </section>
+          </div>
+        </details>
 
-          {hasTerritorialData ? (
-            <section
-              className="rounded-2xl border border-cyan-200/15 bg-cyan-400/[0.055] p-4"
-              data-testid="survey-live-heatmap-executive-summary"
-            >
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
-                <h4 className="text-sm font-semibold text-white">Lectura ejecutiva</h4>
+        {hasTerritorialData ? (
+          <div className="grid gap-3 lg:grid-cols-2" data-testid="survey-live-heatmap-operational-summary">
+            <details className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/45">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-2">
+                  <Layers3 className="h-4 w-4 text-blue-200" aria-hidden="true" />
+                  Ranking territorial
+                </span>
+                <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                  Top {topZones.length} de {zoneSummaries.length}
+                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </span>
+              </summary>
+              <div className="border-t border-slate-800 p-4" aria-labelledby={`${reactId}-zones-ranking`}>
+                <h4 id={`${reactId}-zones-ranking`} className="sr-only">Ranking territorial</h4>
+                <RankingList
+                  items={topZones}
+                  total={totalSignal}
+                  emptyLabel="El contrato no incluye nombres de zonas para construir el ranking."
+                  testId="survey-live-heatmap-zone-ranking"
+                />
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
-                  <p className="text-xs text-slate-400">Mayor participación</p>
-                  <p className="mt-1 truncate font-semibold text-white">{focusZone?.label ?? 'Sin zona identificada'}</p>
-                  {focusZone ? <p className="mt-0.5 text-xs text-cyan-100">{formatMetric(focusZone.value)} · {formatPercent(focusZone.value, totalSignal)}</p> : null}
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
-                  <p className="text-xs text-slate-400">Canal principal</p>
-                  <p className="mt-1 truncate font-semibold text-white">{dominantChannel?.label ?? 'No informado'}</p>
-                  {dominantChannel ? <p className="mt-0.5 text-xs text-cyan-100">{formatMetric(dominantChannel.value)} · {formatPercent(dominantChannel.value, totalSignal)}</p> : null}
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/65 px-3 py-2.5">
-                  <p className="text-xs text-slate-400">Próxima acción</p>
-                  <p className="mt-1 font-semibold text-white">{mainActionLabel}</p>
-                </div>
-              </div>
-            </section>
-          ) : null}
-        </aside>
-      </div>
+            </details>
 
-      {hasTerritorialData ? (
-        <div
-          className="grid gap-4 border-t border-slate-800 bg-slate-950/85 p-4 sm:p-5 lg:grid-cols-2"
-          data-testid="survey-live-heatmap-operational-summary"
-        >
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4" aria-labelledby={`${reactId}-zones-ranking`}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Layers3 className="h-4 w-4 text-cyan-200" aria-hidden="true" />
-                <h4 id={`${reactId}-zones-ranking`} className="text-sm font-semibold text-white">Ranking territorial</h4>
+            <details className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/45">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-emerald-200" aria-hidden="true" />
+                  Distribución por canal
+                </span>
+                <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                  {topChannels.length} canales
+                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </span>
+              </summary>
+              <div className="border-t border-slate-800 p-4" aria-labelledby={`${reactId}-channels-ranking`}>
+                <h4 id={`${reactId}-channels-ranking`} className="sr-only">Distribución por canal</h4>
+                <RankingList
+                  items={topChannels}
+                  total={totalSignal}
+                  emptyLabel="El origen de las respuestas no fue informado por el contrato."
+                  testId="survey-live-heatmap-channel-ranking"
+                />
               </div>
-              <span className="text-xs text-slate-400">
-                Top {topZones.length} de {zoneSummaries.length}
+            </details>
+          </div>
+        ) : null}
+
+        {hasAiSignal ? (
+          <details
+            className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/35"
+            data-testid="survey-live-heatmap-ai-signal"
+          >
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-violet-200" aria-hidden="true" />
+                Asistencia analítica
               </span>
-            </div>
-            <RankingList
-              items={topZones}
-              total={totalSignal}
-              emptyLabel="El contrato no incluye nombres de zonas para construir el ranking."
-              testId="survey-live-heatmap-zone-ranking"
-            />
-          </section>
-
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4" aria-labelledby={`${reactId}-channels-ranking`}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-emerald-200" aria-hidden="true" />
-                <h4 id={`${reactId}-channels-ranking`} className="text-sm font-semibold text-white">Distribución por canal</h4>
-              </div>
-              <span className="text-xs text-slate-400">{topChannels.length} canales</span>
-            </div>
-            <RankingList
-              items={topChannels}
-              total={totalSignal}
-              emptyLabel="El origen de las respuestas no fue informado por el contrato."
-              testId="survey-live-heatmap-channel-ranking"
-            />
-          </section>
-        </div>
-      ) : null}
-
-      {hasAiSignal ? (
-        <section
-          className="border-t border-slate-800 bg-slate-900/30 p-4 sm:p-5"
-          data-testid="survey-live-heatmap-ai-signal"
-          aria-labelledby={`${reactId}-ai-analysis`}
-        >
-          <div className="flex items-center gap-2">
-            <BrainCircuit className="h-4 w-4 text-violet-200" aria-hidden="true" />
-            <h4 id={`${reactId}-ai-analysis`} className="text-sm font-semibold text-white">Asistencia analítica</h4>
-          </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(15rem,0.7fr)_minmax(0,1.3fr)]">
-            <dl className="grid gap-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm sm:grid-cols-3 lg:grid-cols-1">
-              <div>
-                <dt className="text-xs text-slate-400">Modo</dt>
-                <dd className="mt-1 font-semibold text-white">{aiModeLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-400">Intención dominante</dt>
-                <dd className="mt-1 font-semibold text-white">{dominantIntent}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-400">Riesgo operativo</dt>
-                <dd className={`mt-1 font-semibold ${humanAttention ? 'text-rose-100' : 'text-emerald-100'}`}>{riskLevel}</dd>
-              </div>
-            </dl>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
-              {aiRecommendations.length ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {aiRecommendations.map((action, index) => (
-                    <div
-                      key={`${displayText(action.id, 'action')}-${index}`}
-                      className={`rounded-xl border px-3 py-2.5 ${priorityTone(action.priority)}`}
-                    >
-                      <p className="text-sm font-medium text-white">{displayText(action.label, 'Revisar señal territorial')}</p>
-                    </div>
-                  ))}
+              <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                {aiModeLabel}
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </span>
+            </summary>
+            <div className="grid gap-3 border-t border-slate-800 p-4 lg:grid-cols-[minmax(15rem,0.7fr)_minmax(0,1.3fr)]">
+              <dl className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm sm:grid-cols-3 lg:grid-cols-1">
+                <div>
+                  <dt className="text-xs text-slate-400">Modo</dt>
+                  <dd className="mt-1 font-semibold text-white">{aiModeLabel}</dd>
                 </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
-              )}
+                <div>
+                  <dt className="text-xs text-slate-400">Intención dominante</dt>
+                  <dd className="mt-1 font-semibold text-white">{dominantIntent}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">Riesgo operativo</dt>
+                  <dd className={`mt-1 font-semibold ${humanAttention ? 'text-rose-100' : 'text-emerald-100'}`}>{riskLevel}</dd>
+                </div>
+              </dl>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Acciones recomendadas</p>
+                {aiRecommendations.length ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {aiRecommendations.map((action, index) => (
+                      <div
+                        key={`${displayText(action.id, 'action')}-${index}`}
+                        className={`rounded-lg border px-3 py-2.5 ${priorityTone(action.priority)}`}
+                      >
+                        <p className="text-sm font-medium text-white">{displayText(action.label, 'Revisar señal territorial')}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">Sin recomendaciones nuevas para estos filtros.</p>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
-      ) : null}
+          </details>
+        ) : null}
+      </div>
     </section>
   );
 }

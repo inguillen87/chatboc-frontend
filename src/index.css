@@ -1986,6 +1986,13 @@ html {
     bottom: auto;
   }
 
+  .chatboc-a11y-dock.chatboc-a11y-dock--focused-public {
+    left: auto;
+    right: calc(0.75rem + env(safe-area-inset-right));
+    top: auto;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
   .chatboc-a11y-dock.chatboc-a11y-dock--public-ticket {
     left: auto;
     right: calc(3.75rem + env(safe-area-inset-right));

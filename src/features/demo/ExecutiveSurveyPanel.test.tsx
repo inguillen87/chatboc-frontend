@@ -137,6 +137,8 @@ describe('ExecutiveSurveyPanel', () => {
       />,
     );
 
+    expect(screen.getByText('Norte')).not.toBeVisible();
+    fireEvent.click(screen.getByText('Cortes descriptivos'));
     expect(screen.getByText('Norte')).toBeVisible();
     expect(screen.getByText('60 · 60%')).toBeVisible();
     expect(screen.queryByText('60 · 58,8%')).not.toBeInTheDocument();

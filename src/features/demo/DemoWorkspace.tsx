@@ -232,6 +232,7 @@ export default function DemoWorkspace({
   workspace,
   loading = false,
   onRuntimeResult,
+  presentation = 'full',
 }: {
   tenantSlug?: string | null;
   sector?: DemoSector | null;
@@ -239,7 +240,9 @@ export default function DemoWorkspace({
   workspace?: DemoWorkspaceConfig | null;
   loading?: boolean;
   onRuntimeResult?: (response: unknown, result: unknown) => void;
+  presentation?: 'full' | 'executive';
 }) {
+  const isExecutive = presentation === 'executive';
   const valueCards = workspace?.value_cards ?? [];
   const sampleConversations =
     workspace?.sample_conversations ?? workspace?.experience_blueprint?.sample_conversations ?? [];
@@ -273,7 +276,7 @@ export default function DemoWorkspace({
 
   return (
     <div className="space-y-4">
-      <section className="mx-auto w-full max-w-[440px] rounded-[2rem] border border-border/80 bg-card/90 p-2 shadow-2xl shadow-black/10 backdrop-blur dark:bg-[#10151d]">
+      <section className={`mx-auto w-full rounded-2xl border border-border/80 bg-card/90 p-2 shadow-lg shadow-black/5 ${isExecutive ? 'max-w-3xl' : 'max-w-[440px]'} dark:bg-[#10151d]`}>
         <div className="rounded-[1.6rem] border border-border/60 bg-background/95 p-3 shadow-inner dark:bg-[#0b1018]">
           <div className="mb-3 flex items-center justify-between rounded-[1.2rem] border border-border/60 bg-card/80 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -388,17 +391,17 @@ export default function DemoWorkspace({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-3 py-3 text-xs text-muted-foreground">
+        {!isExecutive ? <div className="flex flex-wrap gap-2 px-3 py-3 text-xs text-muted-foreground">
           {sector ? <span className="rounded-full bg-muted px-3 py-1 text-foreground">{readSectorLabel(sector)}</span> : null}
           {availableModes.slice(0, 4).map((mode) => (
             <span key={mode} className="rounded-full bg-muted px-3 py-1 text-foreground">{mode}</span>
           ))}
-        </div>
+        </div> : null}
       </section>
 
-      <DemoRubroToolsPanel workspace={workspace} tools={rubroTools} />
+      {!isExecutive ? <DemoRubroToolsPanel workspace={workspace} tools={rubroTools} /> : null}
 
-      {valueCards.length ? (
+      {!isExecutive && valueCards.length ? (
         <div className="grid gap-2 text-xs sm:grid-cols-2">
           {valueCards.map((card, index) => (
             <div key={card.key || `${card.title}-${index}`} className="rounded-xl border bg-background/70 p-3">
@@ -414,7 +417,7 @@ export default function DemoWorkspace({
         </div>
       ) : null}
 
-      {analyticsEntries.length ? (
+      {!isExecutive && analyticsEntries.length ? (
         <div className="rounded-xl border bg-background/70 p-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <BarChart3 className="h-4 w-4 text-primary" />

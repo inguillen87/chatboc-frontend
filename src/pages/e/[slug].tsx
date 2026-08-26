@@ -123,6 +123,7 @@ const PublicSurveyPage = () => {
   const tenantSelectorInvalid = hasTenantSelector && !tenantSlug;
   const mode = searchParams.get('mode'); // 'embed' or undefined
   const [submitted, setSubmitted] = useState(false);
+  const [activeLiveView, setActiveLiveView] = useState<'participate' | 'results'>('participate');
   const [demoSubmissionPersisted, setDemoSubmissionPersisted] = useState<boolean | null>(null);
   const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
@@ -484,6 +485,7 @@ const PublicSurveyPage = () => {
 
   const handleReset = useCallback(() => {
     setSubmitted(false);
+    setActiveLiveView('participate');
     setLastSubmission(null);
     setDemoSubmissionPersisted(null);
   }, []);
@@ -527,6 +529,12 @@ const PublicSurveyPage = () => {
     if (!survey?.descripcion) return null;
     return survey.descripcion;
   }, [survey?.descripcion]);
+  const pollTitle = useMemo(() => {
+    const title = survey?.titulo?.trim() || 'Participación ciudadana';
+    return isDemoParticipationSurvey
+      ? title.replace(/\s*\((?:demo(?:straci[oó]n)?\s+)?no\s+oficial\)\s*$/i, '').trim()
+      : title;
+  }, [isDemoParticipationSurvey, survey?.titulo]);
 
   const votacionUi = useMemo(
     () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_ui as Record<string, unknown>) ?? {},
@@ -897,10 +905,10 @@ const PublicSurveyPage = () => {
   return (
     <div className={containerClass} data-testid="public-survey-page">
       {survey.es_votacion_envivo ? (
-        <div className="space-y-6 animate-in fade-in-50 duration-500">
-          <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
+        <div className="animate-in fade-in-50 duration-300 motion-reduce:animate-none">
+          <Card className="border border-border/70 bg-card shadow-sm">
             <CardContent
-              className="space-y-6 px-2 py-6 sm:px-4 sm:py-8 lg:px-6"
+              className="space-y-4 px-4 py-5 sm:px-6 sm:py-6"
               data-testid="public-live-survey-content"
             >
               <div className="flex flex-col gap-4">
@@ -916,66 +924,42 @@ const PublicSurveyPage = () => {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
-                  {pollSubtitle && (
-                    <p className="text-muted-foreground text-base sm:text-lg">{pollSubtitle}</p>
+                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{pollTitle}</h1>
+                  {pollSubtitle && !isDemoParticipationSurvey && (
+                    <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">{pollSubtitle}</p>
                   )}
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <Users className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_total_label, 'Total de respuestas')}</p>
-                    <p className="text-lg font-semibold">
-                      {livePollTotalVotes ?? (isDemoParticipationSurvey ? 'Tras votar' : '—')}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <Timer className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_tiempo_label, 'Última sincronización')}</p>
-                    <p className="text-lg font-semibold" data-testid="survey-last-updated">
-                      {updatedAtLabel ?? '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <MessageSquareText className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_opciones_label, 'Opciones activas')}</p>
-                    <p className="text-lg font-semibold">{votingOptionsCount || '—'}</p>
-                  </div>
-                </div>
+              {activeLiveView === 'results' ? (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border/60 py-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <strong className="font-semibold text-foreground">
+                    {livePollTotalVotes ?? (isDemoParticipationSurvey ? '100 demo' : '—')}
+                  </strong>{' '}
+                  respuestas
+                </span>
+                <span className="inline-flex items-center gap-2" data-testid="survey-last-updated">
+                  <Timer className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Actualizado {updatedAtLabel ?? '—'}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
+                  {votingOptionsCount || '—'} opciones
+                </span>
               </div>
-
-              {mode !== 'embed' && (
-                <div className="flex justify-start">
-                  <PublicSurveyShareActions
-                    survey={survey}
-                    submission={shareSubmission}
-                    tenantSlug={tenantSlug}
-                  />
-                </div>
-              )}
+              ) : null}
 
               {isDemoParticipationSurvey ? (
                 <div
-                  className="flex flex-col gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm sm:flex-row sm:items-start sm:justify-between"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-xs text-foreground"
                   data-testid="public-survey-demo-disclosure"
                 >
-                  <div className="space-y-1">
-                    <p className="font-semibold">Demostración interactiva</p>
-                    <p className="text-muted-foreground">
-                      El escenario base contiene{' '}
-                      {seededResponseCount === null
-                        ? 'respuestas sintéticas'
-                        : `${seededResponseCount.toLocaleString('es-AR')} respuestas sintéticas`}{' '}
-                      y no representa participación ciudadana ni resultados oficiales.
-                    </p>
-                  </div>
+                  <p>
+                    <strong>Demo no oficial.</strong>{' '}
+                    {seededResponseCount === null ? 'Base sintética' : `${seededResponseCount.toLocaleString('es-AR')} respuestas sintéticas`}; no representa opinión pública.
+                  </p>
                   <SurveyResponseProvenanceBadge
                     sources={[liveDashboard, liveResults, survey.resultados_envivo]}
                     className="shrink-0"
@@ -983,7 +967,38 @@ const PublicSurveyPage = () => {
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && liveDashboard ? (
+              <nav className="flex w-full gap-1 rounded-xl border border-border/70 bg-muted/20 p-1" aria-label="Vista de participación">
+                <button
+                  type="button"
+                  className={`min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${activeLiveView === 'participate' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+                  aria-current={activeLiveView === 'participate' ? 'page' : undefined}
+                  onClick={() => setActiveLiveView('participate')}
+                >
+                  Participar
+                </button>
+                <button
+                  type="button"
+                  className={`min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${activeLiveView === 'results' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+                  aria-current={activeLiveView === 'results' ? 'page' : undefined}
+                  onClick={() => setActiveLiveView('results')}
+                >
+                  Resultados y territorio
+                </button>
+              </nav>
+
+              {activeLiveView === 'results' && mode !== 'embed' ? (
+                <details className="group rounded-xl border border-border/70 bg-background/60">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                    Compartir y mostrar QR
+                    <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+                  </summary>
+                  <div className="border-t border-border/70 p-3">
+                    <PublicSurveyShareActions survey={survey} submission={shareSubmission} tenantSlug={tenantSlug} />
+                  </div>
+                </details>
+              ) : null}
+
+              {activeLiveView === 'results' && shouldRevealLiveResults && liveDashboard ? (
                 <div
                   className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-2 shadow-sm sm:p-3 lg:p-4"
                   data-testid="public-survey-live-dashboard"
@@ -1034,7 +1049,12 @@ const PublicSurveyPage = () => {
                   ) : null}
 
                   {shouldRevealLiveResults ? (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <details className="group rounded-lg border border-border/70 bg-muted/15">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                        Filtros y análisis avanzado
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+                      </summary>
+                      <div className="grid gap-2 border-t border-border/70 p-3 sm:grid-cols-2 lg:grid-cols-4">
                       <select
                         aria-label={textOr(liveResultsUi?.filter_heatmap_label, 'Mapa de calor')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -1130,7 +1150,8 @@ const PublicSurveyPage = () => {
                       >
                         {textOr(liveResultsUi?.filters_reset_label, 'Limpiar filtros')}
                       </Button>
-                    </div>
+                      </div>
+                    </details>
                   ) : null}
 
                   {!hasLiveDashboardActivity ? (
@@ -1258,14 +1279,14 @@ const PublicSurveyPage = () => {
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && !liveDashboard && (isLoadingLiveDashboard || isFetchingLiveDashboard) ? (
+              {activeLiveView === 'results' && shouldRevealLiveResults && !liveDashboard && (isLoadingLiveDashboard || isFetchingLiveDashboard) ? (
                 <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/80 p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>{textOr(liveResultsUi?.loading_label, 'Cargando resultados en vivo...')}</span>
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && !liveDashboard && liveDashboardError && !isLoadingLiveDashboard && !isFetchingLiveDashboard ? (
+              {activeLiveView === 'results' && shouldRevealLiveResults && !liveDashboard && liveDashboardError && !isLoadingLiveDashboard && !isFetchingLiveDashboard ? (
                 <div
                   className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
                   role="alert"
@@ -1282,7 +1303,7 @@ const PublicSurveyPage = () => {
                 </div>
               ) : null}
 
-              <div className="space-y-3">
+              <div className={activeLiveView === 'participate' ? 'space-y-3' : 'hidden'} aria-hidden={activeLiveView !== 'participate'}>
                 <SurveyForm
                   survey={survey}
                   onSubmit={handleSubmit}
@@ -1301,7 +1322,9 @@ const PublicSurveyPage = () => {
                       : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }
                   liveResults={renderedLiveResults}
-                  showLiveResults={shouldRevealLiveResults}
+                  showLiveResults={false}
+                  variant="votacion"
+                  demographicsPresentation="collapsed"
                 />
               </div>
             </CardContent>
@@ -1318,7 +1341,16 @@ const PublicSurveyPage = () => {
           )}
         </div>
       ) : (
-        <>
+        <div className="space-y-3">
+          {isDemoParticipationSurvey ? (
+            <header className="rounded-2xl border border-border/70 bg-card px-4 py-4 shadow-sm sm:px-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Junín Participa</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{pollTitle}</h1>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                <strong className="text-foreground">Demo no oficial.</strong> La interacción permanece separada de cualquier dato ciudadano o resultado institucional.
+              </p>
+            </header>
+          ) : null}
           <SurveyForm
             survey={survey}
             onSubmit={handleSubmit}
@@ -1328,6 +1360,9 @@ const PublicSurveyPage = () => {
             submitErrorStatus={submitStatus}
             submitErrorDetails={submitErrorDetails}
             submitReasonCode={submitReasonCode}
+            showHeader={!isDemoParticipationSurvey}
+            variant="votacion"
+            demographicsPresentation="collapsed"
           />
           {survey.permitir_comentarios && (
             <SurveyComments
@@ -1337,7 +1372,7 @@ const PublicSurveyPage = () => {
               commentConfig={survey.commentConfig}
             />
           )}
-        </>
+        </div>
       )}
       {/* If comments are allowed, do we show them during voting? Yes, usually debate influences vote or vice versa.
           YouTube shows chat alongside poll.

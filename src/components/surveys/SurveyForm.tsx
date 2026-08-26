@@ -309,6 +309,7 @@ interface SurveyFormProps {
   showHeader?: boolean;
   variant?: 'default' | 'votacion';
   submitLabel?: string;
+  demographicsPresentation?: 'expanded' | 'collapsed' | 'hidden';
   /**
    * Runs the participant experience as an isolated, in-memory simulation.
    * Preview mode never persists a draft, emits analytics, requests identity/location,
@@ -375,6 +376,7 @@ export const SurveyForm = ({
   showHeader = true,
   variant = 'default',
   submitLabel,
+  demographicsPresentation = 'expanded',
   previewMode = false,
 }: SurveyFormProps) => {
   const { user, loading: authLoading } = useUser();
@@ -410,6 +412,7 @@ export const SurveyForm = ({
   const [phone, setPhone] = useState('');
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [demographics, setDemographics] = useState<SurveyDemographicMetadata>({});
+  const [demographicsOpen, setDemographicsOpen] = useState(demographicsPresentation === 'expanded');
   const [customGender, setCustomGender] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
@@ -506,6 +509,7 @@ export const SurveyForm = ({
     setPhone('');
     setIdentityError(null);
     setDemographics({});
+    setDemographicsOpen(demographicsPresentation === 'expanded');
     setCustomGender('');
     setGeoStatus('idle');
     setGeoMessage(null);
@@ -525,7 +529,7 @@ export const SurveyForm = ({
     lastTrackedSubmitErrorKeyRef.current = null;
     submissionAttemptRef.current = null;
     submissionInFlightScopeRef.current = null;
-  }, [initialState, publicEligibility.required, submissionScopeKey]);
+  }, [demographicsPresentation, initialState, publicEligibility.required, submissionScopeKey]);
 
   useEffect(
     () => () => {
@@ -1427,7 +1431,7 @@ export const SurveyForm = ({
     <Card className={isVotingVariant ? 'w-full border border-border/70 bg-background/80 shadow-sm' : 'w-full'}>
       {showHeader && (
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold">{survey.titulo}</CardTitle>
+          <h1 className="text-2xl font-semibold tracking-tight">{survey.titulo}</h1>
           {survey.descripcion && (
             <CardDescription className="max-w-3xl whitespace-pre-line text-base text-muted-foreground">
               {survey.descripcion}
@@ -1435,10 +1439,10 @@ export const SurveyForm = ({
           )}
           <div className="text-sm text-muted-foreground flex flex-col gap-1">
             <span>
-              Vigencia: {new Date(survey.inicio_at).toLocaleDateString()} –{' '}
-              {survey.fin_at ? new Date(survey.fin_at).toLocaleDateString() : 'Sin fecha de cierre'}
+              Vigencia: {new Date(survey.inicio_at).toLocaleDateString('es-AR')} –{' '}
+              {survey.fin_at ? new Date(survey.fin_at).toLocaleDateString('es-AR') : 'Sin fecha de cierre'}
             </span>
-            <span>Tipo: {survey.tipo}</span>
+            {!isVotingVariant ? <span>Tipo: {survey.tipo}</span> : null}
           </div>
         </CardHeader>
       )}
@@ -1654,7 +1658,7 @@ export const SurveyForm = ({
             </Alert>
           )
         ) : null}
-        {!readOnly && (
+        {!readOnly && totalQuestionsCount > 1 && (
           <div
             className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3"
             aria-live="polite"
@@ -1742,14 +1746,21 @@ export const SurveyForm = ({
             {identityError && <p className="text-sm text-destructive">{identityError}</p>}
           </div>
         )}
-        {!readOnly && !previewMode && (
-        <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
-            <p className="text-xs text-muted-foreground">
-              Esta información complementaria permite construir métricas segmentadas, mapas de calor y tableros en tiempo real.
-            </p>
-          </div>
+        {!readOnly && !previewMode && demographicsPresentation !== 'hidden' && (
+        <details
+          className="group rounded-lg border border-border bg-card/40"
+          open={demographicsOpen}
+          onToggle={(event) => setDemographicsOpen(event.currentTarget.open)}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+            <span>
+              <span className="block text-sm font-medium">Agregar información opcional</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">Barrio, ubicación y perfil demográfico.</span>
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+            <span className="hidden text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground group-open:inline">Cerrar</span>
+          </summary>
+          <div className="space-y-4 border-t border-border/70 p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="survey-age-range">Rango etario</Label>
@@ -1945,7 +1956,8 @@ export const SurveyForm = ({
               Coordenadas registradas: {demographics.ubicacion.lat.toFixed(4)}, {demographics.ubicacion.lng.toFixed(4)}
             </p>
           ) : null}
-        </div>
+          </div>
+        </details>
         )}
         {visibleQuestions.map((pregunta) => (
           <div
@@ -1958,10 +1970,11 @@ export const SurveyForm = ({
           >
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-medium">
-                {pregunta.orden}. {toDisplayText(pregunta.texto)}
+                {pregunta.orden ? `${pregunta.orden}. ` : ''}{toDisplayText(pregunta.texto)}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'} · Tipo: {pregunta.tipo}
+                {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'}
+                {!isVotingVariant ? ` · Tipo: ${pregunta.tipo}` : ''}
               </p>
             </div>
             {(pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'rating_emoji') && (

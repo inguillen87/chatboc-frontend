@@ -50,7 +50,7 @@ const jurisdiction = {
 };
 
 describe('SurveyLiveHeatmapPreview', () => {
-  it('renders an executive, source-backed territorial dashboard without decorative radar UI', () => {
+  it('renders a progressive executive territorial view without decorative radar UI', () => {
     render(
       <SurveyLiveHeatmapPreview
         heatmap={{
@@ -93,12 +93,21 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
     const layout = screen.getByTestId('survey-live-heatmap-layout');
     expect(layout).toHaveClass(
-      'p-2',
-      'sm:p-3',
-      'lg:p-4',
-      '2xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]',
+      'p-3',
+      'sm:p-4',
+      'lg:p-5',
+      'xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]',
     );
-    expect(layout).not.toHaveClass('xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,0.55fr)]');
+    expect(screen.getByText('Cobertura')).toBeInTheDocument();
+    expect(screen.getByText('Volumen')).toBeInTheDocument();
+    expect(screen.getByText('Zonas')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-map-options')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).not.toHaveAttribute('open');
+    const operationalDetails = screen
+      .getByTestId('survey-live-heatmap-operational-summary')
+      .querySelectorAll('details');
+    expect(operationalDetails).toHaveLength(2);
+    operationalDetails.forEach((detail) => expect(detail).not.toHaveAttribute('open'));
     expect(screen.getByTestId('survey-live-heatmap-jurisdiction')).toHaveTextContent('Junin, Mendoza');
     expect(screen.getByTestId('survey-live-heatmap-privacy')).toHaveTextContent('Privacidad protegida');
     expect(screen.getByTestId('survey-live-heatmap-evidence-summary')).toHaveTextContent('survey live results');
@@ -137,6 +146,10 @@ describe('SurveyLiveHeatmapPreview', () => {
         }}
       />,
     );
+
+    const mapOptions = screen.getByTestId('survey-live-heatmap-map-options');
+    fireEvent.click(within(mapOptions).getByText('Opciones del mapa'));
+    expect(mapOptions).toHaveAttribute('open');
 
     const hybridButton = screen.getByRole('button', { name: 'Calor + puntos' });
     const densityButton = screen.getByRole('button', { name: 'Densidad' });
@@ -180,6 +193,9 @@ describe('SurveyLiveHeatmapPreview', () => {
       />,
     );
 
+    const mapOptions = screen.getByTestId('survey-live-heatmap-map-options');
+    fireEvent.click(within(mapOptions).getByText('Opciones del mapa'));
+    expect(mapOptions).toHaveAttribute('open');
     expect(screen.getByTestId('survey-live-heatmap-map-filters')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('3 ubicaciones');
     expect(screen.getByTestId('survey-live-heatmap-visible-scope')).toHaveTextContent('16 respuestas representadas');

@@ -25,10 +25,16 @@ function isPublicTicketRoute(pathname: string) {
     .some((segment) => PUBLIC_TICKET_SEGMENTS.has(segment));
 }
 
+function isFocusedPublicRoute(pathname: string) {
+  const normalizedPath = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  return normalizedPath === '/demo' || /^\/e\/[^/]+$/.test(normalizedPath);
+}
+
 export function AppAccessibility() {
   const location = useLocation();
   const hideDock = shouldHideDock(location.pathname);
   const publicTicketRoute = isPublicTicketRoute(location.pathname);
+  const focusedPublicRoute = isFocusedPublicRoute(location.pathname);
 
   useEffect(() => {
     applyAccessibilityPrefs(readAccessibilityPrefs());
@@ -43,6 +49,8 @@ export function AppAccessibility() {
         <div
           className={`chatboc-a11y-dock${
             publicTicketRoute ? " chatboc-a11y-dock--public-ticket" : ""
+          }${
+            focusedPublicRoute ? " chatboc-a11y-dock--focused-public" : ""
           }`}
           role="region"
           aria-label="Accesibilidad de la plataforma"

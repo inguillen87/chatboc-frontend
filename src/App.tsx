@@ -346,6 +346,7 @@ function AppRoutes() {
     "/iframe",
     "/demo",
     "/demo-catalogs",
+    "/e",
     "/login",
     "/register",
     "/sso-callback",
@@ -453,7 +454,7 @@ function AppRoutes() {
           />
         </React.Suspense>
       )}
-      <ScrollMascotGuide />
+      {!ocultarWidgetGlobalEnApp ? <ScrollMascotGuide /> : null}
     </TokenRedirectWrapper>
   );
 }

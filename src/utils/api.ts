@@ -690,6 +690,12 @@ interface ApiFetchOptions {
    */
   baseUrlOverride?: string | null;
   /**
+   * For idempotent GET requests, allows a canonical/public host override to
+   * fall back to the normal API candidates when that host returns a gateway
+   * failure. Mutating requests never use this fallback.
+   */
+  allowSafeBaseFallback?: boolean;
+  /**
    * Avoid sending the entity token header even if one is available globally.
    * Public endpoints should not depend on tenant secrets to serve content,
    * otherwise shared links will break for vecinos sin credenciales.
@@ -872,6 +878,7 @@ export async function apiFetch<T>(
     tenantSlug,
     persistTenantSlug,
     baseUrlOverride,
+    allowSafeBaseFallback,
     omitEntityToken,
     omitTenant,
     pin,
@@ -1069,13 +1076,18 @@ export async function apiFetch<T>(
     return `${cleanBase}/${pathForBase}`;
   };
 
+  const isSafeReadRequest = method === 'GET';
+  const configuredCandidateBases = API_BASE_CANDIDATES.length
+    ? API_BASE_CANDIDATES
+    : [BASE_API_URL].filter((value): value is string => !!value);
   const candidateBases = isAbsolutePath
     ? []
     : preferredBase
-      ? [preferredBase.replace(/\/$/, "")]
-      : API_BASE_CANDIDATES.length
-        ? API_BASE_CANDIDATES
-        : [BASE_API_URL].filter((value): value is string => !!value);
+      ? Array.from(new Set([
+          preferredBase.replace(/\/$/, ""),
+          ...(allowSafeBaseFallback && isSafeReadRequest ? configuredCandidateBases : []),
+        ]))
+      : configuredCandidateBases;
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
@@ -1202,6 +1214,7 @@ export async function apiFetch<T>(
 
   let response: Response | null = null;
   let lastError: unknown = null;
+  const attemptedUrls = new Set<string>();
 
   if (isAbsolutePath) {
     try {
@@ -1228,6 +1241,10 @@ export async function apiFetch<T>(
 
     for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
       const candidateUrl = urlsToTry[urlIndex];
+      if (attemptedUrls.has(candidateUrl)) {
+        continue;
+      }
+      attemptedUrls.add(candidateUrl);
       url = candidateUrl;
 
       try {
@@ -1258,6 +1275,8 @@ export async function apiFetch<T>(
         const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const isRetryableGatewayFailure =
+          isSafeReadRequest && [502, 503, 504].includes(candidateResponse.status);
         const candidateContentType =
           candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
         const looksLikeFrontendHtmlShell =
@@ -1280,6 +1299,12 @@ export async function apiFetch<T>(
             { contentType: candidateContentType, url: candidateUrl },
           );
           response = null;
+          break;
+        }
+
+        if (isRetryableGatewayFailure && hasMoreBases) {
+          // A gateway failure is tied to the host/proxy, not to a legacy path
+          // alias on that same host. Move directly to the next backend base.
           break;
         }
 

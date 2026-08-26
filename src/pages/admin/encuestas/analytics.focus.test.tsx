@@ -231,6 +231,61 @@ describe('SurveyAnalyticsPage operational focus', () => {
     expect(screen.getByTestId('mock-survey-live-results')).toBeInTheDocument();
   });
 
+  it('does not query or present public live results for an unpublished draft', async () => {
+    const draftSurvey = {
+      ...surveyFixture,
+      estado: 'borrador',
+      slug: 'borrador-otra-jurisdiccion',
+      slug_publico: undefined,
+      canonical_slug: undefined,
+      admin_lifecycle: {
+        contract_version: 'surveys.admin_lifecycle.v1',
+        instrument_kind: 'voting',
+        phase: 'draft',
+        persisted_state: 'borrador',
+        accepts_responses: false,
+        capabilities: {
+          can_publish: false,
+          can_close: false,
+          can_delete: true,
+          can_share: false,
+          can_view_results: true,
+        },
+      },
+    };
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: draftSurvey,
+      surveys: { data: [draftSurvey] },
+      isLoadingSurvey: false,
+      isLoadingList: false,
+      surveyError: null,
+      listError: null,
+    });
+    mocks.useSurveyAnalytics.mockReturnValue({
+      summary: { total_respuestas: 0, demografia: {} },
+      timeseries: [],
+      heatmap: [],
+      heatmapPayload: undefined,
+      heatmapMeta: undefined,
+      dashboardBundle: { modules: {} },
+      executiveSummary: null,
+      isLoading: false,
+      exportCsv: vi.fn(),
+      isExporting: false,
+      filters: {},
+      setFilters: vi.fn(),
+      error: null,
+    });
+
+    renderPage('/admin/encuestas/3/analytics?focus=live');
+
+    expect(await screen.findByTestId('survey-live-results-publication-blocked')).toHaveTextContent(
+      'No consultamos el endpoint público',
+    );
+    expect(screen.queryByTestId('mock-survey-live-results')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mock-survey-qr')).not.toBeInTheDocument();
+  });
+
   it('does not expose synthetic response generation outside local development', async () => {
     renderPage('/admin/encuestas/3/analytics');
 

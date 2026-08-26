@@ -18,6 +18,7 @@ import {
   SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
   isSurveyResponseDuplicateError,
 } from '@/utils/surveySubmissionErrors';
+import { resolveSurveyPublicationFailure, type SurveyPublicationFailure } from '@/utils/surveyPublicationError';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
 
@@ -39,6 +40,9 @@ const matchesFocus = (survey: SurveyAdmin, focusMode: SurveyFocusMode) => {
   }
   return Boolean(survey.permitir_comentarios);
 };
+
+export const isSurveyJurisdictionConflict = (survey: SurveyAdmin) =>
+  survey.admin_lifecycle?.actions.publish.disabled_reason_code === 'survey_jurisdiction_binding_conflict';
 
 const focusCopy = {
   live: {
@@ -91,15 +95,22 @@ const AdminSurveysIndex = () => {
   const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
+  const [publishFailure, setPublishFailure] = useState<(SurveyPublicationFailure & { surveyId: number }) | null>(null);
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
       setPublishingId(survey.id);
+      setPublishFailure(null);
       await publishSurvey(survey.id);
       toast({ title: 'Encuesta publicada', description: 'Ya podés compartir el enlace público.' });
       await refetchList();
     } catch (error) {
-      toast({ title: 'No pudimos publicar la encuesta', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      const failure = resolveSurveyPublicationFailure(error);
+      setPublishFailure({ ...failure, surveyId: survey.id });
+      toast({ title: failure.title, description: failure.message, variant: 'destructive' });
+      // A 409 frequently means the backend advanced or blocked the lifecycle.
+      // Refresh regardless so the card never keeps offering an action from a stale state.
+      await refetchList().catch(() => undefined);
     } finally {
       setPublishingId(null);
     }
@@ -191,8 +202,12 @@ const AdminSurveysIndex = () => {
 
   const items = useMemo(() => {
     const prioritized = prioritizeMendozaDemoSurveys(surveys?.data ?? []);
-    if (!focusMode) return prioritized;
-    return [...prioritized].sort((a, b) => Number(matchesFocus(b, focusMode)) - Number(matchesFocus(a, focusMode)));
+    return [...prioritized].sort((a, b) => {
+      const jurisdictionOrder = Number(isSurveyJurisdictionConflict(a)) - Number(isSurveyJurisdictionConflict(b));
+      if (jurisdictionOrder !== 0) return jurisdictionOrder;
+      if (!focusMode) return 0;
+      return Number(matchesFocus(b, focusMode)) - Number(matchesFocus(a, focusMode));
+    });
   }, [focusMode, surveys?.data]);
   const focusedItems = useMemo(
     () => (focusMode ? items.filter((survey) => matchesFocus(survey, focusMode)) : []),
@@ -292,12 +307,45 @@ const AdminSurveysIndex = () => {
                   {focusMeta?.badge}
                 </div>
               ) : null}
+              {isSurveyJurisdictionConflict(survey) ? (
+                <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3" role="status">
+                  <p className="text-sm font-semibold text-foreground">Legado incompatible con la jurisdicción actual</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Se conserva para auditoría, pero queda al final del listado y no se puede publicar dentro de esta organización.
+                  </p>
+                </div>
+              ) : null}
+              {publishFailure?.surveyId === survey.id ? (
+                <div
+                  role="alert"
+                  data-testid={`survey-publish-failure-${survey.id}`}
+                  className="mb-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3"
+                >
+                  <p className="text-sm font-semibold text-destructive">{publishFailure.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{publishFailure.message}</p>
+                  {publishFailure.action !== 'retry' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => navigate(`/admin/encuestas/${survey.id}`)}
+                    >
+                      Revisar configuración
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <SurveyCard
                 survey={survey}
                 tenantSlug={tenantSlug}
                 onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                 onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics${focusMode ? `?focus=${focusMode}` : ''}`)}
-                onPublish={survey.admin_lifecycle?.capabilities.can_publish ? () => handlePublish(survey) : undefined}
+                onPublish={
+                  survey.admin_lifecycle?.capabilities.can_publish && !isSurveyJurisdictionConflict(survey)
+                    ? () => handlePublish(survey)
+                    : undefined
+                }
                 publishing={isPublishing && publishingId === survey.id}
                 onClose={survey.admin_lifecycle?.capabilities.can_close ? () => handleClose(survey) : undefined}
                 closing={isClosing && closingId === survey.id}

@@ -188,14 +188,14 @@ describe('PublicSurveyPage loading experience', () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Resultados y territorio' }));
     const timestamp = await screen.findByTestId('survey-last-updated');
     expect(timestamp).toHaveTextContent(new Date(serverTime).toLocaleString());
     expect(timestamp).not.toHaveTextContent(new Date(closingTime).toLocaleString());
     expect(screen.getByTestId('public-survey-page')).toHaveClass('max-w-7xl', 'px-0');
     expect(screen.getByTestId('public-live-survey-content')).toHaveClass(
-      'px-2',
-      'sm:px-4',
-      'lg:px-6',
+      'px-4',
+      'sm:px-6',
     );
   });
 
@@ -300,7 +300,9 @@ describe('PublicSurveyPage loading experience', () => {
     expect(screen.getByTestId('public-survey-demo-disclosure')).toHaveTextContent(
       '137 respuestas sintéticas',
     );
-    expect(screen.getByTestId('mock-survey-form')).toHaveAttribute('data-show-live-results', 'true');
+    expect(screen.getByTestId('mock-survey-form')).toHaveAttribute('data-show-live-results', 'false');
+    expect(screen.getByRole('button', { name: 'Participar' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Resultados y territorio' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'Simular participación' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Simular participación' }));
 

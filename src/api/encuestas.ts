@@ -134,23 +134,14 @@ const joinAdminPath = (base: string, suffix?: string) => {
 
 const shouldRetryAdminRequest = (error: unknown) => {
   if (error instanceof ApiError) {
-    if (error.status === 0) {
-      return true;
-    }
-
-    // Retry 403/404 because we might be hitting a tenant-scoped endpoint
-    // that the current token isn't authorized for in that specific way,
-    // but a generic admin endpoint might work with X-Tenant.
+    // Retry only route-compatibility failures. Authorization and domain
+    // conflicts are authoritative and must never be masked by a legacy alias.
     if (error.status === 404 || error.status === 405) {
       return true;
     }
 
     if (error.status === 401 || error.status === 403) {
       return false;
-    }
-
-    if (error.status >= 500) {
-      return true;
     }
 
     if (error.status === 200 && error.message.toLowerCase().includes('respuesta inesperada')) {
@@ -160,11 +151,9 @@ const shouldRetryAdminRequest = (error: unknown) => {
     return false;
   }
 
-  if (error instanceof Error) {
-    const normalized = error.message.toLowerCase();
-    return normalized.includes('conexión') || normalized.includes('cors');
-  }
-
+  // Network, CORS and 5xx failures affect the selected backend, not the route
+  // spelling. Fan-out across five legacy aliases only multiplies a gateway
+  // incident and can turn one analytics page into dozens of failed requests.
   return false;
 };
 
@@ -365,6 +354,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    allowSafeBaseFallback: true,
     omitEntityToken: true,
     omitTenant: true,
   });
@@ -513,6 +503,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       omitChatSessionId: true,
       tenantSlug: normalizedTenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+      allowSafeBaseFallback: true,
       omitEntityToken: true,
       omitTenant: true,
     });
@@ -775,6 +766,7 @@ export const getPublicSurveyLiveResults = (
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    allowSafeBaseFallback: true,
     omitEntityToken: true,
     omitTenant: true,
   }).then(normalizePublicSurveyLiveResults);
@@ -1231,6 +1223,7 @@ export const getSurveyComments = (
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    allowSafeBaseFallback: true,
     omitEntityToken: true,
     omitTenant: true,
   });

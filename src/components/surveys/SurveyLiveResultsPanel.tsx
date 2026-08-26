@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, BarChart3, ExternalLink, Loader2, MapPinned, Radio, RefreshCw, ShieldCheck, Signal, Users } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -205,6 +205,32 @@ const buildRealtimeSocketOptions = (
   };
 };
 
+export const isSurveyRealtimeSocketEnabled = (realtime?: SurveyRealtimeContract) => {
+  if (!realtime) return false;
+  if (realtime.enabled === false || realtime.socket?.enabled === false) return false;
+  return realtime.enabled === true || realtime.socket?.enabled === true;
+};
+
+export const matchesSurveyLivePayloadScope = (
+  payload: SurveyLivePublicResultsPayload,
+  slug: string,
+  tenantSlug?: string,
+) => {
+  const payloadSlug = displayText(payload.slug_publico ?? payload.slug, '').trim().toLowerCase();
+  const expectedSlug = slug.trim().toLowerCase();
+  if (payloadSlug && expectedSlug && payloadSlug !== expectedSlug) return false;
+
+  const payloadRecord = payload as Record<string, unknown>;
+  const payloadTenant = displayText(
+    payloadRecord.tenant_slug ?? payloadRecord.tenant ?? payloadRecord.organization_slug,
+    '',
+  ).trim().toLowerCase();
+  const expectedTenant = tenantSlug?.trim().toLowerCase() ?? '';
+  if (payloadTenant && expectedTenant && payloadTenant !== expectedTenant) return false;
+
+  return true;
+};
+
 export function SurveyLiveResultsPanel({
   slug,
   tenantSlug,
@@ -233,6 +259,11 @@ export function SurveyLiveResultsPanel({
     () => buildRealtimeSocketOptions(polledPayload?.realtime, normalizedSlug, normalizedTenant || undefined),
     [normalizedSlug, normalizedTenant, polledPayload?.realtime],
   );
+  const realtimeSocketEnabled = isSurveyRealtimeSocketEnabled(polledPayload?.realtime);
+
+  useEffect(() => {
+    setSocketPayload(undefined);
+  }, [normalizedSlug, normalizedTenant]);
 
   useSurveySocket({
     slug: normalizedSlug,
@@ -241,10 +272,12 @@ export function SurveyLiveResultsPanel({
     joinEvent: realtimeSocketOptions.joinEvent,
     joinPayloads: realtimeSocketOptions.joinPayloads,
     events: realtimeSocketOptions.events,
-    enabled: enabled && Boolean(normalizedSlug),
+    // HTTP polling is the durable baseline. Only open Socket.IO after the
+    // backend explicitly advertises it for this survey and tenant.
+    enabled: enabled && Boolean(normalizedSlug) && realtimeSocketEnabled,
     onUpdate: (payload) => {
       const normalizedPayload = normalizeSocketLiveResultsPayload(payload);
-      if (normalizedPayload) {
+      if (normalizedPayload && matchesSurveyLivePayloadScope(normalizedPayload, normalizedSlug, normalizedTenant || undefined)) {
         setSocketPayload(normalizedPayload);
       } else {
         void refetch();
@@ -260,15 +293,25 @@ export function SurveyLiveResultsPanel({
 
   const hasSocketPayload = Boolean(socketPayload && payload === socketPayload);
   const hasActivity = hasSurveyLiveActivity(payload);
-  const statusMode = error && !payload ? 'error' : consecutiveErrors > 2 ? 'fallback' : hasSocketPayload ? 'socket' : liveStatus.status;
+  const statusMode = error && !payload
+    ? 'error'
+    : consecutiveErrors > 2
+      ? 'fallback'
+      : hasSocketPayload
+        ? 'socket'
+        : payload
+          ? 'polling'
+          : liveStatus.status;
   const statusLabel =
     statusMode === 'socket'
       ? 'Socket live'
       : statusMode === 'fallback'
         ? 'Polling fallback'
-        : statusMode === 'error'
+      : statusMode === 'error'
           ? 'Sin conexion live'
-          : liveStatus.label;
+          : statusMode === 'polling'
+            ? 'Polling automático'
+            : liveStatus.label;
   const totalResponses = toNumber(payload?.total_respuestas);
   const questions = topQuestions(payload?.preguntas);
   const maxQuestionTotal = Math.max(1, ...questions.map((question) => question.total));

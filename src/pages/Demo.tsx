@@ -1341,29 +1341,25 @@ const DemoDataProvenanceBanner = ({
   if (isMixedPartitioned) {
     return (
       <div
-        className="border-b border-primary/30 bg-primary/10 px-4 py-4 text-foreground sm:px-5"
+        className="border-b border-border/70 bg-muted/20 px-4 py-2 text-foreground sm:px-5"
         role="note"
         aria-label="Fuentes separadas del panel demostrativo"
         data-demo-provenance="mixed-partitioned"
       >
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-background/80 text-primary">
-            <Activity className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-black uppercase tracking-[0.08em]">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span className="inline-flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" aria-hidden="true" />
               Actividad de esta sesión + encuesta demo separada
-            </p>
-            <p className="mt-1 text-sm font-semibold leading-6">
-              Reclamos, ubicaciones y conversaciones corresponden a esta sesión demo. La encuesta pertenece a una
-              partición sintética separada.
-            </p>
-            <p className="mt-1 text-xs leading-5 text-foreground">
-              La encuesta no representa datos oficiales ni relevamiento municipal y no debe usarse para decisiones públicas.
-            </p>
-            {provenance?.label ? <p className="mt-1 text-xs leading-5 text-foreground">{provenance.label}</p> : null}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Alcance</span>
+          </summary>
+          <div className="space-y-1 pb-1 pl-6 pt-2 text-xs leading-5 text-muted-foreground">
+            <p>Reclamos y conversaciones pertenecen a esta sesión. La encuesta usa una partición sintética separada.</p>
+            <p>No representa datos oficiales ni relevamiento municipal.</p>
+            {provenance?.label ? <p>{provenance.label}</p> : null}
           </div>
-        </div>
+        </details>
       </div>
     );
   }
@@ -1371,32 +1367,25 @@ const DemoDataProvenanceBanner = ({
   if (isSynthetic) {
     return (
       <div
-        className="border-b border-amber-500/35 bg-amber-400/15 px-4 py-4 text-amber-950 dark:bg-amber-400/10 dark:text-amber-100 sm:px-5"
+        className="border-b border-amber-500/25 bg-amber-500/[0.07] px-4 py-2 text-foreground sm:px-5"
         role="note"
         aria-label="Advertencia sobre los datos del escenario demostrativo"
         data-demo-provenance="synthetic"
       >
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-500/35 bg-amber-400/20">
-            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-black uppercase tracking-[0.08em]">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span className="inline-flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-700 dark:text-amber-300" aria-hidden="true" />
               Escenario demostrativo · datos simulados
-            </p>
-            <p className="mt-1 text-sm font-semibold leading-6">
-              No representa datos oficiales ni relevamiento municipal.
-            </p>
-            {provenance?.label ? (
-              <p className="mt-1 text-xs leading-5 text-amber-900/85 dark:text-amber-100/80">{provenance.label}</p>
-            ) : null}
-            {provenance?.scenario_scope ? (
-              <p className="mt-1 text-xs font-semibold text-amber-900/85 dark:text-amber-100/80">
-                Ámbito del escenario: {provenance.scenario_scope}
-              </p>
-            ) : null}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Alcance</span>
+          </summary>
+          <div className="space-y-1 pb-1 pl-6 pt-2 text-xs leading-5 text-muted-foreground">
+            <p>No representa datos oficiales ni relevamiento municipal.</p>
+            {provenance?.label ? <p>{provenance.label}</p> : null}
+            {provenance?.scenario_scope ? <p>Ámbito del escenario: {provenance.scenario_scope}</p> : null}
           </div>
-        </div>
+        </details>
       </div>
     );
   }
@@ -1405,19 +1394,14 @@ const DemoDataProvenanceBanner = ({
 
   return (
     <div
-      className="border-b border-primary/25 bg-primary/10 px-4 py-3 text-foreground sm:px-5"
+      className="border-b border-border/70 bg-muted/20 px-4 py-2 text-foreground sm:px-5"
       role="status"
       data-demo-provenance="session"
     >
-      <div className="flex items-start gap-3">
-        <Radio className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-        <div>
-          <p className="text-sm font-bold">Eventos reales de esta sesión demo</p>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-            Esta vista muestra únicamente actividad generada durante la sesión actual; no se mezcla con el escenario simulado.
-          </p>
-        </div>
-      </div>
+      <span className="inline-flex items-center gap-2 text-xs font-semibold">
+        <Radio className="h-4 w-4 text-primary" aria-hidden="true" />
+        Eventos reales de esta sesión demo
+      </span>
     </div>
   );
 };
@@ -1636,6 +1620,7 @@ export const DemoAdminPreview = ({
   activeTarget = 'summary',
   onActiveTargetChange,
   onOpenEventDetail,
+  showNavigation = true,
 }: {
   sector: DemoSector | null;
   rubro?: string | null;
@@ -1644,6 +1629,7 @@ export const DemoAdminPreview = ({
   activeTarget?: DemoAdminPanelTarget;
   onActiveTargetChange?: (target: DemoAdminPanelTarget) => void;
   onOpenEventDetail?: (event: DemoRuntimeEvent) => void;
+  showNavigation?: boolean;
 }) => {
   if (!preview) return null;
 
@@ -1715,17 +1701,17 @@ export const DemoAdminPreview = ({
     >
       <DemoDataProvenanceBanner preview={preview} hasRuntimeEvents={runtimeEvents.length > 0} />
       <div className="grid gap-0">
-        <aside className="border-b border-border/70 bg-muted/25 p-4 sm:p-5">
-          <div className="mb-5 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <aside className="border-b border-border/70 bg-muted/15 px-4 py-3 sm:px-5">
+          <div className={`flex items-center gap-3 ${showNavigation ? 'mb-3' : ''}`}>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{adminLabel}</p>
-              <p className="truncate text-lg font-bold text-foreground">{subtitle}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">{adminLabel}</p>
+              <p className="truncate text-sm font-bold text-foreground">{subtitle}</p>
             </div>
           </div>
-          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Secciones del panel ejecutivo">
+          {showNavigation ? <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Secciones del panel ejecutivo">
             {modules.map((module) => {
               const active = module.id === activeModule?.id;
               return (
@@ -1745,15 +1731,15 @@ export const DemoAdminPreview = ({
               </button>
               );
             })}
-          </nav>
+          </nav> : null}
         </aside>
 
         <div className="p-4 sm:p-5">
-          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{viewLabel}</p>
-              <h2 id="demo-admin-preview-title" className="mt-1 text-2xl font-bold tracking-tight text-foreground">{title}</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{outcome}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">{viewLabel}</p>
+              <h2 id="demo-admin-preview-title" className="mt-1 text-xl font-bold tracking-tight text-foreground sm:text-2xl">{title}</h2>
+              {outcome ? <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{outcome}</p> : null}
             </div>
             {statusLabel ? (
               <span className="w-fit rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
@@ -1859,7 +1845,7 @@ const Demo = () => {
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
   const [demoAdminPanelTarget, setDemoAdminPanelTarget] = useState<DemoAdminPanelTarget>('summary');
-  const [demoJourneyTarget, setDemoJourneyTarget] = useState<ExecutiveDemoJourneyTarget>('conversation');
+  const [demoJourneyTarget, setDemoJourneyTarget] = useState<ExecutiveDemoJourneyTarget>('overview');
   const [demoDetailDrawer, setDemoDetailDrawer] = useState<DemoDetailDrawerState>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
@@ -1971,19 +1957,31 @@ const Demo = () => {
   // working in the same executive view.
   useEffect(() => {
     setDemoAdminPanelTarget('summary');
-    setDemoJourneyTarget('conversation');
+    setDemoJourneyTarget('overview');
   }, [demoPreviewTenantSlug, rubroClaveSeleccionado, sectorSeleccionado]);
 
   const handleDemoAdminPanelTargetChange = useCallback((target: DemoAdminPanelTarget) => {
     setDemoAdminPanelTarget(target);
-    setDemoJourneyTarget(target === 'claims' || target === 'surveys' ? target : 'analytics');
+    setDemoJourneyTarget(
+      target === 'summary'
+        ? 'overview'
+        : target === 'claims' || target === 'surveys'
+          ? target
+          : 'analytics',
+    );
   }, []);
 
   const handleDemoJourneySelect = useCallback((target: ExecutiveDemoJourneyTarget) => {
     setDemoJourneyTarget(target);
 
     if (target !== 'conversation') {
-      setDemoAdminPanelTarget(target === 'analytics' ? 'summary' : target);
+      setDemoAdminPanelTarget(
+        target === 'overview'
+          ? 'summary'
+          : target === 'analytics'
+            ? 'map'
+            : target,
+      );
     }
 
     window.requestAnimationFrame(() => {
@@ -2539,79 +2537,16 @@ const Demo = () => {
 
   return (
     <div
-      className="flex min-h-screen w-full flex-col items-center bg-background text-foreground"
+      className="flex min-h-[calc(100dvh-5rem)] w-full flex-col items-center bg-background text-foreground"
       data-testid="demo-route-shell"
       data-demo-route-state={demoSessionLoading ? 'loading' : 'ready'}
+      data-demo-active-view={demoJourneyTarget}
     >
-      <header className="sticky top-0 z-20 w-full border-b border-border bg-card/80 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={CHATBOC_ORBIT_AVATAR}
-              alt="Chatboc"
-              className="h-9 w-9 rounded-full border border-primary/30 bg-primary/20 p-0.5 dark:bg-primary/30"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
-              }}
-            />
-            <span className="text-xl font-semibold tracking-tight text-foreground">
-              Chatboc <span className="text-lg text-muted-foreground">- Demo</span>
-            </span>
-          </div>
-          {rubroSeleccionado ? (
-            <button
-              onClick={handleChangeRubro}
-              className="text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary sm:text-sm"
-              title="Cambiar rubro"
-            >
-              Rubro: {rubroSeleccionado} (cambiar)
-            </button>
-          ) : null}
-        </div>
-      </header>
-
-      <div className="min-h-[calc(100dvh-4.25rem)] w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
-        <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
-            <h1 className="mt-2 max-w-3xl text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-              Probá una conversación real y mirá qué queda listo para operar.
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actúe.
-            </p>
-          </div>
-          {demoError ? (
-            <div className="mt-4">
-              <DemoErrorPanel error={demoError} onRetry={sectorSeleccionado ? () => void startSectorDemo() : undefined} />
-            </div>
-          ) : null}
-          <details className="group mt-4 rounded-2xl border border-border/70 bg-background/65" data-demo-whatsapp-access>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
-              <span className="flex items-center gap-2">
-                <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
-                Probar el mismo circuito por WhatsApp
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground group-open:hidden">
-                Abrir
-              </span>
-              <span className="hidden text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground group-open:inline">
-                Cerrar
-              </span>
-            </summary>
-            <div className="border-t border-border/70 p-3 sm:p-4">
-              <WhatsappSandboxLauncher
-                initialSector={sectorSeleccionado ?? requestedSandboxSector}
-                initialRubro={rubroClaveSeleccionado ?? requestedSandboxRubro}
-                initialTenantSlug={demoPreviewTenantSlug ?? requestedSandboxTenant}
-              />
-            </div>
-          </details>
-        </section>
-
+      <div className="w-full max-w-[90rem] flex-1 space-y-4 py-4 sm:py-5">
         <ExecutiveDemoJourney
           activeTarget={demoJourneyTarget}
           onSelect={handleDemoJourneySelect}
+          onChangeContext={handleChangeRubro}
           scenarioContext={demoAdminPreview?.survey_voting?.items
             ?.flatMap((survey) => [survey.slug, survey.title, survey.titulo, survey.question])
             .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -2624,15 +2559,36 @@ const Demo = () => {
           }
         />
 
+        {demoError ? (
+          <DemoErrorPanel error={demoError} onRetry={sectorSeleccionado ? () => void startSectorDemo() : undefined} />
+        ) : null}
+
         <div
-          className="grid gap-5 xl:min-h-[720px] xl:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]"
+          className="min-h-[32rem]"
           data-demo-workspace-shell
         >
           <div
             id="demo-conversation-workspace"
-            className="min-w-0 scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 xl:min-h-[680px]"
+            className="mx-auto min-w-0 max-w-5xl scroll-mt-24 space-y-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             tabIndex={-1}
+            hidden={demoJourneyTarget !== 'conversation'}
           >
+            <details className="group overflow-hidden rounded-xl border border-border/70 bg-card" data-demo-whatsapp-access>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
+                <span className="flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Abrir el acceso por WhatsApp
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Opcional</span>
+              </summary>
+              <div className="border-t border-border/70 p-3 sm:p-4">
+                <WhatsappSandboxLauncher
+                  initialSector={sectorSeleccionado ?? requestedSandboxSector}
+                  initialRubro={rubroClaveSeleccionado ?? requestedSandboxRubro}
+                  initialTenantSlug={demoPreviewTenantSlug ?? requestedSandboxTenant}
+                />
+              </div>
+            </details>
             <DemoWorkspace
               tenantSlug={demoTenantSlug}
               sector={sectorSeleccionado}
@@ -2640,18 +2596,20 @@ const Demo = () => {
               workspace={demoWorkspace}
               loading={demoSessionLoading}
               onRuntimeResult={handleDemoRuntimeResult}
+              presentation="executive"
             />
           </div>
 
           <aside
             id="demo-executive-workspace"
-            className="scroll-mt-24 space-y-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 xl:min-h-[680px] xl:sticky xl:top-24 xl:self-start"
+            className="scroll-mt-24 space-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             data-demo-admin-shell
             tabIndex={-1}
+            hidden={demoJourneyTarget === 'conversation'}
           >
             {demoSessionLoading && !demoAdminPreview ? (
               <section
-                className="min-h-[520px] rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm xl:min-h-[680px]"
+                className="min-h-[28rem] rounded-2xl border border-border/70 bg-card p-5 shadow-sm"
                 role="status"
                 aria-live="polite"
                 aria-label="Preparando el tablero ejecutivo"
@@ -2682,6 +2640,7 @@ const Demo = () => {
                 activeTarget={demoAdminPanelTarget}
                 onActiveTargetChange={handleDemoAdminPanelTargetChange}
                 onOpenEventDetail={handleOpenDemoDetail}
+                showNavigation={false}
               />
             )}
           </aside>

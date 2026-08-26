@@ -111,7 +111,10 @@ const shouldDeferModulePreload = (dependencyPath: string) =>
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://api.chatboc.ar').replace(/\/+$/, '');
+  // Keep the browser-facing backend URL and the local proxy target independent.
+  // This lets local QA use a same-origin `/api` base while explicitly proxying
+  // requests to a Preview backend, avoiding both CORS and proxy loops.
+  const backendTarget = (env.VITE_PROXY_TARGET || env.VITE_BACKEND_URL || 'https://api.chatboc.ar').replace(/\/+$/, '');
   const socketTarget = backendTarget.replace(/^http/i, 'ws');
 
   return {

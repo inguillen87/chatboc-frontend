@@ -49,6 +49,8 @@ interface UseSurveyAnalyticsResult {
   setFilters: (next: SurveyAnalyticsFilters) => void;
   exportCsv: () => Promise<Blob>;
   isExporting: boolean;
+  refresh: () => Promise<void>;
+  isRefreshing: boolean;
 }
 
 const sanitizeBoundingBox = (value: SurveyAnalyticsFilters['bbox']): string | undefined => {
@@ -377,5 +379,19 @@ export function useSurveyAnalytics(
     setFilters: (next: SurveyAnalyticsFilters) => setFiltersState(normalizeFilters(next)),
     exportCsv: async () => exportMutation.mutateAsync(),
     isExporting: exportMutation.isPending,
+    refresh: async () => {
+      const dashboardResult = await dashboardQuery.refetch();
+      const modules = dashboardResult.data?.modules;
+      const fallbackRefreshes: Array<Promise<unknown>> = [];
+      if (!modules?.summary) fallbackRefreshes.push(summaryQuery.refetch());
+      if (!modules?.timeseries) fallbackRefreshes.push(timeseriesQuery.refetch());
+      if (!modules?.heatmap) fallbackRefreshes.push(heatmapQuery.refetch());
+      await Promise.allSettled(fallbackRefreshes);
+    },
+    isRefreshing:
+      dashboardQuery.isFetching ||
+      summaryQuery.isFetching ||
+      timeseriesQuery.isFetching ||
+      heatmapQuery.isFetching,
   };
 }

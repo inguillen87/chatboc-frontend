@@ -815,6 +815,50 @@ function SurveyTerritoryCommandCenter({
       ? 'coordenadas reales'
       : 'pendiente geo';
 
+  if (!points.length) {
+    const hasResponses = typeof totalResponses === 'number' && totalResponses > 0;
+    return (
+      <Card
+        className="border-border/70 bg-card shadow-sm"
+        data-testid="survey-territory-command-center"
+      >
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                Cobertura territorial pendiente
+              </CardTitle>
+              <CardDescription>
+                {hasResponses
+                  ? 'Hay respuestas registradas, pero ninguna tiene ubicación utilizable para construir un mapa real.'
+                  : 'El mapa se habilitará cuando ingresen respuestas con ubicación consentida.'}
+              </CardDescription>
+            </div>
+            <Badge variant="outline">0 registros georreferenciados</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Respuestas</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{formatSurveyNumber(totalResponses)}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">0%</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Próximo control</p>
+            <p className="mt-1 text-sm font-medium">Capturar barrio o coordenadas con consentimiento</p>
+          </div>
+          <p className="text-sm text-muted-foreground sm:col-span-3">
+            No se generan puntos, zonas ni focos artificiales. Revisá el formulario y los canales de ingreso para solicitar ubicación de forma opcional y trazable.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card
       className="overflow-hidden border-slate-700/60 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.24),transparent_28%),linear-gradient(135deg,#06111f,#111827_48%,#1f2937)] text-slate-100 shadow-xl"
@@ -1884,8 +1928,14 @@ export const SurveyAnalytics = ({
               <p className="mt-3 text-sm font-medium">Preparando el mapa con las respuestas geolocalizadas...</p>
             </div>
           ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
+            <div className="flex min-h-44 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/15 p-5 text-center">
+              <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-foreground">
+                {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay respuestas georreferenciadas.'}
+              </p>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                El mapa permanece vacío hasta recibir barrio o coordenadas consentidas. No completamos la vista con ubicaciones simuladas.
+              </p>
             </div>
           )}
 

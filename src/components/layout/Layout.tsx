@@ -21,7 +21,9 @@ const Layout = () => {
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
-  const isFooterlessWorkspace = isTicketWorkspace || isProfileAnalyticsWorkspace;
+  const isDemoExperience = normalizedPath === '/demo';
+  const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
+  const isFooterlessWorkspace = isTicketWorkspace || isProfileAnalyticsWorkspace || isFocusedPublicExperience;
 
   // Public navigation should land immediately at the top of the new screen.
   useLayoutEffect(() => {
@@ -80,8 +82,8 @@ const Layout = () => {
           {'[data-workspace-shell="tickets"] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
         </style>
       ) : null}
-      {!isTicketWorkspace ? <DemoModeBanner /> : null}
-      <Navbar />
+      {!isTicketWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
+      {!isFocusedPublicExperience ? <Navbar /> : null}
       {isTicketWorkspace ? (
         <div className="mt-14 shrink-0">
           <DemoModeBanner />
@@ -95,8 +97,10 @@ const Layout = () => {
             ? 'flex min-h-0 w-full flex-1 overflow-hidden'
             : isProfileAnalyticsWorkspace
               ? 'flex-1 w-full pt-14'
+              : isDemoExperience
+                ? 'mx-auto w-full max-w-[90rem] flex-1 px-4 py-3 sm:px-6 sm:py-5 lg:px-8'
               : isPublicSurveyExperience
-                ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 pt-20 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16'
+                ? 'mx-auto w-full max-w-[90rem] flex-1 px-4 py-3 sm:px-6 sm:py-5 lg:px-8'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >

@@ -174,7 +174,7 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-2" data-demo-survey-executive-summary>
+        <div className="grid gap-2 sm:grid-cols-3" data-demo-survey-executive-summary>
           <ExecutiveMetric
             label="Respuestas"
             value={NUMBER_FORMATTER.format(survey.totalResponses)}
@@ -189,11 +189,6 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
             label="Brecha 1° / 2°"
             value={margin === null ? 'No calculable' : `${NUMBER_FORMATTER.format(margin)} p.p.`}
             detail={runnerUp ? `frente a ${runnerUp.label}` : 'requiere al menos dos opciones'}
-          />
-          <ExecutiveMetric
-            label="Universo convocado"
-            value="No informado"
-            detail="no se calcula tasa de participación"
           />
         </div>
 
@@ -263,13 +258,16 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
         ) : null}
 
         {survey.segments.length ? (
-          <section className="rounded-xl border border-border/60 bg-muted/[0.12] p-3" aria-label={`Cortes descriptivos de ${survey.title}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <details className="group rounded-xl border border-border/60 bg-muted/[0.12]" aria-label={`Cortes descriptivos de ${survey.title}`}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground">Cortes descriptivos</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Distribución de respuestas por dimensión informada.</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Segmentación opcional del escenario.</p>
               </div>
-              <div className="flex flex-wrap gap-1" role="group" aria-label="Seleccionar dimensión">
+              <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Ver detalle</span>
+            </summary>
+            <div className="border-t border-border/60 p-3">
+              <div className="flex flex-wrap justify-end gap-1" role="group" aria-label="Seleccionar dimensión">
                 {survey.segments.map((segment) => {
                   const active = segment.key === activeSegment?.key;
                   return (
@@ -289,7 +287,6 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
                   );
                 })}
               </div>
-            </div>
             {activeSegment ? (
               <div className="mt-3 grid gap-2">
                 {[...activeSegment.items]
@@ -316,7 +313,8 @@ const ExecutiveSurveyCard = ({ survey }: { survey: ExecutiveSurveyItem }) => {
                 Segmentación calculada exclusivamente sobre la base sintética del escenario.
               </p>
             ) : null}
-          </section>
+            </div>
+          </details>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">

@@ -102,12 +102,13 @@ describe('Demo direct-route layout stability', () => {
     );
 
     expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'loading');
-    expect(screen.getByTestId('demo-direct-loading-shell')).toHaveClass('min-h-[520px]', 'xl:min-h-[680px]');
-    expect(document.querySelector('[data-demo-workspace-shell]')).toHaveClass('xl:min-h-[720px]');
-    expect(document.querySelector('[data-demo-admin-shell]')).toHaveClass('xl:min-h-[680px]');
+    expect(screen.getByTestId('demo-direct-loading-shell')).toHaveClass('min-h-[28rem]');
+    expect(document.querySelector('[data-demo-workspace-shell]')).toHaveClass('min-h-[32rem]');
+    expect(document.querySelector('[data-demo-workspace-shell]')).not.toHaveClass('xl:min-h-[720px]');
+    expect(document.querySelector('[data-demo-admin-shell]')).not.toHaveClass('xl:min-h-[680px]');
     expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-sector', 'gobierno');
     expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'true');
-    expect(screen.getByText('Demo completa')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Centro de gestión ciudadana' })).toBeInTheDocument();
     expect(screen.queryByTestId('demo-sector-selector')).not.toBeInTheDocument();
     expect(screen.queryByTestId('demo-rubro-selector')).not.toBeInTheDocument();
 

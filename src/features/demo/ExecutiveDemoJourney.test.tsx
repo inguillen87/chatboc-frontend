@@ -15,19 +15,13 @@ describe('ExecutiveDemoJourney', () => {
       />,
     );
 
-    expect(screen.getByText('Un solo espacio de trabajo, del contacto a la decisión')).toBeInTheDocument();
+    expect(screen.getByText('Centro de gestión ciudadana')).toBeInTheDocument();
+    expect(screen.getByText('Atención, reclamos, participación y territorio en una sola vista.')).toBeInTheDocument();
     expect(screen.getByText('Ámbito: Junín, Mendoza')).toBeInTheDocument();
-    expect(screen.getByText('Escenario demostrativo · no oficial')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(4);
-    expect(screen.getByRole('button', { name: /Atención omnicanal/i })).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByText('3 escenarios de Junín · un mismo workspace')).toBeInTheDocument();
-    expect(document.querySelector('[data-demo-scenario="prioridades-barriales"]')).toHaveTextContent('En pantalla');
-    expect(document.querySelector('[data-demo-scenario="obras-servicios-90-dias"]')).toHaveTextContent(
-      'Demo no oficial',
-    );
-    expect(document.querySelector('[data-demo-scenario="tramites-atencion-digital"]')).toHaveTextContent(
-      'Trámites y atención digital',
-    );
+    expect(screen.getByText('Demo no oficial · datos simulados')).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: 'Atención' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('Escenario activo: Prioridades barriales.')).toBeInTheDocument();
   });
 
   it('keeps the Junín scenario catalog in the same workspace and exposes every destination', () => {
@@ -42,11 +36,11 @@ describe('ExecutiveDemoJourney', () => {
     );
 
     expect(screen.getByText('Ámbito: Junín, Mendoza')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Encuestas y votaciones/i })).toHaveAttribute('aria-current', 'step');
-    expect(document.querySelector('[data-demo-scenario="obras-servicios-90-dias"]')).toHaveTextContent('En pantalla');
+    expect(screen.getByRole('button', { name: 'Participación' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('Escenario activo: Obras y servicios.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /CRM de reclamos/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Analítica territorial/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reclamos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Territorio' }));
 
     expect(onSelect).toHaveBeenNthCalledWith(1, 'claims');
     expect(onSelect).toHaveBeenNthCalledWith(2, 'analytics');
@@ -57,7 +51,7 @@ describe('ExecutiveDemoJourney', () => {
       <ExecutiveDemoJourney activeTarget="analytics" onSelect={vi.fn()} scenarioContext=" " scenarioScope=" " />,
     );
 
-    expect(screen.getByText('Ámbito: configurado por esta demo')).toBeInTheDocument();
-    expect(document.querySelector('[data-demo-scenario]')).not.toHaveTextContent('En pantalla');
+    expect(screen.getByText('Ámbito: por configurar')).toBeInTheDocument();
+    expect(screen.getByText('3 escenarios demostrativos disponibles en el mismo workspace.')).toBeInTheDocument();
   });
 });
