@@ -64,6 +64,7 @@ import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { normalizeSaasActions } from '@/api/v2/saas';
 import TicketAiHandoffControl, { isAiHandoffAction } from './TicketAiHandoffControl';
+import './DetailsPanel.css';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   return sanitizeAttachmentUrl(value) || undefined;
@@ -401,7 +402,7 @@ interface DetailsPanelProps {
   operationalWorkspace?: boolean;
 }
 
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
+const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className, operationalWorkspace = false }) => {
   const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
@@ -891,18 +892,20 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
       className={cn(
-        'flex h-full min-w-0 max-w-full shrink-0 flex-col border-border bg-muted/20',
+        'ticket-inspector flex h-full min-w-0 max-w-full shrink-0 flex-col overflow-hidden border-border bg-muted/20',
         onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
         className,
       )}
+      data-operational-workspace={operationalWorkspace ? 'true' : 'false'}
+      data-testid="ticket-details-panel"
     >
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+      <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-2 border-b border-border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
         <div className="flex min-w-0 items-center gap-2">
           {onClose ? (
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="h-10 w-10 shrink-0"
               onClick={onClose}
               aria-label="Cerrar detalles del ticket"
             >
@@ -913,15 +916,17 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Caso <span className="font-mono text-foreground">{caseNumberLabel}</span>
             </p>
-            <h2 className="truncate text-base font-semibold md:text-lg" title={ticketSubject}>
+            <h2 className="ticket-inspector__header-title text-base font-semibold leading-snug md:text-lg" title={ticketSubject}>
               {ticketSubject}
             </h2>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge variant="outline" className="hidden capitalize sm:inline-flex">
-            {currentStatusLabel}
-          </Badge>
+          {!operationalWorkspace ? (
+            <Badge variant="outline" className="hidden capitalize sm:inline-flex">
+              {currentStatusLabel}
+            </Badge>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Exportar o enviar historial">
@@ -940,8 +945,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         </div>
       </header>
 
-      <ScrollArea className="flex-1">
-        <div className="space-y-3 p-3 pb-24 sm:p-4 md:pb-6">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="ticket-inspector__scroll-content space-y-3 p-3 pb-24 sm:p-4 md:pb-6">
           <Card className="border-primary/20 bg-background shadow-sm" data-testid="ticket-resolution-guide">
             <CardContent className="space-y-4 p-4">
               <section aria-labelledby={`case-summary-${ticket.id}`} className="space-y-2">
@@ -952,23 +957,23 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   </h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="capitalize">{currentStatusLabel}</Badge>
-                  {ticket.categoria ? <Badge variant="outline">{ticket.categoria}</Badge> : null}
+                  <Badge variant="secondary" className="ticket-inspector__badge capitalize">{currentStatusLabel}</Badge>
+                  {ticket.categoria ? <Badge variant="outline" className="ticket-inspector__badge">{ticket.categoria}</Badge> : null}
                   {priorityLabel ? (
-                    <Badge variant="outline" className="gap-1">
+                    <Badge variant="outline" className="ticket-inspector__badge gap-1">
                       <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                       Prioridad {formatCompactLabel(priorityLabel)}
                     </Badge>
                   ) : null}
-                  {slaLabel ? <Badge variant="outline">SLA: {slaLabel}</Badge> : null}
+                  {slaLabel ? <Badge variant="outline" className="ticket-inspector__badge">SLA: {slaLabel}</Badge> : null}
                   {assignedAgentLabel ? (
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge variant="secondary" className="ticket-inspector__badge gap-1">
                       <UserRound className="h-3 w-3" aria-hidden="true" />
                       {assignedAgentLabel}
                     </Badge>
                   ) : null}
                 </div>
-                <p className="line-clamp-3 text-sm leading-relaxed text-foreground">{caseSummary}</p>
+                <p className="text-sm leading-relaxed text-foreground">{caseSummary}</p>
                 {assistedContext.visible ? (
                   <div className="flex flex-wrap gap-2" data-testid="ticket-assisted-context-card">
                     {assistedContext.moduleLabel ? (
@@ -998,7 +1003,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Acciones disponibles
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="ticket-inspector__action-grid">
                     {primaryResolutionActions.map((action, index) => {
                       const canOpen = Boolean(action.href && !action.disabled);
                       const reasonId = `resolution-action-${ticket.id}-${index}-reason`;
@@ -1008,12 +1013,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                             type="button"
                             variant={index === 0 && canOpen ? 'default' : 'outline'}
                             size="sm"
-                            className="w-full justify-between gap-2"
+                            className="ticket-inspector__action-button w-full justify-between gap-2"
                             disabled={!canOpen}
                             aria-describedby={action.disabledReason ? reasonId : undefined}
                             onClick={() => (action.href ? openActionHref(action.href) : undefined)}
                           >
-                            <span className="truncate">{action.label}</span>
+                            <span>{action.label}</span>
                             {canOpen ? (
                               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                             ) : (
@@ -1057,7 +1062,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">Datos del {contactRoleLabel.toLowerCase()}</span>
-                    <span className="block truncate text-xs font-normal text-muted-foreground">
+                    <span className="ticket-inspector__copy block text-xs font-normal text-muted-foreground">
                       {displayName || 'Contacto sin nombre'} · {channelLabel}
                     </span>
                   </span>
@@ -1065,7 +1070,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               </AccordionTrigger>
               <AccordionContent className="pb-4 pt-1">
                 <div className="space-y-3" data-testid="ticket-operator-contact-card">
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="ticket-inspector__data-grid">
                     <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                       <p className="text-xs text-muted-foreground">Nombre</p>
                       <p className="mt-1 break-words text-sm font-medium">{personal.nombre || 'No informado'}</p>
@@ -1084,7 +1089,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="ticket-inspector__contact-action-grid">
                     {phoneHref ? (
                       <Button asChild variant="outline" size="sm" className="gap-2">
                         <a href={phoneHref} target="_blank" rel="noreferrer">
@@ -1149,14 +1154,14 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">Ubicación del reclamo</span>
-                    <span className="block truncate text-xs font-normal text-muted-foreground">
+                    <span className="ticket-inspector__copy block text-xs font-normal text-muted-foreground">
                       {personal.direccion || 'Sin dirección informada'}
                     </span>
                   </span>
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4 pt-1">
-                <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="ticket-inspector__location-row rounded-lg border border-border/60 bg-muted/20 p-3">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Dirección registrada</p>
                     <p className="mt-1 break-words text-sm font-medium">{personal.direccion || 'No informada'}</p>
@@ -1277,7 +1282,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 {additionalResolutionActions.length ? (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-foreground">Más acciones permitidas</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="ticket-inspector__secondary-action-grid">
                       {additionalResolutionActions.map((action, index) => {
                         const canOpen = Boolean(action.href && !action.disabled);
                         return (
@@ -1286,11 +1291,11 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="w-full justify-between gap-2"
+                              className="ticket-inspector__action-button w-full justify-between gap-2"
                               disabled={!canOpen}
                               onClick={() => (action.href ? openActionHref(action.href) : undefined)}
                             >
-                              <span className="truncate">{action.label}</span>
+                              <span>{action.label}</span>
                               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                             </Button>
                             {action.disabledReason ? (
@@ -1307,7 +1312,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Datos técnicos
                   </p>
-                  <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  <dl className="ticket-inspector__technical-grid">
                     <div>
                       <dt className="text-xs text-muted-foreground">Número de caso</dt>
                       <dd className="break-all font-mono text-xs">{ticket.nro_ticket || 'No asignado'}</dd>
@@ -1338,7 +1343,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     ) : null}
                   </dl>
                   {ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object' ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="ticket-inspector__priority-grid mt-3">
                       {Object.entries(ticket.priority_breakdown)
                         .filter(([, value]) => value !== null && value !== undefined && value !== '')
                         .map(([label, value]) => (

@@ -27,14 +27,18 @@ const tickets = Array.from({ length: 18 }, (_, index) => ({
   id: TICKET_ID + index,
   nro_ticket: `M-${TICKET_ID + index}`,
   asunto: index === 0 ? 'Luminaria apagada en avenida principal' : `Reclamo operativo ${index + 1}`,
-  descripcion: 'Solicitud con seguimiento municipal y conversacion activa.',
+  descripcion: index === 2
+    ? 'La persona solicita una respuesta coordinada entre servicios públicos, movilidad y atención ciudadana porque el incidente afecta varios accesos y requiere seguimiento documentado sin perder información operativa.'
+    : 'Solicitud con seguimiento municipal y conversacion activa.',
   estado: index % 5 === 0 ? 'en_proceso' : 'nuevo',
   fecha: new Date(Date.UTC(2026, 6, 10, 10, index)).toISOString(),
   tipo: 'municipio',
   ticket_type: 'municipio',
   source_model: 'Reclamo',
   tenant_slug: TENANT_SLUG,
-  categoria: index % 2 === 0 ? 'Alumbrado' : 'Via publica',
+  categoria: index === 2
+    ? 'Infraestructura urbana, alumbrado público, seguridad peatonal y coordinación interáreas'
+    : index % 2 === 0 ? 'Alumbrado' : 'Via publica',
   channel: 'whatsapp',
   display_name: `Vecino ${index + 1}`,
   name: `Vecino ${index + 1}`,
@@ -47,6 +51,14 @@ const tickets = Array.from({ length: 18 }, (_, index) => ({
     unread_count: index < 6 ? 2 : 0,
     unread_viewer_count: 0,
   },
+  allowed_actions: [
+    {
+      id: 'coordinate_inspection',
+      label: 'Coordinar inspección conjunta y confirmar ventana estimada de resolución al ciudadano',
+      href: `/admin/tickets/${TICKET_ID + index}/coordinate`,
+      enabled: true,
+    },
+  ],
 }));
 
 const timeline = Array.from({ length: 36 }, (_, index) => ({
@@ -360,6 +372,36 @@ const expectScrollable = async (locator: Locator) => {
   expect(metrics.after).not.toBe(metrics.before);
 };
 
+const expectInspectorContentContained = async (inspectorRegion: Locator) => {
+  const panel = inspectorRegion.getByTestId('ticket-details-panel');
+  const viewport = panel.locator('[data-radix-scroll-area-viewport]').first();
+  await expect(panel).toBeVisible();
+  await expect(viewport).toBeVisible();
+
+  const metrics = await viewport.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const visibleChildren = Array.from(element.querySelectorAll<HTMLElement>('*'))
+      .map((child) => child.getBoundingClientRect())
+      .filter((childRect) => childRect.width > 0 && childRect.height > 0);
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      overflowX: window.getComputedStyle(element).overflowX,
+      scrollbarGutter: window.getComputedStyle(element).scrollbarGutter,
+      maxChildRight: Math.max(rect.right, ...visibleChildren.map((childRect) => childRect.right)),
+      minChildLeft: Math.min(rect.left, ...visibleChildren.map((childRect) => childRect.left)),
+      left: rect.left,
+      right: rect.right,
+    };
+  });
+
+  expect(metrics.overflowX).toBe('hidden');
+  expect(metrics.scrollbarGutter).toContain('stable');
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.minChildLeft).toBeGreaterThanOrEqual(metrics.left - 1);
+  expect(metrics.maxChildRight).toBeLessThanOrEqual(metrics.right + 1);
+};
+
 const expectMobileConversationLayout = async (page: Page) => {
   const messageScroll = page.getByTestId('ticket-message-scroll');
   const replyFooter = page.getByTestId('ticket-reply-footer');
@@ -494,6 +536,109 @@ for (const path of desktopPaths) {
     await expectDocumentLocked(page);
   });
 }
+
+for (const viewport of [
+  { width: 1920, height: 1080, label: '1920x1080' },
+  { width: 1600, height: 900, label: '1600x900' },
+  { width: 1366, height: 768, label: '1366x768' },
+]) {
+  test(`enterprise ticket inspector preserves the conversation at ${viewport.label}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openWorkspace(
+      page,
+      '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
+    );
+
+    const grid = page.getByTestId('tickets-desktop-grid');
+    const conversation = page.getByTestId('tickets-conversation-region');
+    const detail = page.getByTestId('tickets-detail-region');
+    await expect(grid).toHaveAttribute('data-detail-presentation', 'column');
+    await expect(detail).toBeVisible();
+
+    if (viewport.width < 1440) {
+      await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+    } else {
+      await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+    }
+
+    const [conversationBox, detailBox] = await Promise.all([
+      conversation.boundingBox(),
+      detail.boundingBox(),
+    ]);
+    expect(conversationBox).not.toBeNull();
+    expect(detailBox).not.toBeNull();
+    expect(conversationBox?.width || 0).toBeGreaterThanOrEqual(560);
+    expect(detailBox?.width || 0).toBeGreaterThanOrEqual(340);
+    expect(detailBox?.width || 0).toBeLessThanOrEqual(520);
+
+    await expect(page.getByText(/Coordinar inspección conjunta y confirmar ventana estimada/i)).toBeVisible();
+    await expectInspectorContentContained(detail);
+    await expectNoHorizontalOverflow(page);
+    await expectDocumentLocked(page);
+
+    if (viewport.width === 1920) {
+      const separator = detail.getByRole('separator', { name: /ajustar ancho del inspector/i });
+      await separator.press('End');
+      await expect(separator).toHaveAttribute('aria-valuenow', '520');
+      await expect(detail).toHaveAttribute('data-inspector-width', '520');
+      await expect.poll(() => page.evaluate(() => JSON.parse(
+        window.localStorage.getItem('chatboc:tickets:inspector-layout:municipio-demo:operator-e2e') || '{}',
+      ))).toEqual({ open: true, width: 520 });
+    }
+
+    if (viewport.width === 1366) {
+      await page.getByRole('button', { name: 'Mostrar lista de tickets' }).click();
+      await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+      await expect(page.getByTestId('tickets-detail-region')).toHaveCount(0);
+      await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+
+      await page.getByRole('button', { name: 'Ver detalles del ticket' }).click();
+      await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+      await expect(page.getByTestId('tickets-detail-region')).toBeVisible();
+      await expect(grid).toHaveAttribute('data-detail-presentation', 'column');
+    }
+  });
+}
+
+test('ticket inspector becomes a contained drawer at 1024px and restores the queue on close', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openWorkspace(
+    page,
+    '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
+  );
+
+  const grid = page.getByTestId('tickets-desktop-grid');
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+  await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+
+  const detailsTrigger = page.getByRole('button', { name: 'Ver detalles del ticket' });
+  await detailsTrigger.click();
+  const drawer = page.getByTestId('tickets-detail-drawer');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(drawer).toHaveAttribute('aria-modal', 'false');
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'drawer');
+  await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+  const resizeHandle = drawer.getByRole('separator', { name: /ajustar ancho del inspector/i });
+  await expect(resizeHandle).toHaveAttribute('aria-valuemax', '464');
+  await expect(drawer.getByRole('button', { name: 'Cerrar detalles del ticket' })).toBeFocused();
+
+  const [conversationBox, drawerBox] = await Promise.all([
+    page.getByTestId('tickets-conversation-region').boundingBox(),
+    drawer.boundingBox(),
+  ]);
+  expect(conversationBox).not.toBeNull();
+  expect(drawerBox).not.toBeNull();
+  expect((conversationBox?.width || 0) - (drawerBox?.width || 0)).toBeGreaterThanOrEqual(560);
+  await expectInspectorContentContained(drawer);
+  await expectNoHorizontalOverflow(page);
+
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+  await expect(detailsTrigger).toBeFocused();
+});
 
 const mobilePaths = [
   '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',

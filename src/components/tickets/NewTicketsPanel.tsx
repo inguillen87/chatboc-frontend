@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Clock,
   Filter,
+  GripVertical,
   Info,
   ListChecks,
   LogIn,
@@ -33,8 +34,10 @@ import type { Ticket } from '@/types/tickets';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 import { resolveTenantSlug } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   isTicketInboxSourceModel,
   type TicketInboxSourceModel,
@@ -48,16 +51,73 @@ const getMobileTabId = (view: MobileView) => `tickets-mobile-tab-${view}`;
 const getMobilePanelId = (view: MobileView) => `tickets-mobile-panel-${view}`;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
-const DESKTOP_DETAIL_MIN_WIDTH = 1280;
+const DESKTOP_DETAIL_MIN_WIDTH = 1180;
 const EMBEDDED_DETAIL_MIN_WIDTH = 1180;
-const DESKTOP_TICKET_LIST_COLUMN = 'minmax(340px, 420px)';
-const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(300px, 340px)';
-const DESKTOP_DETAIL_COLUMN = 'minmax(320px, 380px)';
-const EMBEDDED_DETAIL_COLUMN = 'minmax(320px, 360px)';
+const DETAILS_DRAWER_MAX_WIDTH = 1179;
+const DETAILS_WITH_SIDEBAR_MIN_WIDTH = 1440;
+const DESKTOP_TICKET_LIST_COLUMN = 'minmax(300px, 320px)';
+const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(300px, 320px)';
+const DETAIL_MIN_WIDTH = 340;
+const DETAIL_MAX_WIDTH = 520;
+const DETAIL_DEFAULT_WIDTH = 420;
+const DETAIL_KEYBOARD_STEP = 20;
+
+const readViewportWidth = () =>
+  typeof window === 'undefined' ? Number.POSITIVE_INFINITY : window.innerWidth;
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
   window.innerWidth >= (embedded ? EMBEDDED_DETAIL_MIN_WIDTH : DESKTOP_DETAIL_MIN_WIDTH);
+
+const clampDetailWidth = (value: number, maxWidth = DETAIL_MAX_WIDTH) => {
+  const effectiveMax = Math.max(DETAIL_MIN_WIDTH, Math.min(DETAIL_MAX_WIDTH, Math.round(maxWidth)));
+  return Math.min(effectiveMax, Math.max(DETAIL_MIN_WIDTH, Math.round(value)));
+};
+
+type PersistedTicketInspectorLayout = {
+  open: boolean;
+  width: number;
+};
+
+const readPersistedTicketInspectorLayout = (storageKey: string): PersistedTicketInspectorLayout | null => {
+  try {
+    const value = JSON.parse(safeLocalStorage.getItem(storageKey) || 'null') as Partial<PersistedTicketInspectorLayout> | null;
+    if (!value || typeof value !== 'object') return null;
+    return {
+      open: value.open !== false,
+      width: clampDetailWidth(Number(value.width) || DETAIL_DEFAULT_WIDTH),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const useTicketWorkspaceWidth = (ref: React.RefObject<HTMLElement | null>) => {
+  const [width, setWidth] = React.useState(readViewportWidth);
+
+  React.useEffect(() => {
+    const element = ref.current;
+    const measure = () => {
+      const measuredWidth = element?.getBoundingClientRect().width ?? 0;
+      setWidth(measuredWidth > 0 ? measuredWidth : readViewportWidth());
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+
+    const observer = element && typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(measure)
+      : null;
+    observer?.observe(element);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, [ref]);
+
+  return width;
+};
 
 const getDirectionBetweenViews = (
   from: MobileView,
@@ -345,12 +405,46 @@ const TicketWorkspaceColumnHeader = ({
   </div>
 );
 
+const TicketInspectorResizeHandle = ({
+  width,
+  maxWidth,
+  onPointerDown,
+  onKeyDown,
+}: {
+  width: number;
+  maxWidth: number;
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+}) => (
+  <div
+    role="separator"
+    aria-label="Ajustar ancho del inspector"
+    aria-orientation="vertical"
+    aria-valuemin={DETAIL_MIN_WIDTH}
+    aria-valuemax={maxWidth}
+    aria-valuenow={width}
+    aria-valuetext={`${width} píxeles`}
+    tabIndex={0}
+    onPointerDown={onPointerDown}
+    onKeyDown={onKeyDown}
+    className="group absolute inset-y-0 -left-2 z-40 flex w-4 touch-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+    title="Arrastrá o usá las flechas para ajustar el inspector"
+  >
+    <span className="flex h-14 w-2 items-center justify-center rounded-full border border-border/80 bg-background text-muted-foreground shadow-sm transition group-hover:border-primary/50 group-hover:text-primary group-focus-visible:border-primary">
+      <GripVertical className="h-4 w-4" aria-hidden="true" />
+    </span>
+  </div>
+);
+
 interface NewTicketsPanelProps {
   embedded?: boolean;
 }
 
 const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) => {
   const isMobile = useIsMobile();
+  const workspaceRef = React.useRef<HTMLDivElement>(null);
+  const workspaceWidth = useTicketWorkspaceWidth(workspaceRef);
+  const shouldUseDetailsDrawer = !isMobile && workspaceWidth <= DETAILS_DRAWER_MAX_WIDTH;
   const [searchParams] = useSearchParams();
   const {
     loading,
@@ -370,6 +464,18 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     clearRealtimeActivity,
   } = useTickets();
   const { currentSlug, tenant } = useTenant();
+  const { user } = useUser();
+  const inspectorStorageKey = React.useMemo(() => {
+    const tenantIdentity = String(currentSlug || tenant?.slug || '').trim();
+    const userIdentity = String(user?.id ?? user?.email ?? '').trim();
+    if (!tenantIdentity || tenantIdentity.toLowerCase() === 'default' || !userIdentity) return null;
+
+    const tenantScope = tenantIdentity
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-');
+    const userScope = userIdentity.replace(/[^a-z0-9_-]+/gi, '-');
+    return `chatboc:tickets:inspector-layout:${tenantScope}:${userScope}`;
+  }, [currentSlug, tenant?.slug, user?.email, user?.id]);
   const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
   const [loadingTimedOut, setLoadingTimedOut] = React.useState(false);
 
@@ -403,8 +509,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(
     () => !isMobile && shouldShowDesktopDetailsByDefault(embedded),
   );
-  const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
+  const [detailsWidth, setDetailsWidth] = React.useState(DETAIL_DEFAULT_WIDTH);
+  const [hydratedInspectorStorageKey, setHydratedInspectorStorageKey] = React.useState<string | null>(null);
   const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
+  const sidebarVisibilityBeforeDrawerRef = React.useRef<boolean | null>(null);
+  const previousConstrainedDetailsRef = React.useRef(false);
+  const resizeCleanupRef = React.useRef<(() => void) | null>(null);
+  const detailsDrawerRef = React.useRef<HTMLElement | null>(null);
+  const detailsTriggerRef = React.useRef<HTMLElement | null>(null);
 
   const lastMobileTicketId = React.useRef<string | number | null>(null);
   const appliedDeskQueryKeyRef = React.useRef<string>('');
@@ -415,15 +527,107 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [mobileView]);
 
   React.useEffect(() => {
+    setHydratedInspectorStorageKey(null);
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+    sidebarVisibilityBeforeDrawerRef.current = null;
+    previousConstrainedDetailsRef.current = false;
+
     if (isMobile) {
       setIsSidebarVisible(false);
       setIsDetailsVisible(false);
+      setHydratedInspectorStorageKey(inspectorStorageKey);
       return;
     }
 
+    const persistedLayout = inspectorStorageKey
+      ? readPersistedTicketInspectorLayout(inspectorStorageKey)
+      : null;
+    setDetailsWidth(persistedLayout?.width ?? DETAIL_DEFAULT_WIDTH);
     setIsSidebarVisible(true);
-    setIsDetailsVisible(shouldShowDesktopDetailsByDefault(embedded));
-  }, [embedded, isMobile]);
+    setIsDetailsVisible(
+      persistedLayout?.open ?? shouldShowDesktopDetailsByDefault(embedded),
+    );
+    setHydratedInspectorStorageKey(inspectorStorageKey);
+  }, [embedded, inspectorStorageKey, isMobile]);
+
+  React.useEffect(() => {
+    if (!inspectorStorageKey || hydratedInspectorStorageKey !== inspectorStorageKey || isMobile) return;
+    const timer = window.setTimeout(() => {
+      safeLocalStorage.setItem(
+        inspectorStorageKey,
+        JSON.stringify({ open: isDetailsVisible, width: detailsWidth }),
+      );
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [detailsWidth, hydratedInspectorStorageKey, inspectorStorageKey, isDetailsVisible, isMobile]);
+
+  const shouldPrioritizeConversation =
+    !isMobile && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH;
+
+  React.useEffect(() => {
+    const wasConstrained = previousConstrainedDetailsRef.current;
+    previousConstrainedDetailsRef.current = shouldPrioritizeConversation;
+
+    if (isMobile) return;
+
+    if (shouldPrioritizeConversation && !wasConstrained) {
+      if (sidebarVisibilityBeforeDrawerRef.current === null) {
+        sidebarVisibilityBeforeDrawerRef.current = isSidebarVisible;
+      }
+      if (isSidebarVisible) setIsSidebarVisible(false);
+      return;
+    }
+
+    if (!shouldPrioritizeConversation && wasConstrained) {
+      if (sidebarVisibilityBeforeDrawerRef.current) setIsSidebarVisible(true);
+      sidebarVisibilityBeforeDrawerRef.current = null;
+    }
+  }, [isMobile, isSidebarVisible, shouldPrioritizeConversation]);
+
+  const closeDesktopDetails = React.useCallback(() => {
+    setIsDetailsVisible(false);
+    if (sidebarVisibilityBeforeDrawerRef.current) {
+      setIsSidebarVisible(true);
+    }
+    sidebarVisibilityBeforeDrawerRef.current = null;
+
+    const trigger = detailsTriggerRef.current;
+    detailsTriggerRef.current = null;
+    if (trigger?.isConnected) {
+      window.requestAnimationFrame(() => trigger.focus());
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (isMobile || !isDetailsVisible || !shouldUseDetailsDrawer) return;
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      const closeButton = detailsDrawerRef.current?.querySelector<HTMLElement>(
+        '[aria-label="Cerrar detalles del ticket"]',
+      );
+      closeButton?.focus();
+    });
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeDesktopDetails();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [closeDesktopDetails, isDetailsVisible, isMobile, shouldUseDetailsDrawer]);
+
+  React.useEffect(
+    () => () => {
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (!loading) {
@@ -596,7 +800,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     void resolveDeskTicketTarget(ticketDeskQuery.ticketId, ticketDeskQuery.sourceModel).then((ticket) => {
       if (!ticket) return;
       if (isMobile) setActiveMobileView('chat');
-      else setDesktopView('chat');
     });
   }, [clearTicketTarget, isMobile, resolveDeskTicketTarget, setActiveMobileView, ticketDeskQuery]);
 
@@ -900,16 +1103,23 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       : operationalFilterBadges.length === 1
         ? operationalFilterBadges[0]
         : `${operationalFilterBadges[0]} +${operationalFilterBadges.length - 1}`;
-  const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? embedded
-      ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr) ${EMBEDDED_DETAIL_COLUMN}`
-      : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
+  const showDetailsAsDrawer = isDetailsVisible && shouldUseDetailsDrawer;
+  const showDetailsAsColumn = isDetailsVisible && !shouldUseDetailsDrawer;
+  const drawerDetailMaxWidth = Math.max(
+    DETAIL_MIN_WIDTH,
+    Math.min(DETAIL_MAX_WIDTH, Math.floor(workspaceWidth - 560)),
+  );
+  const renderedDetailsWidth = showDetailsAsDrawer
+    ? clampDetailWidth(detailsWidth, drawerDetailMaxWidth)
+    : detailsWidth;
+  const activeDetailMaxWidth = showDetailsAsDrawer ? drawerDetailMaxWidth : DETAIL_MAX_WIDTH;
+  const detailColumn = `${renderedDetailsWidth}px`;
+  const desktopGridTemplate = isSidebarVisible && showDetailsAsColumn
+    ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${detailColumn}`
     : isSidebarVisible
-      ? embedded
-        ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr)`
-        : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
-      : isDetailsVisible
-        ? `minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
+      ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
+      : showDetailsAsColumn
+        ? `minmax(560px, 1fr) ${detailColumn}`
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
@@ -933,12 +1143,96 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       void refreshTickets();
       return;
     }
-    setDesktopView('chat');
     if (isMobile) setActiveMobileView('chat');
   };
 
+  const handleToggleDesktopDetails = () => {
+    if (isDetailsVisible) {
+      closeDesktopDetails();
+      return;
+    }
+
+    detailsTriggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    if (workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH) {
+      sidebarVisibilityBeforeDrawerRef.current = isSidebarVisible;
+      if (isSidebarVisible) setIsSidebarVisible(false);
+    }
+    setIsDetailsVisible(true);
+  };
+
+  const handleToggleDesktopSidebar = () => {
+    if (!isSidebarVisible && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH) {
+      setIsDetailsVisible(false);
+      sidebarVisibilityBeforeDrawerRef.current = null;
+      detailsTriggerRef.current = null;
+      setIsSidebarVisible(true);
+      return;
+    }
+
+    setIsSidebarVisible((visible) => !visible);
+  };
+
+  const stopInspectorResize = () => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+  };
+
+  const handleInspectorResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    stopInspectorResize();
+
+    const startX = event.clientX;
+    const startWidth = renderedDetailsWidth;
+    const resizeHandle = event.currentTarget;
+    const pointerId = event.pointerId;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      setDetailsWidth(clampDetailWidth(startWidth + startX - pointerEvent.clientX, activeDetailMaxWidth));
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', cleanup);
+      window.removeEventListener('pointercancel', cleanup);
+      window.removeEventListener('blur', cleanup);
+      resizeHandle.removeEventListener('lostpointercapture', cleanup);
+      if (resizeHandle.hasPointerCapture?.(pointerId)) {
+        resizeHandle.releasePointerCapture(pointerId);
+      }
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      if (resizeCleanupRef.current === cleanup) resizeCleanupRef.current = null;
+    };
+
+    resizeHandle.setPointerCapture?.(pointerId);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', cleanup);
+    window.addEventListener('pointercancel', cleanup);
+    window.addEventListener('blur', cleanup);
+    resizeHandle.addEventListener('lostpointercapture', cleanup);
+    resizeCleanupRef.current = cleanup;
+  };
+
+  const handleInspectorResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    let nextWidth: number | null = null;
+
+    if (event.key === 'ArrowLeft') nextWidth = renderedDetailsWidth + DETAIL_KEYBOARD_STEP;
+    if (event.key === 'ArrowRight') nextWidth = renderedDetailsWidth - DETAIL_KEYBOARD_STEP;
+    if (event.key === 'Home') nextWidth = DETAIL_MIN_WIDTH;
+    if (event.key === 'End') nextWidth = activeDetailMaxWidth;
+    if (nextWidth === null) return;
+
+    event.preventDefault();
+    setDetailsWidth(clampDetailWidth(nextWidth, activeDetailMaxWidth));
+  };
+
   return (
-    <Card className={panelCardClass}>
+    <Card ref={workspaceRef} className={panelCardClass}>
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
         className={cn(
@@ -1331,7 +1625,8 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       ) : (
         <div
           data-testid="tickets-desktop-grid"
-          className="grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          className="relative grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          data-detail-presentation={showDetailsAsDrawer ? 'drawer' : showDetailsAsColumn ? 'column' : 'collapsed'}
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
           {isSidebarVisible && (
@@ -1372,23 +1667,29 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 isMobile={false}
                 isSidebarVisible={isSidebarVisible}
                 isDetailsVisible={isDetailsVisible}
-                onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
-                onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
+                onToggleSidebar={handleToggleDesktopSidebar}
+                onToggleDetails={handleToggleDesktopDetails}
                 canToggleSidebar
                 showDetailsToggle
-                desktopView={desktopView}
-                setDesktopView={setDesktopView}
                 operationalWorkspace
               />
             </div>
           </section>
 
-          {isDetailsVisible && (
+          {showDetailsAsColumn && (
             <section
-              className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
+              className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
               data-testid="tickets-detail-region"
+              data-inspector-width={renderedDetailsWidth}
               aria-labelledby="tickets-resolution-column-title"
+              style={{ width: renderedDetailsWidth, minWidth: DETAIL_MIN_WIDTH, maxWidth: DETAIL_MAX_WIDTH }}
             >
+              <TicketInspectorResizeHandle
+                width={renderedDetailsWidth}
+                maxWidth={activeDetailMaxWidth}
+                onPointerDown={handleInspectorResizePointerDown}
+                onKeyDown={handleInspectorResizeKeyDown}
+              />
               <TicketWorkspaceColumnHeader
                 id="tickets-resolution-column-title"
                 step={3}
@@ -1396,10 +1697,54 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 description="Siguiente paso, responsable y herramientas para resolver."
               />
               <div className="min-h-0 flex-1 overflow-hidden">
-                <DetailsPanel className="h-full w-full border-l-0" operationalWorkspace />
+                <DetailsPanel
+                  className="h-full w-full border-l-0"
+                  onClose={closeDesktopDetails}
+                  operationalWorkspace
+                />
               </div>
             </section>
           )}
+
+          <AnimatePresence initial={false}>
+            {showDetailsAsDrawer ? (
+              <motion.section
+                key="ticket-details-drawer"
+                initial={{ opacity: 0, x: 28 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 28 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="absolute inset-y-0 right-0 z-30 flex min-w-0 max-w-[calc(100%-3rem)] flex-col overflow-hidden border-l border-border/80 bg-background shadow-[-18px_0_42px_rgba(15,23,42,0.24)]"
+                data-testid="tickets-detail-drawer"
+                data-inspector-width={renderedDetailsWidth}
+                aria-labelledby="tickets-resolution-drawer-title"
+                aria-modal="false"
+                role="dialog"
+                ref={detailsDrawerRef}
+                style={{ width: renderedDetailsWidth }}
+              >
+                <TicketInspectorResizeHandle
+                  width={renderedDetailsWidth}
+                  maxWidth={activeDetailMaxWidth}
+                  onPointerDown={handleInspectorResizePointerDown}
+                  onKeyDown={handleInspectorResizeKeyDown}
+                />
+                <TicketWorkspaceColumnHeader
+                  id="tickets-resolution-drawer-title"
+                  step={3}
+                  title="Resolución guiada"
+                  description="Inspector adaptable con siguiente paso, responsable y herramientas para resolver."
+                />
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <DetailsPanel
+                    className="h-full w-full border-l-0"
+                    onClose={closeDesktopDetails}
+                    operationalWorkspace
+                  />
+                </div>
+              </motion.section>
+            ) : null}
+          </AnimatePresence>
         </div>
       )}
       <Toaster richColors />

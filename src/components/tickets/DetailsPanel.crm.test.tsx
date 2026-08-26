@@ -132,6 +132,37 @@ describe('DetailsPanel resolution guide', () => {
     expect(screen.getByTestId('ticket-technical-details')).toHaveTextContent('M-378430');
   });
 
+  it('keeps long municipal content readable inside the responsive inspector', () => {
+    const longSubject = 'Reclamo integral por interrupción prolongada del servicio de alumbrado público en corredor escolar y accesos barriales';
+    const longCategory = 'Infraestructura urbana, alumbrado público, seguridad peatonal y coordinación interáreas';
+    const longSummary = 'La persona solicita una respuesta coordinada entre servicios públicos, movilidad y atención ciudadana porque el incidente afecta varios accesos y requiere seguimiento documentado sin perder información operativa.';
+    const longAction = 'Coordinar inspección conjunta y confirmar ventana estimada de resolución al ciudadano';
+    const onClose = vi.fn();
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      asunto: longSubject,
+      categoria: longCategory,
+      description: longSummary,
+      allowed_actions: [
+        { id: 'coordinate', label: longAction, href: '/admin/tickets/378430/coordinate', enabled: true },
+      ],
+    } as Ticket;
+
+    render(<DetailsPanel operationalWorkspace onClose={onClose} />);
+
+    const inspector = screen.getByTestId('ticket-details-panel');
+    expect(inspector).toHaveClass('ticket-inspector', 'min-w-0', 'max-w-full', 'overflow-hidden');
+    expect(inspector).toHaveAttribute('data-operational-workspace', 'true');
+    expect(screen.getByRole('heading', { name: longSubject })).toHaveClass('ticket-inspector__header-title');
+    expect(screen.getByText(longSummary)).not.toHaveClass('line-clamp-3');
+    expect(screen.getByText(longCategory)).toHaveClass('ticket-inspector__badge');
+    expect(screen.getByRole('button', { name: longAction })).toHaveClass('ticket-inspector__action-button');
+    expect(screen.getByRole('button', { name: /cerrar detalles del ticket/i })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('surfaces assisted request context and public follow-up actions', () => {
     detailsMocks.selectedTicket = {
       ...baseTicket,

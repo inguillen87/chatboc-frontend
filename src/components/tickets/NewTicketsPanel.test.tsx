@@ -37,6 +37,10 @@ vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin', tenant: { slug: 'junin', tipo: 'municipio' } }),
 }));
 
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => ({ user: { id: 77 } }),
+}));
+
 vi.mock('@/services/backofficeService', () => ({
   backofficeService: {
     getInboxSummary: vi.fn().mockResolvedValue(null),
@@ -68,17 +72,44 @@ vi.mock('./Sidebar', () => ({
 }));
 
 vi.mock('./ConversationPanel', () => ({
-  default: ({ operationalWorkspace }: { operationalWorkspace?: boolean }) => (
+  default: ({
+    operationalWorkspace,
+    isSidebarVisible,
+    isDetailsVisible,
+    onToggleSidebar,
+    onToggleDetails,
+  }: {
+    operationalWorkspace?: boolean;
+    isSidebarVisible?: boolean;
+    isDetailsVisible?: boolean;
+    onToggleSidebar?: () => void;
+    onToggleDetails?: () => void;
+  }) => (
     <section data-testid="tickets-conversation" data-operational-workspace={operationalWorkspace ? 'true' : 'false'}>
       Conversacion
+      {onToggleSidebar ? (
+        <button type="button" onClick={onToggleSidebar}>
+          {isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+        </button>
+      ) : null}
+      {onToggleDetails ? (
+        <button type="button" onClick={onToggleDetails}>
+          {isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
+        </button>
+      ) : null}
     </section>
   ),
 }));
 
 vi.mock('./DetailsPanel', () => ({
-  default: ({ operationalWorkspace }: { operationalWorkspace?: boolean }) => (
+  default: ({ operationalWorkspace, onClose }: { operationalWorkspace?: boolean; onClose?: () => void }) => (
     <section data-testid="tickets-details" data-operational-workspace={operationalWorkspace ? 'true' : 'false'}>
       Detalle
+      {onClose ? (
+        <button type="button" aria-label="Cerrar detalles del ticket" onClick={onClose}>
+          Cerrar inspector
+        </button>
+      ) : null}
     </section>
   ),
 }));
@@ -89,6 +120,7 @@ vi.mock('@/components/ui/sonner', () => ({
 
 describe('NewTicketsPanel CRM layout', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     searchParamsState.value = new URLSearchParams();
     mobileState.value = false;
     useTicketsMock.mockReset();
@@ -346,7 +378,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.queryByTestId('tickets-desk-filter-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(340px, 420px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(300px, 320px) minmax(0, 1fr)',
     });
     expect(screen.getByRole('heading', { name: 'Cola priorizada' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Caso y conversación' })).toBeInTheDocument();
@@ -384,7 +416,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tickets-embedded-kpi-summary')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(300px, 320px) minmax(0, 1fr)',
     });
     expect(screen.getByTestId('tickets-list-region')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.getByTestId('tickets-conversation-region')).toHaveClass('min-h-0', 'overflow-hidden');
@@ -455,7 +487,7 @@ describe('NewTicketsPanel CRM layout', () => {
     });
   });
 
-  it('opens the independent details column on standard 1440-class embedded desks', () => {
+  it('prioritizes the conversation and adapts the inspector across desktop widths', async () => {
     const originalInnerWidth = window.innerWidth;
     const ticket = {
       id: 1,
@@ -483,38 +515,246 @@ describe('NewTicketsPanel CRM layout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
       const narrow = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(0, 1fr)',
       });
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-detail-presentation', 'collapsed');
       narrow.unmount();
+      window.localStorage.clear();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1180 });
       const commonDesktop = render(<NewTicketsPanel embedded />);
-      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
+      await waitFor(() => {
+        expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+          gridTemplateColumns: 'minmax(560px, 1fr) 420px',
+        });
       });
+      expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Resolución guiada' })).toBeInTheDocument();
       expect(screen.getByTestId('tickets-details')).toHaveAttribute('data-operational-workspace', 'true');
       commonDesktop.unmount();
+      window.localStorage.clear();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
       const mediumDesktop = render(<NewTicketsPanel embedded />);
-      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
+      await waitFor(() => {
+        expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+          gridTemplateColumns: 'minmax(560px, 1fr) 420px',
+        });
       });
+      expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
       expect(screen.getByTestId('tickets-detail-region')).toHaveClass('min-h-0', 'overflow-hidden');
       mediumDesktop.unmount();
+      window.localStorage.clear();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 });
       const wideDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 420px',
       });
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
       wideDesktop.unmount();
+      window.localStorage.clear();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 420px',
+      });
+      expect(screen.getByRole('separator', { name: /ajustar ancho del inspector/i })).toHaveAttribute(
+        'aria-valuenow',
+        '420',
+      );
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
+  it('opens the inspector as a drawer at 1024px and restores the ticket list when it closes', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+      render(<NewTicketsPanel embedded />);
+
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      const detailsTrigger = screen.getByRole('button', { name: /ver detalles del ticket/i });
+      detailsTrigger.focus();
+      fireEvent.click(detailsTrigger);
+
+      await waitFor(() => expect(screen.getByTestId('tickets-detail-drawer')).toBeInTheDocument());
+      expect(screen.getByTestId('tickets-detail-drawer')).toHaveAttribute('role', 'dialog');
+      expect(screen.getByTestId('tickets-detail-drawer')).toHaveAttribute('aria-modal', 'false');
+      expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(0, 1fr)',
+      });
+      await waitFor(() => expect(screen.getByRole('button', { name: /cerrar detalles del ticket/i })).toHaveFocus());
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      await waitFor(() => expect(screen.queryByTestId('tickets-detail-drawer')).not.toBeInTheDocument());
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      await waitFor(() => expect(detailsTrigger).toHaveFocus());
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
+  it('caps a persisted 520px drawer so 560px of conversation remain available at 1024px', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+      window.localStorage.setItem(
+        'chatboc:tickets:inspector-layout:junin:77',
+        JSON.stringify({ open: true, width: 520 }),
+      );
+      render(<NewTicketsPanel embedded />);
+
+      const drawer = await screen.findByTestId('tickets-detail-drawer');
+      const separator = screen.getByRole('separator', { name: /ajustar ancho del inspector/i });
+      expect(drawer).toHaveAttribute('data-inspector-width', '464');
+      expect(drawer).toHaveStyle({ width: '464px' });
+      expect(separator).toHaveAttribute('aria-valuemax', '464');
+      expect(separator).toHaveAttribute('aria-valuenow', '464');
+
+      await new Promise((resolve) => window.setTimeout(resolve, 220));
+      expect(JSON.parse(window.localStorage.getItem('chatboc:tickets:inspector-layout:junin:77') || '{}')).toEqual({
+        open: true,
+        width: 520,
+      });
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
+  it('swaps the inspector for the queue below 1440px instead of reopening three columns', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+      render(<NewTicketsPanel embedded />);
+      await waitFor(() => expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument());
+      expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /mostrar lista de tickets/i }));
+
+      await waitFor(() => expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument());
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(0, 1fr)',
+      });
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
+  it('resizes the inspector with keyboard controls and persists the preference per tenant and user', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
+      render(<NewTicketsPanel embedded />);
+      const separator = screen.getByRole('separator', { name: /ajustar ancho del inspector/i });
+
+      fireEvent.keyDown(separator, { key: 'ArrowLeft' });
+      expect(separator).toHaveAttribute('aria-valuenow', '440');
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 440px',
+      });
+
+      fireEvent.keyDown(separator, { key: 'End' });
+      expect(separator).toHaveAttribute('aria-valuenow', '520');
+
+      await waitFor(() => {
+        expect(JSON.parse(window.localStorage.getItem('chatboc:tickets:inspector-layout:junin:77') || '{}')).toEqual({
+          open: true,
+          width: 520,
+        });
       });
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
