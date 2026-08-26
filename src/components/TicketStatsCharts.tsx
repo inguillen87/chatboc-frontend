@@ -23,6 +23,16 @@ interface Props {
   charts?: ChartBlock[];
 }
 
+export const TICKET_CHART_THEME = {
+  bar: 'rgba(59, 130, 246, 0.72)',
+  barHover: 'rgba(37, 99, 235, 0.92)',
+  tooltip: 'rgba(15, 23, 42, 0.96)',
+  tooltipText: '#f8fafc',
+  tooltipBorder: 'rgba(148, 163, 184, 0.35)',
+  axisText: '#94a3b8',
+  grid: 'rgba(148, 163, 184, 0.18)',
+} as const;
+
 function SingleChart({ title, data }: ChartBlock) {
   const labels = Object.keys(data);
   const values = labels.map((key) => {
@@ -36,8 +46,8 @@ function SingleChart({ title, data }: ChartBlock) {
       {
         label: title,
         data: values,
-        backgroundColor: 'hsl(var(--primary) / 0.65)',
-        hoverBackgroundColor: 'hsl(var(--primary) / 0.85)',
+        backgroundColor: TICKET_CHART_THEME.bar,
+        hoverBackgroundColor: TICKET_CHART_THEME.barHover,
         borderRadius: 6,
         maxBarThickness: 48,
       },
@@ -51,17 +61,17 @@ function SingleChart({ title, data }: ChartBlock) {
       legend: { display: false },
       title: { display: false },
       tooltip: {
-        backgroundColor: 'hsl(var(--popover))',
-        titleColor: 'hsl(var(--popover-foreground))',
-        bodyColor: 'hsl(var(--popover-foreground))',
-        borderColor: 'hsl(var(--border))',
+        backgroundColor: TICKET_CHART_THEME.tooltip,
+        titleColor: TICKET_CHART_THEME.tooltipText,
+        bodyColor: TICKET_CHART_THEME.tooltipText,
+        borderColor: TICKET_CHART_THEME.tooltipBorder,
         borderWidth: 1,
       },
     },
     scales: {
       x: {
         ticks: {
-          color: 'hsl(var(--muted-foreground))',
+          color: TICKET_CHART_THEME.axisText,
           maxRotation: 40,
           minRotation: 0,
           autoSkip: true,
@@ -71,11 +81,11 @@ function SingleChart({ title, data }: ChartBlock) {
       y: {
         beginAtZero: true,
         ticks: {
-          color: 'hsl(var(--muted-foreground))',
+          color: TICKET_CHART_THEME.axisText,
           precision: 0,
         },
         grid: {
-          color: 'hsl(var(--border) / 0.3)',
+          color: TICKET_CHART_THEME.grid,
         },
       },
     },

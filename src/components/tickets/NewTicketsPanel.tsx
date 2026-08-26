@@ -9,13 +9,26 @@ import { Toaster } from '@/components/ui/sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
-import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Filter,
+  Info,
+  ListChecks,
+  LogIn,
+  MessageSquare,
+  PanelLeft,
+  Radio,
+  RefreshCw,
+  Settings2,
+  UserRound,
+} from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Ticket } from '@/types/tickets';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticketOperationalQueue';
@@ -35,12 +48,12 @@ const getMobileTabId = (view: MobileView) => `tickets-mobile-tab-${view}`;
 const getMobilePanelId = (view: MobileView) => `tickets-mobile-panel-${view}`;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
-const DESKTOP_DETAIL_MIN_WIDTH = 1536;
-const EMBEDDED_DETAIL_MIN_WIDTH = 1440;
+const DESKTOP_DETAIL_MIN_WIDTH = 1280;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1180;
 const DESKTOP_TICKET_LIST_COLUMN = 'minmax(340px, 420px)';
-const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(310px, 320px)';
-const DESKTOP_DETAIL_COLUMN = 'minmax(300px, 360px)';
-const EMBEDDED_DETAIL_COLUMN = 'minmax(300px, 310px)';
+const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(300px, 340px)';
+const DESKTOP_DETAIL_COLUMN = 'minmax(320px, 380px)';
+const EMBEDDED_DETAIL_COLUMN = 'minmax(320px, 360px)';
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
@@ -258,6 +271,79 @@ const TicketOpsStat = ({
     </Comp>
   );
 };
+
+const TicketPanelState = ({
+  testId,
+  title,
+  description,
+  icon: Icon,
+  tone = 'default',
+  role = 'status',
+  children,
+}: {
+  testId: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  tone?: 'default' | 'warning' | 'destructive';
+  role?: 'status' | 'alert';
+  children?: React.ReactNode;
+}) => {
+  const toneClass = {
+    default: 'border-primary/25 bg-primary/10 text-primary',
+    warning: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+    destructive: 'border-destructive/30 bg-destructive/10 text-destructive',
+  }[tone];
+
+  return (
+    <Card
+      data-testid={testId}
+      className="w-full border border-border/70 bg-card/95 p-4 shadow-sm"
+      role={role}
+      aria-live="polite"
+      aria-label={title}
+    >
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">{title}</h2>
+            <p className={cn('mt-1 max-w-2xl text-sm leading-5', tone === 'destructive' ? 'text-destructive' : 'text-muted-foreground')}>
+              {description}
+            </p>
+          </div>
+        </div>
+        {children ? <div className="min-w-0 shrink-0 sm:max-w-[60%]">{children}</div> : null}
+      </div>
+    </Card>
+  );
+};
+
+const TicketWorkspaceColumnHeader = ({
+  id,
+  step,
+  title,
+  description,
+}: {
+  id: string;
+  step: number;
+  title: string;
+  description: string;
+}) => (
+  <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-3">
+    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+      {step}
+    </span>
+    <div className="min-w-0">
+      <h3 id={id} className="truncate text-xs font-semibold text-foreground">
+        {title}
+      </h3>
+      <p className="sr-only">{description}</p>
+    </div>
+  </div>
+);
 
 interface NewTicketsPanelProps {
   embedded?: boolean;
@@ -580,81 +666,35 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   if (showInitialLoading && loadingTimedOut) {
     return (
-      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-amber-500/30 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
-        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-500">
-          <AlertTriangle className="h-5 w-5" />
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">La bandeja tarda mas de lo esperado</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          El backend todavia no respondio con la lista completa. Podes reintentar ahora o seguir esperando sin perder la vista del CRM.
-        </p>
-        <Button type="button" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
+      <TicketPanelState
+        testId="tickets-loading-timeout-state"
+        title="La bandeja tarda más de lo esperado"
+        description="Todavia no recibimos la cola completa. Podes reintentar sin salir del centro de reclamos."
+        icon={AlertTriangle}
+        tone="warning"
+      >
+        <Button type="button" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
           <RefreshCw className="h-4 w-4" />
           Reintentar carga
         </Button>
-      </Card>
+      </TicketPanelState>
     );
   }
 
   if (showInitialLoading) {
     return (
-        <div
-          className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden"
-          role="status"
-          aria-live="polite"
-          aria-label="Cargando bandeja de reclamos"
-        >
-            {/* Skeleton for Desktop */}
-            <div className="hidden md:flex w-full">
-              <div className="w-80 border-r border-border p-4 space-y-4">
-                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                      Cargando bandeja de reclamos
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      Sincronizando tickets, chats en vivo, filtros y métricas operativas.
-                    </p>
-                  </div>
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <div className="space-y-4 mt-4">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                  </div>
-              </div>
-              <div className="flex-1 p-4 space-y-4">
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                  </div>
-                  <Skeleton className="h-16 w-full" />
-                  <div className="flex-1 space-y-4 mt-4">
-                      <Skeleton className="h-20 w-full" />
-                      <Skeleton className="h-20 w-2/3 ml-auto" />
-                      <Skeleton className="h-20 w-full" />
-                  </div>
-              </div>
-            </div>
-             {/* Skeleton for Mobile */}
-            <div className="md:hidden w-full p-4 space-y-4">
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                  Cargando reclamos
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  Preparando la mesa operativa.
-                </p>
-              </div>
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-[420px] w-full" />
-            </div>
-        </div>
-    )
+      <TicketPanelState
+        testId="tickets-loading-state"
+        title="Preparando el centro de reclamos"
+        description="Ordenando la cola y recuperando las conversaciones disponibles."
+        icon={RefreshCw}
+      >
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Reintentar
+        </Button>
+      </TicketPanelState>
+    );
   }
 
   if (error) {
@@ -681,74 +721,83 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     };
 
     return (
-      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
-        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive">
-          <AlertTriangle className="h-5 w-5" />
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">No pudimos cargar la bandeja</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-destructive">{error}</p>
-        {isTicketScopeError ? (
-          <div
-            data-testid="tickets-access-contract"
-            className="mt-4 w-full max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-left"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
-                Reparar acceso
-              </Badge>
-              {errorDetails?.reasonCode ? (
-                <Badge variant="secondary" className="font-mono text-[11px]">
-                  {errorDetails.reasonCode}
-                </Badge>
-              ) : null}
-              {errorDetails?.requestId ? (
-                <button
-                  type="button"
-                  onClick={() => void copyRequestId()}
-                  className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  request_id: {errorDetails.requestId}
-                </button>
-              ) : null}
-            </div>
-            <p className="mt-3 text-sm leading-6 text-foreground">
-              El usuario tiene que quedar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
-            </p>
-            {scopeSummary.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {scopeSummary.map(([label, value]) => (
-                  <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">{String(value)}</p>
-                  </div>
-                ))}
-              </div>
+      <TicketPanelState
+        testId="tickets-error-state"
+        title="No pudimos cargar la bandeja"
+        description={error}
+        icon={AlertTriangle}
+        tone="destructive"
+        role="alert"
+      >
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {isSessionError ? (
+              <Button type="button" size="sm" className="gap-2" onClick={goToLogin}>
+                <LogIn className="h-4 w-4" />
+                Iniciar sesión
+              </Button>
             ) : null}
-            {errorDetails?.requiredCapabilities?.length ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
-                  <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
-                    {capability}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {isSessionError ? (
-            <Button type="button" className="gap-2 rounded-full" onClick={goToLogin}>
-              <LogIn className="h-4 w-4" />
-              Iniciar sesión
+            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
             </Button>
+          </div>
+          {isTicketScopeError ? (
+            <details
+              data-testid="tickets-access-contract"
+              className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 text-left"
+            >
+              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-amber-800 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:text-amber-200">
+                Revisar datos de acceso
+              </summary>
+              <div className="border-t border-amber-500/20 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
+                    Reparar acceso
+                  </Badge>
+                  {errorDetails?.reasonCode ? (
+                    <Badge variant="secondary" className="font-mono text-[11px]">
+                      {errorDetails.reasonCode}
+                    </Badge>
+                  ) : null}
+                  {errorDetails?.requestId ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyRequestId()}
+                      className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      request_id: {errorDetails.requestId}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-foreground">
+                  El usuario debe estar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
+                </p>
+                {scopeSummary.length ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {scopeSummary.map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+                        <p className="mt-1 truncate text-xs font-medium text-foreground">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {errorDetails?.requiredCapabilities?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
+                      <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
+                        {capability}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </details>
           ) : null}
-          <Button type="button" variant="outline" className="gap-2 rounded-full" onClick={() => void refreshTickets()}>
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </Button>
         </div>
-      </Card>
-    )
+      </TicketPanelState>
+    );
   }
 
   const requestedTicketId = ticketDeskQuery.ticketId;
@@ -785,40 +834,31 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     const message = hasInvalidRequestedSource
       ? 'El origen indicado no pertenece al contrato de tickets. Volve a abrir el caso desde la bandeja operativa.'
       : isResolving
-        ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversacion.'
+        ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversación.'
         : ticketTargetResolution.message || 'Reintenta en unos segundos.';
 
     return (
-      <Card
-        data-testid="tickets-target-resolution"
-        className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md"
+      <TicketPanelState
+        testId="tickets-target-resolution"
+        title={title}
+        description={message}
+        icon={isResolving ? RefreshCw : AlertTriangle}
+        tone={isResolving ? 'default' : 'warning'}
         role={isResolving ? 'status' : 'alert'}
-        aria-live="polite"
       >
-        <span
-          className={cn(
-            'mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg border',
-            isResolving
-              ? 'border-primary/30 bg-primary/10 text-primary'
-              : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
-          )}
-        >
-          {isResolving ? <RefreshCw className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
         {!isResolving && !hasInvalidRequestedSource ? (
           <Button
             type="button"
             variant="outline"
-            className="mt-5 gap-2 rounded-lg"
+            size="sm"
+            className="gap-2"
             onClick={() => void resolveDeskTicketTarget(requestedTicketId, requestedSourceModel)}
           >
             <RefreshCw className="h-4 w-4" />
             Reintentar apertura
           </Button>
         ) : null}
-      </Card>
+      </TicketPanelState>
     );
   }
 
@@ -877,21 +917,16 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   );
   const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
   const nextPriorityCrmQueue = resolveTicketCrmQueue(nextPriorityTicket);
-  const selectedTicketCrmQueue = resolveTicketCrmQueue(selectedTicket);
-  const selectedTicketReference = selectedTicket?.nro_ticket || selectedTicket?.id || null;
-  const selectedTicketStatus = selectedTicket ? formatTicketStatusLabel(selectedTicket.estado) : null;
-  const selectedTicketChannel = selectedTicket?.channel || 'whatsapp';
-  const selectedTicketSla = selectedTicket?.sla_status ? `SLA ${selectedTicket.sla_status}` : null;
-  const selectedTicketHasUnread = selectedTicket ? hasUnreadTicket(selectedTicket) : false;
-  const selectedTicketNextAction =
-    selectedTicket?.recommended_next_action ||
-    selectedTicketCrmQueue?.label ||
-    (selectedTicketHasUnread ? 'Responder conversacion' : null) ||
-    (nextPriorityTicket ? `Proximo: ${nextPriorityLabel}` : 'Mesa actualizada');
-  const continuityTone = riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default';
+  const primaryOperationalActionLabel =
+    nextPriorityTicket && !isNextPrioritySelected
+      ? 'Atender prioridad'
+      : selectedTicket
+        ? 'Responder'
+        : 'Actualizar cola';
   const handlePrimaryOperationalAction = () => {
     if (nextPriorityTicket && !isNextPrioritySelected) {
       selectTicket(nextPriorityTicket.id);
+      if (isMobile) setActiveMobileView('chat');
       return;
     }
     if (!selectedTicket) {
@@ -911,326 +946,253 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           embedded ? 'px-2 py-0 sm:px-3 sm:py-1' : 'px-3 py-2 sm:px-4',
         )}
       >
-        <div
-          className={cn(
-            'flex gap-2',
-            embedded
-              ? 'min-h-8 items-center justify-between overflow-x-auto sm:min-h-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-              : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
-          )}
-        >
-          <div className={cn('min-w-0', embedded && 'shrink-0')}>
-            <div className={cn('flex items-center gap-2', embedded ? 'flex-nowrap' : 'flex-wrap')}>
-              <h2 className="text-base font-semibold tracking-tight text-foreground">
-                {embedded ? (tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets') : 'Mesa operativa'}
+        <div className="flex min-h-12 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+              <ListChecks className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">
+                {tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de tickets'}
               </h2>
-              <Badge variant="outline" className="shrink-0 rounded-full">
-                {filteredTickets.length.toLocaleString('es-AR')} visibles
-              </Badge>
-              {selectedTicket ? (
-                <Badge variant="secondary" className="shrink-0 rounded-full">
-                  #{selectedTicket.nro_ticket || selectedTicket.id}
-                </Badge>
-              ) : null}
-              {deepLinkFocus ? (
-                <Badge data-testid="tickets-deeplink-focus" variant="secondary" className="shrink-0 rounded-full capitalize">
-                  Desde {formatDeskDeepLinkFocus(deepLinkFocus)}
-                </Badge>
-              ) : null}
+              <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                Priorizá la cola, conversá y resolvé sin perder contexto.
+              </p>
             </div>
-            <p className="sr-only">
-              Priorización, conversación y detalle en una sola vista.
-              {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
-            </p>
-            {!embedded && recommendedViews.length ? (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {recommendedViews.slice(0, 2).map((view, index) => (
-                  <button
-                    key={view.id || `recommended_${index}`}
-                    type="button"
-                    onClick={() => applyRecommendedView(view.query)}
-                    className="inline-flex max-w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  >
-                    <Badge variant="secondary" className="max-w-full rounded-full text-[11px]">
-                      <span className="truncate">
-                        {view.label}
-                        {view.description ? `: ${view.description}` : ''}
-                      </span>
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <CuadrillaFieldModal />
-          </div>
-          {!embedded ? (
-            <div
-              data-testid="ticket-ops-stat-strip"
-              className={cn(
-                'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                embedded ? 'w-full min-[920px]:w-auto min-[920px]:justify-end' : 'min-[1080px]:justify-end',
-              )}
-            >
-            <TicketOpsStat
-              label="Abiertos"
-              value={openTickets}
-              helper="Casos por resolver"
-              tone="blue"
-              icon={Clock}
-              onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="Riesgo"
-              value={riskTickets}
-              helper="SLA o prioridad alta"
-              tone="amber"
-              icon={AlertTriangle}
-              onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="No leídos"
-              value={unreadTickets}
-              helper="Requieren respuesta"
-              tone="violet"
-              icon={Radio}
-              onClick={() => applyQuickFilter({ unread: 'unread' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="Resueltos"
-              value={resolvedTickets}
-              helper="Cerrados/resueltos"
-              tone="emerald"
-              icon={CheckCircle2}
-              onClick={() => applyQuickFilter({ status: 'resuelto' })}
-              compact={embedded}
-            />
-            </div>
-          ) : null}
-          {embedded ? (
-            <div className="flex min-w-max shrink-0 items-center justify-end gap-1.5">
-              <Badge
-                data-testid="tickets-embedded-kpi-summary"
-                variant="outline"
-                className="max-w-[13rem] shrink-0 rounded-full bg-background/70 text-[11px] font-medium text-muted-foreground"
-                title={`${openTickets} abiertos | ${unreadTickets} sin leer | ${riskTickets} en riesgo | ${resolvedTickets} resueltos`}
-              >
-                <span className="truncate">
-                  {openTickets.toLocaleString('es-AR')} abiertos
-                  {unreadTickets > 0 ? ` · ${unreadTickets.toLocaleString('es-AR')} sin leer` : ''}
-                  {riskTickets > 0 ? ` · ${riskTickets.toLocaleString('es-AR')} riesgo` : ''}
-                </span>
-              </Badge>
-              {nextPriorityTicket ? (
-                <div
-                  data-testid="tickets-next-priority-strip"
-                  className="flex shrink-0 items-center gap-1.5"
-                  title={`${nextPriorityCrmQueue?.label || nextPriorityLabel}: #${nextPriorityTicket.nro_ticket || nextPriorityTicket.id} ${nextPriorityLabel}. ${nextPriorityCrmQueue?.reason || ''}`.trim()}
-                >
-                  <span className="hidden font-semibold uppercase tracking-[0.08em] min-[1280px]:inline">
-                    Siguiente
-                  </span>
-                  <span className="hidden max-w-[10rem] truncate font-semibold text-foreground min-[520px]:block min-[1180px]:max-w-[12rem]">
-                    #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityCrmQueue?.label || nextPriorityLabel}
-                  </span>
-                  {nextPriorityCrmQueue ? (
-                    <Badge variant="outline" className="hidden shrink-0 rounded-full text-[10px] min-[1360px]:inline-flex">
-                      Score {nextPriorityCrmQueue.score.toLocaleString('es-AR')}
-                    </Badge>
-                  ) : null}
-                  {nextPriorityCrmQueue ? (
-                    <span className="sr-only">
-                      Asunto: {nextPriorityLabel}. {nextPriorityCrmQueue.reason}
-                    </span>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant={isNextPrioritySelected ? 'secondary' : 'default'}
-                    size="sm"
-                    className="h-7 rounded-full px-2 text-xs"
-                    disabled={isNextPrioritySelected}
-                    aria-label={
-                      isNextPrioritySelected
-                        ? 'Prioridad en atencion'
-                        : `Atender siguiente prioridad ${nextPriorityTicket.nro_ticket || nextPriorityTicket.id}: ${nextPriorityCrmQueue?.label || nextPriorityLabel}. ${nextPriorityLabel}`
-                    }
-                    onClick={() => selectTicket(nextPriorityTicket.id)}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span>{isNextPrioritySelected ? 'En foco' : 'Atender'}</span>
-                  </Button>
-                </div>
-              ) : null}
-              {loading ? (
-                <Badge variant="secondary" className="shrink-0 rounded-full">
-                  Actualizando
-                </Badge>
-              ) : null}
-              <TicketFilterPopover
-                compact
-                align="end"
-                side="bottom"
-                onReset={resetOperationalFilters}
-                triggerTestId="tickets-header-filter-button"
-                panelTestId="tickets-header-filter-panel"
-                className="h-8 rounded-full"
-              />
-              {operationalFilterBadges.length > 0 ? (
-                <div
-                  data-testid="tickets-embedded-active-filters"
-                  className="flex shrink-0 items-center gap-1"
-                  title={operationalFilterBadges.join(' | ')}
-                >
-                  <Badge variant="secondary" className="rounded-full text-[11px]">
-                    {compactFilterSummaryLabel}
-                  </Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 rounded-full px-2 text-xs"
-                    aria-label="Limpiar filtros"
-                    title="Limpiar filtros"
-                    onClick={resetOperationalFilters}
-                  >
-                    <Filter className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {realtimeActivity.pending > 0 ? (
               <Button
                 type="button"
-                variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
+                variant="secondary"
                 size="sm"
-                className="h-8 gap-2 rounded-full"
+                className="h-8 px-2 text-xs"
                 onClick={() => {
                   clearRealtimeActivity();
                   void refreshTickets();
                 }}
-                title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+                title={realtimeActivity.lastLabel || 'Revisar novedades'}
               >
-                <Bell className="h-4 w-4" />
-                {realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime'}
+                {realtimeActivity.pending.toLocaleString('es-AR')} novedades
               </Button>
-            </div>
-          ) : null}
-        </div>
-        {!embedded ? (
-          <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <TicketFilterPopover
-              compact
-              align="start"
-              side="bottom"
-              onReset={resetOperationalFilters}
-              triggerTestId="tickets-desk-filter-button"
-              panelTestId="tickets-desk-filter-panel"
-              className="h-8 rounded-full"
-            />
-            {operationalFilterBadges.length > 0 ? (
-              <Badge
-                data-testid="tickets-desk-active-filters"
-                variant="secondary"
-                className="max-w-full gap-1 rounded-full"
-                title={operationalFilterBadges.join(' | ')}
-                aria-label={`Filtros activos: ${operationalFilterBadges.join(', ')}`}
-              >
-                <Filter className="h-3 w-3" />
-                {compactFilterSummaryLabel}
-              </Badge>
-            ) : (
-              <Badge
-                data-testid="tickets-desk-active-filters"
-                variant="outline"
-                className="gap-1 rounded-full text-muted-foreground"
-              >
-                <Filter className="h-3 w-3" />
-                Sin filtros
-              </Badge>
-            )}
-            {operationalFilterBadges.length > 0 ? (
-              <Button type="button" variant="ghost" size="sm" className="h-7 rounded-full px-2 text-xs" onClick={resetOperationalFilters}>
-                Limpiar
-              </Button>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {typeof summary?.unassigned === 'number' ? (
-              <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1">
-                <UserRound className="h-3 w-3" />
-                Sin responsable: {summary.unassigned}
-              </Badge>
             ) : null}
             <Button
+              data-testid="tickets-primary-operational-action"
               type="button"
-              variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
               size="sm"
-              className="h-8 gap-2 rounded-full"
-              onClick={() => {
-                clearRealtimeActivity();
-                void refreshTickets();
-              }}
-              title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              onClick={handlePrimaryOperationalAction}
+              aria-label={
+                nextPriorityTicket && !isNextPrioritySelected
+                  ? `Atender prioridad: ${nextPriorityCrmQueue?.label || nextPriorityLabel}. ${nextPriorityLabel}`
+                  : primaryOperationalActionLabel
+              }
             >
-              <Bell className="h-4 w-4" />
-              {realtimeActivity.pending > 0
-                ? `${realtimeActivity.pending} novedades`
-                : 'Realtime listo'}
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{primaryOperationalActionLabel}</span>
+              <span className="sm:hidden">
+                {nextPriorityTicket && !isNextPrioritySelected
+                  ? 'Prioridad'
+                  : selectedTicket
+                    ? 'Responder'
+                    : 'Actualizar'}
+              </span>
             </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2 rounded-full"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
               onClick={() => void refreshTickets()}
+              aria-label="Recargar datos de la cola"
+              title="Recargar datos de la cola"
             >
-              <RefreshCw className="h-4 w-4" />
-              Actualizar
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  data-testid="tickets-workspace-tools-trigger"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  aria-label={
+                    operationalFilterBadges.length
+                      ? `Más opciones, ${operationalFilterBadges.length} filtros activos`
+                      : 'Más opciones'
+                  }
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Más opciones</span>
+                  {operationalFilterBadges.length ? (
+                    <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                      {operationalFilterBadges.length}
+                    </span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                data-testid="tickets-workspace-tools-panel"
+                aria-label="Opciones secundarias del centro de reclamos"
+                align="end"
+                sideOffset={8}
+                className="max-h-[min(75vh,42rem)] w-[min(94vw,38rem)] overflow-y-auto rounded-lg border-border/80 p-0 shadow-2xl"
+              >
+                <div className="border-b border-border/70 px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">Opciones de la mesa</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Indicadores, filtros y herramientas secundarias.
+                  </p>
+                </div>
+
+                <section className="space-y-2 border-b border-border/70 p-3" aria-labelledby="ticket-queue-indicators-title">
+                  <div className="flex items-center justify-between gap-2">
+                    <p id="ticket-queue-indicators-title" className="text-xs font-semibold text-foreground">
+                      Indicadores de cola
+                    </p>
+                    {typeof summary?.unassigned === 'number' ? (
+                      <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1 text-[10px]">
+                        <UserRound className="h-3 w-3" />
+                        {summary.unassigned} sin responsable
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    <TicketOpsStat
+                      label="Abiertos"
+                      value={openTickets}
+                      helper="Casos por resolver"
+                      tone="blue"
+                      icon={Clock}
+                      onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="Riesgo"
+                      value={riskTickets}
+                      helper="SLA o prioridad alta"
+                      tone="amber"
+                      icon={AlertTriangle}
+                      onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="No leídos"
+                      value={unreadTickets}
+                      helper="Requieren respuesta"
+                      tone="violet"
+                      icon={Radio}
+                      onClick={() => applyQuickFilter({ unread: 'unread' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="Resueltos"
+                      value={resolvedTickets}
+                      helper="Cerrados o resueltos"
+                      tone="emerald"
+                      icon={CheckCircle2}
+                      onClick={() => applyQuickFilter({ status: 'resuelto' })}
+                      compact
+                    />
+                  </div>
+                </section>
+
+                <section className="space-y-2 border-b border-border/70 p-3" aria-labelledby="ticket-queue-filters-title">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p id="ticket-queue-filters-title" className="text-xs font-semibold text-foreground">
+                        Vista de la cola
+                      </p>
+                      <p
+                        data-testid={embedded ? 'tickets-embedded-active-filters' : 'tickets-desk-active-filters'}
+                        className="truncate text-[11px] text-muted-foreground"
+                        title={operationalFilterBadges.join(' | ') || 'Sin filtros'}
+                        aria-label={
+                          operationalFilterBadges.length
+                            ? `Filtros activos: ${operationalFilterBadges.join(', ')}`
+                            : 'Sin filtros activos'
+                        }
+                      >
+                        {compactFilterSummaryLabel}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <TicketFilterPopover
+                        compact
+                        align="end"
+                        side="bottom"
+                        onReset={resetOperationalFilters}
+                        triggerTestId={embedded ? 'tickets-header-filter-button' : 'tickets-desk-filter-button'}
+                        panelTestId={embedded ? 'tickets-header-filter-panel' : 'tickets-desk-filter-panel'}
+                        className="h-8"
+                      />
+                      {operationalFilterBadges.length ? (
+                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={resetOperationalFilters}>
+                          <Filter className="mr-1 h-3.5 w-3.5" />
+                          Limpiar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {recommendedViews.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {recommendedViews.slice(0, 3).map((view, index) => (
+                        <Button
+                          key={view.id || `recommended_${index}`}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 max-w-full px-2 text-[11px]"
+                          title={view.description || view.label}
+                          onClick={() => applyRecommendedView(view.query)}
+                        >
+                          <span className="truncate">{view.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {deepLinkFocus ? (
+                    <Badge data-testid="tickets-deeplink-focus" variant="outline" className="max-w-full capitalize text-[10px]">
+                      Vista solicitada: {formatDeskDeepLinkFocus(deepLinkFocus)}
+                    </Badge>
+                  ) : null}
+                </section>
+
+                <section className="space-y-2 p-3" aria-labelledby="ticket-secondary-actions-title">
+                  <p id="ticket-secondary-actions-title" className="text-xs font-semibold text-foreground">
+                    Herramientas secundarias
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <CuadrillaFieldModal
+                      triggerButton={(
+                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                          <UserRound className="h-3.5 w-3.5" />
+                          Operación de cuadrillas
+                        </Button>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => {
+                        clearRealtimeActivity();
+                        void refreshTickets();
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Sincronizar ahora
+                    </Button>
+                  </div>
+                </section>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
-        ) : null}
       </div>
-      {!embedded ? (
-        <div className="border-b border-border/70 bg-background/65 px-3 py-2 sm:px-4">
-          <OperationalContinuityBar
-            testId="tickets-operational-continuity"
-            icon={MessageSquare}
-            tone={continuityTone}
-            title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
-            subtitle={
-              selectedTicket
-                ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
-                : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
-            }
-            reference={selectedTicketReference}
-            statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
-            channelLabel={selectedTicket ? selectedTicketChannel : 'WhatsApp / web'}
-            liveLabel={realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime listo'}
-            slaLabel={selectedTicketSla ?? (riskTickets > 0 ? `${riskTickets} en riesgo` : 'SLA estable')}
-            nextActionLabel={selectedTicketNextAction}
-            primaryActionLabel={
-              nextPriorityTicket && !isNextPrioritySelected
-                ? 'Atender prioridad'
-                : selectedTicket
-                  ? 'Responder'
-                  : 'Actualizar mesa'
-            }
-            onPrimaryAction={handlePrimaryOperationalAction}
-            secondaryActionLabel="Actualizar"
-            onSecondaryAction={() => void refreshTickets()}
-            metrics={[
-              { label: 'Abiertos', value: openTickets, tone: 'default' },
-              { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
-              { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
-              { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
-            ]}
-          />
-        </div>
-      ) : null}
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
           <div className="shrink-0 border-b border-border/70 bg-card/80 px-2 py-1.5 shadow-sm">
@@ -1373,34 +1335,70 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
           {isSidebarVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70" data-testid="tickets-list-region">
+            <section
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border/70"
+              data-testid="tickets-list-region"
+              aria-labelledby="tickets-queue-column-title"
+            >
+              <TicketWorkspaceColumnHeader
+                id="tickets-queue-column-title"
+                step={1}
+                title="Cola priorizada"
+                description="Casos ordenados por urgencia y actividad pendiente."
+              />
               <Sidebar
                 compact={embedded}
                 showFilterControl={isMobile && !embedded}
                 showListSummaryBar={false}
-                className="h-full w-full shrink-0"
+                showQueueMetrics={false}
+                className="min-h-0 flex-1 border-r-0"
               />
-            </div>
+            </section>
           )}
 
-          <div className="min-h-0 min-w-0 overflow-hidden" data-testid="tickets-conversation-region">
-            <ConversationPanel
-              isMobile={false}
-              isSidebarVisible={isSidebarVisible}
-              isDetailsVisible={isDetailsVisible}
-              onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
-              onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
-              canToggleSidebar
-              showDetailsToggle
-              desktopView={desktopView}
-              setDesktopView={setDesktopView}
+          <section
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+            data-testid="tickets-conversation-region"
+            aria-labelledby="tickets-conversation-column-title"
+          >
+            <TicketWorkspaceColumnHeader
+              id="tickets-conversation-column-title"
+              step={2}
+              title="Caso y conversación"
+              description="Intercambio con el vecino y acciones principales del caso."
             />
-          </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <ConversationPanel
+                isMobile={false}
+                isSidebarVisible={isSidebarVisible}
+                isDetailsVisible={isDetailsVisible}
+                onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
+                onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
+                canToggleSidebar
+                showDetailsToggle
+                desktopView={desktopView}
+                setDesktopView={setDesktopView}
+                operationalWorkspace
+              />
+            </div>
+          </section>
 
           {isDetailsVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-l border-border/70" data-testid="tickets-detail-region">
-              <DetailsPanel className="h-full w-full" />
-            </div>
+            <section
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
+              data-testid="tickets-detail-region"
+              aria-labelledby="tickets-resolution-column-title"
+            >
+              <TicketWorkspaceColumnHeader
+                id="tickets-resolution-column-title"
+                step={3}
+                title="Resolución guiada"
+                description="Siguiente paso, responsable y herramientas para resolver."
+              />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <DetailsPanel className="h-full w-full border-l-0" operationalWorkspace />
+              </div>
+            </section>
           )}
         </div>
       )}

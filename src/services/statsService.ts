@@ -285,22 +285,6 @@ const NORMALIZED_NUMBER_FIELDS = {
 const STRING_FIELD_KEYWORDS = Object.values(NORMALIZED_STRING_FIELDS).flat();
 const NUMBER_FIELD_KEYWORDS = Object.values(NORMALIZED_NUMBER_FIELDS).flat();
 
-const CHART_CONTAINER_KEYS = [
-  'chart',
-  'charts',
-  'chartdata',
-  'chartsdata',
-  'graphs',
-  'graph',
-  'graficos',
-  'grafico',
-  'datasets',
-  'series',
-  'breakdown',
-  'distribucion',
-  'distribution',
-];
-
 const CHART_LABEL_KEYS = [
   'label',
   'name',
@@ -317,6 +301,20 @@ const CHART_LABEL_KEYS = [
   'class',
   'nivel',
   'level',
+  'distrito',
+  'district',
+  'barrio',
+  'neighborhood',
+  'canal',
+  'channel',
+  'mes',
+  'month',
+  'semana',
+  'week',
+  'fecha',
+  'date',
+  'periodo',
+  'period',
 ];
 
 const CHART_VALUE_KEYS = [
@@ -335,21 +333,6 @@ const CHART_VALUE_KEYS = [
 ];
 
 const CHART_TITLE_KEYS = ['title', 'titulo', 'name', 'label'];
-
-const NESTED_CONTAINER_KEYS = [
-  'data',
-  'datos',
-  'payload',
-  'result',
-  'results',
-  'response',
-  'contenido',
-  'content',
-  'body',
-  'attributes',
-  'attributesdata',
-  'meta',
-];
 
 // Helper Functions
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -719,47 +702,64 @@ const normalizeChartCollection = (value: unknown): NormalizedChart[] => {
   return [];
 };
 
-const extractChartsFromPayload = (payload: unknown): NormalizedChart[] => {
+const readNestedRecordValue = (record: Record<string, unknown>, path: readonly string[]): unknown => {
+  let current: unknown = record;
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+};
+
+const OPERATIONAL_CHART_SPECS = [
+  { title: 'Reclamos por estado', path: ['estados'] },
+  { title: 'Reclamos por categoría', path: ['por_categoria'] },
+  { title: 'Reclamos por distrito', path: ['por_distrito'] },
+  { title: 'Canales de ingreso', path: ['por_canal'] },
+  { title: 'Evolución mensual', path: ['tendencia_mensual'] },
+  { title: 'Evolución semanal', path: ['tendencia_semanal'] },
+  { title: 'Satisfacción ciudadana', path: ['satisfaccion', 'distribucion'] },
+] as const;
+
+/**
+ * Builds only charts that represent municipal operations. Heatmap contracts also
+ * expose nested metadata named `charts`, `series` and `breakdown`; recursively
+ * interpreting those objects used to turn coordinates, supported formats and KPI
+ * descriptors into meaningless bar charts.
+ */
+export const extractOperationalCharts = (payload: unknown): NormalizedChart[] => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+  const root = payload as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object' && !Array.isArray(root.data)
+    ? root.data as Record<string, unknown>
+    : null;
+  const statsCandidate = root.stats ?? data?.stats ?? root;
+  const stats = statsCandidate && typeof statsCandidate === 'object' && !Array.isArray(statsCandidate)
+    ? statsCandidate as Record<string, unknown>
+    : null;
+
   const charts: NormalizedChart[] = [];
-  const visited = new Set<unknown>();
-  const queue: unknown[] = [payload];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || visited.has(current)) continue;
-    visited.add(current);
-    if (Array.isArray(current)) {
-      current.forEach((item) => {
-        if (item && typeof item === 'object' && !visited.has(item)) queue.push(item);
-      });
-      continue;
-    }
-    if (typeof current !== 'object') continue;
-    const record = current as Record<string, unknown>;
-    for (const [key, value] of Object.entries(record)) {
-      const normalizedKey = normalizeKey(key);
-      if (CHART_CONTAINER_KEYS.some((keyword) => normalizedKey.includes(keyword))) {
-        const extracted = normalizeChartCollection(value);
-        extracted.forEach((chart) => charts.push(chart));
-      }
-      if (value && typeof value === 'object' && !visited.has(value)) queue.push(value);
-    }
-    for (const containerKey of NESTED_CONTAINER_KEYS) {
-      if (containerKey in record) {
-        const nested = record[containerKey];
-        if (nested && !visited.has(nested)) queue.push(nested);
+  const explicitCharts = root.charts ?? root.graficos ?? data?.charts ?? data?.graficos;
+  if (explicitCharts) charts.push(...normalizeChartCollection(explicitCharts));
+
+  if (stats) {
+    for (const spec of OPERATIONAL_CHART_SPECS) {
+      const chartData = buildChartData(readNestedRecordValue(stats, spec.path));
+      if (Object.keys(chartData).length > 0) {
+        charts.push({ title: spec.title, data: chartData });
       }
     }
   }
-  if (charts.length === 0 && payload && typeof payload === 'object') {
-    const fallback = normalizeChartCollection(payload);
-    if (fallback.length > 0) charts.push(...fallback);
-  }
+
   const dedupe = new Map<string, NormalizedChart>();
-  charts.forEach((chart) => {
-    const key = `${chart.title.toLowerCase()}|${JSON.stringify(chart.data)}`;
-    if (!dedupe.has(key)) dedupe.set(key, chart);
-  });
-  return Array.from(dedupe.values()).map((chart, index) => ({ title: chart.title && chart.title.trim().length > 0 ? chart.title : `Gráfico ${index + 1}`, data: chart.data }));
+  for (const chart of charts) {
+    const dataEntries = Object.entries(chart.data).filter(([, value]) => Number.isFinite(value));
+    if (dataEntries.length === 0) continue;
+    const normalizedChart = { title: chart.title.trim() || 'Indicador operativo', data: Object.fromEntries(dataEntries) };
+    const key = `${normalizedChart.title.toLowerCase()}|${JSON.stringify(normalizedChart.data)}`;
+    if (!dedupe.has(key)) dedupe.set(key, normalizedChart);
+  }
+  return Array.from(dedupe.values());
 };
 
 const looksLikeHeatmapPoint = (value: unknown): boolean => {
@@ -1088,7 +1088,7 @@ export const getTicketStats = async (params?: TicketStatsParams): Promise<Ticket
     if (resp === null) throw lastError ?? new Error('No stats endpoint responded successfully');
     const normalizedPayload = normalizeApiPayload(resp);
     if (isHtmlPayload(normalizedPayload)) { console.warn('[statsService] Received HTML payload for /api/estadisticas/tickets, aborting further alias attempts.'); const error = new Error('HTML payload returned from /api/estadisticas/tickets'); (error as Error & { code?: string }).code = 'HTML_PAYLOAD'; throw error; }
-    const charts = extractChartsFromPayload(normalizedPayload).map((chart) => ({ title: chart.title, data: chart.data }));
+    const charts = extractOperationalCharts(normalizedPayload).map((chart) => ({ title: chart.title, data: chart.data }));
     const heatmapDataset = extractHeatmapDataset(normalizedPayload);
     const heatmap = heatmapDataset.points;
     return { charts, heatmap, heatmapDataset };

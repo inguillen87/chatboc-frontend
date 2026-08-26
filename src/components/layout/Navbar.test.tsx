@@ -48,6 +48,8 @@ describe('Navbar account menu routing', () => {
       user: {
         rol: 'admin',
         tipo_chat: 'municipio',
+        nombre_empresa: 'Municipalidad de Junín',
+        plan: 'full',
       },
     });
     useCapabilitiesMock.mockReturnValue({
@@ -74,6 +76,30 @@ describe('Navbar account menu routing', () => {
     expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets',
+    );
+  });
+
+  it('groups organization, plan, configuration and session inside the account menu', () => {
+    render(
+      <MemoryRouter initialEntries={['/perfil?tab=tickets']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
+    expect(screen.getByText('Organización')).toBeInTheDocument();
+    expect(screen.getByText('Plan y facturación')).toBeInTheDocument();
+    expect(screen.getByText('Configuración')).toBeInTheDocument();
+    expect(screen.getByText('Sesión')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Plan Full/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=perfil&section=plan',
+    );
+    expect(screen.getByRole('link', { name: /Perfil y organización/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=perfil',
     );
   });
 

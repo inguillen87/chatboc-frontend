@@ -110,7 +110,7 @@ import ConversationPanel, { TENANT_TICKET_INVALIDATION_DEBOUNCE_MS } from './Con
 
 let queryClient: QueryClient;
 
-const renderConversation = () => (
+const renderConversation = (operationalWorkspace = false) => (
   <QueryClientProvider client={queryClient}>
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <ConversationPanel
@@ -120,6 +120,7 @@ const renderConversation = () => (
         onToggleSidebar={vi.fn()}
         onToggleDetails={vi.fn()}
         desktopView="chat"
+        operationalWorkspace={operationalWorkspace}
       />
     </MemoryRouter>
   </QueryClientProvider>
@@ -163,6 +164,18 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.socket?.emit.mockClear();
     harness.socket?.off.mockClear();
     harness.socket?.on.mockClear();
+  });
+
+  it('keeps technical transport labels and ticket identifiers out of the operational workspace header', async () => {
+    render(renderConversation(true));
+
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Conversación ciudadana')).toBeInTheDocument();
+    expect(screen.queryByText('Realtime activo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fallback polling')).not.toBeInTheDocument();
+    expect(screen.queryByText('CRM-77')).not.toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: 'Más acciones del caso' })).toHaveAttribute('aria-haspopup', 'menu');
   });
 
   it('coalesces opaque tenant invalidations without losing them when the ticket list refreshes', async () => {

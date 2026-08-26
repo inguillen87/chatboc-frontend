@@ -4,7 +4,9 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
   BarChart3,
+  Building2,
   ClipboardList,
+  CreditCard,
   Database,
   Layout,
   LogOut,
@@ -13,10 +15,10 @@ import {
   Moon,
   ScrollText,
   ShoppingCart,
+  Settings,
   Sun,
   Tag,
   Ticket as TicketIcon,
-  User,
   UserCog,
   Users,
   X,
@@ -31,6 +33,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -158,6 +161,31 @@ const Navbar: React.FC = () => {
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
+  const organizationName =
+    String(
+      effectiveUser?.nombre_empresa ||
+        effectiveUser?.tenant?.nombre ||
+        effectiveUser?.tenant?.name ||
+        effectiveUser?.organization_name ||
+        "",
+    ).trim() || "Organización";
+  const organizationType = isMunicipal ? "Municipio" : "Empresa";
+  const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
+  const readablePlanName = normalizedPlan
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  const planLabel =
+    normalizedPlan === "full"
+      ? "Plan Full"
+      : normalizedPlan === "pro"
+        ? "Plan Pro"
+        : normalizedPlan === "gratis" || normalizedPlan === "free"
+          ? "Plan Inicial"
+          : normalizedPlan
+            ? `Plan ${readablePlanName}`
+            : "Plan sin identificar";
   const userAvatar = resolveConsentedAvatar(effectiveUser as Record<string, unknown> | null | undefined);
 
   const adminLinks = useMemo(() => {
@@ -390,11 +418,42 @@ const Navbar: React.FC = () => {
                   <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-80 p-2">
+                <DropdownMenuLabel className="px-3 py-2 font-normal">
+                  <span className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/50 text-primary">
+                      <Building2 className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Organización
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">{organizationName}</span>
+                      <span className="block text-xs text-muted-foreground">{organizationType}</span>
+                    </span>
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Plan y facturación
+                </DropdownMenuLabel>
+                <DropdownMenuItem asChild className="rounded-lg">
+                  <RouterLink to="/perfil?tab=perfil&section=plan" className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      <span className="block font-semibold text-foreground">{planLabel}</span>
+                      <span className="block text-xs text-muted-foreground">Ver uso, límites y facturación</span>
+                    </span>
+                  </RouterLink>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Configuración
+                </DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <RouterLink to="/perfil" className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4" />
-                    Mi perfil
+                  <RouterLink to="/perfil?tab=perfil" className="flex items-center gap-2 text-sm">
+                    <Settings className="h-4 w-4" />
+                    Perfil y organización
                   </RouterLink>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -424,7 +483,11 @@ const Navbar: React.FC = () => {
                     </RouterLink>
                   </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuItem className="flex items-center gap-2 text-destructive focus:text-destructive" onSelect={handleLogout}>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Sesión
+                </DropdownMenuLabel>
+                <DropdownMenuItem className="flex items-center gap-2 rounded-lg text-destructive focus:text-destructive" onSelect={handleLogout}>
                   <LogOut className="h-4 w-4" />
                   Cerrar sesión
                 </DropdownMenuItem>
@@ -491,12 +554,36 @@ const Navbar: React.FC = () => {
 
             {isLoggedIn ? (
               <>
-                <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
-                  Mi perfil
-                </RouterLink>
-                <RouterLink to={liveChatPath} onClick={() => setMenuOpen(false)} className={mobileItemClass}>
-                  Chat
-                </RouterLink>
+                <div className="mt-1 rounded-lg border border-border/70 bg-muted/25 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Organización</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-foreground">{organizationName}</p>
+                  <p className="text-xs text-muted-foreground">{organizationType}</p>
+                </div>
+                <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
+                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan y facturación</p>
+                  <RouterLink
+                    to="/perfil?tab=perfil&section=plan"
+                    onClick={() => setMenuOpen(false)}
+                    className={`${mobileItemClass} flex items-center gap-2`}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span className="flex-1">
+                      <span className="block font-semibold">{planLabel}</span>
+                      <span className="block text-xs font-normal text-muted-foreground">Uso, límites y facturación</span>
+                    </span>
+                  </RouterLink>
+                </div>
+                <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
+                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configuración</p>
+                  <RouterLink to="/perfil?tab=perfil" onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                    <Settings className="h-4 w-4" />
+                    Perfil y organización
+                  </RouterLink>
+                  <RouterLink to={liveChatPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                    <MessageCircle className="h-4 w-4" />
+                    Chat
+                  </RouterLink>
+                </div>
                 {adminLinks.length > 0 || FEATURE_ENCUESTAS ? (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-3">
                     <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">Panel admin</p>
@@ -525,9 +612,13 @@ const Navbar: React.FC = () => {
                     </div>
                   </div>
                 ) : null}
-                <button onClick={handleLogout} className={`${mobileItemClass} text-destructive hover:text-destructive`}>
-                  Cerrar sesión
-                </button>
+                <div className="mt-2 border-t border-border/60 pt-3">
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sesión</p>
+                  <button onClick={handleLogout} className={`${mobileItemClass} flex items-center gap-2 text-destructive hover:text-destructive`}>
+                    <LogOut className="h-4 w-4" />
+                    Cerrar sesión
+                  </button>
+                </div>
               </>
             ) : (
               <>

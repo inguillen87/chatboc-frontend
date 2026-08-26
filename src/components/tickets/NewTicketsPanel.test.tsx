@@ -48,15 +48,18 @@ vi.mock('./Sidebar', () => ({
     className,
     showFilterControl = true,
     showListSummaryBar = true,
+    showQueueMetrics = true,
   }: {
     className?: string;
     showFilterControl?: boolean;
     showListSummaryBar?: boolean;
+    showQueueMetrics?: boolean;
   }) => (
     <aside
       className={className}
       data-show-filter-control={showFilterControl ? 'true' : 'false'}
       data-show-list-summary-bar={showListSummaryBar ? 'true' : 'false'}
+      data-show-queue-metrics={showQueueMetrics ? 'true' : 'false'}
       data-testid="tickets-sidebar"
     >
       Reclamos
@@ -65,11 +68,19 @@ vi.mock('./Sidebar', () => ({
 }));
 
 vi.mock('./ConversationPanel', () => ({
-  default: () => <section data-testid="tickets-conversation">Conversacion</section>,
+  default: ({ operationalWorkspace }: { operationalWorkspace?: boolean }) => (
+    <section data-testid="tickets-conversation" data-operational-workspace={operationalWorkspace ? 'true' : 'false'}>
+      Conversacion
+    </section>
+  ),
 }));
 
 vi.mock('./DetailsPanel', () => ({
-  default: () => <section data-testid="tickets-details">Detalle</section>,
+  default: ({ operationalWorkspace }: { operationalWorkspace?: boolean }) => (
+    <section data-testid="tickets-details" data-operational-workspace={operationalWorkspace ? 'true' : 'false'}>
+      Detalle
+    </section>
+  ),
 }));
 
 vi.mock('@/components/ui/sonner', () => ({
@@ -99,8 +110,11 @@ describe('NewTicketsPanel CRM layout', () => {
   it('shows an operational loading status instead of an empty CRM shell', () => {
     render(<NewTicketsPanel />);
 
-    expect(screen.getByRole('status', { name: /cargando bandeja de reclamos/i })).toBeInTheDocument();
-    expect(screen.getByText(/sincronizando tickets, chats en vivo/i)).toBeInTheDocument();
+    const loadingState = screen.getByRole('status', { name: /preparando el centro de reclamos/i });
+    expect(loadingState).toBeInTheDocument();
+    expect(loadingState).not.toHaveClass('min-h-[520px]');
+    expect(screen.getByText(/ordenando la cola y recuperando las conversaciones/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
   it('surfaces an actionable retry state after a short CRM loading grace period', async () => {
@@ -115,8 +129,9 @@ describe('NewTicketsPanel CRM layout', () => {
         await Promise.resolve();
       });
 
-      expect(screen.getByText(/la bandeja tarda mas de lo esperado/i)).toBeInTheDocument();
+      expect(screen.getByText(/la bandeja tarda más de lo esperado/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /reintentar carga/i })).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-loading-timeout-state')).not.toHaveClass('min-h-[520px]');
     } finally {
       vi.useRealTimers();
     }
@@ -298,6 +313,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
+    expect(screen.getByTestId('tickets-error-state')).not.toHaveClass('min-h-[520px]');
     const contract = screen.getByTestId('tickets-access-contract');
     expect(contract).toHaveTextContent('Reparar acceso');
     expect(contract).toHaveTextContent('missing_municipal_scope');
@@ -326,12 +342,18 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
-    expect(screen.getByTestId('tickets-desk-filter-button')).toBeInTheDocument();
-    expect(screen.getByTestId('ticket-ops-stat-strip')).toHaveClass('overflow-x-auto');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-queue-metrics', 'false');
+    expect(screen.queryByTestId('tickets-desk-filter-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(340px, 420px) minmax(0, 1fr)',
     });
-    expect(screen.getByTestId('tickets-operational-continuity')).toHaveTextContent('Mesa de reclamos');
+    expect(screen.getByRole('heading', { name: 'Cola priorizada' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Caso y conversación' })).toBeInTheDocument();
+    expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Más opciones' }));
+    expect(screen.getByTestId('tickets-desk-filter-button')).toBeInTheDocument();
   });
 
   it('uses a compact operational header when embedded inside the profile CRM', () => {
@@ -353,22 +375,26 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-embedded-ops-header')).toBeInTheDocument();
     expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveClass('shrink-0');
-    expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Reclamos');
-    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('min-h-8');
-    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('sm:min-h-10');
-    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('overflow-x-auto');
-    expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
+    expect(screen.getByTestId('tickets-embedded-ops-header')).toHaveTextContent('Centro de reclamos');
+    expect(screen.getByTestId('tickets-embedded-ops-header').firstElementChild).toHaveClass('min-h-12');
+    expect(screen.queryByTestId('tickets-header-filter-button')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
+    expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-queue-metrics', 'false');
     expect(screen.queryByTestId('ticket-ops-stat-strip')).not.toBeInTheDocument();
-    expect(screen.getByTestId('tickets-embedded-kpi-summary')).toHaveTextContent('0 abiertos');
+    expect(screen.queryByTestId('tickets-embedded-kpi-summary')).not.toBeInTheDocument();
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-      gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr)',
     });
     expect(screen.getByTestId('tickets-list-region')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.getByTestId('tickets-conversation-region')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /realtime/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /realtime/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('tickets-conversation')).toHaveAttribute('data-operational-workspace', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Más opciones' }));
+    expect(screen.getByTestId('tickets-header-filter-button')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /operación de cuadrillas/i })).toBeInTheDocument();
   });
 
   it('keeps embedded active filters collapsed in the header without showing the heavy sidebar filters', () => {
@@ -399,6 +425,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
+    fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('Canal: whatsapp +3');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
       'title',
@@ -453,24 +480,26 @@ describe('NewTicketsPanel CRM layout', () => {
     });
 
     try {
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
       const narrow = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr)',
       });
       narrow.unmount();
 
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1180 });
       const commonDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
       });
+      expect(screen.getByRole('heading', { name: 'Resolución guiada' })).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-details')).toHaveAttribute('data-operational-workspace', 'true');
       commonDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
       const mediumDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
+        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
       });
       expect(screen.getByTestId('tickets-detail-region')).toHaveClass('min-h-0', 'overflow-hidden');
       mediumDesktop.unmount();
@@ -478,14 +507,14 @@ describe('NewTicketsPanel CRM layout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
       const wideDesktop = render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
+        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
       });
       wideDesktop.unmount();
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
       render(<NewTicketsPanel embedded />);
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
-        gridTemplateColumns: 'minmax(310px, 320px) minmax(0, 1fr) minmax(300px, 310px)',
+        gridTemplateColumns: 'minmax(300px, 340px) minmax(0, 1fr) minmax(320px, 360px)',
       });
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
@@ -599,13 +628,11 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
-    const priorityStrip = screen.getByTestId('tickets-next-priority-strip');
-    expect(priorityStrip).not.toHaveClass('hidden', 'md:hidden');
-    expect(priorityStrip).toHaveTextContent('Responder ahora');
-    expect(priorityStrip).toHaveTextContent('Score 135');
-    expect(priorityStrip).toHaveTextContent('Hay actividad del vecino');
+    expect(screen.queryByTestId('tickets-next-priority-strip')).not.toBeInTheDocument();
+    expect(screen.queryByText('Score 135')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hay actividad del vecino')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tickets-queue-command-card')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /atender siguiente prioridad/i }));
+    fireEvent.click(screen.getByRole('button', { name: /atender prioridad/i }));
 
     expect(selectTicket).toHaveBeenCalledWith(2);
   });
@@ -635,6 +662,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel />);
 
+    fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
     const summary = screen.getByTestId('tickets-desk-active-filters');
     expect(summary).toHaveTextContent('Canal: whatsapp +2');
     expect(summary).toHaveAttribute(
@@ -718,6 +746,7 @@ describe('NewTicketsPanel CRM layout', () => {
       area: 'Arreglo_De_Calle',
       sla: 'risk',
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Más opciones' }));
     expect(screen.getByTestId('tickets-deeplink-focus')).toHaveTextContent('open geocoding queue');
   });
 });

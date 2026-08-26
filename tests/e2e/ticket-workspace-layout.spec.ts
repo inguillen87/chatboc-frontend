@@ -132,6 +132,23 @@ const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
       return;
     }
 
+    if (path.endsWith('/api/app/backoffice/navigation')) {
+      await json(route, {
+        contract_version: 'backoffice.navigation.v1',
+        tenant_slug: TENANT_SLUG,
+        role: 'admin',
+        modules: [
+          { id: 'operations', label: 'Operar reclamos', route: '/perfil?tab=tickets', enabled: true, priority: 1 },
+          { id: 'reports', label: 'Reportes claros', route: '/perfil?tab=estadisticas', enabled: true, priority: 2 },
+          { id: 'surveys', label: 'Encuestas y sondeos', route: '/admin/encuestas', enabled: true, priority: 3 },
+          { id: 'people', label: 'Personas y accesos', route: '/empleados', enabled: true, priority: 4 },
+          { id: 'maps', label: 'Mapas de calor', route: '/perfil?tab=estadisticas&view=mapas', enabled: true, priority: 5 },
+          { id: 'advanced_analytics', label: 'Analítica IA', route: '/analytics?mode=advanced', enabled: true, priority: 6 },
+        ],
+      });
+      return;
+    }
+
     if (path.endsWith('/public/tenant')) {
       await json(route, {
         contract_version: 'public.tenant_profile.v1',

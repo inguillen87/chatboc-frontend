@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  LogOut,
   UploadCloud,
   CheckCircle,
   XCircle,
@@ -54,13 +53,6 @@ import { PromotionForm, PromotionFormValues } from "@/components/admin/Promotion
 import { AgendaPasteForm } from "@/components/admin/AgendaPasteForm";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +78,12 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
+import PlanUsagePanel from '@/components/profile/PlanUsagePanel';
+import ProfileWorkspaceNavigation, {
+  resolveProfileWorkspaceCapabilities,
+  type ProfileWorkspaceTabValue,
+} from '@/components/profile/ProfileWorkspaceNavigation';
+import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -96,7 +94,7 @@ import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { hasAuthenticatedChatbocSession, logoutChatbocSession } from "@/utils/sessionLogout";
+import { hasAuthenticatedChatbocSession } from "@/utils/sessionLogout";
 import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
@@ -169,6 +167,17 @@ const PROVINCIAS = [
 ];
 
 const MODAL_PREVIEW_ROWS = 6;
+
+const parseCoordinate = (value: unknown): number | null => {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+};
 
 const slugify = (value?: string | number | null) => {
   if (!value) return null;
@@ -276,16 +285,7 @@ const DIAS = [
 ];
 
 
-type ProfileTabValue =
-  | "perfil"
-  | "tickets"
-  | "pedidos"
-  | "estadisticas"
-  | "analytics"
-  | "catalogo"
-  | "usuarios"
-  | "empleados"
-  | "mapas";
+type ProfileTabValue = ProfileWorkspaceTabValue;
 
 const PROFILE_TAB_VALUES = new Set<ProfileTabValue>([
   "perfil",
@@ -330,6 +330,35 @@ type BackofficeNavigationResponse = {
   contract_version?: string;
   modules?: BackofficeNavigationModule[];
   request_id?: string;
+};
+
+type ProfileIdentitySnapshot = {
+  nombre_empresa: string;
+  plan: string;
+  rubro: string;
+  logo_url: string;
+  avatar_url: string;
+  avatar_source: string;
+  avatar_consent: boolean;
+  tenant_slug: string | null;
+};
+
+const WorkspacePanel = ({
+  active,
+  label,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLElement> & {
+  active: boolean;
+  label: string;
+}) => {
+  if (!active) return null;
+
+  return (
+    <section role="region" aria-label={label} {...props}>
+      {children}
+    </section>
+  );
 };
 
 const ControlCenterCardButton = ({
@@ -411,18 +440,8 @@ const DataModeCard = ({
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, refreshUser } = useUser(); // Usa refreshUser del hook
+  const { user, setUser } = useUser();
   const isPyme = user?.tipo_chat === "pyme";
-  const parseCoordinate = (value: unknown): number | null => {
-    if (typeof value === "number" && !Number.isNaN(value)) {
-      return value;
-    }
-    if (typeof value === "string" && value.trim() !== "") {
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? null : parsed;
-    }
-    return null;
-  };
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
     telefono: "",
@@ -465,6 +484,32 @@ export default function Perfil() {
     const currentPath = location.pathname ?? "";
     return TENANT_ROUTE_PREFIXES.find((prefix) => currentPath.startsWith(`/${prefix}/`)) ?? null;
   }, [location.pathname]);
+  const routeTenantSlug = useMemo(() => {
+    const segments = (location.pathname || "").split("/").filter(Boolean);
+    if (
+      segments.length < 2 ||
+      !TENANT_ROUTE_PREFIXES.includes(
+        segments[0].toLowerCase() as (typeof TENANT_ROUTE_PREFIXES)[number],
+      )
+    ) {
+      return null;
+    }
+    try {
+      return slugify(decodeURIComponent(segments[1]));
+    } catch {
+      return slugify(segments[1]);
+    }
+  }, [location.pathname]);
+  const userTenantSlug = slugify(
+    (user as any)?.tenantSlug ||
+      (user as any)?.tenant_slug ||
+      (user as any)?.tenant?.slug ||
+      (user as any)?.tenant?.tenant_slug,
+  );
+  const profileTenantScope = routeTenantSlug || userTenantSlug || storedTenantSlug;
+  const profileIdentityScope = user
+    ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
+    : null;
   const buildMappingPath = useCallback(
     (path: string) =>
       tenantPrefix && derivedTenantSlug ? `/${tenantPrefix}/${derivedTenantSlug}${path}` : path,
@@ -486,8 +531,10 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const requestedProfileTab = normalizeProfileTabValue(searchParams.get("tab"));
+  const requestedProfileSection = searchParams.get("section");
   const shouldHighlightChannelSetup = searchParams.get("setup") === "channels";
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
+  const [isAdvancedProfileOpen, setIsAdvancedProfileOpen] = useState(requestedProfileSection === "plan");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const [isManualLocation, setIsManualLocation] = useState(false);
@@ -499,13 +546,86 @@ export default function Perfil() {
   const [isMapLoading, setIsMapLoading] = useState(true);
   const normalizedRole = String(normalizeRole(user?.rol));
   const isStaff = ['superadmin', 'tenant_admin', 'employee'].includes(normalizedRole);
-  const canViewAnalytics =
-    isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
+  const isTenantAdministrator = ['superadmin', 'tenant_admin'].includes(normalizedRole);
+  const isAnalyticsViewer = normalizedRole === 'analytics_viewer';
+  const isCatalogManager = normalizedRole === 'catalog_manager';
+  const canManageBilling = isTenantAdministrator;
+  const canViewAnalytics = isStaff || isAnalyticsViewer;
+  const canViewReports = isStaff || isAnalyticsViewer;
+  const canViewTerritory = isStaff;
+  const canViewContacts = isStaff;
+  const canViewCatalog = isTenantAdministrator || isCatalogManager;
+  const canManageTeam = isTenantAdministrator;
+  const canAccessSurveys = FEATURE_ENCUESTAS && isStaff;
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
+  const [backofficeNavigationStatus, setBackofficeNavigationStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'denied' | 'error'
+  >('idle');
+  const [backofficeNavigationRevision, setBackofficeNavigationRevision] = useState(0);
+  const loadedProfileScopeRef = useRef<string | null>(null);
+  const backofficeNavigationScopeRef = useRef<string | null>(null);
+  const promotionStatusScopeRef = useRef<string | null>(null);
+  const mapDataScopeRef = useRef<string | null>(null);
+  const mapDataInFlightScopeRef = useRef<string | null>(null);
+  const enabledBackendModuleIds = useMemo(() => {
+    if (backofficeNavigation?.contract_version !== 'backoffice.navigation.v1') {
+      return new Set<string>();
+    }
+
+    return new Set(
+      (backofficeNavigation.modules || [])
+        .filter((module) => module.enabled !== false)
+        .map((module) => String(module.id || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+  }, [backofficeNavigation]);
+  const workspaceCapabilities = useMemo(
+    () =>
+      resolveProfileWorkspaceCapabilities({
+        status: backofficeNavigationStatus,
+        enabledModuleIds: enabledBackendModuleIds,
+        featureSurveys: FEATURE_ENCUESTAS,
+        operationAccess: isStaff,
+        surveyAccess: canAccessSurveys,
+        territoryAccess: canViewTerritory,
+        contactsAccess: canViewContacts,
+        reportsAccess: canViewReports,
+        analyticsAccess: canViewAnalytics,
+        catalogAccess: canViewCatalog,
+        teamAccess: canManageTeam,
+      }),
+    [
+      backofficeNavigationStatus,
+      canAccessSurveys,
+      canManageTeam,
+      canViewAnalytics,
+      canViewCatalog,
+      canViewContacts,
+      canViewReports,
+      canViewTerritory,
+      enabledBackendModuleIds,
+      isStaff,
+    ],
+  );
+  const allowedWorkspaceTabs = useMemo(() => {
+    const tabs = new Set<ProfileTabValue>(['perfil']);
+    if (workspaceCapabilities.operation) {
+      tabs.add('tickets');
+      tabs.add('pedidos');
+    }
+    if (workspaceCapabilities.reports) tabs.add('estadisticas');
+    if (workspaceCapabilities.analytics) tabs.add('analytics');
+    if (workspaceCapabilities.catalog) tabs.add('catalogo');
+    if (workspaceCapabilities.contacts) tabs.add('usuarios');
+    if (workspaceCapabilities.team) tabs.add('empleados');
+    if (workspaceCapabilities.territory) tabs.add('mapas');
+    return tabs;
+  }, [workspaceCapabilities]);
+  const hasAnyWorkspaceCapability = Object.values(workspaceCapabilities).some(Boolean);
 
   useEffect(() => {
-    if (profileReady || !user) {
+    if (!user) {
       return;
     }
 
@@ -521,6 +641,10 @@ export default function Perfil() {
 
     if (persistedTenantSlug) {
       safeLocalStorage.setItem("tenantSlug", persistedTenantSlug);
+    }
+
+    if (profileReady) {
+      return;
     }
 
     const userRecord = user as any;
@@ -639,6 +763,7 @@ export default function Perfil() {
     (tab: ProfileTabValue) => {
       setActiveProfileTab(tab);
       const next = new URLSearchParams(searchParams.toString());
+      next.delete("section");
       if (tab === "perfil") {
         next.delete("tab");
       } else {
@@ -656,64 +781,123 @@ export default function Perfil() {
   }, [activeProfileTab, requestedProfileTab]);
 
   useEffect(() => {
+    if (backofficeNavigationStatus === 'idle' || backofficeNavigationStatus === 'loading') return;
+    if (allowedWorkspaceTabs.has(activeProfileTab)) return;
+    updateProfileTab("perfil");
+  }, [activeProfileTab, allowedWorkspaceTabs, backofficeNavigationStatus, updateProfileTab]);
+
+  useEffect(() => {
+    if (requestedProfileSection !== "plan") return;
+
     if (activeProfileTab !== "perfil") {
-      setBackofficeNavigation(null);
+      updateProfileTab("perfil");
       return;
     }
 
-    if (!derivedTenantSlug) {
+    setIsAdvancedProfileOpen(true);
+    const focusPlanSection = window.setTimeout(() => {
+      const target = document.getElementById("profile-plan-and-usage");
+      if (!target) return;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+
+    return () => window.clearTimeout(focusPlanSection);
+  }, [activeProfileTab, requestedProfileSection, updateProfileTab]);
+
+  useEffect(() => {
+    if (!user || !hasAuthenticatedChatbocSession()) {
       setBackofficeNavigation(null);
+      setBackofficeNavigationStatus('idle');
+      backofficeNavigationScopeRef.current = null;
       return;
     }
 
-    let cancelled = false;
+    if (!derivedTenantSlug || !profileIdentityScope) {
+      setBackofficeNavigation(null);
+      setBackofficeNavigationStatus('error');
+      backofficeNavigationScopeRef.current = null;
+      return;
+    }
+
+    const requestedScope = `${profileIdentityScope}:${normalizedRole || 'unassigned-role'}:${derivedTenantSlug}`;
+    if (backofficeNavigationScopeRef.current === requestedScope) {
+      return;
+    }
+
+    backofficeNavigationScopeRef.current = requestedScope;
+    setBackofficeNavigation(null);
+    setBackofficeNavigationStatus('loading');
     const loadBackofficeNavigation = async () => {
       try {
         const data = await apiFetch<BackofficeNavigationResponse>(
           `/api/app/backoffice/navigation?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`,
+          { tenantSlug: derivedTenantSlug },
         );
-        if (cancelled) return;
+        if (backofficeNavigationScopeRef.current !== requestedScope) {
+          return;
+        }
         if (data?.contract_version === 'backoffice.navigation.v1' && Array.isArray(data.modules)) {
           setBackofficeNavigation(data);
+          setBackofficeNavigationStatus('ready');
           return;
         }
         setBackofficeNavigation(null);
-      } catch {
-        if (!cancelled) setBackofficeNavigation(null);
+        setBackofficeNavigationStatus('error');
+      } catch (error) {
+        if (backofficeNavigationScopeRef.current !== requestedScope) {
+          return;
+        }
+        backofficeNavigationScopeRef.current = null;
+        setBackofficeNavigation(null);
+        setBackofficeNavigationStatus(
+          error instanceof ApiError && (error.status === 401 || error.status === 403)
+            ? 'denied'
+            : 'error',
+        );
       }
     };
 
     void loadBackofficeNavigation();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProfileTab, derivedTenantSlug]);
+  }, [backofficeNavigationRevision, derivedTenantSlug, normalizedRole, profileIdentityScope, user]);
 
   useEffect(() => {
-    if (activeProfileTab !== "perfil") {
+    if (activeProfileTab !== "perfil" || !user || !hasAuthenticatedChatbocSession()) {
       return;
     }
 
+    const requestedScope = profileTenantScope || `user-${user?.id ?? "unknown"}`;
+    if (promotionStatusScopeRef.current === requestedScope) {
+      return;
+    }
+
+    promotionStatusScopeRef.current = requestedScope;
     const checkPromotionStatus = async () => {
       try {
-        const data = await apiFetch<any>('/api/whatsapp/promocionar');
+        const data = await apiFetch<any>('/api/whatsapp/promocionar', {
+          tenantSlug: profileTenantScope,
+        });
+        if (promotionStatusScopeRef.current !== requestedScope) {
+          return;
+        }
         const last = data?.ultimo_envio || data?.last_sent || data?.lastSent;
         const today = new Date().toISOString().slice(0, 10);
-        if ((data?.can_send === false) || (data?.disponible === false)) {
-          setHasSentPromotionToday(true);
-        } else if (last && last.slice(0, 10) === today) {
-          setHasSentPromotionToday(true);
-        }
+        setHasSentPromotionToday(
+          data?.can_send === false ||
+            data?.disponible === false ||
+            Boolean(last && last.slice(0, 10) === today),
+        );
       } catch {
+        if (promotionStatusScopeRef.current !== requestedScope) {
+          return;
+        }
         const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
         const today = new Date().toISOString().slice(0, 10);
-        if (lastPromotionDate === today) {
-          setHasSentPromotionToday(true);
-        }
+        setHasSentPromotionToday(lastPromotionDate === today);
       }
     };
-    checkPromotionStatus();
-  }, [activeProfileTab]);
+    void checkPromotionStatus();
+  }, [activeProfileTab, profileTenantScope, user?.id]);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -897,13 +1081,21 @@ export default function Perfil() {
 
 
 
-  // fetchPerfil actualizado para usar apiFetch
-  const fetchPerfil = useCallback(async () => { // Ya no necesita 'token' como argumento
+  const fetchPerfil = useCallback(async ({
+    tenantSlug,
+    isCurrent = () => true,
+  }: {
+    tenantSlug?: string | null;
+    isCurrent?: () => boolean;
+  } = {}): Promise<ProfileIdentitySnapshot | null> => {
     setLoadingGuardar(true);
     setError(null);
     setMensaje(null);
     try {
-      const data = await apiFetch<any>("/me"); // Usa apiFetch, que maneja el token
+      const data = await apiFetch<any>("/me", { tenantSlug });
+      if (!isCurrent()) {
+        return null;
+      }
 
       const latitud = parseCoordinate(data.latitud ?? data.lat);
       const longitud = parseCoordinate(data.longitud ?? data.lng);
@@ -992,20 +1184,30 @@ export default function Perfil() {
       }
       setGeocodingStatus("idle");
 
-      // Actualizar localStorage y contexto del usuario antes de otras llamadas que dependan de él
-      await refreshUser();
-
+      return {
+        nombre_empresa: data.nombre_empresa || "",
+        plan: resolvedPlan,
+        rubro: data.rubro?.toLowerCase() || "",
+        logo_url: data.logo_url || "",
+        avatar_url: profileAvatar.avatarUrl || "",
+        avatar_source: profileAvatar.source || "",
+        avatar_consent: profileAvatar.consented,
+        tenant_slug: resolvedProfileTenantSlug,
+      };
     } catch (err) {
-      // El manejo de 401 es global en apiFetch, que redirigirá la página.
-      // Solo necesitamos manejar otros errores que no sean de autenticación.
-      setError(getErrorMessage(err, "Error al cargar el perfil."));
+      if (isCurrent()) {
+        setError(getErrorMessage(err, "Error al cargar el perfil."));
+      }
+      return null;
     } finally {
-      setLoadingGuardar(false);
-      setProfileReady(true);
+      if (isCurrent()) {
+        setLoadingGuardar(false);
+        setProfileReady(true);
+      }
     }
-  }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
+  }, []);
 
-  const fetchMapData = useCallback(async () => {
+  const fetchMapData = useCallback(async (tenantSlug?: string | null) => {
     setIsMapLoading(true);
     try {
       const tipo = user?.tipo_chat ?? getCurrentTipoChat();
@@ -1015,6 +1217,7 @@ export default function Perfil() {
         getHeatmapDataset({ tipo }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
+          { tenantSlug },
         ).catch((err) => {
           console.warn('Error fetching categories for heatmap filters:', err);
           return null;
@@ -1067,6 +1270,7 @@ export default function Perfil() {
       const finalCategorias = mergedCategorias;
       setAvailableCategories(finalCategorias);
 
+      return true;
     } catch (error) {
       console.error("Error fetching map data:", error);
       toast({
@@ -1079,6 +1283,7 @@ export default function Perfil() {
       setAvailableBarrios([]);
       setAvailableTipos([]);
       setAvailableCategories([]);
+      return false;
     } finally {
       setIsMapLoading(false);
     }
@@ -1088,12 +1293,33 @@ export default function Perfil() {
   useEffect(() => {
     if (!hasAuthenticatedChatbocSession()) {
       navigate(buildLoginPathWithNext(location.pathname, location.search), { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (!hasAuthenticatedChatbocSession() || !profileIdentityScope) {
       return;
     }
-    void (async () => {
-      await fetchPerfil();
-    })();
-  }, [fetchPerfil, location.pathname, location.search, navigate]);
+
+    if (loadedProfileScopeRef.current === profileIdentityScope) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestedScope = profileIdentityScope;
+    void fetchPerfil({
+      tenantSlug: profileTenantScope,
+      isCurrent: () => !cancelled,
+    }).then((snapshot) => {
+      if (snapshot && !cancelled) {
+        loadedProfileScopeRef.current = requestedScope;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPerfil, profileIdentityScope, profileTenantScope]);
 
   useEffect(() => {
     if (!canViewAnalytics || activeProfileTab !== "perfil") {
@@ -1104,8 +1330,25 @@ export default function Perfil() {
       return;
     }
 
-    void fetchMapData();
-  }, [activeProfileTab, canViewAnalytics, fetchMapData]);
+    const requestedScope = `${profileTenantScope || `user-${user?.id ?? "unknown"}`}:${user?.tipo_chat || "default"}`;
+    if (
+      mapDataScopeRef.current === requestedScope ||
+      mapDataInFlightScopeRef.current === requestedScope
+    ) {
+      return;
+    }
+
+    mapDataInFlightScopeRef.current = requestedScope;
+    void fetchMapData(profileTenantScope).then((loaded) => {
+      if (loaded) {
+        mapDataScopeRef.current = requestedScope;
+      }
+    }).finally(() => {
+      if (mapDataInFlightScopeRef.current === requestedScope) {
+        mapDataInFlightScopeRef.current = null;
+      }
+    });
+  }, [activeProfileTab, canViewAnalytics, fetchMapData, profileTenantScope, user?.id, user?.tipo_chat]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -1442,7 +1685,33 @@ export default function Perfil() {
       });
       
       const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
-      await fetchPerfil(); // Refrescar el perfil después de guardar
+      const refreshedProfile = await fetchPerfil({ tenantSlug: profileTenantScope });
+      if (user && refreshedProfile) {
+        const refreshedTenantSlug = refreshedProfile.tenant_slug || profileTenantScope || undefined;
+        setUser({
+          ...user,
+          nombre_empresa: refreshedProfile.nombre_empresa,
+          plan: refreshedProfile.plan,
+          rubro: refreshedProfile.rubro,
+          logo_url: refreshedProfile.logo_url,
+          avatar_url: refreshedProfile.avatar_url,
+          picture: refreshedProfile.avatar_url,
+          avatar_source: refreshedProfile.avatar_source,
+          avatar_consent: refreshedProfile.avatar_consent,
+          profile_picture_consent: refreshedProfile.avatar_consent,
+          ...(refreshedTenantSlug
+            ? {
+                tenantSlug: refreshedTenantSlug,
+                tenant_slug: refreshedTenantSlug,
+                tenant: {
+                  ...(user.tenant || {}),
+                  slug: refreshedTenantSlug,
+                  tenant_slug: refreshedTenantSlug,
+                },
+              }
+            : {}),
+        });
+      }
       setMensaje(successMsg);
     } catch (err) {
       setError(getErrorMessage(err, "Error al guardar el perfil."));
@@ -1781,7 +2050,20 @@ export default function Perfil() {
     return LayoutDashboard;
   };
 
-  const moduleRouteToTarget = (route?: string | null): Pick<ControlCenterCard, 'tab' | 'path'> => {
+  const moduleRouteToTarget = (
+    moduleId: string,
+    route?: string | null,
+  ): Pick<ControlCenterCard, 'tab' | 'path'> => {
+    const normalizedId = moduleId.trim().toLowerCase();
+    if (normalizedId === 'operations') return { tab: 'tickets' };
+    if (normalizedId === 'reports') return { tab: 'estadisticas' };
+    if (normalizedId === 'surveys') return { path: '/admin/encuestas' };
+    if (normalizedId === 'people') {
+      return { tab: workspaceCapabilities.team ? 'empleados' : 'usuarios' };
+    }
+    if (normalizedId === 'maps') return { tab: 'mapas' };
+    if (normalizedId === 'advanced_analytics') return { tab: 'analytics' };
+
     if (!route) return {};
     const tabMatch = route.match(/[?&]tab=([^&]+)/);
     const tab = tabMatch?.[1] as ProfileTabValue | undefined;
@@ -1791,11 +2073,30 @@ export default function Perfil() {
     return { path: route };
   };
 
+  const backendModuleAllowedInWorkspace = (moduleId: string) => {
+    const normalizedId = moduleId.trim().toLowerCase();
+    if (normalizedId === 'operations') return workspaceCapabilities.operation;
+    if (normalizedId === 'reports') return workspaceCapabilities.reports;
+    if (normalizedId === 'surveys') return workspaceCapabilities.participation;
+    if (normalizedId === 'people') {
+      return workspaceCapabilities.contacts || workspaceCapabilities.team;
+    }
+    if (normalizedId === 'maps') return workspaceCapabilities.territory;
+    if (normalizedId === 'advanced_analytics') return workspaceCapabilities.analytics;
+    if (['catalog', 'inventory', 'marketplace'].includes(normalizedId)) {
+      return workspaceCapabilities.catalog;
+    }
+    return false;
+  };
+
   const backendControlCards = useMemo<ControlCenterCard[]>(() => {
     const modules = backofficeNavigation?.modules;
     if (!Array.isArray(modules) || modules.length === 0) return [];
     return modules
-      .filter((module) => module.enabled !== false)
+      .filter((module) => {
+        const id = String(module.id || '').trim();
+        return module.enabled !== false && Boolean(id) && backendModuleAllowedInWorkspace(id);
+      })
       .slice()
       .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
       .map((module) => {
@@ -1807,10 +2108,10 @@ export default function Perfil() {
           icon: resolveBackofficeModuleIcon(id),
           actionLabel: 'Abrir',
           enabled: module.enabled !== false,
-          ...moduleRouteToTarget(module.route || module.path),
+          ...moduleRouteToTarget(id, module.route || module.path),
         };
       });
-  }, [backofficeNavigation?.modules]);
+  }, [backofficeNavigation?.modules, workspaceCapabilities]);
 
   const openControlCenterItem = (item: ControlCenterCard) => {
     if (item.enabled === false) return;
@@ -1824,7 +2125,7 @@ export default function Perfil() {
     }
   };
 
-  const primaryControlCards: ControlCenterCard[] = [
+  const primaryControlCards: ControlCenterCard[] = ([
     {
       id: "operations",
       title: esMunicipio ? "Operar reclamos" : "Operar conversaciones",
@@ -1834,6 +2135,7 @@ export default function Perfil() {
       icon: ClipboardList,
       actionLabel: "Abrir operacion",
       tab: "tickets",
+      enabled: workspaceCapabilities.operation,
     },
     {
       id: "reports",
@@ -1842,6 +2144,7 @@ export default function Perfil() {
       icon: BarChart3,
       actionLabel: "Ver reportes",
       tab: "estadisticas",
+      enabled: workspaceCapabilities.reports,
     },
     {
       id: "surveys",
@@ -1850,6 +2153,7 @@ export default function Perfil() {
       icon: Vote,
       actionLabel: "Abrir encuestas",
       path: "/admin/encuestas",
+      enabled: workspaceCapabilities.participation,
     },
     {
       id: "people",
@@ -1857,11 +2161,12 @@ export default function Perfil() {
       description: "Usuarios, empleados, permisos y responsables del equipo.",
       icon: Users,
       actionLabel: "Gestionar personas",
-      tab: isStaff ? "empleados" : "usuarios",
+      tab: workspaceCapabilities.team ? "empleados" : "usuarios",
+      enabled: workspaceCapabilities.team || workspaceCapabilities.contacts,
     },
-  ];
+  ] satisfies ControlCenterCard[]).filter((item) => item.enabled !== false);
 
-  const secondaryControlCards: ControlCenterCard[] = [
+  const secondaryControlCards: ControlCenterCard[] = ([
     {
       id: "catalog",
       title: "Catalogo e inventario",
@@ -1869,6 +2174,7 @@ export default function Perfil() {
       icon: Package,
       actionLabel: "Abrir catalogo",
       tab: "catalogo",
+      enabled: workspaceCapabilities.catalog,
     },
     {
       id: "ai-analytics",
@@ -1877,7 +2183,7 @@ export default function Perfil() {
       icon: Sparkles,
       actionLabel: "Abrir analitica",
       tab: "analytics",
-      enabled: canViewAnalytics,
+      enabled: workspaceCapabilities.analytics,
     },
     {
       id: "maps",
@@ -1885,7 +2191,8 @@ export default function Perfil() {
       description: "Ver zonas calientes, puntos georreferenciados y capas territoriales disponibles.",
       icon: MapPinned,
       actionLabel: "Abrir mapas",
-      tab: isStaff ? "mapas" : "estadisticas",
+      tab: "mapas",
+      enabled: workspaceCapabilities.territory,
     },
     {
       id: "users",
@@ -1894,8 +2201,9 @@ export default function Perfil() {
       icon: UserCog,
       actionLabel: "Ver usuarios",
       tab: "usuarios",
+      enabled: workspaceCapabilities.contacts,
     },
-  ];
+  ] satisfies ControlCenterCard[]).filter((item) => item.enabled !== false);
   const controlCardsFromBackend = backendControlCards.length > 0;
   const renderedPrimaryControlCards = controlCardsFromBackend
     ? backendControlCards.slice(0, 4)
@@ -1940,19 +2248,6 @@ export default function Perfil() {
             : "mb-5 max-w-7xl px-2 pt-16 sm:pt-0",
         )}
       >
-        <Button
-          variant="outline"
-          className={cn(
-            "float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10",
-            isWorkspaceProfileTab && "hidden",
-          )}
-          onClick={() => {
-            void logoutChatbocSession();
-            navigate("/login"); // Usa navigate para la redirección
-          }}
-        >
-          <LogOut className="w-4 h-4 mr-2" /> Salir
-        </Button>
         {isWorkspaceProfileTab ? (
           <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:px-3">
             <div className="min-w-0 flex-1">
@@ -1966,22 +2261,6 @@ export default function Perfil() {
                 </h1>
               </div>
             </div>
-            <div className="hidden shrink-0 items-center gap-2 md:flex">
-              <Badge variant="secondary" className="capitalize">{perfil.rubro || "Rubro no especificado"}</Badge>
-              <Badge variant="outline">{plan === "full" ? "Plan Full" : plan === "pro" ? "Plan Pro" : "Plan activo"}</Badge>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 rounded-lg border-destructive px-2.5 text-xs text-destructive hover:bg-destructive/10 sm:px-3"
-              onClick={() => {
-                void logoutChatbocSession();
-                navigate("/login"); // Usa navigate para la redirecciÃ³n
-              }}
-            >
-              <LogOut className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Salir</span>
-            </Button>
           </div>
         ) : (
         <div className="clear-both rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur sm:p-6">
@@ -2001,16 +2280,12 @@ export default function Perfil() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Badge variant="secondary" className="capitalize">{perfil.rubro || "Rubro no especificado"}</Badge>
-              <Badge variant="outline">{plan === "full" ? "Plan Full" : plan === "pro" ? "Plan Pro" : "Plan activo"}</Badge>
-            </div>
           </div>
         </div>
         )}
       </div>
 
-      {activeProfileTab === "perfil" && (
+      {activeProfileTab === "perfil" && backofficeNavigationStatus === 'ready' && hasAnyWorkspaceCapability && (
       <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {renderedPrimaryControlCards.map((item) => (
@@ -2025,55 +2300,61 @@ export default function Perfil() {
         />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-          <Card className="border-border/70 bg-card/80 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Que mirar primero</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              {renderedSecondaryControlCards.map((item) => (
-                <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
-              ))}
-            </CardContent>
-          </Card>
+          {renderedSecondaryControlCards.length > 0 ? (
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <LayoutDashboard className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Que mirar primero</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-3">
+                {renderedSecondaryControlCards.map((item) => (
+                  <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
-          <Card className="border-border/70 bg-card/80 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <PieChart className="h-5 w-5 text-primary" />
-                Estadisticas vs analitica
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <DataModeCard
-                title="Estadisticas"
-                description="Vista diaria para equipos administrativos."
-                bullets={["Que paso", "Que esta pendiente", "Donde actuar ahora"]}
-                actionLabel="Ver tablero simple"
-                icon={BarChart3}
-                onClick={() => updateProfileTab("estadisticas")}
-              />
-              <DataModeCard
-                title="Analitica IA"
-                description="Capa avanzada para investigar y presentar."
-                bullets={["Resumen ejecutivo", "Segmentos y mapas", "Exportacion PDF/CSV"]}
-                actionLabel="Abrir investigacion"
-                icon={Sparkles}
-                onClick={() => updateProfileTab("analytics")}
-              />
-            </CardContent>
-          </Card>
+          {workspaceCapabilities.reports || workspaceCapabilities.analytics ? (
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <PieChart className="h-5 w-5 text-primary" />
+                  Estadisticas vs analitica
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                {workspaceCapabilities.reports ? (
+                  <DataModeCard
+                    title="Estadisticas"
+                    description="Vista diaria para equipos administrativos."
+                    bullets={["Que paso", "Que esta pendiente", "Donde actuar ahora"]}
+                    actionLabel="Ver tablero simple"
+                    icon={BarChart3}
+                    onClick={() => updateProfileTab("estadisticas")}
+                  />
+                ) : null}
+                {workspaceCapabilities.analytics ? (
+                  <DataModeCard
+                    title="Analitica IA"
+                    description="Capa avanzada para investigar y presentar."
+                    bullets={["Resumen ejecutivo", "Segmentos y mapas", "Exportacion PDF/CSV"]}
+                    actionLabel="Abrir investigacion"
+                    icon={Sparkles}
+                    onClick={() => updateProfileTab("analytics")}
+                  />
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
         <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
       </section>
       )}
 
-      <Tabs
-        value={activeProfileTab}
-        onValueChange={(value) => updateProfileTab(value as ProfileTabValue)}
+      <div
         className={cn(
           "mx-auto w-full",
           activeProfileTab === "tickets"
@@ -2085,59 +2366,113 @@ export default function Perfil() {
       >
         <div
           className={cn(
-            "sticky z-30 border-y border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border",
+            "sticky z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
             activeProfileTab === "tickets"
-              ? "top-0 -mx-1 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              ? "top-0 -mx-1 px-1 py-0.5"
               : activeProfileTab === "analytics"
-                ? "top-0 -mx-1 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              : "top-0 -mx-2 px-2 py-2",
+                ? "top-0 -mx-1 px-1 py-1"
+                : "top-0 -mx-2 px-2 py-2",
           )}
         >
-        <TabsList className={cn(
-          "h-auto gap-1",
-          activeProfileTab === "tickets"
-            ? "inline-flex min-h-8 w-max min-w-full justify-start"
-            : canViewAnalytics ? "grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-8",
-        )}>
-          <TabsTrigger value="perfil">Inicio</TabsTrigger>
-          <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
-          <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
-          <TabsTrigger value="estadisticas">Reportes</TabsTrigger>
-          {canViewAnalytics && <TabsTrigger value="analytics">Analitica IA</TabsTrigger>}
-          <TabsTrigger value="catalogo">Catalogo</TabsTrigger>
-          <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
-          {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
-          {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
-        </TabsList>
+          {backofficeNavigationStatus === 'ready' ? (
+            <ProfileWorkspaceNavigation
+              activeTab={activeProfileTab}
+              capabilities={workspaceCapabilities}
+              isMunicipal={esMunicipio}
+              onOpenSurveys={() => navigate("/admin/encuestas")}
+              onTabChange={updateProfileTab}
+            />
+          ) : (
+            <div
+              className={cn(
+                "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-sm shadow-sm",
+                backofficeNavigationStatus === 'denied'
+                  ? "border-amber-500/30 bg-amber-500/5"
+                  : backofficeNavigationStatus === 'error'
+                    ? "border-destructive/30 bg-destructive/5"
+                    : "border-border/70 bg-card/95",
+              )}
+              data-testid="backoffice-navigation-status"
+              role={backofficeNavigationStatus === 'loading' ? 'status' : 'alert'}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                {backofficeNavigationStatus === 'loading' ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                ) : (
+                  <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="min-w-0">
+                  <span className="block font-semibold text-foreground">
+                    {backofficeNavigationStatus === 'denied'
+                      ? 'Acceso operativo no habilitado'
+                      : backofficeNavigationStatus === 'error'
+                        ? 'No pudimos verificar los módulos'
+                        : 'Verificando accesos del equipo'}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {backofficeNavigationStatus === 'denied'
+                      ? 'Un administrador debe asignar alcance operativo a este perfil.'
+                      : backofficeNavigationStatus === 'error'
+                        ? 'No mostramos accesos hasta validar permisos con el servidor.'
+                        : 'Consultando el contrato de módulos habilitados para esta organización.'}
+                  </span>
+                </span>
+              </span>
+              {backofficeNavigationStatus === 'error' ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    backofficeNavigationScopeRef.current = null;
+                    setBackofficeNavigationRevision((revision) => revision + 1);
+                  }}
+                >
+                  Reintentar
+                </Button>
+              ) : null}
+            </div>
+          )}
         </div>
-        <TabsContent value="perfil">
+        <WorkspacePanel active={activeProfileTab === "perfil"} label="Inicio del centro de control">
           <div className="mt-6 grid gap-4 px-2 md:grid-cols-3">
-            <DataModeCard
-              title={esMunicipio ? "Reclamos" : "Tickets"}
-              description="Entradas operativas, responsables y estados."
-              bullets={["Pendientes", "Asignacion", "Seguimiento"]}
-              actionLabel={esMunicipio ? "Abrir reclamos" : "Abrir tickets"}
-              icon={ClipboardList}
-              onClick={() => updateProfileTab("tickets")}
-            />
-            <DataModeCard
-              title="Reportes"
-              description="Metricas, mapas de calor y actividad reciente."
-              bullets={["Mapa", "Categorias", "Tendencias"]}
-              actionLabel="Abrir reportes"
-              icon={BarChart3}
-              onClick={() => updateProfileTab("estadisticas")}
-            />
-            <DataModeCard
-              title="Usuarios y equipo"
-              description="Contactos, empleados, permisos y campanas."
-              bullets={["CRM", "Empleados", "Cobertura"]}
-              actionLabel="Abrir usuarios"
-              icon={Users}
-              onClick={() => updateProfileTab("usuarios")}
-            />
+            {workspaceCapabilities.operation ? (
+              <DataModeCard
+                title={esMunicipio ? "Reclamos" : "Tickets"}
+                description="Entradas operativas, responsables y estados."
+                bullets={["Pendientes", "Asignacion", "Seguimiento"]}
+                actionLabel={esMunicipio ? "Abrir reclamos" : "Abrir tickets"}
+                icon={ClipboardList}
+                onClick={() => updateProfileTab("tickets")}
+              />
+            ) : null}
+            {workspaceCapabilities.reports ? (
+              <DataModeCard
+                title="Reportes"
+                description="Metricas, mapas de calor y actividad reciente."
+                bullets={["Mapa", "Categorias", "Tendencias"]}
+                actionLabel="Abrir reportes"
+                icon={BarChart3}
+                onClick={() => updateProfileTab("estadisticas")}
+              />
+            ) : null}
+            {workspaceCapabilities.contacts ? (
+              <DataModeCard
+                title="Usuarios y equipo"
+                description="Contactos, empleados, permisos y campanas."
+                bullets={["CRM", "Empleados", "Cobertura"]}
+                actionLabel="Abrir usuarios"
+                icon={Users}
+                onClick={() => updateProfileTab("usuarios")}
+              />
+            ) : null}
           </div>
-          <details className="mt-6 rounded-xl border border-border/70 bg-card/80 p-4 shadow-sm">
+          <details
+            className="mt-6 rounded-xl border border-border/70 bg-card/80 p-4 shadow-sm"
+            open={isAdvancedProfileOpen}
+            onToggle={(event) => setIsAdvancedProfileOpen(event.currentTarget.open)}
+          >
             <summary className="cursor-pointer text-base font-semibold text-foreground">
               Configuracion avanzada del perfil
             </summary>
@@ -2493,169 +2828,13 @@ export default function Perfil() {
 
             {/* Columna Derecha: Plan, Catálogo, Integración */}
             <div className="md:w-1/3 flex flex-col gap-6 md:gap-8">
-              {/* Versión colapsable para mobile (Plan y Uso) */}
-              <div className="md:hidden">
-                <Accordion type="single" collapsible defaultValue="plan">
-                  <AccordionItem value="plan" className="border-b border-border">
-                    <AccordionTrigger className="px-4 py-3 text-base font-semibold text-primary">
-                      Plan y Uso
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                        <CardContent className="space-y-3">
-                          <div className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span>Plan actual:</span>
-                            <Badge
-                              variant="secondary"
-                              className={cn(
-                                "bg-primary text-primary-foreground capitalize",
-                              )}
-                            >
-                              {perfil?.plan || "N/A"}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Consultas usadas este mes:
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Progress
-                                value={porcentaje}
-                                className="h-3 bg-muted [&>div]:bg-primary"
-                                aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
-                              />
-                              <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                                {perfil?.preguntas_usadas} /
-                                {limitePlan === Infinity ? '∞' : limitePlan}
-                              </span>
-                            </div>
-                          </div>
-                          {perfil.plan !== "full" && perfil.plan !== "pro" && (
-                            <div className="space-y-2 mt-3">
-                              <Button
-                                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-                                onClick={() =>
-                                  window.open(
-                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
-                                    "_blank",
-                                  )
-                                }
-                              >
-                                Mejorar a FULL ($350.000/mes)
-                              </Button>
-                              <Button
-                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                                onClick={() =>
-                                  window.open(
-                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                                    "_blank",
-                                  )
-                                }
-                              >
-                                Mejorar a PRO ($300.000/mes)
-                              </Button>
-                            </div>
-                          )}
-                          {(perfil.plan === "pro" || perfil.plan === "full") && (
-                            <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
-                              ¡Tu plan está activo! <br />
-                              <span className="text-muted-foreground">
-                                La renovación se realiza cada mes. Si vence el pago, vas a
-                                ver los links aquí para renovarlo.
-                              </span>
-                            </div>
-                          )}
-                          <div className="text-xs text-muted-foreground mt-2">
-                            Una vez realizado el pago, tu cuenta se actualiza
-                            automáticamente.
-                            <br />
-                            Si no ves el cambio en unos minutos, comunicate con soporte..
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </div>
-
-              {/* Versión desktop (Plan y Uso) */}
-              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm hidden md:block">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-primary">
-                    Plan y Uso
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <span>Plan actual:</span>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "bg-primary text-primary-foreground capitalize",
-                      )}
-                    >
-                      {perfil?.plan || "N/A"}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Consultas usadas este mes:
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Progress
-                        value={porcentaje}
-                        className="h-3 bg-muted [&>div]:bg-primary"
-                        aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
-                      />
-                      <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                        {perfil?.preguntas_usadas} /
-                        {limitePlan === Infinity ? '∞' : limitePlan}
-                      </span>
-                    </div>
-                  </div>
-                  {perfil.plan !== "full" && perfil.plan !== "pro" && (
-                    <div className="space-y-2 mt-3">
-                      <Button
-                        className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-                        onClick={() =>
-                          window.open(
-                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
-                            "_blank",
-                          )
-                        }
-                      >
-                        Mejorar a FULL ($350.000/mes)
-                      </Button>
-                      <Button
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                        onClick={() =>
-                          window.open(
-                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                            "_blank",
-                          )
-                        }
-                      >
-                        Mejorar a PRO ($300.000/mes)
-                      </Button>
-                    </div>
-                  )}
-                  {(perfil.plan === "pro" || perfil.plan === "full") && (
-                    <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
-                      ¡Tu plan está activo! <br />
-                      <span className="text-muted-foreground">
-                        La renovación se realiza cada mes. Si vence el pago, vas a
-                        ver los links aquí para renovarlo.
-                      </span>
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Una vez realizado el pago, tu cuenta se actualiza
-                    automáticamente.
-                    <br />
-                    Si no ves el cambio en unos minutos, comunicate con soporte..
-                  </div>
-                </CardContent>
-              </Card>
+              <PlanUsagePanel
+                canManageBilling={canManageBilling}
+                limit={limitePlan}
+                percentage={porcentaje}
+                plan={perfil.plan || ""}
+                used={perfil.preguntas_usadas || 0}
+              />
 
               {/* Cargar Catálogo Wizard */}
               <div className="flex flex-col gap-6 flex-grow">
@@ -3067,58 +3246,59 @@ export default function Perfil() {
             </div>
           </div>
           </details>
-        </TabsContent>
-        <TabsContent
-          value="tickets"
+        </WorkspacePanel>
+        <WorkspacePanel
+          active={activeProfileTab === "tickets" && workspaceCapabilities.operation}
+          label={esMunicipio ? "Centro de reclamos" : "Centro de tickets"}
           data-testid="profile-ticket-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
           <React.Suspense fallback={<ProfileTabFallback label="Cargando mesa de reclamos..." />}>
             <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
-        </TabsContent>
-        <TabsContent value="estadisticas">
+        </WorkspacePanel>
+        <WorkspacePanel active={activeProfileTab === "estadisticas" && workspaceCapabilities.reports} label="Reportes ejecutivos">
           <React.Suspense fallback={<ProfileTabFallback label="Cargando reportes..." />}>
             <EstadisticasPage />
           </React.Suspense>
-        </TabsContent>
-        {canViewAnalytics && (
-          <TabsContent value="analytics">
+        </WorkspacePanel>
+        {workspaceCapabilities.analytics && (
+          <WorkspacePanel active={activeProfileTab === "analytics" && workspaceCapabilities.analytics} label="Analítica avanzada">
             <React.Suspense fallback={<ProfileTabFallback label="Cargando analitica IA..." />}>
               <AnalyticsPage />
             </React.Suspense>
-          </TabsContent>
+          </WorkspacePanel>
         )}
-        <TabsContent value="catalogo">
+        <WorkspacePanel active={activeProfileTab === "catalogo" && workspaceCapabilities.catalog} label="Catálogo y servicios">
           <React.Suspense fallback={<ProfileTabFallback label="Cargando catalogo..." />}>
             <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
-        </TabsContent>
-        <TabsContent value="pedidos">
+        </WorkspacePanel>
+        <WorkspacePanel active={activeProfileTab === "pedidos" && workspaceCapabilities.operation} label={esMunicipio ? "Tareas y gestión" : "Ventas y pedidos"}>
           <React.Suspense fallback={<ProfileTabFallback label="Cargando gestion..." />}>
             <SmartPedidosWrapper />
           </React.Suspense>
-        </TabsContent>
-        <TabsContent value="usuarios">
+        </WorkspacePanel>
+        <WorkspacePanel active={activeProfileTab === "usuarios" && workspaceCapabilities.contacts} label={esMunicipio ? "Personas y contactos" : "Clientes y contactos"}>
           <React.Suspense fallback={<ProfileTabFallback label="Cargando usuarios..." />}>
             <UsuariosPage />
           </React.Suspense>
-        </TabsContent>
-        {isStaff && (
-          <TabsContent value="empleados">
+        </WorkspacePanel>
+        {workspaceCapabilities.team && (
+          <WorkspacePanel active={activeProfileTab === "empleados" && workspaceCapabilities.team} label="Equipo y permisos">
             <React.Suspense fallback={<ProfileTabFallback label="Cargando empleados..." />}>
               <InternalUsers />
             </React.Suspense>
-          </TabsContent>
+          </WorkspacePanel>
         )}
-        {isStaff && (
-          <TabsContent value="mapas">
+        {workspaceCapabilities.territory && (
+          <WorkspacePanel active={activeProfileTab === "mapas" && workspaceCapabilities.territory} label="Mapa operativo">
             <React.Suspense fallback={<ProfileTabFallback label="Cargando mapas..." />}>
               <IncidentsMap />
             </React.Suspense>
-          </TabsContent>
+          </WorkspacePanel>
         )}
-      </Tabs>
+      </div>
 
 
        {/* --- Modal para Crear Evento/Noticia --- */}

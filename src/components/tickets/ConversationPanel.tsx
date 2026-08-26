@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle, MoreHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Ticket,
@@ -590,6 +590,7 @@ interface ConversationPanelProps {
   showDetailsToggle?: boolean;
   desktopView?: 'chat' | 'details';
   setDesktopView?: (view: 'chat' | 'details') => void;
+  operationalWorkspace?: boolean;
 }
 
 const EmptyState: React.FC<{ icon: React.ElementType; title: string; description: string }> = ({
@@ -614,6 +615,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   showDetailsToggle = false,
   desktopView,
   setDesktopView,
+  operationalWorkspace = false,
 }) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
@@ -1427,10 +1429,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     }
   };
   const conversationTitle = selectedTicket.categoria || selectedTicket.asunto || selectedTicket.name || 'Conversacion';
-  const conversationSubtitle = [
-    selectedTicket.nro_ticket || `#${selectedTicket.id}`,
-    selectedTicket.name,
-  ].filter(Boolean).join(' - ');
+  const conversationSubtitle = operationalWorkspace
+    ? selectedTicket.display_name || selectedTicket.name || 'Conversación ciudadana'
+    : [
+        selectedTicket.nro_ticket || `#${selectedTicket.id}`,
+        selectedTicket.name,
+      ].filter(Boolean).join(' - ');
   const conversationAvatar = resolveConsentedAvatar(
     selectedTicket as unknown as Record<string, unknown>,
     selectedTicket.user as unknown as Record<string, unknown> | null | undefined,
@@ -1491,18 +1495,38 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 min-[760px]:justify-end">
-            <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
-              {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
-            </Badge>
-            <Badge variant="outline" className="hidden lg:inline-flex capitalize">
-              {activeChannel}
-            </Badge>
-            <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
-              <Link to={responseTemplateManagementHref}>Respuestas rápidas</Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
-              <Link to="/notificaciones">Notificaciones</Link>
-            </Button>
+            {!operationalWorkspace ? (
+              <>
+                <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
+                  {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
+                </Badge>
+                <Badge variant="outline" className="hidden lg:inline-flex capitalize">
+                  {activeChannel}
+                </Badge>
+                <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+                  <Link to={responseTemplateManagementHref}>Respuestas rápidas</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+                  <Link to="/notificaciones">Notificaciones</Link>
+                </Button>
+              </>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label="Más acciones del caso">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link to={responseTemplateManagementHref}>Respuestas rápidas</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/notificaciones">Notificaciones</Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {showDetailsToggle && (
               <Button
                 variant={isDetailsVisible ? 'secondary' : 'outline'}
@@ -1539,11 +1563,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
-      <CaseStrip
-        ticket={selectedTicket}
-        isDetailsVisible={isDetailsVisible}
-        onOpenDetails={showDetailsToggle ? onToggleDetails : undefined}
-      />
+      {!operationalWorkspace ? (
+        <CaseStrip
+          ticket={selectedTicket}
+          isDetailsVisible={isDetailsVisible}
+          onOpenDetails={showDetailsToggle ? onToggleDetails : undefined}
+        />
+      ) : null}
 
       {!isMobile && !isDetailsVisible && setDesktopView && (
         <div className="p-2 border-b border-border">
@@ -1564,7 +1590,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       )}
 
-      {!isMobile && isDetailsVisible && (
+      {!operationalWorkspace && !isMobile && isDetailsVisible && (
         <div className="border-b border-border bg-muted/25 px-3 py-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
@@ -1604,7 +1630,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       <div className="relative min-h-0 flex-1 overflow-hidden bg-muted/20">
         {desktopView === 'details' && !isMobile ? (
-          <DetailsPanel />
+          <DetailsPanel operationalWorkspace={operationalWorkspace} />
         ) : (
           <>
             <div

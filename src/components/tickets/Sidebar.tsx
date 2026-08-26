@@ -50,6 +50,7 @@ interface SidebarProps {
   compact?: boolean;
   showFilterControl?: boolean;
   showListSummaryBar?: boolean;
+  showQueueMetrics?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -71,6 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   compact = false,
   showFilterControl = true,
   showListSummaryBar = true,
+  showQueueMetrics = true,
 }) => {
   const { currentSlug, tenant } = useTenant();
   const {
@@ -506,15 +508,17 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="flex shrink-0 items-center gap-1"
               data-testid="sidebar-compact-toolbar"
             >
-              <span
-                data-testid="sidebar-compact-summary"
-                className={cn(
-                  'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground',
-                  delegatedHeader && 'max-[330px]:hidden',
-                )}
-              >
-                {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
-              </span>
+              {showQueueMetrics ? (
+                <span
+                  data-testid="sidebar-compact-summary"
+                  className={cn(
+                    'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground',
+                    delegatedHeader && 'max-[330px]:hidden',
+                  )}
+                >
+                  {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
+                </span>
+              ) : null}
               {listModeToggle}
               {filterControl}
               {hasActiveFilters ? (
@@ -777,14 +781,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
             </p>
-            <div
-              data-testid="sidebar-queue-metrics"
-              className={cn(
-                'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                compact && 'mb-1',
-              )}
-              aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
-            >
+            {showQueueMetrics ? (
+              <div
+                data-testid="sidebar-queue-metrics"
+                className={cn(
+                  'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  compact && 'mb-1',
+                )}
+                aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
+              >
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-primary">
                 Cola
                 <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
@@ -822,7 +827,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 Sin resp.
                 <strong className="tabular-nums">{queueUnassignedCount.toLocaleString('es-AR')}</strong>
               </span>
-            </div>
+              </div>
+            ) : null}
             <div className="overflow-hidden rounded-[8px] border border-border/80 bg-background shadow-sm">
               {visibleQueueEntries.map(({ ticket, category }) => (
                 <div key={`${category}-${ticket.id}`} className="min-w-0 border-b border-border/60 last:border-b-0">
