@@ -26,11 +26,15 @@ test.describe('remote Preview executive government demo', () => {
     const apiFailures: string[] = [];
     const clerkWarnings: string[] = [];
     const clerkConfigRequests: string[] = [];
+    const mapLibreWarnings: string[] = [];
     page.on('pageerror', (error) => browserErrors.push(`pageerror: ${error.message}`));
     page.on('console', (message) => {
       if (message.type() === 'error') browserErrors.push(`console: ${message.text()}`);
       if (message.type() === 'warning' && message.text().includes('[Clerk]')) {
         clerkWarnings.push(message.text());
+      }
+      if (message.type() === 'warning' && message.text().includes('[MapLibreMap]')) {
+        mapLibreWarnings.push(message.text());
       }
     });
     page.on('request', (request) => {
@@ -138,6 +142,8 @@ test.describe('remote Preview executive government demo', () => {
     await panel.getByRole('button', { name: 'Mapa demostrativo', exact: true }).click();
     await expect(panel.getByRole('heading', { level: 3, name: 'Mapa demostrativo de demanda ciudadana' })).toBeVisible();
     await expect(panel.getByRole('region', { name: /5 zonas muestran 52 de 184 casos/i })).toBeVisible();
+    await expect(panel.locator('canvas.maplibregl-canvas')).toBeVisible({ timeout: remoteTimeout });
+    await expect(panel.getByText('No se pudo cargar el mapa', { exact: false })).toHaveCount(0);
     await expect(panel.getByText(/Cinco zonas de muestra representan 52 de 184 reclamos/i)).toBeVisible();
     await expect(panel.getByText('Revisión de señalización')).toBeVisible();
 
@@ -178,5 +184,6 @@ test.describe('remote Preview executive government demo', () => {
     expect(browserErrors, browserErrors.join('\n')).toEqual([]);
     expect(clerkWarnings, clerkWarnings.join('\n')).toEqual([]);
     expect(clerkConfigRequests, clerkConfigRequests.join('\n')).toEqual([]);
+    expect(mapLibreWarnings, mapLibreWarnings.join('\n')).toEqual([]);
   });
 });
