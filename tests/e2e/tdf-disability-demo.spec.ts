@@ -96,6 +96,19 @@ const expectNoHorizontalOverflow = async (page: Page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 };
 
+const expectMapCardHasNoTrailingGap = async (territory: Locator) => {
+  const mapCard = territory.getByTestId('tdf-map-card');
+  const mapNote = territory.getByTestId('tdf-map-note');
+  await expect(mapCard).toBeVisible();
+  await expect(mapNote).toBeVisible();
+
+  const [cardBox, noteBox] = await Promise.all([mapCard.boundingBox(), mapNote.boundingBox()]);
+  expect(cardBox, 'map card must be measurable').not.toBeNull();
+  expect(noteBox, 'map note must be measurable').not.toBeNull();
+  const trailingGap = cardBox!.y + cardBox!.height - (noteBox!.y + noteBox!.height);
+  expect(trailingGap, 'map card must end at its note instead of stretching into a blank panel').toBeLessThanOrEqual(16);
+};
+
 const expectTouchTarget = async (target: Locator, label: string) => {
   await target.scrollIntoViewIfNeeded();
   const box = await target.boundingBox();
@@ -306,7 +319,7 @@ test.describe('Faro TDF disability institutional demo', () => {
     expectNoBackendTraffic(networkAudit);
   });
 
-  test('territorial filters update only the representative local dataset and preserve the map warning', async ({ page }) => {
+  test('territorial heatmap shows all points, complete filters and an accessible point detail', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const networkAudit = captureNetworkAudit(page);
@@ -315,28 +328,117 @@ test.describe('Faro TDF disability institutional demo', () => {
     const territory = page.locator('#indicadores');
     await territory.scrollIntoViewIfNeeded();
     const cityFilters = territory.getByRole('group', { name: 'Filtrar mapa por ciudad' });
-    const reasonFilters = territory.getByRole('group', { name: 'Filtrar mapa por motivo' });
+    const neighborhoodFilter = territory.getByRole('combobox', { name: 'Filtrar mapa por barrio' });
+    const categoryFilters = territory.getByRole('group', { name: 'Filtrar mapa por categoría o rubro' });
+    const typeFilter = territory.getByRole('combobox', { name: 'Filtrar mapa por tipo' });
+    const mapRegion = territory.getByRole('region', {
+      name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
+    });
+    const mapViewport = territory.getByTestId('tdf-map-viewport');
+
+    await expect(territory.getByTestId('tdf-map-layer-heat')).toHaveAttribute('data-active', 'true');
+    await expect(territory.getByTestId('tdf-map-layer-heat')).toContainText('Calor activo');
+    await expect(territory.getByTestId('tdf-map-layer-points')).toHaveAttribute('data-active', 'true');
+    await expect(territory.getByTestId('tdf-map-layer-points')).toContainText('24 puntos activos');
+    await expect(mapRegion).toBeVisible();
+    await expect(mapViewport).toHaveAttribute('data-heatmap-visible', 'true');
+    await expect(mapViewport).toHaveAttribute('data-points-visible', 'true');
+    await expect(mapViewport).toHaveAttribute('data-point-count', '24');
+
+    const categoryLegend = territory.getByRole('list', { name: 'Leyenda de categorías territoriales' });
+    await expect(categoryLegend.getByRole('listitem')).toHaveCount(5);
+    for (const category of [
+      'CUD / CMO',
+      'Salud y prestaciones',
+      'Educación y apoyos',
+      'RUPE y licencias',
+      'Inclusión laboral',
+    ]) {
+      await expect(categoryLegend.getByText(category)).toBeVisible();
+    }
+
+    const pointDirectory = territory.getByTestId('tdf-map-point-directory');
+    await expect(pointDirectory).toHaveAccessibleName('Ubicaciones representativas disponibles');
+    const pointRows = pointDirectory.getByTestId(/^tdf-map-point-row-/);
+    await expect(pointRows).toHaveCount(24);
+    const rioGrandeCenter = pointRows.filter({
+      hasText: /Centro.*Río Grande.*CUD \/ CMO|CUD \/ CMO.*Centro.*Río Grande/s,
+    }).first();
+    await expect(rioGrandeCenter).toBeVisible();
+    await rioGrandeCenter.click();
+    const detail = page.getByRole('region', { name: 'Detalle de ubicación representativa' });
+    await expect(detail).toContainText('Centro');
+    await expect(detail).toContainText('Río Grande');
+    await expect(detail).toContainText('CUD / CMO');
+    await expect(detail).toContainText('Consulta');
+    await expect(detail).toContainText('WhatsApp');
+    await expect(detail).toContainText('64');
+    await expect(detail.getByRole('button', { name: 'Enfocar este barrio en el mapa' })).toBeVisible();
+
     await cityFilters.getByRole('button', { name: 'Río Grande' }).click();
-    await expect(territory.getByText('8 ubicaciones simuladas').first()).toBeVisible();
-    await expect(territory.getByText(/Margen Sur/).first()).toBeVisible();
+    await expect(territory.getByTestId('tdf-map-layer-points')).toContainText('8 puntos activos');
+    await expect(mapViewport).toHaveAttribute('data-point-count', '8');
+    await expect(neighborhoodFilter.getByRole('option', { name: 'Margen Sur' })).toHaveCount(1);
 
-    await reasonFilters.getByRole('button', { name: 'Salud y prestaciones' }).click();
-    await expect(territory.getByText('2 ubicaciones simuladas').first()).toBeVisible();
-    await expect(territory.getByText('Río Grande · Salud y prestaciones')).toBeVisible();
-    await expect(territory.getByText(/Margen Sur/).first()).toBeVisible();
-    await expect(territory.getByText(/CGT/).first()).toBeVisible();
+    await categoryFilters.getByRole('button', { name: 'Salud y prestaciones' }).click();
+    await neighborhoodFilter.selectOption('Margen Sur');
+    await typeFilter.selectOption('Reclamo');
+    const filterSummary = territory.getByText(/^Vista actual:/);
+    await expect(filterSummary).toContainText('Río Grande');
+    await expect(filterSummary).toContainText('Margen Sur');
+    await expect(filterSummary).toContainText('Salud y prestaciones');
+    await expect(filterSummary).toContainText('Reclamo');
+    await expect(mapViewport).toHaveAttribute('data-heatmap-visible', 'true');
+    await expect(mapViewport).toHaveAttribute('data-points-visible', 'true');
+    await expect(mapViewport).toHaveAttribute('data-point-count', '1');
 
-    const geographicMap = territory.getByRole('button', { name: 'Mapa geográfico' });
-    await geographicMap.click();
-    await expect(geographicMap).toHaveAttribute('aria-pressed', 'true');
+    const pointsOnlyMap = territory.getByRole('button', { name: /Solo puntos/i });
+    await pointsOnlyMap.click();
+    await expect(pointsOnlyMap).toHaveAttribute('aria-pressed', 'true');
     await expect(
       territory.getByRole('region', {
         name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
       }),
     ).toBeVisible();
     await expect(territory.getByText(/no deben utilizarse para decisiones de política pública/i)).toBeVisible();
+    await expect(mapViewport).toHaveAttribute('data-heatmap-visible', 'false');
+    await expect(mapViewport).toHaveAttribute('data-points-visible', 'true');
+    await expectMapCardHasNoTrailingGap(territory);
 
     expectNoBackendTraffic(networkAudit);
+  });
+
+  test('territorial map has no stretched blank tail on desktop and no document overflow on mobile', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(DEMO_PATH, { waitUntil: 'domcontentloaded' });
+    let territory = page.locator('#indicadores');
+    await territory.scrollIntoViewIfNeeded();
+    await expect(territory.getByTestId('tdf-map-viewport')).toBeVisible();
+    await expectMapCardHasNoTrailingGap(territory);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    territory = page.locator('#indicadores');
+    await territory.scrollIntoViewIfNeeded();
+    await expect(territory.getByTestId('tdf-map-card')).toBeVisible();
+    await expectMapCardHasNoTrailingGap(territory);
+    await expectNoHorizontalOverflow(page);
+
+    const containment = await territory.getByTestId('tdf-map-card').evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        viewportWidth: document.documentElement.clientWidth,
+        ownClientWidth: element.clientWidth,
+        ownScrollWidth: element.scrollWidth,
+      };
+    });
+    expect(containment.left).toBeGreaterThanOrEqual(0);
+    expect(containment.right).toBeLessThanOrEqual(containment.viewportWidth + 1);
+    expect(containment.ownScrollWidth).toBeLessThanOrEqual(containment.ownClientWidth + 1);
   });
 
   test('has no moderate, serious or critical axe violations after revealing the full conceptual page', async ({ page }) => {

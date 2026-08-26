@@ -76,4 +76,29 @@ describe('MapLibreMap popup content', () => {
     expect(node).not.toHaveTextContent('Tickets relacionados');
     expect(node.querySelector('a')).toBeNull();
   });
+
+  it('renders a complete non-identifying territorial detail for the Faro TDF points', () => {
+    const node = buildMapClusterPopupContent({
+      popupContext: 'territory',
+      properties: {
+        barrio: 'Centro',
+        ciudad: 'Río Grande',
+        categoria: 'CUD / CMO',
+        tipo_ticket: 'Consulta',
+        canal: 'WhatsApp',
+        estado: 'Orientado',
+        totalWeight: 64,
+        source: 'conceptual_demo',
+      },
+    });
+
+    expect(node).toHaveTextContent('Centro · Río Grande');
+    expect(node).toHaveTextContent('Categoría: CUD / CMO');
+    expect(node).toHaveTextContent('Tipo: Consulta');
+    expect(node).toHaveTextContent('Canal: WhatsApp');
+    expect(node).toHaveTextContent('Estado: Orientado');
+    expect(node).toHaveTextContent('Volumen representativo: 64');
+    expect(node).not.toHaveTextContent('Ticket');
+    expect(node.querySelector('a')).toBeNull();
+  });
 });

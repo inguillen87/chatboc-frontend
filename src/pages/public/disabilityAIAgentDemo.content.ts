@@ -442,14 +442,14 @@ export const disabilityAIAgentDemoContent = {
     eyebrow: "Inteligencia territorial",
     title: "Tablero conceptual para orientar la operación",
     description:
-      "El mapa combina ubicaciones de muestra y volumen representativo para mostrar cómo podrían detectarse patrones por zona sin exponer identidades personales.",
-    mapTitle: "Mapa de demanda representativa",
+      "La vista territorial combina densidad, puntos categorizados y detalle por barrio para explorar patrones operativos sin exponer identidades personales.",
+    mapTitle: "Calor territorial y puntos por barrio",
     mapDescription:
-      "Veinticuatro ubicaciones simuladas en Ushuaia, Río Grande y Tolhuin. El color expresa volumen de interacciones de muestra, no personas ni casos reales.",
-    viewLabel: "Perspectiva territorial",
+      "Los 24 puntos simulados alimentan la intensidad del calor y se distinguen por categoría. Elegí una ciudad para leer las etiquetas de cada barrio.",
+    viewLabel: "Capas territoriales",
     views: {
-      thematic: "Mapa de calor",
-      geographic: "Mapa geográfico",
+      thematic: "Calor + puntos",
+      geographic: "Solo puntos",
     },
     metrics: [
       { value: "320", label: "interacciones por canal", detail: "WhatsApp 86% · widget 14%" },

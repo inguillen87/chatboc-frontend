@@ -361,6 +361,41 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.constructorCalls).toHaveLength(1);
   });
 
+  it("supports the Faro territorial presentation without changing global map defaults", async () => {
+    render(
+      <MapLibreMap
+        geoLayerConfig={configFor(sourceFor("faro-territory", -67.7))}
+        showHeatmap
+        showPoints
+        showPointLabels
+        pointMinZoom={4.5}
+        pointLabelMinZoom={9}
+        pointLabelMode="barrio"
+        heatmapRadiusScale={2.8}
+        heatmapPalette="faro"
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    const pointLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points");
+    const labelLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points-labels");
+    const heatLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-heat");
+
+    expect(pointLayer).toEqual(expect.objectContaining({ minzoom: 4.5 }));
+    expect(labelLayer).toEqual(expect.objectContaining({
+      minzoom: 9,
+      layout: expect.objectContaining({
+        "text-field": ["coalesce", ["get", "barrio"], ["get", "distrito"], ""],
+      }),
+    }));
+    expect(heatLayer).toEqual(expect.objectContaining({
+      paint: expect.objectContaining({ "heatmap-opacity": 0.88 }),
+    }));
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
+  });
+
   it("exposes an accessible map region and refits on an explicit request without recreating it", async () => {
     const fitToBounds: [number, number][] = [
       [-68.5, -33.16],

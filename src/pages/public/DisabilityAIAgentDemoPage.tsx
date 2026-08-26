@@ -93,11 +93,24 @@ const iconByKey: Record<DemoIconKey, LucideIcon> = {
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#087f73] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f7f5]';
+const faroBlueFocusRing =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#28c8e8] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 const DEMO_FINAL_STEP = 9;
 const DEMO_STEP_MS = 1450;
 const FARO_ASSET = '/branding/faro-agent-accessible-v1.webp';
 const FARO_ICON_ASSET = '/branding/faro-agent-icon-v1.webp';
+
+const TERRITORY_CATEGORY_META = [
+  { label: 'CUD / CMO', short: 'C', color: '#087c81' },
+  { label: 'Salud y prestaciones', short: 'S', color: '#d55d39' },
+  { label: 'Educación y apoyos', short: 'E', color: '#2563eb' },
+  { label: 'RUPE y licencias', short: 'R', color: '#b7791f' },
+  { label: 'Inclusión laboral', short: 'I', color: '#7c3aed' },
+] as const;
+
+const territoryPointKey = (point: (typeof content.territory.points)[number]) =>
+  `${point.ciudad}-${point.barrio}-${point.categoria}-${point.tipo_ticket}`;
 
 const demoStepLabels = [
   'Canal listo',
@@ -226,23 +239,23 @@ const InstitutionalAccessibilityControls = ({
       {open ? (
         <div
           id="institutional-accessibility-panel"
-          className="absolute right-0 top-14 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-[#b8cbc5] bg-white p-3 shadow-[0_22px_60px_rgba(16,47,46,0.24)]"
+          className="absolute right-0 top-14 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-[#b8d0df] bg-white p-3 shadow-[0_22px_60px_rgba(7,31,56,0.24)]"
           role="region"
           aria-label="Preferencias de accesibilidad"
         >
-          <p className="px-1 text-sm font-bold text-[#173a38]">Accesibilidad</p>
-          <p className="mt-1 px-1 text-xs leading-5 text-[#4d625d]">Preferencias locales. No se guardan ni se envían.</p>
+          <p className="px-1 text-sm font-bold text-[#071f38]">Accesibilidad</p>
+          <p className="mt-1 px-1 text-xs leading-5 text-[#4a6275]">Preferencias locales. No se guardan ni se envían.</p>
           <div className="mt-3 grid gap-2">
             {preferences.map(({ label, pressed, toggle }) => (
               <button
                 key={label}
                 type="button"
                 aria-pressed={pressed}
-                className={`${focusRing} flex min-h-11 items-center justify-between rounded-xl border border-[#c9d8d4] px-3 text-left text-sm font-bold text-[#274b47] hover:bg-[#edf5f2]`}
+                className={`${faroBlueFocusRing} flex min-h-11 items-center justify-between rounded-xl border border-[#c7d9e5] px-3 text-left text-sm font-bold text-[#173c57] hover:bg-[#edf6fb]`}
                 onClick={toggle}
               >
                 <span>{label}</span>
-                <span className={`grid h-6 w-6 place-items-center rounded-full ${pressed ? 'bg-[#0b5f58] text-white' : 'bg-[#edf2f0] text-[#667874]'}`} aria-hidden="true">
+                <span className={`grid h-6 w-6 place-items-center rounded-full ${pressed ? 'bg-[#075f91] text-white' : 'bg-[#e9f1f6] text-[#5b7182]'}`} aria-hidden="true">
                   {pressed ? <Check className="h-4 w-4" /> : null}
                 </span>
               </button>
@@ -252,20 +265,20 @@ const InstitutionalAccessibilityControls = ({
             type="button"
             disabled={!speechSupported}
             aria-pressed={speaking}
-            className={`${focusRing} mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0b5f58] px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50`}
+            className={`${faroBlueFocusRing} mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#075f91] px-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(7,95,145,0.2)] hover:bg-[#064d78] disabled:cursor-not-allowed disabled:opacity-50`}
             onClick={toggleReadAloud}
           >
             {speaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
             {speaking ? 'Detener lectura' : 'Escuchar contenido'}
           </button>
-          <p className="mt-2 px-1 text-[11px] leading-4 text-[#61736f]">
+          <p className="mt-2 px-1 text-[11px] leading-4 text-[#526b7d]">
             El modo de lectura cambia tipografía, espaciado y ancho de línea; no presupone una única necesidad visual.
           </p>
         </div>
       ) : null}
       <button
         type="button"
-        className={`${focusRing} grid h-12 w-12 place-items-center rounded-full border border-white/25 bg-[#0b4b47] text-white shadow-[0_14px_34px_rgba(16,47,46,0.34)]`}
+        className={`${faroBlueFocusRing} grid h-12 w-12 place-items-center rounded-full border border-[#55cae3]/45 bg-[#071f38] text-[#7de7f3] shadow-[0_14px_34px_rgba(7,31,56,0.34)]`}
         aria-label={open ? 'Cerrar preferencias de accesibilidad' : 'Abrir preferencias de accesibilidad'}
         aria-expanded={open}
         aria-controls="institutional-accessibility-panel"
@@ -1150,22 +1163,36 @@ const ConceptualTerritoryMap = ({
   }, [points]);
 
   return (
-    <div ref={containerRef} className="min-h-[25rem] sm:min-h-[30rem]" data-testid="tdf-map-viewport">
+    <div
+      ref={containerRef}
+      className="min-h-[24rem] sm:min-h-[34rem]"
+      data-testid="tdf-map-viewport"
+      data-heatmap-visible={mapView === 'thematic' ? 'true' : 'false'}
+      data-points-visible="true"
+      data-point-count={points.length}
+    >
       {shouldLoad ? (
         <React.Suspense
-          fallback={<div className="grid h-[25rem] place-items-center bg-[#e9f0ed] text-sm font-semibold text-[#50635f] sm:h-[30rem]" role="status">Preparando mapa conceptual…</div>}
+          fallback={<div className="grid h-[24rem] place-items-center bg-[#e9f0ed] text-sm font-semibold text-[#50635f] sm:h-[34rem]" role="status">Preparando mapa territorial…</div>}
         >
           <LazyMapLibreMap
-            className="h-[25rem] rounded-none border-0 sm:h-[30rem]"
+            className="h-[24rem] rounded-none border-0 sm:h-[34rem]"
             center={content.territory.center}
-            initialZoom={7}
+            initialZoom={11.5}
             fitToBounds={fitToBounds}
             fitBoundsRequestKey={`${points.map((point) => `${point.ciudad}-${point.barrio}`).join('|')}-${mapView}`}
             boundsPadding={52}
             heatmapData={[...points]}
             showHeatmap={mapView === 'thematic'}
             showPoints
+            showPointLabels
+            pointMinZoom={4.5}
+            pointLabelMinZoom={9}
+            pointLabelMode="barrio"
+            heatmapRadiusScale={2.8}
+            heatmapPalette="faro"
             disableClientClustering
+            popupContext="territory"
             ariaLabel="Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego"
             ariaDescribedBy="territory-map-description"
             evidence={{
@@ -1180,7 +1207,7 @@ const ConceptualTerritoryMap = ({
           />
         </React.Suspense>
       ) : (
-        <div className="grid h-[25rem] place-items-center bg-[#e9f0ed] px-6 text-center text-sm font-semibold text-[#50635f] sm:h-[30rem]" role="status">
+        <div className="grid h-[24rem] place-items-center bg-[#e9f0ed] px-6 text-center text-sm font-semibold text-[#50635f] sm:h-[34rem]" role="status">
           El mapa conceptual se prepara al acercarte a esta sección.
         </div>
       )}
@@ -1267,33 +1294,33 @@ const FaroChatWidget = ({
             role="dialog"
             aria-modal="false"
             aria-labelledby="faro-widget-title"
-            className="max-h-[min(36rem,calc(100vh-7rem))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.5rem] border border-[#a9c4bd] bg-white shadow-[0_26px_80px_rgba(11,61,57,0.3)]"
+            className="max-h-[min(36rem,calc(100vh-7rem))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.5rem] border border-[#a9c9dc] bg-white shadow-[0_26px_80px_rgba(7,31,56,0.3)]"
             initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: reduceMotion ? 0 : 0.24 }}
           >
-            <header className="flex items-center gap-3 rounded-t-[1.45rem] bg-[#0b4b47] p-4 text-white">
+            <header className="flex items-center gap-3 rounded-t-[1.45rem] bg-[#071f38] p-4 text-white">
               <motion.img src={FARO_ICON_ASSET} alt="" className="h-14 w-14 shrink-0 object-contain" width="56" height="56" initial={reduceMotion ? false : { opacity: 0.7, rotate: 4, scale: 0.94 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} transition={{ duration: reduceMotion ? 0 : 0.4 }} />
               <div className="min-w-0 flex-1"><p id="faro-widget-title" className="text-base font-bold">Faro TDF</p><p className="text-xs leading-5 text-white/72">{content.brand.slogan}</p></div>
-              <button ref={closeButtonRef} type="button" className={`${focusRing} grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white focus-visible:ring-white focus-visible:ring-offset-[#0b4b47]`} aria-label="Cerrar chat de Faro" onClick={closeWidget}><X className="h-5 w-5" aria-hidden="true" /></button>
+              <button ref={closeButtonRef} type="button" className={`${faroBlueFocusRing} grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white focus-visible:ring-white focus-visible:ring-offset-[#071f38]`} aria-label="Cerrar chat de Faro" onClick={closeWidget}><X className="h-5 w-5" aria-hidden="true" /></button>
             </header>
             <div className="p-4">
-              <span className="inline-flex rounded-full bg-[#edf5f2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#0b665e]">Muestra conceptual · no envía datos</span>
-              <div className="mt-3 rounded-2xl rounded-bl-md bg-[#edf4f1] p-3 text-sm leading-6 text-[#274541]">Hola, soy Faro. Elegí un tema y te muestro cómo una consulta podría pasar del chat al CRM.</div>
-              <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Consultas rápidas de Faro">{quickActions.map((action) => <button key={action.label} type="button" className={`${focusRing} min-h-12 rounded-xl border border-[#c8d8d3] bg-white px-2.5 text-xs font-bold text-[#315550] hover:bg-[#edf5f2]`} onClick={() => runQuickAction(action)}>{action.label}</button>)}</div>
-              {citizenMessage ? <div className="mt-3 ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-[#d8f5dc] p-3 text-sm leading-6 text-[#183833]">{citizenMessage}</div> : null}
+              <span className="inline-flex rounded-full bg-[#e6f3fa] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#075f91]">Muestra conceptual · no envía datos</span>
+              <div className="mt-3 rounded-2xl rounded-bl-md bg-[#eef5f9] p-3 text-sm leading-6 text-[#173c57]">Hola, soy Faro. Elegí un tema y te muestro cómo una consulta podría pasar del chat al CRM.</div>
+              <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Consultas rápidas de Faro">{quickActions.map((action) => <button key={action.label} type="button" className={`${faroBlueFocusRing} min-h-12 rounded-xl border border-[#c7d9e5] bg-white px-2.5 text-xs font-bold text-[#244c69] hover:bg-[#edf6fb]`} onClick={() => runQuickAction(action)}>{action.label}</button>)}</div>
+              {citizenMessage ? <div className="mt-3 ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-[#dceffa] p-3 text-sm leading-6 text-[#123a55]">{citizenMessage}</div> : null}
               <div role="status" aria-live="polite" aria-atomic="true">
-                {typing ? <div className="mt-3 w-fit rounded-2xl rounded-bl-md bg-[#edf4f1] px-3 py-2 text-xs font-semibold text-[#526863]">Faro está preparando la orientación…</div> : null}
-                {agentMessage ? <div className="mt-3 rounded-2xl rounded-bl-md bg-[#edf4f1] p-3 text-sm leading-6 text-[#274541]">{agentMessage}</div> : null}
+                {typing ? <div className="mt-3 w-fit rounded-2xl rounded-bl-md bg-[#eef5f9] px-3 py-2 text-xs font-semibold text-[#526b7d]">Faro está preparando la orientación…</div> : null}
+                {agentMessage ? <div className="mt-3 rounded-2xl rounded-bl-md bg-[#eef5f9] p-3 text-sm leading-6 text-[#173c57]">{agentMessage}</div> : null}
               </div>
-              {agentMessage ? <button type="button" className={`${focusRing} mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0b5f58] px-4 text-sm font-bold text-white`} onClick={openInCrm}><Activity className="h-4 w-4" aria-hidden="true" />Ver cómo llega al CRM</button> : null}
-              <p className="mt-3 text-[11px] leading-4 text-[#61736f]">No reemplaza información oficial ni atención profesional. La versión funcional requerirá fuentes, permisos y validaciones.</p>
+              {agentMessage ? <button type="button" className={`${faroBlueFocusRing} mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#075f91] px-4 text-sm font-bold text-white hover:bg-[#064d78]`} onClick={openInCrm}><Activity className="h-4 w-4" aria-hidden="true" />Ver cómo llega al CRM</button> : null}
+              <p className="mt-3 text-[11px] leading-4 text-[#526b7d]">No reemplaza información oficial ni atención profesional. La versión funcional requerirá fuentes, permisos y validaciones.</p>
             </div>
           </motion.aside>
         ) : null}
       </AnimatePresence>
-      <button ref={launcherRef} type="button" className={`${focusRing} flex min-h-14 items-center gap-2 rounded-full border border-white/40 bg-[#0b5f58] p-1.5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(11,61,57,0.34)] focus-visible:ring-[#f3d98e] focus-visible:ring-offset-2 sm:pl-2 sm:pr-4`} aria-label={open ? 'Cerrar chat de Faro' : 'Abrir chat de Faro'} aria-controls="faro-widget-panel" aria-expanded={open} onClick={() => { if (open) closeWidget(); else setOpen(true); }}><motion.img src={FARO_ICON_ASSET} alt="" className="h-11 w-11 object-contain" width="44" height="44" animate={reduceMotion || open ? undefined : { y: [0,-2,0] }} transition={reduceMotion || open ? undefined : { duration: 2.1, repeat: Infinity, repeatDelay: 4.2, ease: 'easeInOut' }} /><span className="hidden sm:inline">{open ? 'Cerrar' : 'Hablar con Faro'}</span></button>
+      <button ref={launcherRef} type="button" className={`${faroBlueFocusRing} flex min-h-14 items-center gap-2 rounded-full border border-[#5bd7ec]/55 bg-[#075f91] p-1.5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(7,79,128,0.34)] hover:bg-[#064d78] sm:pl-2 sm:pr-4`} aria-label={open ? 'Cerrar chat de Faro' : 'Abrir chat de Faro'} aria-controls="faro-widget-panel" aria-expanded={open} onClick={() => { if (open) closeWidget(); else setOpen(true); }}><motion.img src={FARO_ICON_ASSET} alt="" className="h-11 w-11 object-contain" width="44" height="44" animate={reduceMotion || open ? undefined : { y: [0,-2,0] }} transition={reduceMotion || open ? undefined : { duration: 2.1, repeat: Infinity, repeatDelay: 4.2, ease: 'easeInOut' }} /><span className="hidden sm:inline">{open ? 'Cerrar' : 'Hablar con Faro'}</span></button>
     </div>
   );
 };
@@ -1306,20 +1333,63 @@ const DisabilityAIAgentDemoPage = () => {
   const [mapView, setMapView] = React.useState<'thematic' | 'geographic'>('thematic');
   const [cityFilter, setCityFilter] = React.useState('Todas');
   const [categoryFilter, setCategoryFilter] = React.useState('Todas');
+  const [neighborhoodFilter, setNeighborhoodFilter] = React.useState('Todos');
+  const [ticketTypeFilter, setTicketTypeFilter] = React.useState('Todos');
+  const [selectedTerritoryPointKey, setSelectedTerritoryPointKey] = React.useState(
+    territoryPointKey(content.territory.points[0]),
+  );
   const activeScenario =
     content.scenarios.find((scenario) => scenario.id === activeScenarioId) ?? content.scenarios[0];
+  const territoryPoints = React.useMemo(() => {
+    const maxWeight = Math.max(...content.territory.points.map((point) => point.totalWeight ?? point.weight ?? 1));
+    return content.territory.points.map((point) => ({
+      ...point,
+      intensity: Math.max(0.12, (point.totalWeight ?? point.weight ?? 1) / maxWeight),
+      categoryColor: TERRITORY_CATEGORY_META.find((item) => item.label === point.categoria)?.color ?? '#087c81',
+    }));
+  }, []);
   const cityOptions = ['Todas', 'Ushuaia', 'Río Grande', 'Tolhuin'];
-  const categoryOptions = ['Todas', ...Array.from(new Set(content.territory.points.map((point) => point.categoria)))];
+  const categoryOptions = ['Todas', ...TERRITORY_CATEGORY_META.map((item) => item.label)];
+  const ticketTypeOptions = ['Todos', ...Array.from(new Set<string>(territoryPoints.map((point) => String(point.tipo_ticket))))];
+  const neighborhoodOptions = ['Todos', ...Array.from(new Set<string>(
+    territoryPoints
+      .filter((point) => cityFilter === 'Todas' || point.ciudad === cityFilter)
+      .filter((point) => categoryFilter === 'Todas' || point.categoria === categoryFilter)
+      .map((point) => String(point.barrio)),
+  )).sort((left, right) => left.localeCompare(right, 'es'))];
   const filteredTerritoryPoints = React.useMemo(
-    () => content.territory.points.filter((point) =>
+    () => territoryPoints.filter((point) =>
       (cityFilter === 'Todas' || point.ciudad === cityFilter) &&
-      (categoryFilter === 'Todas' || point.categoria === categoryFilter)),
-    [cityFilter, categoryFilter],
+      (categoryFilter === 'Todas' || point.categoria === categoryFilter) &&
+      (neighborhoodFilter === 'Todos' || point.barrio === neighborhoodFilter) &&
+      (ticketTypeFilter === 'Todos' || point.tipo_ticket === ticketTypeFilter)),
+    [categoryFilter, cityFilter, neighborhoodFilter, territoryPoints, ticketTypeFilter],
   );
   const filteredTerritoryVolume = filteredTerritoryPoints.reduce((sum, point) => sum + (point.totalWeight ?? point.weight ?? 0), 0);
   const topNeighborhoods = [...filteredTerritoryPoints]
     .sort((left, right) => (right.totalWeight ?? right.weight ?? 0) - (left.totalWeight ?? left.weight ?? 0))
     .slice(0, 6);
+  const territoryCategoryBreakdown = TERRITORY_CATEGORY_META.map((category) => {
+    const points = filteredTerritoryPoints.filter((point) => point.categoria === category.label);
+    const volume = points.reduce((sum, point) => sum + (point.totalWeight ?? point.weight ?? 0), 0);
+    return {
+      ...category,
+      points: points.length,
+      totalPoints: territoryPoints.filter((point) => point.categoria === category.label).length,
+      volume,
+      percentage: filteredTerritoryVolume > 0 ? Math.round((volume / filteredTerritoryVolume) * 100) : 0,
+    };
+  });
+  const selectedTerritoryPoint = filteredTerritoryPoints.find(
+    (point) => territoryPointKey(point) === selectedTerritoryPointKey,
+  ) ?? filteredTerritoryPoints[0] ?? null;
+
+  const resetTerritoryFilters = React.useCallback(() => {
+    setCityFilter('Todas');
+    setCategoryFilter('Todas');
+    setNeighborhoodFilter('Todos');
+    setTicketTypeFilter('Todos');
+  }, []);
 
   const openScenario = React.useCallback((scenarioId: string) => {
     setActiveScenarioId(scenarioId);
@@ -1724,95 +1794,277 @@ const DisabilityAIAgentDemoPage = () => {
               />
             </Reveal>
 
-            <Reveal reduceMotion={shouldReduceMotion} className="mt-7 rounded-2xl border border-[#d4e0dc] bg-white p-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-[#173c39]">Filtrar territorio simulado</p>
-                  <p className="mt-1 text-xs leading-5 text-[#5d716d]">Compará ciudades y motivos sin mezclar la muestra con datos oficiales.</p>
+            <Reveal reduceMotion={shouldReduceMotion} className="mt-7 rounded-[1.35rem] border border-[#d4e0dc] bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-[#173c39]">Explorar territorio simulado</p>
+                    <p className="mt-1 text-xs leading-5 text-[#5d716d]">Filtrá la misma muestra por ciudad, barrio, rubro y tipo de gestión.</p>
+                  </div>
+                  <button type="button" className={`${focusRing} min-h-11 rounded-xl border border-[#bed1cc] bg-[#f7faf8] px-4 text-xs font-bold text-[#315550] hover:bg-[#edf5f2]`} onClick={resetTerritoryFilters}>
+                    Limpiar filtros
+                  </button>
                 </div>
-                <div className="flex flex-col gap-3 lg:flex-row">
-                  <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Ciudad</p><div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar mapa por ciudad">{cityOptions.map((city) => <button key={city} type="button" aria-pressed={cityFilter === city} className={`${focusRing} min-h-11 rounded-xl border px-3 text-xs font-bold ${cityFilter === city ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#c9d8d4] bg-[#f7faf8] text-[#315550]'}`} onClick={() => setCityFilter(city)}>{city}</button>)}</div></div>
-                  <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Motivo</p><div className="flex max-w-3xl gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Filtrar mapa por motivo">{categoryOptions.map((category) => <button key={category} type="button" aria-pressed={categoryFilter === category} className={`${focusRing} min-h-11 shrink-0 rounded-xl border px-3 text-xs font-bold ${categoryFilter === category ? 'border-[#0b665e] bg-[#dff2ed] text-[#075f57]' : 'border-[#c9d8d4] bg-white text-[#315550]'}`} onClick={() => setCategoryFilter(category)}>{category}</button>)}</div></div>
+
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Ciudad</p>
+                    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar mapa por ciudad">
+                      {cityOptions.map((city) => (
+                        <button
+                          key={city}
+                          type="button"
+                          aria-pressed={cityFilter === city}
+                          className={`${focusRing} min-h-11 rounded-xl border px-3 text-xs font-bold ${cityFilter === city ? 'border-[#0b665e] bg-[#0b5f58] text-white' : 'border-[#c9d8d4] bg-[#f7faf8] text-[#315550]'}`}
+                          onClick={() => {
+                            setCityFilter(city);
+                            setNeighborhoodFilter('Todos');
+                          }}
+                        >
+                          {city}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">Rubro / categoría</p>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Filtrar mapa por categoría o rubro">
+                      {categoryOptions.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          aria-pressed={categoryFilter === category}
+                          className={`${focusRing} min-h-11 shrink-0 rounded-xl border px-3 text-xs font-bold ${categoryFilter === category ? 'border-[#0b665e] bg-[#dff2ed] text-[#075f57]' : 'border-[#c9d8d4] bg-white text-[#315550]'}`}
+                          onClick={() => {
+                            setCategoryFilter(category);
+                            setNeighborhoodFilter('Todos');
+                          }}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">
+                    Barrio
+                    <select aria-label="Filtrar mapa por barrio" value={neighborhoodFilter} onChange={(event) => setNeighborhoodFilter(event.target.value)} className={`${focusRing} mt-1.5 min-h-11 w-full rounded-xl border border-[#c9d8d4] bg-white px-3 text-xs font-bold normal-case tracking-normal text-[#315550]`}>
+                      {neighborhoodOptions.map((neighborhood) => <option key={neighborhood} value={neighborhood}>{neighborhood}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#61736f]">
+                    Tipo de gestión
+                    <select aria-label="Filtrar mapa por tipo" value={ticketTypeFilter} onChange={(event) => setTicketTypeFilter(event.target.value)} className={`${focusRing} mt-1.5 min-h-11 w-full rounded-xl border border-[#c9d8d4] bg-white px-3 text-xs font-bold normal-case tracking-normal text-[#315550]`}>
+                      {ticketTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </label>
+                  <div className="rounded-xl bg-[#e7f3ef] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#51706a]">Puntos visibles</p>
+                    <p className="mt-1 text-xl font-semibold text-[#173c39]">{filteredTerritoryPoints.length} <span className="text-xs font-bold text-[#5d716d]">de {territoryPoints.length}</span></p>
+                  </div>
+                  <div className="rounded-xl bg-[#f3eddd] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#77632e]">Volumen ponderado</p>
+                    <p className="mt-1 text-xl font-semibold text-[#4d401e]">{filteredTerritoryVolume}</p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-[#315550]" aria-live="polite"><span className="rounded-full bg-[#e7f3ef] px-3 py-1.5">{filteredTerritoryPoints.length} ubicaciones simuladas</span><span className="rounded-full bg-[#f3eddd] px-3 py-1.5">Volumen ponderado {filteredTerritoryVolume}</span><span className="rounded-full bg-[#eef1f0] px-3 py-1.5">{cityFilter} · {categoryFilter}</span></div>
+              <p className="mt-4 text-[11px] font-semibold text-[#526863]" aria-live="polite">
+                Vista actual: {cityFilter} · {categoryFilter} · {neighborhoodFilter} · {ticketTypeFilter}
+              </p>
             </Reveal>
 
-            <div className="mt-9 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">
-              <Reveal reduceMotion={shouldReduceMotion} className="overflow-hidden rounded-[1.6rem] border border-[#cbdcd7] bg-white">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#dce6e2] p-4 sm:p-5">
-                  <div className="max-w-xl">
-                    <h3 className="text-lg font-semibold text-[#173c39]">{content.territory.mapTitle}</h3>
-                    <p id="territory-map-description" className="mt-1 text-xs leading-5 text-[#687a77]">{content.territory.mapDescription} Vista actual: {cityFilter}, {categoryFilter}.</p>
+            <div className="mt-7 grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">
+              <Reveal reduceMotion={shouldReduceMotion} className="self-start">
+                <div id="territory-map-card" data-testid="tdf-map-card" className="overflow-hidden rounded-[1.6rem] border border-[#cbdcd7] bg-white">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#dce6e2] p-4 sm:p-5">
+                    <div className="max-w-xl">
+                      <h3 className="text-lg font-semibold text-[#173c39]">{content.territory.mapTitle}</h3>
+                      <p id="territory-map-description" className="mt-1 text-xs leading-5 text-[#687a77]">{content.territory.mapDescription}</p>
+                    </div>
+                    <div className="inline-flex rounded-xl border border-[#c9d8d4] bg-[#f2f6f4] p-1" role="group" aria-label={content.territory.viewLabel}>
+                      {(['thematic', 'geographic'] as const).map((view) => (
+                        <button
+                          key={view}
+                          type="button"
+                          className={`${focusRing} min-h-11 rounded-lg px-3 text-xs font-bold transition-colors ${mapView === view ? 'bg-white text-[#0b665e] shadow-sm' : 'text-[#506560] hover:text-[#173c39]'}`}
+                          aria-pressed={mapView === view}
+                          onClick={() => setMapView(view)}
+                        >
+                          {content.territory.views[view]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="inline-flex rounded-xl border border-[#c9d8d4] bg-[#f2f6f4] p-1" role="group" aria-label={content.territory.viewLabel}>
-                    {(['thematic', 'geographic'] as const).map((view) => (
-                      <button
-                        key={view}
-                        type="button"
-                        className={`${focusRing} min-h-11 rounded-lg px-3 text-xs font-bold transition-colors ${mapView === view ? 'bg-white text-[#0b665e] shadow-sm' : 'text-[#506560] hover:text-[#173c39]'}`}
-                        aria-pressed={mapView === view}
-                        onClick={() => setMapView(view)}
-                      >
-                        {content.territory.views[view]}
-                      </button>
-                    ))}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dce6e2] bg-[#f8faf9] px-4 py-3 text-[11px] font-bold sm:px-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span data-testid="tdf-map-layer-heat" data-active={mapView === 'thematic' ? 'true' : 'false'} className={`rounded-full border px-2.5 py-1 ${mapView === 'thematic' ? 'border-[#80cfc3] bg-[#dff2ed] text-[#075f57]' : 'border-[#d6e0dd] bg-white text-[#75837f]'}`}>Calor {mapView === 'thematic' ? 'activo' : 'oculto'}</span>
+                      <span data-testid="tdf-map-layer-points" data-active="true" className="rounded-full border border-[#a9cbc3] bg-white px-2.5 py-1 text-[#315550]">{filteredTerritoryPoints.length} puntos activos</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#60736f]" aria-label="Escala de intensidad: baja, media y alta">
+                      <span>Baja</span><span className="h-2 w-20 rounded-full bg-gradient-to-r from-[#69d5df] via-[#f2b84b] to-[#d55d39]" aria-hidden="true" /><span>Alta</span>
+                    </div>
                   </div>
+                  <ConceptualTerritoryMap mapView={mapView} points={filteredTerritoryPoints} />
+                  <p data-testid="tdf-map-note" className="border-t border-[#dce6e2] bg-[#f8faf9] px-4 py-3 text-xs leading-5 text-[#5d706d] sm:px-5">
+                    {content.territory.note}
+                  </p>
                 </div>
-                <ConceptualTerritoryMap mapView={mapView} points={filteredTerritoryPoints} />
-                <p className="border-t border-[#dce6e2] bg-[#f8faf9] px-4 py-3 text-xs leading-5 text-[#5d706d] sm:px-5">
-                  {content.territory.note}
-                </p>
               </Reveal>
 
-              <div className="grid gap-5">
-                <Reveal reduceMotion={shouldReduceMotion} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-                  {content.territory.metrics.slice(0, 4).map((metric) => (
-                    <div key={metric.label} className="rounded-2xl border border-[#d4e0dc] bg-white p-4">
-                      <p className="text-3xl font-semibold tracking-[-0.04em] text-[#123c39]">{metric.value}</p>
-                      <p className="mt-1 text-sm font-semibold text-[#31524e]">{metric.label}</p>
-                      <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#536864]">{metric.detail}</p>
+              <div className="grid content-start gap-5">
+                <Reveal reduceMotion={shouldReduceMotion} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-[#173c39]">Categorías territoriales</h3>
+                      <p className="mt-1 text-xs leading-5 text-[#5d716d]">Color, letra y cantidad visible en el mapa.</p>
                     </div>
-                  ))}
-                </Reveal>
-
-                <Reveal reduceMotion={shouldReduceMotion} delay={0.04} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
-                  <div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[#173c39]">Zonas con mayor intensidad</h3><p className="mt-1 text-xs leading-5 text-[#5d716d]">Ranking de la muestra filtrada.</p></div><MapPin className="h-5 w-5 text-[#087a70]" aria-hidden="true" /></div>
-                  {topNeighborhoods.length ? <ol className="mt-4 space-y-3">{topNeighborhoods.map((point, index) => { const value = point.totalWeight ?? point.weight ?? 0; const maxValue = topNeighborhoods[0]?.totalWeight ?? topNeighborhoods[0]?.weight ?? 1; return <li key={`${point.ciudad}-${point.barrio}`}><div className="flex items-end justify-between gap-3 text-xs"><span className="min-w-0"><span className="font-bold text-[#31524e]">{index + 1}. {point.barrio}</span><span className="ml-1 text-[#687a77]">· {point.ciudad}</span></span><span className="font-bold text-[#173c39]">{value}</span></div><div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#e5ece9]"><motion.div className="h-full rounded-full bg-[#168c7e]" initial={shouldReduceMotion ? false : { width: 0 }} whileInView={{ width: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }} viewport={{ once: true }} transition={{ duration: shouldReduceMotion ? 0 : 0.55 }} /></div></li>; })}</ol> : <p className="mt-4 rounded-xl bg-[#f7faf8] p-4 text-sm text-[#5d716d]">No hay puntos para esta combinación de filtros.</p>}
-                </Reveal>
-
-                <Reveal reduceMotion={shouldReduceMotion} delay={0.06} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#e2f2ed] text-[#087a70]" aria-hidden="true"><BarChart3 className="h-4 w-4" /></span>
-                    <h3 className="text-base font-semibold text-[#173c39]">{content.territory.breakdownTitle}</h3>
+                    <Layers3 className="h-5 w-5 text-[#087a70]" aria-hidden="true" />
                   </div>
-                  <ul className="mt-5 space-y-4">
-                    {content.territory.breakdown.map((item) => (
-                      <li key={item.label}>
-                        <div className="flex items-end justify-between gap-3 text-xs">
-                          <span className="font-semibold text-[#405e59]">{item.label}</span>
-                          <span className="font-bold text-[#173c39]">{item.value}%</span>
-                        </div>
-                        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#e5ece9]" role="img" aria-label={`${item.label}: ${item.value} por ciento en la muestra conceptual`}>
-                          <motion.div
-                            className="h-full rounded-full bg-[#168c7e]"
-                            style={shouldReduceMotion ? { width: `${item.value}%` } : undefined}
-                            initial={shouldReduceMotion ? false : { width: 0 }}
-                            whileInView={shouldReduceMotion ? undefined : { width: `${item.value}%` }}
-                            viewport={shouldReduceMotion ? undefined : { once: true, amount: 0.7 }}
-                            transition={{ duration: shouldReduceMotion ? 0 : 0.7, ease: 'easeOut' }}
-                          />
-                        </div>
+                  <ul role="list" aria-label="Leyenda de categorías territoriales" className="mt-4 space-y-2.5">
+                    {territoryCategoryBreakdown.map((category) => (
+                      <li key={category.label} className="flex items-center justify-between gap-3 rounded-xl border border-[#e1e9e6] bg-[#f8faf9] px-3 py-2.5">
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-white text-xs font-black text-white shadow-sm" style={{ backgroundColor: category.color }} aria-hidden="true">{category.short}</span>
+                          <span className="truncate text-xs font-bold text-[#31524e]">{category.label}</span>
+                        </span>
+                        <span className="shrink-0 text-[11px] font-bold text-[#647773]">{category.points}/{category.totalPoints}</span>
                       </li>
                     ))}
                   </ul>
                 </Reveal>
+
+                <Reveal reduceMotion={shouldReduceMotion} delay={0.03} className="grid gap-3 sm:grid-cols-2">
+                  {content.territory.metrics.slice(0, 4).map((metric) => (
+                    <div key={metric.label} className="rounded-2xl border border-[#d4e0dc] bg-white p-4">
+                      <p className="text-2xl font-semibold tracking-[-0.04em] text-[#123c39]">{metric.value}</p>
+                      <p className="mt-1 text-xs font-semibold text-[#31524e]">{metric.label}</p>
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#667773]">{metric.detail}</p>
+                    </div>
+                  ))}
+                </Reveal>
+
+                <Reveal reduceMotion={shouldReduceMotion} delay={0.05} className="rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
+                  <div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[#173c39]">Zonas con mayor intensidad</h3><p className="mt-1 text-xs leading-5 text-[#5d716d]">Ranking de la muestra filtrada.</p></div><MapPin className="h-5 w-5 text-[#087a70]" aria-hidden="true" /></div>
+                  {topNeighborhoods.length ? <ol className="mt-4 space-y-3">{topNeighborhoods.map((point, index) => { const value = point.totalWeight ?? point.weight ?? 0; const maxValue = topNeighborhoods[0]?.totalWeight ?? topNeighborhoods[0]?.weight ?? 1; return <li key={`${point.ciudad}-${point.barrio}`}><div className="flex items-end justify-between gap-3 text-xs"><span className="min-w-0"><span className="font-bold text-[#31524e]">{index + 1}. {point.barrio}</span><span className="ml-1 text-[#687a77]">· {point.ciudad}</span></span><span className="font-bold text-[#173c39]">{value}</span></div><div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#e5ece9]"><motion.div className="h-full rounded-full" style={{ backgroundColor: point.categoryColor }} initial={shouldReduceMotion ? false : { width: 0 }} whileInView={{ width: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }} viewport={{ once: true }} transition={{ duration: shouldReduceMotion ? 0 : 0.55 }} /></div></li>; })}</ol> : <p className="mt-4 rounded-xl bg-[#f7faf8] p-4 text-sm text-[#5d716d]">No hay puntos para esta combinación de filtros.</p>}
+                </Reveal>
               </div>
             </div>
 
-            <Reveal reduceMotion={shouldReduceMotion} delay={0.08} className="mt-5 rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5">
-              <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-semibold text-[#173c39]">Casos territoriales de muestra</h3><p className="mt-1 text-xs leading-5 text-[#5d716d]">Cómo se verían reclamos, consultas y trámites priorizados por zona.</p></div><span className="rounded-full border border-[#c9d8d4] bg-[#f7faf8] px-3 py-1 text-[11px] font-bold text-[#315550]">Sin personas ni domicilios reales</span></div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{filteredTerritoryPoints.slice(0, 4).map((point, index) => <article key={`${point.ciudad}-${point.barrio}-case`} className="rounded-xl border border-[#dce6e2] bg-[#f8faf9] p-4"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#087a70]">DEMO-TERR-{String(index + 1).padStart(2, '0')}</span><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#526863]">{point.canal}</span></div><h4 className="mt-3 text-sm font-bold text-[#173c39]">{point.tipo_ticket} · {point.categoria}</h4><p className="mt-1 text-xs text-[#526863]">{point.barrio} · {point.ciudad}</p><div className="mt-3 flex items-center justify-between gap-2 border-t border-[#dce6e2] pt-3 text-[11px]"><span className="font-semibold text-[#526863]">Estado</span><span className="font-bold text-[#0b665e]">{point.estado}</span></div></article>)}</div>
+            <Reveal reduceMotion={shouldReduceMotion} delay={0.06} className="mt-5 rounded-[1.6rem] border border-[#d4e0dc] bg-white p-5 sm:p-6">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-[#173c39]"><BarChart3 className="h-5 w-5 text-[#087a70]" aria-hidden="true" />Distribución de la muestra filtrada</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#5d716d]">Participación ponderada por rubro sobre la selección actual.</p>
+                </div>
+                <span className="rounded-full bg-[#e7f3ef] px-3 py-1.5 text-[11px] font-bold text-[#315550]">{filteredTerritoryVolume} interacciones representativas</span>
+              </div>
+              <ul className="mt-5 grid gap-4 lg:grid-cols-5">
+                {territoryCategoryBreakdown.map((category) => (
+                  <li key={category.label} className="rounded-xl border border-[#e0e8e5] bg-[#f8faf9] p-4">
+                    <div className="flex items-start justify-between gap-3 text-xs">
+                      <span className="font-semibold leading-5 text-[#405e59]">{category.label}</span>
+                      <span className="font-bold text-[#173c39]">{category.percentage}%</span>
+                    </div>
+                    <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#e5ece9]" role="img" aria-label={`${category.label}: ${category.percentage} por ciento de la muestra filtrada`}>
+                      <motion.div className="h-full rounded-full" style={{ backgroundColor: category.color, ...(shouldReduceMotion ? { width: `${category.percentage}%` } : {}) }} initial={shouldReduceMotion ? false : { width: 0 }} whileInView={shouldReduceMotion ? undefined : { width: `${category.percentage}%` }} viewport={shouldReduceMotion ? undefined : { once: true, amount: 0.7 }} transition={{ duration: shouldReduceMotion ? 0 : 0.65, ease: 'easeOut' }} />
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold text-[#526863]">{category.points} puntos · volumen {category.volume}</p>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+
+            <Reveal reduceMotion={shouldReduceMotion} delay={0.08} className="mt-5">
+              <div data-testid="tdf-map-point-directory" aria-label="Ubicaciones representativas disponibles" className="overflow-hidden rounded-[1.6rem] border border-[#d4e0dc] bg-white">
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#dce6e2] p-5 sm:p-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#173c39]">Directorio territorial de muestra</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#5d716d]">Los mismos puntos del mapa, disponibles como lista accesible y verificable.</p>
+                </div>
+                <span className="rounded-full border border-[#c9d8d4] bg-[#f7faf8] px-3 py-1.5 text-[11px] font-bold text-[#315550]">{filteredTerritoryPoints.length} visibles · datos simulados</span>
+              </div>
+                <div className="grid items-start lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
+                <div className="max-h-[34rem] overflow-y-auto p-3 [scrollbar-width:thin] sm:p-4">
+                  {filteredTerritoryPoints.length ? (
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {filteredTerritoryPoints.map((point, index) => {
+                        const category = TERRITORY_CATEGORY_META.find((item) => item.label === point.categoria) ?? TERRITORY_CATEGORY_META[0];
+                        const isSelected = territoryPointKey(point) === territoryPointKey(selectedTerritoryPoint ?? point);
+                        return (
+                          <li key={territoryPointKey(point)}>
+                            <button
+                              type="button"
+                              data-testid={`tdf-map-point-row-${index}`}
+                              aria-label={`Ver detalle de ${point.barrio}, ${point.ciudad}`}
+                              aria-pressed={isSelected}
+                              className={`${focusRing} flex min-h-[7.4rem] w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${isSelected ? 'border-[#5cae9f] bg-[#edf8f5]' : 'border-[#e0e8e5] bg-[#f9fbfa] hover:border-[#a9cbc3] hover:bg-white'}`}
+                              onClick={() => setSelectedTerritoryPointKey(territoryPointKey(point))}
+                            >
+                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ backgroundColor: category.color }} aria-hidden="true">{category.short}</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-bold text-[#173c39]">{point.barrio}</span>
+                                <span className="mt-0.5 block text-xs text-[#60736f]">{point.ciudad} · {point.categoria}</span>
+                                <span className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-[#526863]"><span className="rounded-full bg-white px-2 py-1">{point.tipo_ticket}</span><span className="rounded-full bg-white px-2 py-1">{point.canal}</span><span className="rounded-full bg-white px-2 py-1">Vol. {point.totalWeight ?? point.weight ?? 0}</span></span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="grid min-h-48 place-items-center rounded-xl border border-dashed border-[#cbd8d4] bg-[#f8faf9] p-6 text-center">
+                      <div><MapPin className="mx-auto h-6 w-6 text-[#7b918c]" aria-hidden="true" /><p className="mt-3 text-sm font-bold text-[#31524e]">No hay puntos para esta combinación</p><button type="button" className={`${focusRing} mt-3 min-h-11 rounded-xl border border-[#bed1cc] bg-white px-4 text-xs font-bold text-[#0b665e]`} onClick={resetTerritoryFilters}>Restablecer muestra</button></div>
+                    </div>
+                  )}
+                </div>
+
+                <aside role="region" aria-label="Detalle de ubicación representativa" className="border-t border-[#dce6e2] bg-[#102f2e] p-5 text-white lg:min-h-[34rem] lg:border-l lg:border-t-0 sm:p-6">
+                  {selectedTerritoryPoint ? (
+                    <div className="flex h-full flex-col">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="rounded-full bg-[#88ded1] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0b3f3b]">Dato simulado</span>
+                        <span className="text-3xl font-semibold text-[#f0c96f]">{selectedTerritoryPoint.totalWeight ?? selectedTerritoryPoint.weight ?? 0}</span>
+                      </div>
+                      <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#88ded1]">{selectedTerritoryPoint.ciudad}</p>
+                      <h4 className="mt-1 text-2xl font-semibold">{selectedTerritoryPoint.barrio}</h4>
+                      <p className="mt-2 text-sm leading-6 text-white/65">Punto representativo para demostrar segmentación territorial, priorización y trazabilidad operativa.</p>
+                      <dl className="mt-6 grid gap-px overflow-hidden rounded-xl bg-white/10 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                        {[
+                          ['Categoría', selectedTerritoryPoint.categoria],
+                          ['Tipo', selectedTerritoryPoint.tipo_ticket],
+                          ['Canal', selectedTerritoryPoint.canal],
+                          ['Estado', selectedTerritoryPoint.estado],
+                        ].map(([label, value]) => (
+                          <div key={label} className="bg-[#153b39] p-3.5"><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/65">{label}</dt><dd className="mt-1 text-xs font-semibold text-white/90">{value}</dd></div>
+                        ))}
+                      </dl>
+                      <div className="mt-auto space-y-2 pt-6">
+                        <button
+                          type="button"
+                          className={`${focusRing} min-h-11 w-full rounded-xl bg-[#88ded1] px-4 text-xs font-black text-[#0b3f3b] hover:bg-[#a2eadf]`}
+                          onClick={() => {
+                            setCityFilter(selectedTerritoryPoint.ciudad);
+                            setCategoryFilter(selectedTerritoryPoint.categoria);
+                            setNeighborhoodFilter(selectedTerritoryPoint.barrio);
+                            setTicketTypeFilter(selectedTerritoryPoint.tipo_ticket);
+                            window.requestAnimationFrame(() => document.getElementById('territory-map-card')?.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'center' }));
+                          }}
+                        >
+                          Enfocar este barrio en el mapa
+                        </button>
+                        <button type="button" className={`${focusRing} min-h-11 w-full rounded-xl border border-white/20 px-4 text-xs font-bold text-white hover:bg-white/10`} onClick={() => { setCityFilter(selectedTerritoryPoint.ciudad); setCategoryFilter('Todas'); setNeighborhoodFilter('Todos'); setTicketTypeFilter('Todos'); }}>
+                          Ver ciudad completa
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid h-full min-h-48 place-items-center text-center text-sm text-white/65">Ajustá los filtros para consultar un punto.</div>
+                  )}
+                </aside>
+                </div>
+              </div>
             </Reveal>
           </div>
         </section>

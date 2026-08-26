@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import DisabilityAIAgentDemoPage from './DisabilityAIAgentDemoPage';
@@ -11,12 +11,22 @@ vi.mock('@/hooks/usePageMetadata', () => ({
 vi.mock('@/components/MapLibreMap', () => ({
   default: ({
     ariaLabel,
+    heatmapData,
     showHeatmap,
+    showPoints,
   }: {
     ariaLabel?: string;
+    heatmapData?: Array<unknown>;
     showHeatmap?: boolean;
+    showPoints?: boolean;
   }) => (
-    <div role="region" aria-label={ariaLabel} data-heatmap={showHeatmap ? 'on' : 'off'}>
+    <div
+      role="region"
+      aria-label={ariaLabel}
+      data-heatmap={showHeatmap ? 'on' : 'off'}
+      data-points={showPoints ? 'on' : 'off'}
+      data-point-count={String(heatmapData?.length ?? 0)}
+    >
       Mapa conceptual MapLibre
     </div>
   ),
@@ -244,19 +254,83 @@ describe('DisabilityAIAgentDemoPage', () => {
     expect(screen.getByText(/Quiero saber qué necesito para iniciar el CUD/i)).toBeInTheDocument();
   });
 
-  it('offers a non-mutating map view control and preserves the simulation warning', async () => {
+  it('renders heat and all 24 representative points together, with complete territorial filters', async () => {
     render(<DisabilityAIAgentDemoPage />);
 
-    const geographicMap = screen.getByRole('button', { name: 'Mapa geográfico' });
-    fireEvent.click(geographicMap);
+    const map = await screen.findByRole('region', {
+      name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
+    });
+    expect(map).toHaveAttribute('data-heatmap', 'on');
+    expect(map).toHaveAttribute('data-points', 'on');
+    expect(map).toHaveAttribute('data-point-count', '24');
 
-    expect(geographicMap).toHaveAttribute('aria-pressed', 'true');
+    const cityFilters = screen.getByRole('group', { name: 'Filtrar mapa por ciudad' });
+    const neighborhoodFilter = screen.getByRole('combobox', { name: 'Filtrar mapa por barrio' });
+    const categoryFilters = screen.getByRole('group', { name: 'Filtrar mapa por categoría o rubro' });
+    const typeFilter = screen.getByRole('combobox', { name: 'Filtrar mapa por tipo' });
+
+    for (const city of ['Todas', 'Ushuaia', 'Río Grande', 'Tolhuin']) {
+      expect(within(cityFilters).getByRole('button', { name: city })).toBeInTheDocument();
+    }
+    expect(within(neighborhoodFilter).getByRole('option', { name: 'Todos' })).toBeInTheDocument();
+    expect(within(categoryFilters).getByRole('button', { name: 'Salud y prestaciones' })).toBeInTheDocument();
+    expect(within(typeFilter).getByRole('option', { name: 'Reclamo' })).toBeInTheDocument();
+
+    const categoryLegend = screen.getByRole('list', { name: 'Leyenda de categorías territoriales' });
+    expect(within(categoryLegend).getAllByRole('listitem')).toHaveLength(5);
+    for (const category of [
+      'CUD / CMO',
+      'Salud y prestaciones',
+      'Educación y apoyos',
+      'RUPE y licencias',
+      'Inclusión laboral',
+    ]) {
+      expect(within(categoryLegend).getByText(category)).toBeInTheDocument();
+    }
+
+    fireEvent.click(within(cityFilters).getByRole('button', { name: 'Río Grande' }));
+    fireEvent.click(within(categoryFilters).getByRole('button', { name: 'Salud y prestaciones' }));
+    fireEvent.change(neighborhoodFilter, { target: { value: 'Margen Sur' } });
+    fireEvent.change(typeFilter, { target: { value: 'Reclamo' } });
+
+    expect(map).toHaveAttribute('data-heatmap', 'on');
+    expect(map).toHaveAttribute('data-points', 'on');
+    expect(map).toHaveAttribute('data-point-count', '1');
+  });
+
+  it('opens an accessible representative point detail and keeps the points-only alternative', async () => {
+    render(<DisabilityAIAgentDemoPage />);
+
+    const pointDirectory = screen.getByTestId('tdf-map-point-directory');
+    expect(pointDirectory).toHaveAccessibleName('Ubicaciones representativas disponibles');
+    const pointRows = within(pointDirectory).getAllByTestId(/^tdf-map-point-row-/);
+    expect(pointRows).toHaveLength(24);
+    const rioGrandeCenter = pointRows.find((row) =>
+      row.textContent?.includes('Centro') &&
+      row.textContent?.includes('Río Grande') &&
+      row.textContent?.includes('CUD / CMO'));
+    expect(rioGrandeCenter).toBeDefined();
+    fireEvent.click(rioGrandeCenter!);
+
+    const detail = screen.getByRole('region', { name: 'Detalle de ubicación representativa' });
+    expect(detail).toHaveTextContent('Centro');
+    expect(detail).toHaveTextContent('Río Grande');
+    expect(detail).toHaveTextContent('CUD / CMO');
+    expect(detail).toHaveTextContent('Consulta');
+    expect(detail).toHaveTextContent('WhatsApp');
+    expect(detail).toHaveTextContent(/64/);
+    expect(within(detail).getByRole('button', { name: 'Enfocar este barrio en el mapa' })).toBeInTheDocument();
+
+    const pointsOnlyMap = screen.getByRole('button', { name: /Solo puntos/i });
+    fireEvent.click(pointsOnlyMap);
+
+    expect(pointsOnlyMap).toHaveAttribute('aria-pressed', 'true');
     expect(await screen.findByRole('region', {
       name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
     })).toHaveAttribute('data-heatmap', 'off');
+    expect(await screen.findByRole('region', {
+      name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego',
+    })).toHaveAttribute('data-points', 'on');
     expect(screen.getByText(/no deben utilizarse para decisiones de política pública/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Río Grande' }));
-    expect(screen.getByText('8 ubicaciones simuladas')).toBeInTheDocument();
-    expect(screen.getAllByText(/Margen Sur/).length).toBeGreaterThan(0);
   });
 });

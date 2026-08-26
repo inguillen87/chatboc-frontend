@@ -60,6 +60,7 @@ export type MapLibreMapProps = {
   polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
   showPoints?: boolean;
+  showPointLabels?: boolean;
   showPolygons?: boolean;
   marker?: [number, number];
   className?: string;
@@ -106,7 +107,12 @@ export type MapLibreMapProps = {
   providerFallbackMessage?: string | null;
   ariaLabel?: string;
   ariaDescribedBy?: string;
-  popupContext?: "tickets" | "survey";
+  popupContext?: "tickets" | "survey" | "territory";
+  pointMinZoom?: number;
+  pointLabelMinZoom?: number;
+  pointLabelMode?: "count" | "barrio" | "categoria" | "none";
+  heatmapRadiusScale?: number;
+  heatmapPalette?: "default" | "faro";
 };
 
 const isRenderableCoordinatePair = (lat: unknown, lng: unknown): lat is number =>
@@ -273,6 +279,8 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       direccion: p.direccion,
       distrito: p.distrito,
       barrio: p.barrio,
+      ciudad: p.ciudad,
+      provincia: p.provincia,
       estado: p.estado,
       tipo_ticket: p.tipo_ticket,
       severidad: p.severidad,
@@ -380,7 +388,7 @@ export const buildMapClusterPopupContent = ({
   cluster?: HeatPoint;
   properties?: Record<string, unknown>;
   numberFormatter?: Intl.NumberFormat;
-  popupContext?: "tickets" | "survey";
+  popupContext?: "tickets" | "survey" | "territory";
 }) => {
   const root = document.createElement("div");
   root.className = "max-w-xs space-y-1";
@@ -392,6 +400,38 @@ export const buildMapClusterPopupContent = ({
     const totalWeight = Number.isFinite(cluster.totalWeight)
       ? Number(cluster.totalWeight)
       : Number(cluster.weight ?? 0);
+
+    if (popupContext === "territory") {
+      const zone = cluster.barrio ?? cluster.distrito ?? "Ubicación representativa";
+      const locality = [zone, cluster.ciudad].filter(Boolean).join(" · ");
+      appendPopupText(
+        root,
+        "p",
+        locality || "Ubicación representativa",
+        "text-sm font-semibold text-slate-800",
+      );
+      if (cluster.categoria) {
+        appendPopupText(root, "p", `Categoría: ${cluster.categoria}`, "text-xs text-slate-600");
+      }
+      if (cluster.tipo_ticket) {
+        appendPopupText(root, "p", `Tipo: ${cluster.tipo_ticket}`, "text-xs text-slate-600");
+      }
+      if (cluster.estado) {
+        appendPopupText(root, "p", `Estado: ${cluster.estado}`, "text-xs text-slate-600");
+      }
+      if (cluster.canal) {
+        appendPopupText(root, "p", `Canal: ${cluster.canal}`, "text-xs text-slate-600");
+      }
+      if (totalWeight > 0) {
+        appendPopupText(
+          root,
+          "p",
+          `Volumen representativo: ${numberFormatter.format(totalWeight)}`,
+          "mt-1 text-xs font-semibold text-slate-700",
+        );
+      }
+      return root;
+    }
 
     if (popupContext === "survey") {
       const representedResponses = totalWeight > 0 ? totalWeight : clusterSize;
@@ -498,6 +538,40 @@ export const buildMapClusterPopupContent = ({
   const direccion = safeProperties.direccion;
   const distrito = safeProperties.distrito;
 
+  if (popupContext === "territory") {
+    const barrio = safeProperties.barrio ?? distrito;
+    const ciudad = safeProperties.ciudad;
+    const locality = [barrio, ciudad].filter(Boolean).map(String).join(" · ");
+    appendPopupText(
+      root,
+      "p",
+      locality || "Ubicación representativa",
+      "text-sm font-semibold text-slate-800",
+    );
+    if (categoria) {
+      appendPopupText(root, "p", `Categoría: ${String(categoria)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.tipo_ticket) {
+      appendPopupText(root, "p", `Tipo: ${String(safeProperties.tipo_ticket)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.estado) {
+      appendPopupText(root, "p", `Estado: ${String(safeProperties.estado)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.canal) {
+      appendPopupText(root, "p", `Canal: ${String(safeProperties.canal)}`, "text-xs text-slate-600");
+    }
+    const volume = Number(safeProperties.totalWeight ?? safeProperties.weight ?? 0);
+    if (Number.isFinite(volume) && volume > 0) {
+      appendPopupText(
+        root,
+        "p",
+        `Volumen representativo: ${numberFormatter.format(volume)}`,
+        "mt-1 text-xs font-semibold text-slate-700",
+      );
+    }
+    return root;
+  }
+
   if (popupContext === "survey") {
     const responseCandidates = [
       safeProperties.totalWeight,
@@ -552,6 +626,7 @@ const toggleLayers = (
   map: Map,
   showHeatmap: boolean,
   showPoints: boolean,
+  showPointLabels: boolean,
   showPolygons: boolean,
   layerIds: { heat: string; halo: string; circles: string; labels: string },
 ) => {
@@ -580,7 +655,7 @@ const toggleLayers = (
     map.setLayoutProperty(
       layerIds.labels,
       "visibility",
-      showPoints && !showPolygons ? "visible" : "none",
+      showPoints && showPointLabels && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer("polygons-fill")) {
@@ -599,6 +674,7 @@ export default function MapLibreMap({
   polygons,
   showHeatmap = true,
   showPoints,
+  showPointLabels = true,
   showPolygons = false,
   marker,
   className,
@@ -618,6 +694,11 @@ export default function MapLibreMap({
   ariaLabel,
   ariaDescribedBy,
   popupContext = "tickets",
+  pointMinZoom = 9,
+  pointLabelMinZoom = 9,
+  pointLabelMode = "count",
+  heatmapRadiusScale = 1,
+  heatmapPalette = "default",
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapGeneration, setMapGeneration] = useState(0);
@@ -654,6 +735,16 @@ export default function MapLibreMap({
     [normalizedHeatmap, shouldCluster],
   );
   const resolvedShowPoints = showPoints ?? (!showHeatmap && !showPolygons);
+  const resolvedShowPointLabels = showPointLabels && pointLabelMode !== "none";
+  const resolvedPointMinZoom = Number.isFinite(pointMinZoom)
+    ? Math.max(0, Math.min(24, pointMinZoom))
+    : 9;
+  const resolvedPointLabelMinZoom = Number.isFinite(pointLabelMinZoom)
+    ? Math.max(0, Math.min(24, pointLabelMinZoom))
+    : 9;
+  const resolvedHeatmapRadiusScale = Number.isFinite(heatmapRadiusScale)
+    ? Math.max(0.5, Math.min(4, heatmapRadiusScale))
+    : 1;
   const configuredGeoSource = useMemo(
     () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
     [geoLayerConfig?.source],
@@ -741,7 +832,7 @@ export default function MapLibreMap({
   const configuredGeoSourceRef = useRef(configuredGeoSource);
   const configuredInteractionsRef = useRef(configuredInteractions);
   const contractVersionRef = useRef(geoLayerConfig?.contract_version ?? null);
-  const popupContextRef = useRef<"tickets" | "survey">(popupContext);
+  const popupContextRef = useRef<"tickets" | "survey" | "territory">(popupContext);
   const emitBackendMapEventRef = useRef(emitBackendMapEvent);
   const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
   const boundingBoxControllerRef = useRef<{ setEnabled: (enabled: boolean) => void } | null>(null);
@@ -769,6 +860,7 @@ export default function MapLibreMap({
   const centerRef = useRef(center);
   const showHeatmapRef = useRef(showHeatmap);
   const showPointsRef = useRef(resolvedShowPoints);
+  const showPointLabelsRef = useRef(resolvedShowPointLabels);
   const showPolygonsRef = useRef(showPolygons);
   const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
@@ -791,6 +883,10 @@ export default function MapLibreMap({
   useEffect(() => {
     showPointsRef.current = resolvedShowPoints;
   }, [resolvedShowPoints]);
+
+  useEffect(() => {
+    showPointLabelsRef.current = resolvedShowPointLabels;
+  }, [resolvedShowPointLabels]);
 
   useEffect(() => {
     showPolygonsRef.current = showPolygons;
@@ -1007,61 +1103,93 @@ export default function MapLibreMap({
             source: "points",
             maxzoom: 15,
             paint: {
-              "heatmap-weight": ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
+              "heatmap-weight": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
+                    0,
+                    0.45,
+                    1,
+                    1,
+                  ]
+                : ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
+              "heatmap-intensity": heatmapPalette === "faro"
+                ? ["interpolate", ["linear"], ["zoom"], 0, 1.8, 15, 4.6]
+                : ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
               "heatmap-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                0,
+                "*",
+                resolvedHeatmapRadiusScale,
                 [
-                  "max",
-                  4,
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  0,
                   [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                    2.6,
+                    "max",
+                    4,
+                    [
+                      "*",
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                      2.6,
+                    ],
                   ],
-                ],
-                9,
-                [
-                  "max",
-                  14,
+                  9,
                   [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                    4.8,
+                    "max",
+                    14,
+                    [
+                      "*",
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                      4.8,
+                    ],
                   ],
-                ],
-                13,
-                [
-                  "max",
-                  18,
+                  13,
                   [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                    6.4,
+                    "max",
+                    18,
+                    [
+                      "*",
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                      6.4,
+                    ],
                   ],
                 ],
               ],
-              "heatmap-opacity": 0.65,
-              "heatmap-color": [
-                "interpolate",
-                ["linear"],
-                ["heatmap-density"],
-                0,
-                "rgba(68, 1, 84, 0)",
-                0.18,
-                "rgba(68, 1, 84, 0.62)",
-                0.38,
-                "rgba(59, 82, 139, 0.72)",
-                0.58,
-                "rgba(33, 145, 140, 0.78)",
-                0.78,
-                "rgba(94, 201, 98, 0.86)",
-                1,
-                "rgba(253, 231, 37, 0.96)",
-              ],
+              "heatmap-opacity": heatmapPalette === "faro" ? 0.88 : 0.65,
+              "heatmap-color": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["heatmap-density"],
+                    0,
+                    "rgba(105, 213, 223, 0)",
+                    0.03,
+                    "rgba(105, 213, 223, 0.38)",
+                    0.24,
+                    "rgba(8, 124, 129, 0.68)",
+                    0.58,
+                    "rgba(242, 184, 75, 0.82)",
+                    1,
+                    "rgba(213, 93, 57, 0.96)",
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["heatmap-density"],
+                    0,
+                    "rgba(68, 1, 84, 0)",
+                    0.18,
+                    "rgba(68, 1, 84, 0.62)",
+                    0.38,
+                    "rgba(59, 82, 139, 0.72)",
+                    0.58,
+                    "rgba(33, 145, 140, 0.78)",
+                    0.78,
+                    "rgba(94, 201, 98, 0.86)",
+                    1,
+                    "rgba(253, 231, 37, 0.96)",
+                  ],
             },
           });
 
@@ -1069,55 +1197,73 @@ export default function MapLibreMap({
             id: configuredLayerIds.halo,
             type: "circle",
             source: "points",
-            minzoom: 8,
+            minzoom: resolvedPointMinZoom,
             paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                8,
-                [
-                  "max",
-                  12,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 3.2],
-                ],
-                16,
-                [
-                  "max",
-                  24,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 5.2],
-                ],
-              ],
-              "circle-color": [
-                "case",
-                ["has", "categoryColor"],
-                ["get", "categoryColor"],
-                [
-                  "interpolate",
-                  ["linear"],
-                  ["coalesce", ["get", "averageWeight"], 1],
-                  0,
-                  "#38bdf8",
-                  10,
-                  "#2563eb",
-                  24,
-                  "#a855f7",
-                  42,
-                  "#f43f5e",
-                ],
-              ],
-              "circle-opacity": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                8,
-                0.18,
-                14,
-                0.28,
-                16,
-                0.2,
-              ],
-              "circle-blur": 0.86,
+              "circle-radius": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    4,
+                    ["max", 14, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 2.2]],
+                    14,
+                    ["max", 28, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 4.2]],
+                    16,
+                    ["max", 34, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 4.8]],
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    8,
+                    [
+                      "max",
+                      12,
+                      ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 3.2],
+                    ],
+                    16,
+                    [
+                      "max",
+                      24,
+                      ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 5.2],
+                    ],
+                  ],
+              "circle-color": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1],
+                    10,
+                    "#69d5df",
+                    32,
+                    "#087c81",
+                    48,
+                    "#f2b84b",
+                    64,
+                    "#d55d39",
+                  ]
+                : [
+                    "case",
+                    ["has", "categoryColor"],
+                    ["get", "categoryColor"],
+                    [
+                      "interpolate",
+                      ["linear"],
+                      ["coalesce", ["get", "averageWeight"], 1],
+                      0,
+                      "#38bdf8",
+                      10,
+                      "#2563eb",
+                      24,
+                      "#a855f7",
+                      42,
+                      "#f43f5e",
+                    ],
+                  ],
+              "circle-opacity": heatmapPalette === "faro"
+                ? ["interpolate", ["linear"], ["zoom"], 4, 0.3, 14, 0.4, 16, 0.3]
+                : ["interpolate", ["linear"], ["zoom"], 4, 0.18, 14, 0.28, 16, 0.2],
+              "circle-blur": heatmapPalette === "faro" ? 0.8 : 0.86,
             },
           });
 
@@ -1125,7 +1271,7 @@ export default function MapLibreMap({
             id: configuredLayerIds.circles,
             type: "circle",
             source: "points",
-            minzoom: 9,
+            minzoom: resolvedPointMinZoom,
             paint: {
               "circle-radius": [
                 "interpolate",
@@ -1194,36 +1340,54 @@ export default function MapLibreMap({
             id: configuredLayerIds.labels,
             type: "symbol",
             source: "points",
-            minzoom: 9,
+            minzoom: resolvedPointLabelMinZoom,
             layout: {
-              "text-field": [
-                "case",
-                [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 1],
-                [
-                  "to-string",
-                  [
-                    "coalesce",
-                    ["get", "totalWeight"],
-                    ["get", "total"],
-                    ["get", "point_count_abbreviated"],
-                    ["get", "clusterSize"],
-                  ],
-                ],
-                "",
-              ],
+              "text-field": pointLabelMode === "barrio"
+                ? ["coalesce", ["get", "barrio"], ["get", "distrito"], ""]
+                : pointLabelMode === "categoria"
+                  ? ["coalesce", ["get", "categoria"], ""]
+                  : [
+                      "case",
+                      [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 1],
+                      [
+                        "to-string",
+                        [
+                          "coalesce",
+                          ["get", "totalWeight"],
+                          ["get", "total"],
+                          ["get", "point_count_abbreviated"],
+                          ["get", "clusterSize"],
+                        ],
+                      ],
+                      "",
+                    ],
               "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 15, 12],
+              ...(pointLabelMode === "count"
+                ? {}
+                : {
+                    "text-anchor": "top",
+                    "text-offset": [0, 1.15],
+                    "text-padding": 3,
+                  }),
               "text-allow-overlap": false,
               "text-ignore-placement": false,
             },
             paint: {
-              "text-color": "#ffffff",
-              "text-halo-color": "rgba(15, 23, 42, 0.72)",
-              "text-halo-width": 1,
+              "text-color": pointLabelMode === "count" ? "#ffffff" : "#173c39",
+              "text-halo-color": pointLabelMode === "count" ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.96)",
+              "text-halo-width": pointLabelMode === "count" ? 1 : 1.5,
               "text-opacity": 0.96,
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current, showPointsRef.current, showPolygonsRef.current, configuredLayerIds);
+          toggleLayers(
+            map,
+            showHeatmapRef.current,
+            showPointsRef.current,
+            showPointLabelsRef.current,
+            showPolygonsRef.current,
+            configuredLayerIds,
+          );
           const currentInteractions = configuredInteractionsRef.current;
           trackFrontendEvent("map_loaded", {
             provider: "maplibre",
@@ -1515,10 +1679,15 @@ export default function MapLibreMap({
     configuredSourceOptions.clusterMaxZoom,
     configuredSourceOptions.clusterRadius,
     geoLayerConfig?.style_url,
+    heatmapPalette,
     mapStyleUrl,
     mapTileAttribution,
     mapTileUrl,
+    pointLabelMode,
+    resolvedHeatmapRadiusScale,
     resolvedMaptilerKey,
+    resolvedPointLabelMinZoom,
+    resolvedPointMinZoom,
   ]);
 
   const centerLng = center?.[0];
@@ -1580,14 +1749,28 @@ export default function MapLibreMap({
     if (!map) return;
 
     if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
-      const handler = () => toggleLayers(map, showHeatmap, resolvedShowPoints, showPolygons, configuredLayerIds);
+      const handler = () => toggleLayers(
+        map,
+        showHeatmap,
+        resolvedShowPoints,
+        resolvedShowPointLabels,
+        showPolygons,
+        configuredLayerIds,
+      );
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap, resolvedShowPoints, showPolygons, configuredLayerIds);
+    toggleLayers(
+      map,
+      showHeatmap,
+      resolvedShowPoints,
+      resolvedShowPointLabels,
+      showPolygons,
+      configuredLayerIds,
+    );
     trackFrontendEvent("map_layer_toggle", {
       provider: "maplibre",
       show_heatmap: showHeatmap,
@@ -1610,6 +1793,7 @@ export default function MapLibreMap({
     emitBackendMapEvent,
     geoLayerConfig?.contract_version,
     mapGeneration,
+    resolvedShowPointLabels,
     resolvedShowPoints,
     showHeatmap,
     showPolygons,
