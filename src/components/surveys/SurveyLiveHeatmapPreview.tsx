@@ -610,10 +610,10 @@ export function SurveyLiveHeatmapPreview({
       </header>
 
       <div
-        className="grid gap-4 p-3 sm:p-4 lg:p-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]"
+        className="grid gap-4 p-0 sm:p-4 lg:p-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]"
         data-testid="survey-live-heatmap-layout"
       >
-        <div className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/45">
+        <div className="min-w-0 overflow-hidden rounded-none border-y border-slate-800 bg-slate-900/45 sm:rounded-xl sm:border-x">
           <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Mapa de cobertura</p>

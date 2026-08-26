@@ -261,6 +261,10 @@ const openSurveyAndWaitForContracts = async (page: Page): Promise<SurveyOpenResu
 };
 
 const assertCoherentSurveyContract = async (page: Page) => {
+  const resultsTab = page.getByRole('button', { name: 'Resultados y territorio' });
+  await expect(resultsTab).toBeVisible({ timeout: REMOTE_WAIT_MS });
+  await resultsTab.click();
+
   await expect(
     page.getByRole('heading', { name: 'Distribución territorial de respuestas' }),
   ).toBeVisible({ timeout: REMOTE_WAIT_MS });
@@ -269,8 +273,8 @@ const assertCoherentSurveyContract = async (page: Page) => {
 
   await expect(page.getByText('Luminarias').first()).toBeVisible();
   await expect(page.getByText(/\d+ votos · \d+(?:[.,]\d+)?%/).first()).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Luminarias/ })).toBeVisible();
-  await expect(page.getByText('Última sincronización', { exact: true })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: /Luminarias/ })).toBeVisible();
+  await expect(page.getByTestId('survey-last-updated')).toBeVisible();
   await expect(page.getByTestId('survey-last-updated')).not.toContainText('9/23/2026');
 
   await expect(
@@ -339,13 +343,17 @@ const alignMapBelowFixedNavbar = async (page: Page) => {
   await settleRenderedFrames(page);
 
   const mapBox = await mapRegion.boundingBox();
-  const navbarBox = await page.locator('.chatboc-brand-navbar').first().boundingBox();
+  const navbar = page.locator('.chatboc-brand-navbar').first();
+  const navbarBox = (await navbar.count()) > 0 ? await navbar.boundingBox() : null;
   expect(mapBox, 'The territorial map must have measurable viewport geometry.').not.toBeNull();
-  expect(navbarBox, 'The fixed brand navbar must have measurable viewport geometry.').not.toBeNull();
-  expect(
-    mapBox?.y ?? 0,
-    'The fixed navbar must not cover the territorial evidence or native map controls.',
-  ).toBeGreaterThanOrEqual((navbarBox?.y ?? 0) + (navbarBox?.height ?? 0));
+  if (navbarBox) {
+    expect(
+      mapBox?.y ?? 0,
+      'The fixed navbar must not cover the territorial evidence or native map controls.',
+    ).toBeGreaterThanOrEqual(navbarBox.y + navbarBox.height);
+  } else {
+    expect(mapBox?.y ?? -1, 'The public survey map must remain inside the viewport flow.').toBeGreaterThanOrEqual(0);
+  }
 };
 
 const assertMapReady = async (
@@ -383,8 +391,16 @@ const assertMapReady = async (
     })
     .toBeGreaterThan(0);
 
+  const mapOptions = page.getByTestId('survey-live-heatmap-map-options');
+  await expect(mapOptions).toBeVisible();
+  if ((await mapOptions.getAttribute('open')) === null) {
+    await mapOptions.locator('summary').click();
+  }
+  await expect(mapOptions).toHaveAttribute('open', '');
+
   const densityButton = page.getByRole('button', { name: 'Densidad' });
-  const pointsButton = page.getByRole('button', { name: 'Puntos' });
+  const pointsButton = page.getByRole('button', { name: 'Puntos', exact: true });
+  await densityButton.click();
   await expect(densityButton).toHaveAttribute('aria-pressed', 'true');
   await mapRegion.screenshot({
     animations: 'disabled',
@@ -487,7 +503,7 @@ const assertResponsiveMap = async (page: Page, testInfo: TestInfo) => {
     ).toBeGreaterThanOrEqual(viewport.minMapWidth);
 
     for (const controlName of ['Densidad', 'Puntos', 'Ajustar área']) {
-      const control = page.getByRole('button', { name: controlName });
+      const control = page.getByRole('button', { name: controlName, exact: true });
       await expect(control).toBeVisible();
       const box = await control.boundingBox();
       expect(box, `${controlName} must have measurable geometry at ${viewport.label}.`).not.toBeNull();

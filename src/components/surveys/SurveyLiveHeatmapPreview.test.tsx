@@ -93,7 +93,7 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
     const layout = screen.getByTestId('survey-live-heatmap-layout');
     expect(layout).toHaveClass(
-      'p-3',
+      'p-0',
       'sm:p-4',
       'lg:p-5',
       'xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]',
