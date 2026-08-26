@@ -140,6 +140,11 @@ vi.mock('./routesConfig', async () => {
         allowGuest: true,
       },
       {
+        path: '/demo',
+        element: ReactModule.createElement(PublicContinuityProbe),
+        allowGuest: true,
+      },
+      {
         path: '/admin',
         element: ReactModule.createElement(Navigate, { to: '/perfil', replace: true }),
         requiresSession: true,
@@ -411,6 +416,22 @@ describe('App session bootstrap ordering', () => {
       warn.mockRestore();
       vi.useRealTimers();
     }
+  });
+
+  it('mounts the explicit public Preview presentation without waiting for Clerk', async () => {
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    window.history.replaceState({}, '', '/demo?tenant_slug=junin&remote_preview_qa=1');
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Preparando Chatboc' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Borrador transitorio')).toBeInTheDocument();
+    });
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
   });
 
   it('reaches /403 from a sessionless tenant inbox with zero tenant, cart or private calls', async () => {

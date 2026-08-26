@@ -35,12 +35,16 @@ import {
   ClerkRuntimeProvider,
   DEFAULT_CLERK_RUNTIME,
   type ClerkRuntimeValue,
+  useClerkRuntime,
 } from '@/components/auth/ClerkRuntimeContext';
 import {
   buildClerkBackendUnavailableRuntime,
+  buildPublicPreviewPresentationRuntime,
   buildClerkRuntimeFromEnv,
   CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS,
   isClerkOriginCompatible,
+  isPublicPreviewPresentation,
+  shouldReloadAfterPublicPreviewNavigation,
 } from '@/components/auth/clerkRuntimeResolver';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
@@ -164,16 +168,31 @@ const AppBootstrapFallback = () => (
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
-  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
-    buildClerkRuntimeFromEnv({
-      allowEnvFallback,
-      envEnabled: CLERK_AUTH_ENABLED,
-      loading: true,
-      publishableKey: CLERK_PUBLISHABLE_KEY,
+  const [publicPreviewPresentation] = React.useState(() =>
+    typeof window !== 'undefined' && isPublicPreviewPresentation({
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      search: window.location.search,
     }),
+  );
+  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
+    publicPreviewPresentation
+      ? buildPublicPreviewPresentationRuntime(CLERK_PUBLISHABLE_KEY)
+      : buildClerkRuntimeFromEnv({
+          allowEnvFallback,
+          envEnabled: CLERK_AUTH_ENABLED,
+          loading: true,
+          publishableKey: CLERK_PUBLISHABLE_KEY,
+        }),
   );
 
   React.useEffect(() => {
+    // The explicit remote Preview presentation is guest-only and never needs
+    // Clerk. Resolve it synchronously so a cold auth backend cannot block the
+    // public executive demo; all normal and private routes keep the fail-closed
+    // bootstrap below.
+    if (publicPreviewPresentation) return undefined;
+
     let cancelled = false;
     let settled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -261,7 +280,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
       cancelled = true;
       if (timeoutId !== null) clearTimeout(timeoutId);
     };
-  }, [allowEnvFallback]);
+  }, [allowEnvFallback, publicPreviewPresentation]);
 
   return runtime;
 };
@@ -269,6 +288,24 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
 function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
+  const clerkRuntime = useClerkRuntime();
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!shouldReloadAfterPublicPreviewNavigation({
+      runtime: clerkRuntime,
+      hostname: window.location.hostname,
+      pathname: location.pathname,
+      search: location.search,
+    })) {
+      return;
+    }
+
+    // The Preview presentation deliberately mounts without Clerk. Once the
+    // visitor leaves that public URL, reload the new route so the normal
+    // fail-closed auth topology is restored before login or private UI mounts.
+    window.location.reload();
+  }, [clerkRuntime, location.pathname, location.search]);
 
   React.useEffect(() => {
     const canonicalPath = toCanonicalTenantPath(location.pathname);

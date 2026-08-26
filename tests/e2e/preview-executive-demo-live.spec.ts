@@ -7,9 +7,9 @@ const previewQaEnabled = process.env.CHATBOC_REMOTE_PREVIEW_QA === '1';
 const previewOrigin = process.env.PLAYWRIGHT_BASE_URL || 'https://chatboc-r2-preview.vercel.app';
 const expectedHost = process.env.CHATBOC_PREVIEW_FRONTEND_HOST || 'chatboc-r2-preview.vercel.app';
 const remoteTimeout = 120_000;
-// Clerk's fail-closed bootstrap has a deliberate 5 s ceiling. Keep enough
-// margin for the already-prefetched route to render after that boundary on a
-// cold backend, while still requiring an immediate branded loading surface.
+// The explicit remote Preview presentation bypasses the optional Clerk
+// bootstrap fail-closed. Keep margin for a cold JS bundle and demo data while
+// still requiring an immediate branded loading surface.
 const publicBootstrapTimeout = 10_000;
 
 test.describe('remote Preview executive government demo', () => {

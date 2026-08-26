@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClerkBackendUnavailableRuntime,
+  buildPublicPreviewPresentationRuntime,
   buildClerkRuntimeFromEnv,
   isClerkOriginCompatible,
+  isPublicPreviewPresentation,
+  isPublicPreviewPresentationRuntime,
+  shouldReloadAfterPublicPreviewNavigation,
 } from './clerkRuntimeResolver';
 
 describe('clerkRuntimeResolver', () => {
@@ -31,6 +35,67 @@ describe('clerkRuntimeResolver', () => {
       hostname: 'localhost',
       publishableKey: 'pk_test_example',
     })).toBe(true);
+  });
+
+  it('recognizes only the explicit public Preview presentation URL', () => {
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?tenant_slug=junin&remote_preview_qa=1',
+    })).toBe(true);
+    expect(isPublicPreviewPresentation({
+      hostname: 'localhost',
+      pathname: '/demo/',
+      search: '?remote_preview_qa=1',
+    })).toBe(true);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=0',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/perfil',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-frontend.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+  });
+
+  it('keeps Clerk fail-closed for the public Preview presentation', () => {
+    const runtime = buildPublicPreviewPresentationRuntime('pk_live_public_key');
+
+    expect(runtime).toMatchObject({
+      enabled: false,
+      loading: false,
+      readyForSessionSync: false,
+      source: 'disabled',
+    });
+    expect(runtime.configurationWarnings?.[0]?.code).toBe('public_preview_presentation');
+    expect(isPublicPreviewPresentationRuntime(runtime)).toBe(true);
+    expect(isPublicPreviewPresentationRuntime({
+      configurationWarnings: [],
+    })).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/login',
+      search: '',
+    })).toBe(true);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
   });
 
   it('keeps production fail-closed when the backend contract is unavailable', () => {
