@@ -244,7 +244,7 @@ describe('Perfil request lifecycle', () => {
     await act(async () => {
       updateBrowserLocation('/perfil?tab=perfil&range=30d&scope=municipio');
     });
-    await waitFor(() => expect(screen.getByText('Configuracion avanzada del perfil')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Organización, planes e integraciones')).toBeInTheDocument());
 
     expect(countApiCalls('/me')).toBe(1);
     expect(countApiCalls('/api/whatsapp/promocionar')).toBe(1);
@@ -266,12 +266,28 @@ describe('Perfil request lifecycle', () => {
     expect(countApiCalls('/me')).toBe(1);
     expect(runtime.refreshUser).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Operación' }), { key: 'Enter' });
+    expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Atención' }), { key: 'Enter' });
     fireEvent.click(screen.getByRole('menuitem', { name: /Reclamos/i }));
 
     await waitFor(() => expect(screen.getByTestId('mock-tickets')).toBeInTheDocument());
     expect(window.location.search).toContain('tab=tickets');
     expect(window.location.search).not.toContain('section=plan');
+  });
+
+  it('opens plans from the Administration work area without exposing a loose top-level tab', async () => {
+    renderProfile('/perfil');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toBeInTheDocument());
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Administración' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Planes y facturación/i }));
+
+    await waitFor(() => expect(screen.getByText('Uso de la organización')).toBeInTheDocument());
+    expect(window.location.search).toContain('tab=perfil');
+    expect(window.location.search).toContain('section=plan');
+    expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
+    expect(countApiCalls('/me')).toBe(1);
   });
 
   it('keeps the exact safe next URL when an unauthenticated query route redirects', async () => {
@@ -342,7 +358,7 @@ describe('Perfil request lifecycle', () => {
     renderProfile('/perfil');
 
     await waitFor(() => expect(screen.getByText('Acceso operativo no habilitado')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Abrir menú Operación' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
     expect(screen.queryByText('Abrir reclamos')).not.toBeInTheDocument();
     expect(screen.queryByText('Encuestas y sondeos')).not.toBeInTheDocument();
   });

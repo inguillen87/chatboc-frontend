@@ -212,7 +212,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mando operativo</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Prioridades, equipo y exportaciones</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Lectura compacta de los contratos backoffice. Si backend no publica un dato, queda vacio sin completar con supuestos.
+            Información operativa confirmada. Los indicadores sin datos permanecen vacíos, sin completar valores por estimación.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={refresh} disabled={isLoading}>
@@ -252,7 +252,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Acciones recomendadas</CardTitle>
-            <CardDescription>Solo se muestran vistas o recomendaciones publicadas por backend.</CardDescription>
+            <CardDescription>Solo se muestran acciones disponibles para este perfil y período.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {recommendations.length > 0 ? (
@@ -264,7 +264,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
               ))
             ) : (
               <p className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-                No hay recomendaciones publicadas para este periodo.
+                No hay acciones recomendadas para este período.
               </p>
             )}
           </CardContent>

@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ClipboardList,
+  CreditCard,
   LayoutDashboard,
   MapPinned,
   Package,
@@ -60,6 +61,7 @@ export type ProfileWorkspaceCapabilities = {
   analytics: boolean;
   catalog: boolean;
   team: boolean;
+  billing: boolean;
 };
 
 export const resolveProfileWorkspaceCapabilities = ({
@@ -74,6 +76,7 @@ export const resolveProfileWorkspaceCapabilities = ({
   analyticsAccess,
   catalogAccess,
   teamAccess,
+  billingAccess,
 }: {
   status: "idle" | "loading" | "ready" | "denied" | "error";
   enabledModuleIds: ReadonlySet<string>;
@@ -86,6 +89,7 @@ export const resolveProfileWorkspaceCapabilities = ({
   analyticsAccess: boolean;
   catalogAccess: boolean;
   teamAccess: boolean;
+  billingAccess: boolean;
 }): ProfileWorkspaceCapabilities => {
   const contractReady = status === "ready";
   const backendAllows = (moduleId: string) => contractReady && enabledModuleIds.has(moduleId);
@@ -100,28 +104,35 @@ export const resolveProfileWorkspaceCapabilities = ({
     // Navigation v1 does not model catalog yet; it still requires a valid contract and role access.
     catalog: contractReady && catalogAccess,
     team: teamAccess && backendAllows("people"),
+    billing: contractReady && billingAccess,
   };
 };
 
 interface ProfileWorkspaceNavigationProps {
   activeTab: ProfileWorkspaceTabValue;
+  activeActionId?: "billing";
   capabilities: ProfileWorkspaceCapabilities;
   isMunicipal: boolean;
+  onOpenPlan: () => void;
   onOpenSurveys: () => void;
   onTabChange: (tab: ProfileWorkspaceTabValue) => void;
 }
 
 const ModuleMenuItem = ({
   activeTab,
+  activeActionId,
   module,
   onTabChange,
 }: {
   activeTab: ProfileWorkspaceTabValue;
+  activeActionId?: "billing";
   module: WorkspaceModule;
   onTabChange: (tab: ProfileWorkspaceTabValue) => void;
 }) => {
   const Icon = module.icon;
-  const isActive = Boolean(module.tab && module.tab === activeTab);
+  const isActive = Boolean(
+    (module.tab && module.tab === activeTab) || (!module.tab && module.id === activeActionId),
+  );
 
   return (
     <DropdownMenuItem
@@ -153,8 +164,10 @@ const ModuleMenuItem = ({
 
 export default function ProfileWorkspaceNavigation({
   activeTab,
+  activeActionId,
   capabilities,
   isMunicipal,
+  onOpenPlan,
   onOpenSurveys,
   onTabChange,
 }: ProfileWorkspaceNavigationProps) {
@@ -184,7 +197,7 @@ export default function ProfileWorkspaceNavigation({
     const workspaceGroups: WorkspaceModuleGroup[] = [
       {
         id: "operations",
-        label: "Operación",
+        label: "Atención",
         icon: ClipboardList,
         modules: capabilities.operation
           ? [
@@ -208,58 +221,52 @@ export default function ProfileWorkspaceNavigation({
           : [],
       },
       {
-        id: "participation",
-        label: "Participación",
-        icon: Vote,
-        modules: capabilities.participation
-          ? [
-              {
-                id: "surveys",
-                label: "Encuestas y votaciones",
-                description: "Crear, publicar y revisar participación.",
-                icon: Vote,
-                action: onOpenSurveys,
-              },
-            ]
-          : [],
-      },
-      {
-        id: "territory",
-        label: "Territorio",
-        icon: MapPinned,
-        modules: capabilities.territory
-          ? [
-              {
-                id: "maps",
-                label: "Mapa operativo",
-                description: "Casos georreferenciados, zonas y prioridades.",
-                icon: MapPinned,
-                tab: "mapas",
-              },
-            ]
-          : [],
-      },
-      {
-        id: "citizens",
-        label: isMunicipal ? "Ciudadanía" : "Contactos",
+        id: "crm",
+        label: isMunicipal ? "CRM ciudadano" : "CRM comercial",
         icon: Users,
-        modules: capabilities.contacts
-          ? [
-              {
-                id: "users",
-                label: isMunicipal ? "Personas y contactos" : "Clientes y contactos",
-                description: "Identidad, historial, consentimiento y contexto CRM.",
-                icon: Users,
-                tab: "usuarios",
-              },
-            ]
-          : [],
+        modules: [
+          ...(capabilities.contacts
+            ? [
+                {
+                  id: "users",
+                  label: isMunicipal ? "Personas y contactos" : "Clientes y contactos",
+                  description: "Identidad, historial, consentimiento y contexto CRM.",
+                  icon: Users,
+                  tab: "usuarios" as ProfileWorkspaceTabValue,
+                },
+              ]
+            : []),
+          ...(capabilities.participation
+            ? [
+                {
+                  id: "surveys",
+                  label: "Encuestas y votaciones",
+                  description: "Campañas, participación y resultados trazables.",
+                  icon: Vote,
+                  action: onOpenSurveys,
+                },
+              ]
+            : []),
+        ],
       },
       {
         id: "intelligence",
         label: "Inteligencia",
         icon: BarChart3,
-        modules: intelligenceModules,
+        modules: [
+          ...intelligenceModules,
+          ...(capabilities.territory
+            ? [
+                {
+                  id: "maps",
+                  label: "Inteligencia territorial",
+                  description: "Casos georreferenciados, zonas y prioridades.",
+                  icon: MapPinned,
+                  tab: "mapas" as ProfileWorkspaceTabValue,
+                },
+              ]
+            : []),
+        ],
       },
       {
         id: "administration",
@@ -288,6 +295,17 @@ export default function ProfileWorkspaceNavigation({
                 },
               ]
             : []),
+          ...(capabilities.billing
+            ? [
+                {
+                  id: "billing",
+                  label: "Planes y facturación",
+                  description: "Plan vigente, uso, límites y gestión comercial.",
+                  icon: CreditCard,
+                  action: onOpenPlan,
+                },
+              ]
+            : []),
         ],
       },
     ];
@@ -295,6 +313,7 @@ export default function ProfileWorkspaceNavigation({
     return workspaceGroups.filter((group) => group.modules.length > 0);
   }, [
     capabilities.analytics,
+    capabilities.billing,
     capabilities.catalog,
     capabilities.contacts,
     capabilities.operation,
@@ -303,13 +322,23 @@ export default function ProfileWorkspaceNavigation({
     capabilities.team,
     capabilities.territory,
     isMunicipal,
+    onOpenPlan,
     onOpenSurveys,
   ]);
 
   const activeModule = groups
     .flatMap((group) => group.modules)
-    .find((module) => module.tab === activeTab);
-  const activeGroup = groups.find((group) => group.modules.some((module) => module.tab === activeTab));
+    .find(
+      (module) =>
+        module.tab === activeTab || (!module.tab && module.id === activeActionId),
+    );
+  const activeGroup = groups.find((group) =>
+    group.modules.some(
+      (module) =>
+        module.tab === activeTab || (!module.tab && module.id === activeActionId),
+    ),
+  );
+  const isHomeActive = activeTab === "perfil" && !activeActionId;
 
   return (
     <nav
@@ -320,13 +349,13 @@ export default function ProfileWorkspaceNavigation({
       <div className="hidden items-center gap-1 lg:flex">
         <Button
           type="button"
-          variant={activeTab === "perfil" ? "secondary" : "ghost"}
+          variant={isHomeActive ? "secondary" : "ghost"}
           size="sm"
           className={cn(
             "h-9 shrink-0 gap-2 rounded-lg px-3 text-sm",
-            activeTab === "perfil" && "bg-primary/10 text-primary hover:bg-primary/15",
+            isHomeActive && "bg-primary/10 text-primary hover:bg-primary/15",
           )}
-          aria-current={activeTab === "perfil" ? "page" : undefined}
+          aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}
         >
           <LayoutDashboard className="h-4 w-4" />
@@ -373,6 +402,7 @@ export default function ProfileWorkspaceNavigation({
                   <ModuleMenuItem
                     key={module.id}
                     activeTab={activeTab}
+                    activeActionId={activeActionId}
                     module={module}
                     onTabChange={onTabChange}
                   />
@@ -386,11 +416,11 @@ export default function ProfileWorkspaceNavigation({
       <div className="flex items-center gap-2 lg:hidden">
         <Button
           type="button"
-          variant={activeTab === "perfil" ? "secondary" : "ghost"}
+          variant={isHomeActive ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-9 w-9 shrink-0 rounded-lg", activeTab === "perfil" && "bg-primary/10 text-primary")}
+          className={cn("h-9 w-9 shrink-0 rounded-lg", isHomeActive && "bg-primary/10 text-primary")}
           aria-label="Abrir Inicio"
-          aria-current={activeTab === "perfil" ? "page" : undefined}
+          aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}
         >
           <LayoutDashboard className="h-4 w-4" />
@@ -420,6 +450,7 @@ export default function ProfileWorkspaceNavigation({
                   <ModuleMenuItem
                     key={module.id}
                     activeTab={activeTab}
+                    activeActionId={activeActionId}
                     module={module}
                     onTabChange={onTabChange}
                   />

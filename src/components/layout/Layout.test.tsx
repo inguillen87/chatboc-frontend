@@ -108,12 +108,12 @@ describe('Layout ticket workspace shell', () => {
     expect(main).not.toHaveClass('max-w-7xl');
   });
 
-  it('keeps the normal marketing shell outside the ticket workspace', () => {
+  it('keeps the profile dashboard inside the application shell without marketing footer chrome', () => {
     renderLayout('/perfil');
 
     expect(screen.getByText('profile outlet')).toBeInTheDocument();
-    expect(screen.getByTestId('site-footer')).toBeInTheDocument();
-    expect(screen.getByTestId('scroll-to-top')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
 
     const main = screen.getByRole('main');
     expect(main).toHaveClass('pt-20');

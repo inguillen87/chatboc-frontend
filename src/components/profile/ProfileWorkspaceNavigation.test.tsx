@@ -26,6 +26,7 @@ describe("ProfileWorkspaceNavigation", () => {
       analyticsAccess: true,
       catalogAccess: true,
       teamAccess: true,
+      billingAccess: true,
     };
 
     expect(
@@ -43,6 +44,7 @@ describe("ProfileWorkspaceNavigation", () => {
       analytics: false,
       catalog: false,
       team: false,
+      billing: false,
     });
 
     expect(
@@ -57,6 +59,7 @@ describe("ProfileWorkspaceNavigation", () => {
   it("groups the CRM modules by operational domain and keeps the active context visible", () => {
     const onTabChange = vi.fn();
     const onOpenSurveys = vi.fn();
+    const onOpenPlan = vi.fn();
 
     render(
       <ProfileWorkspaceNavigation
@@ -70,29 +73,33 @@ describe("ProfileWorkspaceNavigation", () => {
           analytics: true,
           catalog: true,
           team: true,
+          billing: true,
         }}
         isMunicipal
+        onOpenPlan={onOpenPlan}
         onOpenSurveys={onOpenSurveys}
         onTabChange={onTabChange}
       />,
     );
 
     expect(screen.getByRole("navigation", { name: "Módulos del centro de control" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir menú Operación" })).toHaveAttribute("data-active", "true");
-    expect(screen.getByRole("button", { name: "Abrir menú Participación" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir menú Territorio" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir menú Ciudadanía" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir menú Atención" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Inteligencia" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Administración" })).toBeInTheDocument();
     expect(screen.queryByText(/Plan Full|Plan Pro/)).not.toBeInTheDocument();
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Operación" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Atención" }), { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitem", { name: /Tareas y gestión/i }));
     expect(onTabChange).toHaveBeenCalledWith("pedidos");
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Participación" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" }), { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitem", { name: /Encuestas y votaciones/i }));
     expect(onOpenSurveys).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Planes y facturación/i }));
+    expect(onOpenPlan).toHaveBeenCalledTimes(1);
   });
 
   it("hides staff-only modules while preserving the citizen-facing structure", () => {
@@ -108,17 +115,18 @@ describe("ProfileWorkspaceNavigation", () => {
           analytics: false,
           catalog: true,
           team: false,
+          billing: false,
         }}
         isMunicipal
+        onOpenPlan={vi.fn()}
         onOpenSurveys={vi.fn()}
         onTabChange={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Abrir menú Ciudadanía" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toHaveAttribute("data-active", "true");
 
-    expect(screen.queryByRole("button", { name: "Abrir menú Participación" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Abrir menú Territorio" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Encuestas y votaciones/i })).not.toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     expect(screen.queryByRole("menuitem", { name: /Equipo y permisos/i })).not.toBeInTheDocument();
@@ -142,14 +150,45 @@ describe("ProfileWorkspaceNavigation", () => {
           analytics: false,
           catalog: false,
           team: false,
+          billing: false,
         }}
         isMunicipal
+        onOpenPlan={vi.fn()}
         onOpenSurveys={vi.fn()}
         onTabChange={vi.fn()}
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "Abrir menú Territorio" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Inteligencia" })).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps plans inside Administration and marks that work area as active", () => {
+    render(
+      <ProfileWorkspaceNavigation
+        activeTab="perfil"
+        activeActionId="billing"
+        capabilities={{
+          operation: false,
+          participation: false,
+          territory: false,
+          contacts: false,
+          reports: false,
+          analytics: false,
+          catalog: false,
+          team: false,
+          billing: true,
+        }}
+        isMunicipal
+        onOpenPlan={vi.fn()}
+        onOpenSurveys={vi.fn()}
+        onTabChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Abrir menú Administración" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir Inicio" })).not.toHaveAttribute("aria-current", "page");
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
+    expect(screen.getByRole("menuitem", { name: /Planes y facturación/i })).toHaveAttribute("aria-current", "page");
   });
 });

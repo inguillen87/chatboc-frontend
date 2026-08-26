@@ -434,6 +434,34 @@ const expectMobileConversationLayout = async (page: Page) => {
   await expect(mobileViewport).toBeVisible();
 };
 
+test('profile home exposes role-based enterprise work areas and nests plans under Administration', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.getByRole('heading', { name: 'Municipio Demo', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Trabajo de hoy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Atención' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú CRM ciudadano' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Inteligencia' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toBeVisible();
+  await expect(page.getByText('Configuración técnica separada de la operación diaria.')).toBeVisible();
+  await expect(page.getByText(/Información operativa confirmada/)).toBeVisible();
+  await expect(page.getByText(/Módulo publicado por backend/i)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Abrir menú Administración' }).click();
+  const planItem = page.getByRole('menuitem', { name: /Planes y facturación/i });
+  await expect(planItem).toBeVisible();
+  await planItem.click();
+
+  await expect(page).toHaveURL(/tab=perfil.*section=plan|section=plan.*tab=perfil/);
+  await expect(page.getByText('Uso de la organización')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
+  await expectNoHorizontalOverflow(page);
+});
+
 const desktopPaths = [
   '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
   '/t/municipio-demo/reclamos?ticket_id=101&channel=whatsapp&focus=heatmap',

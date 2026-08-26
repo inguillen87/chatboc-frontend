@@ -42,7 +42,6 @@ import {
   LayoutDashboard,
   MapPinned,
   Package,
-  PieChart,
   Sparkles,
   UserCog,
   Users,
@@ -377,65 +376,25 @@ const ControlCenterCardButton = ({
       disabled={!enabled}
       onClick={() => onOpen(item)}
       className={cn(
-        "group flex min-h-[148px] w-full flex-col justify-between rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-55",
+        "group flex min-h-[128px] w-full flex-col justify-between rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-55",
       )}
     >
-      <div className="space-y-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
         </span>
-        <div>
-          <p className="text-base font-semibold text-foreground">{item.title}</p>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.description}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">{item.title}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
         </div>
       </div>
-      <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+      <span className="mt-3 inline-flex items-center gap-2 pl-12 text-xs font-semibold text-primary">
         {enabled ? item.actionLabel : "No disponible"}
         {enabled ? <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" /> : null}
       </span>
     </button>
   );
 };
-
-const DataModeCard = ({
-  title,
-  description,
-  bullets,
-  actionLabel,
-  icon: Icon,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  bullets: string[];
-  actionLabel: string;
-  icon: React.ComponentType<{ className?: string }>;
-  onClick: () => void;
-}) => (
-  <div className="flex flex-col rounded-xl border border-border/70 bg-background/70 p-4 shadow-sm">
-    <div className="flex items-start gap-3">
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="h-5 w-5" />
-      </span>
-      <div>
-        <p className="font-semibold text-foreground">{title}</p>
-        <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
-      </div>
-    </div>
-    <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-      {bullets.map((bullet) => (
-        <li key={bullet} className="flex gap-2">
-          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <span>{bullet}</span>
-        </li>
-      ))}
-    </ul>
-    <Button type="button" variant="outline" className="mt-4 justify-between" onClick={onClick}>
-      {actionLabel}
-      <ArrowRight className="h-4 w-4" />
-    </Button>
-  </div>
-);
 
 export default function Perfil() {
   const navigate = useNavigate();
@@ -535,6 +494,7 @@ export default function Perfil() {
   const shouldHighlightChannelSetup = searchParams.get("setup") === "channels";
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
   const [isAdvancedProfileOpen, setIsAdvancedProfileOpen] = useState(requestedProfileSection === "plan");
+  const [isChannelSetupOpen, setIsChannelSetupOpen] = useState(shouldHighlightChannelSetup);
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const [isManualLocation, setIsManualLocation] = useState(false);
@@ -594,11 +554,13 @@ export default function Perfil() {
         analyticsAccess: canViewAnalytics,
         catalogAccess: canViewCatalog,
         teamAccess: canManageTeam,
+        billingAccess: canManageBilling,
       }),
     [
       backofficeNavigationStatus,
       canAccessSurveys,
       canManageTeam,
+      canManageBilling,
       canViewAnalytics,
       canViewCatalog,
       canViewContacts,
@@ -773,6 +735,15 @@ export default function Perfil() {
     },
     [searchParams, setSearchParams],
   );
+
+  const openPlanAndBilling = useCallback(() => {
+    setActiveProfileTab("perfil");
+    setIsAdvancedProfileOpen(true);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", "perfil");
+    next.set("section", "plan");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (requestedProfileTab && requestedProfileTab !== activeProfileTab) {
@@ -2050,6 +2021,26 @@ export default function Perfil() {
     return LayoutDashboard;
   };
 
+  const resolveBackofficeModuleDescription = (moduleId: string) => {
+    const normalized = moduleId.trim().toLowerCase();
+    if (normalized === 'operations') {
+      return esMunicipio
+        ? 'Casos, conversaciones y seguimiento de atención ciudadana.'
+        : 'Casos, conversaciones y seguimiento comercial.';
+    }
+    if (normalized === 'reports') return 'Indicadores operativos, tendencias y exportaciones.';
+    if (normalized === 'surveys') return 'Campañas, participación y resultados trazables.';
+    if (normalized === 'people') return 'Contactos, responsables, roles y permisos.';
+    if (normalized === 'maps') return 'Actividad territorial, zonas y prioridades georreferenciadas.';
+    if (normalized === 'advanced_analytics') return 'Análisis ejecutivo, segmentos y hallazgos asistidos.';
+    if (['catalog', 'inventory', 'marketplace'].includes(normalized)) {
+      return esMunicipio
+        ? 'Servicios, recursos y disponibilidad publicada.'
+        : 'Productos, inventario y disponibilidad comercial.';
+    }
+    return 'Herramientas habilitadas para este espacio de trabajo.';
+  };
+
   const moduleRouteToTarget = (
     moduleId: string,
     route?: string | null,
@@ -2104,14 +2095,14 @@ export default function Perfil() {
         return {
           id,
           title: module.label || module.title || id,
-          description: module.description || 'Modulo publicado por backend.',
+          description: module.description || resolveBackofficeModuleDescription(id),
           icon: resolveBackofficeModuleIcon(id),
           actionLabel: 'Abrir',
           enabled: module.enabled !== false,
           ...moduleRouteToTarget(id, module.route || module.path),
         };
       });
-  }, [backofficeNavigation?.modules, workspaceCapabilities]);
+  }, [backofficeNavigation?.modules, esMunicipio, workspaceCapabilities]);
 
   const openControlCenterItem = (item: ControlCenterCard) => {
     if (item.enabled === false) return;
@@ -2213,6 +2204,72 @@ export default function Perfil() {
     : secondaryControlCards;
   const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
   const isWorkspaceProfileTab = activeProfileTab === "tickets" || activeProfileTab === "analytics";
+  const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
+    <ProfileWorkspaceNavigation
+      activeTab={activeProfileTab}
+      activeActionId={
+        activeProfileTab === "perfil" && requestedProfileSection === "plan"
+          ? "billing"
+          : undefined
+      }
+      capabilities={workspaceCapabilities}
+      isMunicipal={esMunicipio}
+      onOpenPlan={openPlanAndBilling}
+      onOpenSurveys={() => navigate("/admin/encuestas")}
+      onTabChange={updateProfileTab}
+    />
+  ) : (
+    <div
+      className={cn(
+        "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-sm shadow-sm",
+        backofficeNavigationStatus === 'denied'
+          ? "border-amber-500/30 bg-amber-500/5"
+          : backofficeNavigationStatus === 'error'
+            ? "border-destructive/30 bg-destructive/5"
+            : "border-border/70 bg-card/95",
+      )}
+      data-testid="backoffice-navigation-status"
+      role={backofficeNavigationStatus === 'loading' ? 'status' : 'alert'}
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        {backofficeNavigationStatus === 'loading' ? (
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+        ) : (
+          <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <span className="min-w-0">
+          <span className="block font-semibold text-foreground">
+            {backofficeNavigationStatus === 'denied'
+              ? 'Acceso operativo no habilitado'
+              : backofficeNavigationStatus === 'error'
+                ? 'No pudimos verificar los módulos'
+                : 'Verificando accesos del equipo'}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {backofficeNavigationStatus === 'denied'
+              ? 'Un administrador debe asignar alcance operativo a este perfil.'
+              : backofficeNavigationStatus === 'error'
+                ? 'No mostramos accesos hasta validar permisos con el servidor.'
+                : 'Consultando el contrato de módulos habilitados para esta organización.'}
+          </span>
+        </span>
+      </span>
+      {backofficeNavigationStatus === 'error' ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => {
+            backofficeNavigationScopeRef.current = null;
+            setBackofficeNavigationRevision((revision) => revision + 1);
+          }}
+        >
+          Reintentar
+        </Button>
+      ) : null}
+    </div>
+  );
 
   if (!profileReady) {
     return (
@@ -2263,49 +2320,71 @@ export default function Perfil() {
             </div>
           </div>
         ) : (
-        <div className="clear-both rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="clear-both rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm backdrop-blur sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
               <span className="mt-1 inline-block align-middle">
                 <MunicipioIcon />
               </span>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Centro de control</p>
-                <h1 className="mt-1 text-2xl font-extrabold leading-tight text-foreground sm:text-3xl md:text-4xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Espacio de trabajo</p>
+                <h1 className="mt-1 text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
                   {perfil.nombre_empresa || "Panel de Empresa"}
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Operacion, personas, encuestas y reportes en un solo lugar. La configuracion queda disponible, pero
-                  el panel prioriza lo que el equipo necesita resolver hoy.
+                <p className="mt-1.5 max-w-3xl text-sm leading-5 text-muted-foreground">
+                  Atención, relaciones, inteligencia y administración organizadas según el trabajo de cada equipo.
                 </p>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" aria-label="Contexto de la organización">
+              <Badge variant="outline" className="rounded-md px-2.5 py-1 text-xs font-medium">
+                {esMunicipio ? "Gestión municipal" : "Gestión comercial"}
+              </Badge>
+              <Badge variant="secondary" className="rounded-md px-2.5 py-1 text-xs font-medium">
+                {isTenantAdministrator ? "Administrador" : "Operador"}
+              </Badge>
             </div>
           </div>
         </div>
         )}
       </div>
 
+      {activeProfileTab === "perfil" ? (
+        <div className="sticky top-0 z-30 mx-auto mb-5 w-full max-w-7xl bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          {workspaceNavigation}
+        </div>
+      ) : null}
+
       {activeProfileTab === "perfil" && backofficeNavigationStatus === 'ready' && hasAnyWorkspaceCapability && (
       <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Inicio</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground sm:text-2xl">Trabajo de hoy</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Accesos priorizados por rol. Cada módulo abre directamente donde se resuelve la tarea.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit rounded-md px-2.5 py-1 text-xs font-medium">
+            {renderedPrimaryControlCards.length + renderedSecondaryControlCards.length} módulos habilitados
+          </Badge>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {renderedPrimaryControlCards.map((item) => (
             <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
           ))}
         </div>
 
-        <ChannelActivationChecklist
-          tenantSlug={derivedTenantSlug}
-          initialData={(user as any)?.channel_activation || null}
-          highlighted={shouldHighlightChannelSetup}
-        />
+        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
           {renderedSecondaryControlCards.length > 0 ? (
             <Card className="border-border/70 bg-card/80 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <LayoutDashboard className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Que mirar primero</CardTitle>
+                  <CardTitle className="text-lg">Más áreas de trabajo</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-3">
@@ -2316,41 +2395,34 @@ export default function Perfil() {
             </Card>
           ) : null}
 
-          {workspaceCapabilities.reports || workspaceCapabilities.analytics ? (
-            <Card className="border-border/70 bg-card/80 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <PieChart className="h-5 w-5 text-primary" />
-                  Estadisticas vs analitica
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                {workspaceCapabilities.reports ? (
-                  <DataModeCard
-                    title="Estadisticas"
-                    description="Vista diaria para equipos administrativos."
-                    bullets={["Que paso", "Que esta pendiente", "Donde actuar ahora"]}
-                    actionLabel="Ver tablero simple"
-                    icon={BarChart3}
-                    onClick={() => updateProfileTab("estadisticas")}
-                  />
-                ) : null}
-                {workspaceCapabilities.analytics ? (
-                  <DataModeCard
-                    title="Analitica IA"
-                    description="Capa avanzada para investigar y presentar."
-                    bullets={["Resumen ejecutivo", "Segmentos y mapas", "Exportacion PDF/CSV"]}
-                    actionLabel="Abrir investigacion"
-                    icon={Sparkles}
-                    onClick={() => updateProfileTab("analytics")}
-                  />
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
+          <details
+            className="group rounded-xl border border-border/70 bg-card/80 shadow-sm"
+            open={isChannelSetupOpen}
+            onToggle={(event) => setIsChannelSetupOpen(event.currentTarget.open)}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <Settings2 className="h-4 w-4 text-primary" />
+                  Canales e integraciones
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  Configuración técnica separada de la operación diaria.
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            {isChannelSetupOpen ? (
+              <div className="border-t border-border/70 p-3">
+                <ChannelActivationChecklist
+                  tenantSlug={derivedTenantSlug}
+                  initialData={(user as any)?.channel_activation || null}
+                  highlighted={shouldHighlightChannelSetup}
+                />
+              </div>
+            ) : null}
+          </details>
         </div>
-
-        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
       </section>
       )}
 
@@ -2364,119 +2436,35 @@ export default function Perfil() {
             : "max-w-7xl",
         )}
       >
-        <div
-          className={cn(
-            "sticky z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-            activeProfileTab === "tickets"
-              ? "top-0 -mx-1 px-1 py-0.5"
-              : activeProfileTab === "analytics"
-                ? "top-0 -mx-1 px-1 py-1"
-                : "top-0 -mx-2 px-2 py-2",
-          )}
-        >
-          {backofficeNavigationStatus === 'ready' ? (
-            <ProfileWorkspaceNavigation
-              activeTab={activeProfileTab}
-              capabilities={workspaceCapabilities}
-              isMunicipal={esMunicipio}
-              onOpenSurveys={() => navigate("/admin/encuestas")}
-              onTabChange={updateProfileTab}
-            />
-          ) : (
-            <div
-              className={cn(
-                "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-sm shadow-sm",
-                backofficeNavigationStatus === 'denied'
-                  ? "border-amber-500/30 bg-amber-500/5"
-                  : backofficeNavigationStatus === 'error'
-                    ? "border-destructive/30 bg-destructive/5"
-                    : "border-border/70 bg-card/95",
-              )}
-              data-testid="backoffice-navigation-status"
-              role={backofficeNavigationStatus === 'loading' ? 'status' : 'alert'}
-            >
-              <span className="flex min-w-0 items-center gap-3">
-                {backofficeNavigationStatus === 'loading' ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                ) : (
-                  <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="min-w-0">
-                  <span className="block font-semibold text-foreground">
-                    {backofficeNavigationStatus === 'denied'
-                      ? 'Acceso operativo no habilitado'
-                      : backofficeNavigationStatus === 'error'
-                        ? 'No pudimos verificar los módulos'
-                        : 'Verificando accesos del equipo'}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {backofficeNavigationStatus === 'denied'
-                      ? 'Un administrador debe asignar alcance operativo a este perfil.'
-                      : backofficeNavigationStatus === 'error'
-                        ? 'No mostramos accesos hasta validar permisos con el servidor.'
-                        : 'Consultando el contrato de módulos habilitados para esta organización.'}
-                  </span>
-                </span>
-              </span>
-              {backofficeNavigationStatus === 'error' ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => {
-                    backofficeNavigationScopeRef.current = null;
-                    setBackofficeNavigationRevision((revision) => revision + 1);
-                  }}
-                >
-                  Reintentar
-                </Button>
-              ) : null}
-            </div>
-          )}
-        </div>
-        <WorkspacePanel active={activeProfileTab === "perfil"} label="Inicio del centro de control">
-          <div className="mt-6 grid gap-4 px-2 md:grid-cols-3">
-            {workspaceCapabilities.operation ? (
-              <DataModeCard
-                title={esMunicipio ? "Reclamos" : "Tickets"}
-                description="Entradas operativas, responsables y estados."
-                bullets={["Pendientes", "Asignacion", "Seguimiento"]}
-                actionLabel={esMunicipio ? "Abrir reclamos" : "Abrir tickets"}
-                icon={ClipboardList}
-                onClick={() => updateProfileTab("tickets")}
-              />
-            ) : null}
-            {workspaceCapabilities.reports ? (
-              <DataModeCard
-                title="Reportes"
-                description="Metricas, mapas de calor y actividad reciente."
-                bullets={["Mapa", "Categorias", "Tendencias"]}
-                actionLabel="Abrir reportes"
-                icon={BarChart3}
-                onClick={() => updateProfileTab("estadisticas")}
-              />
-            ) : null}
-            {workspaceCapabilities.contacts ? (
-              <DataModeCard
-                title="Usuarios y equipo"
-                description="Contactos, empleados, permisos y campanas."
-                bullets={["CRM", "Empleados", "Cobertura"]}
-                actionLabel="Abrir usuarios"
-                icon={Users}
-                onClick={() => updateProfileTab("usuarios")}
-              />
-            ) : null}
+        {activeProfileTab !== "perfil" ? (
+          <div
+            className={cn(
+              "sticky z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+              activeProfileTab === "tickets"
+                ? "top-0 -mx-1 px-1 py-0.5"
+                : "top-0 -mx-1 px-1 py-1",
+            )}
+          >
+            {workspaceNavigation}
           </div>
+        ) : null}
+        <WorkspacePanel active={activeProfileTab === "perfil"} label="Inicio del centro de control">
           <details
-            className="mt-6 rounded-xl border border-border/70 bg-card/80 p-4 shadow-sm"
+            className="group mt-3 rounded-xl border border-border/70 bg-card/80 shadow-sm"
             open={isAdvancedProfileOpen}
             onToggle={(event) => setIsAdvancedProfileOpen(event.currentTarget.open)}
           >
-            <summary className="cursor-pointer text-base font-semibold text-foreground">
-              Configuracion avanzada del perfil
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Administración</span>
+                <span className="mt-1 block text-base font-semibold text-foreground">Organización, planes e integraciones</span>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  Datos institucionales, horarios, facturación y configuración técnica.
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
-          <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
+          <div className="mx-auto flex w-full flex-col items-stretch gap-6 border-t border-border/70 px-4 py-5 md:flex-row md:gap-8">
             {/* Columna Izquierda: Datos de la Empresa y Mapa */}
             <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">
               <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">

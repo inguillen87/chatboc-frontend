@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect, useState } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Loader2, Palette, MessageSquare, Upload, Check, Volume2, Monitor,
-  Smartphone, Tablet, Shield, Settings, Zap, Globe, Lock, WifiOff, AlertCircle, Plus, Trash2, ExternalLink, CheckCircle2
+  Loader2, Palette, MessageSquare, Check, Volume2, Monitor,
+  Smartphone, Tablet, Shield, Settings, Zap, Globe, Lock, WifiOff, AlertCircle, ExternalLink, CheckCircle2
 } from 'lucide-react';
 import WidgetPreview from '@/components/chat/WidgetPreview';
 import { useTenant } from '@/context/TenantContext';
@@ -16,13 +16,25 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiClient } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { tenantService } from '@/services/tenantService';
+import {
+  buildTenantRuntimeWidgetUpdate,
+  clearChatCustomizerDraft,
+  findPublicWidgetRuntimeMismatches,
+  findTenantRuntimePersistenceMismatches,
+  readChatCustomizerDraft,
+  readChatCustomizerConfig,
+  writeChatCustomizerDraft,
+  type ChatCustomizerConfig,
+  type TenantRuntimeWidgetConfig,
+} from '@/utils/chatCustomizerPersistence';
 
 interface ChatCustomizerProps {
   initialConfig?: any;
   onSave?: (config: any) => Promise<void>;
 }
 
-const DEFAULT_THEME = {
+const DEFAULT_THEME: ChatCustomizerConfig = {
   // Branding
   primaryColor: '#007aff',
   accentColor: '#005bb5',
@@ -128,11 +140,31 @@ const normalizeWidgetAccessState = (payload: unknown): WidgetAccessState | null 
 };
 const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }) => {
   const { currentSlug } = useTenant();
-  const [config, setConfig] = useState(initialConfig || DEFAULT_THEME);
+  const [config, setConfig] = useState<ChatCustomizerConfig>({ ...DEFAULT_THEME, ...(initialConfig || {}) });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
+  const [draftPersistenceError, setDraftPersistenceError] = useState<string | null>(null);
+  const [loadedTenantSlug, setLoadedTenantSlug] = useState<string | null>(initialConfig && currentSlug ? currentSlug : null);
+  const changeVersionRef = useRef(0);
+  const loadGenerationRef = useRef(0);
+  const publicLoadGenerationRef = useRef(0);
+  const saveGenerationRef = useRef(0);
+  const activeTenantSlugRef = useRef(currentSlug);
+  activeTenantSlugRef.current = currentSlug;
+  const loadedRuntimePayloadRef = useRef<TenantRuntimeWidgetConfig | null>(null);
+  const draftStorage = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.sessionStorage;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // Preview States
   const [previewOpen, setPreviewOpen] = useState(true);
@@ -149,9 +181,6 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [simulateLoading, setSimulateLoading] = useState(false);
   const [simulateOffline, setSimulateOffline] = useState(false);
   const [simulateError, setSimulateError] = useState(false);
-
-  // FAQ State
-  const [newFaq, setNewFaq] = useState('');
 
   const apiBaseUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -243,73 +272,60 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   );
   const widgetLockMessage = widgetAccess?.message || 'Plan Full requerido para publicar o embeber el widget en sitios externos.';
   const widgetUpgradeUrl = widgetAccess?.upgrade_url || null;
-
-
-  // Debounce logic
-  const [debouncedConfig, setDebouncedConfig] = useState(config);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedConfig(config);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [config]);
+  const editorReady = Boolean(currentSlug && loadedTenantSlug === currentSlug && !loadError);
 
   const loadTheme = useCallback(async () => {
     if (!currentSlug) return;
+    const requestedSlug = currentSlug;
+    const generation = ++loadGenerationRef.current;
+    saveGenerationRef.current += 1;
+    setSaving(false);
+    setLoadedTenantSlug(null);
+    setHasUnsavedChanges(false);
+    setSaveError(null);
+    setLoadError(null);
+    setLastSavedAt(null);
+    setRestoredDraftAt(null);
+    setDraftPersistenceError(null);
+    setConfig({ ...DEFAULT_THEME });
+    loadedRuntimePayloadRef.current = null;
     if (initialConfig) {
-      setConfig({ ...DEFAULT_THEME, ...initialConfig });
+      const initial = { ...DEFAULT_THEME, ...initialConfig };
+      const draft = readChatCustomizerDraft(draftStorage, requestedSlug, DEFAULT_THEME);
+      setConfig(draft?.config ?? initial);
+      setLoadedTenantSlug(requestedSlug);
+      setHasUnsavedChanges(Boolean(draft));
+      setRestoredDraftAt(draft?.updated_at || null);
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
     try {
-      const themeData = await apiClient.getChatTheme(currentSlug);
-      if (themeData) {
-         const tc = themeData.theme_config || {};
-         const behavior = tc.behavior || {};
-         const security = tc.security || {};
-         const advanced = tc.advanced || {};
-         const content = tc.content || {};
-
-         const flatConfig = {
-             primaryColor: tc.light?.primary || DEFAULT_THEME.primaryColor,
-             accentColor: tc.light?.secondary || DEFAULT_THEME.accentColor,
-             fontFamily: tc.font_family || DEFAULT_THEME.fontFamily,
-             animation: tc.animation || DEFAULT_THEME.animation,
-             borderRadius: tc.border_radius ?? DEFAULT_THEME.borderRadius,
-             userMsgColor: tc.light?.foreground || DEFAULT_THEME.userMsgColor,
-             chatBackground: tc.light?.background || DEFAULT_THEME.chatBackground,
-             botName: themeData.bot_name || DEFAULT_THEME.botName,
-             welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
-             ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
-             showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
-             logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
-             mode: tc.mode || DEFAULT_THEME.mode,
-             soundEnabled: tc.sound_enabled ?? DEFAULT_THEME.soundEnabled,
-
-             // New Fields
-             autoOpen: behavior.auto_open ?? DEFAULT_THEME.autoOpen,
-             autoOpenDelay: behavior.auto_open_delay ?? DEFAULT_THEME.autoOpenDelay,
-             position: behavior.position ?? DEFAULT_THEME.position,
-             sideOffset: behavior.side_offset ?? DEFAULT_THEME.sideOffset,
-             bottomOffset: behavior.bottom_offset ?? DEFAULT_THEME.bottomOffset,
-             allowedDomains: (security.allowed_domains || []).join('\n'),
-             privacyMode: security.privacy_mode || DEFAULT_THEME.privacyMode,
-             zIndex: advanced.z_index ?? DEFAULT_THEME.zIndex,
-             mobileHidden: advanced.mobile_hidden ?? DEFAULT_THEME.mobileHidden,
-             showBranding: advanced.show_branding ?? DEFAULT_THEME.showBranding,
-             faqSuggestions: content.faq_suggestions || DEFAULT_THEME.faqSuggestions,
-         };
-         setConfig(flatConfig);
-         setDebouncedConfig(flatConfig);
+      const themeData = await tenantService.getRuntimeWidgetConfig(requestedSlug);
+      if (generation !== loadGenerationRef.current || activeTenantSlugRef.current !== requestedSlug) return;
+      if (!themeData || typeof themeData !== 'object') {
+        throw new Error('El servidor no devolvió una configuración válida.');
       }
+      const flatConfig = readChatCustomizerConfig(themeData, DEFAULT_THEME);
+      const draft = readChatCustomizerDraft(draftStorage, requestedSlug, DEFAULT_THEME);
+      loadedRuntimePayloadRef.current = themeData;
+      setConfig(draft?.config ?? flatConfig);
+      setLoadedTenantSlug(requestedSlug);
+      setHasUnsavedChanges(Boolean(draft));
+      setRestoredDraftAt(draft?.updated_at || null);
+      setSaveError(null);
     } catch (error) {
+      if (generation !== loadGenerationRef.current || activeTenantSlugRef.current !== requestedSlug) return;
       console.error("Failed to load chat theme", error);
+      loadedRuntimePayloadRef.current = null;
+      setLoadError('No se pudo cargar la marca vigente. Reintentá antes de editar para no sobrescribir una configuración anterior.');
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current && activeTenantSlugRef.current === requestedSlug) {
+        setLoading(false);
+      }
     }
-  }, [currentSlug, initialConfig]);
+  }, [currentSlug, draftStorage, initialConfig]);
 
   // Load initial data
   useEffect(() => {
@@ -319,19 +335,27 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   useEffect(() => {
     const loadPublicWidget = async () => {
       if (!currentSlug) return;
+      const requestedSlug = currentSlug;
+      const generation = ++publicLoadGenerationRef.current;
+      setWidgetAccess(null);
+      setPublicEmbedSnippet('');
+      setPublicEmbedAttributes({});
+      setPublicWidgetInfo(null);
       try {
-        const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
+        const data = await apiClient.get<any>(`/api/public/tenants/${requestedSlug}/widget-config`, { tenantSlug: requestedSlug });
+        if (generation !== publicLoadGenerationRef.current || activeTenantSlugRef.current !== requestedSlug) return;
         setWidgetAccess(normalizeWidgetAccessState(data));
         const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
         const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
         const token = data?.owner_token || data?.entity_token || data?.widget_token || data?.token;
-        const tenantSlug = data?.tenant_slug || data?.tenant?.slug || currentSlug;
+        const tenantSlug = data?.tenant_slug || data?.tenant?.slug || requestedSlug;
         const tipoChat = data?.tipo_chat || data?.tipoChat || data?.widget_tipo_chat;
         setPublicEmbedSnippet(snippet);
         const attributes = { ...(builderConfig?.attributes || {}) } as Record<string, string>;
         setPublicEmbedAttributes(attributes);
         setPublicWidgetInfo({ token, tenantSlug, tipoChat });
       } catch (error) {
+        if (generation !== publicLoadGenerationRef.current || activeTenantSlugRef.current !== requestedSlug) return;
         console.error("Failed to load public widget config", error);
         const errorRecord = asPlainRecord(error);
         setWidgetAccess(normalizeWidgetAccessState(errorRecord?.body ?? errorRecord?.response));
@@ -340,12 +364,36 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     loadPublicWidget();
   }, [currentSlug]);
 
+  useEffect(() => {
+    if (!hasUnsavedChanges || typeof window === 'undefined') return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || !currentSlug || loadedTenantSlug !== currentSlug) return;
+    const persisted = writeChatCustomizerDraft(draftStorage, currentSlug, config);
+    setDraftPersistenceError(
+      persisted
+        ? null
+        : 'Este navegador bloqueó el borrador de sesión. Guardá antes de cambiar de pantalla.',
+    );
+  }, [config, currentSlug, draftStorage, hasUnsavedChanges, loadedTenantSlug]);
+
   const handleChange = (field: string, value: any) => {
+    if (!editorReady) return;
     setConfig(prev => ({ ...prev, [field]: value }));
+    changeVersionRef.current += 1;
     setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   const applyPreset = (preset: typeof PRESETS[0]) => {
+      if (!editorReady) return;
       setConfig(prev => ({
           ...prev,
           primaryColor: preset.primary,
@@ -354,122 +402,122 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
           borderRadius: preset.radius,
           mode: preset.mode
       }));
+      changeVersionRef.current += 1;
       setHasUnsavedChanges(true);
+      setSaveError(null);
       toast.info(`Tema "${preset.name}" aplicado.`);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        handleChange('logoUrl', base64);
-      };
-      reader.readAsDataURL(file);
+  const performSave = async (cfg: ChatCustomizerConfig): Promise<boolean> => {
+    if (!currentSlug || !editorReady) {
+      setSaveError('Primero debe cargarse y confirmarse la configuración de la organización activa.');
+      return false;
     }
-  };
-
-  const constructPayload = (cfg: typeof DEFAULT_THEME) => ({
-      theme_config: {
-          mode: cfg.mode,
-          light: {
-              primary: cfg.primaryColor,
-              secondary: cfg.accentColor,
-              background: cfg.chatBackground,
-              foreground: cfg.userMsgColor
-          },
-          dark: {
-              primary: cfg.primaryColor,
-              secondary: cfg.accentColor,
-              background: '#1a1a1a',
-              foreground: '#ffffff'
-          },
-          font_family: cfg.fontFamily,
-          animation: cfg.animation,
-          border_radius: cfg.borderRadius,
-          sound_enabled: cfg.soundEnabled,
-
-          behavior: {
-             auto_open: cfg.autoOpen,
-             auto_open_delay: cfg.autoOpenDelay,
-             position: cfg.position,
-             side_offset: cfg.sideOffset,
-             bottom_offset: cfg.bottomOffset,
-          },
-          security: {
-             allowed_domains: cfg.allowedDomains.split('\n').filter(d => d.trim()),
-             privacy_mode: cfg.privacyMode
-          },
-          advanced: {
-             z_index: cfg.zIndex,
-             mobile_hidden: cfg.mobileHidden,
-             show_branding: cfg.showBranding
-          },
-          content: {
-             faq_suggestions: cfg.faqSuggestions
-          }
-      },
-      cta_messages: [cfg.ctaMessage],
-      bot_name: cfg.botName,
-      welcome_message: cfg.welcomeMessage,
-      logo_url: cfg.logoUrl,
-      show_logo: cfg.showLogo
-  });
-
-  const performSave = async (cfg: typeof DEFAULT_THEME, isAutoSave = false) => {
-    if (!currentSlug) return;
+    const requestedSlug = currentSlug;
+    const saveVersion = changeVersionRef.current;
+    const saveGeneration = ++saveGenerationRef.current;
+    const isActiveSave = () =>
+      activeTenantSlugRef.current === requestedSlug && saveGenerationRef.current === saveGeneration;
     setSaving(true);
+    setSaveError(null);
     try {
-      const payload = constructPayload(cfg);
       if (onSave) {
           await onSave(cfg);
+          if (!isActiveSave()) return false;
       } else {
-          // Updates the Draft configuration
-          await apiClient.updateChatTheme(currentSlug, payload);
+          const payload = buildTenantRuntimeWidgetUpdate(cfg, loadedRuntimePayloadRef.current);
+          await tenantService.updateRuntimeWidgetConfig(requestedSlug, payload);
+          if (!isActiveSave()) return false;
+          const persisted = await tenantService.getRuntimeWidgetConfig(requestedSlug);
+          if (!isActiveSave()) return false;
+          const mismatches = findTenantRuntimePersistenceMismatches(cfg, persisted, DEFAULT_THEME);
+          if (mismatches.length > 0) {
+            throw new Error(`El servidor respondió pero no conservó: ${mismatches.slice(0, 4).join(', ')}.`);
+          }
+          loadedRuntimePayloadRef.current = persisted;
+          const publicRuntime = await tenantService.getPublicRuntimeWidgetConfig(requestedSlug);
+          if (!isActiveSave()) return false;
+          const publicMismatches = findPublicWidgetRuntimeMismatches(cfg, publicRuntime);
+          if (publicMismatches.length > 0) {
+            throw new Error(`El contrato público todavía no refleja: ${publicMismatches.slice(0, 4).join(', ')}.`);
+          }
       }
-      if (!isAutoSave) toast.success("Borrador guardado.");
-      setHasUnsavedChanges(false);
+      if (changeVersionRef.current === saveVersion) {
+        setHasUnsavedChanges(false);
+        setRestoredDraftAt(null);
+        setDraftPersistenceError(null);
+        clearChatCustomizerDraft(draftStorage, requestedSlug);
+      }
+      setLastSavedAt(new Date().toISOString());
+      toast.success(
+        onSave
+          ? 'Configuración entregada y confirmada por el guardado externo.'
+          : widgetEmbedLocked
+            ? 'Configuración verificada. El widget externo se habilitará al activar el canal correspondiente.'
+            : 'Marca guardada y verificada en el widget público.',
+      );
+      return true;
     } catch (error) {
+      if (!isActiveSave()) return false;
       console.error("Save failed", error);
-      if (!isAutoSave) toast.error("Error al guardar.");
+      const detail = error instanceof Error && error.message ? ` ${error.message}` : '';
+      setSaveError(`No se pudo confirmar el guardado.${detail}`);
+      setHasUnsavedChanges(true);
+      toast.error('No se pudo guardar la marca. Los cambios siguen pendientes.');
+      return false;
     } finally {
-      setSaving(false);
+      if (isActiveSave()) setSaving(false);
     }
   };
-
-  useEffect(() => {
-    if (hasUnsavedChanges) {
-        performSave(debouncedConfig, true);
-    }
-  }, [debouncedConfig]);
-
-  const handleAddFaq = () => {
-    if (!newFaq.trim()) return;
-    const updated = [...(config.faqSuggestions || []), newFaq.trim()];
-    handleChange('faqSuggestions', updated);
-    setNewFaq('');
-  };
-
-  const handleRemoveFaq = (index: number) => {
-    const updated = [...(config.faqSuggestions || [])];
-    updated.splice(index, 1);
-    handleChange('faqSuggestions', updated);
-  };
-
-  const isDomainAllowed = useMemo(() => {
-    if (typeof window === 'undefined') return true;
-    if (!config.allowedDomains.trim()) return true; // Empty means all allowed
-    const domains = config.allowedDomains.split('\n').map(d => d.trim()).filter(Boolean);
-    const currentDomain = window.location.hostname;
-    return domains.some(d => currentDomain.includes(d));
-  }, [config.allowedDomains]);
 
   return (
     <div className="grid lg:grid-cols-2 gap-10">
       {/* LEFT COLUMN: Controls */}
       <div className="space-y-8">
+        {loadError && (
+          <div role="alert" className="rounded-2xl border border-red-300/50 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="flex-1 space-y-3">
+                <p className="font-semibold">No se cargó la configuración vigente</p>
+                <p>{loadError}</p>
+                <Button type="button" size="sm" variant="outline" onClick={loadTheme} disabled={loading}>
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Reintentar carga
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {saveError && (
+          <div role="alert" className="rounded-2xl border border-red-300/50 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Cambios pendientes, sin aplicar</p>
+                <p className="mt-1">{saveError}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasUnsavedChanges && restoredDraftAt && (
+          <div role="status" className="rounded-2xl border border-amber-300/50 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100">
+            <p className="font-semibold">Borrador sin guardar recuperado</p>
+            <p className="mt-1 text-amber-800/80 dark:text-amber-100/75">
+              Pertenece únicamente a {currentSlug}. Revisalo y guardalo para aplicarlo al widget público.
+            </p>
+          </div>
+        )}
+
+        {draftPersistenceError && (
+          <div role="alert" className="rounded-2xl border border-amber-300/50 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100">
+            {draftPersistenceError}
+          </div>
+        )}
+
+        <div className={cn(!editorReady && 'pointer-events-none select-none opacity-60')} aria-disabled={!editorReady}>
         <Tabs defaultValue="branding" className="space-y-6">
             <TabsList className="w-full justify-start border border-border/60 rounded-2xl h-auto p-1 bg-card/60 backdrop-blur gap-1 overflow-x-auto">
                 <TabsTrigger value="branding" className="rounded-xl px-3 py-2 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm"><Palette className="w-4 h-4 mr-2"/> Marca</TabsTrigger>
@@ -572,22 +620,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         </div>
 
                         {config.autoOpen && (
-                             <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <Label>Demora de apertura ({config.autoOpenDelay}s)</Label>
-                                </div>
-                                <Slider
-                                    value={[config.autoOpenDelay]}
-                                    min={0}
-                                    max={30}
-                                    step={1}
-                                    onValueChange={(val) => handleChange('autoOpenDelay', val[0])}
-                                />
-                            </div>
+                          <p className="text-xs text-muted-foreground">La apertura publicada actualmente es inmediata.</p>
                         )}
 
-                        <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-2">
+                        <div className="space-y-2">
                                 <Label>Posición</Label>
                                 <Select value={config.position} onValueChange={(v) => handleChange('position', v)}>
                                     <SelectTrigger><SelectValue/></SelectTrigger>
@@ -596,14 +632,6 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                         <SelectItem value="left">Izquierda</SelectItem>
                                     </SelectContent>
                                 </Select>
-                             </div>
-                             <div className="space-y-2">
-                                <Label>Sonidos</Label>
-                                <div className="flex items-center gap-2 h-10">
-                                    <Switch checked={config.soundEnabled} onCheckedChange={(c) => handleChange('soundEnabled', c)} />
-                                    <span className="text-sm">{config.soundEnabled ? 'Activados' : 'Silencio'}</span>
-                                </div>
-                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -636,25 +664,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 />
                              </div>
                              <div className="space-y-2 w-1/3">
-                                <Label>Avatar</Label>
-                                <div className="relative group">
-                                    <Label htmlFor="logo-upload" className="cursor-pointer block">
-                                        <div className="h-10 w-full rounded border bg-muted flex items-center justify-center overflow-hidden hover:bg-muted/80 transition-colors">
-                                            {config.logoUrl ? (
-                                                <img src={config.logoUrl} alt="Avatar" className="h-full w-full object-cover" />
-                                            ) : (
-                                                <Upload className="h-4 w-4 text-muted-foreground" />
-                                            )}
-                                        </div>
-                                    </Label>
-                                    <Input
-                                        id="logo-upload"
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleLogoUpload}
-                                    />
-                                </div>
+                                     <Label htmlFor="logo-url">Avatar HTTPS</Label>
+                                     <Input
+                                         id="logo-url"
+                                         type="url"
+                                         value={config.logoUrl}
+                                         onChange={(event) => handleChange('logoUrl', event.target.value)}
+                                         placeholder="https://cdn.organismo.gob.ar/logo.svg"
+                                     />
                              </div>
                          </div>
 
@@ -676,29 +693,8 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                             />
                         </div>
 
-                        <div className="space-y-3 pt-4 border-t">
-                            <Label>Preguntas Frecuentes (Sugerencias)</Label>
-                            <div className="space-y-2">
-                                {config.faqSuggestions?.map((faq: string, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-2">
-                                        <Input value={faq} readOnly className="h-9 bg-muted/50" />
-                                        <Button variant="ghost" size="sm" onClick={() => handleRemoveFaq(idx)}>
-                                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <div className="flex items-center gap-2">
-                                    <Input
-                                        value={newFaq}
-                                        onChange={(e) => setNewFaq(e.target.value)}
-                                        placeholder="Ej: ¿Cómo comprar?"
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddFaq()}
-                                    />
-                                    <Button variant="outline" size="sm" onClick={handleAddFaq}>
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
+                        <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                          Las respuestas rápidas se administran desde Flujos conversacionales para que tengan versión, permisos y trazabilidad.
                         </div>
                     </CardContent>
                 </Card>
@@ -709,42 +705,17 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary"/> Seguridad y Acceso</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <Label>Dominios Permitidos (Whitelist)</Label>
-                                {isDomainAllowed ? (
-                                    <span className="text-xs flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-                                        <CheckCircle2 className="w-3 h-3"/> Dominio Actual Autorizado
-                                    </span>
-                                ) : (
-                                    <span className="text-xs flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                        <AlertCircle className="w-3 h-3"/> Dominio Actual No Autorizado
-                                    </span>
-                                )}
+                    <CardContent>
+                        <div className="rounded-xl border border-amber-300/50 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100">
+                          <div className="flex items-start gap-3">
+                            <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+                            <div>
+                              <p className="font-semibold">Control de dominio y acceso enterprise</p>
+                              <p className="mt-1 text-amber-800/80 dark:text-amber-100/75">
+                                La whitelist, la verificación DNS y el acceso privado se habilitarán desde el control plane con prueba de propiedad y SSO. No se simulan desde este editor visual.
+                              </p>
                             </div>
-                            <textarea
-                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                value={config.allowedDomains}
-                                onChange={(e) => handleChange('allowedDomains', e.target.value)}
-                                placeholder="ejemplo.com&#10;mi-tienda.com"
-                            />
-                            <p className="text-xs text-muted-foreground">Un dominio por línea. Dejar vacío para permitir todos.</p>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                             <div className="space-y-0.5">
-                                <Label>Modo de Privacidad</Label>
-                                <p className="text-xs text-muted-foreground">{config.privacyMode === 'public' ? 'Cualquiera puede iniciar chat' : 'Requiere autenticación previa'}</p>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <span className={cn("text-xs font-medium", config.privacyMode === 'public' ? "text-primary" : "text-muted-foreground")}>Público</span>
-                                <Switch
-                                    checked={config.privacyMode === 'private'}
-                                    onCheckedChange={(c) => handleChange('privacyMode', c ? 'private' : 'public')}
-                                />
-                                <span className={cn("text-xs font-medium", config.privacyMode === 'private' ? "text-primary" : "text-muted-foreground")}>Privado</span>
-                             </div>
+                          </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -755,71 +726,35 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5 text-primary"/> Avanzado</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="space-y-2">
-                             <div className="flex justify-between items-center">
-                                  <Label>Z-Index ({config.zIndex})</Label>
-                             </div>
-                             <Slider
-                                 value={[config.zIndex]}
-                                 min={0}
-                                 max={999999}
-                                 step={100}
-                                 onValueChange={(val) => handleChange('zIndex', val[0])}
-                             />
-                         </div>
-
-                         <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                             <div className="space-y-0.5">
-                                <Label>Ocultar en Móviles</Label>
-                                <p className="text-xs text-muted-foreground">El widget no se cargará en pantallas pequeñas.</p>
-                             </div>
-                             <Switch
-                                checked={config.mobileHidden}
-                                onCheckedChange={(c) => handleChange('mobileHidden', c)}
-                             />
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                             <div className="space-y-0.5">
-                                <Label>Mostrar Branding</Label>
-                                <p className="text-xs text-muted-foreground">Pie de página "Powered by Chatboc".</p>
-                             </div>
-                             <Switch
-                                checked={config.showBranding}
-                                onCheckedChange={(c) => handleChange('showBranding', c)}
-                             />
+                    <CardContent>
+                        <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                          Visibilidad móvil, nivel de superposición y disclosure de proveedor formarán parte de una publicación versionada con preview y rollback. Este panel sólo muestra controles que el runtime puede verificar hoy.
                         </div>
                     </CardContent>
                 </Card>
             </TabsContent>
         </Tabs>
+        </div>
 
-        <div className="sticky bottom-4 z-10 flex gap-2">
-             <Button className="flex-1 h-11 rounded-xl shadow-sm" variant="outline" onClick={() => performSave(config)} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings className="mr-2 h-4 w-4" />}
-                Guardar Borrador
-            </Button>
-             <Button className="flex-1 h-11 rounded-xl shadow-lg shadow-primary/20" onClick={async () => {
-                 if (widgetEmbedLocked) {
-                     toast.error(widgetLockMessage);
-                     return;
-                 }
-                 await performSave(config, true);
-                 if (!currentSlug) return;
-                 try {
-                     setSaving(true);
-                     await apiClient.post(`/api/admin/tenants/${currentSlug}/widget-config/publish`);
-                     toast.success("¡Widget publicado en vivo!");
-                 } catch (e) {
-                     toast.error("Error al publicar.");
-                 } finally {
-                     setSaving(false);
-                 }
-             }} disabled={saving || widgetEmbedLocked}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
-                Publicar Widget
-            </Button>
+        <div className="sticky bottom-4 z-10 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-lg backdrop-blur">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              {hasUnsavedChanges
+                ? 'Hay cambios pendientes. Se aplican únicamente al guardar.'
+                : lastSavedAt
+                  ? `Guardado verificado a las ${new Date(lastSavedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+                  : 'La marca cargada coincide con el servidor.'}
+            </span>
+            {!hasUnsavedChanges && lastSavedAt ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> : null}
+          </div>
+          <Button
+            className="h-11 w-full rounded-xl shadow-lg shadow-primary/20"
+            onClick={() => performSave(config)}
+            disabled={saving || loading || !editorReady || !hasUnsavedChanges}
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
+            Guardar y aplicar cambios
+          </Button>
         </div>
       </div>
 
