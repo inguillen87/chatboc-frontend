@@ -118,7 +118,7 @@ const phoneCandidates = [
   "numero_contacto",
 ];
 
-const whatsappCandidates = ["whatsapp", "whatsapp_number", "whatsapp_numero"];
+const whatsappCandidates = ["whatsapp", "whatsapp_number", "whatsapp_numero", "whatsappNumber"];
 
 const labelCandidates = ["etiquetas", "tags", "labels"];
 const nameCandidates = ["display_name", "name", "full_name", "nombre"];
@@ -415,6 +415,28 @@ export const getExplicitWhatsAppUrl = (
   return digits ? `https://wa.me/${digits}` : null;
 };
 
+const normalizeTenantIdentity = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+export const eventBelongsToTenant = (payload: RawUsuario, tenantSlug?: string | null): boolean => {
+  const expected = normalizeTenantIdentity(tenantSlug);
+  if (!expected) return false;
+  const record = payload?.contact || payload?.cliente || payload;
+  const received = normalizeTenantIdentity(
+    payload?.tenant_slug ||
+      payload?.tenantSlug ||
+      payload?.tenant ||
+      payload?.payload?.tenant_slug ||
+      record?.tenant_slug ||
+      record?.tenantSlug ||
+      record?.tenant,
+  );
+  return Boolean(received && received === expected);
+};
+
 export default function UsuariosPage() {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const navigate = useNavigate();
@@ -432,6 +454,7 @@ export default function UsuariosPage() {
   const [notificationCenter, setNotificationCenter] = useState<NotificationCenterItem[]>([]);
   const [campaignActivityLoading, setCampaignActivityLoading] = useState(false);
   const [realtimeEvents, setRealtimeEvents] = useState(0);
+  const fetchSequenceRef = React.useRef(0);
   const { activeView, selectedContactId, setActiveView, setSelectedContactId } = useCrmWorkspaceState();
 
   const tenantSlug = React.useMemo(
@@ -483,6 +506,7 @@ export default function UsuariosPage() {
   const hasRealEmail = (usuario: Usuario) => Boolean(usuario.email && usuario.email !== "Sin email real");
 
   const fetchData = React.useCallback(async (options: { silent?: boolean } = {}) => {
+    const requestSequence = ++fetchSequenceRef.current;
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       navigate("/login");
@@ -495,14 +519,16 @@ export default function UsuariosPage() {
       if (marketingOnly) params.set('marketing', 'true');
       const url = `/api/crm/clientes${params.toString() ? `?${params.toString()}` : ''}`;
       const data = await apiFetch<RawUsuario[]>(url);
+      if (requestSequence !== fetchSequenceRef.current) return;
       if (Array.isArray(data)) {
         setUsuarios(data.map((item, index) => normalizeUsuario(item, index)));
       }
       setError(null);
     } catch (e) {
+      if (requestSequence !== fetchSequenceRef.current) return;
       setError(getErrorMessage(e, 'No se pudieron cargar los usuarios'));
     } finally {
-      if (!options.silent) setLoading(false);
+      if (requestSequence === fetchSequenceRef.current && !options.silent) setLoading(false);
     }
   }, [navigate, search, marketingOnly]);
 
@@ -547,6 +573,14 @@ export default function UsuariosPage() {
     if (!socket) return;
 
     const upsertFromRealtime = (payload: any) => {
+      // Realtime is fail-closed: a contact event must prove the same tenant as
+      // the active workspace. Polling remains the fallback for legacy events
+      // without tenant identity.
+      if (!eventBelongsToTenant(payload, tenantSlug)) return;
+      if (search.trim() || marketingOnly) {
+        void fetchData({ silent: true });
+        return;
+      }
       const raw = payload?.contact || payload?.cliente || payload;
       if (!raw || typeof raw !== "object") return;
       const incoming = normalizeUsuario(raw, usuarios.length);
@@ -592,7 +626,7 @@ export default function UsuariosPage() {
       socket.off("notification.sent", refreshActivityFromRealtime);
       socket.off("notification.failed", refreshActivityFromRealtime);
     };
-  }, [activeView, fetchCampaignActivity, socket, tenantSlug, usuarios.length]);
+  }, [activeView, fetchCampaignActivity, fetchData, marketingOnly, search, socket, tenantSlug, usuarios.length]);
 
   useEffect(() => {
     setSelectedIds((prev) => {

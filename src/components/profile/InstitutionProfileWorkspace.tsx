@@ -190,9 +190,15 @@ export default function InstitutionProfileWorkspace({
             <h3 className="mt-1 text-lg font-semibold text-foreground">{active.label}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{active.description}</p>
           </div>
-          <div className="px-4 py-5 sm:px-6" data-testid={`institution-profile-panel-${activeSection}`}>
-            {children}
-          </div>
+          <fieldset
+            disabled={!isAdministrator || loading}
+            aria-disabled={!isAdministrator || loading}
+            className="m-0 min-w-0 border-0 p-0 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <div className="px-4 py-5 sm:px-6" data-testid={`institution-profile-panel-${activeSection}`}>
+              {children}
+            </div>
+          </fieldset>
         </section>
       </div>
 

@@ -270,12 +270,36 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('section=general');
   });
 
+  it('canonicalizes an institutional deep link without dropping section or setup', async () => {
+    renderProfile('/perfil?tab=tickets&section=channels&setup=channels');
+
+    await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+    expect(window.location.search).toContain('tab=perfil');
+    expect(window.location.search).toContain('section=channels');
+    expect(window.location.search).toContain('setup=channels');
+  });
+
   it('grants institutional administration to the normalized tenant_admin role', async () => {
     runtime.user = { ...verifiedUser('junin'), rol: 'tenant_admin' };
     renderProfile('/perfil?section=general');
 
     await waitFor(() => expect(screen.getByText('Administración habilitada')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+  });
+
+  it('validates the complete institutional record before saving from another section', async () => {
+    renderProfile('/perfil?tab=perfil&section=general');
+
+    const nameInput = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    fireEvent.change(nameInput, { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('institution-profile-section-channels'));
+    await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => expect(screen.getByText(/Completá nombre institucional antes de guardar/i)).toBeInTheDocument());
+    expect(window.location.search).toContain('section=general');
+    expect(runtime.apiFetch.mock.calls.some(([path, options]) => path === '/perfil' && options?.method === 'PUT')).toBe(false);
   });
 
   it('separates the operational home from the institutional editor to avoid one long page', async () => {

@@ -777,9 +777,21 @@ export default function Perfil() {
   }, [activeProfileTab, allowedWorkspaceTabs, backofficeNavigationStatus, updateProfileTab]);
 
   useEffect(() => {
-    if (!requestedProfileSection || activeProfileTab === "perfil") return;
-    updateProfileTab("perfil");
-  }, [activeProfileTab, requestedProfileSection, updateProfileTab]);
+    if ((!requestedProfileSection && !shouldHighlightChannelSetup) || activeProfileTab === "perfil") return;
+
+    // A deep link to an institutional section owns the active workspace. Keep
+    // the requested section/setup intact while canonicalizing the parent tab.
+    setActiveProfileTab("perfil");
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", "perfil");
+    setSearchParams(next, { replace: true });
+  }, [
+    activeProfileTab,
+    requestedProfileSection,
+    searchParams,
+    setSearchParams,
+    shouldHighlightChannelSetup,
+  ]);
 
   useEffect(() => {
     if (!user || !hasAuthenticatedChatbocSession()) {
@@ -1528,6 +1540,11 @@ export default function Perfil() {
     event.target.value = "";
     if (!file) return;
 
+    if (!isTenantAdministrator) {
+      setError("No tenés permisos para modificar la identidad institucional.");
+      return;
+    }
+
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
       setError("Usa una imagen JPG, PNG o WebP.");
       return;
@@ -1560,6 +1577,35 @@ export default function Perfil() {
     e.preventDefault();
     setMensaje(null);
     setError(null);
+
+    if (!isTenantAdministrator) {
+      setError("No tenés permisos para modificar el perfil institucional.");
+      return;
+    }
+
+    const requiredGeneralFields = [
+      ["nombre institucional", perfil.nombre_empresa],
+      ["teléfono de contacto", perfil.telefono],
+      ["sitio institucional", perfil.link_web],
+    ] as const;
+    const missingGeneralFields = requiredGeneralFields
+      .filter(([, value]) => !value.trim())
+      .map(([label]) => label);
+    if (missingGeneralFields.length > 0) {
+      setError(`Completá ${missingGeneralFields.join(", ")} antes de guardar.`);
+      updateInstitutionSection("general");
+      return;
+    }
+
+    try {
+      const institutionalUrl = new URL(perfil.link_web);
+      if (!["http:", "https:"].includes(institutionalUrl.protocol)) throw new Error("invalid_protocol");
+    } catch {
+      setError("Ingresá un sitio institucional válido, por ejemplo https://municipio.gob.ar.");
+      updateInstitutionSection("general");
+      return;
+    }
+
     setLoadingGuardar(true);
 
     const horariosParaBackend = perfil.horarios_ui.map((h, idx) => ({

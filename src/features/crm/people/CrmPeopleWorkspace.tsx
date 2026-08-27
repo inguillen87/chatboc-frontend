@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Activity,
   ChevronLeft,
@@ -145,9 +146,9 @@ const intentLabel = (value?: string | null) => {
 };
 
 const selectedTone = (score: number) => {
-  if (score >= 75) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-  if (score >= 50) return "border-sky-500/30 bg-sky-500/10 text-sky-200";
-  return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+  if (score >= 75) return "border-emerald-600/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200";
+  if (score >= 50) return "border-sky-600/30 bg-sky-500/10 text-sky-800 dark:text-sky-200";
+  return "border-amber-600/30 bg-amber-500/10 text-amber-900 dark:text-amber-100";
 };
 
 const EmptySelection = () => (
@@ -183,7 +184,14 @@ const ContextPanel = ({ person, score, nextAction, formatDate }: ContextPanelPro
         <span className="font-semibold text-muted-foreground">Completitud CRM</span>
         <span className="font-mono font-bold">{score}%</span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label="Completitud del perfil CRM"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={score}
+      >
         <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
       </div>
     </div>
@@ -244,6 +252,22 @@ export default function CrmPeopleWorkspace({
   );
   const score = selectedPerson ? profileScore(selectedPerson) : 0;
   const action = selectedPerson ? nextAction(selectedPerson) : "";
+  const listViewportRef = React.useRef<HTMLDivElement>(null);
+  const desktopList = useVirtualizer({
+    count: people.length,
+    getScrollElement: () => listViewportRef.current,
+    estimateSize: () => 82,
+    overscan: 8,
+    initialRect: { width: 320, height: 760 },
+  });
+  const mobilePeople = React.useMemo(() => {
+    const limit = 250;
+    const first = people.slice(0, limit);
+    if (!selectedPerson || first.some((person) => getPersonKey(person) === getPersonKey(selectedPerson))) {
+      return first;
+    }
+    return [...first.slice(0, limit - 1), selectedPerson];
+  }, [getPersonKey, people, selectedPerson]);
 
   const auxiliaryPanel =
     activeView === "segmentos"
@@ -335,9 +359,12 @@ export default function CrmPeopleWorkspace({
                 aria-label="Seleccionar persona"
               >
                 {people.length === 0 ? <option value="">Sin resultados</option> : null}
-                {people.map((person) => (
+                {mobilePeople.map((person) => (
                   <option key={getPersonKey(person)} value={getPersonKey(person)}>{person.nombre}</option>
                 ))}
+                {people.length > mobilePeople.length ? (
+                  <option value="" disabled>Buscá para ver {people.length - mobilePeople.length} personas más</option>
+                ) : null}
               </select>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -369,22 +396,26 @@ export default function CrmPeopleWorkspace({
             )}
           >
             <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
-              <ScrollArea className="h-full">
-                <div className="divide-y divide-border/60">
-                  {people.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
-                  ) : (
-                    people.map((person) => {
+              <div ref={listViewportRef} className="h-full overflow-y-auto">
+                {people.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
+                ) : (
+                  <div className="relative w-full" style={{ height: `${desktopList.getTotalSize()}px` }}>
+                    {desktopList.getVirtualItems().map((virtualRow) => {
+                      const person = people[virtualRow.index];
                       const key = getPersonKey(person);
                       const active = key === selectedContactId;
                       const personScore = profileScore(person);
                       return (
                         <div
                           key={key}
+                          ref={desktopList.measureElement}
+                          data-index={virtualRow.index}
                           className={cn(
-                            "group grid w-full grid-cols-[28px_40px_minmax(0,1fr)] gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/40",
+                            "absolute left-0 top-0 grid w-full grid-cols-[28px_40px_minmax(0,1fr)] gap-2 border-b border-border/60 px-3 py-3 text-left transition-colors hover:bg-muted/40",
                             active && "bg-primary/10 ring-1 ring-inset ring-primary/30",
                           )}
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
                         >
                           <span className="pt-2">
                             <Checkbox
@@ -422,10 +453,10 @@ export default function CrmPeopleWorkspace({
                           </button>
                         </div>
                       );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
+                    })}
+                  </div>
+                )}
+              </div>
             </aside>
 
             <main className="min-h-0 min-w-0 bg-background/20">

@@ -49,11 +49,15 @@ describe("InstitutionProfileWorkspace", () => {
         onSave={vi.fn()}
         onSectionChange={vi.fn()}
       >
-        <p>General</p>
+        <label>
+          Nombre institucional
+          <input defaultValue="Municipalidad de Junín" />
+        </label>
       </InstitutionProfileWorkspace>,
     );
 
     expect(screen.getByText("Solo lectura operativa")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Nombre institucional" })).toBeDisabled();
   });
 });

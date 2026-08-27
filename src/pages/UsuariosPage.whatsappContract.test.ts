@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  eventBelongsToTenant,
   getExplicitWhatsAppUrl,
   hasExplicitWhatsApp,
   normalizeUsuario,
@@ -54,5 +55,27 @@ describe("UsuariosPage WhatsApp channel contract", () => {
     expect(contact.telefono).toBe("+5492613168608");
     expect(contact.whatsappNumber).toBe("+17432643718");
     expect(getExplicitWhatsAppUrl(contact)).toBe("https://wa.me/17432643718");
+  });
+
+  it("accepts the camelCase WhatsApp field without reclassifying the general phone", () => {
+    const contact = normalizeUsuario(
+      {
+        id: "contact:camel",
+        telefono: "+5492634519821",
+        whatsappNumber: "+17432643718",
+      },
+      0,
+    );
+
+    expect(contact.telefono).toBe("+5492634519821");
+    expect(contact.whatsappNumber).toBe("+17432643718");
+    expect(getExplicitWhatsAppUrl(contact)).toBe("https://wa.me/17432643718");
+  });
+
+  it("fails closed for realtime contact events without the active tenant identity", () => {
+    expect(eventBelongsToTenant({ tenant_slug: "junin" }, "junin")).toBe(true);
+    expect(eventBelongsToTenant({ tenant_slug: "otro-municipio" }, "junin")).toBe(false);
+    expect(eventBelongsToTenant({ contact: { id: "42" } }, "junin")).toBe(false);
+    expect(eventBelongsToTenant({ contact: { tenantSlug: "JUNIN" } }, "junin")).toBe(true);
   });
 });

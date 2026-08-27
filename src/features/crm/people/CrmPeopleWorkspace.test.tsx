@@ -32,13 +32,13 @@ const people: CrmPeopleRecord[] = [
   },
 ];
 
-const Harness = () => {
+const Harness = ({ records = people }: { records?: CrmPeopleRecord[] }) => {
   const [selectedContactId, setSelectedContactId] = React.useState("generic-phone");
   return (
     <CrmPeopleWorkspace
       activeView="personas"
       onViewChange={vi.fn()}
-      people={people}
+      people={records}
       selectedContactId={selectedContactId}
       onSelectContact={setSelectedContactId}
       selectedIds={new Set()}
@@ -50,7 +50,7 @@ const Harness = () => {
       onRefresh={vi.fn()}
       onBack={vi.fn()}
       isConnected
-      metrics={[{ label: "Personas", value: 2, helper: "registros" }]}
+      metrics={[{ label: "Personas", value: records.length, helper: "registros" }]}
       getPersonKey={(person) => person.contactId || String(person.id)}
       hasRealEmail={(person) => person.email !== "Sin email real"}
       hasExplicitWhatsApp={(person) => Boolean(person.whatsappExplicit && person.whatsappNumber)}
@@ -73,9 +73,28 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getAllByText("Mauricio Alonso").length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: /WhatsApp/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Vecina Junín/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
+      target: { value: "42" },
+    });
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /WhatsApp/i })).toHaveAttribute("href", "https://wa.me/17432643718");
+    expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
+  });
+
+  it("virtualizes a large directory instead of mounting every desktop row", () => {
+    const largeDirectory = Array.from({ length: 5_000 }, (_, index): CrmPeopleRecord => ({
+      id: index === 0 ? "generic-phone" : `person-${index}`,
+      nombre: index === 0 ? "Mauricio Alonso" : `Persona ${index}`,
+      email: "Sin email real",
+      etiquetas: [],
+      canal: "web",
+    }));
+
+    render(<Harness records={largeDirectory} />);
+
+    expect(screen.getByText("5000 resultados")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: /Persona \d+/i }).length).toBeLessThan(100);
+    expect(screen.getByText(/Buscá para ver 4750 personas más/i)).toBeInTheDocument();
   });
 });
