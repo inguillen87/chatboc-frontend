@@ -23,6 +23,8 @@ import {
   ListChecks,
   LogIn,
   MessageSquare,
+  Maximize2,
+  Minimize2,
   PanelLeft,
   Radio,
   RefreshCw,
@@ -513,6 +515,8 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const [detailsWidth, setDetailsWidth] = React.useState(DETAIL_DEFAULT_WIDTH);
   const [hydratedInspectorStorageKey, setHydratedInspectorStorageKey] = React.useState<string | null>(null);
   const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
+  const [conversationFocusMode, setConversationFocusMode] = React.useState(false);
+  const conversationFocusButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const sidebarVisibilityBeforeDrawerRef = React.useRef<boolean | null>(null);
   const previousConstrainedDetailsRef = React.useRef(false);
   const resizeCleanupRef = React.useRef<(() => void) | null>(null);
@@ -629,6 +633,28 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     },
     [],
   );
+
+  React.useEffect(() => {
+    if (!conversationFocusMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setConversationFocusMode(false);
+      window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [conversationFocusMode]);
+
+  React.useEffect(() => {
+    if (selectedTicket) return;
+    setConversationFocusMode(false);
+  }, [selectedTicket]);
 
   React.useEffect(() => {
     if (!loading) {
@@ -1070,6 +1096,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     'relative flex h-full max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
     embedded ? 'rounded-none border-x-0 border-b-0 bg-transparent shadow-none' : 'rounded-lg shadow-2xl',
     isMobile && !embedded && 'h-[calc(100dvh-8rem)]',
+    conversationFocusMode && !isMobile && 'fixed inset-3 z-50 h-auto max-h-none w-auto rounded-xl border bg-background shadow-[0_24px_90px_rgba(15,23,42,0.45)]',
   );
 
   const localOpenTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
@@ -1104,8 +1131,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       : operationalFilterBadges.length === 1
         ? operationalFilterBadges[0]
         : `${operationalFilterBadges[0]} +${operationalFilterBadges.length - 1}`;
-  const showDetailsAsDrawer = isDetailsVisible && shouldUseDetailsDrawer;
-  const showDetailsAsColumn = isDetailsVisible && !shouldUseDetailsDrawer;
+  const effectiveSidebarVisible = isSidebarVisible && !conversationFocusMode;
+  const effectiveDetailsVisible = isDetailsVisible && !conversationFocusMode;
+  const showDetailsAsDrawer = effectiveDetailsVisible && shouldUseDetailsDrawer;
+  const showDetailsAsColumn = effectiveDetailsVisible && !shouldUseDetailsDrawer;
   const drawerDetailMaxWidth = Math.max(
     DETAIL_MIN_WIDTH,
     Math.min(DETAIL_MAX_WIDTH, Math.floor(workspaceWidth - 560)),
@@ -1115,9 +1144,9 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     : detailsWidth;
   const activeDetailMaxWidth = showDetailsAsDrawer ? drawerDetailMaxWidth : DETAIL_MAX_WIDTH;
   const detailColumn = `${renderedDetailsWidth}px`;
-  const desktopGridTemplate = isSidebarVisible && showDetailsAsColumn
+  const desktopGridTemplate = effectiveSidebarVisible && showDetailsAsColumn
     ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${detailColumn}`
-    : isSidebarVisible
+    : effectiveSidebarVisible
       ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
       : showDetailsAsColumn
         ? `minmax(560px, 1fr) ${detailColumn}`
@@ -1233,7 +1262,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   };
 
   return (
-    <Card ref={workspaceRef} className={panelCardClass}>
+    <Card
+      ref={workspaceRef}
+      className={panelCardClass}
+      data-testid="tickets-workspace-card"
+      data-viewport-mode={conversationFocusMode ? 'focus' : 'standard'}
+    >
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
         className={cn(
@@ -1257,6 +1291,22 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            {!isMobile && selectedTicket ? (
+              <Button
+                ref={conversationFocusButtonRef}
+                type="button"
+                variant={conversationFocusMode ? 'secondary' : 'outline'}
+                size="sm"
+                className="h-8 gap-1.5 px-2.5 text-xs"
+                onClick={() => setConversationFocusMode((active) => !active)}
+                aria-pressed={conversationFocusMode}
+                aria-controls="tickets-conversation-region"
+                title={conversationFocusMode ? 'Volver a la bandeja completa (Escape)' : 'Ocultar cola e inspector para ampliar la conversación'}
+              >
+                {conversationFocusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                <span className="hidden md:inline">{conversationFocusMode ? 'Salir de vista ampliada' : 'Ampliar conversación'}</span>
+              </Button>
+            ) : null}
             {realtimeActivity.pending > 0 ? (
               <Button
                 type="button"
@@ -1627,10 +1677,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         <div
           data-testid="tickets-desktop-grid"
           className="relative grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          data-conversation-focus={conversationFocusMode ? 'true' : 'false'}
           data-detail-presentation={showDetailsAsDrawer ? 'drawer' : showDetailsAsColumn ? 'column' : 'collapsed'}
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
-          {isSidebarVisible && (
+          {effectiveSidebarVisible && (
             <section
               className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border/70"
               data-testid="tickets-list-region"
@@ -1655,19 +1706,23 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           <section
             className="flex min-h-0 min-w-0 flex-col overflow-hidden"
             data-testid="tickets-conversation-region"
-            aria-labelledby="tickets-conversation-column-title"
+            id="tickets-conversation-region"
+            aria-labelledby={conversationFocusMode ? undefined : 'tickets-conversation-column-title'}
+            aria-label={conversationFocusMode ? 'Conversación ampliada' : undefined}
           >
-            <TicketWorkspaceColumnHeader
-              id="tickets-conversation-column-title"
-              step={2}
-              title="Caso y conversación"
-              description="Intercambio con el vecino y acciones principales del caso."
-            />
+            {!conversationFocusMode ? (
+              <TicketWorkspaceColumnHeader
+                id="tickets-conversation-column-title"
+                step={2}
+                title="Caso y conversación"
+                description="Intercambio con el vecino y acciones principales del caso."
+              />
+            ) : null}
             <div className="min-h-0 flex-1 overflow-hidden">
               <ConversationPanel
                 isMobile={false}
-                isSidebarVisible={isSidebarVisible}
-                isDetailsVisible={isDetailsVisible}
+                isSidebarVisible={effectiveSidebarVisible}
+                isDetailsVisible={effectiveDetailsVisible}
                 onToggleSidebar={handleToggleDesktopSidebar}
                 onToggleDetails={handleToggleDesktopDetails}
                 canToggleSidebar

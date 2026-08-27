@@ -648,6 +648,65 @@ describe('NewTicketsPanel CRM layout', () => {
     }
   });
 
+  it('amplía la conversación sin remontarla y restaura la bandeja con Escape', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 });
+      render(<NewTicketsPanel embedded />);
+
+      const originalConversation = screen.getByTestId('tickets-conversation');
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument();
+
+      const expand = screen.getByRole('button', { name: 'Ampliar conversación' });
+      fireEvent.click(expand);
+
+      expect(screen.getByTestId('tickets-workspace-card')).toHaveAttribute('data-viewport-mode', 'focus');
+      expect(screen.getByTestId('tickets-workspace-card')).toHaveClass('fixed', 'inset-3', 'z-50');
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-conversation-focus', 'true');
+      expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument();
+      expect(screen.getByTestId('tickets-conversation')).toBe(originalConversation);
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({ gridTemplateColumns: 'minmax(0, 1fr)' });
+      expect(screen.queryByText('Caso y conversación')).not.toBeInTheDocument();
+      expect(document.body).toHaveStyle({ overflow: 'hidden' });
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      await waitFor(() => expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-conversation-focus', 'false'));
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-conversation')).toBe(originalConversation);
+      expect(screen.getByTestId('tickets-workspace-card')).toHaveAttribute('data-viewport-mode', 'standard');
+      expect(document.body.style.overflow).toBe('');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Ampliar conversación' })).toHaveFocus());
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
   it('caps a persisted 520px drawer so 560px of conversation remain available at 1024px', async () => {
     const originalInnerWidth = window.innerWidth;
     const ticket = {
