@@ -411,6 +411,34 @@ describe('Perfil request lifecycle', () => {
     ).toBe(false);
   });
 
+  it('fails closed on a navigation error without losing the authorized Junin tenant', async () => {
+    runtime.user = verifiedUser('municipio');
+    runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
+      if (path === '/api/v2/tenants/junin/activation/channels') {
+        return {
+          contract_version: 'tenant.channel_activation.v1',
+          tenant: { slug: 'junin', plan: 'full' },
+          integration_access: { enabled: true, status: 'enabled', current_plan: 'full' },
+          channels: [],
+        };
+      }
+      if (path === '/api/me') return profileResponse(options?.tenantSlug || 'junin');
+      if (path === '/api/app/backoffice/navigation?tenant_slug=junin') {
+        throw new Error('backend navigation unavailable');
+      }
+      return {};
+    });
+
+    renderProfile('/perfil?tab=usuarios&tenant_slug=junin&tenant=junin');
+
+    await waitFor(() => expect(screen.getByText('No pudimos verificar los módulos')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-users')).not.toBeInTheDocument();
+    expect(localStorage.getItem('tenantSlug')).toBe('junin');
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
+  });
+
   it('uses the verified profile and channel tenant when the session omits its slug', async () => {
     runtime.user = {
       ...verifiedUser('junin'),

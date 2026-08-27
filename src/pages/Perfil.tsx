@@ -129,6 +129,10 @@ import {
   normalizeProfileTenantSlug,
   readExplicitTenantRequest,
 } from '@/utils/profileTenantAuthority';
+import { withAsyncTimeout } from '@/utils/asyncTimeout';
+
+const TENANT_AUTHORIZATION_TIMEOUT_MS = 8_000;
+const BACKOFFICE_NAVIGATION_TIMEOUT_MS = 8_000;
 
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
@@ -561,7 +565,11 @@ export default function Perfil() {
       activation: null,
     });
 
-    void fetchTenantChannelActivation(requestedTenantSlug)
+    void withAsyncTimeout(
+      fetchTenantChannelActivation(requestedTenantSlug),
+      TENANT_AUTHORIZATION_TIMEOUT_MS,
+      'Tenant authorization',
+    )
       .then((activation) => {
         if (cancelled) return;
         if (!activationAuthorizesTenant(activation, requestedTenantSlug)) {
@@ -996,9 +1004,13 @@ export default function Perfil() {
     setBackofficeNavigationStatus('loading');
     const loadBackofficeNavigation = async () => {
       try {
-        const data = await apiFetch<BackofficeNavigationResponse>(
-          `/api/app/backoffice/navigation?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`,
-          { tenantSlug: derivedTenantSlug },
+        const data = await withAsyncTimeout(
+          apiFetch<BackofficeNavigationResponse>(
+            `/api/app/backoffice/navigation?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`,
+            { tenantSlug: derivedTenantSlug },
+          ),
+          BACKOFFICE_NAVIGATION_TIMEOUT_MS,
+          'Backoffice navigation',
         );
         if (backofficeNavigationScopeRef.current !== requestedScope) {
           return;
