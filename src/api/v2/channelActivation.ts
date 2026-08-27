@@ -81,5 +81,9 @@ export const fetchTenantChannelActivation = (tenantSlug?: string | null) => {
 
   return apiFetch<ChannelActivationContract>(path, {
     tenantSlug: normalized || null,
+    // This contract is also the authorization probe for explicit tenant deep
+    // links. Do not persist the requested slug until the backend has returned
+    // a matching authorized contract.
+    persistTenantSlug: false,
   });
 };

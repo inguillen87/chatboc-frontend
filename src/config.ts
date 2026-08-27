@@ -89,6 +89,15 @@ const getCurrentOrigin = (): string => {
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 const CURRENT_ORIGIN = getCurrentOrigin();
 
+const isVercelPreviewOrigin = (origin: string): boolean => {
+  if (!origin) return false;
+  try {
+    return new URL(origin).hostname.toLowerCase().endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+};
+
 const isLocalBrowserOrigin = (origin: string): boolean => {
   if (!origin) return false;
 
@@ -120,20 +129,29 @@ const inferSameOriginProxy = (): string | null => {
     const currentUrl = new URL(locationRef.href);
 
     if (RESOLVED_BACKEND_URL) {
-      const backendUrl = new URL(RESOLVED_BACKEND_URL);
+      try {
+        const backendUrl = new URL(RESOLVED_BACKEND_URL);
 
-      const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
-      const backendApex = normalizeHost(backendUrl.hostname);
-      const currentApex = normalizeHost(currentUrl.hostname);
+        const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
+        const backendApex = normalizeHost(backendUrl.hostname);
+        const currentApex = normalizeHost(currentUrl.hostname);
 
-      const isApiSubdomain = backendUrl.hostname.startsWith('api.');
-      const sharesApexDomain = backendApex === currentApex;
+        const isApiSubdomain = backendUrl.hostname.startsWith('api.');
+        const sharesApexDomain = backendApex === currentApex;
 
-      // When the backend lives on an api.<domain> host matching the current apex
-      // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
-      // proxy to avoid CORS issues in the widget.
-      if (isApiSubdomain && sharesApexDomain) {
-        return '/api';
+        // When the backend lives on an api.<domain> host matching the current apex
+        // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
+        // proxy to avoid CORS issues in the widget.
+        if (isApiSubdomain && sharesApexDomain) {
+          return '/api';
+        }
+      } catch (error) {
+        // Preview deployments always expose the authenticated API through the
+        // same-origin proxy. A stale/redacted build variable must not prevent
+        // us from reaching the hostname fallback below.
+        if (!currentUrl.hostname.toLowerCase().endsWith('.vercel.app')) {
+          throw error;
+        }
       }
     }
 
@@ -231,7 +249,8 @@ export const API_BASE_CANDIDATES = API_BASE_CANDIDATE_ORDER
  * @returns The full WebSocket URL.
  */
 export const getSocketUrl = (): string => {
-  const socketCandidates = [VITE_SOCKET_URL, RESOLVED_BACKEND_URL, CANONICAL_BACKEND_URL]
+  const previewRuntime = isVercelPreviewOrigin(CURRENT_ORIGIN);
+  const socketCandidates = [VITE_SOCKET_URL, RESOLVED_BACKEND_URL]
     .map((candidate) => sanitizeBaseUrl(candidate))
     .filter(
       (candidate, index, values) => Boolean(candidate) && values.indexOf(candidate) === index,
@@ -253,11 +272,28 @@ export const getSocketUrl = (): string => {
       url.protocol = url.protocol.replace('http', 'ws');
       return url.origin;
     } catch (e) {
-      console.error("Invalid backend URL for WebSocket:", socketBackendUrl);
+      if (!previewRuntime) {
+        console.error("Invalid backend URL for WebSocket:", socketBackendUrl);
+      }
     }
   }
 
   const locationRef = getGlobalLocation();
+  if (previewRuntime && locationRef?.href) {
+    const previewUrl = new URL(locationRef.href);
+    previewUrl.protocol = previewUrl.protocol.replace('http', 'ws');
+    return previewUrl.origin;
+  }
+
+  try {
+    const canonicalUrl = new URL(CANONICAL_BACKEND_URL);
+    canonicalUrl.protocol = canonicalUrl.protocol.replace('http', 'ws');
+    return canonicalUrl.origin;
+  } catch {
+    // The built-in canonical URL is static and valid; retain the final runtime
+    // fallback defensively without changing production resolution semantics.
+  }
+
   if (!locationRef?.href) return '';
 
   const url = new URL(locationRef.href);

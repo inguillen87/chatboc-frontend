@@ -19,7 +19,7 @@ describe('fetchTenantChannelActivation', () => {
 
     expect(apiFetch).toHaveBeenCalledWith(
       '/api/v2/tenants/junin/activation/channels',
-      { tenantSlug: 'junin' },
+      { tenantSlug: 'junin', persistTenantSlug: false },
     );
   });
 });

@@ -78,7 +78,10 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
-import type { ChannelActivationContract } from '@/api/v2/channelActivation';
+import {
+  fetchTenantChannelActivation,
+  type ChannelActivationContract,
+} from '@/api/v2/channelActivation';
 import PlanUsagePanel from '@/components/profile/PlanUsagePanel';
 import ProfileWorkspaceNavigation, {
   resolveProfileWorkspaceCapabilities,
@@ -121,9 +124,11 @@ import ImportWizard from "@/components/catalog/ImportWizard";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { uploadProfileAvatar } from "@/services/profileAvatarService";
 import {
-  normalizeOperationalTenantSlug,
-  resolveOperationalTenantSlug,
-} from "@/utils/tenantIdentity";
+  activationAuthorizesTenant,
+  getActivationPlan,
+  normalizeProfileTenantSlug,
+  readExplicitTenantRequest,
+} from '@/utils/profileTenantAuthority';
 
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
@@ -351,6 +356,13 @@ type ProfileIdentitySnapshot = {
   tenant_slug: string | null;
 };
 
+type RequestedTenantAuthorityState = {
+  key: string;
+  status: 'loading' | 'authorized' | 'denied';
+  slug: string | null;
+  activation: ChannelActivationContract | null;
+};
+
 const WorkspacePanel = ({
   active,
   label,
@@ -437,10 +449,8 @@ export default function Perfil() {
   const [profileChannelActivation, setProfileChannelActivation] = useState<
     ChannelActivationContract | null | undefined
   >(undefined);
-  const storedTenantSlug = useMemo(
-    () => normalizeOperationalTenantSlug(safeLocalStorage.getItem("tenantSlug")),
-    [],
-  );
+  const [requestedTenantAuthority, setRequestedTenantAuthority] =
+    useState<RequestedTenantAuthorityState | null>(null);
   const isAdminUser = useMemo(
     () => ['superadmin', 'tenant_admin'].includes(String(normalizeRole(user?.rol))),
     [user?.rol],
@@ -465,55 +475,131 @@ export default function Perfil() {
       return null;
     }
     try {
-      return normalizeOperationalTenantSlug(decodeURIComponent(segments[1]));
+      return normalizeProfileTenantSlug(decodeURIComponent(segments[1]));
     } catch {
-      return normalizeOperationalTenantSlug(segments[1]);
+      return normalizeProfileTenantSlug(segments[1]);
     }
   }, [location.pathname]);
-  const userTenantSlug = normalizeOperationalTenantSlug(
+  const explicitTenantRequest = useMemo(
+    () => readExplicitTenantRequest(searchParams),
+    [searchParams],
+  );
+  const requestedTenantSlug = explicitTenantRequest.present
+    ? explicitTenantRequest.slug
+    : routeTenantSlug;
+  const hasRequestedTenant = explicitTenantRequest.present || Boolean(routeTenantSlug);
+  const userTenantSlug = normalizeProfileTenantSlug(
     (user as any)?.tenantSlug ||
       (user as any)?.tenant_slug ||
       (user as any)?.tenant?.slug ||
       (user as any)?.tenant?.tenant_slug,
   );
-  const verifiedProfileTenantSlug = normalizeOperationalTenantSlug(
+  const verifiedProfileTenantSlug = normalizeProfileTenantSlug(
     (perfil as any)?.tenant_slug || (perfil as any)?.slug,
   );
-  const verifiedActivationTenantSlug = normalizeOperationalTenantSlug(
+  const verifiedActivationTenantSlug = normalizeProfileTenantSlug(
     profileChannelActivation?.tenant?.slug,
   );
-  const sessionActivationTenantSlug = normalizeOperationalTenantSlug(
+  const sessionActivationTenantSlug = normalizeProfileTenantSlug(
     (user as any)?.channel_activation?.tenant?.slug,
   );
-  const profileTenantScope =
-    routeTenantSlug ||
+  const requestAuthorityKey = user && hasRequestedTenant
+    ? `${user.id ?? user.email ?? 'verified-user'}:${requestedTenantSlug || 'invalid-request'}`
+    : null;
+  const matchingRequestedAuthority =
+    requestAuthorityKey && requestedTenantAuthority?.key === requestAuthorityKey
+      ? requestedTenantAuthority
+      : null;
+  const safeSessionTenantSlug =
     sessionActivationTenantSlug ||
     userTenantSlug ||
-    storedTenantSlug ||
     verifiedActivationTenantSlug ||
     verifiedProfileTenantSlug;
-  const derivedTenantSlug = useMemo(
-    () =>
-      routeTenantSlug ||
-      sessionActivationTenantSlug ||
-      userTenantSlug ||
-      verifiedActivationTenantSlug ||
-      verifiedProfileTenantSlug ||
-      resolveOperationalTenantSlug({ user: user as any, perfil: perfil as any, storedTenantSlug }),
-    [
-      perfil,
-      routeTenantSlug,
-      sessionActivationTenantSlug,
-      storedTenantSlug,
-      user,
-      userTenantSlug,
-      verifiedActivationTenantSlug,
-      verifiedProfileTenantSlug,
-    ],
+  const profileTenantScope = hasRequestedTenant
+    ? matchingRequestedAuthority?.status === 'authorized'
+      ? matchingRequestedAuthority.slug
+      : matchingRequestedAuthority?.status === 'denied'
+        ? safeSessionTenantSlug
+        : null
+    : safeSessionTenantSlug;
+  const derivedTenantSlug = profileTenantScope;
+  const tenantSelectionPending = Boolean(
+    hasRequestedTenant &&
+      (!matchingRequestedAuthority || matchingRequestedAuthority.status === 'loading'),
   );
-  const profileIdentityScope = user
+  const profileIdentityScope = user && !tenantSelectionPending
     ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
     : null;
+  const authoritativeChannelActivation =
+    matchingRequestedAuthority?.status === 'authorized'
+      ? matchingRequestedAuthority.activation
+      : profileChannelActivation || (user as any)?.channel_activation || null;
+  const authoritativeActivationRef = useRef<ChannelActivationContract | null>(null);
+  authoritativeActivationRef.current = authoritativeChannelActivation;
+
+  useEffect(() => {
+    if (!requestAuthorityKey || !hasRequestedTenant) {
+      setRequestedTenantAuthority(null);
+      return;
+    }
+
+    if (!explicitTenantRequest.valid || !requestedTenantSlug) {
+      setRequestedTenantAuthority({
+        key: requestAuthorityKey,
+        status: 'denied',
+        slug: null,
+        activation: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setRequestedTenantAuthority({
+      key: requestAuthorityKey,
+      status: 'loading',
+      slug: null,
+      activation: null,
+    });
+
+    void fetchTenantChannelActivation(requestedTenantSlug)
+      .then((activation) => {
+        if (cancelled) return;
+        if (!activationAuthorizesTenant(activation, requestedTenantSlug)) {
+          setRequestedTenantAuthority({
+            key: requestAuthorityKey,
+            status: 'denied',
+            slug: null,
+            activation: null,
+          });
+          return;
+        }
+        safeLocalStorage.setItem('tenantSlug', requestedTenantSlug);
+        setRequestedTenantAuthority({
+          key: requestAuthorityKey,
+          status: 'authorized',
+          slug: requestedTenantSlug,
+          activation,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRequestedTenantAuthority({
+          key: requestAuthorityKey,
+          status: 'denied',
+          slug: null,
+          activation: null,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    explicitTenantRequest.valid,
+    hasRequestedTenant,
+    requestAuthorityKey,
+    requestedTenantSlug,
+  ]);
 
   useEffect(() => {
     // Never carry a verified channel contract across tenant identities while
@@ -655,11 +741,12 @@ export default function Perfil() {
       return;
     }
 
-    const persistedTenantSlug =
+    const persistedTenantSlug = normalizeProfileTenantSlug(
       (user as any)?.tenantSlug ||
-      (user as any)?.tenant_slug ||
-      (user as any)?.tenant?.slug ||
-      (user as any)?.tenant?.tenant_slug;
+        (user as any)?.tenant_slug ||
+        (user as any)?.tenant?.slug ||
+        (user as any)?.tenant?.tenant_slug,
+    );
 
     if (persistedTenantSlug) {
       safeLocalStorage.setItem("tenantSlug", persistedTenantSlug);
@@ -885,6 +972,13 @@ export default function Perfil() {
       return;
     }
 
+    if (tenantSelectionPending) {
+      setBackofficeNavigation(null);
+      setBackofficeNavigationStatus('loading');
+      backofficeNavigationScopeRef.current = null;
+      return;
+    }
+
     if (!derivedTenantSlug || !profileIdentityScope) {
       setBackofficeNavigation(null);
       setBackofficeNavigationStatus('error');
@@ -931,7 +1025,14 @@ export default function Perfil() {
     };
 
     void loadBackofficeNavigation();
-  }, [backofficeNavigationRevision, derivedTenantSlug, normalizedRole, profileIdentityScope, user]);
+  }, [
+    backofficeNavigationRevision,
+    derivedTenantSlug,
+    normalizedRole,
+    profileIdentityScope,
+    tenantSelectionPending,
+    user,
+  ]);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -1135,10 +1236,16 @@ export default function Perfil() {
       }
 
       const channelActivation = data.channel_activation;
-      setProfileChannelActivation(
+      const embeddedChannelActivation =
         channelActivation?.contract_version === 'tenant.channel_activation.v1'
           ? (channelActivation as ChannelActivationContract)
-          : null,
+          : null;
+      const normalizedRequestedTenant = normalizeProfileTenantSlug(tenantSlug);
+      const embeddedActivationMatchesScope = normalizedRequestedTenant
+        ? activationAuthorizesTenant(embeddedChannelActivation, normalizedRequestedTenant)
+        : Boolean(embeddedChannelActivation);
+      setProfileChannelActivation((current) =>
+        embeddedActivationMatchesScope ? embeddedChannelActivation : current ?? null,
       );
 
       const latitud = parseCoordinate(data.latitud ?? data.lat);
@@ -1163,18 +1270,28 @@ export default function Perfil() {
             typeof h.cerrado === "boolean" ? h.cerrado : idx === 5 || idx === 6,
         }));
       }
+      const activationForScope =
+        normalizedRequestedTenant &&
+        activationAuthorizesTenant(authoritativeActivationRef.current, normalizedRequestedTenant)
+          ? authoritativeActivationRef.current
+          : embeddedActivationMatchesScope
+            ? embeddedChannelActivation
+            : null;
       const resolvedPlan =
+        getActivationPlan(activationForScope) ||
         data.plan ||
         data.tenant?.plan ||
         data.tenant_plan ||
         "gratis";
-      const resolvedProfileTenantSlug =
+      const responseTenantSlug = normalizeProfileTenantSlug(
         data.tenant_slug ||
-        data.tenantSlug ||
-        data.tenant?.slug ||
-        data.tenant?.tenant_slug ||
-        data.endpoint ||
-        null;
+          data.tenantSlug ||
+          data.tenant?.slug ||
+          data.tenant?.tenant_slug ||
+          data.endpoint ||
+          null,
+      );
+      const resolvedProfileTenantSlug = normalizedRequestedTenant || responseTenantSlug;
 
       if (resolvedProfileTenantSlug) {
         safeLocalStorage.setItem("tenantSlug", resolvedProfileTenantSlug);
@@ -1257,8 +1374,8 @@ export default function Perfil() {
       const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
       const [stats, heatmapDataset, categoryData] = await Promise.all([
-        getTicketStats({ tipo }),
-        getHeatmapDataset({ tipo }),
+        getTicketStats({ tipo, tenant_slug: tenantSlug || undefined }),
+        getHeatmapDataset({ tipo, tenant_slug: tenantSlug || undefined }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
           { tenantSlug },
@@ -1731,6 +1848,7 @@ export default function Perfil() {
       const data = await apiFetch<any>("/perfil", {
         method: "PUT",
         body: payload,
+        tenantSlug: profileTenantScope,
       });
       
       const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
@@ -2511,11 +2629,7 @@ export default function Perfil() {
               <div className="border-t border-border/70 p-3">
                 <ChannelActivationChecklist
                   tenantSlug={derivedTenantSlug}
-                  initialData={
-                    profileChannelActivation === undefined
-                      ? (user as any)?.channel_activation || null
-                      : profileChannelActivation
-                  }
+                  initialData={authoritativeChannelActivation}
                   highlighted={shouldHighlightChannelSetup}
                 />
               </div>
@@ -2842,11 +2956,7 @@ export default function Perfil() {
                 </Alert>
                 <ChannelActivationChecklist
                   tenantSlug={derivedTenantSlug}
-                  initialData={
-                    profileChannelActivation === undefined
-                      ? (user as any)?.channel_activation || null
-                      : profileChannelActivation
-                  }
+                  initialData={authoritativeChannelActivation}
                   highlighted={shouldHighlightChannelSetup}
                 />
                 <div className="grid gap-3 md:grid-cols-2">
@@ -3729,7 +3839,7 @@ export default function Perfil() {
         </WorkspacePanel>
         <WorkspacePanel active={activeProfileTab === "usuarios" && workspaceCapabilities.contacts} label={esMunicipio ? "Personas y contactos" : "Clientes y contactos"}>
           <React.Suspense fallback={<ProfileTabFallback label="Cargando usuarios..." />}>
-            <UsuariosPage />
+            <UsuariosPage tenantSlugOverride={derivedTenantSlug} />
           </React.Suspense>
         </WorkspacePanel>
         {workspaceCapabilities.team && (
@@ -3742,7 +3852,7 @@ export default function Perfil() {
         {workspaceCapabilities.territory && (
           <WorkspacePanel active={activeProfileTab === "mapas" && workspaceCapabilities.territory} label="Mapa operativo">
             <React.Suspense fallback={<ProfileTabFallback label="Cargando mapas..." />}>
-              <IncidentsMap />
+              <IncidentsMap tenantSlugOverride={derivedTenantSlug} />
             </React.Suspense>
           </WorkspacePanel>
         )}

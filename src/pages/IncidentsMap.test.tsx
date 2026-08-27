@@ -144,6 +144,28 @@ describe('IncidentsMap', () => {
     expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'heatmap');
   });
 
+  it('scopes every territorial request to the canonical tenant override', async () => {
+    render(<IncidentsMap tenantSlugOverride="junin" />);
+
+    await waitFor(() => {
+      expect(mocks.getHeatmapDataset).toHaveBeenCalledWith(
+        expect.objectContaining({ tenant_slug: 'junin', tipo: 'municipio' }),
+      );
+      expect(mocks.getTicketStats).toHaveBeenCalledWith(
+        expect.objectContaining({ tenant_slug: 'junin', tipo: 'municipio' }),
+      );
+    });
+
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/municipal/categorias',
+      expect.objectContaining({ tenantSlug: 'junin' }),
+    );
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/municipal/estados',
+      expect.objectContaining({ tenantSlug: 'junin' }),
+    );
+  });
+
   it('switches between heatmap and points without losing the map', async () => {
     render(<IncidentsMap />);
 

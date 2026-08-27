@@ -141,6 +141,7 @@ export interface TicketStatsResponse {
 
 export interface HeatmapParams {
   tipo?: string;
+  tenant_slug?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
   tipo_ticket?: string; // legacy support
@@ -1080,10 +1081,13 @@ export const getTicketStats = async (params?: TicketStatsParams): Promise<Ticket
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/tickets${query ? `?${query}` : ''}`, `/estadisticas/tickets${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/tickets${query ? `?${query}` : ''}`, `/municipal/estadisticas/tickets${query ? `?${query}` : ''}`];
+    const tenantRequestOptions = normalizedParams.tenant_slug
+      ? { tenantSlug: normalizedParams.tenant_slug }
+      : null;
     let resp: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
-      try { resp = await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
+      try { resp = tenantRequestOptions ? await apiFetch<unknown>(path, tenantRequestOptions) : await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
     }
     if (resp === null) throw lastError ?? new Error('No stats endpoint responded successfully');
     const normalizedPayload = normalizeApiPayload(resp);
@@ -1109,10 +1113,13 @@ export const getHeatmapDataset = async (params?: HeatmapParams): Promise<Heatmap
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`];
+    const tenantRequestOptions = normalizedParams.tenant_slug
+      ? { tenantSlug: normalizedParams.tenant_slug }
+      : null;
     let payload: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
-      try { payload = await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
+      try { payload = tenantRequestOptions ? await apiFetch<unknown>(path, tenantRequestOptions) : await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
     }
     if (payload === null) throw lastError ?? new Error('No heatmap endpoint responded successfully');
     const normalizedPayload = normalizeApiPayload(payload);

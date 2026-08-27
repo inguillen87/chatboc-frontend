@@ -437,7 +437,11 @@ export const eventBelongsToTenant = (payload: RawUsuario, tenantSlug?: string | 
   return Boolean(received && received === expected);
 };
 
-export default function UsuariosPage() {
+export interface UsuariosPageProps {
+  tenantSlugOverride?: string | null;
+}
+
+export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps = {}) {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const navigate = useNavigate();
   const { user } = useUser();
@@ -461,11 +465,12 @@ export default function UsuariosPage() {
     () =>
       getTenant({
         userTenant:
+          tenantSlugOverride ||
           user?.tenantSlug ||
           (user as any)?.tenant_slug ||
           safeLocalStorage.getItem('tenantSlug'),
       }),
-    [user],
+    [tenantSlugOverride, user],
   );
 
   const getPersonKey = React.useCallback(

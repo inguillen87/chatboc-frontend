@@ -91,10 +91,18 @@ vi.mock('@/pages/TicketsPanel', () => ({
 }));
 vi.mock('@/pages/EstadisticasPage', () => ({ default: () => <div data-testid="mock-stats" /> }));
 vi.mock('@/pages/analytics/AnalyticsPage', () => ({ default: () => <div data-testid="mock-analytics" /> }));
-vi.mock('@/pages/UsuariosPage', () => ({ default: () => <div /> }));
+vi.mock('@/pages/UsuariosPage', () => ({
+  default: ({ tenantSlugOverride }: { tenantSlugOverride?: string | null }) => (
+    <div data-testid="mock-users" data-tenant-slug={tenantSlugOverride || ''} />
+  ),
+}));
 vi.mock('@/pages/SmartPedidosWrapper', () => ({ default: () => <div /> }));
 vi.mock('@/pages/InternalUsers', () => ({ default: () => <div /> }));
-vi.mock('@/pages/IncidentsMap', () => ({ default: () => <div data-testid="mock-map" /> }));
+vi.mock('@/pages/IncidentsMap', () => ({
+  default: ({ tenantSlugOverride }: { tenantSlugOverride?: string | null }) => (
+    <div data-testid="mock-map" data-tenant-slug={tenantSlugOverride || ''} />
+  ),
+}));
 vi.mock('@/pages/admin/CatalogManagementPage', () => ({ default: () => <div /> }));
 
 import Perfil from '@/pages/Perfil';
@@ -293,6 +301,114 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('tab=perfil');
     expect(window.location.search).toContain('section=channels');
     expect(window.location.search).toContain('setup=channels');
+  });
+
+  it('authorizes an explicit Junin deep link before sharing its canonical tenant with plan, people and maps', async () => {
+    runtime.user = verifiedUser('municipio');
+    runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
+      if (path === '/api/v2/tenants/junin/activation/channels') {
+        return {
+          contract_version: 'tenant.channel_activation.v1',
+          tenant: { slug: 'junin', nombre: 'Municipalidad de Junín', plan: 'full' },
+          integration_access: { enabled: true, status: 'enabled', current_plan: 'full' },
+          channels: [],
+        };
+      }
+      if (path === '/api/me') {
+        return {
+          ...profileResponse('municipio'),
+          plan: 'free',
+          tenant_slug: 'municipio',
+          slug: 'municipio',
+        };
+      }
+      if (path === '/api/app/backoffice/navigation?tenant_slug=junin') {
+        return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [
+            { id: 'people', label: 'Personas y accesos', route: '/perfil?tab=usuarios', enabled: true },
+            { id: 'maps', label: 'Mapas de calor', route: '/perfil?tab=mapas', enabled: true },
+          ],
+        };
+      }
+      return {};
+    });
+
+    renderProfile(
+      '/perfil?tab=perfil&section=channels&setup=channels&tenant_slug=junin&tenant=junin',
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-channel-activation')).toHaveAttribute(
+        'data-tenant-slug',
+        'junin',
+      );
+      expect(screen.getByTestId('mock-channel-activation')).toHaveAttribute(
+        'data-current-plan',
+        'full',
+      );
+    });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(localStorage.getItem('tenantSlug')).toBe('junin');
+
+    await act(async () => {
+      updateBrowserLocation('/perfil?tab=usuarios&tenant_slug=junin&tenant=junin');
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mock-users')).toHaveAttribute('data-tenant-slug', 'junin'),
+    );
+
+    await act(async () => {
+      updateBrowserLocation('/perfil?tab=mapas&tenant_slug=junin&tenant=junin');
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mock-map')).toHaveAttribute('data-tenant-slug', 'junin'),
+    );
+
+    expect(
+      runtime.apiFetch.mock.calls.some(
+        ([path, options]) =>
+          path !== '/api/v2/tenants/junin/activation/channels' && options?.tenantSlug === 'municipio',
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects an unauthorized tenant query and keeps every operational request on the session tenant', async () => {
+    runtime.user = verifiedUser('junin');
+    runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
+      if (path === '/api/v2/tenants/mendoza/activation/channels') {
+        throw new ApiError('Permisos insuficientes para este tenant', 403, {
+          reason_code: 'forbidden_tenant',
+        });
+      }
+      if (path === '/api/me') return profileResponse(options?.tenantSlug || 'junin');
+      if (path === '/api/app/backoffice/navigation?tenant_slug=junin') {
+        return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [{ id: 'people', label: 'Personas y accesos', route: '/perfil?tab=usuarios', enabled: true }],
+        };
+      }
+      return {};
+    });
+
+    renderProfile('/perfil?tab=usuarios&tenant_slug=mendoza&tenant=mendoza');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mock-users')).toHaveAttribute('data-tenant-slug', 'junin'),
+    );
+    expect(runtime.apiFetch).toHaveBeenCalledWith(
+      '/api/v2/tenants/mendoza/activation/channels',
+      { tenantSlug: 'mendoza', persistTenantSlug: false },
+    );
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=mendoza')).toBe(0);
+    expect(localStorage.getItem('tenantSlug')).not.toBe('mendoza');
+    expect(
+      runtime.apiFetch.mock.calls.some(
+        ([path, options]) =>
+          path !== '/api/v2/tenants/mendoza/activation/channels' && options?.tenantSlug === 'mendoza',
+      ),
+    ).toBe(false);
   });
 
   it('uses the verified profile and channel tenant when the session omits its slug', async () => {

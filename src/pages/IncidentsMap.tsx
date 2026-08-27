@@ -19,6 +19,7 @@ import { mergeAndSortStrings } from '@/utils/collections';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { normalizeProfileTenantSlug } from '@/utils/profileTenantAuthority';
 import {
   Activity,
   AlertCircle,
@@ -341,9 +342,24 @@ function IncidentsTelemetryOverlay({
   );
 }
 
-export default function IncidentsMap() {
+export interface IncidentsMapProps {
+  tenantSlugOverride?: string | null;
+}
+
+export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps = {}) {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
+  const canonicalTenantSlug = useMemo(
+    () =>
+      normalizeProfileTenantSlug(tenantSlugOverride) ||
+      normalizeProfileTenantSlug(
+        user?.tenantSlug ||
+          (user as any)?.tenant_slug ||
+          (user as any)?.tenant?.slug ||
+          (user as any)?.tenant?.tenant_slug,
+      ),
+    [tenantSlugOverride, user],
+  );
 
   const parseCoordinate = (value: unknown): number | undefined => {
     if (typeof value === 'number' && !Number.isNaN(value)) {
@@ -614,12 +630,17 @@ export default function IncidentsMap() {
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
         tipo: ticketType,
+        tenant_slug: canonicalTenantSlug || undefined,
       });
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
         ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
-        : getHeatmapDataset({ tipo: ticketType, ...filters }).then((data) => {
+        : getHeatmapDataset({
+            tipo: ticketType,
+            ...filters,
+            tenant_slug: canonicalTenantSlug || undefined,
+          }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;
@@ -632,7 +653,11 @@ export default function IncidentsMap() {
 
       const [heatmapDatasetResult, stats] = await Promise.all([
         heatmapPromise,
-        getTicketStats({ tipo: ticketType, ...filters }),
+        getTicketStats({
+          tipo: ticketType,
+          ...filters,
+          tenant_slug: canonicalTenantSlug || undefined,
+        }),
       ]);
       setCharts(stats.charts || []);
 
@@ -662,7 +687,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [appliedFilters, applyHeatmapDataset, ticketType]);
+  }, [appliedFilters, applyHeatmapDataset, canonicalTenantSlug, ticketType]);
 
   useEffect(() => {
     fetchData();
@@ -672,6 +697,7 @@ export default function IncidentsMap() {
     const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
     apiFetch<{ categorias: { nombre: string }[] }>(categoriesUrl, {
       sendEntityToken: true,
+      tenantSlug: canonicalTenantSlug,
     })
       .then((data) => {
         const names = Array.isArray(data.categorias)
@@ -680,12 +706,13 @@ export default function IncidentsMap() {
         setCategories(names);
       })
       .catch((err) => console.error('Error fetching categories:', err));
-  }, [ticketType]);
+  }, [canonicalTenantSlug, ticketType]);
 
   useEffect(() => {
     const statesUrl = ticketType === 'pyme' ? '/pyme/estados' : '/municipal/estados';
     apiFetch<{ estados: { nombre: string }[] | string[] }>(statesUrl, {
       sendEntityToken: true,
+      tenantSlug: canonicalTenantSlug,
     })
       .then((data) => {
         const raw = (data as any).estados;
@@ -695,7 +722,7 @@ export default function IncidentsMap() {
         setStates(names);
       })
       .catch((err) => console.error('Error fetching states:', err));
-  }, [ticketType]);
+  }, [canonicalTenantSlug, ticketType]);
 
   useEffect(() => {
     if (!center && adminCoords) {
