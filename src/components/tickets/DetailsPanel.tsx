@@ -109,6 +109,72 @@ const normalizeTextValue = (value: unknown): string => {
   return '';
 };
 
+const STRUCTURED_DESCRIPTION_KEYS = [
+  'summary',
+  'resumen',
+  'description',
+  'descripcion',
+  'consulta',
+  'message',
+  'mensaje',
+  'question',
+  'pregunta',
+] as const;
+
+const extractHumanTextFromRecord = (record: Record<string, unknown>): string => {
+  for (const key of STRUCTURED_DESCRIPTION_KEYS) {
+    const candidate = normalizeTextValue(record[key]);
+    if (candidate) return candidate;
+  }
+
+  const events = Array.isArray(record.events) ? record.events : [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = asPlainRecord(events[index]);
+    if (!event) continue;
+    for (const key of STRUCTURED_DESCRIPTION_KEYS) {
+      const candidate = normalizeTextValue(event[key]);
+      if (candidate) return candidate;
+    }
+  }
+
+  return '';
+};
+
+const extractHumanDescription = (value: unknown): string => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return extractHumanTextFromRecord(value as Record<string, unknown>);
+  }
+
+  const text = normalizeTextValue(value);
+  if (!text) return '';
+  if (!text.startsWith('{') && !text.startsWith('[')) return text;
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? extractHumanTextFromRecord(parsed as Record<string, unknown>)
+      : '';
+  } catch {
+    // JSON-looking payloads are technical or malformed. Never expose them as
+    // an operator-facing case summary.
+    return '';
+  }
+};
+
+export const resolveTicketCaseSummary = (
+  ticket: Ticket,
+  assistedSummary?: unknown,
+  fallbackSummary?: unknown,
+): string =>
+  extractHumanDescription(assistedSummary) ||
+  extractHumanDescription(ticket.description) ||
+  extractHumanDescription(ticket.detalles) ||
+  normalizeTextValue(ticket.pregunta) ||
+  normalizeTextValue(fallbackSummary) ||
+  normalizeTextValue(ticket.asunto) ||
+  normalizeTextValue(ticket.categoria) ||
+  'Sin descripción disponible';
+
 const formatCompactLabel = (value: unknown): string => normalizeTextValue(value).replace(/_/g, ' ');
 
 const asPlainRecord = (value: unknown): Record<string, unknown> | null => {
@@ -857,10 +923,11 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className, operati
   }, [assistedContext.channelActions, operationalActions]);
   const primaryResolutionActions = resolutionActions.slice(0, 3);
   const additionalResolutionActions = resolutionActions.slice(3);
-  const caseSummary =
-    assistedContext.summary ||
-    normalizeTextValue(ticket.description || ticket.detalles) ||
-    formatCategory(ticket);
+  const caseSummary = resolveTicketCaseSummary(
+    ticket,
+    assistedContext.summary,
+    formatCategory(ticket),
+  );
   const resolutionNextStep =
     assistedContext.recommendedAction ||
     nextActionLabel ||

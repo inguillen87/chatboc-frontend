@@ -307,6 +307,8 @@ export interface Ticket {
   title?: string; // Keep for components that might still use it
   lastMessage?: string; // Keep for components that might still use it
   description?: string;
+  pregunta?: string;
+  detalles?: string | Record<string, unknown> | null;
   channel?: "whatsapp" | "web" | "email" | "phone" | "other";
   assignedAgent?: User;
   whatsapp_conversation_id?: string;

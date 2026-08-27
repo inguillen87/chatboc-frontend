@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import DetailsPanel, { collectAttachmentsFromTicket } from './DetailsPanel';
+import DetailsPanel, { collectAttachmentsFromTicket, resolveTicketCaseSummary } from './DetailsPanel';
 import type { Ticket } from '@/types/tickets';
 
 const detailsMocks = vi.hoisted(() => ({
@@ -161,6 +161,49 @@ describe('DetailsPanel resolution guide', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('replaces technical runtime JSON with the human case question', () => {
+    const runtimeDetails = JSON.stringify({
+      demo_runtime: true,
+      source: 'demo_municipio_runtime',
+      chat_session_id: 'internal-session-id',
+      demo_session_payload: { tenant_slug: 'junin' },
+      events: [{ type: 'ticket_created', question: 'Luminaria apagada frente a la plaza.' }],
+    });
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      asunto: 'Demo reclamo - Alumbrado publico',
+      description: runtimeDetails,
+      detalles: runtimeDetails,
+      pregunta: 'Luminaria apagada frente a la plaza.',
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(guide).toHaveTextContent('Luminaria apagada frente a la plaza.');
+    expect(guide).not.toHaveTextContent('demo_runtime');
+    expect(guide).not.toHaveTextContent('chat_session_id');
+    expect(resolveTicketCaseSummary(detailsMocks.selectedTicket)).toBe(
+      'Luminaria apagada frente a la plaza.',
+    );
+  });
+
+  it('falls back safely when a JSON-looking description is malformed', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      description: '{"demo_runtime":true',
+      detalles: '{"chat_session_id":"broken"',
+      pregunta: 'Árbol caído sobre la vereda.',
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(guide).toHaveTextContent('Árbol caído sobre la vereda.');
+    expect(guide).not.toHaveTextContent('demo_runtime');
+    expect(guide).not.toHaveTextContent('chat_session_id');
   });
 
   it('surfaces assisted request context and public follow-up actions', () => {
