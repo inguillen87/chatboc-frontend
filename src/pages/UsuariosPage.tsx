@@ -16,6 +16,10 @@ import type { CampaignChannel } from "@/features/campaigns/campaignPreparationTy
 import { shouldRenderProfileImage } from "@/utils/avatarConsent";
 import CrmPeopleWorkspace from "@/features/crm/people/CrmPeopleWorkspace";
 import {
+  hasSensitiveCrmContent,
+  redactSensitiveCrmText,
+} from "@/features/crm/people/sensitiveContent";
+import {
   useCrmWorkspaceState,
   useDebouncedValue,
 } from "@/features/crm/people/useCrmWorkspaceState";
@@ -175,7 +179,11 @@ const looksLikeConversationName = (value?: string | null): boolean => {
     "hola hola",
     "hola.",
   ];
-  return text.length > 80 || markers.some((marker) => text.includes(marker));
+  return (
+    text.length > 80 ||
+    markers.some((marker) => text.includes(marker)) ||
+    hasSensitiveCrmContent(text)
+  );
 };
 
 const humanizeChannel = (value?: string | null): string => {
@@ -333,12 +341,22 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     : (rawNameCandidate || "Sin nombre");
   const nameQuality = normalizeString(raw.name_quality || raw.nameQuality);
   const profileExcerpt =
-    normalizeString(raw.profile_excerpt || raw.profileExcerpt) ||
-    (nameLooksLikeMessage ? rawNameCandidate : null);
-  const resumen = normalizeString(raw.summary || raw.conversation_summary || raw.conversationSummary || raw.resumen);
-  const motivo = normalizeString(raw.motivo || raw.reason || raw.last_reason || raw.lastReason);
-  const lastIntent = normalizeString(raw.last_intent || raw.lastIntent || raw.intent);
-  const suggestedActions = normalizeStringArray(raw.suggested_actions || raw.suggestedActions);
+    redactSensitiveCrmText(raw.profile_excerpt || raw.profileExcerpt) ||
+    (nameLooksLikeMessage ? redactSensitiveCrmText(rawNameCandidate) : null);
+  const resumen = redactSensitiveCrmText(
+    raw.summary || raw.conversation_summary || raw.conversationSummary || raw.resumen,
+  );
+  const motivo = redactSensitiveCrmText(
+    raw.motivo || raw.reason || raw.last_reason || raw.lastReason,
+  );
+  const lastIntent = redactSensitiveCrmText(
+    raw.last_intent || raw.lastIntent || raw.intent,
+  );
+  const suggestedActions = normalizeStringArray(
+    raw.suggested_actions || raw.suggestedActions,
+  )
+    .map(redactSensitiveCrmText)
+    .filter(Boolean) as string[];
   const contactId = normalizeString(raw.contact_id || raw.contactId);
   const profile = raw.profile || raw.customer_profile || raw.contact_profile || raw.identity || {};
   const avatarUrl =
@@ -389,7 +407,9 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     conversationStatus: normalizeString(raw.conversation_status || raw.conversationStatus),
     suggestedActions,
     interactionCount: raw.interaction_count ?? raw.interactionCount ?? null,
-    lastMessageExcerpt: normalizeString(raw.last_message_excerpt || raw.lastMessageExcerpt),
+    lastMessageExcerpt: redactSensitiveCrmText(
+      raw.last_message_excerpt || raw.lastMessageExcerpt,
+    ),
     avatarUrl,
     avatarSource,
     avatarConsent,
@@ -904,7 +924,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
                       <div key={item.id} className={`rounded-xl border p-3 text-sm ${notificationTone(item)}`}>
                         <div className="flex items-center justify-between gap-2"><Badge variant="outline">{item.channel || "canal"}</Badge><span className="text-xs">{notificationStatusLabel(item.status)}</span></div>
                         <p className="mt-2 truncate font-medium">{item.recipient || item.subject || "Destino sin publicar"}</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.last_error || item.body_preview || "Evento registrado por backend."}</p>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{redactSensitiveCrmText(item.last_error || item.body_preview) || "Evento registrado por backend."}</p>
                       </div>
                     )) : <p className="text-sm text-muted-foreground md:col-span-2">Sin notificaciones recientes.</p>}
                   </CardContent>
@@ -921,7 +941,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
                   <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><History className="h-4 w-4 text-primary" />Historial de campañas</CardTitle></CardHeader>
                   <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {campaignHistory.length ? campaignHistory.map((item) => (
-                      <div key={item.campaign_id || `${item.channel}-${item.first_at}`} className="rounded-xl border border-border/70 p-3"><div className="flex items-center justify-between gap-2"><Badge variant="secondary">{item.channel || "canal"}</Badge><span className="text-xs text-muted-foreground">{item.contacts_count || 0} contactos</span></div><p className="mt-2 line-clamp-2 text-sm font-medium">{item.message_preview || "Campaña sin texto publicado."}</p><p className="mt-2 text-xs text-muted-foreground">{formatDate(item.last_at)}</p></div>
+                      <div key={item.campaign_id || `${item.channel}-${item.first_at}`} className="rounded-xl border border-border/70 p-3"><div className="flex items-center justify-between gap-2"><Badge variant="secondary">{item.channel || "canal"}</Badge><span className="text-xs text-muted-foreground">{item.contacts_count || 0} contactos</span></div><p className="mt-2 line-clamp-2 text-sm font-medium">{redactSensitiveCrmText(item.message_preview) || "Campaña sin texto publicado."}</p><p className="mt-2 text-xs text-muted-foreground">{formatDate(item.last_at)}</p></div>
                     )) : <p className="text-sm text-muted-foreground">Todavía no hay campañas registradas.</p>}
                   </CardContent>
                 </Card>

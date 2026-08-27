@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { crmProfileTone, getCrmProfileScore, resolveCrmNextAction } from './UsuariosPage';
+import {
+  crmProfileTone,
+  getCrmProfileScore,
+  normalizeUsuario,
+  resolveCrmNextAction,
+} from './UsuariosPage';
+import { CRM_SENSITIVE_CONTENT_PLACEHOLDER } from '@/features/crm/people/sensitiveContent';
 
 const baseContact = {
   nombre: 'Marcelo Guill',
@@ -63,5 +69,20 @@ describe('UsuariosPage CRM profile intelligence', () => {
 
     expect(getCrmProfileScore(contact)).toBe(90);
     expect(resolveCrmNextAction(contact)).toBe('Invitar a completar perfil');
+  });
+
+  it('redacts verification credentials that arrived in legacy CRM text fields', () => {
+    const contact = normalizeUsuario({
+      id: 42,
+      channel: 'whatsapp',
+      name: '123456 es tu código de verificación. No lo compartas.',
+      conversation_summary: 'Your verification code is 654321. Do not share it.',
+      last_message_excerpt: 'PIN: 8432',
+    }, 0);
+
+    expect(contact.nombre).toBe('Contacto WhatsApp');
+    expect(contact.profileExcerpt).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
+    expect(contact.resumen).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
+    expect(contact.lastMessageExcerpt).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
   });
 });
