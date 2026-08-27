@@ -10,6 +10,7 @@ const runtime = vi.hoisted(() => ({
   refreshUser: vi.fn(),
   setUser: vi.fn(),
   toast: vi.fn(),
+  ticketMounts: 0,
   hasSession: true,
   user: null as Record<string, any> | null,
 }));
@@ -66,7 +67,15 @@ vi.mock('@/components/admin/PromotionForm', () => ({ PromotionForm: () => null }
 vi.mock('@/components/admin/AgendaPasteForm', () => ({ AgendaPasteForm: () => null }));
 vi.mock('@/components/ui/MunicipioIcon', () => ({ default: () => <span /> }));
 vi.mock('@/components/backoffice/BackofficeCommandCenter', () => ({ default: () => <div /> }));
-vi.mock('@/components/profile/ChannelActivationChecklist', () => ({ default: () => <div /> }));
+vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
+  default: ({ tenantSlug, initialData }: { tenantSlug?: string | null; initialData?: any }) => (
+    <div
+      data-testid="mock-channel-activation"
+      data-tenant-slug={tenantSlug || ''}
+      data-current-plan={initialData?.integration_access?.current_plan || ''}
+    />
+  ),
+}));
 vi.mock('@/components/analytics/Heatmap', () => ({ default: () => <div /> }));
 vi.mock('@/components/ui/MiniChatWidgetPreview', () => ({ default: () => <div /> }));
 vi.mock('@/components/ui/AddressAutocomplete', () => ({ default: () => <div /> }));
@@ -74,7 +83,12 @@ vi.mock('@/components/identity/IdentityAvatar', () => ({ default: () => <div /> 
 vi.mock('@/components/LazyMapLibreMap', () => ({ default: () => <div /> }));
 vi.mock('@/components/catalog/ImportWizard', () => ({ default: () => <div /> }));
 
-vi.mock('@/pages/TicketsPanel', () => ({ default: () => <div data-testid="mock-tickets" /> }));
+vi.mock('@/pages/TicketsPanel', () => ({
+  default: () => {
+    runtime.ticketMounts += 1;
+    return <div data-testid="mock-tickets" />;
+  },
+}));
 vi.mock('@/pages/EstadisticasPage', () => ({ default: () => <div data-testid="mock-stats" /> }));
 vi.mock('@/pages/analytics/AnalyticsPage', () => ({ default: () => <div data-testid="mock-analytics" /> }));
 vi.mock('@/pages/UsuariosPage', () => ({ default: () => <div /> }));
@@ -201,6 +215,7 @@ describe('Perfil request lifecycle', () => {
     runtime.refreshUser.mockReset().mockResolvedValue(undefined);
     runtime.setUser.mockReset();
     runtime.toast.mockReset();
+    runtime.ticketMounts = 0;
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || runtime.user?.tenantSlug || 'junin';
       if (path === '/me') return profileResponse(tenantSlug);
@@ -274,9 +289,47 @@ describe('Perfil request lifecycle', () => {
     renderProfile('/perfil?tab=tickets&section=channels&setup=channels');
 
     await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+    expect(runtime.ticketMounts).toBe(0);
     expect(window.location.search).toContain('tab=perfil');
     expect(window.location.search).toContain('section=channels');
     expect(window.location.search).toContain('setup=channels');
+  });
+
+  it('uses the verified profile and channel tenant when the session omits its slug', async () => {
+    runtime.user = {
+      ...verifiedUser('junin'),
+      tenantSlug: undefined,
+      tenant_slug: undefined,
+      tenant: undefined,
+    };
+    runtime.apiFetch.mockImplementation(async (path: string) => {
+      if (path === '/me') {
+        return {
+          ...profileResponse('junin'),
+          plan: 'full',
+          channel_activation: {
+            contract_version: 'tenant.channel_activation.v1',
+            tenant: { slug: 'junin', plan: 'full' },
+            integration_access: { enabled: true, status: 'enabled', current_plan: 'full' },
+            channels: [],
+          },
+        };
+      }
+      if (path.startsWith('/api/app/backoffice/navigation')) {
+        return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [{ id: 'operations', label: 'Operar reclamos', route: '/perfil?tab=tickets', enabled: true }],
+        };
+      }
+      return {};
+    });
+
+    renderProfile('/perfil?tab=perfil&section=channels&setup=channels');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-channel-activation')).toHaveAttribute('data-tenant-slug', 'junin');
+      expect(screen.getByTestId('mock-channel-activation')).toHaveAttribute('data-current-plan', 'full');
+    });
   });
 
   it('preserves an institutional deep link when backend navigation denies the requested workspace tab', async () => {
@@ -409,6 +462,10 @@ describe('Perfil request lifecycle', () => {
     const profileCalls = runtime.apiFetch.mock.calls.filter(([path]) => path === '/me');
     expect(profileCalls[0][1]).toMatchObject({ tenantSlug: 'junin' });
     expect(profileCalls[1][1]).toMatchObject({ tenantSlug: 'mendoza' });
+    expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
+    await waitFor(() => {
+      expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=mendoza')).toBe(1);
+    });
     expect(runtime.refreshUser).not.toHaveBeenCalled();
   });
 

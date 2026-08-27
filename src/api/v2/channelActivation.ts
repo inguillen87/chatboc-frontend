@@ -79,5 +79,7 @@ export const fetchTenantChannelActivation = (tenantSlug?: string | null) => {
     ? `/api/v2/tenants/${encodeURIComponent(normalized)}/activation/channels`
     : '/api/v2/tenant/activation/channels';
 
-  return apiFetch<ChannelActivationContract>(path);
+  return apiFetch<ChannelActivationContract>(path, {
+    tenantSlug: normalized || null,
+  });
 };

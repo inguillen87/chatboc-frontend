@@ -120,7 +120,10 @@ import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { uploadProfileAvatar } from "@/services/profileAvatarService";
-import { resolveOperationalTenantSlug } from "@/utils/tenantIdentity";
+import {
+  normalizeOperationalTenantSlug,
+  resolveOperationalTenantSlug,
+} from "@/utils/tenantIdentity";
 
 const TicketsPanel = React.lazy(() => import('@/pages/TicketsPanel'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
@@ -434,10 +437,9 @@ export default function Perfil() {
   const [profileChannelActivation, setProfileChannelActivation] = useState<
     ChannelActivationContract | null | undefined
   >(undefined);
-  const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
-  const derivedTenantSlug = useMemo(
-    () => resolveOperationalTenantSlug({ user: user as any, perfil: perfil as any, storedTenantSlug }),
-    [perfil, storedTenantSlug, user],
+  const storedTenantSlug = useMemo(
+    () => normalizeOperationalTenantSlug(safeLocalStorage.getItem("tenantSlug")),
+    [],
   );
   const isAdminUser = useMemo(
     () => ['superadmin', 'tenant_admin'].includes(String(normalizeRole(user?.rol))),
@@ -463,18 +465,52 @@ export default function Perfil() {
       return null;
     }
     try {
-      return slugify(decodeURIComponent(segments[1]));
+      return normalizeOperationalTenantSlug(decodeURIComponent(segments[1]));
     } catch {
-      return slugify(segments[1]);
+      return normalizeOperationalTenantSlug(segments[1]);
     }
   }, [location.pathname]);
-  const userTenantSlug = slugify(
+  const userTenantSlug = normalizeOperationalTenantSlug(
     (user as any)?.tenantSlug ||
       (user as any)?.tenant_slug ||
       (user as any)?.tenant?.slug ||
       (user as any)?.tenant?.tenant_slug,
   );
-  const profileTenantScope = routeTenantSlug || userTenantSlug || storedTenantSlug;
+  const verifiedProfileTenantSlug = normalizeOperationalTenantSlug(
+    (perfil as any)?.tenant_slug || (perfil as any)?.slug,
+  );
+  const verifiedActivationTenantSlug = normalizeOperationalTenantSlug(
+    profileChannelActivation?.tenant?.slug,
+  );
+  const sessionActivationTenantSlug = normalizeOperationalTenantSlug(
+    (user as any)?.channel_activation?.tenant?.slug,
+  );
+  const profileTenantScope =
+    routeTenantSlug ||
+    sessionActivationTenantSlug ||
+    userTenantSlug ||
+    storedTenantSlug ||
+    verifiedActivationTenantSlug ||
+    verifiedProfileTenantSlug;
+  const derivedTenantSlug = useMemo(
+    () =>
+      routeTenantSlug ||
+      sessionActivationTenantSlug ||
+      userTenantSlug ||
+      verifiedActivationTenantSlug ||
+      verifiedProfileTenantSlug ||
+      resolveOperationalTenantSlug({ user: user as any, perfil: perfil as any, storedTenantSlug }),
+    [
+      perfil,
+      routeTenantSlug,
+      sessionActivationTenantSlug,
+      storedTenantSlug,
+      user,
+      userTenantSlug,
+      verifiedActivationTenantSlug,
+      verifiedProfileTenantSlug,
+    ],
+  );
   const profileIdentityScope = user
     ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
     : null;
@@ -507,7 +543,13 @@ export default function Perfil() {
   const requestedProfileTab = normalizeProfileTabValue(searchParams.get("tab"));
   const requestedProfileSection = searchParams.get("section");
   const shouldHighlightChannelSetup = searchParams.get("setup") === "channels";
-  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
+  const hasInstitutionalDeepLink = Boolean(requestedProfileSection || shouldHighlightChannelSetup);
+  const requestedWorkspaceTab: ProfileTabValue | null = hasInstitutionalDeepLink
+    ? "perfil"
+    : requestedProfileTab;
+  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(
+    requestedWorkspaceTab || "perfil",
+  );
   const activeInstitutionSection = normalizeInstitutionProfileSection(
     shouldHighlightChannelSetup ? "channels" : requestedProfileSection,
   );
@@ -775,10 +817,21 @@ export default function Perfil() {
   );
 
   useEffect(() => {
-    if (requestedProfileTab && requestedProfileTab !== activeProfileTab) {
-      setActiveProfileTab(requestedProfileTab);
+    if (requestedWorkspaceTab && requestedWorkspaceTab !== activeProfileTab) {
+      setActiveProfileTab(requestedWorkspaceTab);
     }
-  }, [activeProfileTab, requestedProfileTab]);
+  }, [activeProfileTab, requestedWorkspaceTab]);
+
+  useEffect(() => {
+    if (!hasInstitutionalDeepLink || requestedProfileTab === "perfil") return;
+
+    // Canonicalize the URL without ever mounting the workspace named by a
+    // stale `tab` parameter. This prevents TicketsPanel from firing requests
+    // while a direct link to Perfil > Canales is resolving.
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", "perfil");
+    setSearchParams(next, { replace: true });
+  }, [hasInstitutionalDeepLink, requestedProfileTab, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (backofficeNavigationStatus === 'idle' || backofficeNavigationStatus === 'loading') return;

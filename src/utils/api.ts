@@ -258,11 +258,26 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
     if (candidate) return candidate;
   }
 
+  // Versioned tenant contracts carry the tenant after `/tenants/`. Treating
+  // the API version (`v1`, `v2`, ...) as the tenant contaminates every query
+  // with values such as `tenant_slug=v2` and can resolve another/default
+  // contract even though the canonical path already names the real tenant.
+  const versionedTenantMatch = normalizedPath.match(
+    /^\/api\/v\d+\/tenants\/([^/?#]+)/i,
+  );
+  if (versionedTenantMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(versionedTenantMatch[1]);
+    if (candidate) return candidate;
+  }
+
   // 2. Generic API match
   // This might match /api/public/... -> 'public' (which is a placeholder)
   const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
   if (apiMatch?.[1]) {
-    const candidate = sanitizeTenantSlug(apiMatch[1]);
+    const apiNamespace = apiMatch[1];
+    const candidate = /^v\d+$/i.test(apiNamespace)
+      ? null
+      : sanitizeTenantSlug(apiNamespace);
     // If it's a valid tenant, return it.
     // If it's a placeholder (like 'public'), we continue to try other patterns.
     if (candidate) return candidate;
