@@ -42,6 +42,7 @@ dist-ssr/
 .vercel/
 playwright-report/
 test-results/
+.qa-artifacts/
 
 # Env files
 .env
