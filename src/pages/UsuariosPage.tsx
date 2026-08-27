@@ -801,6 +801,28 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
   const whatsappUrl = (usuario: Usuario | string | null | undefined) =>
     typeof usuario === "object" && usuario ? getExplicitWhatsAppUrl(usuario) : null;
 
+  const openTicketDesk = React.useCallback(
+    (usuario: Usuario) => {
+      const realEmail =
+        usuario.email && usuario.email !== "Sin email real"
+          ? usuario.email
+          : null;
+      const query =
+        usuario.whatsappNumber ||
+        usuario.telefono ||
+        realEmail ||
+        usuario.nombre;
+      const params = new URLSearchParams({ tab: "tickets" });
+      if (tenantSlug) {
+        params.set("tenant_slug", tenantSlug);
+        params.set("tenant", tenantSlug);
+      }
+      if (query?.trim()) params.set("q", query.trim());
+      navigate(`/perfil?${params.toString()}`);
+    },
+    [navigate, tenantSlug],
+  );
+
   if (loading) return <div className="p-8">Cargando...</div>;
   if (error) return <div className="p-8 text-destructive">{error}</div>;
 
@@ -824,6 +846,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
           }
         }}
         onBack={() => navigate("/perfil")}
+        onOpenTicketDesk={(usuario) => openTicketDesk(usuario as Usuario)}
         isConnected={isConnected}
         metrics={[
           { label: "Personas", value: usuarios.length, helper: "registros disponibles" },

@@ -93,6 +93,7 @@ interface CrmPeopleWorkspaceProps {
   onMarketingOnlyChange: (value: boolean) => void;
   onRefresh: () => void;
   onBack: () => void;
+  onOpenTicketDesk: (person: CrmPeopleRecord) => void;
   isConnected: boolean;
   metrics: WorkspaceMetric[];
   getPersonKey: (person: CrmPeopleRecord) => string;
@@ -229,6 +230,7 @@ export default function CrmPeopleWorkspace({
   onMarketingOnlyChange,
   onRefresh,
   onBack,
+  onOpenTicketDesk,
   isConnected,
   metrics,
   getPersonKey,
@@ -484,6 +486,14 @@ export default function CrmPeopleWorkspace({
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => onOpenTicketDesk(selectedPerson)}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          Abrir en CRM
+                        </Button>
                         {selectedPerson.telefono ? (
                           <Button size="sm" variant="outline" className="gap-2" onClick={() => copyToClipboard(selectedPerson.telefono, "Teléfono")}>
                             <Copy className="h-4 w-4" />
@@ -491,10 +501,10 @@ export default function CrmPeopleWorkspace({
                           </Button>
                         ) : null}
                         {hasExplicitWhatsApp(selectedPerson) && whatsappUrl(selectedPerson) ? (
-                          <Button size="sm" className="gap-2" asChild>
+                          <Button size="sm" variant="outline" className="gap-2" asChild>
                             <a href={whatsappUrl(selectedPerson) || undefined} target="_blank" rel="noreferrer">
                               <MessageCircle className="h-4 w-4" />
-                              WhatsApp
+                              WhatsApp externo
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           </Button>

@@ -32,7 +32,13 @@ const people: CrmPeopleRecord[] = [
   },
 ];
 
-const Harness = ({ records = people }: { records?: CrmPeopleRecord[] }) => {
+const Harness = ({
+  records = people,
+  onOpenTicketDesk = vi.fn(),
+}: {
+  records?: CrmPeopleRecord[];
+  onOpenTicketDesk?: (person: CrmPeopleRecord) => void;
+}) => {
   const [selectedContactId, setSelectedContactId] = React.useState("generic-phone");
   return (
     <CrmPeopleWorkspace
@@ -49,6 +55,7 @@ const Harness = ({ records = people }: { records?: CrmPeopleRecord[] }) => {
       onMarketingOnlyChange={vi.fn()}
       onRefresh={vi.fn()}
       onBack={vi.fn()}
+      onOpenTicketDesk={onOpenTicketDesk}
       isConnected
       metrics={[{ label: "Personas", value: records.length, helper: "registros" }]}
       getPersonKey={(person) => person.contactId || String(person.id)}
@@ -68,17 +75,21 @@ const Harness = ({ records = people }: { records?: CrmPeopleRecord[] }) => {
 
 describe("CrmPeopleWorkspace", () => {
   it("switches the record 360 from the compact list", () => {
-    render(<Harness />);
+    const onOpenTicketDesk = vi.fn();
+    render(<Harness onOpenTicketDesk={onOpenTicketDesk} />);
 
     expect(screen.getAllByText("Mauricio Alonso").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("link", { name: /WhatsApp/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /WhatsApp externo/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir en CRM" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
       target: { value: "42" },
     });
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /WhatsApp/i })).toHaveAttribute("href", "https://wa.me/17432643718");
+    expect(screen.getByRole("link", { name: /WhatsApp externo/i })).toHaveAttribute("href", "https://wa.me/17432643718");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir en CRM" }));
+    expect(onOpenTicketDesk).toHaveBeenCalledWith(expect.objectContaining({ contactId: "42" }));
     expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
   });
 
