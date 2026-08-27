@@ -1126,7 +1126,10 @@ export default function Perfil() {
     setError(null);
     setMensaje(null);
     try {
-      const data = await apiFetch<any>("/me", { tenantSlug });
+      // Keep the contract explicit. Preview/static hosts only proxy `/api/*`;
+      // a bare `/me` can otherwise be swallowed by the SPA fallback and return
+      // index.html, which in turn degrades the workspace to a generic tenant.
+      const data = await apiFetch<any>("/api/me", { tenantSlug });
       if (!isCurrent()) {
         return null;
       }

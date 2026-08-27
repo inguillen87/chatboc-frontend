@@ -8,7 +8,7 @@ vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), { dismiss: vi.fn() }),
 }));
 
-import { shouldAutoApplyPublicRefresh } from './pwa';
+import { shouldAutoApplyPublicRefresh, shouldDisablePwaForHost } from './pwa';
 
 const setPath = (path: string) => {
   window.history.replaceState({}, '', path);
@@ -44,4 +44,21 @@ describe('public PWA refresh policy', () => {
     setPath('/admin/encuestas/632/editar');
     expect(shouldAutoApplyPublicRefresh()).toBe(false);
   });
+});
+
+describe('ephemeral deployment PWA policy', () => {
+  it.each([
+    'chatboc-r2-preview.vercel.app',
+    'chatboc-frontend-b24v67fai-marcelos-projects-c26aa499.vercel.app',
+    'localhost',
+  ])('disables persistent workers on %s', (hostname) => {
+    expect(shouldDisablePwaForHost(hostname)).toBe(true);
+  });
+
+  it.each(['chatboc.ar', 'www.chatboc.ar', 'gobierno.example.ar'])(
+    'keeps PWA support on durable custom host %s',
+    (hostname) => {
+      expect(shouldDisablePwaForHost(hostname)).toBe(false);
+    },
+  );
 });

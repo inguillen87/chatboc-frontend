@@ -72,7 +72,7 @@ describe('Vercel routing contract', () => {
       process.cwd(),
       'demo/institucional/tdf-discapacidad/index.html',
     );
-    const institutionalHtml = readFileSync(institutionalHtmlPath, 'utf8');
+    const institutionalHtml = readFileSync(institutionalHtmlPath, 'utf8').replace(/\r\n?/g, '\n');
     expect(institutionalHtml).toContain(
       '<title>Faro TDF · El agente que guía y acompaña</title>',
     );

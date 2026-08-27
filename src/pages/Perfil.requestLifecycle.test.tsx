@@ -218,7 +218,7 @@ describe('Perfil request lifecycle', () => {
     runtime.ticketMounts = 0;
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || runtime.user?.tenantSlug || 'junin';
-      if (path === '/me') return profileResponse(tenantSlug);
+      if (path === '/api/me') return profileResponse(tenantSlug);
       if (path.startsWith('/api/app/backoffice/navigation')) {
         return {
           contract_version: 'backoffice.navigation.v1',
@@ -241,7 +241,7 @@ describe('Perfil request lifecycle', () => {
   it('does not reload identity or request territorial datasets from the institutional profile', async () => {
     renderProfile('/perfil?range=7d&scope=municipio');
 
-    await waitFor(() => expect(countApiCalls('/me')).toBe(1));
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
     expect(countApiCalls('/api/whatsapp/promocionar')).toBe(0);
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
     expect(countApiCalls('/municipal/categorias')).toBe(0);
@@ -262,7 +262,7 @@ describe('Perfil request lifecycle', () => {
     });
     await waitFor(() => expect(screen.getByText('Trabajo de hoy')).toBeInTheDocument());
 
-    expect(countApiCalls('/me')).toBe(1);
+    expect(countApiCalls('/api/me')).toBe(1);
     expect(countApiCalls('/api/whatsapp/promocionar')).toBe(0);
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
     expect(countApiCalls('/municipal/categorias')).toBe(0);
@@ -303,7 +303,7 @@ describe('Perfil request lifecycle', () => {
       tenant: undefined,
     };
     runtime.apiFetch.mockImplementation(async (path: string) => {
-      if (path === '/me') {
+      if (path === '/api/me') {
         return {
           ...profileResponse('junin'),
           plan: 'full',
@@ -335,7 +335,7 @@ describe('Perfil request lifecycle', () => {
   it('preserves an institutional deep link when backend navigation denies the requested workspace tab', async () => {
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || 'junin';
-      if (path === '/me') return profileResponse(tenantSlug);
+      if (path === '/api/me') return profileResponse(tenantSlug);
       if (path.startsWith('/api/app/backoffice/navigation')) {
         return {
           contract_version: 'backoffice.navigation.v1',
@@ -392,12 +392,12 @@ describe('Perfil request lifecycle', () => {
   it('opens one dedicated plan section without duplicating profile requests', async () => {
     renderProfile('/perfil?tab=perfil&section=plan');
 
-    await waitFor(() => expect(countApiCalls('/me')).toBe(1));
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
     await waitFor(() => expect(screen.getByText('Uso de la organización')).toBeInTheDocument());
 
     expect(screen.getAllByText('Plan Pro')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /^Salir$/i })).not.toBeInTheDocument();
-    expect(countApiCalls('/me')).toBe(1);
+    expect(countApiCalls('/api/me')).toBe(1);
     expect(runtime.refreshUser).not.toHaveBeenCalled();
 
     expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
@@ -421,7 +421,7 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('tab=perfil');
     expect(window.location.search).toContain('section=plan');
     expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
-    expect(countApiCalls('/me')).toBe(1);
+    expect(countApiCalls('/api/me')).toBe(1);
   });
 
   it('keeps the exact safe next URL when an unauthenticated query route redirects', async () => {
@@ -435,7 +435,7 @@ describe('Perfil request lifecycle', () => {
         'Mocked navigate to: /login?next=%2Fperfil%3Ftab%3Dtickets%26range%3D30d%26scope%3Dmunicipio',
       );
     });
-    expect(countApiCalls('/me')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
     expect(runtime.refreshUser).not.toHaveBeenCalled();
     consoleLogSpy.mockRestore();
   });
@@ -447,19 +447,19 @@ describe('Perfil request lifecycle', () => {
 
     await act(async () => undefined);
 
-    expect(countApiCalls('/me')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
     expect(runtime.apiFetch).not.toHaveBeenCalled();
     expect(screen.queryByTestId('login-location')).not.toBeInTheDocument();
   });
 
   it('reloads the profile exactly once when the verified tenant scope changes', async () => {
     renderProfile('/perfil');
-    await waitFor(() => expect(countApiCalls('/me')).toBe(1));
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
 
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar tenant de prueba' }));
 
-    await waitFor(() => expect(countApiCalls('/me')).toBe(2));
-    const profileCalls = runtime.apiFetch.mock.calls.filter(([path]) => path === '/me');
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(2));
+    const profileCalls = runtime.apiFetch.mock.calls.filter(([path]) => path === '/api/me');
     expect(profileCalls[0][1]).toMatchObject({ tenantSlug: 'junin' });
     expect(profileCalls[1][1]).toMatchObject({ tenantSlug: 'mendoza' });
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
@@ -482,7 +482,7 @@ describe('Perfil request lifecycle', () => {
     runtime.user = { ...verifiedUser('junin'), rol: 'empleado' };
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || 'junin';
-      if (path === '/me') return profileResponse(tenantSlug);
+      if (path === '/api/me') return profileResponse(tenantSlug);
       if (path.startsWith('/api/app/backoffice/navigation')) {
         throw new ApiError('Alcance operativo requerido', 403, {
           reason_code: 'backoffice_operational_capability_required',

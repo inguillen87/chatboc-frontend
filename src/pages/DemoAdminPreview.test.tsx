@@ -284,6 +284,7 @@ describe('DemoAdminPreview executive snapshot', () => {
     ).toBeVisible();
     expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
+    fireEvent.click(screen.getByText('Cortes descriptivos'));
     expect(screen.getByRole('button', { name: 'Zona' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Oeste')).toBeVisible();
     expect(screen.getByText('Segmentación calculada exclusivamente sobre la base sintética del escenario.')).toBeVisible();

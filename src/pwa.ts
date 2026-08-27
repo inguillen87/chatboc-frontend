@@ -8,7 +8,7 @@ declare global {
 }
 
 let refreshToastId: string | number | undefined;
-let localCleanupStarted = false;
+let ephemeralCleanupStarted = false;
 let pwaSetupStarted = false;
 let registrationErrorCount = 0;
 let registrationRetryTimer: number | undefined;
@@ -90,9 +90,14 @@ const isLocalPreviewHost = () => {
   return LOCAL_PREVIEW_HOSTS.has(window.location.hostname);
 };
 
-const cleanupLocalPwaRuntime = async () => {
-  if (localCleanupStarted) return;
-  localCleanupStarted = true;
+export const shouldDisablePwaForHost = (hostname?: string | null) => {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  return LOCAL_PREVIEW_HOSTS.has(normalized) || normalized.endsWith('.vercel.app');
+};
+
+const cleanupEphemeralPwaRuntime = async () => {
+  if (ephemeralCleanupStarted) return;
+  ephemeralCleanupStarted = true;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
   await Promise.all(
@@ -110,8 +115,8 @@ const cleanupLocalPwaRuntime = async () => {
     );
   }
 
-  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-local-pwa-cleaned')) {
-    sessionStorage.setItem('chatboc-local-pwa-cleaned', '1');
+  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-ephemeral-pwa-cleaned')) {
+    sessionStorage.setItem('chatboc-ephemeral-pwa-cleaned', '1');
     window.location.reload();
   }
 };
@@ -279,9 +284,13 @@ export const setupPWA = () => {
     return;
   }
 
-  if (import.meta.env.DEV && isLocalPreviewHost()) {
-    cleanupLocalPwaRuntime().catch((error) => {
-      console.warn('Local PWA cleanup skipped', error);
+  // Vercel aliases are release-verification surfaces, not installable PWA
+  // origins. A worker registered on a stable Preview alias can combine a
+  // cached HTML shell from release A with immutable chunks from release B.
+  // Keep PWA support on production/custom domains and make Preview deterministic.
+  if ((import.meta.env.DEV && isLocalPreviewHost()) || shouldDisablePwaForHost(window.location.hostname)) {
+    cleanupEphemeralPwaRuntime().catch((error) => {
+      console.warn('Ephemeral PWA cleanup skipped', error);
     });
     return;
   }
