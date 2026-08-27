@@ -173,6 +173,7 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     sourceModel,
     invalidSourceModel: rawSourceModel !== null && sourceModel === null,
     filters: {
+      search: normalizeQueryValue(searchParams.get('q') ?? searchParams.get('search')),
       channel: normalizeQueryValue(searchParams.get('canal') ?? searchParams.get('channel')),
       status: normalizeQueryValue(searchParams.get('estado') ?? searchParams.get('status')),
       area: normalizeQueryValue(searchParams.get('area') ?? searchParams.get('categoria') ?? searchParams.get('category')),

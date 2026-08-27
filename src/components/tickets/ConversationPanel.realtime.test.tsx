@@ -7,6 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResponseTemplate } from '@/features/tickets/responseTemplatesApi';
 import type { Ticket } from '@/types/tickets';
 
+Object.defineProperty(URL, 'createObjectURL', {
+  configurable: true,
+  value: vi.fn(() => 'blob:ticket-evidence-preview'),
+});
+Object.defineProperty(URL, 'revokeObjectURL', {
+  configurable: true,
+  value: vi.fn(),
+});
+
 const harness = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
   getTicketMessages: vi.fn(),
@@ -104,7 +113,24 @@ vi.mock('./ChatMessage', () => ({
 }));
 vi.mock('./DetailsPanel', () => ({ default: () => null }));
 vi.mock('../ui/ScrollToBottomButton', () => ({ default: () => null }));
-vi.mock('../ui/AdjuntarArchivo', () => ({ default: () => null }));
+vi.mock('../ui/AdjuntarArchivo', () => ({
+  default: ({
+    onFileSelected,
+    disabled,
+  }: {
+    onFileSelected: (file: File) => void;
+    disabled?: boolean;
+  }) => (
+    <button
+      type="button"
+      aria-label="Adjuntar archivo"
+      disabled={disabled}
+      onClick={() => onFileSelected(new File(['evidencia'], 'evidencia.jpg', { type: 'image/jpeg' }))}
+    >
+      Adjuntar
+    </button>
+  ),
+}));
 
 import ConversationPanel, { TENANT_TICKET_INVALIDATION_DEBOUNCE_MS } from './ConversationPanel';
 
@@ -176,6 +202,60 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(screen.queryByText('CRM-77')).not.toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: 'Más acciones del caso' })).toHaveAttribute('aria-haspopup', 'menu');
+  });
+
+  it('keeps the enterprise ticket composer visible and labels real versus blocked actions', async () => {
+    render(renderConversation(true));
+
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
+    expect(screen.getByText('Respuesta desde el ticket')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Tiempo real conectado');
+    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeEnabled();
+
+    expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ubicación' })).toHaveAccessibleDescription(
+      'Ubicación bloqueada hasta que el backend publique el contrato de envío.',
+    );
+    expect(screen.getByRole('button', { name: 'Formulario' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toHaveAccessibleDescription(
+      'Derivación bloqueada porque el ticket no publicó una transición backend.',
+    );
+  });
+
+  it('sends a selected attachment through the existing ticket reply contract', async () => {
+    harness.sendMessage.mockResolvedValue({
+      delivery: {
+        contract_version: 'tickets.agent_reply_delivery.v1',
+        channel: 'whatsapp',
+        status: 'accepted',
+        reason: 'provider_accepted',
+        external_dispatch: true,
+        socket_emitted: true,
+        delivery_results: { whatsapp: true, socket: true },
+      },
+    });
+    render(renderConversation());
+
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar archivo' }));
+    expect(screen.getByText('evidencia.jpg')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+
+    await waitFor(() => expect(harness.sendMessage).toHaveBeenCalledTimes(1));
+    expect(harness.sendMessage).toHaveBeenCalledWith(
+      selectedTicket.id,
+      selectedTicket.tipo,
+      '',
+      [expect.objectContaining({ name: 'evidencia.jpg', type: 'image/jpeg' })],
+      undefined,
+      expect.objectContaining({
+        ticket: expect.objectContaining({ id: selectedTicket.id, tenant_slug: 'junin' }),
+        tenantSlug: 'junin',
+      }),
+    );
   });
 
   it('coalesces opaque tenant invalidations without losing them when the ticket list refreshes', async () => {

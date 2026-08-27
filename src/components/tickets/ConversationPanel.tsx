@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle, MoreHorizontal } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2, Sparkles, CheckCircle2, AlertTriangle, MoreHorizontal, MapPin, ClipboardList, Headphones } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Ticket,
@@ -67,6 +67,7 @@ import {
 import { isTenantTicketCollectionInvalidation } from '@/utils/tenantTicketInvalidation';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import type { ResponseTemplateTicketSourceModel } from '@/features/tickets/responseTemplatesApi';
+import TicketClaimButton from './TicketClaimButton';
 
 type UploadResponse = UploadResponseLike;
 
@@ -1495,6 +1496,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 min-[760px]:justify-end">
+            <TicketClaimButton />
             {!operationalWorkspace ? (
               <>
                 <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
@@ -1708,11 +1710,72 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       <footer
         className={cn(
-          'shrink-0 overflow-hidden border-t border-border/80 bg-card/95 shadow-[0_-10px_28px_rgba(15,23,42,0.08)]',
+          'sticky bottom-0 z-20 shrink-0 overflow-hidden border-t border-border/80 bg-card/95 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur',
           isMobile ? 'px-2.5 py-2' : 'p-3',
         )}
         data-testid="ticket-reply-footer"
       >
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Respuesta desde el ticket</p>
+            <p className="text-[11px] text-muted-foreground">
+              El mensaje queda auditado en el CRM; la entrega externa se confirma debajo del compositor.
+            </p>
+          </div>
+          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="h-6 rounded-full text-[11px]" data-testid="ticket-composer-sync-status">
+            {realtimeOnline ? 'Tiempo real conectado' : 'Actualización por sondeo'}
+          </Badge>
+        </div>
+        <div
+          className="mb-2 flex flex-wrap items-center gap-1.5"
+          aria-label="Acciones de respuesta"
+          data-testid="ticket-composer-action-bar"
+        >
+          <div className="flex items-center gap-1 rounded-[8px] border border-border/70 bg-background px-1.5 pr-2 text-xs font-medium text-foreground [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[6px] [&_button]:border-0">
+            <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
+            <span>Adjuntar archivo o imagen</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled
+            className="h-9 gap-1.5"
+            title="No hay un contrato backend publicado para enviar ubicaciones desde este ticket."
+            aria-describedby="ticket-location-block-reason"
+          >
+            <MapPin className="h-4 w-4" />
+            Ubicación
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled
+            className="h-9 gap-1.5"
+            title="No hay un contrato backend publicado para enviar formularios desde este ticket."
+            aria-describedby="ticket-form-block-reason"
+          >
+            <ClipboardList className="h-4 w-4" />
+            Formulario
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled
+            className="h-9 gap-1.5"
+            title="Este ticket no publicó una transición backend para derivar la conversación a un operador."
+            aria-describedby="ticket-handoff-block-reason"
+          >
+            <Headphones className="h-4 w-4" />
+            Derivar a humano
+          </Button>
+          <span id="ticket-location-block-reason" className="sr-only">Ubicación bloqueada hasta que el backend publique el contrato de envío.</span>
+          <span id="ticket-form-block-reason" className="sr-only">Formulario bloqueado hasta que el backend publique el contrato de envío.</span>
+          <span id="ticket-handoff-block-reason" className="sr-only">Derivación bloqueada porque el ticket no publicó una transición backend.</span>
+        </div>
+
         <div
           className={cn(
             'min-h-0',
@@ -1903,7 +1966,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
               )}
-              <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
             </div>
             <Button className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')} onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
               {isSending ? (

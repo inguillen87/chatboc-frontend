@@ -241,6 +241,33 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(resolveTicketTarget).toHaveBeenCalledWith(99, 'PymeTicket');
   });
 
+  it('aplica q como búsqueda segura sin seleccionar un ticket por aproximación', () => {
+    const setFilters = vi.fn();
+    const resolveTicketTarget = vi.fn().mockResolvedValue(null);
+    searchParamsState.value = new URLSearchParams('tab=tickets&q=%2B5492613168608');
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [],
+      filteredTickets: [],
+      selectedTicket: null,
+      selectTicket: vi.fn(),
+      resolveTicketTarget,
+      filters: { search: '', channel: 'all', status: 'all', area: 'all', agent: 'all', priority: 'all', sla: 'all', unread: 'all' },
+      setFilters,
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel />);
+
+    expect(setFilters).toHaveBeenCalledTimes(1);
+    const updater = setFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
+    expect(updater({ search: '', channel: 'all' })).toMatchObject({ search: '+5492613168608' });
+    expect(resolveTicketTarget).not.toHaveBeenCalled();
+  });
+
   it('rechaza source_model desconocido sin caer en una busqueda ambigua por ID', () => {
     const resolveTicketTarget = vi.fn().mockResolvedValue(null);
     searchParamsState.value = new URLSearchParams('ticket_id=99&source_model=Order');
