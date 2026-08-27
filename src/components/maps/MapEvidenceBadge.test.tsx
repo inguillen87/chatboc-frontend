@@ -71,7 +71,8 @@ describe("MapEvidenceBadge", () => {
       />,
     );
 
-    expect(screen.getByText("Datos reales")).toBeInTheDocument();
+    expect(screen.getByText("Datos disponibles")).toBeInTheDocument();
+    expect(screen.queryByText("Datos reales")).not.toBeInTheDocument();
     expect(screen.getByText("3 celdas")).toBeInTheDocument();
     expect(screen.getByText("Cobertura 82%")).toBeInTheDocument();
   });

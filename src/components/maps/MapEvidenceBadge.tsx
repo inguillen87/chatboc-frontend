@@ -209,7 +209,11 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
   const config = {
     verified: {
       Icon: ShieldCheck,
-      title: normalized.label ?? "Datos reales",
+      // A provider or endpoint name proves where the map was rendered or
+      // loaded from; it does not by itself certify that the underlying rows
+      // are real, official or externally validated.  Truth labels must come
+      // explicitly from the response provenance contract.
+      title: normalized.label ?? "Datos disponibles",
       className: "border-emerald-300/50 bg-emerald-950/82 text-emerald-50 shadow-emerald-950/20",
       dot: "bg-emerald-300",
     },
