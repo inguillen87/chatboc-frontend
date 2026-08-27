@@ -38,6 +38,7 @@ import {
   Megaphone, // Icono para promociones
   ArrowRight,
   BarChart3,
+  Clock3,
   ClipboardList,
   LayoutDashboard,
   MapPinned,
@@ -82,6 +83,10 @@ import ProfileWorkspaceNavigation, {
   resolveProfileWorkspaceCapabilities,
   type ProfileWorkspaceTabValue,
 } from '@/components/profile/ProfileWorkspaceNavigation';
+import InstitutionProfileWorkspace, {
+  normalizeInstitutionProfileSection,
+  type InstitutionProfileSection,
+} from '@/components/profile/InstitutionProfileWorkspace';
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
@@ -431,7 +436,7 @@ export default function Perfil() {
     [perfil, storedTenantSlug, user],
   );
   const isAdminUser = useMemo(
-    () => (user?.rol || "").toLowerCase() === "admin",
+    () => ['superadmin', 'tenant_admin'].includes(String(normalizeRole(user?.rol))),
     [user?.rol],
   );
   const isProOrFullPlan = useMemo(
@@ -493,7 +498,10 @@ export default function Perfil() {
   const requestedProfileSection = searchParams.get("section");
   const shouldHighlightChannelSetup = searchParams.get("setup") === "channels";
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
-  const [isAdvancedProfileOpen, setIsAdvancedProfileOpen] = useState(requestedProfileSection === "plan");
+  const activeInstitutionSection = normalizeInstitutionProfileSection(
+    shouldHighlightChannelSetup ? "channels" : requestedProfileSection,
+  );
+  const isInstitutionProfileOpen = Boolean(requestedProfileSection || shouldHighlightChannelSetup);
   const [isChannelSetupOpen, setIsChannelSetupOpen] = useState(shouldHighlightChannelSetup);
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
@@ -646,7 +654,7 @@ export default function Perfil() {
     setFilters: updateMunicipalPostFilters,
     loadMore: loadMoreMunicipalPosts,
     refresh: refreshMunicipalPosts,
-  } = useMunicipalPosts({ limit: 10, enabled: esMunicipio && activeProfileTab === "perfil" });
+  } = useMunicipalPosts({ limit: 10, enabled: false });
 
   const handleTipoPostFilterChange = useCallback(
     (value: string) => {
@@ -738,12 +746,23 @@ export default function Perfil() {
 
   const openPlanAndBilling = useCallback(() => {
     setActiveProfileTab("perfil");
-    setIsAdvancedProfileOpen(true);
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", "perfil");
     next.set("section", "plan");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  const updateInstitutionSection = useCallback(
+    (section: InstitutionProfileSection) => {
+      setActiveProfileTab("perfil");
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("tab", "perfil");
+      next.set("section", section === "plan-security" ? "plan" : section);
+      if (section !== "channels") next.delete("setup");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   useEffect(() => {
     if (requestedProfileTab && requestedProfileTab !== activeProfileTab) {
@@ -758,22 +777,8 @@ export default function Perfil() {
   }, [activeProfileTab, allowedWorkspaceTabs, backofficeNavigationStatus, updateProfileTab]);
 
   useEffect(() => {
-    if (requestedProfileSection !== "plan") return;
-
-    if (activeProfileTab !== "perfil") {
-      updateProfileTab("perfil");
-      return;
-    }
-
-    setIsAdvancedProfileOpen(true);
-    const focusPlanSection = window.setTimeout(() => {
-      const target = document.getElementById("profile-plan-and-usage");
-      if (!target) return;
-      target.focus({ preventScroll: true });
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-
-    return () => window.clearTimeout(focusPlanSection);
+    if (!requestedProfileSection || activeProfileTab === "perfil") return;
+    updateProfileTab("perfil");
   }, [activeProfileTab, requestedProfileSection, updateProfileTab]);
 
   useEffect(() => {
@@ -831,44 +836,6 @@ export default function Perfil() {
 
     void loadBackofficeNavigation();
   }, [backofficeNavigationRevision, derivedTenantSlug, normalizedRole, profileIdentityScope, user]);
-
-  useEffect(() => {
-    if (activeProfileTab !== "perfil" || !user || !hasAuthenticatedChatbocSession()) {
-      return;
-    }
-
-    const requestedScope = profileTenantScope || `user-${user?.id ?? "unknown"}`;
-    if (promotionStatusScopeRef.current === requestedScope) {
-      return;
-    }
-
-    promotionStatusScopeRef.current = requestedScope;
-    const checkPromotionStatus = async () => {
-      try {
-        const data = await apiFetch<any>('/api/whatsapp/promocionar', {
-          tenantSlug: profileTenantScope,
-        });
-        if (promotionStatusScopeRef.current !== requestedScope) {
-          return;
-        }
-        const last = data?.ultimo_envio || data?.last_sent || data?.lastSent;
-        const today = new Date().toISOString().slice(0, 10);
-        setHasSentPromotionToday(
-          data?.can_send === false ||
-            data?.disponible === false ||
-            Boolean(last && last.slice(0, 10) === today),
-        );
-      } catch {
-        if (promotionStatusScopeRef.current !== requestedScope) {
-          return;
-        }
-        const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
-        const today = new Date().toISOString().slice(0, 10);
-        setHasSentPromotionToday(lastPromotionDate === today);
-      }
-    };
-    void checkPromotionStatus();
-  }, [activeProfileTab, profileTenantScope, user?.id]);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -1292,35 +1259,6 @@ export default function Perfil() {
     };
   }, [fetchPerfil, profileIdentityScope, profileTenantScope]);
 
-  useEffect(() => {
-    if (!canViewAnalytics || activeProfileTab !== "perfil") {
-      return;
-    }
-
-    if (!hasAuthenticatedChatbocSession()) {
-      return;
-    }
-
-    const requestedScope = `${profileTenantScope || `user-${user?.id ?? "unknown"}`}:${user?.tipo_chat || "default"}`;
-    if (
-      mapDataScopeRef.current === requestedScope ||
-      mapDataInFlightScopeRef.current === requestedScope
-    ) {
-      return;
-    }
-
-    mapDataInFlightScopeRef.current = requestedScope;
-    void fetchMapData(profileTenantScope).then((loaded) => {
-      if (loaded) {
-        mapDataScopeRef.current = requestedScope;
-      }
-    }).finally(() => {
-      if (mapDataInFlightScopeRef.current === requestedScope) {
-        mapDataInFlightScopeRef.current = null;
-      }
-    });
-  }, [activeProfileTab, canViewAnalytics, fetchMapData, profileTenantScope, user?.id, user?.tipo_chat]);
-
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
     if (!user?.id) return; // Asegurarse que tenemos el ID de la organización
@@ -1369,7 +1307,7 @@ export default function Perfil() {
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
   useEffect(() => {
-    if (!isPyme || !["perfil", "catalogo"].includes(activeProfileTab)) {
+    if (!isPyme || activeProfileTab !== "catalogo") {
       setVectorSyncStatus(null);
       return;
     }
@@ -1690,6 +1628,12 @@ export default function Perfil() {
       setLoadingGuardar(false);
     }
   };
+
+  const handleCancelProfileChanges = useCallback(() => {
+    setMensaje(null);
+    setError(null);
+    void fetchPerfil({ tenantSlug: profileTenantScope });
+  }, [fetchPerfil, profileTenantScope]);
 
   const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Tipado de 'e'
     if (e.target.files && e.target.files[0]) {
@@ -2208,7 +2152,7 @@ export default function Perfil() {
     <ProfileWorkspaceNavigation
       activeTab={activeProfileTab}
       activeActionId={
-        activeProfileTab === "perfil" && requestedProfileSection === "plan"
+        activeProfileTab === "perfil" && activeInstitutionSection === "plan-security"
           ? "billing"
           : undefined
       }
@@ -2337,6 +2281,17 @@ export default function Perfil() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" aria-label="Contexto de la organización">
+              {isTenantAdministrator ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateInstitutionSection("general")}
+                >
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Perfil institucional
+                </Button>
+              ) : null}
               <Badge variant="outline" className="rounded-md px-2.5 py-1 text-xs font-medium">
                 {esMunicipio ? "Gestión municipal" : "Gestión comercial"}
               </Badge>
@@ -2355,7 +2310,7 @@ export default function Perfil() {
         </div>
       ) : null}
 
-      {activeProfileTab === "perfil" && backofficeNavigationStatus === 'ready' && hasAnyWorkspaceCapability && (
+      {activeProfileTab === "perfil" && !isInstitutionProfileOpen && backofficeNavigationStatus === 'ready' && hasAnyWorkspaceCapability && (
       <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -2448,11 +2403,367 @@ export default function Perfil() {
             {workspaceNavigation}
           </div>
         ) : null}
-        <WorkspacePanel active={activeProfileTab === "perfil"} label="Inicio del centro de control">
+        <WorkspacePanel active={activeProfileTab === "perfil" && isInstitutionProfileOpen} label="Perfil institucional">
+          <InstitutionProfileWorkspace
+            activeSection={activeInstitutionSection}
+            institutionName={perfil.nombre_empresa}
+            isMunicipal={esMunicipio}
+            isAdministrator={isTenantAdministrator}
+            loading={loadingGuardar}
+            plan={perfil.plan}
+            onCancel={handleCancelProfileChanges}
+            onSave={handleGuardar}
+            onSectionChange={updateInstitutionSection}
+          >
+            {mensaje ? (
+              <Alert className="mb-5 border-emerald-500/30 bg-emerald-500/5">
+                <CheckCircle className="h-4 w-4 text-emerald-600" />
+                <AlertTitle>Cambios guardados</AlertTitle>
+                <AlertDescription>{mensaje}</AlertDescription>
+              </Alert>
+            ) : null}
+            {error ? (
+              <Alert variant="destructive" className="mb-5">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>No pudimos completar la operación</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            {activeInstitutionSection === "general" ? (
+              <div className="grid max-w-4xl gap-5 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="nombre_empresa">Nombre legal o institucional</Label>
+                  <Input
+                    id="nombre_empresa"
+                    value={perfil.nombre_empresa}
+                    onChange={handleInputChange}
+                    required
+                    autoComplete="organization"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Se muestra en el encabezado del espacio de trabajo y en las comunicaciones oficiales.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telefono">Teléfono institucional o de contacto — no configura WhatsApp</Label>
+                  <Input
+                    id="telefono"
+                    placeholder="+54 9 261 000 0000"
+                    value={perfil.telefono}
+                    onChange={handleInputChange}
+                    required
+                    autoComplete="tel"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Es un dato de contacto del perfil. El número oficial de WhatsApp se vincula y verifica en Canales.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="link_web">Sitio institucional</Label>
+                  <Input
+                    id="link_web"
+                    type="url"
+                    placeholder="https://municipio.gob.ar"
+                    value={perfil.link_web}
+                    onChange={handleInputChange}
+                    required
+                    autoComplete="url"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    URL pública de referencia; no modifica dominios ni despliegues.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {activeInstitutionSection === "identity" ? (
+              <div className="grid max-w-5xl gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="logo_url">Logo institucional</Label>
+                    <Input
+                      id="logo_url"
+                      type="url"
+                      inputMode="url"
+                      placeholder="https://.../logo.png"
+                      value={perfil.logo_url}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="avatar_url">Imagen personal autorizada</Label>
+                    <Input
+                      id="avatar_url"
+                      type="url"
+                      inputMode="url"
+                      placeholder="https://..."
+                      value={perfil.avatar_url}
+                      onChange={handleInputChange}
+                      disabled={avatarUploading}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" disabled={avatarUploading} asChild>
+                        <label htmlFor="avatar_file_upload">
+                          <UploadCloud className="mr-2 h-4 w-4" />
+                          {avatarUploading ? "Subiendo..." : "Subir imagen"}
+                        </label>
+                      </Button>
+                      <Input
+                        id="avatar_file_upload"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="sr-only"
+                        onChange={handleProfileAvatarUpload}
+                        disabled={avatarUploading}
+                      />
+                      <Badge variant="outline">
+                        {perfil.avatar_consent && perfil.avatar_url ? "Uso autorizado" : "Fallback seguro"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <label className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
+                    <Checkbox
+                      checked={Boolean(perfil.avatar_consent)}
+                      onCheckedChange={(checked) =>
+                        setPerfil((prev) => ({ ...prev, avatar_consent: Boolean(checked) }))
+                      }
+                      disabled={avatarUploading || !perfil.avatar_url.trim()}
+                      aria-label="Autorizar imagen personal"
+                    />
+                    <span>
+                      <span className="block font-semibold text-foreground">Autorizar uso de esta imagen</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                        Solo se usa en CRM y operación con consentimiento explícito. No se obtienen fotos desde WhatsApp ni por scraping.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Vista previa</p>
+                  <div className="mt-5 flex flex-col items-center gap-3 text-center">
+                    <IdentityAvatar
+                      name={user?.name || perfil.nombre_empresa || user?.email || "Usuario"}
+                      avatarUrl={perfil.avatar_consent ? perfil.avatar_url : ""}
+                      source={perfil.avatar_consent && perfil.avatar_url ? "imagen consentida" : "iniciales"}
+                      consented={perfil.avatar_consent}
+                      size="lg"
+                    />
+                    <div>
+                      <p className="font-semibold text-foreground">{user?.name || "Administrador institucional"}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{perfil.nombre_empresa || "Organización"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {activeInstitutionSection === "location" ? (
+              <div className="max-w-5xl space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="direccion">Domicilio institucional</Label>
+                  <AddressAutocomplete
+                    id="direccion"
+                    value={perfil.direccion ? { label: perfil.direccion, value: perfil.direccion } : null}
+                    onChange={handleAddressOptionChange}
+                    onSelect={handleAddressSelect}
+                    placeholder="Ej: Av. Principal 123"
+                    persistKey="perfil_direccion"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Se utiliza como referencia administrativa. No crea barrios, zonas oficiales ni puntos de reclamos.
+                  </p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ciudad">Ciudad</Label>
+                    <Input id="ciudad" value={perfil.ciudad} onChange={handleInputChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="provincia">Provincia</Label>
+                    <select
+                      id="provincia"
+                      value={perfil.provincia}
+                      onChange={handleInputChange}
+                      required
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">Seleccioná una provincia</option>
+                      {PROVINCIAS.map((province) => (
+                        <option key={province} value={province}>{province}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {hasValidLocation ? "Referencia geográfica disponible" : "Sin coordenadas validadas"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {geocodingStatus === "loading"
+                        ? "Buscando coordenadas para el domicilio ingresado..."
+                        : hasValidLocation
+                          ? `${perfil.latitud?.toFixed?.(5)}, ${perfil.longitud?.toFixed?.(5)}`
+                          : "Guardá una dirección válida o elegí el punto desde el mapa operativo."}
+                    </p>
+                    {geocodingError ? <p className="mt-1 text-xs text-destructive">{geocodingError}</p> : null}
+                  </div>
+                  {workspaceCapabilities.territory ? (
+                    <Button type="button" variant="outline" onClick={() => updateProfileTab("mapas")}>
+                      <MapPinned className="mr-2 h-4 w-4" /> Abrir mapa operativo
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {activeInstitutionSection === "hours" ? (
+              <div className="max-w-4xl space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={modoHorario === "comercial" ? "secondary" : "outline"}
+                    onClick={setHorarioComercial}
+                  >
+                    Horario estándar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={modoHorario === "personalizado" ? "secondary" : "outline"}
+                    onClick={setHorarioPersonalizado}
+                  >
+                    Personalizar por día
+                  </Button>
+                </div>
+                {modoHorario === "comercial" ? (
+                  <Alert>
+                    <Clock3 className="h-4 w-4" />
+                    <AlertTitle>Lunes a viernes, 09:00 a 20:00</AlertTitle>
+                    <AlertDescription>Sábados y domingos cerrados.</AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-border/70">
+                    {DIAS.map((dia, idx) => (
+                      <div
+                        key={dia}
+                        className="grid gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 sm:grid-cols-[8rem_8rem_minmax(0,1fr)] sm:items-center"
+                      >
+                        <span className="font-medium text-foreground">{dia}</span>
+                        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Checkbox
+                            checked={perfil.horarios_ui[idx].cerrado}
+                            onCheckedChange={(checked) => handleHorarioChange(idx, "cerrado", Boolean(checked))}
+                            aria-label={`${dia} cerrado`}
+                          />
+                          Cerrado
+                        </label>
+                        {!perfil.horarios_ui[idx].cerrado ? (
+                          <div className="flex max-w-sm items-center gap-2">
+                            <Input
+                              type="time"
+                              value={perfil.horarios_ui[idx].abre}
+                              onChange={(event) => handleHorarioChange(idx, "abre", event.target.value)}
+                              aria-label={`${dia} apertura`}
+                            />
+                            <span className="text-muted-foreground">a</span>
+                            <Input
+                              type="time"
+                              value={perfil.horarios_ui[idx].cierra}
+                              onChange={(event) => handleHorarioChange(idx, "cierra", event.target.value)}
+                              aria-label={`${dia} cierre`}
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Sin atención programada</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {activeInstitutionSection === "channels" ? (
+              <div className="space-y-5">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Los canales se habilitan por configuración verificada</AlertTitle>
+                  <AlertDescription>
+                    Guardar un teléfono en General no vincula WhatsApp ni demuestra entrega. La activación requiere número emisor, proveedor y validación operativa.
+                  </AlertDescription>
+                </Alert>
+                <ChannelActivationChecklist
+                  tenantSlug={derivedTenantSlug}
+                  initialData={(user as any)?.channel_activation || null}
+                  highlighted={shouldHighlightChannelSetup}
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  {esMunicipio ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/municipal/whatsapp")}
+                      className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                    >
+                      <p className="font-semibold text-foreground">Administrar WhatsApp institucional</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Número emisor, webhook, plantillas y estado del proveedor.</p>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => navigate(esMunicipio ? "/municipal/integrations" : derivedTenantSlug ? `/${derivedTenantSlug}/integracion` : "/integracion")}
+                    className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    <p className="font-semibold text-foreground">Integraciones y canales web</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Configuración técnica aislada de este registro institucional.</p>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {activeInstitutionSection === "plan-security" ? (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)]">
+                <PlanUsagePanel
+                  canManageBilling={canManageBilling}
+                  limit={limitePlan}
+                  percentage={porcentaje}
+                  plan={perfil.plan || ""}
+                  used={perfil.preguntas_usadas || 0}
+                />
+                <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Gobierno de acceso</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Roles normalizados, permisos por módulo y trazabilidad de cambios.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <div className="rounded-lg border border-border/70 bg-background p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Rol actual</p>
+                      <p className="mt-1 font-semibold text-foreground">{isTenantAdministrator ? "Administrador del tenant" : normalizedRole || "Sin rol operativo"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/70 bg-background p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Organización</p>
+                      <p className="mt-1 truncate font-semibold text-foreground">{derivedTenantSlug || "Sin tenant validado"}</p>
+                    </div>
+                  </div>
+                  {workspaceCapabilities.team ? (
+                    <Button type="button" variant="outline" className="w-full" onClick={() => updateProfileTab("empleados")}>
+                      Gestionar equipo y permisos
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </InstitutionProfileWorkspace>
+
+          {false && (
           <details
             className="group mt-3 rounded-xl border border-border/70 bg-card/80 shadow-sm"
-            open={isAdvancedProfileOpen}
-            onToggle={(event) => setIsAdvancedProfileOpen(event.currentTarget.open)}
+            open={false}
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
               <span>
@@ -3234,6 +3545,7 @@ export default function Perfil() {
             </div>
           </div>
           </details>
+          )}
         </WorkspacePanel>
         <WorkspacePanel
           active={activeProfileTab === "tickets" && workspaceCapabilities.operation}

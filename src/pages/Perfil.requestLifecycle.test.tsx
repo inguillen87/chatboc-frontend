@@ -223,14 +223,15 @@ describe('Perfil request lifecycle', () => {
     });
   });
 
-  it('does not reload identity or the full Inicio dataset when tab/range/scope query state changes', async () => {
+  it('does not reload identity or request territorial datasets from the institutional profile', async () => {
     renderProfile('/perfil?range=7d&scope=municipio');
 
     await waitFor(() => expect(countApiCalls('/me')).toBe(1));
-    await waitFor(() => expect(runtime.getHeatmapDataset).toHaveBeenCalledTimes(1));
-    expect(countApiCalls('/api/whatsapp/promocionar')).toBe(1);
+    expect(countApiCalls('/api/whatsapp/promocionar')).toBe(0);
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
-    expect(countApiCalls('/municipal/categorias')).toBe(1);
+    expect(countApiCalls('/municipal/categorias')).toBe(0);
+    expect(runtime.getTicketStats).not.toHaveBeenCalled();
+    expect(runtime.getHeatmapDataset).not.toHaveBeenCalled();
     expect(runtime.refreshUser).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -244,15 +245,50 @@ describe('Perfil request lifecycle', () => {
     await act(async () => {
       updateBrowserLocation('/perfil?tab=perfil&range=30d&scope=municipio');
     });
-    await waitFor(() => expect(screen.getByText('Organización, planes e integraciones')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Trabajo de hoy')).toBeInTheDocument());
 
     expect(countApiCalls('/me')).toBe(1);
-    expect(countApiCalls('/api/whatsapp/promocionar')).toBe(1);
+    expect(countApiCalls('/api/whatsapp/promocionar')).toBe(0);
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
-    expect(countApiCalls('/municipal/categorias')).toBe(1);
-    expect(runtime.getTicketStats).toHaveBeenCalledTimes(1);
-    expect(runtime.getHeatmapDataset).toHaveBeenCalledTimes(1);
+    expect(countApiCalls('/municipal/categorias')).toBe(0);
+    expect(runtime.getTicketStats).not.toHaveBeenCalled();
+    expect(runtime.getHeatmapDataset).not.toHaveBeenCalled();
     expect(runtime.refreshUser).not.toHaveBeenCalled();
+  });
+
+  it('restores an institutional section from the URL and keeps contact phone separate from WhatsApp', async () => {
+    renderProfile('/perfil?tab=perfil&section=channels');
+
+    await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+    expect(screen.getByText(/Guardar un teléfono en General no vincula WhatsApp/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('institution-profile-section-general'));
+
+    await waitFor(() => expect(screen.getByTestId('institution-profile-panel-general')).toBeInTheDocument());
+    expect(screen.getByText('Teléfono institucional o de contacto — no configura WhatsApp')).toBeInTheDocument();
+    expect(window.location.search).not.toContain('section=channels');
+    expect(window.location.search).toContain('section=general');
+  });
+
+  it('grants institutional administration to the normalized tenant_admin role', async () => {
+    runtime.user = { ...verifiedUser('junin'), rol: 'tenant_admin' };
+    renderProfile('/perfil?section=general');
+
+    await waitFor(() => expect(screen.getByText('Administración habilitada')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+  });
+
+  it('separates the operational home from the institutional editor to avoid one long page', async () => {
+    renderProfile('/perfil');
+
+    await waitFor(() => expect(screen.getByText('Trabajo de hoy')).toBeInTheDocument());
+    expect(screen.queryByTestId('institution-profile-workspace')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil institucional' }));
+
+    await waitFor(() => expect(screen.getByTestId('institution-profile-workspace')).toBeInTheDocument());
+    expect(screen.queryByText('Trabajo de hoy')).not.toBeInTheDocument();
+    expect(window.location.search).toContain('section=general');
   });
 
   it('opens one dedicated plan section without duplicating profile requests', async () => {
