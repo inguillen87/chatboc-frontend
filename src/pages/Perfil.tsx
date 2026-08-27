@@ -78,6 +78,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
+import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import PlanUsagePanel from '@/components/profile/PlanUsagePanel';
 import ProfileWorkspaceNavigation, {
   resolveProfileWorkspaceCapabilities,
@@ -430,6 +431,9 @@ export default function Perfil() {
     avatar_source: "",
     avatar_consent: false,
   });
+  const [profileChannelActivation, setProfileChannelActivation] = useState<
+    ChannelActivationContract | null | undefined
+  >(undefined);
   const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
   const derivedTenantSlug = useMemo(
     () => resolveOperationalTenantSlug({ user: user as any, perfil: perfil as any, storedTenantSlug }),
@@ -474,6 +478,12 @@ export default function Perfil() {
   const profileIdentityScope = user
     ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
     : null;
+
+  useEffect(() => {
+    // Never carry a verified channel contract across tenant identities while
+    // the next scoped profile is loading.
+    setProfileChannelActivation(undefined);
+  }, [profileIdentityScope]);
   const buildMappingPath = useCallback(
     (path: string) =>
       tenantPrefix && derivedTenantSlug ? `/${tenantPrefix}/${derivedTenantSlug}${path}` : path,
@@ -773,8 +783,29 @@ export default function Perfil() {
   useEffect(() => {
     if (backofficeNavigationStatus === 'idle' || backofficeNavigationStatus === 'loading') return;
     if (allowedWorkspaceTabs.has(activeProfileTab)) return;
+
+    if (requestedProfileSection || shouldHighlightChannelSetup) {
+      // Institutional deep links must survive authorization resolving after the
+      // first render. Canonicalize the parent workspace without discarding the
+      // requested section/setup query parameters.
+      setActiveProfileTab("perfil");
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("tab", "perfil");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
     updateProfileTab("perfil");
-  }, [activeProfileTab, allowedWorkspaceTabs, backofficeNavigationStatus, updateProfileTab]);
+  }, [
+    activeProfileTab,
+    allowedWorkspaceTabs,
+    backofficeNavigationStatus,
+    requestedProfileSection,
+    searchParams,
+    setSearchParams,
+    shouldHighlightChannelSetup,
+    updateProfileTab,
+  ]);
 
   useEffect(() => {
     if ((!requestedProfileSection && !shouldHighlightChannelSetup) || activeProfileTab === "perfil") return;
@@ -1046,6 +1077,13 @@ export default function Perfil() {
       if (!isCurrent()) {
         return null;
       }
+
+      const channelActivation = data.channel_activation;
+      setProfileChannelActivation(
+        channelActivation?.contract_version === 'tenant.channel_activation.v1'
+          ? (channelActivation as ChannelActivationContract)
+          : null,
+      );
 
       const latitud = parseCoordinate(data.latitud ?? data.lat);
       const longitud = parseCoordinate(data.longitud ?? data.lng);
@@ -2417,7 +2455,11 @@ export default function Perfil() {
               <div className="border-t border-border/70 p-3">
                 <ChannelActivationChecklist
                   tenantSlug={derivedTenantSlug}
-                  initialData={(user as any)?.channel_activation || null}
+                  initialData={
+                    profileChannelActivation === undefined
+                      ? (user as any)?.channel_activation || null
+                      : profileChannelActivation
+                  }
                   highlighted={shouldHighlightChannelSetup}
                 />
               </div>
@@ -2744,7 +2786,11 @@ export default function Perfil() {
                 </Alert>
                 <ChannelActivationChecklist
                   tenantSlug={derivedTenantSlug}
-                  initialData={(user as any)?.channel_activation || null}
+                  initialData={
+                    profileChannelActivation === undefined
+                      ? (user as any)?.channel_activation || null
+                      : profileChannelActivation
+                  }
                   highlighted={shouldHighlightChannelSetup}
                 />
                 <div className="grid gap-3 md:grid-cols-2">

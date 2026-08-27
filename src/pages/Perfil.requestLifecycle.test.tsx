@@ -279,6 +279,27 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('setup=channels');
   });
 
+  it('preserves an institutional deep link when backend navigation denies the requested workspace tab', async () => {
+    runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
+      const tenantSlug = options?.tenantSlug || 'junin';
+      if (path === '/me') return profileResponse(tenantSlug);
+      if (path.startsWith('/api/app/backoffice/navigation')) {
+        return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [{ id: 'people', label: 'Personas y accesos', route: '/empleados', enabled: true }],
+        };
+      }
+      return {};
+    });
+
+    renderProfile('/perfil?tab=tickets&section=channels&setup=channels');
+
+    await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+    expect(window.location.search).toContain('tab=perfil');
+    expect(window.location.search).toContain('section=channels');
+    expect(window.location.search).toContain('setup=channels');
+  });
+
   it('grants institutional administration to the normalized tenant_admin role', async () => {
     runtime.user = { ...verifiedUser('junin'), rol: 'tenant_admin' };
     renderProfile('/perfil?section=general');

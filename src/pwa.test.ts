@@ -33,4 +33,15 @@ describe('public PWA refresh policy', () => {
       expect(shouldAutoApplyPublicRefresh()).toBe(false);
     },
   );
+
+  it('auto-applies a waiting release on the profile shell without losing its deep link', () => {
+    setPath('/perfil?tab=perfil&section=channels&setup=channels');
+    expect(shouldAutoApplyPublicRefresh()).toBe(true);
+    expect(window.location.search).toContain('section=channels');
+  });
+
+  it('still protects admin workspaces from an automatic refresh', () => {
+    setPath('/admin/encuestas/632/editar');
+    expect(shouldAutoApplyPublicRefresh()).toBe(false);
+  });
 });

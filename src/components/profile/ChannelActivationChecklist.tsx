@@ -90,6 +90,13 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    // `/me` may finish after the workspace mounts. Keep the visible contract
+    // aligned with that verified tenant snapshot instead of retaining a stale
+    // session payload (for example, an obsolete Free plan badge).
+    setData(initialData || null);
+  }, [initialData, tenantSlug]);
+
   const load = React.useCallback(async () => {
     if (!tenantSlug && !initialData) return;
     setLoading(true);
@@ -134,7 +141,9 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             <Badge className="border-blue-400/40 bg-blue-500/15 text-blue-100" variant="outline">
               Setup operativo
             </Badge>
-            {data?.integration_access?.current_plan ? (
+            {loading ? (
+              <Badge variant="secondary">Sincronizando estado</Badge>
+            ) : data?.integration_access?.current_plan ? (
               <Badge variant="secondary" className="capitalize">
                 Plan {data.integration_access.current_plan}
               </Badge>

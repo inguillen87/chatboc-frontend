@@ -54,6 +54,11 @@ const PANEL_RUNTIME_PREFIXES = [
   '/integracion',
 ];
 
+// `/perfil` is the authenticated shell entry point but does not contain a
+// long-lived unsaved operation on initial load. Applying a waiting worker here
+// prevents an old lazy-chunk graph from breaking deep links after a release.
+const SAFE_AUTHENTICATED_REFRESH_PREFIXES = ['/perfil'];
+
 const dismissRefreshToast = () => {
   if (refreshToastId === undefined) {
     return;
@@ -69,6 +74,10 @@ export const shouldAutoApplyPublicRefresh = () => {
   const pathname = window.location.pathname || '/';
   if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return false;
+  }
+
+  if (SAFE_AUTHENTICATED_REFRESH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return true;
   }
 
   return PUBLIC_RUNTIME_PREFIXES.some((prefix) =>

@@ -92,6 +92,18 @@ const activationPayload = {
   ],
 };
 
+const fullActivationPayload = {
+  ...activationPayload,
+  tenant: { ...activationPayload.tenant, plan: 'full' },
+  integration_access: {
+    ...activationPayload.integration_access,
+    enabled: true,
+    status: 'enabled',
+    current_plan: 'full',
+    required_plan: 'full',
+  },
+};
+
 describe('ChannelActivationChecklist', () => {
   beforeEach(() => {
     vi.mocked(fetchTenantChannelActivation).mockReset();
@@ -142,5 +154,22 @@ describe('ChannelActivationChecklist', () => {
     expect(screen.getByText(/sincronizacion pendiente/i)).toBeInTheDocument();
     expect(screen.getByText(/esperando sincronizacion del backend/i)).toBeInTheDocument();
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
+  });
+
+  it('replaces a stale session plan when the verified profile snapshot arrives', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockRejectedValue(new Error('temporarily unavailable'));
+    const { rerender } = render(
+      <ChannelActivationChecklist tenantSlug="junin" initialData={activationPayload} />,
+    );
+
+    await screen.findByText(/no pudimos sincronizar los canales ahora/i);
+    expect(screen.getByText(/^plan free$/i)).toBeInTheDocument();
+
+    rerender(
+      <ChannelActivationChecklist tenantSlug="junin" initialData={fullActivationPayload} />,
+    );
+
+    await waitFor(() => expect(screen.getByText(/^plan full$/i)).toBeInTheDocument());
+    expect(screen.queryByText(/^plan free$/i)).not.toBeInTheDocument();
   });
 });

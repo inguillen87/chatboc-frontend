@@ -108,6 +108,21 @@ describe('asset recovery bootstrap', () => {
     expect(runtime.replace.mock.calls[0][0]).toContain('__chatboc_reason=chunk-load');
   });
 
+  it('preserves profile section and setup parameters during asset recovery', async () => {
+    const runtime = buildRuntime();
+    runtime.runtimeWindow.location.href =
+      'https://www.chatboc.ar/perfil?tab=perfil&section=channels&setup=channels';
+
+    await runtime.runtimeWindow.__CHATBOC_ASSET_RECOVERY__.recover('vite-preload');
+
+    const replacement = new URL(runtime.replace.mock.calls[0][0]);
+    expect(replacement.pathname).toBe('/perfil');
+    expect(replacement.searchParams.get('tab')).toBe('perfil');
+    expect(replacement.searchParams.get('section')).toBe('channels');
+    expect(replacement.searchParams.get('setup')).toBe('channels');
+    expect(replacement.searchParams.get('__chatboc_reason')).toBe('vite-preload');
+  });
+
   it('guards against reload loops during the same recovery window', async () => {
     const runtime = buildRuntime();
 
