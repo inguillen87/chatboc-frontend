@@ -416,6 +416,32 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
   });
 
+  it('shows the backend-derived provenance legend instead of claiming every point is real', () => {
+    const points = buildPoints(4);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      quality: { state: 'ready', visible_points: 4, can_render_heatmap: true },
+      response_provenance: {
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'synthetic',
+        server_trusted_classification: true,
+        contains_synthetic: true,
+        synthetic_responses_included: 4,
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent('Datos sintéticos declarados');
+    expect(document.body.textContent).toContain('La API declaró respuestas sintéticas incluidas');
+    expect(document.body.textContent).not.toContain('Los puntos son reales');
+  });
+
   it('enables zonal metrics only with explicit official boundaries and backend population', () => {
     const points = buildPoints(12);
     const heatmap = {

@@ -155,7 +155,7 @@ describe('operations heatmap v2 contract', () => {
     mocks.panelGet.mockReset();
   });
 
-  it('passes segment filters and normalizes real category, age and gender facets', async () => {
+  it('passes segment filters and preserves declared zones and response provenance', async () => {
     mocks.panelGet.mockResolvedValue({
       contract_version: 'operations.heatmap.v1',
       privacy_metadata: {
@@ -187,6 +187,18 @@ describe('operations heatmap v2 contract', () => {
         gender: [{ key: 'femenino', label: 'Femenino', count: 3 }],
         age_range: [{ key: '35-44', label: '35-44', count: 2 }],
         source: [{ key: 'tickets', label: 'Tickets', count: 4 }],
+        zone: [{ key: 'centro', label: 'Centro', count: 4 }],
+      },
+      response_provenance: {
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'real',
+        server_trusted_classification: 'true',
+        contains_synthetic: 'false',
+        real_responses_included: '3',
+        synthetic_responses_included: '0',
+        synthetic_responses_excluded: '2',
+        unverified_responses_included: '0',
+        unverified_responses_excluded: '1',
       },
       applied_filters: {
         categoria: 'alumbrado',
@@ -524,6 +536,16 @@ describe('operations heatmap v2 contract', () => {
     });
     expect(response.facets[0].items[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
     expect(response.segments?.gender?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
+    expect(response.segments?.zone?.[0]).toMatchObject({ key: 'centro', label: 'Centro', count: 4 });
+    expect(response.response_provenance).toMatchObject({
+      contract_version: 'surveys.response_provenance.v1',
+      mode: 'real',
+      server_trusted_classification: true,
+      contains_synthetic: false,
+      real_responses_included: 3,
+      synthetic_responses_excluded: 2,
+      unverified_responses_excluded: 1,
+    });
     expect(response.filters_applied?.categoria).toBe('alumbrado');
     expect(response.applied_filters?.source).toBe('tickets');
     expect(response.demographics?.source).toBe('real_metadata_only');

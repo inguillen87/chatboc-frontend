@@ -73,6 +73,15 @@ export interface TerritoryMapReadiness {
   canRenderHeatmap?: boolean;
 }
 
+export type TerritoryDataProvenanceState = 'real' | 'synthetic' | 'demo' | 'unvalidated';
+
+export interface TerritoryDataProvenanceLegend {
+  state: TerritoryDataProvenanceState;
+  label: string;
+  shortLabel: string;
+  detail: string;
+}
+
 export interface TerritoryLayerDescriptor {
   id: string;
   label: string;
@@ -196,6 +205,78 @@ export const resolveTerritoryMapReadiness = (
     pendingGeocode,
     withoutCoordinates,
     canRenderHeatmap,
+  };
+};
+
+export const resolveTerritoryDataProvenance = (
+  heatmap?: Pick<OperationsHeatmapV1, 'response_provenance'> &
+    Partial<Pick<OperationsHeatmapV1, 'points'>>,
+  usesDemoFallback = false,
+  representedPoints: OperationsHeatmapPoint[] = heatmap?.points ?? [],
+): TerritoryDataProvenanceLegend => {
+  const provenance = heatmap?.response_provenance;
+  const mode = normalizeToken(provenance?.mode);
+  const realIncluded = readFirstNumber(provenance?.real_responses_included) ?? 0;
+  const syntheticIncluded = readFirstNumber(provenance?.synthetic_responses_included) ?? 0;
+  const unverifiedIncluded = readFirstNumber(provenance?.unverified_responses_included) ?? 0;
+  const representsOnlySurveyResponses =
+    representedPoints.length > 0 &&
+    representedPoints.every((point) => {
+      const source = normalizeToken(
+        readFirstString(point.source, point.layer, point.record_source, point.type, point.id),
+      );
+      return source.includes('survey') || source.includes('encuesta');
+    });
+
+  if (usesDemoFallback || mode.includes('demo')) {
+    return {
+      state: 'demo',
+      label: 'Escenario de demostración',
+      shortLabel: 'demo',
+      detail: 'Puntos sintéticos para previsualización; no representan casos ni participación ciudadana real.',
+    };
+  }
+
+  if (mode === 'synthetic' || provenance?.contains_synthetic === true || syntheticIncluded > 0) {
+    return {
+      state: 'synthetic',
+      label: 'Datos sintéticos declarados',
+      shortLabel: 'sintéticos',
+      detail: 'La API declaró respuestas sintéticas incluidas; no deben usarse para decisiones operativas.',
+    };
+  }
+
+  if (
+    mode === 'real' &&
+    provenance?.server_trusted_classification === true &&
+    unverifiedIncluded === 0 &&
+    representsOnlySurveyResponses &&
+    realIncluded >= representedPoints.length
+  ) {
+    return {
+      state: 'real',
+      label: 'Procedencia validada por backend',
+      shortLabel: 'procedencia validada',
+      detail:
+        'La API clasificó las respuestas incluidas como reales y excluye las sintéticas o no verificadas; no certifica límites zonales.',
+    };
+  }
+
+  if (mode === 'real' && provenance?.server_trusted_classification === true) {
+    return {
+      state: 'unvalidated',
+      label: 'Procedencia parcial',
+      shortLabel: 'validación parcial',
+      detail:
+        'La API valida la procedencia de respuestas de encuesta, pero no certifica todos los puntos operativos representados.',
+    };
+  }
+
+  return {
+    state: 'unvalidated',
+    label: 'Procedencia no validada',
+    shortLabel: 'sin validación',
+    detail: 'La API no informó una clasificación verificable; revisá la fuente antes de usar este mapa para decisiones.',
   };
 };
 

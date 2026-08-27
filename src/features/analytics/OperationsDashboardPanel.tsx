@@ -309,9 +309,9 @@ const HEATMAP_FILTERS: HeatmapFilterConfig[] = [
   {
     key: 'barrio',
     queryParam: 'barrio',
-    labelKey: 'filter_barrio',
-    fallbackLabel: 'Barrio',
-    pointFields: ['barrio', 'neighborhood'],
+    labelKey: 'filter_zone',
+    fallbackLabel: 'Zona declarada',
+    pointFields: ['zone', 'zona', 'barrio', 'neighborhood', 'distrito', 'district'],
   },
   {
     key: 'distrito',
@@ -350,6 +350,10 @@ const HEATMAP_FILTER_ALIASES: Record<string, HeatmapFilterKey> = {
   type: 'source',
   barrio: 'barrio',
   neighborhood: 'barrio',
+  zone: 'barrio',
+  zones: 'barrio',
+  zona: 'barrio',
+  zonas: 'barrio',
   distrito: 'distrito',
   district: 'distrito',
   status: 'estado',

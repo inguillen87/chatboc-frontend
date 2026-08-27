@@ -323,6 +323,8 @@ export interface OperationsHeatmapPoint {
   rango_edad?: string;
   barrio?: string;
   distrito?: string;
+  zone?: string;
+  zona?: string;
   status?: string;
   estado?: string;
   severity?: string;
@@ -457,6 +459,25 @@ export interface OperationsHeatmapSourceQuality {
   [key: string]: unknown;
 }
 
+/**
+ * Server-issued classification for survey responses represented in the
+ * operational heatmap. It does not certify administrative boundaries or
+ * unrelated point sources.
+ */
+export interface OperationsHeatmapResponseProvenance {
+  contract_version?: string;
+  mode?: string;
+  server_trusted_classification?: boolean;
+  contains_synthetic?: boolean;
+  real_responses_included?: number;
+  synthetic_responses_included?: number;
+  synthetic_responses_excluded?: number;
+  unverified_responses_included?: number;
+  unverified_responses_excluded?: number;
+  synthetic_marker_contract?: string;
+  [key: string]: unknown;
+}
+
 export interface OperationsHeatmapAILayers {
   contract_version?: string;
   status?: string;
@@ -583,6 +604,7 @@ export interface OperationsHeatmapV1 {
   privacy?: OperationsHeatmapPrivacyMetadata;
   map_layers?: OperationsHeatmapMapLayersContract;
   source_quality?: OperationsHeatmapSourceQuality;
+  response_provenance?: OperationsHeatmapResponseProvenance;
   spatial_filter?: {
     bbox?: Record<string, unknown> | null;
     applied?: boolean;

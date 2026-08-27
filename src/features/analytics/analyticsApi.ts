@@ -21,6 +21,7 @@ import type {
   OperationsHeatmapFacet,
   OperationsHeatmapGeoFeatureCollection,
   OperationsHeatmapPoint,
+  OperationsHeatmapResponseProvenance,
   OperationsHeatmapV1,
   OperationsQueueTruthV1,
   OperationsTrend,
@@ -134,6 +135,8 @@ const buildQuery = (params?: {
   rango_edad?: string | null;
   barrio?: string | null;
   distrito?: string | null;
+  zona?: string | null;
+  zone?: string | null;
   status?: string | null;
   estado?: string | null;
   severity?: string | null;
@@ -792,6 +795,8 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
     rango_edad: asString(value.rango_edad ?? value.age_range ?? value.ageRange),
     barrio: asString(value.barrio ?? value.neighborhood),
     distrito: asString(value.distrito ?? value.district),
+    zone: asString(value.zone ?? value.zona),
+    zona: asString(value.zona ?? value.zone),
     status: asString(value.status ?? value.estado),
     estado: asString(value.estado ?? value.status),
     severity: asString(value.severity ?? value.severidad),
@@ -1230,6 +1235,25 @@ const normalizeHeatmapSourceQuality = (value: unknown): OperationsHeatmapV1['sou
   };
 };
 
+const normalizeHeatmapResponseProvenance = (
+  value: unknown,
+): OperationsHeatmapResponseProvenance | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    mode: asString(value.mode),
+    server_trusted_classification: asBoolean(value.server_trusted_classification),
+    contains_synthetic: asBoolean(value.contains_synthetic),
+    real_responses_included: asNumber(value.real_responses_included),
+    synthetic_responses_included: asNumber(value.synthetic_responses_included),
+    synthetic_responses_excluded: asNumber(value.synthetic_responses_excluded),
+    unverified_responses_included: asNumber(value.unverified_responses_included),
+    unverified_responses_excluded: asNumber(value.unverified_responses_excluded),
+    synthetic_marker_contract: asString(value.synthetic_marker_contract),
+  };
+};
+
 const normalizeHeatmapSpatialFilter = (value: unknown): OperationsHeatmapV1['spatial_filter'] => {
   if (!isRecord(value)) return undefined;
   return {
@@ -1303,6 +1327,7 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     ),
     map_layers: pickRecord(record.map_layers) as OperationsHeatmapV1['map_layers'],
     source_quality: sourceQuality,
+    response_provenance: normalizeHeatmapResponseProvenance(record.response_provenance),
     spatial_filter: normalizeHeatmapSpatialFilter(record.spatial_filter),
     ai_layers: normalizeHeatmapAiLayers(record.ai_layers),
     ai_insights: normalizeHeatmapAiInsights(record.ai_insights),
@@ -1750,6 +1775,8 @@ export const getOperationsHeatmapV2 = async (params?: {
   rango_edad?: string | null;
   barrio?: string | null;
   distrito?: string | null;
+  zona?: string | null;
+  zone?: string | null;
   status?: string | null;
   estado?: string | null;
   severity?: string | null;

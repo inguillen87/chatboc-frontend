@@ -659,6 +659,35 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
   });
 
+  it('exposes backend segments.zone as a declared-zone filter', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(
+      heatmapFixture({
+        segments: {
+          zone: [
+            { key: 'centro', label: 'Centro declarado', count: 2 },
+            { key: 'sin_zona', label: 'Sin zona', count: 1 },
+          ],
+        },
+      }),
+    );
+
+    renderPanel();
+
+    const zoneFilter = await screen.findByLabelText('Zona declarada');
+    expect(zoneFilter).toHaveTextContent('Centro declarado');
+    fireEvent.change(zoneFilter, { target: { value: 'centro' } });
+
+    await waitFor(() => {
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'junin',
+          include_ai: 0,
+          barrio: 'centro',
+        }),
+      );
+    });
+  });
+
   it('does not render queue truth or a healthy SLA state when the validated contract is unavailable', async () => {
     renderPanel();
 

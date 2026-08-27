@@ -7,6 +7,7 @@ import {
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   resolveOfficialTerritoryZones,
+  resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
 } from './premiumTerritoryHeatmap';
@@ -41,6 +42,56 @@ const buildPoints = (count: number, overrides?: Partial<OperationsHeatmapPoint>)
   }));
 
 describe('premium territory heatmap aggregation', () => {
+  it('derives map provenance without treating missing or untrusted metadata as real', () => {
+    expect(resolveTerritoryDataProvenance(undefined)).toMatchObject({
+      state: 'unvalidated',
+      label: 'Procedencia no validada',
+    });
+    expect(resolveTerritoryDataProvenance(undefined, true)).toMatchObject({
+      state: 'demo',
+      label: 'Escenario de demostración',
+    });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'synthetic',
+          server_trusted_classification: true,
+          contains_synthetic: true,
+          synthetic_responses_included: 20,
+        },
+      }),
+    ).toMatchObject({ state: 'synthetic', label: 'Datos sintéticos declarados' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: true,
+          contains_synthetic: false,
+          real_responses_included: 8,
+          unverified_responses_included: 0,
+        },
+      }, false, [{ id: 'survey_response:1', source: 'survey', lat: -34.6, lng: -60.9 }]),
+    ).toMatchObject({ state: 'real', label: 'Procedencia validada por backend' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: true,
+          real_responses_included: 8,
+        },
+      }, false, [{ id: 'ticket:1', source: 'ticket', lat: -34.6, lng: -60.9 }]),
+    ).toMatchObject({ state: 'unvalidated', label: 'Procedencia parcial' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: false,
+          real_responses_included: 8,
+        },
+      }),
+    ).toMatchObject({ state: 'unvalidated' });
+  });
+
   it('keeps low sample zones private', () => {
     const result = aggregateTerritoryHeatmap({
       points: buildPoints(PREMIUM_HEATMAP_MIN_SAMPLE_SIZE - 1),

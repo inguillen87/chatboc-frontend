@@ -40,6 +40,7 @@ import {
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   resolveOfficialTerritoryZones,
+  resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
   territoryCentroid,
@@ -172,7 +173,7 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     ticket: readString(point.ticket, point.ticket_id, point.record_id),
     categoria: readString(point.categoria, point.category, point.type, point.layer),
     canal: readString(point.canal, point.channel),
-    barrio: readString(point.barrio, point.district, point.distrito),
+    barrio: readString(point.zone, point.zona, point.barrio, point.district, point.distrito),
     estado: readString(point.estado, point.status),
     severidad: readString(point.severidad, point.severity),
     fuente: readString(point.fuente, point.source),
@@ -223,6 +224,16 @@ const readinessToneClass = {
   degraded: 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-200',
   low: 'border-orange-500/35 bg-orange-500/10 text-orange-700 dark:text-orange-200',
   empty: 'border-destructive/35 bg-destructive/10 text-destructive',
+};
+
+const provenanceToneClass: Record<
+  ReturnType<typeof resolveTerritoryDataProvenance>['state'],
+  string
+> = {
+  real: 'border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-200',
+  synthetic: 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+  demo: 'border-violet-500/35 bg-violet-500/10 text-violet-700 dark:text-violet-200',
+  unvalidated: 'border-slate-500/35 bg-slate-500/10 text-slate-700 dark:text-slate-200',
 };
 
 const badgeVariantForReadiness = (state: ReturnType<typeof resolveTerritoryMapReadiness>['state']) => {
@@ -385,6 +396,10 @@ const operationsPointsFromFeatureCollection = (
       categoria: readString(properties.categoria, properties.category),
       channel: readString(properties.channel, properties.canal),
       canal: readString(properties.canal, properties.channel),
+      zone: readString(properties.zone, properties.zona),
+      zona: readString(properties.zona, properties.zone),
+      barrio: readString(properties.barrio, properties.neighborhood, properties.zone, properties.zona),
+      distrito: readString(properties.distrito, properties.district),
       status: readString(properties.status, properties.estado),
       estado: readString(properties.estado, properties.status),
       source: readString(properties.source, properties.fuente),
@@ -482,7 +497,14 @@ const buildOperationsGeoLayerConfig = ({
           intensity: readNumber(point.intensity, rawPoint?.intensity, weight) ?? weight,
           totalWeight: readNumber(point.totalWeight, rawPoint?.total_weight, weight) ?? weight,
           direccion: readString(point.direccion, rawPoint?.direccion, rawPoint?.address, rawPoint?.label),
-          barrio: readString(point.barrio, rawPoint?.barrio, rawPoint?.district, rawPoint?.distrito),
+          barrio: readString(
+            point.barrio,
+            rawPoint?.zone,
+            rawPoint?.zona,
+            rawPoint?.barrio,
+            rawPoint?.district,
+            rawPoint?.distrito,
+          ),
           cell_id: readString(point.cellId, rawPoint?.cell_id),
           fuente: readString(point.fuente, point.source, rawPoint?.fuente, rawPoint?.source) ?? 'operations',
           latest_event_at: latestEventAt,
@@ -704,6 +726,10 @@ export function PremiumTerritoryHeatmap({
   const readiness = useMemo(
     () => resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
     [heatmap, sourcePoints.length],
+  );
+  const dataProvenance = useMemo(
+    () => resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
+    [heatmap, sourcePoints, usesDemoData],
   );
   const displayLayers = useMemo(() => resolveTerritoryLayerDescriptors(heatmap), [heatmap]);
   const displayLayerKey = displayLayers.map((layer) => layer.id).join('|');
@@ -1080,7 +1106,7 @@ export function PremiumTerritoryHeatmap({
         backendFocusCount !== undefined
           ? `${formatNumber(backendFocusCount)} casos - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
-            ? `${formatNumber(visiblePointCount, '0')} puntos reales sin agregación zonal`
+            ? `${formatNumber(visiblePointCount, '0')} puntos · ${dataProvenance.shortLabel} · sin agregación zonal`
             : decisionZone.suppressed
             ? 'muestra insuficiente'
             : `${formatNumber(decisionZone.total)} eventos`,
@@ -1884,7 +1910,7 @@ export function PremiumTerritoryHeatmap({
               <div className="rounded-lg border border-amber-500/30 bg-background/95 p-3 shadow-sm backdrop-blur">
                 <p className="text-sm font-semibold">Sin delimitación territorial oficial</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Los puntos son reales. Rankings, tasas y comparaciones zonales permanecen desactivados.
+                  {dataProvenance.detail} Rankings, tasas y comparaciones zonales permanecen desactivados.
                 </p>
               </div>
             </div>
@@ -1914,6 +1940,15 @@ export function PremiumTerritoryHeatmap({
               <Badge variant="outline" className="gap-1 bg-background/80 backdrop-blur">
                 <MapPin className="h-3.5 w-3.5" />
                 {formatNumber(visiblePointCount)} visibles
+              </Badge>
+              <Badge
+                data-testid="territory-data-provenance"
+                variant="outline"
+                className={cn('gap-1 backdrop-blur', provenanceToneClass[dataProvenance.state])}
+                title={dataProvenance.detail}
+              >
+                {dataProvenance.state === 'real' ? <ShieldCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {dataProvenance.label}
               </Badge>
               {geocodingStatus ? (
                 <Badge variant="outline" className="gap-1 bg-background/80 capitalize backdrop-blur">
@@ -2394,8 +2429,8 @@ export function PremiumTerritoryHeatmap({
                 Sin delimitación territorial oficial
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                El mapa conserva los puntos y celdas reales, pero no calcula rankings, tasas por población ni
-                comparaciones entre zonas hasta recibir límites oficiales.
+                El mapa conserva los puntos y celdas disponibles. {dataProvenance.detail} No calcula rankings,
+                tasas por población ni comparaciones entre zonas hasta recibir límites oficiales.
               </p>
             </div>
           )}

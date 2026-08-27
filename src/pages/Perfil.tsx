@@ -1205,7 +1205,7 @@ export default function Perfil() {
       if (usedFallback) {
         toast({
           title: 'Mapa sin datos',
-          description: 'No hay puntos reales disponibles para mostrar con los filtros actuales.',
+          description: 'No hay puntos disponibles para mostrar con los filtros actuales.',
         });
       }
 
