@@ -196,12 +196,35 @@ export interface UnifiedConversationStreamItem {
   raw?: Record<string, unknown> | null;
 }
 
+export interface TicketHistoryPagination {
+  contract_version?: string;
+  direction?: string;
+  order?: string;
+  limit: number;
+  returned_count?: number;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
   historial_chat?: Array<Record<string, unknown>> | null;
   realtime_state?: TicketRealtimeState | null;
   unified_conversation_stream?: UnifiedConversationStreamItem[] | Array<Record<string, unknown>> | null;
+  pagination?: TicketHistoryPagination | null;
+  has_more?: boolean;
+  next_cursor?: string | null;
+}
+
+export interface TicketWorkflowInstance {
+  contract_version: "ticket.workflow.instance.v2" | string;
+  current_state: string;
+  canonical_state?: string | null;
+  next_states: string[];
+  can_transition: boolean;
+  final_state: boolean;
+  blocked_reason?: string | null;
 }
 
 export interface Ticket {
@@ -356,5 +379,7 @@ export interface Ticket {
   school_case?: Record<string, unknown> | null;
   realtime_state?: TicketRealtimeState | null;
   collaboration_state?: TicketCollaborationState | null;
+  next_states?: string[] | null;
+  workflow?: TicketWorkflowInstance | null;
   socket_room?: string | null;
 }

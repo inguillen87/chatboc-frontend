@@ -10,6 +10,7 @@ import {
   TicketRealtimeState,
   TicketRealtimeViewer,
   TicketCollaborationState,
+  TicketHistoryPagination,
   UnifiedConversationStreamItem,
   TicketTimelineEvent,
 } from '@/types/tickets';
@@ -1354,16 +1355,39 @@ export const sendTicketHistory = async (
     return requestTicketHistoryEmail({ tipo: ticket.tipo, ticketId: ticket.id, options });
 };
 
+export interface UpdateTicketStatusOptions {
+    ticket?: TicketEndpointContext | null;
+    expectedStatus?: TicketStatus | string | null;
+}
+
 export const updateTicketStatus = async (
     ticketId: number,
     tipo: 'municipio' | 'pyme',
-    estado: TicketStatus
-): Promise<void> => {
+    estado: TicketStatus,
+    options: UpdateTicketStatusOptions = {},
+): Promise<Partial<Ticket>> => {
     try {
-        await apiFetch(ticketApiPath(`/tickets/${tipo}/${ticketId}/estado`), {
+        if (isTenantTicketV2(options.ticket)) {
+            const response = await apiFetch(resolveTenantTicketV2Endpoint(ticketId, options.ticket), {
+                method: 'PATCH',
+                body: {
+                    status: estado,
+                    ...(options.expectedStatus ? { expected_status: options.expectedStatus } : {}),
+                },
+            });
+            return normalizeTicketPayload(
+                normalizeV2TicketDetailResponse(response, options.ticket) as Ticket,
+            );
+        }
+
+        const response = await apiFetch(ticketApiPath(`/tickets/${tipo}/${ticketId}/estado`), {
             method: 'PUT',
-            body: { estado },
+            body: {
+                estado,
+                ...(options.expectedStatus ? { expected_estado: options.expectedStatus } : {}),
+            },
         });
+        return normalizeTicketPayload(response as Ticket);
     } catch (error) {
         console.error(`Error updating status for ticket ${ticketId}:`, error);
         throw error;
@@ -1542,22 +1566,49 @@ export const getTicketMessages = async (
   }
 };
 
+export interface TicketTimelineResult {
+  estado_chat: string;
+  history: TicketHistoryEvent[];
+  messages: Message[];
+  unified_conversation_stream: UnifiedConversationStreamItem[];
+  realtime_state?: TicketRealtimeState | null;
+  pagination: TicketHistoryPagination;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
 export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean; pin?: string; quiet?: boolean; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
-): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[]; realtime_state?: TicketRealtimeState | null }> => {
+  opts?: {
+    public?: boolean;
+    pin?: string;
+    quiet?: boolean;
+    ticket?: TicketEndpointContext | null;
+    tenantSlug?: string | null;
+    cursor?: string | null;
+    limit?: number;
+  }
+): Promise<TicketTimelineResult> => {
   try {
     const useTenantV2 = isTenantTicketV2(opts?.ticket) && !opts?.public;
     const endpointBase = useTenantV2
       ? resolveTenantTicketV2Endpoint(ticketId, opts?.ticket, 'timeline')
       : ticketApiPath(`/tickets/${tipo}/${ticketId}/timeline`);
     const publicAccess = !useTenantV2 && opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
-    const endpoint = publicAccess?.query
+    const endpointWithAccess = publicAccess?.query
       ? `${endpointBase}?${publicAccess.query}`
       : !useTenantV2 && opts?.pin
       ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
       : endpointBase;
+    const requestedLimit = Number.isFinite(Number(opts?.limit))
+      ? Math.min(100, Math.max(1, Math.trunc(Number(opts?.limit))))
+      : 50;
+    const historyQuery = new URLSearchParams();
+    historyQuery.set('limit', String(requestedLimit));
+    const requestedCursor = typeof opts?.cursor === 'string' ? opts.cursor.trim() : '';
+    if (requestedCursor) historyQuery.set('cursor', requestedCursor);
+    const endpoint = `${endpointWithAccess}${endpointWithAccess.includes('?') ? '&' : '?'}${historyQuery.toString()}`;
     const fetchOpts = useTenantV2
       ? { tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined }
       : publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
@@ -1638,6 +1689,24 @@ export const getTicketTimeline = async (
         });
       }
     });
+    const responsePagination = response.pagination && typeof response.pagination === 'object'
+      ? response.pagination
+      : null;
+    const nextCursor = typeof responsePagination?.next_cursor === 'string'
+      ? responsePagination.next_cursor
+      : typeof response.next_cursor === 'string'
+        ? response.next_cursor
+        : null;
+    const hasMore = Boolean(responsePagination?.has_more ?? response.has_more) && Boolean(nextCursor);
+    const pagination: TicketHistoryPagination = {
+      contract_version: responsePagination?.contract_version || 'conversation.history.cursor.v1',
+      direction: responsePagination?.direction || 'older',
+      order: responsePagination?.order || 'chronological_asc',
+      limit: Number(responsePagination?.limit) || requestedLimit,
+      returned_count: Number(responsePagination?.returned_count) || undefined,
+      has_more: hasMore,
+      next_cursor: nextCursor,
+    };
     return {
       estado_chat: response.estado_chat,
       history,
@@ -1648,6 +1717,9 @@ export const getTicketTimeline = async (
             .filter((item: UnifiedConversationStreamItem | null): item is UnifiedConversationStreamItem => Boolean(item))
         : buildFallbackUnifiedConversationStream(response.timeline),
       realtime_state: normalizeRealtimeState((response as any).realtime_state),
+      pagination,
+      has_more: hasMore,
+      next_cursor: nextCursor,
     };
   } catch (error) {
     if (!opts?.quiet && !isLegacyHtmlGatewayError(error)) {

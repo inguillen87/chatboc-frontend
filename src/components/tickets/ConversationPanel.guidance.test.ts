@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyPublicRecipientReadConfirmation,
   formatReplyDeliveryChannel,
+  getComposerActionDeliveryView,
   getComposerChannelView,
   getReplyDeliveryView,
   hasPublicRecipientPresence,
@@ -221,6 +222,34 @@ describe('reply delivery evidence', () => {
     expect(view.tone).toBe('success');
     expect(view.title).toBe('Mensaje enviado');
     expect(view.detail).toContain('WhatsApp');
+  });
+
+  it('labels durable queue evidence without claiming provider delivery', () => {
+    const replyView = getReplyDeliveryView(deliveryStatus({
+      mode: 'durable_queue',
+      channel: 'whatsapp',
+      status: 'durably_staged',
+      reason: 'domain_effects_durably_staged',
+      reply_status: 'queued_for_delivery',
+      operator_message: 'La respuesta quedó en cola durable.',
+    }));
+    const actionView = getComposerActionDeliveryView({
+      mode: 'durable_queue',
+      delivery_mode: 'durable_queue',
+      channel: 'whatsapp',
+      outbox: { durably_staged: true },
+      final_delivery: {
+        status: 'pending_provider_callback',
+        authoritative_source: 'provider_status_callback',
+      },
+    });
+
+    expect(replyView.title).toBe('En cola para WhatsApp');
+    expect(replyView.detail).toContain('cola durable');
+    expect(actionView).toMatchObject({
+      tone: 'queued',
+      title: 'En cola para WhatsApp',
+    });
   });
 
   it('distinguishes socket emission, recipient presence and recipient read', () => {

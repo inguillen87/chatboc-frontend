@@ -40,6 +40,17 @@ const locationAction: SaasAction = {
   },
 };
 
+const runtimeLocationAction: SaasAction = {
+  ...locationAction,
+  delivery_mode: 'runtime_preflight',
+  delivery_modes: ['durable_queue', 'internal_event'],
+  external_dispatch: false,
+  direct_external_dispatch: false,
+  may_queue_external_delivery: true,
+  action_response_delivery_authoritative: true,
+  final_delivery_authority: 'provider_status_callback',
+};
+
 const replyContract = {
   form_selection: {
     options: [{
@@ -78,6 +89,10 @@ describe('TicketShareActionDialog', () => {
     expect(getTicketShareActionBlockReason('location', locationAction)).toBeNull();
   });
 
+  it('accepts the exact runtime preflight contract without promising external delivery', () => {
+    expect(getTicketShareActionBlockReason('location', runtimeLocationAction)).toBeNull();
+  });
+
   it.each([
     ['external dispatch', { external_dispatch: true }],
     ['missing external dispatch flag', { external_dispatch: undefined }],
@@ -86,7 +101,7 @@ describe('TicketShareActionDialog', () => {
     expect(getTicketShareActionBlockReason('location', {
       ...locationAction,
       ...overrides,
-    })).toBe('El contrato de ubicación no garantiza una acción interna sin despacho externo.');
+    })).toBe('El contrato de ubicación no publica una decisión de entrega segura y auditable.');
   });
 
   it('blocks location when the idempotency contract version is not exact', () => {
@@ -116,6 +131,29 @@ describe('TicketShareActionDialog', () => {
       target: { value: 'Plaza departamental, Junín' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar acción interna' }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      location: { address: 'Plaza departamental, Junín' },
+    });
+  });
+
+  it('explains runtime channel validation and submits without claiming the message was sent', () => {
+    const onConfirm = vi.fn();
+    render(
+      <TicketShareActionDialog
+        action={runtimeLocationAction}
+        kind="location"
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByText(/puede encolarla para WhatsApp o guardarla sólo en el CRM/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Dirección'), {
+      target: { value: 'Plaza departamental, Junín' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar y validar canal' }));
 
     expect(onConfirm).toHaveBeenCalledWith({
       location: { address: 'Plaza departamental, Junín' },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -26,16 +26,12 @@ import {
   getTicketMessages,
   getTicketTimeline,
   isLegacyHtmlGatewayError,
-  requestTicketHistoryEmail,
   sendMessage,
   summarizeTicketFetchError,
   updateTicketStatus,
   updateTicketReadState,
   normalizeTicketReplyDelivery,
-  type TicketHistoryDeliveryResult,
   type TicketReplyDeliveryStatus,
-  isTicketHistoryDeliveryErrorResult,
-  formatTicketHistoryDeliveryErrorMessage,
 } from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
@@ -55,7 +51,7 @@ import {
 } from '@/utils/uploadResponse';
 import { ensureAbsoluteUrl } from '@/utils/chatButtons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
+import { formatTicketStatusLabel, getPublishedTicketTransitions } from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { restoreComposerDraftAfterSendFailure } from './conversationDraftRecovery';
@@ -367,6 +363,14 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
     };
   }
 
+  if (delivery.mode === 'durable_queue' || delivery.reply_status === 'queued_for_delivery') {
+    return {
+      tone: 'muted' as const,
+      title: 'En cola para WhatsApp',
+      detail: delivery.operator_message || 'El mensaje quedó en cola durable; la entrega final depende de la confirmación del proveedor.',
+    };
+  }
+
   if (
     delivery.recipient_room_emitted &&
     delivery.recipient_presence_confirmed &&
@@ -399,6 +403,30 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
     tone: 'muted' as const,
     title: 'Guardado en CRM',
     detail: delivery.operator_message || 'No se confirmo WhatsApp ni chat en vivo para esta accion.',
+  };
+};
+
+export const getComposerActionDeliveryView = (
+  delivery?: OmnichannelInboxActionV2['delivery'],
+) => {
+  const durableQueue = (
+    delivery?.delivery_mode === 'durable_queue' ||
+    delivery?.mode === 'durable_queue' ||
+    delivery?.outbox?.durably_staged === true
+  );
+
+  if (durableQueue) {
+    return {
+      tone: 'queued' as const,
+      title: 'En cola para WhatsApp',
+      detail: delivery?.operator_message || 'La acción quedó en cola durable. La entrega final se confirma con el callback del proveedor.',
+    };
+  }
+
+  return {
+    tone: 'internal' as const,
+    title: 'Guardado en CRM',
+    detail: delivery?.operator_message || 'La acción quedó auditada en el CRM, sin despacho a un canal externo.',
   };
 };
 
@@ -550,11 +578,43 @@ const preserveChatMessagesWhenUnchanged = (
   incoming: ChatMessageData[],
   append = false,
 ): ChatMessageData[] => {
-  const next = dedupeChatMessages(append ? [...current, ...incoming] : incoming);
+  const next = dedupeChatMessages(append ? [...current, ...incoming] : incoming).sort((left, right) => {
+    const timestampDelta = normalizeMessageTimestamp(left) - normalizeMessageTimestamp(right);
+    if (timestampDelta !== 0) return timestampDelta;
+    return String(left.id ?? '').localeCompare(String(right.id ?? ''), undefined, { numeric: true });
+  });
   if (current.length !== next.length) return next;
   return current.every((message, index) => stableChatMessageKey(message) === stableChatMessageKey(next[index]))
     ? current
     : next;
+};
+
+const mergeUnifiedConversationItems = (
+  current: UnifiedConversationStreamItem[],
+  incoming: UnifiedConversationStreamItem[],
+): UnifiedConversationStreamItem[] => {
+  const itemsByKey = new Map<string, UnifiedConversationStreamItem>();
+  [...current, ...incoming].forEach((item) => {
+    const key = item.id
+      ? `id:${item.id}`
+      : `fp:${item.timestamp}:${item.actor_type}:${item.preview_text}`;
+    itemsByKey.set(key, item);
+  });
+  return [...itemsByKey.values()].sort((left, right) => {
+    const timestampDelta = new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+    if (Number.isFinite(timestampDelta) && timestampDelta !== 0) return timestampDelta;
+    return String(left.id || '').localeCompare(String(right.id || ''), undefined, { numeric: true });
+  });
+};
+
+type ConversationHistoryPage = {
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+const EMPTY_CONVERSATION_HISTORY_PAGE: ConversationHistoryPage = {
+  hasMore: false,
+  nextCursor: null,
 };
 
 const hasUnreadConversationState = (ticket: Ticket | null): boolean => Boolean(
@@ -753,13 +813,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   setDesktopView,
   operationalWorkspace = false,
 }) => {
-  const { selectedTicket, updateTicket } = useTickets();
+  const { selectedTicket, updateTicket, refreshTickets } = useTickets();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
+  const [historyPage, setHistoryPage] = useState<ConversationHistoryPage>(EMPTY_CONVERSATION_HISTORY_PAGE);
+  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false);
   const [timelinePartial, setTimelinePartial] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [lastReplyDelivery, setLastReplyDelivery] = useState<TicketReplyDeliveryStatus | null>(null);
   const [recipientPresenceActive, setRecipientPresenceActive] = useState(
     hasPublicRecipientPresence(selectedTicket?.realtime_state),
@@ -775,6 +838,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const shouldReduceMotion = useReducedMotion();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const olderHistoryRequestRef = useRef<string | null>(null);
   const loadedConversationKeyRef = useRef<string | null>(null);
   const invalidationRefreshTimerRef = useRef<number | null>(null);
   const composerActionInFlightRef = useRef(false);
@@ -786,7 +851,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         (selectedTicket.tenant_id != null ? `tenant-id-${selectedTicket.tenant_id}` : 'tenant-unknown')
       }:${selectedTicket.source_model || selectedTicket.tipo}:${selectedTicket.id}`
     : null;
-  const statusOptions = ALLOWED_TICKET_STATUSES;
+  const statusOptions = getPublishedTicketTransitions(selectedTicket);
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
   const latestReadableMessageId = useMemo(
     () => messages
@@ -889,17 +954,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (!replyDraft || isSending || listening) return;
     setMessage((prev) => (prev.trim() ? prev : replyDraft));
   }, [isSending, listening, replyDraft]);
-  const notifyDeliveryIssue = useCallback(
-    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
-      if (isTicketHistoryDeliveryErrorResult(result)) {
-        toast.warning(
-          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
-        );
-      }
-    },
-    [],
-  );
-
   const activeChannel = selectedTicket?.channel || 'other';
   const responseTemplateTenantSlug =
     normalizeIdentityTenantSlug(selectedTicket?.tenant_slug) ||
@@ -1109,6 +1163,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const activeComposerActionResult = lastComposerActionResult?.scopeKey === composerActionScopeKey
     ? lastComposerActionResult.result
     : null;
+  const activeComposerActionDeliveryView = activeComposerActionResult
+    ? getComposerActionDeliveryView(activeComposerActionResult.delivery)
+    : null;
   const activeComposerActionError = composerActionMutation.isError &&
     composerActionMutation.variables?.scopeKey === composerActionScopeKey
     ? composerActionMutation.error
@@ -1161,6 +1218,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           loadedConversationKeyRef.current = null;
           setMessages([]);
           setTimelineItems([]);
+          setHistoryPage(EMPTY_CONVERSATION_HISTORY_PAGE);
+          setIsLoadingOlderHistory(false);
+          olderHistoryRequestRef.current = null;
+          scrollAnchorRef.current = null;
           setTimelinePartial(false);
           setIsLoading(false);
         }
@@ -1173,6 +1234,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         setMessages([]);
         setLastReplyDelivery(null);
         setTimelineItems([]);
+        setHistoryPage(EMPTY_CONVERSATION_HISTORY_PAGE);
+        setIsLoadingOlderHistory(false);
+        olderHistoryRequestRef.current = null;
+        scrollAnchorRef.current = null;
         setTimelinePartial(false);
         loadingFallbackTimer = window.setTimeout(() => {
           if (cancelled) return;
@@ -1186,13 +1251,23 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           quiet: true,
           ticket: activeTicket,
           tenantSlug: activeTicket.tenant_slug,
+          limit: 50,
         });
         if (cancelled) return;
+        if (!isBackgroundRefresh) {
+          const nextCursor = timeline.pagination?.next_cursor ?? timeline.next_cursor ?? null;
+          setHistoryPage({
+            hasMore: Boolean(timeline.pagination?.has_more ?? timeline.has_more) && Boolean(nextCursor),
+            nextCursor,
+          });
+        }
         if (
           Array.isArray(timeline.unified_conversation_stream) &&
           (!isBackgroundRefresh || timeline.unified_conversation_stream.length > 0)
         ) {
-          setTimelineItems(timeline.unified_conversation_stream);
+          setTimelineItems((current) => isBackgroundRefresh
+            ? mergeUnifiedConversationItems(current, timeline.unified_conversation_stream)
+            : mergeUnifiedConversationItems([], timeline.unified_conversation_stream));
         }
         if (timeline.realtime_state) {
           setRecipientPresenceActive(hasPublicRecipientPresence(timeline.realtime_state));
@@ -1218,6 +1293,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
         if (!isBackgroundRefresh) {
           setTimelineItems([]);
+          setHistoryPage(EMPTY_CONVERSATION_HISTORY_PAGE);
           setTimelinePartial(true);
         }
       }
@@ -1272,6 +1348,69 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
     };
   }, [conversationInvalidationVersion, selectedConversationKey]);
+
+  const loadOlderHistory = useCallback(async () => {
+    const activeTicket = selectedTicketRef.current;
+    const conversationKey = selectedConversationKey;
+    const cursor = historyPage.nextCursor;
+    if (!activeTicket || !conversationKey || !historyPage.hasMore || !cursor || isLoadingOlderHistory) return;
+
+    const requestKey = `${conversationKey}:${cursor}`;
+    if (olderHistoryRequestRef.current === requestKey) return;
+    olderHistoryRequestRef.current = requestKey;
+    const scrollNode = scrollAreaRef.current;
+    scrollAnchorRef.current = scrollNode
+      ? { scrollHeight: scrollNode.scrollHeight, scrollTop: scrollNode.scrollTop }
+      : null;
+    setIsLoadingOlderHistory(true);
+
+    try {
+      const olderTimeline = await getTicketTimeline(activeTicket.id, activeTicket.tipo, {
+        quiet: true,
+        ticket: activeTicket,
+        tenantSlug: activeTicket.tenant_slug,
+        cursor,
+        limit: 50,
+      });
+      if (loadedConversationKeyRef.current !== conversationKey) return;
+
+      const incomingTimeline = Array.isArray(olderTimeline.unified_conversation_stream)
+        ? olderTimeline.unified_conversation_stream
+        : [];
+      const incomingMessages = Array.isArray(olderTimeline.messages)
+        ? olderTimeline.messages.map((item) => adaptTicketMessageToChatMessage(item, activeTicket))
+        : [];
+      if (incomingTimeline.length > 0) {
+        setTimelineItems((current) => mergeUnifiedConversationItems(current, incomingTimeline));
+      }
+      if (incomingMessages.length > 0) {
+        setMessages((current) => preserveChatMessagesWhenUnchanged(current, incomingMessages, true));
+      }
+      if (incomingTimeline.length === 0 && incomingMessages.length === 0) {
+        scrollAnchorRef.current = null;
+      }
+
+      const nextCursor = olderTimeline.pagination?.next_cursor ?? olderTimeline.next_cursor ?? null;
+      setHistoryPage({
+        hasMore: Boolean(olderTimeline.pagination?.has_more ?? olderTimeline.has_more) && Boolean(nextCursor),
+        nextCursor,
+      });
+    } catch (error) {
+      scrollAnchorRef.current = null;
+      toast.error('No se pudieron cargar los mensajes anteriores.');
+      console.warn('No se pudo paginar el historial de la conversación.', {
+        ticketId: activeTicket.id,
+        ...summarizeTicketFetchError(error),
+      });
+    } finally {
+      if (olderHistoryRequestRef.current === requestKey) {
+        olderHistoryRequestRef.current = null;
+      }
+      if (loadedConversationKeyRef.current === conversationKey) {
+        setIsLoadingOlderHistory(false);
+      }
+    }
+  }, [historyPage.hasMore, historyPage.nextCursor, isLoadingOlderHistory, selectedConversationKey]);
 
   const { socket } = useSocket();
   const realtimeOnline = Boolean(socket?.connected);
@@ -1558,9 +1697,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const node = scrollAreaRef.current;
+    const anchor = scrollAnchorRef.current;
+    if (node && anchor) {
+      node.scrollTop = Math.max(0, anchor.scrollTop + (node.scrollHeight - anchor.scrollHeight));
+      scrollAnchorRef.current = null;
+      return;
+    }
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [messages, scrollToBottom, timelineItems.length]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -1652,23 +1798,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           },
         ]);
       });
-      requestTicketHistoryEmail({
-        tipo: selectedTicket.tipo,
-        ticketId: selectedTicket.id,
-        options: {
-          reason: 'message_update',
-          actor: 'agent',
-        },
-      })
-        .then((result) => {
-          notifyDeliveryIssue(
-            result,
-            'El mensaje fue enviado, pero el correo automático de seguimiento falló.',
-          );
-        })
-        .catch((error) => {
-          console.error('Error triggering ticket update email after message:', error);
-        });
     } catch (error) {
       toast.error("No se pudo enviar el mensaje.");
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
@@ -1776,33 +1905,43 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   };
 
   const handleStatusChange = async (newStatus: TicketStatus) => {
-    if (!selectedTicket) return;
+    if (!selectedTicket || isUpdatingStatus) return;
+    const ticketSnapshot = selectedTicket;
+    setIsUpdatingStatus(true);
     try {
-      await updateTicketStatus(selectedTicket.id, selectedTicket.tipo, newStatus);
-      updateTicket(selectedTicket.id, { estado: newStatus });
-      toast.success(`Estado actualizado a ${formatTicketStatusLabel(newStatus)}`);
-      requestTicketHistoryEmail({
-        tipo: selectedTicket.tipo,
-        ticketId: selectedTicket.id,
-        options: {
-          reason: 'status_change',
-          estado: newStatus,
-          actor: 'agent',
-          notifyChannels: ['email', 'sms'],
+      const updatedTicket = await updateTicketStatus(
+        ticketSnapshot.id,
+        ticketSnapshot.tipo,
+        newStatus,
+        {
+          ticket: ticketSnapshot,
+          expectedStatus: ticketSnapshot.estado,
         },
-      })
-        .then((result) => {
-          notifyDeliveryIssue(
-            result,
-            'El estado se actualizo, pero el aviso por correo no se pudo entregar.',
-          );
-        })
-        .catch((error) => {
-          console.error('Error triggering ticket update email after status change:', error);
-        });
+      );
+      const confirmedStatus = (updatedTicket.estado || newStatus) as TicketStatus;
+      updateTicket(ticketSnapshot.id, {
+        estado: confirmedStatus,
+        next_states: updatedTicket.next_states,
+        workflow: updatedTicket.workflow,
+      });
+      toast.success(`Estado actualizado a ${formatTicketStatusLabel(confirmedStatus)}`);
     } catch (error) {
       console.error('Error updating ticket status:', error);
-      toast.error('No se pudo actualizar el estado.');
+      const status = error instanceof ApiError ? error.status : (error as { status?: number })?.status;
+      if (status === 409) {
+        try {
+          await refreshTickets();
+        } catch (refreshError) {
+          console.error('Error refreshing ticket after status conflict:', refreshError);
+        }
+        toast.error('El caso cambió. Actualizamos sus datos para que elijas una transición vigente.');
+      } else if (status === 422) {
+        toast.error('Ese estado no pertenece al flujo publicado para este caso.');
+      } else {
+        toast.error('No se pudo actualizar el estado.');
+      }
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
   const conversationTitle = selectedTicket.categoria || selectedTicket.asunto || selectedTicket.name || 'Conversacion';
@@ -1919,9 +2058,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 max-w-[10rem] justify-between capitalize" aria-label="Cambiar estado">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 max-w-[10rem] justify-between capitalize"
+                  aria-label={statusOptions.length > 0 ? 'Cambiar estado' : 'Sin transiciones de estado disponibles'}
+                  disabled={isUpdatingStatus || statusOptions.length === 0}
+                >
                   <span className="truncate">{formatTicketStatusLabel(selectedTicket.estado)}</span>
-                  <ChevronDown className="h-4 w-4 ml-2" />
+                  {isUpdatingStatus
+                    ? <Loader2 className="ml-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    : <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -2016,6 +2163,30 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               onScroll={handleScroll}
               data-testid="ticket-message-scroll"
             >
+              {historyPage.hasMore && (
+                <div className="mb-3 flex flex-col items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={loadOlderHistory}
+                    disabled={isLoadingOlderHistory}
+                    aria-label="Cargar mensajes anteriores"
+                    aria-busy={isLoadingOlderHistory}
+                    className="rounded-full bg-background/90 shadow-sm"
+                  >
+                    {isLoadingOlderHistory ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="mr-2 h-4 w-4 rotate-180" aria-hidden="true" />
+                    )}
+                    {isLoadingOlderHistory ? 'Cargando historial...' : 'Cargar mensajes anteriores'}
+                  </Button>
+                  <span className="sr-only" role="status" aria-live="polite">
+                    {isLoadingOlderHistory ? 'Cargando mensajes anteriores' : 'Hay mensajes anteriores disponibles'}
+                  </span>
+                </div>
+              )}
               {timelinePartial && (
                 <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
@@ -2173,10 +2344,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             {handoffAction?.label || 'Derivar a humano'}
           </Button>
           <span id="ticket-location-block-reason" className="sr-only">
-            {locationBlockReason || 'Acción interna disponible. No envía un mensaje por WhatsApp.'}
+            {locationBlockReason || (
+              locationAction?.delivery_mode === 'runtime_preflight'
+                ? 'Disponible. El backend confirma si queda en cola para WhatsApp o sólo auditada en CRM.'
+                : 'Acción interna disponible. No envía un mensaje por WhatsApp.'
+            )}
           </span>
           <span id="ticket-form-block-reason" className="sr-only">
-            {formBlockReason || 'Acción interna disponible. No envía un mensaje por WhatsApp.'}
+            {formBlockReason || (
+              formAction?.delivery_mode === 'runtime_preflight'
+                ? 'Disponible. El backend confirma si queda en cola para WhatsApp o sólo auditada en CRM.'
+                : 'Acción interna disponible. No envía un mensaje por WhatsApp.'
+            )}
           </span>
           <span id="ticket-handoff-block-reason" className="sr-only">
             {handoffBlockReason || 'Derivación interna disponible. No envía un mensaje por WhatsApp.'}
@@ -2191,19 +2370,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           </p>
         ) : null}
 
-        {activeComposerActionResult ? (
+        {activeComposerActionResult && activeComposerActionDeliveryView ? (
           <div
-            className="mb-2 rounded-[8px] border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-800 dark:text-emerald-200"
+            className={cn(
+              'mb-2 rounded-[8px] border px-2.5 py-2 text-xs',
+              activeComposerActionDeliveryView.tone === 'queued'
+                ? 'border-blue-500/25 bg-blue-500/10 text-blue-800 dark:text-blue-200'
+                : 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+            )}
             data-testid="ticket-composer-action-result"
           >
-            <p className="font-semibold">Acción registrada por el backend.</p>
-            <p>
-              {activeComposerActionResult.delivery?.operator_message || (
-                activeComposerActionResult.delivery?.external_dispatch === false
-                  ? 'Quedó auditada en el CRM, sin despacho a un canal externo.'
-                  : `Transición ${activeComposerActionResult.action || 'operativa'} registrada.`
-              )}
-            </p>
+            <p className="font-semibold">{activeComposerActionDeliveryView.title}</p>
+            <p>{activeComposerActionDeliveryView.detail}</p>
           </div>
         ) : null}
 

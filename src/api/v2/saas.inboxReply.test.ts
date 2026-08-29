@@ -251,8 +251,13 @@ describe('omnichannel inbox reply v2 transport', () => {
       endpoint: '/api/v2/inbox/omnichannel/actions',
       method: 'POST',
       requires: ['form_slug'],
-      delivery_mode: 'internal_event',
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
       external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
       input_schema: {
         type: 'object',
         required: ['form_slug'],
@@ -284,8 +289,13 @@ describe('omnichannel inbox reply v2 transport', () => {
 
     expect(normalizeSaasActions([actionFixture])[0]).toMatchObject({
       id: 'share_form',
-      delivery_mode: 'internal_event',
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
       external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
       input_schema: actionFixture.input_schema,
       idempotency: actionFixture.idempotency,
     });
@@ -303,6 +313,8 @@ describe('omnichannel inbox reply v2 transport', () => {
     expect(normalized.item.reply_contract).toEqual(replyContract);
     expect(normalized.item.allowed_actions[0]).toMatchObject({
       id: 'share_form',
+      delivery_mode: 'runtime_preflight',
+      may_queue_external_delivery: true,
       external_dispatch: false,
       input_schema: actionFixture.input_schema,
     });

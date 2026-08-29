@@ -27,9 +27,11 @@ import {
   getTickets,
   getTicketById,
   getTicketByNumber,
+  getTicketTimeline,
   isTicketAiEnrichmentUnavailable,
   normalizeTicketReplyDelivery,
   sendMessage,
+  updateTicketStatus,
 } from '@/services/ticketService';
 import { ApiError } from '@/utils/api';
 
@@ -784,6 +786,59 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('sends the bounded history cursor and preserves pagination metadata', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      estado_chat: 'activo',
+      timeline: [],
+      historial_chat: [
+        {
+          id: 25,
+          comentario: 'Mensaje histórico 25',
+          fecha: '2026-08-20T11:25:00.000Z',
+          es_admin: false,
+        },
+      ],
+      unified_conversation_stream: [],
+      pagination: {
+        contract_version: 'conversation.history.cursor.v1',
+        direction: 'older',
+        order: 'chronological_asc',
+        limit: 25,
+        returned_count: 25,
+        has_more: true,
+        next_cursor: 'cursor-page-2',
+      },
+    });
+
+    const result = await getTicketTimeline(77, 'municipio', {
+      ticket: {
+        id: 77,
+        source_model: 'TenantTicket',
+        tenant_slug: 'junin',
+      } as any,
+      tenantSlug: 'junin',
+      cursor: 'cursor-page-1',
+      limit: 25,
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/tickets/77/timeline?limit=25&cursor=cursor-page-1',
+      { tenantSlug: 'junin' },
+    );
+    expect(result.messages).toEqual([
+      expect.objectContaining({ id: 25, content: 'Mensaje histórico 25' }),
+    ]);
+    expect(result.pagination).toMatchObject({
+      contract_version: 'conversation.history.cursor.v1',
+      limit: 25,
+      returned_count: 25,
+      has_more: true,
+      next_cursor: 'cursor-page-2',
+    });
+    expect(result.has_more).toBe(true);
+    expect(result.next_cursor).toBe('cursor-page-2');
+  });
+
   it('classifies advisory AI enrichment gateway and network failures as unavailable', () => {
     const gatewayError = new Error('Bad Gateway') as Error & { status?: number };
     gatewayError.status = 502;
@@ -791,5 +846,66 @@ describe('ticketService realtime normalization', () => {
     expect(isTicketAiEnrichmentUnavailable(gatewayError)).toBe(true);
     expect(isTicketAiEnrichmentUnavailable(new TypeError('Failed to fetch'))).toBe(true);
     expect(isTicketAiEnrichmentUnavailable(new Error('validation failed'))).toBe(false);
+  });
+
+  it('updates a tenant ticket through v2 with optimistic concurrency and returns published transitions', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.v2.detail',
+      ticket: {
+        id: 77,
+        status: 'en_vivo',
+        next_states: ['en_proceso', 'cerrado'],
+        workflow: {
+          contract_version: 'ticket.workflow.instance.v2',
+          current_state: 'en_vivo',
+          canonical_state: 'en_vivo',
+          next_states: ['en_proceso', 'cerrado'],
+          can_transition: true,
+          final_state: false,
+        },
+      },
+    });
+
+    const updated = await updateTicketStatus(77, 'municipio', 'en_vivo', {
+      ticket: {
+        id: 77,
+        tipo: 'municipio',
+        estado: 'en_proceso',
+        source_model: 'TenantTicket',
+        detail_endpoint: '/api/v2/tickets/77',
+      },
+      expectedStatus: 'en_proceso',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/tickets/77', {
+      method: 'PATCH',
+      body: { status: 'en_vivo', expected_status: 'en_proceso' },
+    });
+    expect(updated).toMatchObject({
+      id: 77,
+      estado: 'en_vivo',
+      next_states: ['en_proceso', 'cerrado'],
+    });
+  });
+
+  it('keeps the legacy endpoint compatible while sending the expected state', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 41,
+      tipo: 'municipio',
+      nro_ticket: 'M-41',
+      asunto: 'Alumbrado',
+      estado: 'en_proceso',
+      fecha: '2026-08-29T12:00:00Z',
+      next_states: ['en_vivo', 'resuelto'],
+    });
+
+    await updateTicketStatus(41, 'municipio', 'en_proceso', {
+      expectedStatus: 'nuevo',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/municipio/41/estado', {
+      method: 'PUT',
+      body: { estado: 'en_proceso', expected_estado: 'nuevo' },
+    });
   });
 });

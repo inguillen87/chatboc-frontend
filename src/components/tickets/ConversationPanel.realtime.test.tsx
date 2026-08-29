@@ -26,8 +26,11 @@ const harness = vi.hoisted(() => ({
   suggestResponseTemplates: vi.fn(),
   sendMessage: vi.fn(),
   postOmnichannelInboxActionV2: vi.fn(),
+  requestTicketHistoryEmail: vi.fn(),
   updateTicketReadState: vi.fn(),
+  updateTicketStatus: vi.fn(),
   updateTicket: vi.fn(),
+  refreshTickets: vi.fn(),
   user: { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' } as Record<string, unknown>,
   selectedTicket: null as Ticket | null,
   socket: null as null | {
@@ -68,7 +71,11 @@ vi.mock('@/context/SocketContext', () => ({
 }));
 
 vi.mock('@/context/TicketContext', () => ({
-  useTickets: () => ({ selectedTicket: harness.selectedTicket, updateTicket: harness.updateTicket }),
+  useTickets: () => ({
+    selectedTicket: harness.selectedTicket,
+    updateTicket: harness.updateTicket,
+    refreshTickets: harness.refreshTickets,
+  }),
 }));
 
 vi.mock('@/hooks/useUser', () => ({
@@ -116,6 +123,8 @@ vi.mock('@/services/ticketService', async () => {
     getTicketMessages: (...args: unknown[]) => harness.getTicketMessages(...args),
     getTicketTimeline: (...args: unknown[]) => harness.getTicketTimeline(...args),
     sendMessage: (...args: unknown[]) => harness.sendMessage(...args),
+    requestTicketHistoryEmail: (...args: unknown[]) => harness.requestTicketHistoryEmail(...args),
+    updateTicketStatus: (...args: unknown[]) => harness.updateTicketStatus(...args),
     updateTicketReadState: (...args: unknown[]) => harness.updateTicketReadState(...args),
   };
 });
@@ -219,7 +228,21 @@ describe('ConversationPanel tenant invalidation', () => {
       sourceModel: 'TenantTicket',
     });
     harness.sendMessage.mockReset();
+    harness.requestTicketHistoryEmail.mockReset().mockResolvedValue({ status: 'sent' });
+    harness.updateTicketStatus.mockReset().mockResolvedValue({
+      estado: 'en_vivo',
+      next_states: ['en_proceso', 'resuelto'],
+      workflow: {
+        contract_version: 'ticket.workflow.instance.v2',
+        current_state: 'en_vivo',
+        canonical_state: 'en_vivo',
+        next_states: ['en_proceso', 'resuelto'],
+        can_transition: true,
+        final_state: false,
+      },
+    });
     harness.updateTicket.mockReset();
+    harness.refreshTickets.mockReset().mockResolvedValue(undefined);
     harness.socket?.emit.mockClear();
     harness.socket?.off.mockClear();
     harness.socket?.on.mockClear();
@@ -266,6 +289,102 @@ describe('ConversationPanel tenant invalidation', () => {
       legacy_id: 420,
       location: { address: 'Plaza departamental' },
     })).not.toBe(first);
+  });
+
+  it('offers only API-published state transitions and applies the confirmed workflow', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      next_states: ['en_vivo', 'resuelto'],
+      workflow: {
+        contract_version: 'ticket.workflow.instance.v2',
+        current_state: 'en_proceso',
+        canonical_state: 'en_proceso',
+        next_states: ['en_vivo', 'resuelto'],
+        can_transition: true,
+        final_state: false,
+      },
+    };
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cambiar estado' }), {
+      key: 'Enter',
+      code: 'Enter',
+    });
+
+    expect(await screen.findByRole('menuitem', { name: 'En vivo' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Resuelto' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Nuevo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'En proceso' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'En vivo' }));
+
+    await waitFor(() => expect(harness.updateTicketStatus).toHaveBeenCalledWith(
+      77,
+      'municipio',
+      'en_vivo',
+      expect.objectContaining({
+        ticket: expect.objectContaining({ id: 77, estado: 'en_proceso' }),
+        expectedStatus: 'en_proceso',
+      }),
+    ));
+    expect(harness.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({
+      estado: 'en_vivo',
+      next_states: ['en_proceso', 'resuelto'],
+    }));
+    expect(harness.requestTicketHistoryEmail).not.toHaveBeenCalled();
+  });
+
+  it('refreshes the ticket instead of keeping an optimistic state after a 409 conflict', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      next_states: ['en_vivo'],
+      workflow: {
+        contract_version: 'ticket.workflow.instance.v2',
+        current_state: 'en_proceso',
+        canonical_state: 'en_proceso',
+        next_states: ['en_vivo'],
+        can_transition: true,
+        final_state: false,
+      },
+    };
+    harness.updateTicketStatus.mockRejectedValueOnce(
+      Object.assign(new Error('conflict'), { status: 409 }),
+    );
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cambiar estado' }), {
+      key: 'Enter',
+      code: 'Enter',
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'En vivo' }));
+
+    await waitFor(() => expect(harness.refreshTickets).toHaveBeenCalledTimes(1));
+    expect(harness.updateTicket).not.toHaveBeenCalled();
+  });
+
+  it('preserves a final state and renders no selector for impossible transitions', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      estado: 'resuelto',
+      next_states: [],
+      workflow: {
+        contract_version: 'ticket.workflow.instance.v2',
+        current_state: 'resuelto',
+        canonical_state: 'cerrado',
+        next_states: [],
+        can_transition: false,
+        final_state: true,
+        blocked_reason: 'ticket_final_state',
+      },
+    };
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByRole('button', { name: 'Sin transiciones de estado disponibles' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Cambiar estado' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Resuelto').length).toBeGreaterThan(0);
   });
 
   it('keeps technical transport labels and ticket identifiers out of the operational workspace header', async () => {
@@ -644,6 +763,7 @@ describe('ConversationPanel tenant invalidation', () => {
         tenantSlug: 'junin',
       }),
     );
+    expect(harness.requestTicketHistoryEmail).not.toHaveBeenCalled();
   });
 
   it('coalesces opaque tenant invalidations without losing them when the ticket list refreshes', async () => {
@@ -736,6 +856,87 @@ describe('ConversationPanel tenant invalidation', () => {
 
     await waitFor(() => expect(harness.getTicketMessages).toHaveBeenCalledTimes(1));
     expect(screen.getByText('La luminaria sigue apagada')).toBeInTheDocument();
+  });
+
+  it('loads 65 historical messages without duplicates and preserves the reader scroll anchor', async () => {
+    const messageFor = (id: number) => ({
+      id: `history-${id}`,
+      author: id % 2 === 0 ? 'agent' : 'user',
+      content: `Mensaje histórico ${id}`,
+      timestamp: new Date(Date.UTC(2026, 7, 20, 10, id)).toISOString(),
+    });
+    let resolveOlderPage: ((value: Record<string, unknown>) => void) | null = null;
+
+    harness.getTicketTimeline
+      .mockResolvedValueOnce({
+        messages: Array.from({ length: 40 }, (_, index) => messageFor(index + 26)),
+        realtime_state: null,
+        unified_conversation_stream: [],
+        pagination: {
+          contract_version: 'conversation.history.cursor.v1',
+          limit: 50,
+          has_more: true,
+          next_cursor: 'cursor-older-25',
+        },
+        has_more: true,
+        next_cursor: 'cursor-older-25',
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOlderPage = resolve;
+      }));
+
+    render(renderConversation());
+
+    const loadOlderButton = await screen.findByRole('button', { name: 'Cargar mensajes anteriores' });
+    expect(loadOlderButton).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getAllByText(/^Mensaje histórico \d+$/)).toHaveLength(40);
+
+    const scrollNode = screen.getByTestId('ticket-message-scroll');
+    let scrollHeight = 900;
+    Object.defineProperty(scrollNode, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    scrollNode.scrollTop = 120;
+
+    fireEvent.click(loadOlderButton);
+    expect(loadOlderButton).toBeDisabled();
+    expect(loadOlderButton).toHaveAttribute('aria-busy', 'true');
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(2));
+    expect(harness.getTicketTimeline).toHaveBeenLastCalledWith(
+      selectedTicket.id,
+      selectedTicket.tipo,
+      expect.objectContaining({
+        cursor: 'cursor-older-25',
+        limit: 50,
+        tenantSlug: 'junin',
+      }),
+    );
+
+    scrollHeight = 1_500;
+    await act(async () => {
+      resolveOlderPage?.({
+        messages: [
+          ...Array.from({ length: 25 }, (_, index) => messageFor(index + 1)),
+          messageFor(26),
+        ],
+        realtime_state: null,
+        unified_conversation_stream: [],
+        pagination: {
+          contract_version: 'conversation.history.cursor.v1',
+          limit: 50,
+          has_more: false,
+          next_cursor: null,
+        },
+        has_more: false,
+        next_cursor: null,
+      });
+    });
+
+    await waitFor(() => expect(screen.getAllByText(/^Mensaje histórico \d+$/)).toHaveLength(65));
+    expect(screen.getAllByText('Mensaje histórico 26')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Cargar mensajes anteriores' })).not.toBeInTheDocument();
+    expect(scrollNode.scrollTop).toBe(720);
   });
 
   it('keeps the timeline and composer stable on an identical fallback poll without repeating read-state', async () => {

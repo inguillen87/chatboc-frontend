@@ -94,6 +94,25 @@ const hasCompatibleIdempotency = (action: SaasAction): boolean => {
   );
 };
 
+const hasSafeDeliveryContract = (action: SaasAction): boolean => {
+  const legacyInternalOnly = (
+    action.delivery_mode === 'internal_event' &&
+    action.external_dispatch === false
+  );
+  const modes = new Set(action.delivery_modes || []);
+  const runtimePreflight = (
+    action.delivery_mode === 'runtime_preflight' &&
+    action.external_dispatch === false &&
+    action.direct_external_dispatch === false &&
+    action.may_queue_external_delivery === true &&
+    action.action_response_delivery_authoritative === true &&
+    action.final_delivery_authority === 'provider_status_callback' &&
+    modes.has('durable_queue') &&
+    modes.has('internal_event')
+  );
+  return legacyInternalOnly || runtimePreflight;
+};
+
 export const getTicketShareActionBlockReason = (
   kind: TicketShareActionKind,
   action: SaasAction | null,
@@ -108,8 +127,8 @@ export const getTicketShareActionBlockReason = (
   if (!action.endpoint?.startsWith('/')) {
     return `El contrato de ${label} no publicó un endpoint seguro.`;
   }
-  if (action.delivery_mode !== 'internal_event' || action.external_dispatch !== false) {
-    return `El contrato de ${label} no garantiza una acción interna sin despacho externo.`;
+  if (!hasSafeDeliveryContract(action)) {
+    return `El contrato de ${label} no publica una decisión de entrega segura y auditable.`;
   }
   if (!hasCompatibleIdempotency(action)) {
     return `El contrato de ${label} no publicó una identidad idempotente compatible.`;
@@ -194,6 +213,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
   const [formSlug, setFormSlug] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const formOptions = useMemo(() => getFormSelectionOptions(replyContract), [replyContract]);
+  const usesRuntimePreflight = action?.delivery_mode === 'runtime_preflight';
 
   useEffect(() => {
     if (!open) return;
@@ -248,7 +268,9 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Esta acción se registra dentro del CRM. No envía un mensaje por WhatsApp.
+            {usesRuntimePreflight
+              ? 'El backend valida el canal al confirmar: puede encolarla para WhatsApp o guardarla sólo en el CRM. La respuesta mostrará la evidencia real.'
+              : 'Esta acción se registra dentro del CRM. No envía un mensaje por WhatsApp.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -323,7 +345,11 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
             Cancelar
           </Button>
           <Button type="button" disabled={submitting} onClick={handleConfirm}>
-            {submitting ? 'Registrando…' : 'Confirmar acción interna'}
+            {submitting
+              ? 'Registrando…'
+              : usesRuntimePreflight
+                ? 'Confirmar y validar canal'
+                : 'Confirmar acción interna'}
           </Button>
         </DialogFooter>
       </DialogContent>

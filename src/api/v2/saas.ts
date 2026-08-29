@@ -26,7 +26,12 @@ export interface SaasAction {
   payload_defaults?: UnknownRecord;
   payloadDefaults?: UnknownRecord;
   delivery_mode?: string;
+  delivery_modes?: string[];
   external_dispatch?: boolean;
+  direct_external_dispatch?: boolean;
+  may_queue_external_delivery?: boolean;
+  action_response_delivery_authoritative?: boolean;
+  final_delivery_authority?: string;
   input_schema?: UnknownRecord;
   idempotency?: UnknownRecord;
   disabled?: boolean;
@@ -758,7 +763,25 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     payload_defaults: payloadDefaults,
     payloadDefaults,
     delivery_mode: asString(getFirst(value, ['delivery_mode', 'deliveryMode'])),
+    delivery_modes: asArray(getFirst(value, ['delivery_modes', 'deliveryModes']))
+      .map(asString)
+      .filter((mode): mode is string => Boolean(mode)),
     external_dispatch: asBoolean(getFirst(value, ['external_dispatch', 'externalDispatch'])),
+    direct_external_dispatch: asBoolean(
+      getFirst(value, ['direct_external_dispatch', 'directExternalDispatch']),
+    ),
+    may_queue_external_delivery: asBoolean(
+      getFirst(value, ['may_queue_external_delivery', 'mayQueueExternalDelivery']),
+    ),
+    action_response_delivery_authoritative: asBoolean(
+      getFirst(value, [
+        'action_response_delivery_authoritative',
+        'actionResponseDeliveryAuthoritative',
+      ]),
+    ),
+    final_delivery_authority: asString(
+      getFirst(value, ['final_delivery_authority', 'finalDeliveryAuthority']),
+    ),
     input_schema: inputSchema,
     idempotency,
     disabled: asBoolean(value.disabled),
