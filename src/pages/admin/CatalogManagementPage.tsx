@@ -566,10 +566,10 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           }`}
           data-testid="catalog-load-error"
         >
-          <p className="flex items-center gap-2 font-semibold">
-            <AlertTriangle className="h-4 w-4" />
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             {catalogStale ? 'Lectura desactualizada' : 'Catálogo sin confirmar'}
-          </p>
+          </div>
           <p className="mt-1">{catalogLoadError}</p>
         </div>
       ) : null}
@@ -947,11 +947,11 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
           <div className="border-b bg-muted/30 p-5 lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  <Gauge className="h-4 w-4" />
+                <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Gauge className="h-4 w-4" aria-hidden="true" />
                   Preparación del marketplace
-                </p>
-                <h2 className="mt-2 text-2xl font-bold">{score === null ? '--' : `${score}%`}</h2>
+                </h2>
+                <p className="mt-2 text-2xl font-bold">{score === null ? '--' : `${score}%`}</p>
               </div>
               <Badge variant={ready ? 'default' : blockers.length ? 'destructive' : 'secondary'}>
                 {ready ? 'Sin bloqueos' : blockers.length ? 'Bloqueado' : readinessKnown ? 'Revisar' : 'Sin verificar'}
@@ -967,10 +967,10 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
             <div className="space-y-3">
               {blockers.length ? (
                 <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
-                  <p className="mb-3 flex items-center gap-2 font-semibold text-destructive">
-                    <AlertTriangle className="h-4 w-4" />
+                  <h3 className="mb-3 flex items-center gap-2 font-semibold text-destructive">
+                    <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                     Bloqueos para vender
-                  </p>
+                  </h3>
                   <div className="space-y-3">
                     {blockers.map((item) => (
                       <ReadinessIssue key={item.id || item.label || item.next_action} item={item} />
@@ -979,10 +979,10 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                 </div>
               ) : ready ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <CheckCircle2 className="h-4 w-4" />
+                  <h3 className="flex items-center gap-2 font-semibold">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                     Sin bloqueos técnicos reportados
-                  </p>
+                  </h3>
                   <p className="mt-1 text-sm text-emerald-800">
                     La verificación técnica no detectó bloqueos. La publicación y el origen de los registros requieren
                     validación aparte.
@@ -990,10 +990,10 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                 </div>
               ) : (
                 <div className="rounded-lg border bg-muted/30 p-4 text-foreground">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     Validación técnica incompleta
-                  </p>
+                  </h3>
                   <p className="mt-1 text-sm text-muted-foreground">
                     El contrato no confirmó si existen bloqueos. Revisá el estado antes de publicar o habilitar checkout.
                   </p>

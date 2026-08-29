@@ -242,6 +242,36 @@ describe('CatalogManagementPage catalog truth', () => {
     expect(screen.getAllByText('Sin verificar').length).toBeGreaterThan(0);
   });
 
+  it('renders a descriptive readiness heading hierarchy without invalid paragraph nesting', async () => {
+    apiClientMock.adminGetCatalog.mockResolvedValue({
+      contract_version: 'tenant.catalog_admin.v1',
+      tenant_slug: 'junin',
+      promotions: { items: [] },
+      marketplace_readiness: {
+        contract_version: 'tenant.marketplace_readiness.v1',
+        ready: true,
+        score: 100,
+        blockers: [],
+        warnings: [],
+        metrics: {},
+      },
+    });
+    apiClientMock.adminListProducts.mockResolvedValue([]);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      render(<CatalogManagementPage embedded tenantSlugOverride="junin" />);
+
+      const panelHeading = await screen.findByRole('heading', { name: 'Preparación del marketplace' });
+      const statusHeading = screen.getByRole('heading', { name: 'Sin bloqueos técnicos reportados' });
+      expect(panelHeading.tagName).toBe('H2');
+      expect(statusHeading.tagName).toBe('H3');
+      expect(consoleError.mock.calls.flat().join(' ')).not.toContain('validateDOMNesting');
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('clears the prior tenant and invalidates its pending request when the active tenant disappears', async () => {
     let resolveJuninSummary: (value: Record<string, unknown>) => void = () => undefined;
     const juninSummary = new Promise<Record<string, unknown>>((resolve) => {
