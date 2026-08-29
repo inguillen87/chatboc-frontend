@@ -124,6 +124,43 @@ describe('CatalogManagementPage catalog truth', () => {
     expect(screen.queryByTestId('catalog-summary-without-item-detail')).not.toBeInTheDocument();
   });
 
+  it('uses the first finite price and never renders NaN from degraded legacy fields', async () => {
+    apiClientMock.adminGetCatalog.mockResolvedValue({
+      contract_version: 'tenant.catalog_admin.v1',
+      tenant_slug: 'junin',
+      promotions: { items: [] },
+    });
+    apiClientMock.adminListProducts.mockResolvedValue([
+      {
+        catalogo_item_id: 95,
+        nombre: 'Precio recuperable',
+        price_numeric: 'NaN',
+        precio: '1250',
+        currency: 'ARS',
+        stock_status: 'in_stock',
+      },
+      {
+        catalogo_item_id: 96,
+        nombre: 'Precio no informado',
+        price_numeric: 'NaN',
+        precio: 'Consultar',
+        currency: 'not-a-currency',
+        stock_status: 'stock_unknown',
+      },
+    ]);
+
+    render(<CatalogManagementPage embedded tenantSlugOverride="junin" />);
+
+    expect(await screen.findByText('Precio recuperable')).toBeInTheDocument();
+    expect(screen.getByText(/1\.250/)).toBeInTheDocument();
+    expect(screen.getByText('Sin precio informado')).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Min $'), { target: { value: '1' } });
+    expect(screen.getByText('Precio recuperable')).toBeInTheDocument();
+    expect(screen.queryByText('Precio no informado')).not.toBeInTheDocument();
+  });
+
   it('fails closed when neither the summary nor a prior confirmed snapshot is available', async () => {
     apiClientMock.adminGetCatalog.mockRejectedValue(new Error('contract unavailable'));
 

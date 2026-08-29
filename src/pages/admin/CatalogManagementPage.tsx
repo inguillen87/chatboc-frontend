@@ -82,8 +82,14 @@ const normalizeAdminCatalogItems = (catalog: any): any[] => {
 const getCatalogItemId = (product: any) =>
   firstDefined(toRecord(product), ['catalogo_item_id', 'catalog_item_id', 'item_id', 'product_id', 'id']);
 
-const getCatalogPrice = (product: any) =>
-  firstDefined(toRecord(product), ['price_numeric', 'price', 'precio', 'precio_unitario', 'amount']);
+const getCatalogPrice = (product: any): number | null => {
+  const record = toRecord(product);
+  for (const key of ['price_numeric', 'price', 'precio', 'precio_unitario', 'amount']) {
+    const price = toFiniteMetric(record[key]);
+    if (price !== null) return price;
+  }
+  return null;
+};
 
 const getCatalogStock = (product: any) =>
   firstDefined(toRecord(product), [
@@ -102,11 +108,18 @@ const getCatalogStockStatus = (product: any) =>
 const getCatalogCategory = (product: any) =>
   firstDefined(toRecord(product), ['category', 'categoria']) || 'General';
 
-const formatCurrency = (product: any) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: product.currency || product.moneda || 'ARS',
-  }).format(Number(getCatalogPrice(product) || 0));
+const formatCurrency = (product: any) => {
+  const price = getCatalogPrice(product);
+  if (price === null) return 'Sin precio informado';
+
+  const requestedCurrency = String(product.currency || product.moneda || 'ARS').trim().toUpperCase();
+  const currency = /^[A-Z]{3}$/.test(requestedCurrency) ? requestedCurrency : 'ARS';
+  try {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(price);
+  } catch {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price);
+  }
+};
 
 type PromotionScope = 'cart' | 'category' | 'product';
 
@@ -323,7 +336,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const stock = getCatalogStock(product);
     const stockStatus = getCatalogStockStatus(product);
     const varietal = product.extra_metadata?.varietal || product.varietal;
-    const price = Number(getCatalogPrice(product) || 0);
+    const price = getCatalogPrice(product);
 
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -332,7 +345,10 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const matchesStock =
       stockFilter === 'all' ||
       (stockFilter === 'in_stock' ? Number(stock) > 0 || stock === 'Consultar' : Number(stock) === 0 || stockStatus === 'out_of_stock');
-    const matchesPrice = (!minPrice || price >= Number(minPrice)) && (!maxPrice || price <= Number(maxPrice));
+    const hasPriceFilter = Boolean(minPrice || maxPrice);
+    const matchesPrice =
+      !hasPriceFilter ||
+      (price !== null && (!minPrice || price >= Number(minPrice)) && (!maxPrice || price <= Number(maxPrice)));
     const matchesVarietal = !isWinery || varietalFilter === 'all' || varietal === varietalFilter;
 
     return matchesSearch && matchesCategory && matchesStock && matchesVarietal && matchesPrice;
