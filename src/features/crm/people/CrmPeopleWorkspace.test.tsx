@@ -110,6 +110,11 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-people-workspace")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
     expect(screen.getByTestId("crm-people-grid")).toHaveClass("min-h-0", "flex-1");
     expect(screen.getByTestId("crm-people-grid")).not.toHaveClass("min-h-[560px]");
+    expect(screen.queryByTestId("crm-overview-metrics")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver indicadores CRM" }));
+    expect(screen.getByTestId("crm-overview-metrics-popover")).toHaveTextContent("Personas");
+    expect(screen.getByTestId("crm-overview-metrics-popover")).toHaveTextContent("2");
   });
 
   it("keeps the embedded mobile record controls compact and reachable", () => {

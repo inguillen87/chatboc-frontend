@@ -283,6 +283,10 @@ describe('Perfil request lifecycle', () => {
     renderProfile('/perfil?tab=perfil&section=channels');
 
     await waitFor(() => expect(screen.getByTestId('institution-profile-panel-channels')).toBeInTheDocument());
+    expect(screen.getByTestId('profile-institution-workspace')).toHaveClass('min-h-0', 'flex-1', 'overflow-hidden');
+    expect(screen.getByTestId('institution-profile-workspace')).toHaveClass('h-full', 'min-h-0');
+    expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
+    expect(screen.getByRole('button', { name: 'Abrir Inicio' })).not.toHaveAttribute('aria-current', 'page');
     expect(screen.getByText(/Guardar un teléfono en General no vincula WhatsApp/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('institution-profile-section-general'));

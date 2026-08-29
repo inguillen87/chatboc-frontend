@@ -110,9 +110,10 @@ export const resolveProfileWorkspaceCapabilities = ({
 
 interface ProfileWorkspaceNavigationProps {
   activeTab: ProfileWorkspaceTabValue;
-  activeActionId?: "billing";
+  activeActionId?: "billing" | "institution-profile";
   capabilities: ProfileWorkspaceCapabilities;
   isMunicipal: boolean;
+  onOpenInstitutionProfile?: () => void;
   onOpenPlan: () => void;
   onOpenSurveys: () => void;
   onTabChange: (tab: ProfileWorkspaceTabValue) => void;
@@ -125,7 +126,7 @@ const ModuleMenuItem = ({
   onTabChange,
 }: {
   activeTab: ProfileWorkspaceTabValue;
-  activeActionId?: "billing";
+  activeActionId?: "billing" | "institution-profile";
   module: WorkspaceModule;
   onTabChange: (tab: ProfileWorkspaceTabValue) => void;
 }) => {
@@ -167,6 +168,7 @@ export default function ProfileWorkspaceNavigation({
   activeActionId,
   capabilities,
   isMunicipal,
+  onOpenInstitutionProfile,
   onOpenPlan,
   onOpenSurveys,
   onTabChange,
@@ -273,6 +275,17 @@ export default function ProfileWorkspaceNavigation({
         label: "Administración",
         icon: Settings2,
         modules: [
+          ...(capabilities.billing
+            ? [
+                {
+                  id: "institution-profile",
+                  label: "Perfil institucional",
+                  description: "Identidad, ubicación, horarios y canales oficiales.",
+                  icon: Settings2,
+                  action: onOpenInstitutionProfile || (() => onTabChange("perfil")),
+                },
+              ]
+            : []),
           ...(capabilities.catalog
             ? [
                 {
@@ -322,8 +335,10 @@ export default function ProfileWorkspaceNavigation({
     capabilities.team,
     capabilities.territory,
     isMunicipal,
+    onOpenInstitutionProfile,
     onOpenPlan,
     onOpenSurveys,
+    onTabChange,
   ]);
 
   const activeModule = groups

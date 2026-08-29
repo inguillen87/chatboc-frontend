@@ -31,6 +31,9 @@ describe("InstitutionProfileWorkspace", () => {
     );
 
     expect(screen.getByRole("navigation", { name: "Secciones del perfil institucional" })).toBeInTheDocument();
+    expect(screen.getByTestId("institution-profile-workspace")).toHaveAttribute("data-layout", "viewport");
+    expect(screen.getByTestId("institution-profile-workspace")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+    expect(screen.getByTestId("institution-profile-scroll")).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
     expect(screen.getByTestId("institution-profile-section-location")).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("Contenido de ubicación")).toBeInTheDocument();
 

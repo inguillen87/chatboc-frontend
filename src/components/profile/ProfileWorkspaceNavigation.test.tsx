@@ -191,4 +191,39 @@ describe("ProfileWorkspaceNavigation", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     expect(screen.getByRole("menuitem", { name: /Planes y facturación/i })).toHaveAttribute("aria-current", "page");
   });
+
+  it("distinguishes institutional settings from the home dashboard", () => {
+    const onOpenInstitutionProfile = vi.fn();
+    render(
+      <ProfileWorkspaceNavigation
+        activeTab="perfil"
+        activeActionId="institution-profile"
+        capabilities={{
+          operation: false,
+          participation: false,
+          territory: false,
+          contacts: false,
+          reports: false,
+          analytics: false,
+          catalog: false,
+          team: false,
+          billing: true,
+        }}
+        isMunicipal
+        onOpenInstitutionProfile={onOpenInstitutionProfile}
+        onOpenPlan={vi.fn()}
+        onOpenSurveys={vi.fn()}
+        onTabChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Abrir menú Administración" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir Inicio" })).not.toHaveAttribute("aria-current", "page");
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
+    const profileItem = screen.getByRole("menuitem", { name: /Perfil institucional/i });
+    expect(profileItem).toHaveAttribute("aria-current", "page");
+    fireEvent.click(profileItem);
+    expect(onOpenInstitutionProfile).toHaveBeenCalledTimes(1);
+  });
 });

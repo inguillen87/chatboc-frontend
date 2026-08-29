@@ -2,6 +2,7 @@ import * as React from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Activity,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -29,6 +30,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,6 +104,60 @@ interface WorkspaceMetric {
   value: number | string;
   helper: string;
 }
+
+interface MetricSummaryProps {
+  metrics: WorkspaceMetric[];
+  className?: string;
+  compact?: boolean;
+  showHelper?: boolean;
+  testId?: string;
+}
+
+const MetricSummary = ({
+  metrics,
+  className,
+  compact = false,
+  showHelper = true,
+  testId,
+}: MetricSummaryProps) => (
+  <dl
+    className={cn(
+      "grid grid-cols-2",
+      compact ? "gap-1.5" : "divide-x divide-border/70 md:grid-cols-4",
+      className,
+    )}
+    data-testid={testId}
+  >
+    {metrics.slice(0, 4).map((metric) => (
+      <div
+        key={metric.label}
+        className={cn(
+          "min-w-0",
+          compact
+            ? "rounded-lg border border-border/70 bg-background/70 px-2.5 py-2"
+            : "px-4 py-3",
+        )}
+      >
+        <dt
+          className={cn(
+            "truncate font-semibold uppercase tracking-[0.12em] text-muted-foreground",
+            compact ? "text-[9px] leading-3" : "text-[11px]",
+          )}
+        >
+          {metric.label}
+        </dt>
+        <dd className={cn("font-bold tracking-tight", compact ? "mt-0.5 text-base" : "mt-1 text-2xl")}>
+          {metric.value}
+        </dd>
+        {showHelper ? (
+          <dd className={cn("truncate text-muted-foreground", compact ? "mt-0.5 text-[10px]" : "mt-0.5 text-xs")}>
+            {metric.helper}
+          </dd>
+        ) : null}
+      </div>
+    ))}
+  </dl>
+);
 
 interface CrmPeopleWorkspaceProps {
   embedded?: boolean;
@@ -394,7 +454,7 @@ export default function CrmPeopleWorkspace({
           )}
           data-testid="crm-people-overview-header"
         >
-          <div className="min-w-0">
+          <div className={cn("min-w-0", embedded && "shrink-0")}>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">CRM municipal</p>
               <Badge
@@ -409,9 +469,44 @@ export default function CrmPeopleWorkspace({
               </Badge>
             </div>
             <h1 className={cn("mt-1 font-bold tracking-tight", embedded ? "text-base sm:text-lg md:text-xl" : "text-xl md:text-2xl")}>Personas y relaciones</h1>
-            <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden 2xl:block")}>Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
+            <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden")}>Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
           </div>
+          {embedded ? (
+            <MetricSummary
+              metrics={metrics}
+              compact
+              showHelper={false}
+              className="mx-3 hidden min-w-0 flex-1 grid-cols-4 2xl:grid"
+              testId="crm-overview-metrics-inline"
+            />
+          ) : null}
           <div className={cn("flex flex-wrap items-center gap-2", embedded && "shrink-0 gap-1 sm:gap-2")}>
+            {embedded ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 gap-2 p-0 sm:w-auto sm:px-3 2xl:hidden"
+                    aria-label="Ver indicadores CRM"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only">Indicadores</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1rem))] p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Resumen del directorio
+                  </p>
+                  <MetricSummary
+                    metrics={metrics}
+                    compact
+                    testId="crm-overview-metrics-popover"
+                  />
+                </PopoverContent>
+              </Popover>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -435,21 +530,9 @@ export default function CrmPeopleWorkspace({
           </div>
         </header>
 
-        <div
-          className={cn(
-            "grid divide-x divide-border/70",
-            embedded ? "grid-cols-4 divide-y-0" : "grid-cols-2 divide-y md:grid-cols-4 md:divide-y-0",
-          )}
-          data-testid="crm-overview-metrics"
-        >
-          {metrics.slice(0, 4).map((metric) => (
-            <div key={metric.label} className={cn("min-w-0", embedded ? "px-1.5 py-1 sm:px-3 sm:py-1.5" : "px-4 py-3")}>
-              <p className={cn("truncate font-semibold uppercase tracking-[0.12em] text-muted-foreground", embedded ? "text-[9px] leading-3 sm:text-[11px]" : "text-[11px]")}>{metric.label}</p>
-              <p className={cn("font-bold tracking-tight", embedded ? "text-base sm:text-lg" : "mt-1 text-2xl")}>{metric.value}</p>
-              <p className={cn("mt-0.5 truncate text-xs text-muted-foreground", embedded && "sr-only")}>{metric.helper}</p>
-            </div>
-          ))}
-        </div>
+        {!embedded ? (
+          <MetricSummary metrics={metrics} testId="crm-overview-metrics" />
+        ) : null}
       </section>
 
       <nav

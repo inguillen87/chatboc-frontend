@@ -109,10 +109,11 @@ export default function InstitutionProfileWorkspace({
   return (
     <form
       onSubmit={onSave}
-      className="overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm"
       data-testid="institution-profile-workspace"
+      data-layout="viewport"
     >
-      <header className="border-b border-border/70 bg-muted/20 px-4 py-4 sm:px-5">
+      <header className="shrink-0 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
@@ -131,7 +132,7 @@ export default function InstitutionProfileWorkspace({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-1 max-w-3xl text-sm leading-5 text-muted-foreground">
+            <p className="mt-1 hidden max-w-3xl text-sm leading-5 text-muted-foreground sm:block">
               Configuración administrativa separada de la operación diaria. Cada sección guarda el mismo registro institucional.
             </p>
           </div>
@@ -141,8 +142,8 @@ export default function InstitutionProfileWorkspace({
         </div>
       </header>
 
-      <div className="grid min-h-[31rem] lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="border-b border-border/70 bg-muted/10 p-2 lg:border-b-0 lg:border-r lg:p-3">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:grid-rows-1">
+        <aside className="min-h-0 border-b border-border/70 bg-muted/10 p-2 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
           <nav
             aria-label="Secciones del perfil institucional"
             className="flex snap-x gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0"
@@ -184,8 +185,8 @@ export default function InstitutionProfileWorkspace({
           </nav>
         </aside>
 
-        <section className="min-w-0 bg-background/35">
-          <div className="border-b border-border/60 px-4 py-4 sm:px-6">
+        <section className="flex min-h-0 min-w-0 flex-col bg-background/35">
+          <div className="shrink-0 border-b border-border/60 px-4 py-3 sm:px-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Configuración</p>
             <h3 className="mt-1 text-lg font-semibold text-foreground">{active.label}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{active.description}</p>
@@ -193,7 +194,8 @@ export default function InstitutionProfileWorkspace({
           <fieldset
             disabled={!isAdministrator || loading}
             aria-disabled={!isAdministrator || loading}
-            className="m-0 min-w-0 border-0 p-0 disabled:cursor-not-allowed disabled:opacity-70"
+            className="m-0 min-h-0 min-w-0 flex-1 overflow-y-auto border-0 p-0 disabled:cursor-not-allowed disabled:opacity-70"
+            data-testid="institution-profile-scroll"
           >
             <div className="px-4 py-5 sm:px-6" data-testid={`institution-profile-panel-${activeSection}`}>
               {children}
@@ -202,7 +204,7 @@ export default function InstitutionProfileWorkspace({
         </section>
       </div>
 
-      <footer className="sticky bottom-0 z-10 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <footer className="z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <p className="text-xs leading-5 text-muted-foreground">
           Los cambios quedan auditados por la sesión y la organización activa.
         </p>

@@ -911,6 +911,11 @@ export default function Perfil() {
     [searchParams, setSearchParams],
   );
 
+  const openInstitutionProfile = useCallback(
+    () => updateInstitutionSection("general"),
+    [updateInstitutionSection],
+  );
+
   useEffect(() => {
     if (requestedWorkspaceTab && requestedWorkspaceTab !== activeProfileTab) {
       setActiveProfileTab(requestedWorkspaceTab);
@@ -2417,18 +2422,25 @@ export default function Perfil() {
     ? backendControlCards.slice(4)
     : secondaryControlCards;
   const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
-  const isViewportWorkspaceProfileTab = activeProfileTab === "tickets" || activeProfileTab === "usuarios";
+  const isInstitutionProfileViewport = activeProfileTab === "perfil" && isInstitutionProfileOpen;
+  const isViewportWorkspaceProfileTab =
+    activeProfileTab === "tickets" ||
+    activeProfileTab === "usuarios" ||
+    isInstitutionProfileViewport;
   const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || activeProfileTab === "analytics";
   const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
     <ProfileWorkspaceNavigation
       activeTab={activeProfileTab}
       activeActionId={
-        activeProfileTab === "perfil" && activeInstitutionSection === "plan-security"
-          ? "billing"
+        activeProfileTab === "perfil" && isInstitutionProfileOpen
+          ? activeInstitutionSection === "plan-security"
+            ? "billing"
+            : "institution-profile"
           : undefined
       }
       capabilities={workspaceCapabilities}
       isMunicipal={esMunicipio}
+      onOpenInstitutionProfile={openInstitutionProfile}
       onOpenPlan={openPlanAndBilling}
       onOpenSurveys={() => navigate("/admin/encuestas")}
       onTabChange={updateProfileTab}
@@ -2529,6 +2541,8 @@ export default function Perfil() {
                     ? "Consola tickets"
                     : activeProfileTab === "usuarios"
                       ? "Consola CRM"
+                      : isInstitutionProfileViewport
+                        ? "Perfil institucional"
                       : "Consola analitica"}
                 </p>
                 <span className="hidden h-3 w-px bg-border sm:block" />
@@ -2580,7 +2594,14 @@ export default function Perfil() {
       </div>
 
       {activeProfileTab === "perfil" ? (
-        <div className="sticky top-0 z-30 mx-auto mb-5 w-full max-w-7xl bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div
+          className={cn(
+            "z-30 mx-auto w-full shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+            isInstitutionProfileViewport
+              ? "mb-1 max-w-[min(2200px,calc(100vw-0.5rem))] px-1 py-0.5"
+              : "sticky top-0 mb-5 max-w-7xl px-2 py-2",
+          )}
+        >
           {workspaceNavigation}
         </div>
       ) : null}
@@ -2678,7 +2699,12 @@ export default function Perfil() {
             {workspaceNavigation}
           </div>
         ) : null}
-        <WorkspacePanel active={activeProfileTab === "perfil" && isInstitutionProfileOpen} label="Perfil institucional">
+        <WorkspacePanel
+          active={activeProfileTab === "perfil" && isInstitutionProfileOpen}
+          label="Perfil institucional"
+          data-testid="profile-institution-workspace"
+          className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=institution-profile-workspace]]:!h-full [&_[data-testid=institution-profile-workspace]]:!min-h-0"
+        >
           <InstitutionProfileWorkspace
             activeSection={activeInstitutionSection}
             institutionName={perfil.nombre_empresa}
