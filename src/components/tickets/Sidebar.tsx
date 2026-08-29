@@ -512,7 +512,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <span
                   data-testid="sidebar-compact-summary"
                   className={cn(
-                    'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground',
+                    'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-700 dark:text-slate-300',
                     delegatedHeader && 'max-[330px]:hidden',
                   )}
                 >
