@@ -11,7 +11,9 @@ import {
   Filter,
   Megaphone,
   MessageCircle,
+  Maximize2,
   MoreHorizontal,
+  Minimize2,
   PanelRightClose,
   PanelRightOpen,
   Phone,
@@ -348,6 +350,7 @@ export default function CrmPeopleWorkspace({
 }: CrmPeopleWorkspaceProps) {
   const [contextOpen, setContextOpen] = React.useState(true);
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
+  const [detailFocusMode, setDetailFocusMode] = React.useState(false);
 
   const scoredPeople = React.useMemo(
     () => people.map((person) => ({ person, score: profileScore(person) })),
@@ -415,6 +418,19 @@ export default function CrmPeopleWorkspace({
     );
     if (!selectionIsVisible) onSelectContact(getPersonKey(visiblePeople[0]));
   }, [activeView, getPersonKey, onSelectContact, selectedContactId, visiblePeople]);
+
+  React.useEffect(() => {
+    if (activeView !== "personas") setDetailFocusMode(false);
+  }, [activeView]);
+
+  React.useEffect(() => {
+    if (!detailFocusMode) return undefined;
+    const exitFocusMode = (event: KeyboardEvent) => {
+      if (!event.defaultPrevented && event.key === "Escape") setDetailFocusMode(false);
+    };
+    document.addEventListener("keydown", exitFocusMode);
+    return () => document.removeEventListener("keydown", exitFocusMode);
+  }, [detailFocusMode]);
 
   const visibleIds = React.useMemo(
     () => visiblePeople.map((person) => person.id),
@@ -728,75 +744,80 @@ export default function CrmPeopleWorkspace({
             className={cn(
               "grid grid-cols-1",
               embedded ? "min-h-0 flex-1" : "h-[min(72dvh,760px)] min-h-[560px]",
-              contextOpen
-                ? "lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_280px]"
-                : "lg:grid-cols-[320px_minmax(0,1fr)]",
+              detailFocusMode
+                ? "lg:grid-cols-1"
+                : contextOpen
+                  ? "lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_280px]"
+                  : "lg:grid-cols-[320px_minmax(0,1fr)]",
             )}
             data-testid="crm-people-grid"
+            data-focus-mode={detailFocusMode ? "detail" : "split"}
           >
-            <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
-              <div ref={listViewportRef} className="h-full overflow-y-auto">
-                {visiblePeople.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
-                ) : (
-                  <div className="relative w-full" style={{ height: `${desktopList.getTotalSize()}px` }}>
-                    {desktopList.getVirtualItems().map((virtualRow) => {
-                      const person = visiblePeople[virtualRow.index];
-                      const key = getPersonKey(person);
-                      const active = key === selectedContactId;
-                      const personScore = profileScore(person);
-                      return (
-                        <div
-                          key={key}
-                          ref={desktopList.measureElement}
-                          data-index={virtualRow.index}
-                          className={cn(
-                            "absolute left-0 top-0 grid w-full grid-cols-[28px_40px_minmax(0,1fr)] gap-2 border-b border-border/60 px-3 py-3 text-left transition-colors hover:bg-muted/40",
-                            active && "bg-primary/10 ring-1 ring-inset ring-primary/30",
-                          )}
-                          style={{ transform: `translateY(${virtualRow.start}px)` }}
-                        >
-                          <span className="pt-2">
-                            <Checkbox
-                              checked={selectedIds.has(String(person.id))}
-                              onCheckedChange={() => onToggleSelected(person.id)}
-                              aria-label={`Seleccionar ${person.nombre}`}
-                            />
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => onSelectContact(key)}
-                            className="col-span-2 grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                            aria-current={active ? "true" : undefined}
+            {!detailFocusMode ? (
+              <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
+                <div ref={listViewportRef} className="h-full overflow-y-auto">
+                  {visiblePeople.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
+                  ) : (
+                    <div className="relative w-full" style={{ height: `${desktopList.getTotalSize()}px` }}>
+                      {desktopList.getVirtualItems().map((virtualRow) => {
+                        const person = visiblePeople[virtualRow.index];
+                        const key = getPersonKey(person);
+                        const active = key === selectedContactId;
+                        const personScore = profileScore(person);
+                        return (
+                          <div
+                            key={key}
+                            ref={desktopList.measureElement}
+                            data-index={virtualRow.index}
+                            className={cn(
+                              "absolute left-0 top-0 grid w-full grid-cols-[28px_40px_minmax(0,1fr)] gap-2 border-b border-border/60 px-3 py-3 text-left transition-colors hover:bg-muted/40",
+                              active && "bg-primary/10 ring-1 ring-inset ring-primary/30",
+                            )}
+                            style={{ transform: `translateY(${virtualRow.start}px)` }}
                           >
-                            <IdentityAvatar
-                              name={person.nombre || person.email || person.telefono || "Contacto"}
-                              avatarUrl={person.avatarUrl}
-                              source={person.avatarSource}
-                              consented={person.avatarConsent}
-                              size="md"
-                            />
-                            <span className="min-w-0">
-                              <span className="flex items-center justify-between gap-2">
-                                <span className="truncate text-sm font-semibold">{person.nombre}</span>
-                                <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-bold", selectedTone(personScore))}>{personScore}%</span>
-                              </span>
-                              <span className="mt-1 block truncate text-xs text-muted-foreground">{person.motivo || intentLabel(person.lastIntent)}</span>
-                              <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <MessageCircle className="h-3 w-3" />
-                                {channelLabel(person.canal)}
-                                <span aria-hidden="true">·</span>
-                                {formatDate(person.lastSeen)}
-                              </span>
+                            <span className="pt-2">
+                              <Checkbox
+                                checked={selectedIds.has(String(person.id))}
+                                onCheckedChange={() => onToggleSelected(person.id)}
+                                aria-label={`Seleccionar ${person.nombre}`}
+                              />
                             </span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </aside>
+                            <button
+                              type="button"
+                              onClick={() => onSelectContact(key)}
+                              className="col-span-2 grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                              aria-current={active ? "true" : undefined}
+                            >
+                              <IdentityAvatar
+                                name={person.nombre || person.email || person.telefono || "Contacto"}
+                                avatarUrl={person.avatarUrl}
+                                source={person.avatarSource}
+                                consented={person.avatarConsent}
+                                size="md"
+                              />
+                              <span className="min-w-0">
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="truncate text-sm font-semibold">{person.nombre}</span>
+                                  <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-bold", selectedTone(personScore))}>{personScore}%</span>
+                                </span>
+                                <span className="mt-1 block truncate text-xs text-muted-foreground">{person.motivo || intentLabel(person.lastIntent)}</span>
+                                <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <MessageCircle className="h-3 w-3" />
+                                  {channelLabel(person.canal)}
+                                  <span aria-hidden="true">·</span>
+                                  {formatDate(person.lastSeen)}
+                                </span>
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </aside>
+            ) : null}
 
             <div
               className="min-h-0 min-w-0 bg-background/20"
@@ -837,6 +858,20 @@ export default function CrmPeopleWorkspace({
                         >
                           <MessageCircle className="h-4 w-4" />
                           <span className={cn(embedded && "sr-only sm:not-sr-only")}>Abrir conversación</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={detailFocusMode ? "secondary" : "outline"}
+                          className={cn("hidden gap-2 lg:inline-flex", embedded && "h-8 w-8 p-0 2xl:w-auto 2xl:px-3")}
+                          onClick={() => setDetailFocusMode((current) => !current)}
+                          aria-label={detailFocusMode ? "Volver a vista dividida" : "Ampliar ficha de la persona"}
+                          aria-pressed={detailFocusMode}
+                        >
+                          {detailFocusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                          <span className={cn(embedded && "sr-only 2xl:not-sr-only")}>
+                            {detailFocusMode ? "Vista dividida" : "Ampliar ficha"}
+                          </span>
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -952,7 +987,7 @@ export default function CrmPeopleWorkspace({
               )}
             </div>
 
-            {contextOpen && selectedPerson ? (
+            {!detailFocusMode && contextOpen && selectedPerson ? (
               <aside className="hidden min-h-0 border-l border-border/70 bg-card xl:block" aria-label="Panel contextual">
                 <ScrollArea className="h-full"><div className="p-4"><ContextPanel person={selectedPerson} score={score} nextAction={action} formatDate={formatDate} /></div></ScrollArea>
               </aside>

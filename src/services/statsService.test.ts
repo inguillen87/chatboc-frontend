@@ -39,6 +39,76 @@ describe('statsService heatmap normalization', () => {
       weight: 4,
     });
   });
+
+  it('preserves explicit territory from GeoJSON properties without duplicating the point', () => {
+    const dataset = extractHeatmapDataset({
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-68.471, -33.086] },
+            properties: {
+              ticket_id: 'M-501',
+              categoria: 'Luminarias',
+              estado: 'Nuevo',
+              barrio: 'Centro',
+              localidad: 'Junín',
+              zona: 'Distrito urbano',
+              direccion: 'Plaza departamental',
+              weight: 3,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(dataset.points).toHaveLength(1);
+    expect(dataset.points[0]).toMatchObject({
+      lat: -33.086,
+      lng: -68.471,
+      ticket: 'M-501',
+      categoria: 'Luminarias',
+      estado: 'Nuevo',
+      barrio: 'Centro',
+      ciudad: 'Junín',
+      distrito: 'Distrito urbano',
+      direccion: 'Plaza departamental',
+      weight: 3,
+    });
+    expect(dataset.points[0].tipo_ticket).toBeUndefined();
+  });
+
+  it('does not infer a barrio or zone from coordinates, category or address', () => {
+    const dataset = extractHeatmapDataset({
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-68.462, -33.091] },
+            properties: {
+              ticket_id: 'M-502',
+              categoria: 'Bacheo',
+              direccion: 'Avenida Mitre 120',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(dataset.points).toHaveLength(1);
+    expect(dataset.points[0]).toMatchObject({
+      lat: -33.091,
+      lng: -68.462,
+      ticket: 'M-502',
+      categoria: 'Bacheo',
+      direccion: 'Avenida Mitre 120',
+    });
+    expect(dataset.points[0].barrio).toBeUndefined();
+    expect(dataset.points[0].distrito).toBeUndefined();
+    expect(dataset.points[0].ciudad).toBeUndefined();
+  });
 });
 
 describe('statsService operational chart normalization', () => {

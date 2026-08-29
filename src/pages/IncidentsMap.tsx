@@ -140,6 +140,47 @@ const buildWeightedBreakdown = (
     .sort((a, b) => b.weight - a.weight);
 };
 
+const getExplicitTerritoryLabel = (point: HeatPoint): string | null => {
+  const value = [point.barrio, point.distrito, point.ciudad].find(
+    (candidate) => typeof candidate === 'string' && candidate.trim().length > 0,
+  );
+  return typeof value === 'string' ? value.trim() : null;
+};
+
+type TerritoryDataQuality = {
+  coordinatePoints: number;
+  classifiedPoints: number;
+  pendingClassification: number;
+  coveragePercent: number;
+  state: 'complete' | 'partial' | 'missing';
+};
+
+const summarizeTerritoryDataQuality = (points: HeatPoint[]): TerritoryDataQuality => {
+  const coordinatePoints = points.filter(
+    (point) => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)),
+  );
+  const classifiedPoints = coordinatePoints.filter((point) => getExplicitTerritoryLabel(point)).length;
+  const pendingClassification = coordinatePoints.length - classifiedPoints;
+  const coveragePercent = coordinatePoints.length
+    ? Math.round((classifiedPoints / coordinatePoints.length) * 100)
+    : 0;
+
+  return {
+    coordinatePoints: coordinatePoints.length,
+    classifiedPoints,
+    pendingClassification,
+    coveragePercent,
+    state:
+      coordinatePoints.length === 0
+        ? 'missing'
+        : pendingClassification === 0
+          ? 'complete'
+          : classifiedPoints > 0
+            ? 'partial'
+            : 'missing',
+  };
+};
+
 type TelemetryNode = {
   id: string;
   x: number;
@@ -191,7 +232,7 @@ const buildTelemetryNodes = (points: HeatPoint[]): TelemetryNode[] => {
       x: clampNumber(x, 48, TELEMETRY_WIDTH - 48),
       y: clampNumber(y, 44, TELEMETRY_HEIGHT - 44),
       weight,
-      label: formatMapLabel(point.barrio || point.distrito || point.categoria || point.ticket || point.cellId),
+      label: getExplicitTerritoryLabel(point) ?? `Punto ${index + 1}`,
     };
   });
 };
@@ -212,12 +253,14 @@ function IncidentsTelemetryOverlay({
   points,
   hotZones,
   totalWeight,
+  territoryQuality,
   showHeatmap,
   isLoading,
 }: {
   points: HeatPoint[];
   hotZones: HotZoneSummary[];
   totalWeight: number;
+  territoryQuality: TerritoryDataQuality;
   showHeatmap: boolean;
   isLoading: boolean;
 }) {
@@ -333,8 +376,14 @@ function IncidentsTelemetryOverlay({
             <strong>{formatNumber(totalWeight)}</strong>
           </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.06] p-2">
-            <span className="block text-white/55">Top zona</span>
-            <strong className="block truncate">{formatMapLabel(hotZones[0]?.label)}</strong>
+            <span className="block text-white/55">
+              {hotZones[0] ? 'Top zona' : 'Calidad territorial'}
+            </span>
+            <strong className="block truncate">
+              {hotZones[0]
+                ? formatMapLabel(hotZones[0].label)
+                : `${formatNumber(territoryQuality.pendingClassification)} sin zona publicada`}
+            </strong>
           </div>
         </div>
       </div>
@@ -751,22 +800,21 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     const totalWeight = heatmapData.reduce((sum, point) => sum + getPointWeight(point), 0);
     const weightedZones = buildWeightedBreakdown(
       heatmapData,
-      (point) => point.barrio || point.distrito || point.ciudad,
+      getExplicitTerritoryLabel,
     );
     const weightedCategories = buildWeightedBreakdown(heatmapData, (point) => point.categoria);
     const weightedStates = buildWeightedBreakdown(heatmapData, (point) => point.estado);
-    const clusteredZones = heatmapData.filter(
-      (point) => (point.clusterSize ?? 0) > 1 || Boolean(point.clusterId) || Boolean(point.cellId),
-    ).length;
+    const territoryQuality = summarizeTerritoryDataQuality(heatmapData);
+    const classifiedTerritoryWeight = weightedZones.reduce((sum, zone) => sum + zone.weight, 0);
 
     return {
       totalWeight,
       pointCount: heatmapData.length,
-      zoneCount: weightedZones.length,
       hotZones: weightedZones.slice(0, 4),
       topCategory: weightedCategories[0],
       topState: weightedStates[0],
-      clusteredZones,
+      territoryQuality,
+      classifiedTerritoryWeight,
     };
   }, [heatmapData]);
 
@@ -787,17 +835,19 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       icon: Activity,
     },
     {
-      label: 'Zonas activas',
-      value: formatNumber(mapInsights.zoneCount),
-      detail: `${formatNumber(mapInsights.clusteredZones)} agregadas`,
+      label: 'Cobertura territorial',
+      value: `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
+      detail: `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
       icon: Layers,
     },
     {
-      label: 'Zona caliente',
-      value: formatMapLabel(mapInsights.hotZones[0]?.label),
+      label: mapInsights.hotZones[0] ? 'Zona prioritaria' : 'Calidad de datos',
+      value: mapInsights.hotZones[0]
+        ? formatMapLabel(mapInsights.hotZones[0].label)
+        : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes`,
       detail: mapInsights.hotZones[0]
         ? `${formatNumber(mapInsights.hotZones[0].weight)} reportes`
-        : 'Sin ubicaciones',
+        : 'Con GPS, sin barrio, zona o localidad',
       icon: Flame,
     },
     {
@@ -1100,7 +1150,23 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             </Button>
           </AlertDescription>
         </Alert>
-      ) : !isLoading && heatmapData.length === 0 ? (
+      ) : isLoading && heatmapData.length === 0 ? (
+        <div
+          data-testid="incidents-map-loading"
+          role="status"
+          className="flex min-h-[320px] items-center justify-center rounded-2xl border border-border/60 bg-card p-8 text-center shadow-sm"
+        >
+          <div className="space-y-3">
+            <RefreshCw className="mx-auto h-7 w-7 animate-spin text-primary" aria-hidden="true" />
+            <div>
+              <p className="font-semibold text-foreground">Verificando cobertura territorial</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Recuperando coordenadas y metadatos publicados para esta vista.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : heatmapData.length === 0 ? (
         <Alert
           data-testid="incidents-map-empty"
           variant="default"
@@ -1126,6 +1192,54 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           </AlertDescription>
         </Alert>
       ) : (
+      <>
+      <div
+        data-testid="territory-data-quality"
+        className={`rounded-2xl border p-4 shadow-sm ${
+          mapInsights.territoryQuality.state === 'complete'
+            ? 'border-emerald-500/25 bg-emerald-500/10'
+            : 'border-amber-500/30 bg-amber-500/10'
+        }`}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className={`mt-0.5 rounded-xl p-2 ${
+                mapInsights.territoryQuality.state === 'complete'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+              }`}
+            >
+              <LocateFixed className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground">
+                {mapInsights.territoryQuality.state === 'complete'
+                  ? 'Cobertura territorial completa'
+                  : mapInsights.territoryQuality.state === 'partial'
+                    ? 'Cobertura territorial parcial'
+                    : 'Coordenadas disponibles; zonas pendientes'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatNumber(mapInsights.territoryQuality.classifiedPoints)} de{' '}
+                {formatNumber(mapInsights.territoryQuality.coordinatePoints)} puntos tienen barrio,
+                zona o localidad explícitos.{' '}
+                {formatNumber(mapInsights.territoryQuality.pendingClassification)} quedan pendientes de
+                enriquecimiento territorial.
+              </p>
+              {mapInsights.territoryQuality.pendingClassification > 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No se infieren barrios desde coordenadas ni categorías: requieren geocodificación
+                  inversa o límites oficiales validados.
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <span className="w-fit shrink-0 rounded-full border border-current/15 bg-background/70 px-3 py-1 text-xs font-semibold text-foreground">
+            {formatNumber(mapInsights.territoryQuality.coveragePercent)}% clasificado
+          </span>
+        </div>
+      </div>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative min-h-[560px] overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-xl">
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:44px_44px]" />
@@ -1146,6 +1260,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           points={heatmapData}
           hotZones={mapInsights.hotZones}
           totalWeight={mapInsights.totalWeight}
+          territoryQuality={mapInsights.territoryQuality}
           showHeatmap={showHeatmap}
           isLoading={isLoading}
         />
@@ -1159,7 +1274,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 <p className="mt-1 text-lg font-semibold">
                   {mapInsights.hotZones[0]
                     ? formatMapLabel(mapInsights.hotZones[0].label)
-                    : 'Sin zona dominante'}
+                    : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} puntos sin zona publicada`}
                 </p>
               </div>
               <MapPin className="h-5 w-5 text-amber-300" />
@@ -1174,8 +1289,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 <strong>{formatNumber(mapInsights.pointCount)}</strong>
               </div>
               <div className="rounded-lg bg-white/10 p-2">
-                <span className="block text-white/55">Zonas</span>
-                <strong>{formatNumber(mapInsights.zoneCount)}</strong>
+                <span className="block text-white/55">Con zona</span>
+                <strong>{formatNumber(mapInsights.territoryQuality.classifiedPoints)}</strong>
               </div>
             </div>
           </div>
@@ -1198,17 +1313,37 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         <aside className="rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Zonas calientes</p>
-              <p className="text-xs text-muted-foreground">Ordenadas por peso de reclamos.</p>
+              <p className="text-sm font-semibold text-foreground">
+                {mapInsights.hotZones.length > 0 ? 'Zonas informadas' : 'Calidad territorial'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {mapInsights.hotZones.length > 0
+                  ? 'Ordenadas por peso y dato territorial explícito.'
+                  : 'Puntos visibles pendientes de barrio, zona o localidad.'}
+              </p>
             </div>
             <Flame className="h-5 w-5 text-amber-500" />
           </div>
           <div className="mt-4 space-y-3">
+            {mapInsights.territoryQuality.pendingClassification > 0 &&
+            mapInsights.hotZones.length > 0 ? (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-foreground">
+                <strong>
+                  {formatNumber(mapInsights.territoryQuality.pendingClassification)} puntos sin zona
+                </strong>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Se excluyen del ranking hasta contar con un dato territorial validado.
+                </p>
+              </div>
+            ) : null}
             {mapInsights.hotZones.length > 0 ? (
               mapInsights.hotZones.map((zone, index) => {
                 const pct =
-                  mapInsights.totalWeight > 0
-                    ? Math.min(100, Math.round((zone.weight / mapInsights.totalWeight) * 100))
+                  mapInsights.classifiedTerritoryWeight > 0
+                    ? Math.min(
+                        100,
+                        Math.round((zone.weight / mapInsights.classifiedTerritoryWeight) * 100),
+                      )
                     : 0;
                 return (
                   <div key={zone.label} className="space-y-2">
@@ -1227,13 +1362,28 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 );
               })
             ) : (
-              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                Todavia no hay zonas con coordenadas para los filtros actuales.
+              <div
+                data-testid="territory-enrichment-queue"
+                className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground"
+              >
+                <strong>
+                  {formatNumber(mapInsights.territoryQuality.pendingClassification)} candidatos a
+                  enriquecimiento territorial
+                </strong>
+                <p className="mt-2 text-muted-foreground">
+                  Los puntos tienen coordenadas, pero la fuente no publicó barrio, zona o localidad.
+                  No se asignan nombres automáticamente.
+                </p>
+                <p className="mt-3 text-xs font-medium text-muted-foreground">
+                  Próximo paso controlado: cruce con límites oficiales o geocodificación inversa
+                  validada.
+                </p>
               </div>
             )}
           </div>
         </aside>
       </section>
+      </>
       )}
       <TicketStatsCharts charts={charts} />
     </div>

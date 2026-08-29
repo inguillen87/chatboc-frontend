@@ -161,6 +161,36 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
   });
 
+  it("expands the selected record into a reversible focus mode", () => {
+    render(<Harness embedded />);
+
+    const grid = screen.getByTestId("crm-people-grid");
+    expect(grid).toHaveAttribute("data-focus-mode", "split");
+    expect(screen.getByRole("complementary", { name: "Lista de personas" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
+
+    const expandButton = screen.getByRole("button", { name: "Ampliar ficha de la persona" });
+    expect(expandButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(expandButton);
+
+    expect(grid).toHaveAttribute("data-focus-mode", "detail");
+    expect(screen.queryByRole("complementary", { name: "Lista de personas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Mauricio Alonso" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver a vista dividida" })).toHaveAttribute("aria-pressed", "true");
+
+    const consumedEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    consumedEscape.preventDefault();
+    document.dispatchEvent(consumedEscape);
+    expect(grid).toHaveAttribute("data-focus-mode", "detail");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(grid).toHaveAttribute("data-focus-mode", "split");
+    expect(screen.getByRole("complementary", { name: "Lista de personas" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
+  });
+
   it("virtualizes a large directory instead of mounting every desktop row", () => {
     const largeDirectory = Array.from({ length: 5_000 }, (_, index): CrmPeopleRecord => ({
       id: index === 0 ? "generic-phone" : `person-${index}`,

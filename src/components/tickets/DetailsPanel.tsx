@@ -468,8 +468,28 @@ interface DetailsPanelProps {
   operationalWorkspace?: boolean;
 }
 
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className, operationalWorkspace = false }) => {
-  const { selectedTicket: ticket, updateTicket } = useTickets();
+interface DetailsPanelContentProps extends DetailsPanelProps {
+  ticket: Ticket;
+  updateTicket: ReturnType<typeof useTickets>['updateTicket'];
+}
+
+const EmptyDetailsPanel = () => (
+  <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
+    <div className="text-center text-muted-foreground">
+      <Info className="mx-auto mb-4 h-12 w-12" />
+      <h3 className="font-semibold">Detalles del Ticket</h3>
+      <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
+    </div>
+  </aside>
+);
+
+const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
+  ticket,
+  updateTicket,
+  onClose,
+  className,
+  operationalWorkspace = false,
+}) => {
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
@@ -616,17 +636,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className, operati
     );
   };
 
-  if (!ticket) {
-    return (
-       <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
-         <div className="text-center text-muted-foreground">
-            <Info className="h-12 w-12 mx-auto mb-4" />
-            <h3 className="font-semibold">Detalles del Ticket</h3>
-            <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
-         </div>
-       </aside>
-    );
-  }
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
   };
@@ -1453,6 +1462,20 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className, operati
         </div>
       </ScrollArea>
     </motion.aside>
+  );
+};
+
+const DetailsPanel: React.FC<DetailsPanelProps> = (props) => {
+  const { selectedTicket, updateTicket } = useTickets();
+
+  if (!selectedTicket) return <EmptyDetailsPanel />;
+
+  return (
+    <DetailsPanelContent
+      {...props}
+      ticket={selectedTicket}
+      updateTicket={updateTicket}
+    />
   );
 };
 

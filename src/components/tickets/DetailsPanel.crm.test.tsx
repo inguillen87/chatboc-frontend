@@ -98,6 +98,39 @@ describe('DetailsPanel resolution guide', () => {
     detailsMocks.selectedTicket = baseTicket;
   });
 
+  it('returns to the empty inspector when filtering clears the selected ticket', () => {
+    detailsMocks.selectedTicket = {
+      id: 901,
+      tipo: 'municipio',
+      nro_ticket: 'QA-901',
+      asunto: 'Caso QA sin datos personales reales',
+      estado: 'nuevo',
+      fecha: '2026-08-29T12:00:00Z',
+      categoria: 'Alumbrado de prueba',
+      direccion: 'Calle de Prueba 100',
+      channel: 'web',
+      history: [],
+      messages: [],
+      informacion_personal_vecino: {
+        nombre: 'Persona QA',
+        telefono: '+54 11 5555 0101',
+        email: 'persona.qa@example.test',
+        direccion: 'Calle de Prueba 100',
+        dni: '',
+      },
+    } as Ticket;
+    const { rerender } = render(<DetailsPanel />);
+
+    expect(screen.getByRole('heading', { name: 'Caso QA sin datos personales reales' })).toBeInTheDocument();
+
+    detailsMocks.selectedTicket = null;
+    rerender(<DetailsPanel />);
+
+    expect(screen.getByRole('heading', { name: 'Detalles del Ticket' })).toBeInTheDocument();
+    expect(screen.getByText(/Seleccioná un ticket para ver los detalles/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Caso QA sin datos personales reales' })).not.toBeInTheDocument();
+  });
+
   it('shows the resolution guide first and keeps personal and technical data collapsed', () => {
     render(<DetailsPanel />);
 

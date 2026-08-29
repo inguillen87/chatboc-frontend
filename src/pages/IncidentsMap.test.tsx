@@ -132,6 +132,11 @@ describe('IncidentsMap', () => {
   it('renders compact filters, telemetry overlay and heatmap data', async () => {
     render(<IncidentsMap />);
 
+    expect(screen.getByTestId('incidents-map-loading')).toHaveTextContent(
+      'Verificando cobertura territorial',
+    );
+    expect(screen.queryByTestId('territory-data-quality')).not.toBeInTheDocument();
+
     await waitFor(() => {
       expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-points', '2');
     });
@@ -142,6 +147,35 @@ describe('IncidentsMap', () => {
     expect(screen.getByText('Comando territorial')).toBeInTheDocument();
     expect(screen.getAllByText('Centro').length).toBeGreaterThan(0);
     expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'heatmap');
+  });
+
+  it('shows coordinate-only points as truthful territorial enrichment candidates', async () => {
+    mocks.getHeatmapDataset.mockResolvedValue({
+      points: [
+        { id: 11, lat: -33.086, lng: -68.471, weight: 2, categoria: 'Luminarias' },
+        { id: 12, lat: -33.091, lng: -68.462, weight: 1, categoria: 'Bacheo' },
+        { id: 13, lat: -33.082, lng: -68.455, weight: 1, categoria: 'Arbolado' },
+      ],
+    });
+
+    render(<IncidentsMap />);
+
+    const quality = await screen.findByTestId('territory-data-quality');
+    expect(quality).toHaveTextContent(
+      '0 de 3 puntos tienen barrio, zona o localidad explícitos. 3 quedan pendientes de enriquecimiento territorial.',
+    );
+    expect(quality).toHaveTextContent(
+      'No se infieren barrios desde coordenadas ni categorías',
+    );
+    expect(screen.getByTestId('territory-enrichment-queue')).toHaveTextContent(
+      '3 candidatos a enriquecimiento territorial',
+    );
+    expect(screen.getAllByText(/3 (puntos )?sin zona publicada/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Sin zona dominante')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin ubicaciones')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Todavia no hay zonas con coordenadas para los filtros actuales.'),
+    ).not.toBeInTheDocument();
   });
 
   it('scopes every territorial request to the canonical tenant override', async () => {

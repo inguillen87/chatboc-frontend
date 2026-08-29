@@ -263,7 +263,7 @@ const COORDINATE_CONTAINER_KEYWORDS = [
 const NORMALIZED_STRING_FIELDS = {
   categoria: ['categoria', 'category', 'rubro'],
   direccion: ['direccion', 'address', 'domicilio', 'calle'],
-  distrito: ['distrito', 'district', 'municipio', 'localidad', 'zone', 'zona'],
+  distrito: ['distrito', 'district', 'zone', 'zona'],
   barrio: ['barrio', 'neighborhood', 'colonia', 'sector'],
   tipoTicket: ['tipo_ticket', 'tipo', 'ticket_type', 'type'],
   estado: ['estado', 'status', 'situacion', 'situacion', 'situation'],
@@ -271,7 +271,7 @@ const NORMALIZED_STRING_FIELDS = {
   severidad: ['severidad', 'severity'],
   canal: ['canal', 'channel'],
   fuente: ['fuente', 'source', 'origen'],
-  ciudad: ['ciudad', 'city'],
+  ciudad: ['ciudad', 'city', 'localidad', 'municipio'],
   provincia: ['provincia', 'province', 'estado_provincial'],
   pais: ['pais', 'país', 'country'],
   lastTicketAt: ['last_ticket_at', 'last_ticket', 'last_at', 'last_seen', 'ultimo_ticket', 'ultima_actualizacion'],
@@ -596,6 +596,41 @@ const findStringByKeywords = (record: Record<string, unknown>, keywords: string[
   return null;
 };
 
+const pointMetadataRecords = (record: Record<string, unknown>): Record<string, unknown>[] => {
+  const properties = isPlainObject(record.properties) ? record.properties : null;
+  const feature = isPlainObject(record.feature) ? record.feature : null;
+  const featureProperties = feature && isPlainObject(feature.properties) ? feature.properties : null;
+  const location = isPlainObject(record.location) ? record.location : null;
+
+  // GeoJSON reserves `type` for structural values such as Feature and Point.
+  // Prefer its explicit properties before the wrapper so those values never
+  // masquerade as a municipal ticket type.
+  return [properties, featureProperties, location, record].filter(
+    (candidate): candidate is Record<string, unknown> => Boolean(candidate),
+  );
+};
+
+const GEOJSON_STRUCTURAL_TYPES = new Set(['feature', 'featurecollection', 'point', 'multipoint']);
+
+const findPointTicketType = (records: Record<string, unknown>[]): string | null => {
+  for (const record of records) {
+    const value = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.tipoTicket);
+    if (value && !GEOJSON_STRUCTURAL_TYPES.has(value.toLowerCase())) return value;
+  }
+  return null;
+};
+
+const findPointStringByKeywords = (
+  records: Record<string, unknown>[],
+  keywords: string[],
+): string | null => {
+  for (const record of records) {
+    const value = findStringByKeywords(record, keywords);
+    if (value) return value;
+  }
+  return null;
+};
+
 const findNumberByKeywords = (record: Record<string, unknown>, keywords: string[]): number | null => {
   for (const [key, value] of Object.entries(record)) {
     const normalizedKey = normalizeKey(key);
@@ -603,6 +638,17 @@ const findNumberByKeywords = (record: Record<string, unknown>, keywords: string[
       const numberValue = coerceNumber(value);
       if (numberValue !== null) return numberValue;
     }
+  }
+  return null;
+};
+
+const findPointNumberByKeywords = (
+  records: Record<string, unknown>[],
+  keywords: string[],
+): number | null => {
+  for (const record of records) {
+    const value = findNumberByKeywords(record, keywords);
+    if (value !== null) return value;
   }
   return null;
 };
@@ -767,6 +813,10 @@ const looksLikeHeatmapPoint = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.length >= 2;
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
+  if (record.type === 'FeatureCollection') return false;
+  if (record.type === 'Feature' && isPlainObject(record.geometry)) {
+    return record.geometry.type === 'Point' && Array.isArray(record.geometry.coordinates);
+  }
   return Object.keys(record).some((key) => {
     const normalizedKey = normalizeKey(key);
     return LATITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || LONGITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || COORDINATE_CONTAINER_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || STRING_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || NUMBER_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword));
@@ -778,23 +828,24 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   const record = raw as Record<string, unknown>;
   const coords = extractCoordinates(record);
   if (coords.lat === undefined || coords.lng === undefined) return null;
-  const id = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.id);
-  const categoria = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.categoria);
-  const direccion = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.direccion);
-  const distrito = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.distrito);
-  const barrio = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.barrio);
-  const tipoTicket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.tipoTicket);
-  const estado = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.estado);
-  const ticket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ticket);
-  const severidad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.severidad);
-  const canal = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.canal);
-  const fuente = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.fuente);
-  const ciudad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ciudad);
-  const provincia = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.provincia);
-  const pais = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.pais);
-  const lastTicketAt = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.lastTicketAt);
-  const weight = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.weight);
-  const total = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.total);
+  const metadataRecords = pointMetadataRecords(record);
+  const id = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.id);
+  const categoria = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.categoria);
+  const direccion = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.direccion);
+  const distrito = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.distrito);
+  const barrio = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.barrio);
+  const tipoTicket = findPointTicketType(metadataRecords);
+  const estado = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.estado);
+  const ticket = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.ticket);
+  const severidad = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.severidad);
+  const canal = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.canal);
+  const fuente = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.fuente);
+  const ciudad = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.ciudad);
+  const provincia = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.provincia);
+  const pais = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.pais);
+  const lastTicketAt = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.lastTicketAt);
+  const weight = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.weight);
+  const total = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.total);
   return {
     lat: coords.lat,
     lng: coords.lng,
@@ -815,6 +866,7 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
     last_ticket_at: lastTicketAt ?? undefined,
     weight: weight ?? undefined,
     total: total ?? undefined,
+    feature: isPlainObject(record.feature) ? record.feature : record.type === 'Feature' ? record : undefined,
   };
 };
 
@@ -829,14 +881,16 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
     visited.add(current);
     if (Array.isArray(current)) {
       current.forEach((item) => {
+        let normalizedItem = false;
         if (item && looksLikeHeatmapPoint(item)) {
           const normalized = normalizeHeatPoint(item);
           if (normalized) {
             const key = `${normalized.lat.toFixed(6)}|${normalized.lng.toFixed(6)}|${normalized.categoria ?? ''}|${normalized.estado ?? ''}|${normalized.ticket ?? ''}`;
             if (!seen.has(key)) { seen.add(key); points.push(normalized); }
+            normalizedItem = true;
           }
         }
-        if (item && typeof item === 'object' && !visited.has(item)) queue.push(item);
+        if (!normalizedItem && item && typeof item === 'object' && !visited.has(item)) queue.push(item);
       });
       continue;
     }
@@ -847,6 +901,7 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
       if (directPoint) {
         const key = `${directPoint.lat.toFixed(6)}|${directPoint.lng.toFixed(6)}|${directPoint.categoria ?? ''}|${directPoint.estado ?? ''}|${directPoint.ticket ?? ''}`;
         if (!seen.has(key)) { seen.add(key); points.push(directPoint); }
+        continue;
       }
     }
     for (const value of Object.values(record)) {

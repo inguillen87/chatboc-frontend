@@ -254,7 +254,9 @@ describe('NewTicketsPanel CRM layout', () => {
   it('aplica q como búsqueda segura sin seleccionar un ticket por aproximación', () => {
     const setFilters = vi.fn();
     const resolveTicketTarget = vi.fn().mockResolvedValue(null);
-    searchParamsState.value = new URLSearchParams('tab=tickets&q=%2B5492613168608');
+    searchParamsState.value = new URLSearchParams(
+      'tab=tickets&q=%2B541155550101&contact=qa-contact-134',
+    );
     useTicketsMock.mockReturnValue({
       loading: false,
       error: null,
@@ -274,7 +276,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(setFilters).toHaveBeenCalledTimes(1);
     const updater = setFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
-    expect(updater({ search: '', channel: 'all' })).toMatchObject({ search: '+5492613168608' });
+    expect(updater({ search: '', channel: 'all' })).toMatchObject({ search: '+541155550101' });
     expect(resolveTicketTarget).not.toHaveBeenCalled();
   });
 
