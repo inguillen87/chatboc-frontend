@@ -560,6 +560,77 @@ test('profile people CRM stays inside the viewport with an independently scrolla
   await expectDocumentLocked(page);
 });
 
+test('profile people CRM keeps record actions and summary reachable at 390x844', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil?tab=usuarios&tenant_slug=municipio-demo', { waitUntil: 'domcontentloaded' });
+
+  const workspace = page.getByTestId('crm-people-workspace');
+  const grid = page.getByTestId('crm-people-grid');
+  const recordHeader = page.getByTestId('crm-person-header');
+  const recordTabs = page.getByTestId('crm-person-tabs');
+  const recordScroll = page
+    .getByTestId('crm-person-scroll')
+    .locator('[data-radix-scroll-area-viewport]')
+    .first();
+
+  await expect(workspace).toHaveAttribute('data-layout', 'embedded');
+  await expect(page.getByRole('combobox', { name: 'Vista operativa de personas' })).toBeVisible();
+  await expect(page.locator('aside[aria-label="Lista de personas"]')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Abrir conversación' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Resumen', exact: true })).toBeVisible();
+  await expect(page.getByText('Contexto operativo publicado para la persona 1.')).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const read = (testId: string) => {
+      const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+      const rect = element?.getBoundingClientRect();
+      return element && rect
+        ? {
+            top: rect.top,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+          }
+        : null;
+    };
+    return {
+      grid: read('crm-people-grid'),
+      recordHeader: read('crm-person-header'),
+      recordTabs: read('crm-person-tabs'),
+      areaNavigation: read('crm-area-navigation'),
+      queueControls: read('crm-queue-controls'),
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layout.grid).not.toBeNull();
+  expect(layout.grid?.height || 0).toBeGreaterThan(180);
+  expect(layout.grid?.bottom || 0).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.recordHeader?.bottom || 0).toBeLessThanOrEqual((layout.grid?.bottom || 0) + 1);
+  expect(layout.recordTabs?.bottom || 0).toBeLessThanOrEqual((layout.grid?.bottom || 0) + 1);
+  for (const region of [layout.areaNavigation, layout.queueControls, layout.recordHeader, layout.recordTabs]) {
+    expect(region).not.toBeNull();
+    expect(region?.scrollWidth || 0).toBeLessThanOrEqual((region?.clientWidth || 0) + 1);
+  }
+
+  await expect(recordHeader).toBeInViewport();
+  await expect(recordTabs).toBeInViewport();
+  await expect(recordScroll).toBeVisible();
+  const scrollMetrics = await recordScroll.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollMetrics.clientHeight).toBeGreaterThan(60);
+  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+  await expectNoHorizontalOverflow(page);
+  await expectDocumentLocked(page);
+});
+
 const desktopPaths = [
   '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
   '/t/municipio-demo/reclamos?ticket_id=101&channel=whatsapp&focus=heatmap',

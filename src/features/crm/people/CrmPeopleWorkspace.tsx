@@ -388,41 +388,80 @@ export default function CrmPeopleWorkspace({
         <header
           className={cn(
             "flex flex-col border-b border-border/70 xl:flex-row xl:items-center xl:justify-between",
-            embedded ? "gap-2 px-3 py-2" : "gap-3 px-4 py-3",
+            embedded
+              ? "flex-row items-center justify-between gap-2 px-2 py-1.5 sm:px-3 sm:py-2"
+              : "gap-3 px-4 py-3",
           )}
+          data-testid="crm-people-overview-header"
         >
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">CRM municipal</p>
-              <Badge variant={isConnected ? "default" : "outline"} className="gap-1.5">
+              <Badge
+                variant={isConnected ? "default" : "outline"}
+                className={cn("gap-1.5", embedded && "px-1.5 sm:px-2.5")}
+                aria-label={isConnected ? "CRM conectado en vivo" : "CRM con sincronización cada 30 segundos"}
+              >
                 <Activity className="h-3 w-3" />
-                {isConnected ? "En vivo" : "Sincronización 30 s"}
+                <span className={cn(embedded && "sr-only sm:not-sr-only")}>
+                  {isConnected ? "En vivo" : "Sincronización 30 s"}
+                </span>
               </Badge>
             </div>
-            <h1 className={cn("mt-1 font-bold tracking-tight", embedded ? "text-lg md:text-xl" : "text-xl md:text-2xl")}>Personas y relaciones</h1>
+            <h1 className={cn("mt-1 font-bold tracking-tight", embedded ? "text-base sm:text-lg md:text-xl" : "text-xl md:text-2xl")}>Personas y relaciones</h1>
             <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden 2xl:block")}>Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-2" onClick={onRefresh}>
+          <div className={cn("flex flex-wrap items-center gap-2", embedded && "shrink-0 gap-1 sm:gap-2")}>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn("gap-2", embedded && "h-8 w-8 p-0 sm:w-auto sm:px-3")}
+              onClick={onRefresh}
+              aria-label="Actualizar personas"
+            >
               <RefreshCw className="h-4 w-4" />
-              Actualizar
+              <span className={cn(embedded && "sr-only sm:not-sr-only")}>Actualizar</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={onBack}>Volver</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(embedded && "h-8 w-8 gap-1 p-0 sm:w-auto sm:px-3")}
+              onClick={onBack}
+              aria-label="Volver al perfil"
+            >
+              {embedded ? <ChevronLeft className="h-4 w-4 sm:hidden" /> : null}
+              <span className={cn(embedded && "sr-only sm:not-sr-only")}>Volver</span>
+            </Button>
           </div>
         </header>
 
-        <div className="grid grid-cols-2 divide-x divide-y divide-border/70 md:grid-cols-4 md:divide-y-0">
+        <div
+          className={cn(
+            "grid divide-x divide-border/70",
+            embedded ? "grid-cols-4 divide-y-0" : "grid-cols-2 divide-y md:grid-cols-4 md:divide-y-0",
+          )}
+          data-testid="crm-overview-metrics"
+        >
           {metrics.slice(0, 4).map((metric) => (
-            <div key={metric.label} className={cn("min-w-0", embedded ? "px-3 py-1.5" : "px-4 py-3")}>
-              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
-              <p className={cn("font-bold tracking-tight", embedded ? "text-lg" : "mt-1 text-2xl")}>{metric.value}</p>
+            <div key={metric.label} className={cn("min-w-0", embedded ? "px-1.5 py-1 sm:px-3 sm:py-1.5" : "px-4 py-3")}>
+              <p className={cn("truncate font-semibold uppercase tracking-[0.12em] text-muted-foreground", embedded ? "text-[9px] leading-3 sm:text-[11px]" : "text-[11px]")}>{metric.label}</p>
+              <p className={cn("font-bold tracking-tight", embedded ? "text-base sm:text-lg" : "mt-1 text-2xl")}>{metric.value}</p>
               <p className={cn("mt-0.5 truncate text-xs text-muted-foreground", embedded && "sr-only")}>{metric.helper}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <nav className={cn("flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-card", embedded ? "p-0.5" : "p-1")} aria-label="Áreas del CRM">
+      <nav
+        className={cn(
+          "min-w-0 shrink-0 items-center rounded-xl border border-border/70 bg-card",
+          embedded
+            ? "grid grid-cols-4 gap-0.5 overflow-hidden p-0.5 sm:flex sm:gap-1 sm:overflow-x-auto"
+            : "flex gap-1 overflow-x-auto p-1",
+        )}
+        aria-label="Áreas del CRM"
+        data-testid="crm-area-navigation"
+      >
         {viewItems.map((item) => {
           const Icon = item.icon;
           const active = activeView === item.value;
@@ -432,7 +471,11 @@ export default function CrmPeopleWorkspace({
               type="button"
               size="sm"
               variant={active ? "secondary" : "ghost"}
-              className={cn("shrink-0 gap-2", active && "bg-primary/10 text-blue-700 dark:text-blue-300")}
+              className={cn(
+                "shrink-0 gap-2",
+                embedded && "min-w-0 gap-1 px-1 text-[11px] sm:gap-2 sm:px-3 sm:text-sm",
+                active && "bg-primary/10 text-blue-700 dark:text-blue-300",
+              )}
               aria-current={active ? "page" : undefined}
               onClick={() => onViewChange(item.value)}
             >
@@ -451,8 +494,14 @@ export default function CrmPeopleWorkspace({
         </section>
       ) : (
         <section className={cn("overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm", embedded && "flex min-h-0 flex-1 flex-col")}>
-          <div className="flex flex-col gap-2 border-b border-border/70 p-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row lg:max-w-2xl">
+          <div
+            className={cn(
+              "flex flex-col border-b border-border/70 lg:flex-row lg:items-center lg:justify-between",
+              embedded ? "gap-1 p-2 sm:gap-2 sm:p-3" : "gap-2 p-3",
+            )}
+            data-testid="crm-people-search-toolbar"
+          >
+            <div className={cn("flex w-full min-w-0 flex-col sm:flex-row lg:max-w-2xl", embedded ? "gap-1 sm:gap-2" : "gap-2")}>
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -478,8 +527,8 @@ export default function CrmPeopleWorkspace({
                 ) : null}
               </select>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex h-9 items-center gap-2 rounded-lg border border-border/70 px-3 text-sm">
+            <div className={cn("flex flex-wrap items-center", embedded ? "gap-1 sm:gap-2" : "gap-2")}>
+              <label className={cn("flex items-center gap-2 rounded-lg border border-border/70", embedded ? "h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm" : "h-9 px-3 text-sm")}>
                 <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
                 Con opt-in
               </label>
@@ -502,8 +551,26 @@ export default function CrmPeopleWorkspace({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 border-b border-border/70 bg-muted/15 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label="Vistas operativas de personas">
+          <div
+            className={cn(
+              "flex flex-col border-b border-border/70 bg-muted/15 lg:flex-row lg:items-center lg:justify-between",
+              embedded ? "gap-1 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2" : "gap-2 px-3 py-2",
+            )}
+            data-testid="crm-queue-controls"
+          >
+            {embedded ? (
+              <select
+                value={queueView}
+                onChange={(event) => onQueueViewChange(event.target.value as CrmPeopleQueueView)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs sm:hidden"
+                aria-label="Vista operativa de personas"
+              >
+                {queueViewItems.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label} ({queueViewCounts[item.value]})</option>
+                ))}
+              </select>
+            ) : null}
+            <div className={cn("min-w-0 items-center gap-1 overflow-x-auto", embedded ? "hidden sm:flex" : "flex")} role="group" aria-label="Vistas operativas de personas">
               <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
               {queueViewItems.map((item) => (
                 <Button
@@ -525,8 +592,8 @@ export default function CrmPeopleWorkspace({
                 </Button>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex h-8 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs">
+            <div className={cn("items-center gap-2", embedded ? "grid grid-cols-2 sm:flex" : "flex flex-wrap")}>
+              <label className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs">
                 <Checkbox
                   checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
                   onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
@@ -536,7 +603,7 @@ export default function CrmPeopleWorkspace({
                 Seleccionar vista
               </label>
               <Select value={peopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)}>
-                <SelectTrigger className="h-8 w-[178px] bg-background text-xs" aria-label="Ordenar personas">
+                <SelectTrigger className={cn("h-8 bg-background text-xs", embedded ? "w-full sm:w-[178px]" : "w-[178px]")} aria-label="Ordenar personas">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
                 <SelectContent>
@@ -656,37 +723,41 @@ export default function CrmPeopleWorkspace({
                 <EmptySelection />
               ) : (
                 <div className="flex h-full min-h-0 flex-col">
-                  <header className="border-b border-border/70 bg-card px-4 py-3">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="flex min-w-0 items-center gap-3">
+                  <header
+                    className={cn("border-b border-border/70 bg-card", embedded ? "px-2 py-2 sm:px-4 sm:py-3" : "px-4 py-3")}
+                    data-testid="crm-person-header"
+                  >
+                    <div className={cn("flex gap-3", embedded ? "items-start justify-between" : "flex-col md:flex-row md:items-start md:justify-between")}>
+                      <div className={cn("flex min-w-0 items-center", embedded ? "flex-1 gap-2 sm:gap-3" : "gap-3")}>
                         <IdentityAvatar
                           name={selectedPerson.nombre || selectedPerson.email || selectedPerson.telefono || "Contacto"}
                           avatarUrl={selectedPerson.avatarUrl}
                           source={selectedPerson.avatarSource}
                           consented={selectedPerson.avatarConsent}
-                          size="lg"
+                          size={embedded ? "md" : "lg"}
                         />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="truncate text-lg font-bold">{selectedPerson.nombre}</h2>
-                            <Badge variant="outline">{channelLabel(selectedPerson.canal)}</Badge>
-                            <Badge variant="outline" className={selectedTone(score)}>CRM {score}%</Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <h2 className={cn("min-w-0 flex-1 truncate font-bold", embedded ? "text-base sm:text-lg" : "text-lg")}>{selectedPerson.nombre}</h2>
+                            <Badge variant="outline" className={cn(embedded && "hidden sm:inline-flex")}>{channelLabel(selectedPerson.canal)}</Badge>
+                            <Badge variant="outline" className={cn("shrink-0", selectedTone(score), embedded && "px-1.5 text-[10px] sm:px-2.5 sm:text-xs")}>CRM {score}%</Badge>
                           </div>
                           <p className="mt-1 truncate text-sm text-muted-foreground">{selectedPerson.motivo || intentLabel(selectedPerson.lastIntent)}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className={cn("flex flex-wrap items-center gap-2", embedded && "shrink-0 gap-1 sm:gap-2")}>
                         <Button
                           size="sm"
-                          className="gap-2"
+                          className={cn("gap-2", embedded && "h-8 w-8 p-0 sm:w-auto sm:px-3")}
                           onClick={() => onOpenTicketDesk(selectedPerson)}
+                          aria-label="Abrir conversación"
                         >
                           <MessageCircle className="h-4 w-4" />
-                          Abrir conversación
+                          <span className={cn(embedded && "sr-only sm:not-sr-only")}>Abrir conversación</span>
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="ghost" aria-label="Más acciones">
+                            <Button size="icon" variant="ghost" className={cn(embedded && "h-8 w-8")} aria-label="Más acciones">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -722,7 +793,7 @@ export default function CrmPeopleWorkspace({
                         <Button
                           size="icon"
                           variant="outline"
-                          className="xl:hidden"
+                          className={cn("xl:hidden", embedded && "h-8 w-8")}
                           aria-label="Abrir panel contextual"
                           onClick={() => setMobileContextOpen(true)}
                         >
@@ -733,24 +804,27 @@ export default function CrmPeopleWorkspace({
                   </header>
 
                   <Tabs defaultValue="resumen" className="flex min-h-0 flex-1 flex-col">
-                    <div className="overflow-x-auto border-b border-border/70 bg-card px-4">
-                      <TabsList className="h-11 w-max rounded-none bg-transparent p-0">
-                        <TabsTrigger value="resumen" className="h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">Resumen</TabsTrigger>
-                        <TabsTrigger value="interacciones" className="h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">Interacciones</TabsTrigger>
-                        <TabsTrigger value="casos" className="h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">Casos</TabsTrigger>
-                        <TabsTrigger value="consentimiento" className="h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">Consentimiento</TabsTrigger>
+                    <div
+                      className={cn("border-b border-border/70 bg-card", embedded ? "overflow-hidden px-1 sm:overflow-x-auto sm:px-4" : "overflow-x-auto px-4")}
+                      data-testid="crm-person-tabs"
+                    >
+                      <TabsList className={cn("rounded-none bg-transparent p-0", embedded ? "grid h-10 w-full grid-cols-4 sm:flex sm:h-11 sm:w-max" : "h-11 w-max")}>
+                        <TabsTrigger value="resumen" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Resumen</TabsTrigger>
+                        <TabsTrigger value="interacciones" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Interacciones</TabsTrigger>
+                        <TabsTrigger value="casos" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Casos</TabsTrigger>
+                        <TabsTrigger value="consentimiento" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Consentimiento</TabsTrigger>
                       </TabsList>
                     </div>
-                    <ScrollArea className="min-h-0 flex-1">
-                      <TabsContent value="resumen" className="m-0 p-4">
+                    <ScrollArea className="min-h-0 flex-1" data-testid="crm-person-scroll">
+                      <TabsContent value="resumen" className={cn("m-0", embedded ? "p-2 sm:p-4" : "p-4")}>
                         <div className="grid gap-3 md:grid-cols-2">
-                          <section className="rounded-xl border border-border/70 bg-card p-4">
+                          <section className={cn("rounded-xl border border-border/70 bg-card", embedded ? "p-3 sm:p-4" : "p-4")}>
                             <div className="flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />Resumen operativo</div>
                             <p className="mt-3 text-sm leading-6 text-muted-foreground">
                               {selectedPerson.resumen || selectedPerson.lastMessageExcerpt || selectedPerson.profileExcerpt || "Todavía no hay un resumen disponible. Se completa con actividad real del contacto."}
                             </p>
                           </section>
-                          <section className="rounded-xl border border-border/70 bg-card p-4">
+                          <section className={cn("rounded-xl border border-border/70 bg-card", embedded ? "p-3 sm:p-4" : "p-4")}>
                             <div className="flex items-center gap-2 text-sm font-semibold"><Phone className="h-4 w-4 text-primary" />Datos de contacto</div>
                             <dl className="mt-3 space-y-3 text-sm">
                               <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Teléfono</dt><dd className="font-medium">{selectedPerson.telefono || "Sin teléfono"}</dd></div>
@@ -758,7 +832,7 @@ export default function CrmPeopleWorkspace({
                               <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">WhatsApp</dt><dd className="font-medium">{hasExplicitWhatsApp(selectedPerson) ? "Canal explícito" : "No verificado"}</dd></div>
                             </dl>
                           </section>
-                          <section className="rounded-xl border border-border/70 bg-card p-4 md:col-span-2">
+                          <section className={cn("rounded-xl border border-border/70 bg-card md:col-span-2", embedded ? "p-3 sm:p-4" : "p-4")}>
                             <div className="flex items-center gap-2 text-sm font-semibold"><Tags className="h-4 w-4 text-primary" />Segmentación</div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {selectedPerson.etiquetas.length ? selectedPerson.etiquetas.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>) : <span className="text-sm text-muted-foreground">Sin etiquetas registradas.</span>}
@@ -802,10 +876,12 @@ export default function CrmPeopleWorkspace({
             ) : null}
           </div>
 
-          <div className="flex items-center justify-between border-t border-border/70 px-3 py-2 text-xs text-muted-foreground lg:hidden">
-            <span>Deslizá la lista desde el selector de persona.</span>
-            <div className="flex items-center gap-1"><ChevronLeft className="h-3.5 w-3.5" /><ChevronRight className="h-3.5 w-3.5" /></div>
-          </div>
+          {!embedded ? (
+            <div className="flex items-center justify-between border-t border-border/70 px-3 py-2 text-xs text-muted-foreground lg:hidden">
+              <span>Deslizá la lista desde el selector de persona.</span>
+              <div className="flex items-center gap-1"><ChevronLeft className="h-3.5 w-3.5" /><ChevronRight className="h-3.5 w-3.5" /></div>
+            </div>
+          ) : null}
         </section>
       )}
 

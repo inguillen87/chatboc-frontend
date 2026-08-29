@@ -112,6 +112,31 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-people-grid")).not.toHaveClass("min-h-[560px]");
   });
 
+  it("keeps the embedded mobile record controls compact and reachable", () => {
+    render(<Harness embedded />);
+
+    expect(screen.getByTestId("crm-area-navigation")).toHaveClass("grid", "grid-cols-4", "overflow-hidden");
+    expect(screen.getByTestId("crm-person-tabs")).toHaveClass("overflow-hidden");
+    expect(screen.getByTestId("crm-person-scroll")).toHaveClass("min-h-0", "flex-1");
+    expect(screen.getByRole("button", { name: "Abrir conversación" })).toBeInTheDocument();
+    expect(screen.queryByText("Deslizá la lista desde el selector de persona.")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Vista operativa de personas" }), {
+      target: { value: "whatsapp" },
+    });
+
+    expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Vista operativa de personas" })).toHaveValue("whatsapp");
+  });
+
+  it("preserves the standalone directory controls outside Perfil", () => {
+    render(<Harness />);
+
+    expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Vistas operativas de personas" })).toBeInTheDocument();
+    expect(screen.getByText("Deslizá la lista desde el selector de persona.")).toBeInTheDocument();
+  });
+
   it("switches the record 360 from the compact list", () => {
     const onOpenTicketDesk = vi.fn();
     render(<Harness onOpenTicketDesk={onOpenTicketDesk} />);
