@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -138,6 +138,12 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   const [products, setProducts] = useState<any[]>([]);
   const [catalogContract, setCatalogContract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [catalogSnapshotLoaded, setCatalogSnapshotLoaded] = useState(false);
+  const [catalogSnapshotTenant, setCatalogSnapshotTenant] = useState<string | null>(null);
+  const [catalogDetailsLoaded, setCatalogDetailsLoaded] = useState(false);
+  const [catalogDetailUnavailable, setCatalogDetailUnavailable] = useState(false);
+  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null);
+  const [catalogStale, setCatalogStale] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
@@ -150,13 +156,12 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   const [updatingId, setUpdatingId] = useState<string | number | null>(null);
   const [varietalFilter, setVarietalFilter] = useState('all');
   const [promotions, setPromotions] = useState<CatalogPromotion[]>([]);
-  const [promotionsLoading, setPromotionsLoading] = useState(false);
   const [promotionDraft, setPromotionDraft] = useState<PromotionDraft>(emptyPromotionDraft);
   const [creatingPromotion, setCreatingPromotion] = useState(false);
   const [togglingPromotionId, setTogglingPromotionId] = useState<string | null>(null);
+  const catalogRequestSequence = useRef(0);
 
   const effectiveTenantSlug = tenantSlugOverride || currentSlug;
-  const pymeOwnerId = user?.id;
 
   const isWinery = useMemo(
     () => tenant?.rubro_slug === 'bodega' || user?.rubro === 'bodega' || effectiveTenantSlug?.includes('bodega'),
@@ -164,51 +169,83 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   );
 
   const loadProducts = async () => {
+    const requestSequence = ++catalogRequestSequence.current;
+    const hadConfirmedSnapshot =
+      catalogSnapshotLoaded && Boolean(effectiveTenantSlug) && catalogSnapshotTenant === effectiveTenantSlug;
     setLoading(true);
-    try {
-      if (!effectiveTenantSlug) return;
-      try {
-        const catalog = await apiClient.adminGetCatalog(effectiveTenantSlug);
-        setCatalogContract(catalog);
-        setProducts(normalizeAdminCatalogItems(catalog));
-        if (Array.isArray(catalog?.promotions?.items)) {
-          setPromotions(catalog.promotions.items);
-        }
-      } catch {
-        const data = await apiClient.adminListProducts(effectiveTenantSlug);
-        setCatalogContract(null);
-        setProducts(data || []);
-      }
-    } catch (error) {
-      console.error('Error loading catalog:', error);
-      toast.error('No se pudo cargar el catalogo.');
-    } finally {
-      setLoading(false);
+    setCatalogLoadError(null);
+    if (!hadConfirmedSnapshot) {
+      setCatalogContract(null);
+      setProducts([]);
+      setPromotions([]);
+      setCatalogSnapshotLoaded(false);
+      setCatalogSnapshotTenant(null);
+      setCatalogDetailsLoaded(false);
+      setCatalogDetailUnavailable(false);
+      setCatalogStale(false);
     }
-  };
-
-  const loadPromotions = async () => {
-    if (!pymeOwnerId) return;
-    setPromotionsLoading(true);
     try {
-      const data = await apiClient.adminListPromotions(pymeOwnerId, effectiveTenantSlug || undefined);
-      setPromotions(Array.isArray(data) ? data : []);
+      if (!effectiveTenantSlug) {
+        setCatalogContract(null);
+        setProducts([]);
+        setPromotions([]);
+        setCatalogSnapshotLoaded(false);
+        setCatalogSnapshotTenant(null);
+        setCatalogDetailsLoaded(false);
+        setCatalogDetailUnavailable(false);
+        setCatalogStale(false);
+        setCatalogLoadError('No hay una organización seleccionada para consultar el catálogo.');
+        return;
+      }
+
+      const catalog = await apiClient.adminGetCatalog(effectiveTenantSlug);
+      if (requestSequence !== catalogRequestSequence.current) return;
+      let catalogItems: any[] | null = null;
+      try {
+        const detail = await apiClient.adminListProducts(effectiveTenantSlug);
+        catalogItems = Array.isArray(detail) ? detail.map(normalizeCatalogRow) : [];
+      } catch (detailError) {
+        console.warn('Catalog summary loaded without item detail:', detailError);
+      }
+
+      if (requestSequence !== catalogRequestSequence.current) return;
+
+      setCatalogContract(catalog);
+      setProducts(catalogItems ?? normalizeAdminCatalogItems(catalog));
+      setCatalogDetailsLoaded(catalogItems !== null || Array.isArray(catalog?.items) || Array.isArray(catalog?.rows));
+      setCatalogDetailUnavailable(catalogItems === null && !Array.isArray(catalog?.items) && !Array.isArray(catalog?.rows));
+      setCatalogSnapshotLoaded(true);
+      setCatalogSnapshotTenant(effectiveTenantSlug);
+      setCatalogStale(false);
+      setPromotions(Array.isArray(catalog?.promotions?.items) ? catalog.promotions.items : []);
     } catch (error) {
-      console.error('Error loading promotions:', error);
+      if (requestSequence !== catalogRequestSequence.current) return;
+      console.error('Error loading catalog:', error);
+      if (!hadConfirmedSnapshot) {
+        setCatalogContract(null);
+        setProducts([]);
+        setPromotions([]);
+        setCatalogSnapshotLoaded(false);
+        setCatalogSnapshotTenant(null);
+        setCatalogDetailsLoaded(false);
+        setCatalogDetailUnavailable(false);
+      }
+      setCatalogStale(hadConfirmedSnapshot);
+      setCatalogLoadError(
+        hadConfirmedSnapshot
+          ? 'No se pudo actualizar el catálogo. Se conserva la última lectura confirmada y se marca como desactualizada.'
+          : 'No se pudo confirmar el catálogo de esta organización. Reintentá la consulta.',
+      );
+      toast.error('No se pudo confirmar el catálogo.');
     } finally {
-      setPromotionsLoading(false);
+      if (requestSequence === catalogRequestSequence.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (effectiveTenantSlug) void loadProducts();
+    void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTenantSlug]);
-
-  useEffect(() => {
-    if (effectiveTenantSlug && pymeOwnerId) void loadPromotions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTenantSlug, pymeOwnerId]);
 
   const startEditing = (product: any) => {
     const itemId = getCatalogItemId(product);
@@ -313,7 +350,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const inventory = toRecord(catalogContract?.inventory);
     const readinessMetrics = toRecord(marketplaceReadiness?.metrics);
     const hasItemDetail =
-      catalogContract === null ||
+      catalogDetailsLoaded ||
       Array.isArray(catalogContract?.items) ||
       Array.isArray(catalogContract?.rows);
     const derivedAvailable = hasItemDetail
@@ -321,6 +358,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           const stockStatus = getCatalogStockStatus(product);
           const available = firstDefined(toRecord(product), ['available_to_sell', 'disponible', 'available']);
           const stock = toFiniteMetric(getCatalogStock(product));
+          if (available === false) return false;
           return (
             available === true ||
             stockStatus === 'in_stock' ||
@@ -358,7 +396,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
       catalogVersion: catalogContract?.catalog_version || inventory?.rules?.catalog_version,
       requestId: catalogContract?.request_id,
     };
-  }, [catalogContract, imageStats.missingImages, marketplaceReadiness?.metrics, products]);
+  }, [catalogContract, catalogDetailsLoaded, imageStats.missingImages, marketplaceReadiness?.metrics, products]);
 
   const handleImageUpdated = (updatedProduct: Record<string, any>) => {
     setProducts((prev) =>
@@ -367,11 +405,19 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   };
 
   const activePromotions = promotions.filter((promotion) => promotion.is_active !== false);
-  const promotionEndpoint = catalogContract?.promotions?.endpoint || (pymeOwnerId ? `/api/pymes/${pymeOwnerId}/promociones` : null);
+  const promotionEndpoint =
+    catalogContract?.promotions?.create_endpoint || catalogContract?.promotions?.endpoint || null;
+  const promotionOwnerId = useMemo(() => {
+    if (typeof promotionEndpoint !== 'string') return null;
+    const match = /^\/api\/pymes\/(\d+)\/promociones\/?$/.exec(promotionEndpoint);
+    if (!match) return null;
+    const parsed = Number(match[1]);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [promotionEndpoint]);
 
   const handleCreatePromotion = async () => {
-    if (!pymeOwnerId) {
-      toast.error('No se pudo identificar el owner PYME para crear promociones.');
+    if (!promotionOwnerId) {
+      toast.error('El contrato del tenant no habilitó la administración de promociones.');
       return;
     }
 
@@ -422,7 +468,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
     setCreatingPromotion(true);
     try {
-      const created = await apiClient.adminCreatePromotion(pymeOwnerId, payload, effectiveTenantSlug || undefined);
+      const created = await apiClient.adminCreatePromotion(promotionOwnerId, payload, effectiveTenantSlug || undefined);
       setPromotions((prev) => [created, ...prev.filter((promotion) => promotion.id !== created.id)]);
       setPromotionDraft(emptyPromotionDraft);
       toast.success('Promocion creada y lista para el marketplace.');
@@ -435,11 +481,16 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   };
 
   const handleTogglePromotion = async (promotion: CatalogPromotion) => {
-    if (!pymeOwnerId || !promotion.id) return;
+    if (!promotionOwnerId || !promotion.id) return;
     const nextActive = promotion.is_active === false;
     setTogglingPromotionId(promotion.id);
     try {
-      const updated = await apiClient.adminTogglePromotion(pymeOwnerId, promotion.id, nextActive, effectiveTenantSlug || undefined);
+      const updated = await apiClient.adminTogglePromotion(
+        promotionOwnerId,
+        promotion.id,
+        nextActive,
+        effectiveTenantSlug || undefined,
+      );
       setPromotions((prev) => prev.map((item) => (item.id === promotion.id ? { ...item, ...updated } : item)));
       toast.success(nextActive ? 'Promocion activada.' : 'Promocion pausada.');
     } catch (error) {
@@ -485,19 +536,39 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
       <div className="grid gap-3 md:grid-cols-4">
         <MetricCard icon={Boxes} label="Ítems registrados" value={String(inventoryStats.total ?? '--')} />
-        <MetricCard icon={PackageCheck} label="Disponibles" value={String(inventoryStats.available ?? '--')} />
+        <MetricCard icon={PackageCheck} label="Disponibilidad informada" value={String(inventoryStats.available ?? '--')} />
         <MetricCard icon={PackageX} label="Stock sin validar" value={String(inventoryStats.stockUnknown ?? '--')} />
         <MetricCard icon={ImageOff} label="Sin imagen" value={String(inventoryStats.missingImages ?? '--')} />
       </div>
 
-      {!loading && !inventoryStats.hasItemDetail && Number(inventoryStats.total || 0) > 0 ? (
+      {catalogLoadError ? (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            catalogStale
+              ? 'border-amber-200 bg-amber-50 text-amber-950'
+              : 'border-destructive/25 bg-destructive/5 text-destructive'
+          }`}
+          data-testid="catalog-load-error"
+        >
+          <p className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4" />
+            {catalogStale ? 'Lectura desactualizada' : 'Catálogo sin confirmar'}
+          </p>
+          <p className="mt-1">{catalogLoadError}</p>
+        </div>
+      ) : null}
+
+      {!loading && catalogSnapshotLoaded && !inventoryStats.hasItemDetail ? (
         <div
           className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           data-testid="catalog-summary-without-item-detail"
         >
-          La organización tiene {inventoryStats.total} registros de catálogo. Esta vista recibió solo el resumen, por eso
-          conserva los indicadores sin mostrar fichas incompletas. Su origen aún no está informado: no se consideran
-          publicados ni validados.
+          El resumen informa {inventoryStats.total ?? 'una cantidad no verificada'} registros de catálogo.{' '}
+          {catalogDetailUnavailable
+            ? 'El servicio de fichas no respondió en esta lectura.'
+            : 'Las fichas no forman parte del contrato recibido.'}{' '}
+          Se conservan los indicadores sin inventar detalle. Su origen aún no está informado: no se consideran publicados
+          ni validados.
         </div>
       ) : null}
 
@@ -526,11 +597,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
         </CardHeader>
         <CardContent className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-3">
-            {promotionsLoading ? (
-              <div className="flex h-28 items-center justify-center rounded-lg border border-dashed">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-            ) : promotions.length === 0 ? (
+            {promotions.length === 0 ? (
               <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
                 Todavia no hay promociones configuradas. Crea una primera regla para que el marketplace, WhatsApp y checkout muestren valor comercial real.
               </div>
@@ -667,7 +734,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   placeholder="Monto fijo opcional"
                 />
               ) : null}
-              <Button className="w-full" onClick={() => void handleCreatePromotion()} disabled={creatingPromotion || !pymeOwnerId}>
+              <Button className="w-full" onClick={() => void handleCreatePromotion()} disabled={creatingPromotion || !promotionOwnerId}>
                 {creatingPromotion ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Crear promocion
               </Button>
@@ -714,7 +781,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading && !catalogSnapshotLoaded ? (
             <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : (
             <div className="rounded-md border">
@@ -729,10 +796,17 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!inventoryStats.hasItemDetail && Number(inventoryStats.total || 0) > 0 ? (
+                  {catalogLoadError && !catalogStale ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                        Las fichas aún no están disponibles en esta vista. Usá Recargar para volver a sincronizarlas.
+                        No se pudo confirmar el catálogo. Reintentá la consulta para habilitar sus fichas.
+                      </TableCell>
+                    </TableRow>
+                  ) : !inventoryStats.hasItemDetail ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        Las fichas no están disponibles en esta lectura. Los indicadores superiores provienen únicamente
+                        del resumen confirmado para la organización.
                       </TableCell>
                     </TableRow>
                   ) : filteredProducts.length === 0 ? (
@@ -828,11 +902,27 @@ const MetricCard = ({ icon: Icon, label, value }: { icon: React.ElementType; lab
 );
 
 const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadiness }) => {
-  const score = Math.max(0, Math.min(100, Number(readiness.score ?? 0)));
+  const rawScore = toFiniteMetric(readiness.score);
+  const score = rawScore === null ? null : Math.max(0, Math.min(100, rawScore));
   const blockers = readiness.blockers ?? [];
   const warnings = readiness.warnings ?? [];
   const metrics = readiness.metrics ?? {};
   const ready = readiness.ready === true;
+  const readinessKnown = typeof readiness.ready === 'boolean';
+  const totalProducts = toFiniteMetric(metrics.products_total);
+  const availableProducts = toFiniteMetric(metrics.products_available);
+  const metricValue = (value: unknown) => {
+    const parsed = toFiniteMetric(value);
+    return parsed === null ? '--' : String(parsed);
+  };
+  const availabilityValue =
+    totalProducts === null || availableProducts === null ? '--' : `${availableProducts}/${totalProducts}`;
+  const checkoutValue =
+    metrics.checkout_configured === true
+      ? 'Configurado'
+      : metrics.checkout_configured === false
+        ? 'Pendiente'
+        : 'Sin verificar';
 
   return (
     <Card className="overflow-hidden border-primary/10">
@@ -845,15 +935,15 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                   <Gauge className="h-4 w-4" />
                   Preparación del marketplace
                 </p>
-                <h2 className="mt-2 text-2xl font-bold">{score}%</h2>
+                <h2 className="mt-2 text-2xl font-bold">{score === null ? '--' : `${score}%`}</h2>
               </div>
               <Badge variant={ready ? 'default' : blockers.length ? 'destructive' : 'secondary'}>
-                {ready ? 'Sin bloqueos' : blockers.length ? 'Bloqueado' : 'Revisar'}
+                {ready ? 'Sin bloqueos' : blockers.length ? 'Bloqueado' : readinessKnown ? 'Revisar' : 'Sin verificar'}
               </Badge>
             </div>
-            <Progress value={score} className="mt-4 h-2" />
+            <Progress value={score ?? 0} className="mt-4 h-2" />
             <p className="mt-3 text-sm text-muted-foreground">
-              Estado calculado por backend con productos, imagenes, precios, stock, promociones y checkout.
+              Estado calculado por backend con productos, imágenes, precios, stock, promociones y checkout.
             </p>
           </div>
 
@@ -871,7 +961,7 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : ready ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                   <p className="flex items-center gap-2 font-semibold">
                     <CheckCircle2 className="h-4 w-4" />
@@ -880,6 +970,16 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                   <p className="mt-1 text-sm text-emerald-800">
                     La verificación técnica no detectó bloqueos. La publicación y el origen de los registros requieren
                     validación aparte.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/30 p-4 text-foreground">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    Validación técnica incompleta
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    El contrato no confirmó si existen bloqueos. Revisá el estado antes de publicar o habilitar checkout.
                   </p>
                 </div>
               )}
@@ -897,12 +997,12 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm xl:grid-cols-1">
-              <ReadinessMetric label="Disponibles" value={`${metrics.products_available ?? 0}/${metrics.products_total ?? 0}`} />
-              <ReadinessMetric label="Con imagen" value={String(metrics.products_with_images ?? 0)} />
-              <ReadinessMetric label="Con precio" value={String(metrics.products_with_prices ?? 0)} />
-              <ReadinessMetric label="Con promo" value={String(metrics.products_with_promotions ?? 0)} />
-              <ReadinessMetric label="Stock bajo" value={String(metrics.low_stock ?? 0)} />
-              <ReadinessMetric label="Checkout" value={metrics.checkout_configured ? 'Configurado' : 'Pendiente'} />
+              <ReadinessMetric label="Disponibilidad informada" value={availabilityValue} />
+              <ReadinessMetric label="Con imagen" value={metricValue(metrics.products_with_images)} />
+              <ReadinessMetric label="Con precio" value={metricValue(metrics.products_with_prices)} />
+              <ReadinessMetric label="Con promo" value={metricValue(metrics.products_with_promotions)} />
+              <ReadinessMetric label="Stock bajo" value={metricValue(metrics.low_stock)} />
+              <ReadinessMetric label="Checkout" value={checkoutValue} />
             </div>
           </div>
         </div>

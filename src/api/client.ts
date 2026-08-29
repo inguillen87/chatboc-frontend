@@ -931,9 +931,13 @@ export const apiClient = {
 
   adminListProducts: async (tenantSlug: string, filters?: Record<string, any>): Promise<any[]> => {
       const params = new URLSearchParams(filters);
-      return apiFetch<any[]>(`/api/catalog?${params.toString()}`, {
+      const query = params.toString();
+      return apiFetch<any[]>(
+        `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/catalog/items${query ? `?${query}` : ''}`,
+        {
           tenantSlug
-      });
+        },
+      );
   },
 
   adminUpdateProduct: async (tenantSlug: string, productId: string | number, data: any): Promise<any> => {
