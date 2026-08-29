@@ -66,6 +66,30 @@ const selectedTicket: Ticket = {
 };
 harness.selectedTicket = selectedTicket;
 
+const tenantReplyAction = {
+  id: 'reply',
+  label: 'Responder',
+  endpoint: '/api/v2/inbox/omnichannel/77/actions',
+  method: 'POST',
+  requires: ['body', 'client_message_id_or_idempotency_key'],
+  idempotency: {
+    contract_version: 'inbox.reply_idempotency.v1',
+    preferred_header: 'Idempotency-Key',
+    body_field: 'client_message_id',
+    retry_rule: 'reuse_same_value',
+  },
+  delivery_mode: 'durable_queue_or_provider_acceptance',
+  external_dispatch: true,
+};
+
+const tenantAuthoritativeItem = {
+  id: '77',
+  legacy_id: 77,
+  source_model: 'TenantTicket',
+  allowed_actions: [tenantReplyAction],
+  actions: [tenantReplyAction],
+};
+
 vi.mock('@/context/SocketContext', () => ({
   useSocket: () => ({ socket: harness.socket }),
 }));
@@ -196,16 +220,23 @@ describe('ConversationPanel tenant invalidation', () => {
       unified_conversation_stream: [],
     });
     harness.getOmnichannelInboxDetailV2.mockReset().mockResolvedValue({
-      item: {
-        id: '77',
-        legacy_id: 77,
-        source_model: 'TenantTicket',
-        allowed_actions: [],
-        actions: [],
-      },
+      item: tenantAuthoritativeItem,
       raw: {},
     });
-    harness.postOmnichannelInboxActionV2.mockReset();
+    harness.postOmnichannelInboxActionV2.mockReset().mockResolvedValue({
+      action: 'reply',
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        mode: 'durable_queue',
+        delivery_mode: 'durable_queue',
+        status: 'durably_staged',
+        evidence_stage: 'durably_staged',
+        outbox: { durably_staged: true },
+        operator_message: 'Respuesta en cola; entrega final pendiente de callback.',
+      },
+      ticket: tenantAuthoritativeItem,
+      raw: { action: 'reply' },
+    });
     harness.updateTicketReadState.mockReset().mockResolvedValue(null);
     const responseTemplate: ResponseTemplate = {
       id: 'template-1',
@@ -408,7 +439,10 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
     expect(screen.getByText('Respuesta desde el ticket')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Tiempo real conectado');
-    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
+    expect(screen.getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+      'no publicó un contrato seguro de adjuntos para TenantTicket',
+    );
 
     expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Ubicación' })).toHaveAccessibleDescription(
@@ -732,38 +766,182 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('sends a selected attachment through the existing ticket reply contract', async () => {
-    harness.sendMessage.mockResolvedValue({
-      delivery: {
-        contract_version: 'tickets.agent_reply_delivery.v1',
-        channel: 'whatsapp',
-        status: 'accepted',
-        reason: 'provider_accepted',
-        external_dispatch: true,
-        socket_emitted: true,
-        delivery_results: { whatsapp: true, socket: true },
+  it('sends TenantTicket text through the published omnichannel reply endpoint', async () => {
+    render(renderConversation());
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'La cuadrilla ya tomó el caso.' } });
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
+      '77',
+      {
+        action: 'reply',
+        endpoint: '/api/v2/inbox/omnichannel/77/actions',
+        payload: {
+          body: 'La cuadrilla ya tomó el caso.',
+          message: 'La cuadrilla ya tomó el caso.',
+          visibility: 'public',
+          client_message_id: expect.stringMatching(/^crm-reply:/),
+        },
       },
+      'junin',
+    );
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
+      'En cola para WhatsApp',
+    );
+    expect(screen.getByTestId('ticket-composer-action-result')).toHaveTextContent(
+      'entrega final pendiente de callback',
+    );
+  });
+
+  it('reuses the reply identity after an ambiguous outcome and treats replay as non-delivered', async () => {
+    harness.postOmnichannelInboxActionV2
+      .mockRejectedValueOnce(new Error('network outcome unknown'))
+      .mockResolvedValueOnce({
+        action: 'reply',
+        delivery: {
+          contract_version: 'inbox.action_delivery.v2',
+          mode: 'idempotent_replay',
+          status: 'already_recorded',
+          idempotency: { replayed: true },
+          operator_message: 'La respuesta ya estaba registrada; no se duplicó.',
+        },
+        ticket: tenantAuthoritativeItem,
+        raw: { action: 'reply' },
+      });
+    render(renderConversation());
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'Seguimos trabajando en la luminaria.' } });
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(composer).toHaveValue('Seguimos trabajando en la luminaria.'));
+    fireEvent.click(send);
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(2));
+    const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
+    const secondIdentity = harness.postOmnichannelInboxActionV2.mock.calls[1][1].payload.client_message_id;
+    expect(secondIdentity).toBe(firstIdentity);
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
+      'Reintento reconocido',
+    );
+    expect(screen.queryByText('Entrega confirmada')).not.toBeInTheDocument();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('creates a new reply identity when the operator changes the text after an ambiguous outcome', async () => {
+    harness.postOmnichannelInboxActionV2
+      .mockRejectedValueOnce(new Error('network outcome unknown'))
+      .mockResolvedValueOnce({
+        action: 'reply',
+        delivery: {
+          contract_version: 'inbox.action_delivery.v2',
+          mode: 'durable_queue',
+          status: 'durably_staged',
+          outbox: { durably_staged: true },
+        },
+        ticket: tenantAuthoritativeItem,
+        raw: { action: 'reply' },
+      });
+    render(renderConversation());
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'Primer texto.' } });
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(composer).toHaveValue('Primer texto.'));
+    fireEvent.change(composer, { target: { value: 'Texto corregido por el operador.' } });
+    fireEvent.click(send);
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(2));
+    const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
+    const secondIdentity = harness.postOmnichannelInboxActionV2.mock.calls[1][1].payload.client_message_id;
+    expect(secondIdentity).not.toBe(firstIdentity);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps MunicipioTicket id 77 on its source-qualified action endpoint instead of colliding with TenantTicket 77', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      nro_ticket: 'M-77',
+      asunto: 'Caso MunicipioTicket con el mismo id',
+      source_model: 'MunicipioTicket',
+    };
+    const municipioReplyAction = {
+      ...tenantReplyAction,
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      payload_defaults: {
+        source_model: 'MunicipioTicket',
+        legacy_id: 77,
+        ticket_id: 77,
+      },
+    };
+    const municipioItem = {
+      ...tenantAuthoritativeItem,
+      id: 'municipio:77',
+      source_model: 'MunicipioTicket',
+      allowed_actions: [municipioReplyAction],
+      actions: [municipioReplyAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item: municipioItem, raw: { item: municipioItem } });
+    harness.postOmnichannelInboxActionV2.mockResolvedValue({
+      action: 'reply',
+      delivery: { mode: 'durable_queue', status: 'durably_staged', outbox: { durably_staged: true } },
+      ticket: municipioItem,
+      raw: { action: 'reply' },
     });
     render(renderConversation());
 
-    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar archivo' }));
-    expect(screen.getByText('evidencia.jpg')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+    expect(await screen.findByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Respuesta al reclamo municipal.' },
+    });
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
 
-    await waitFor(() => expect(harness.sendMessage).toHaveBeenCalledTimes(1));
-    expect(harness.sendMessage).toHaveBeenCalledWith(
-      selectedTicket.id,
-      selectedTicket.tipo,
-      '',
-      [expect.objectContaining({ name: 'evidencia.jpg', type: 'image/jpeg' })],
-      undefined,
-      expect.objectContaining({
-        ticket: expect.objectContaining({ id: selectedTicket.id, tenant_slug: 'junin' }),
-        tenantSlug: 'junin',
-      }),
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledWith(
+      '77',
+      'junin',
+      '/api/v2/inbox/omnichannel/77?source_model=MunicipioTicket',
     );
-    expect(harness.requestTicketHistoryEmail).not.toHaveBeenCalled();
+    expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
+      'municipio:77',
+      expect.objectContaining({
+        action: 'reply',
+        endpoint: '/api/v2/inbox/omnichannel/actions',
+        payload: expect.objectContaining({
+          source_model: 'MunicipioTicket',
+          legacy_id: 77,
+          ticket_id: 77,
+          client_message_id: expect.stringMatching(/^crm-reply:/),
+        }),
+      }),
+      'junin',
+    );
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('blocks TenantTicket attachments without a published secure contract and never calls the legacy sender', async () => {
+    render(renderConversation());
+
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
+    expect(screen.getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+      'no publicó un contrato seguro de adjuntos para TenantTicket',
+    );
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('coalesces opaque tenant invalidations without losing them when the ticket list refreshes', async () => {

@@ -87,7 +87,11 @@ const sessionAgent = (
   };
 };
 
-const TicketClaimButton: React.FC = () => {
+interface TicketClaimButtonProps {
+  onClaimConfirmed?: () => void | Promise<void>;
+}
+
+const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed }) => {
   const { selectedTicket, updateTicket } = useTickets();
   const { currentSlug } = useTenant();
   const { user } = useUser();
@@ -145,6 +149,13 @@ const TicketClaimButton: React.FC = () => {
         assigned_user_id: confirmedAgent.id,
       });
       setConfirmedTicketKey(ticketKey);
+      if (atomicClaim) {
+        try {
+          await onClaimConfirmed?.();
+        } catch (refreshError) {
+          console.warn('El ticket fue asignado, pero no se pudo refrescar el contrato de respuesta:', refreshError);
+        }
+      }
       toast.success('Ticket asignado a tu usuario');
     } catch (claimError) {
       console.error('No se pudo tomar el ticket:', claimError);

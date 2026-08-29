@@ -90,7 +90,7 @@ type ComposerActionResult = {
 
 type ComposerActionMutationVariables = {
   action: SaasAction;
-  actionKind: 'handoff' | TicketShareActionKind;
+  actionKind: 'reply' | 'handoff' | TicketShareActionKind;
   actionPayload: Record<string, unknown>;
   attemptKey?: string;
   scopeKey: string;
@@ -106,6 +106,7 @@ type ComposerActionAttempt = {
 
 const LOCATION_COMPOSER_ACTION_IDS = new Set(['share_location', 'send_location']);
 const FORM_COMPOSER_ACTION_IDS = new Set(['share_form', 'send_form']);
+const REPLY_COMPOSER_ACTION_IDS = new Set(['reply']);
 
 const normalizeComposerActionToken = (value: unknown): string =>
   String(value ?? '').trim().toLowerCase();
@@ -115,6 +116,50 @@ const findComposerAction = (actions: SaasAction[], ids: Set<string>): SaasAction
     ids.has(normalizeComposerActionToken(action.id)) ||
     ids.has(normalizeComposerActionToken(action.type))
   )) ?? null;
+
+const isTenantTicketSourceModel = (value: unknown): boolean =>
+  ['tenantticket', 'tenant_ticket'].includes(normalizeComposerActionToken(value));
+
+const isAuthoritativeReplySourceModel = (value: unknown): boolean =>
+  [
+    'tenantticket',
+    'tenant_ticket',
+    'municipioticket',
+    'municipio_ticket',
+    'municipio',
+    'legacy_claim',
+  ].includes(normalizeComposerActionToken(value));
+
+const getReplyActionBlockReason = (
+  action: SaasAction | null,
+  contractBlockReason: string | null,
+): string | null => {
+  if (contractBlockReason) return contractBlockReason;
+  if (!action) {
+    return 'Tomá o asigná el ticket para que el backend publique la acción segura de respuesta.';
+  }
+  if (action.disabled) {
+    return action.disabled_reason || 'El backend publicó la respuesta como no disponible.';
+  }
+  if (!action.endpoint?.startsWith('/')) {
+    return 'El backend no publicó un endpoint seguro para responder este ticket.';
+  }
+  if ((action.method || 'POST').trim().toUpperCase() !== 'POST') {
+    return 'El contrato de respuesta publicado no usa el método POST requerido.';
+  }
+  const idempotency = action.idempotency && typeof action.idempotency === 'object' && !Array.isArray(action.idempotency)
+    ? action.idempotency
+    : {};
+  if (
+    idempotency.contract_version !== 'inbox.reply_idempotency.v1' ||
+    idempotency.preferred_header !== 'Idempotency-Key' ||
+    idempotency.body_field !== 'client_message_id' ||
+    idempotency.retry_rule !== 'reuse_same_value'
+  ) {
+    return 'El backend no publicó el contrato idempotente requerido para responder sin duplicados.';
+  }
+  return null;
+};
 
 const resolveComposerOmnichannelDetailEndpoint = (ticket: Ticket): string | null => {
   const explicitEndpoint = typeof ticket.detail_endpoint === 'string'
@@ -409,9 +454,42 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
 export const getComposerActionDeliveryView = (
   delivery?: OmnichannelInboxActionV2['delivery'],
 ) => {
+  const finalStatus = delivery?.final_delivery?.status?.trim().toLowerCase();
+  const finalAuthority = delivery?.final_delivery?.authoritative_source?.trim().toLowerCase();
+  const mode = delivery?.mode?.trim().toLowerCase();
+  const evidenceStage = delivery?.evidence_stage?.trim().toLowerCase();
+  const status = delivery?.status?.trim().toLowerCase();
+  const callbackAuthoritative = finalAuthority === 'provider_status_callback';
+
+  if (callbackAuthoritative && ['delivered', 'read'].includes(finalStatus || '')) {
+    return {
+      tone: 'success' as const,
+      title: finalStatus === 'read' ? 'Leído por el destinatario' : 'Entrega confirmada',
+      detail: delivery?.operator_message || 'El callback del proveedor confirmó la entrega final.',
+    };
+  }
+
+  if (callbackAuthoritative && ['failed', 'undelivered'].includes(finalStatus || '')) {
+    return {
+      tone: 'warning' as const,
+      title: 'Entrega no realizada',
+      detail: delivery?.operator_message || 'El callback del proveedor confirmó que la entrega no se completó.',
+    };
+  }
+
+  if (mode === 'idempotent_replay' || delivery?.idempotency?.replayed === true) {
+    return {
+      tone: 'replay' as const,
+      title: 'Reintento reconocido',
+      detail: delivery?.operator_message || 'El backend reconoció la misma operación y no duplicó el mensaje.',
+    };
+  }
+
   const durableQueue = (
     delivery?.delivery_mode === 'durable_queue' ||
-    delivery?.mode === 'durable_queue' ||
+    mode === 'durable_queue' ||
+    evidenceStage === 'durably_staged' ||
+    status === 'durably_staged' ||
     delivery?.outbox?.durably_staged === true
   );
 
@@ -423,10 +501,26 @@ export const getComposerActionDeliveryView = (
     };
   }
 
+  if (evidenceStage === 'provider_accepted' || status === 'provider_accepted') {
+    return {
+      tone: 'pending' as const,
+      title: 'Aceptado por el proveedor',
+      detail: delivery?.operator_message || 'El proveedor aceptó el mensaje; la entrega final sigue pendiente de callback.',
+    };
+  }
+
+  if (mode === 'timeline_only' || evidenceStage === 'crm_only') {
+    return {
+      tone: 'internal' as const,
+      title: 'Guardado sólo en CRM',
+      detail: delivery?.operator_message || 'La respuesta quedó auditada sin evidencia de despacho externo.',
+    };
+  }
+
   return {
-    tone: 'internal' as const,
-    title: 'Guardado en CRM',
-    detail: delivery?.operator_message || 'La acción quedó auditada en el CRM, sin despacho a un canal externo.',
+    tone: 'pending' as const,
+    title: 'Respuesta registrada',
+    detail: delivery?.operator_message || 'El backend registró la respuesta; la entrega final todavía no está confirmada.',
   };
 };
 
@@ -844,6 +938,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const invalidationRefreshTimerRef = useRef<number | null>(null);
   const composerActionInFlightRef = useRef(false);
   const composerActionAttemptRef = useRef<ComposerActionAttempt | null>(null);
+  const replyActionAttemptRef = useRef<ComposerActionAttempt | null>(null);
   const selectedTicketRef = useRef<Ticket | null>(selectedTicket);
   const selectedConversationKey = selectedTicket
     ? `${
@@ -1019,7 +1114,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     () => findComposerAction(publishedComposerActions, FORM_COMPOSER_ACTION_IDS),
     [publishedComposerActions],
   );
+  const replyAction = useMemo(
+    () => findComposerAction(publishedComposerActions, REPLY_COMPOSER_ACTION_IDS),
+    [publishedComposerActions],
+  );
   const composerReplyContract = composerActionContractQuery.data?.item.reply_contract;
+  const authoritativeReplyRequired = isAuthoritativeReplySourceModel(selectedTicket?.source_model);
+  const tenantAttachmentMustFailClosed = isTenantTicketSourceModel(selectedTicket?.source_model);
   const actionContractBlockReason = !composerActionDetailEndpoint
     ? 'No se pudo identificar de forma segura el detalle omnicanal de este ticket.'
     : composerActionContractQuery.isPending
@@ -1027,6 +1128,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       : composerActionContractQuery.isError
         ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
         : null;
+  const replyBlockReason = authoritativeReplyRequired
+    ? getReplyActionBlockReason(replyAction, actionContractBlockReason)
+    : null;
+  const tenantAttachmentBlockReason = tenantAttachmentMustFailClosed
+    ? actionContractBlockReason || (
+      composerReplyContract && typeof composerReplyContract === 'object'
+        ? 'El adjunto TenantTicket no tiene todavía un transporte seguro integrado; permanece bloqueado para evitar el endpoint legacy.'
+        : 'El backend no publicó un contrato seguro de adjuntos para TenantTicket; permanece bloqueado para evitar el endpoint legacy.'
+    )
+    : null;
   const handoffBlockReason = actionContractBlockReason || (
     handoffAction
       ? getHandoffActionBlockReason(handoffAction, composerActionTicketId)
@@ -1050,7 +1161,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     mutationFn: (variables: ComposerActionMutationVariables) => postOmnichannelInboxActionV2(
       variables.ticketId,
       {
-        action: variables.action.id,
+        action: variables.actionKind === 'reply' ? 'reply' : variables.action.id,
         endpoint: variables.action.endpoint,
         payload: {
           ...buildSaasActionPayload(variables.action),
@@ -1071,17 +1182,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       );
       setLastComposerActionResult({ scopeKey: variables.scopeKey, result });
       if (variables.actionKind !== 'handoff') setShareActionDialogKind(null);
-      if (variables.attemptKey && composerActionAttemptRef.current?.key === variables.attemptKey) {
-        composerActionAttemptRef.current = null;
+      if (variables.attemptKey) {
+        const attemptRef = variables.actionKind === 'reply'
+          ? replyActionAttemptRef
+          : composerActionAttemptRef;
+        if (attemptRef.current?.key === variables.attemptKey) attemptRef.current = null;
       }
     },
     onError: (error, variables) => {
       if (
         variables.attemptKey &&
-        composerActionAttemptRef.current?.key === variables.attemptKey &&
         isDefinitiveComposerActionError(error)
       ) {
-        composerActionAttemptRef.current = null;
+        const attemptRef = variables.actionKind === 'reply'
+          ? replyActionAttemptRef
+          : composerActionAttemptRef;
+        if (attemptRef.current?.key === variables.attemptKey) attemptRef.current = null;
       }
     },
     onSettled: () => {
@@ -1458,6 +1574,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     lastReadStateSyncRef.current = null;
     composerSelectionRef.current = null;
     composerActionAttemptRef.current = null;
+    replyActionAttemptRef.current = null;
     setTemplatePickerOpen(false);
     setShareActionDialogKind(null);
     setLastComposerActionResult(null);
@@ -1715,6 +1832,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   };
 
   const handleFileSelected = (file: File) => {
+    if (tenantAttachmentBlockReason) {
+      toast.error(tenantAttachmentBlockReason);
+      return;
+    }
     const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
     setAttachmentPreview({ file, previewUrl });
     // Revoke the object URL when the component unmounts or the preview changes
@@ -1729,6 +1850,57 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const text = payload?.text || message;
     if (!text.trim() && !payload?.attachmentInfo && !attachmentPreview) return;
     if (!selectedTicket || !user) return;
+
+    const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
+    if (tenantAttachmentMustFailClosed && hasAttachment) {
+      toast.error(tenantAttachmentBlockReason || 'El adjunto TenantTicket permanece bloqueado por seguridad.');
+      return;
+    }
+
+    let replyAttemptKey: string | undefined;
+    let replyActionPayload: Record<string, unknown> | undefined;
+    if (authoritativeReplyRequired) {
+      if (replyBlockReason || !replyAction || !composerActionDetailEndpoint || !composerActionTicketId) {
+        toast.error(replyBlockReason || 'El backend no habilitó una respuesta segura para este ticket.');
+        return;
+      }
+      const normalizedText = text.trim();
+      if (!normalizedText) return;
+      const safeDefaults = { ...buildSaasActionPayload(replyAction) };
+      delete safeDefaults.client_message_id;
+      delete safeDefaults.idempotency_key;
+      const completeReplyPayload = {
+        ...safeDefaults,
+        body: normalizedText,
+        message: normalizedText,
+        visibility: 'public',
+        ticket_id: composerActionTicketId,
+      };
+      replyAttemptKey = createComposerActionAttemptKey(
+        composerActionScopeKey,
+        replyAction,
+        completeReplyPayload,
+      );
+      let attempt = replyActionAttemptRef.current;
+      if (!attempt || attempt.key !== replyAttemptKey) {
+        try {
+          attempt = {
+            key: replyAttemptKey,
+            clientMessageId: createOmnichannelActionClientMessageId('reply'),
+          };
+        } catch (error) {
+          toast.error(getErrorMessage(error, 'No se pudo generar una identidad segura para la respuesta.'));
+          return;
+        }
+        replyActionAttemptRef.current = attempt;
+      }
+      replyActionPayload = {
+        body: normalizedText,
+        message: normalizedText,
+        visibility: 'public',
+        client_message_id: attempt.clientMessageId,
+      };
+    }
 
     setIsSending(true);
     setLastReplyDelivery(null);
@@ -1762,23 +1934,41 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     setAttachmentPreview(null); // Clear input immediately
 
     try {
-      const response = await sendMessage(
-        selectedTicket.id,
-        selectedTicket.tipo,
-        text,
-        draftAttachmentPreview ? [draftAttachmentPreview.file] : undefined, // Send raw file
-        payload?.action
-          ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
-          : undefined,
-        {
-          ticket: selectedTicket,
-          tenantSlug: selectedTicket.tenant_slug,
-        },
-      );
-      const replyDelivery = normalizeTicketReplyDelivery((response as any)?.delivery);
-      setLastReplyDelivery(replyDelivery);
-      if (replyDelivery) {
-        setRecipientPresenceActive(replyDelivery.recipient_presence_confirmed);
+      const response = authoritativeReplyRequired && replyAction && replyActionPayload
+        ? await (() => {
+          composerActionMutation.reset();
+          setLastComposerActionResult(null);
+          composerActionInFlightRef.current = true;
+          return composerActionMutation.mutateAsync({
+            action: replyAction,
+            actionKind: 'reply',
+            actionPayload: replyActionPayload,
+            attemptKey: replyAttemptKey,
+            scopeKey: composerActionScopeKey,
+            ticketId: composerActionTicketId,
+            tenantSlug: responseTemplateTenantSlug,
+            detailEndpoint: composerActionDetailEndpoint,
+          });
+        })()
+        : await sendMessage(
+          selectedTicket.id,
+          selectedTicket.tipo,
+          text,
+          draftAttachmentPreview ? [draftAttachmentPreview.file] : undefined,
+          payload?.action
+            ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
+            : undefined,
+          {
+            ticket: selectedTicket,
+            tenantSlug: selectedTicket.tenant_slug,
+          },
+        );
+      if (!authoritativeReplyRequired) {
+        const replyDelivery = normalizeTicketReplyDelivery((response as any)?.delivery);
+        setLastReplyDelivery(replyDelivery);
+        if (replyDelivery) {
+          setRecipientPresenceActive(replyDelivery.recipient_presence_confirmed);
+        }
       }
       const responseMessages = extractResponseTicketMessages(response)
         .map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket));
@@ -1799,7 +1989,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ]);
       });
     } catch (error) {
-      toast.error("No se pudo enviar el mensaje.");
+      toast.error(getErrorMessage(error, 'No se pudo enviar el mensaje.'));
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
       restoreComposerDraftAfterSendFailure({
         payload,
@@ -2010,7 +2200,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 min-[760px]:justify-end">
-            <TicketClaimButton />
+            <TicketClaimButton onClaimConfirmed={async () => {
+              await composerActionContractQuery.refetch();
+            }} />
             {!operationalWorkspace ? (
               <>
                 <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
@@ -2286,7 +2478,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           data-testid="ticket-composer-action-bar"
         >
           <div className="flex items-center gap-1 rounded-[8px] border border-border/70 bg-background px-1.5 pr-2 text-xs font-medium text-foreground [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[6px] [&_button]:border-0">
-            <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
+            <AdjuntarArchivo
+              onFileSelected={handleFileSelected}
+              disabled={Boolean(tenantAttachmentBlockReason) || !!attachmentPreview || isSending}
+            />
             <span className={cn(isMobile && 'sr-only')}>Adjuntar archivo o imagen</span>
           </div>
           <Button
@@ -2362,6 +2557,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           </span>
         </div>
 
+        {tenantAttachmentBlockReason ? (
+          <p
+            className="mb-2 text-[11px] text-muted-foreground"
+            data-testid="tenant-attachment-block-reason"
+          >
+            Adjuntos bloqueados: {tenantAttachmentBlockReason}
+          </p>
+        ) : null}
+
         {handoffAction && !handoffBlockReason && (
           handoffAction.external_dispatch === false || handoffAction.delivery_mode === 'internal_event'
         ) ? (
@@ -2376,7 +2580,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               'mb-2 rounded-[8px] border px-2.5 py-2 text-xs',
               activeComposerActionDeliveryView.tone === 'queued'
                 ? 'border-blue-500/25 bg-blue-500/10 text-blue-800 dark:text-blue-200'
-                : 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+                : activeComposerActionDeliveryView.tone === 'pending'
+                  ? 'border-blue-500/25 bg-blue-500/10 text-blue-800 dark:text-blue-200'
+                  : activeComposerActionDeliveryView.tone === 'success'
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                    : activeComposerActionDeliveryView.tone === 'warning'
+                      ? 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100'
+                      : 'border-border/70 bg-muted/40 text-muted-foreground',
             )}
             data-testid="ticket-composer-action-result"
           >
@@ -2545,7 +2755,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             onKeyDown={handleComposerKeyDown}
             maxLength={1000}
             aria-label="Responder ticket"
+            aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : undefined}
           />
+          {replyBlockReason ? (
+            <span id="ticket-reply-block-reason" className="sr-only">{replyBlockReason}</span>
+          ) : null}
           <div
             className={cn(
               'flex shrink-0 items-center rounded-[8px] border border-border/70 bg-muted/30',
@@ -2585,7 +2799,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 </Button>
               )}
             </div>
-            <Button className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')} onClick={() => void handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Enviar mensaje">
+            <Button
+              className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')}
+              onClick={() => void handleSendMessage()}
+              disabled={
+                isSending ||
+                composerActionMutation.isPending ||
+                Boolean(replyBlockReason) ||
+                (!message.trim() && !attachmentPreview)
+              }
+              title={replyBlockReason || undefined}
+              aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : undefined}
+              aria-label="Enviar mensaje"
+            >
               {isSending ? (
                 isMobile ? (
                   <>

@@ -74,7 +74,8 @@ describe('TicketClaimButton', () => {
 
   it('usa el claim omnicanal atómico cuando el ticket publica su modelo de origen', async () => {
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
-    render(<TicketClaimButton />);
+    const onClaimConfirmed = vi.fn().mockResolvedValue(undefined);
+    render(<TicketClaimButton onClaimConfirmed={onClaimConfirmed} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
 
@@ -91,6 +92,7 @@ describe('TicketClaimButton', () => {
     ));
     expect(mocks.assign).not.toHaveBeenCalled();
     expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({ assigned_user_id: 10 }));
+    expect(onClaimConfirmed).toHaveBeenCalledTimes(1);
   });
 
   it('deja que el backend autorice el claim atómico aunque el listado auxiliar no publique al operador', async () => {
@@ -122,7 +124,8 @@ describe('TicketClaimButton', () => {
       'Categoría incompatible',
       403,
     ));
-    render(<TicketClaimButton />);
+    const onClaimConfirmed = vi.fn();
+    render(<TicketClaimButton onClaimConfirmed={onClaimConfirmed} />);
 
     const claim = screen.getByRole('button', { name: 'Tomar ticket' });
     expect(claim).toBeEnabled();
@@ -130,6 +133,7 @@ describe('TicketClaimButton', () => {
 
     await waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(1));
     expect(mocks.updateTicket).not.toHaveBeenCalled();
+    expect(onClaimConfirmed).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
   });
 
