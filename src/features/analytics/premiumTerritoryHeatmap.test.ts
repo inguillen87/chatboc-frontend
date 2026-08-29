@@ -389,6 +389,30 @@ describe('premium territory heatmap aggregation', () => {
     );
   });
 
+  it('translates structural layer tokens and hides unknown backend identifiers', () => {
+    const layers = resolveTerritoryLayerDescriptors({
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: {
+        layers: ['points', 'cells', 'layers', 'custom_raw_layer'],
+      },
+    } as any);
+
+    expect(layers).toEqual([
+      expect.objectContaining({ id: 'points', label: 'Ubicaciones' }),
+      expect.objectContaining({ id: 'cells', label: 'Zonas agregadas' }),
+      expect.objectContaining({ id: 'layers', label: 'Capas territoriales' }),
+      expect.objectContaining({ id: 'custom_raw_layer', label: 'Capa territorial' }),
+    ]);
+    expect(layers.map((layer) => layer.label)).not.toEqual(
+      expect.arrayContaining(['Points', 'Cells', 'Layers', 'Custom raw layer']),
+    );
+  });
+
   it('promotes ai status layer hints into selectable map layers', () => {
     const layers = resolveTerritoryLayerDescriptors({
       contract_version: 'operations.heatmap.v1',

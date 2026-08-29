@@ -97,6 +97,10 @@ const presentExecutiveText = (value: string | undefined) =>
     .replace(/\bAI\b/g, 'IA')
     .replace(/\bmedium\b/gi, 'medio')
     .replace(/\b1 zonas\b/gi, '1 zona')
+    .replace(/\b1 zona activas\b/gi, '1 zona activa')
+    .replace(/\b1 zona prioritarias\b/gi, '1 zona prioritaria')
+    .replace(/\b1 zona críticas\b/gi, '1 zona crítica')
+    .replace(/\blos zonas\b/gi, 'las zonas')
     .replace(/\bsenales\b/gi, 'señales')
     .replace(/\bsenal\b/gi, 'señal')
     .replace(/\bdecision\b/gi, 'decisión')
@@ -108,6 +112,8 @@ const presentExecutiveText = (value: string | undefined) =>
     .replace(/\bubicaciones\b/gi, 'ubicaciones')
     .replace(/\bubicacion\b/gi, 'ubicación')
     .replace(/\bcomparacion\b/gi, 'comparación')
+    .replace(/\basignacion\b/gi, 'asignación')
+    .replace(/\bconcentracion\b/gi, 'concentración')
     .replace(/\bcategorias\b/gi, 'categorías')
     .replace(/\bcategoria\b/gi, 'categoría')
     .replace(/\bcriticos\b/gi, 'críticos')
@@ -147,6 +153,9 @@ const labelFor = (labels: Record<string, string> | undefined, key: string, fallb
 
 const formatNumber = (value: number | undefined, fallback = '--') =>
   value === undefined || Number.isNaN(value) ? fallback : numberFormatter.format(value);
+
+const formatCountLabel = (value: number, singular: string, plural: string, fallback = '0') =>
+  `${formatNumber(value, fallback)} ${Math.abs(value) === 1 ? singular : plural}`;
 
 const formatVariation = (value: number | undefined) => {
   if (value === undefined) return 'sin comparación';
@@ -285,6 +294,9 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   surveys: 'Encuestas',
   analytics_events: 'Eventos operativos',
   whatsapp: 'WhatsApp',
+  points: 'Puntos geolocalizados',
+  cells: 'Zonas agregadas',
+  layers: 'Capas de análisis',
 };
 
 const TECHNICAL_VALUE_PATTERN =
@@ -333,7 +345,9 @@ const resolveRealtimeFreshness = (latestEventAt: string | undefined, pollSeconds
   const formattedTimestamp = new Intl.DateTimeFormat('es-AR', {
     dateStyle: 'short',
     timeStyle: 'short',
-  }).format(new Date(timestamp));
+  })
+    .format(new Date(timestamp))
+    .replace(/\.+$/, '');
 
   if (ageMs >= -60_000 && ageMs <= allowedAgeMs) {
     return {
@@ -897,6 +911,14 @@ export function PremiumTerritoryHeatmap({
     () => resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
     [heatmap, sourcePoints, usesDemoData],
   );
+  const executiveReadinessLabel =
+    dataProvenance.state === 'real' || readiness.state !== 'ready'
+      ? readiness.label
+      : 'Cobertura técnica disponible';
+  const executiveReadinessDetail =
+    dataProvenance.state === 'real' || readiness.state !== 'ready'
+      ? readinessCopy(readiness.state, labels)
+      : 'La cobertura permite visualizar patrones, pero la procedencia debe validarse antes de tomar decisiones.';
   const displayLayers = useMemo(() => resolveTerritoryLayerDescriptors(heatmap), [heatmap]);
   const displayLayerKey = displayLayers.map((layer) => layer.id).join('|');
   const defaultEnabledLayerIds = useMemo(
@@ -963,6 +985,18 @@ export function PremiumTerritoryHeatmap({
       readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
     ),
   );
+  const operationalNarrativeTitle =
+    dataProvenance.state === 'real'
+      ? narrativeTitle || 'Mapa territorial para la acción'
+      : dataProvenance.state === 'demo'
+        ? 'Escenario territorial de demostración'
+        : dataProvenance.state === 'synthetic'
+          ? 'Mapa territorial con datos sintéticos'
+          : dataProvenance.label === 'Procedencia parcial'
+            ? 'Mapa territorial con validación parcial'
+            : 'Mapa territorial pendiente de validación';
+  const operationalNarrativeBody =
+    dataProvenance.state === 'real' ? narrativeBody : dataProvenance.detail;
   const narrativeAction = summarizeBackendAction(heatmap?.map_narrative?.primary_cta);
   const viewportPresets = heatmap?.viewport_presets?.presets?.slice(0, 3) ?? [];
   const defaultViewportId = heatmap?.viewport_presets?.default_preset_id;
@@ -1102,6 +1136,7 @@ export function PremiumTerritoryHeatmap({
     () => {
       const heatmapRecord = asRecord(heatmap);
       return {
+        provenanceState: dataProvenance.state,
         source:
           dataProvenance.state === 'real'
             ? 'procedencia validada'
@@ -1223,7 +1258,7 @@ export function PremiumTerritoryHeatmap({
       value: commandPrimaryCategory,
       detail:
         backendFocusCount !== undefined
-          ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
+          ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
             ? 'sin ranking zonal'
             : decisionZone.suppressed
@@ -1243,8 +1278,8 @@ export function PremiumTerritoryHeatmap({
       label: 'Foco crítico',
       value:
         backendCriticalHotspots !== undefined
-          ? `${formatNumber(backendCriticalHotspots, '0')} zonas críticas`
-          : `${formatNumber(aggregate.alerts, '0')} alertas`,
+          ? formatCountLabel(backendCriticalHotspots, 'zona crítica', 'zonas críticas')
+          : formatCountLabel(aggregate.alerts, 'alerta', 'alertas'),
       detail: commandPrimaryCategory,
       icon: ShieldAlert,
     },
@@ -1257,7 +1292,7 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Cobertura territorial',
       value: formatPercent(readiness.coveragePercent),
-      detail: `${formatNumber(visiblePointCount, '0')} puntos visibles`,
+      detail: formatCountLabel(visiblePointCount, 'punto visible', 'puntos visibles'),
       icon: Gauge,
     },
     {
@@ -1277,18 +1312,18 @@ export function PremiumTerritoryHeatmap({
           : 'Sin delimitación oficial',
       detail:
         backendFocusCount !== undefined
-          ? `${formatNumber(backendFocusCount)} casos - ${backendFocusRiskLabel}`
+          ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
-            ? `${formatNumber(visiblePointCount, '0')} puntos · ${dataProvenance.shortLabel} · sin agregación zonal`
+            ? `${formatCountLabel(visiblePointCount, 'punto', 'puntos')} · ${dataProvenance.shortLabel} · sin agregación zonal`
             : decisionZone.suppressed
             ? 'muestra insuficiente'
-            : `${formatNumber(decisionZone.total)} eventos`,
+            : formatCountLabel(decisionZone.total, 'evento', 'eventos'),
       icon: MapPin,
     },
     {
       label: 'Cobertura',
       value: formatPercent(readiness.coveragePercent),
-      detail: readiness.label,
+      detail: executiveReadinessLabel,
       icon: Gauge,
     },
     {
@@ -1341,10 +1376,10 @@ export function PremiumTerritoryHeatmap({
   const liveSignalDetail = realtimeFreshness.detail;
   const focusDetail =
     backendFocusCount !== undefined
-      ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
+      ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
       : operationalHotspotCount
-        ? `${formatNumber(operationalHotspotCount, '0')} zonas prioritarias`
-        : `${formatNumber(visiblePointCount, '0')} puntos`;
+        ? formatCountLabel(operationalHotspotCount, 'zona prioritaria', 'zonas prioritarias')
+        : formatCountLabel(visiblePointCount, 'punto', 'puntos');
   const visualSystemDetail = [
     backendRadarEnabled ? 'radar activo' : null,
     showHeatLayer ? 'calor' : null,
@@ -1379,7 +1414,7 @@ export function PremiumTerritoryHeatmap({
             </Badge>
             <Badge variant={badgeVariantForReadiness(readiness.state)} className="gap-1">
               {readiness.state === 'ready' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-              {readiness.label}
+              {executiveReadinessLabel}
             </Badge>
             <Badge variant="outline" className="gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -1454,7 +1489,7 @@ export function PremiumTerritoryHeatmap({
                 Lectura ejecutiva
               </Badge>
               <Badge variant="outline" className="capitalize">
-                {readiness.label}
+                {executiveReadinessLabel}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -1499,7 +1534,7 @@ export function PremiumTerritoryHeatmap({
                 Ciclo de decisión asistido
               </Badge>
               <Badge variant={readiness.state === 'ready' ? 'outline' : 'secondary'} className="capitalize">
-                {readiness.label}
+                {executiveReadinessLabel}
               </Badge>
             </div>
             <h4 className="mt-2 text-lg font-semibold leading-tight">Pulso operativo territorial</h4>
@@ -1901,7 +1936,7 @@ export function PremiumTerritoryHeatmap({
                     filter={selected ? `url(#${svgId}-selected-glow)` : `url(#${svgId}-zone-shadow)`}
                     tabIndex={0}
                     role="button"
-                    aria-label={`${metric.zone.label}: ${metric.suppressed ? 'muestra insuficiente' : `${formatNumber(metric.total)} eventos`}`}
+                    aria-label={`${metric.zone.label}: ${metric.suppressed ? 'muestra insuficiente' : formatCountLabel(metric.total, 'evento', 'eventos')}`}
                     className="cursor-pointer outline-none transition duration-200 hover:brightness-110 focus-visible:brightness-125"
                     onMouseEnter={() => setSelectedZoneId(metric.zone.id)}
                     onFocus={() => setSelectedZoneId(metric.zone.id)}
@@ -2082,11 +2117,11 @@ export function PremiumTerritoryHeatmap({
             <div className={cn('pointer-events-auto max-w-md rounded-lg border px-3 py-2 shadow-sm backdrop-blur', readinessToneClass[readiness.state])}>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 {readiness.state === 'ready' ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
-                <span>{readiness.label}</span>
+                <span>{executiveReadinessLabel}</span>
               </div>
               {hasLowQualityOverlay ? (
                 <p className="mt-1 text-xs leading-5 text-current/80">
-                  {readinessCopy(readiness.state, labels)}
+                  {executiveReadinessDetail}
                   {emptyStateBehavior ? ` ${emptyStateBehavior}.` : ''}
                 </p>
               ) : null}
@@ -2101,7 +2136,7 @@ export function PremiumTerritoryHeatmap({
             <div className="pointer-events-auto flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
               <Badge variant="outline" className="gap-1 bg-background/80 backdrop-blur">
                 <MapPin className="h-3.5 w-3.5" />
-                {formatNumber(visiblePointCount)} visibles
+                {formatCountLabel(visiblePointCount, 'visible', 'visibles')}
               </Badge>
               <Badge
                 data-testid="territory-data-provenance"
@@ -2190,7 +2225,7 @@ export function PremiumTerritoryHeatmap({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
-                <h4 className="mt-1 text-lg font-semibold">{readiness.label}</h4>
+                <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
               <Badge variant={badgeVariantForReadiness(readiness.state)}>
                 {hasTerritoryBoundaries ? confidenceLabel(aggregate.confidence) : 'sin límites'}
@@ -2228,7 +2263,7 @@ export function PremiumTerritoryHeatmap({
                 <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{readinessCopy(readiness.state, labels)}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{executiveReadinessDetail}</p>
             {realtimeSources.length || realtimeEvents.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...realtimeSources, ...realtimeEvents].slice(0, 4).map((item) => (
@@ -2274,7 +2309,9 @@ export function PremiumTerritoryHeatmap({
                     </Badge>
                   </div>
                   {backendFocusCount !== undefined ? (
-                    <p className="mt-2 text-xs text-muted-foreground">{formatNumber(backendFocusCount)} casos agrupados en el foco operativo.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {formatCountLabel(backendFocusCount, 'caso agrupado', 'casos agrupados')} en el foco operativo.
+                    </p>
                   ) : null}
                 </div>
               ) : null}
@@ -2390,10 +2427,10 @@ export function PremiumTerritoryHeatmap({
                     Resumen operativo asistido
                   </div>
                   <h4 className="mt-2 text-base font-semibold leading-snug">
-                    {narrativeTitle || 'Mapa territorial para la acción'}
+                    {operationalNarrativeTitle}
                   </h4>
-                  {narrativeBody ? (
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{narrativeBody}</p>
+                  {operationalNarrativeBody ? (
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{operationalNarrativeBody}</p>
                   ) : null}
                 </div>
                 <Badge variant={aiStatus?.requires_human_attention ? 'secondary' : 'outline'} className="shrink-0 capitalize">
@@ -2570,7 +2607,7 @@ export function PremiumTerritoryHeatmap({
 
           {aggregate.topCategories.length ? (
             <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
-              <p className="text-sm font-semibold">Categorias dominantes</p>
+              <p className="text-sm font-semibold">Categorías dominantes</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {aggregate.topCategories.map((category) => (
                   <Badge key={category.key} variant="secondary">

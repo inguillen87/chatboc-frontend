@@ -280,11 +280,6 @@ export const resolveTerritoryDataProvenance = (
   };
 };
 
-const humanizeLayer = (value: string) => {
-  const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Capa territorial';
-};
-
 const normalizeLayerId = (value: string) =>
   value
     .trim()
@@ -293,6 +288,33 @@ const normalizeLayerId = (value: string) =>
     .replace(/[^a-z0-9_]/g, '');
 
 const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['source']): TerritoryLayerDescriptor => {
+  if (id === 'points' || id === 'point') {
+    return {
+      id,
+      label: 'Ubicaciones',
+      description: 'Ubicaciones representadas en el mapa con privacidad protegida.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id === 'cells' || id === 'cell') {
+    return {
+      id,
+      label: 'Zonas agregadas',
+      description: 'Agrupaciones territoriales que evitan exponer ubicaciones individuales.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id === 'layers' || id === 'layer') {
+    return {
+      id,
+      label: 'Capas territoriales',
+      description: 'Información territorial disponible para combinar en el análisis.',
+      tone: 'neutral',
+      source,
+    };
+  }
   if (id.includes('ai') || id.includes('risk') || id.includes('prior')) {
     return {
       id,
@@ -367,7 +389,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   }
   return {
     id,
-    label: humanizeLayer(id),
+    label: 'Capa territorial',
     description: 'Segmento territorial disponible para el análisis operativo.',
     tone: 'neutral',
     source,

@@ -264,6 +264,10 @@ describe('IncidentsMap', () => {
     expect(screen.getByTestId('operations-heatmap-audit-details')).toHaveTextContent(
       'Supresión: 3 registros · 1 celda',
     );
+    expect(screen.getByTestId('operations-heatmap-audit-details')).toHaveTextContent(
+      'Procedencia: Procedencia parcial',
+    );
+    expect(document.body.textContent).not.toContain('Datos operativos verificados');
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
     expect(mocks.getTicketStats).not.toHaveBeenCalled();
     expect(screen.queryByTestId('legacy-heatmap-evidence')).not.toBeInTheDocument();

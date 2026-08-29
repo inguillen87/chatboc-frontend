@@ -117,6 +117,9 @@ const sanitizeFilterValue = (value?: string | null): string | undefined => {
 const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
   value.toLocaleString('es-AR', options);
 
+const formatCountLabel = (value: number, singular: string, plural: string) =>
+  `${formatNumber(value)} ${Math.abs(value) === 1 ? singular : plural}`;
+
 const MAP_LABELS: Record<string, string> = {
   employee_aggregated: 'Datos agregados del equipo',
   tenant_aggregated: 'Datos agregados del municipio',
@@ -126,7 +129,7 @@ const MAP_LABELS: Record<string, string> = {
   pending: 'Pendiente',
   queued: 'En revisión',
   ready: 'Disponible',
-  real: 'Datos operativos verificados',
+  real: 'Procedencia declarada como real',
   synthetic: 'Datos simulados',
   privileged_exact: 'Acceso institucional protegido',
 };
@@ -1247,7 +1250,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     {
       label: 'Volumen ponderado',
       value: formatNumber(mapInsights.totalWeight),
-      detail: `${formatNumber(mapInsights.pointCount)} puntos`,
+      detail: formatCountLabel(mapInsights.pointCount, 'punto', 'puntos'),
       icon: Activity,
     },
     {
@@ -1256,7 +1259,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         ? `${formatNumber(mapInsights.territoryQuality.coveragePercent)}%`
         : `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
       detail: mapInsights.isEnterpriseContract
-        ? `${formatNumber(mapInsights.territoryQuality.pendingClassification)} ubicaciones pendientes`
+        ? formatCountLabel(
+            mapInsights.territoryQuality.pendingClassification,
+            'ubicación pendiente',
+            'ubicaciones pendientes',
+          )
         : `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
       icon: Layers,
     },
@@ -1265,10 +1272,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       value: mapInsights.hotZones[0]
         ? formatMapLabel(mapInsights.hotZones[0].label)
         : mapInsights.isEnterpriseContract && mapInsights.cellCount > 0
-          ? `${formatNumber(mapInsights.cellCount)} celdas seguras`
+          ? `${formatNumber(mapInsights.cellCount)} ${mapInsights.cellCount === 1 ? 'celda segura' : 'celdas seguras'}`
           : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes`,
       detail: mapInsights.hotZones[0]
-        ? `${formatNumber(mapInsights.hotZones[0].weight)} reportes`
+        ? formatCountLabel(mapInsights.hotZones[0].weight, 'reporte', 'reportes')
         : 'Con GPS, sin barrio, zona o localidad',
       icon: Flame,
     },
@@ -1654,12 +1661,16 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               <div className="flex flex-wrap gap-2 text-xs font-medium">
                 <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
                   {operationsKMin !== undefined
-                    ? `Privacidad protegida desde ${formatNumber(operationsKMin)} casos`
+                    ? `Privacidad protegida desde ${formatCountLabel(operationsKMin, 'caso', 'casos')}`
                     : 'Privacidad protegida'}
                 </span>
                 <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
                   {syntheticResponsesExcluded !== undefined
-                    ? `${formatNumber(syntheticResponsesExcluded)} respuestas simuladas excluidas`
+                    ? formatCountLabel(
+                        syntheticResponsesExcluded,
+                        'respuesta simulada excluida',
+                        'respuestas simuladas excluidas',
+                      )
                     : 'Sin mezcla de datos simulados'}
                 </span>
               </div>
@@ -1677,7 +1688,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 </span>
                 <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
                   {operationsPrecision !== undefined
-                    ? `Precisión: ${formatNumber(operationsPrecision)} decimales`
+                    ? `Precisión: ${formatCountLabel(operationsPrecision, 'decimal', 'decimales')}`
                     : operationsHeatmap.privacy?.coordinate_precision
                       ? `Precisión: ${formatMapLabel(operationsHeatmap.privacy.coordinate_precision)}`
                       : 'Precisión: no declarada'}
@@ -1692,9 +1703,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                         : 'no declarada'}
                 </span>
                 <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
-                  {operationsHeatmap.response_provenance?.mode
-                    ? `Procedencia: ${formatMapLabel(operationsHeatmap.response_provenance.mode)}`
-                    : 'Procedencia: no declarada'}
+                  Procedencia: {operationsDataProvenance.label}
                 </span>
               </div>
             </details>
@@ -1806,7 +1815,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 <p className="mt-1 text-lg font-semibold">
                   {mapInsights.hotZones[0]
                     ? formatMapLabel(mapInsights.hotZones[0].label)
-                    : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} puntos sin zona publicada`}
+                    : formatCountLabel(
+                        mapInsights.territoryQuality.pendingClassification,
+                        'punto sin zona publicada',
+                        'puntos sin zona publicada',
+                      )}
                 </p>
               </div>
               <MapPin className="h-5 w-5 text-amber-300" />
@@ -1863,7 +1876,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             mapInsights.hotZones.length > 0 ? (
               <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-foreground">
                 <strong>
-                  {formatNumber(mapInsights.territoryQuality.pendingClassification)} puntos sin zona
+                  {formatCountLabel(
+                    mapInsights.territoryQuality.pendingClassification,
+                    'punto sin zona',
+                    'puntos sin zona',
+                  )}
                 </strong>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Se excluyen del ranking hasta contar con un dato territorial validado.
@@ -1901,8 +1918,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground"
               >
                 <strong>
-                  {formatNumber(mapInsights.territoryQuality.pendingClassification)} candidatos a
-                  enriquecimiento territorial
+                  {formatCountLabel(
+                    mapInsights.territoryQuality.pendingClassification,
+                    'candidato a enriquecimiento territorial',
+                    'candidatos a enriquecimiento territorial',
+                  )}
                 </strong>
                 <p className="mt-2 text-muted-foreground">
                   Los puntos tienen coordenadas, pero la fuente no publicó barrio, zona o localidad.

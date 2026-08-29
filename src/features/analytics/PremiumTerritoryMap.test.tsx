@@ -168,8 +168,8 @@ describe('PremiumTerritoryHeatmap', () => {
       legend: {
         contract_version: 'operations.map.legend.v1',
         legend_items: [
-          { label: 'SLA critico', color: '#ef4444', description: 'casos vencidos' },
-          { label: 'WhatsApp activo', color: '#22d3ee', description: 'eventos realtime' },
+          { label: 'SLA critico', color: '#ef4444', source: 'points' },
+          { label: 'WhatsApp activo', color: '#22d3ee', bucket: 'cells' },
         ],
       },
       layer_style_contract: {
@@ -221,6 +221,7 @@ describe('PremiumTerritoryHeatmap', () => {
         poll_seconds: 30,
         sources: ['tickets'],
         socket_events: ['operations.heatmap.updated'],
+        latest_event_at: '2026-07-03T12:00:00Z',
       },
       map_narrative: {
         headline: 'Zona centro requiere seguimiento',
@@ -343,11 +344,12 @@ describe('PremiumTerritoryHeatmap', () => {
     const commandLoop = screen.getByTestId('territory-command-loop');
     expect(commandLoop.textContent).toContain('Pulso operativo territorial');
     expect(commandLoop.textContent).toContain('Ciclo de decisión asistido');
-    expect(commandLoop.textContent).toContain('1 zonas críticas');
+    expect(commandLoop.textContent).toContain('1 zona crítica');
+    expect(commandLoop.textContent).not.toContain('1 zonas críticas');
     expect(commandLoop.textContent).toContain('reclamos');
     expect(commandLoop.textContent).toContain('Abrir cola operativa');
     expect(commandLoop.textContent).toContain('42%');
-    expect(commandLoop.textContent).toContain('Conectividad no verificada');
+    expect(commandLoop.textContent).toContain('Actualización pendiente');
     expect(commandLoop.textContent).not.toContain('En línea');
     expect(screen.getAllByTestId('territory-command-card').length).toBe(4);
     const commandLoopCta = screen.getByRole('link', { name: /abrir cola crm/i });
@@ -369,13 +371,18 @@ describe('PremiumTerritoryHeatmap', () => {
     const liveLegend = screen.getByTestId('territory-live-legend');
     expect(liveLegend).toBeTruthy();
     expect(liveLegend.textContent).toContain('Estado de actualización');
-    expect(liveLegend.textContent).toContain('Conectividad no verificada');
+    expect(liveLegend.textContent).toContain('Actualización pendiente');
     expect(liveLegend.textContent).toContain('Foco');
     expect(liveLegend.textContent).toContain('reclamos');
     expect(liveLegend.textContent).toContain('Acción siguiente');
     expect(liveLegend.textContent).toContain('Abrir cola operativa');
     expect(liveLegend.textContent).toContain('Sistema visual');
     expect(liveLegend.textContent).toContain('Mapa de calor acelerado');
+    expect(liveLegend.textContent).toContain('Puntos geolocalizados');
+    expect(liveLegend.textContent).toContain('Zonas agregadas');
+    expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
+    expect(document.body.textContent).not.toContain('Zona centro requiere seguimiento');
+    expect(document.body.textContent).not.toMatch(/[ap]\. m\.\./i);
     expect(liveLegend.textContent).toContain('SLA crítico');
     expect(liveLegend.textContent).toContain('WhatsApp activo');
     expect(liveLegend.textContent).toContain('Prioridad IA');
@@ -389,8 +396,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByTestId('operational-hotspot-item').length).toBe(1);
     expect(screen.getByRole('group', { name: 'Capas visibles' })).toBeTruthy();
     expect(screen.getByText('Resumen operativo asistido')).toBeTruthy();
-    expect(screen.getByText('Zona centro requiere seguimiento')).toBeTruthy();
-    expect(screen.getByText('Alta demanda concentrada con reclamos pendientes de coordenadas.')).toBeTruthy();
+    expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
+    expect(document.body.textContent).toContain('La fuente no informó una clasificación verificable');
     expect(screen.getByText('Análisis local seguro')).toBeTruthy();
     expect(screen.getAllByText('Detección municipal de riesgos').length).toBeGreaterThan(0);
     expect(screen.getByText('Centro operativo')).toBeTruthy();
@@ -446,6 +453,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent('Datos sintéticos declarados');
     expect(document.body.textContent).toContain('El sistema declaró respuestas sintéticas incluidas');
     expect(document.body.textContent).not.toContain('Los puntos son reales');
+    expect(document.body.textContent).toContain('Cobertura técnica disponible');
+    expect(document.body.textContent).not.toContain('Mapa listo para operar');
   });
 
   it('enables zonal metrics only with explicit official boundaries and backend population', () => {
