@@ -71,7 +71,7 @@ describe('premium territory heatmap aggregation', () => {
           unverified_responses_included: 0,
         },
       }, false, [{ id: 'survey_response:1', source: 'survey', lat: -34.6, lng: -60.9 }]),
-    ).toMatchObject({ state: 'real', label: 'Procedencia validada por backend' });
+    ).toMatchObject({ state: 'real', label: 'Procedencia validada por el sistema' });
     expect(
       resolveTerritoryDataProvenance({
         response_provenance: {
@@ -328,7 +328,7 @@ describe('premium territory heatmap aggregation', () => {
 
     expect(readiness).toMatchObject({
       state: 'empty',
-      label: 'Mapa no renderizable',
+      label: 'Mapa sin datos suficientes',
       visiblePoints: 18,
       canRenderHeatmap: false,
     });

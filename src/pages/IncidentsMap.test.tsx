@@ -44,11 +44,20 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
 }));
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
-  default: ({ showHeatmap, heatmapData }: { showHeatmap?: boolean; heatmapData?: unknown[] }) => (
+  default: ({
+    showHeatmap,
+    heatmapData,
+    ariaLabel,
+  }: {
+    showHeatmap?: boolean;
+    heatmapData?: unknown[];
+    ariaLabel?: string;
+  }) => (
     <div
       data-testid="mock-incidents-map"
       data-heatmap={showHeatmap ? 'heatmap' : 'points'}
       data-points={String(heatmapData?.length ?? 0)}
+      data-aria-label={ariaLabel ?? ''}
     >
       mapa legado
     </div>
@@ -265,7 +274,7 @@ describe('IncidentsMap', () => {
 
     await screen.findByTestId('mock-premium-territory-map');
     expect(screen.getByText('21 puntos')).toBeInTheDocument();
-    expect(screen.getByText('Categoria: Luminaria')).toBeInTheDocument();
+    expect(screen.getByText('Categoría: Luminaria')).toBeInTheDocument();
     expect(screen.getAllByText('Nuevo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Centro').length).toBeGreaterThan(0);
   });
@@ -386,9 +395,13 @@ describe('IncidentsMap', () => {
       render(<IncidentsMap />);
 
       expect(await screen.findByTestId('legacy-heatmap-evidence')).toHaveTextContent(
-        'Compatibilidad legado · evidencia parcial',
+        'Vista alternativa · evidencia parcial',
       );
       expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-points', '2');
+      expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute(
+        'data-aria-label',
+        'Mapa operativo de reclamos y demanda territorial',
+      );
       expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(1);
       expect(mocks.getTicketStats).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId('mock-premium-territory-map')).not.toBeInTheDocument();
@@ -448,7 +461,7 @@ describe('IncidentsMap', () => {
       expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'heatmap');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Calor activo/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Densidad activa/i }));
 
     expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'points');
     expect(screen.getByText('Solo puntos')).toBeInTheDocument();

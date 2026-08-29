@@ -12,6 +12,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     mapStyleUrl?: string | null;
     maptilerKey?: string | null;
     googleMapsKey?: string | null;
+    ariaLabel?: string;
     geoLayerConfig?: {
       contract_version?: string;
       source?: { features?: unknown[] };
@@ -33,6 +34,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-style-url={props.mapStyleUrl ?? ''}
       data-maptiler-key={props.maptilerKey ?? ''}
       data-google-key={props.googleMapsKey ?? ''}
+      data-aria-label={props.ariaLabel ?? ''}
       data-geo-contract={props.geoLayerConfig?.contract_version ?? ''}
       data-geo-features={String(props.geoLayerConfig?.source?.features?.length ?? 0)}
       data-geo-heat-layer={props.geoLayerConfig?.layers?.heatmap?.id ?? ''}
@@ -311,6 +313,9 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-style-url')).toBe('https://tiles.test/style.json');
     expect(liveMap.getAttribute('data-maptiler-key')).toBe('maptiler-test');
     expect(liveMap.getAttribute('data-google-key')).toBe('google-test');
+    expect(liveMap.getAttribute('data-aria-label')).toBe(
+      'Mapa territorial interactivo de reclamos, encuestas y actividad agregada',
+    );
     expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap.geo_layers.v1');
     expect(liveMap.getAttribute('data-geo-features')).toBe('12');
     expect(liveMap.getAttribute('data-geo-heat-layer')).toBe('municipal-demand-heat');
@@ -333,7 +338,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(executiveStrip.textContent).toContain('7');
     expect(executiveStrip.textContent).toContain('Foco territorial');
     expect(executiveStrip.textContent).toContain('reclamos');
-    expect(executiveStrip.textContent).toContain('Proxima accion');
+    expect(executiveStrip.textContent).toContain('Próxima acción');
     expect(executiveStrip.textContent).toContain('Abrir cola operativa');
     const commandLoop = screen.getByTestId('territory-command-loop');
     expect(commandLoop.textContent).toContain('Pulso operativo territorial');
@@ -342,14 +347,15 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(commandLoop.textContent).toContain('reclamos');
     expect(commandLoop.textContent).toContain('Abrir cola operativa');
     expect(commandLoop.textContent).toContain('42%');
-    expect(commandLoop.textContent).toContain('30s');
+    expect(commandLoop.textContent).toContain('Conectividad no verificada');
+    expect(commandLoop.textContent).not.toContain('En línea');
     expect(screen.getAllByTestId('territory-command-card').length).toBe(4);
     const commandLoopCta = screen.getByRole('link', { name: /abrir cola crm/i });
     expect(commandLoopCta.getAttribute('href')).toContain('/perfil?tab=tickets');
     expect(commandLoopCta.getAttribute('href')).toContain('focus=open_geocoding_queue');
     const decisionRadar = screen.getByTestId('territory-decision-radar');
     expect(decisionRadar).toBeTruthy();
-    expect(screen.getByText('Radar de decision')).toBeTruthy();
+    expect(screen.getByText('Radar de decisión')).toBeTruthy();
     expect(decisionRadar.textContent).toContain('Abrir cola operativa');
     expect(screen.getByText('Motivo prioritario')).toBeTruthy();
     expect(screen.getByText('Capas activas')).toBeTruthy();
@@ -362,15 +368,15 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('22 casos agrupados en el foco operativo.')).toBeTruthy();
     const liveLegend = screen.getByTestId('territory-live-legend');
     expect(liveLegend).toBeTruthy();
-    expect(liveLegend.textContent).toContain('Señal viva');
-    expect(liveLegend.textContent).toContain('Mapa territorial actualizado');
+    expect(liveLegend.textContent).toContain('Estado de actualización');
+    expect(liveLegend.textContent).toContain('Conectividad no verificada');
     expect(liveLegend.textContent).toContain('Foco');
     expect(liveLegend.textContent).toContain('reclamos');
-    expect(liveLegend.textContent).toContain('Accion siguiente');
+    expect(liveLegend.textContent).toContain('Acción siguiente');
     expect(liveLegend.textContent).toContain('Abrir cola operativa');
     expect(liveLegend.textContent).toContain('Sistema visual');
     expect(liveLegend.textContent).toContain('Mapa de calor acelerado');
-    expect(liveLegend.textContent).toContain('SLA critico');
+    expect(liveLegend.textContent).toContain('SLA crítico');
     expect(liveLegend.textContent).toContain('WhatsApp activo');
     expect(liveLegend.textContent).toContain('Prioridad IA');
     expect(screen.getByTestId('operational-hotspots-panel')).toBeTruthy();
@@ -392,9 +398,9 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('heatmap-action-loop')).toBeTruthy();
     expect(screen.getAllByTestId('heatmap-action-item').length).toBeGreaterThanOrEqual(4);
     expect(screen.getByText('Asignar inspector')).toBeTruthy();
-    expect(screen.getByText('Actualizar ubicacion')).toBeTruthy();
+    expect(screen.getByText('Actualizar ubicación')).toBeTruthy();
     expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
-    expect(screen.getAllByText('preparacion segura').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('preparación segura').length).toBeGreaterThan(0);
     expect(screen.getByTestId('heatmap-action-loop').textContent).not.toContain('/api/');
     const crmLinks = screen.getAllByRole('link', { name: /abrir en crm/i });
     expect(crmLinks.length).toBeGreaterThan(0);
@@ -438,7 +444,7 @@ describe('PremiumTerritoryHeatmap', () => {
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
     expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent('Datos sintéticos declarados');
-    expect(document.body.textContent).toContain('La API declaró respuestas sintéticas incluidas');
+    expect(document.body.textContent).toContain('El sistema declaró respuestas sintéticas incluidas');
     expect(document.body.textContent).not.toContain('Los puntos son reales');
   });
 
@@ -569,9 +575,38 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-points')).toBe('1');
     expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap.geo_layers.v1');
     expect(liveMap.getAttribute('data-geo-features')).toBe('1');
-    expect(screen.getByText('Zonas agregadas verificadas')).toBeTruthy();
+    expect(screen.getAllByText('Procedencia no validada').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain('Zonas agregadas verificadas');
+    expect(document.body.textContent).not.toContain('Datos territoriales verificados');
     expect(screen.getAllByText('alumbrado').length).toBeGreaterThan(0);
     expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
+  });
+
+  it('uses verified wording only when the provenance resolver proves real survey responses', () => {
+    const points = buildPoints(2).map((point) => ({ ...point, source: 'survey' }));
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
+      response_provenance: {
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'real',
+        server_trusted_classification: true,
+        real_responses_included: 2,
+        unverified_responses_included: 0,
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByText('Datos territoriales verificados')).toBeTruthy();
+    expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent(
+      'Procedencia validada por el sistema',
+    );
   });
 
   it('prefers backend geo_layers FeatureCollection before rebuilding local source', () => {

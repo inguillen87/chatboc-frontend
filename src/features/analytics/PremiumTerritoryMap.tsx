@@ -86,6 +86,43 @@ type PremiumTerritoryHeatmapProps = {
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
+const presentExecutiveText = (value: string | undefined) =>
+  value
+    ?.replace(/\bGeoJSON\b/gi, 'archivo oficial de límites territoriales')
+    .replace(/\bbackend\b/gi, 'sistema')
+    .replace(/\bAPI\b/g, 'sistema')
+    .replace(/\bhotspots\b/gi, 'zonas prioritarias')
+    .replace(/\bhotspot\b/gi, 'zona prioritaria')
+    .replace(/\brealtime\b/gi, 'actualización continua')
+    .replace(/\bAI\b/g, 'IA')
+    .replace(/\bmedium\b/gi, 'medio')
+    .replace(/\b1 zonas\b/gi, '1 zona')
+    .replace(/\bsenales\b/gi, 'señales')
+    .replace(/\bsenal\b/gi, 'señal')
+    .replace(/\bdecision\b/gi, 'decisión')
+    .replace(/\bacciones\b/gi, 'acciones')
+    .replace(/\baccion\b/gi, 'acción')
+    .replace(/\bproximas\b/gi, 'próximas')
+    .replace(/\bproxima\b/gi, 'próxima')
+    .replace(/\bpreparacion\b/gi, 'preparación')
+    .replace(/\bubicaciones\b/gi, 'ubicaciones')
+    .replace(/\bubicacion\b/gi, 'ubicación')
+    .replace(/\bcomparacion\b/gi, 'comparación')
+    .replace(/\bcategorias\b/gi, 'categorías')
+    .replace(/\bcategoria\b/gi, 'categoría')
+    .replace(/\bcriticos\b/gi, 'críticos')
+    .replace(/\bcritico\b/gi, 'crítico')
+    .replace(/\bestatica\b/gi, 'estática')
+    .replace(/\bestatico\b/gi, 'estático')
+    .replace(/\bprediccion\b/gi, 'predicción')
+    .replace(/\bconfirmacion\b/gi, 'confirmación')
+    .replace(/\bminima\b/gi, 'mínima')
+    .replace(/\bminimo\b/gi, 'mínimo')
+    .replace(/\butil\b/gi, 'útil')
+    .replace(/\bgeocodificacion\b/gi, 'localización')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const NO_TERRITORY_ZONE_METRIC: TerritoryZoneMetric = {
   zone: {
     id: 'without-official-boundaries',
@@ -100,19 +137,19 @@ const NO_TERRITORY_ZONE_METRIC: TerritoryZoneMetric = {
   suppressed: false,
   confidence: 'insufficient',
   topCategories: [],
-  recommendation: 'Cargá un GeoJSON oficial de barrios, distritos o circuitos para habilitar métricas por zona.',
+  recommendation: 'Cargá un archivo oficial de límites de barrios, distritos o circuitos para habilitar métricas por zona.',
 };
 
 const labelFor = (labels: Record<string, string> | undefined, key: string, fallback: string) => {
   const candidate = labels?.[key];
-  return typeof candidate === 'string' && candidate.trim() ? candidate : fallback;
+  return presentExecutiveText(typeof candidate === 'string' && candidate.trim() ? candidate : fallback) ?? fallback;
 };
 
 const formatNumber = (value: number | undefined, fallback = '--') =>
   value === undefined || Number.isNaN(value) ? fallback : numberFormatter.format(value);
 
 const formatVariation = (value: number | undefined) => {
-  if (value === undefined) return 'sin comparacion';
+  if (value === undefined) return 'sin comparación';
   const prefix = value > 0 ? '+' : '';
   return `${prefix}${numberFormatter.format(value)}%`;
 };
@@ -190,7 +227,19 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   pending: 'Pendiente',
   queued: 'En revisión',
   ready: 'Disponible',
-  online: 'En línea',
+  online: 'Conectividad no verificada',
+  connected: 'Conectividad no verificada',
+  disconnected: 'Sin conexión confirmada',
+  stale: 'Actualización pendiente',
+  unknown: 'Estado no confirmado',
+  active: 'Activo',
+  inactive: 'Inactivo',
+  enabled: 'Habilitado',
+  disabled: 'Deshabilitado',
+  manual: 'Actualización manual',
+  critical: 'Crítica',
+  healthy: 'Operación estable',
+  degraded: 'Operación parcial',
   client_filter: 'Filtro operativo',
   interactive_globe_heatmap: 'Mapa de calor interactivo',
   show_geocoding_queue_and_ai_summary: 'Mostrar ubicaciones pendientes y resumen operativo',
@@ -238,27 +287,68 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp',
 };
 
+const TECHNICAL_VALUE_PATTERN =
+  /(?:^https?:\/\/|^\/api\/|\b(?:api|backend|frontend|webgl|maplibre|geojson|socket|endpoint|renderer|contract)\b|(?:^|[._-])v\d+(?:$|[._-]))/i;
+const OPAQUE_CONTRACT_TOKEN_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/i;
+
 const humanizeContractValue = (value: string | undefined, fallback: string) => {
-  if (!value) return fallback;
+  if (!value) return presentExecutiveText(fallback) ?? fallback;
   const readable = value.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
   const normalized = readable.toLowerCase().replace(/\s+/g, '_');
-  return CONTRACT_VALUE_LABELS[normalized] ?? readable;
+  const knownLabel = CONTRACT_VALUE_LABELS[normalized];
+  if (knownLabel) return knownLabel;
+  if (TECHNICAL_VALUE_PATTERN.test(value) || OPAQUE_CONTRACT_TOKEN_PATTERN.test(value)) {
+    return presentExecutiveText(fallback) ?? fallback;
+  }
+  return presentExecutiveText(readable) ?? presentExecutiveText(fallback) ?? fallback;
 };
 
-const presentExecutiveText = (value: string | undefined) =>
-  value
-    ?.replace(/\bhotspots\b/gi, 'zonas prioritarias')
-    .replace(/\bhotspot\b/gi, 'zona prioritaria')
-    .replace(/\bAI\b/g, 'IA')
-    .replace(/\bmedium\b/gi, 'medio')
-    .replace(/\b1 zonas\b/gi, '1 zona')
-    .replace(/\bsenales\b/gi, 'señales')
-    .replace(/\bsenal\b/gi, 'señal')
-    .replace(/\bdecision\b/gi, 'decisión')
-    .replace(/\baccion\b/gi, 'acción')
-    .replace(/\bpreparacion\b/gi, 'preparación')
-    .replace(/\bubicacion\b/gi, 'ubicación')
-    .replace(/\bgeocodificacion\b/gi, 'localización');
+const humanizeCategoryValue = (value: string | undefined, fallback = 'Sin categoría') => {
+  if (!value) return fallback;
+  const readable = value.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (TECHNICAL_VALUE_PATTERN.test(value)) return fallback;
+  return presentExecutiveText(readable) ?? fallback;
+};
+
+const resolveRealtimeFreshness = (latestEventAt: string | undefined, pollSeconds: number | undefined) => {
+  if (!latestEventAt) {
+    return {
+      isFresh: false,
+      label: 'Conectividad no verificada',
+      detail: 'Sin confirmación reciente del canal de actualización.',
+    };
+  }
+
+  const timestamp = Date.parse(latestEventAt);
+  if (!Number.isFinite(timestamp)) {
+    return {
+      isFresh: false,
+      label: 'Conectividad no verificada',
+      detail: 'La última actualización informada no tiene una fecha válida.',
+    };
+  }
+
+  const ageMs = Date.now() - timestamp;
+  const allowedAgeMs = Math.max(5 * 60_000, Math.max(0, pollSeconds ?? 0) * 3_000);
+  const formattedTimestamp = new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(timestamp));
+
+  if (ageMs >= -60_000 && ageMs <= allowedAgeMs) {
+    return {
+      isFresh: true,
+      label: 'Actualizado recientemente',
+      detail: `Última actualización confirmada: ${formattedTimestamp}.`,
+    };
+  }
+
+  return {
+    isFresh: false,
+    label: 'Actualización pendiente',
+    detail: `Último dato recibido: ${formattedTimestamp}. La conectividad actual no está verificada.`,
+  };
+};
 
 const privacyModeLabel = (value: string | undefined) => {
   const normalized = value?.trim().toLowerCase();
@@ -323,10 +413,10 @@ const readinessCopy = (
     return labelFor(labels, 'premium_map_quality_ready', 'Mapa listo para operar con cobertura suficiente.');
   }
   if (state === 'degraded') {
-    return labelFor(labels, 'premium_map_quality_degraded', 'La lectura es util, pero conviene resolver coordenadas pendientes.');
+    return labelFor(labels, 'premium_map_quality_degraded', 'La lectura es útil, pero conviene resolver coordenadas pendientes.');
   }
   if (state === 'low') {
-    return labelFor(labels, 'premium_map_quality_low', 'Muestra territorial baja: usar como senal, no como decision final.');
+    return labelFor(labels, 'premium_map_quality_low', 'Muestra territorial baja: usar como señal, no como decisión final.');
   }
   return labelFor(labels, 'premium_map_quality_empty', 'Faltan coordenadas para construir inteligencia territorial confiable.');
 };
@@ -380,26 +470,25 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
   const record = asRecord(action);
   if (!record) return undefined;
   const rawLabel = readString(record.title, record.label, record.name);
-  const label = rawLabel ? humanizeContractValue(rawLabel, rawLabel) : undefined;
+  const label = rawLabel ? humanizeContractValue(rawLabel, 'Acción disponible') : undefined;
   const contextLabel = readString(record.context_label, record.contextLabel);
-  const method = readString(record.method);
-  const endpoint = readString(record.endpoint, record.endpoint_template);
   const target = asRecord(record.target);
   const targetType = readString(target?.type, target?.kind);
   const numericTargetId = readNumber(target?.record_id, target?.ticket_id, target?.lat, target?.lng);
   const targetId = readString(target?.cell_id, target?.record_id, target?.ticket_id) ?? (numericTargetId !== undefined ? String(numericTargetId) : undefined);
   const targetLabel = targetType || targetId ? [targetType, targetId].filter(Boolean).join(' ') : undefined;
-  const endpointDetail = [method, endpoint].filter(Boolean).join(' ') || undefined;
   const rawHumanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
   const humanDetail = rawHumanDetail
-    ? humanizeContractValue(rawHumanDetail, rawHumanDetail)
+    ? humanizeContractValue(rawHumanDetail, 'Detalle operativo')
     : undefined;
   const href = buildTicketDeskHref(record);
-  const detail = contextLabel ?? humanDetail ?? targetLabel ?? (href ? undefined : endpointDetail);
+  const detail = contextLabel
+    ? humanizeCategoryValue(contextLabel, 'Contexto operativo')
+    : humanDetail ?? (targetLabel ? humanizeContractValue(targetLabel, 'Contexto operativo') : undefined);
   if (!label && !detail) return undefined;
   return {
-    label: label ?? 'Accion disponible',
-    detail: contextLabel ?? (detail ? humanizeContractValue(detail, detail) : undefined),
+    label: label ?? 'Acción disponible',
+    detail,
     priority: readString(record.priority),
     uiHint: readString(record.ui_hint),
     actionType: readString(record.action_type),
@@ -856,6 +945,9 @@ export function PremiumTerritoryHeatmap({
   const realtimeSources = heatmap?.realtime?.sources ?? [];
   const realtimeEvents = heatmap?.realtime?.socket_events ?? [];
   const latestRealtime = readString(heatmap?.realtime?.latest_event_at);
+  const realtimeFreshness = resolveRealtimeFreshness(latestRealtime, heatmap?.realtime?.poll_seconds);
+  const executiveProvenanceLabel =
+    dataProvenance.state === 'real' ? 'Datos territoriales verificados' : dataProvenance.label;
   const narrativeTitle = presentExecutiveText(
     readString(
       heatmap?.map_narrative?.headline,
@@ -879,7 +971,7 @@ export function PremiumTerritoryHeatmap({
   const defaultViewportRadius = readNumber(defaultViewport?.radius_km);
   const defaultViewportDetail = defaultViewport
     ? [
-        humanizeContractValue(readString(defaultViewport.mode), ''),
+        humanizeContractValue(readString(defaultViewport.mode), 'Vista territorial'),
         defaultViewportZoom !== undefined ? `zoom ${formatNumber(defaultViewportZoom)}` : undefined,
         defaultViewportRadius !== undefined ? `${formatNumber(defaultViewportRadius)} km` : undefined,
       ]
@@ -889,7 +981,9 @@ export function PremiumTerritoryHeatmap({
   const aiStatus = heatmap?.ai_status;
   const aiStatusLabel = humanizeContractValue(readString(aiStatus?.status, heatmap?.ai_layers?.status), 'sin estado IA');
   const aiModeLabel = humanizeContractValue(readString(aiStatus?.mode, heatmap?.ai_layers?.mode), 'capas operativas');
-  const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
+  const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : [])
+    .map((hint) => humanizeContractValue(hint, 'Capa operativa'))
+    .slice(0, 3);
   const mapLayers = asRecord(heatmap?.map_layers);
   const mapLayerHotspots = asRecord(mapLayers?.hotspots);
   const mapLayerFocus = asRecord(mapLayerHotspots?.focus);
@@ -1008,10 +1102,17 @@ export function PremiumTerritoryHeatmap({
     () => {
       const heatmapRecord = asRecord(heatmap);
       return {
-        source: usesDemoData ? 'demostración controlada' : 'operación municipal',
+        source:
+          dataProvenance.state === 'real'
+            ? 'procedencia validada'
+            : dataProvenance.state === 'demo'
+              ? 'demostración controlada'
+              : dataProvenance.state === 'synthetic'
+                ? 'datos sintéticos declarados'
+                : 'procedencia no validada',
         provider: liveMapProvider,
         contractVersion: readString(heatmap?.contract_version, geoLayerConfig?.contract_version),
-        usingSyntheticPoints: usesDemoData,
+        usingSyntheticPoints: dataProvenance.state === 'demo' || dataProvenance.state === 'synthetic',
         pointCount: liveMapPoints.length,
         featureCount:
           geoLayerConfig?.source && Array.isArray((geoLayerConfig.source as { features?: unknown[] }).features)
@@ -1036,6 +1137,7 @@ export function PremiumTerritoryHeatmap({
     [
       geoLayerConfig?.contract_version,
       geoLayerConfig?.source,
+      dataProvenance.state,
       heatmap,
       heatmap?.contract_version,
       heatmap?.quality?.coverage,
@@ -1045,9 +1147,6 @@ export function PremiumTerritoryHeatmap({
       hasTerritoryBoundaries,
       liveMapPoints.length,
       liveMapProvider,
-      usesBackendCellPoints,
-      usesBackendGeoLayerPoints,
-      usesDemoData,
     ],
   );
   const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
@@ -1071,18 +1170,11 @@ export function PremiumTerritoryHeatmap({
       : 'La actividad puntual sigue disponible; las comparaciones por zona requieren límites oficiales.');
   const commandLoopHref = decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href;
   const commandPrimaryCategory = backendTopCategory
-    ? humanizeContractValue(backendTopCategory, backendTopCategory)
+    ? humanizeCategoryValue(backendTopCategory)
     : decisionZone.topCategories[0]?.label ??
       aggregate.topCategories[0]?.label ??
-      (hasTerritoryBoundaries ? 'sin categoria dominante' : 'sin delimitación oficial');
-  const commandRealtimeDetail =
-    realtimeEvents.length > 0
-      ? humanizeContractValue(realtimeEvents[0], realtimeEvents[0])
-      : realtimeSources.length > 0
-        ? humanizeContractValue(realtimeSources[0], realtimeSources[0])
-        : latestRealtime
-          ? `ultimo evento ${latestRealtime}`
-          : 'sin actividad reciente';
+      (hasTerritoryBoundaries ? 'sin categoría dominante' : 'sin delimitación oficial');
+  const commandRealtimeDetail = realtimeFreshness.detail;
   const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
   const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
   const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
@@ -1123,7 +1215,7 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Pendientes',
       value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin ubicaciones pendientes',
+      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, 'Estado no confirmado') : 'sin ubicaciones pendientes',
       icon: DatabaseZap,
     },
     {
@@ -1140,15 +1232,15 @@ export function PremiumTerritoryHeatmap({
       icon: Compass,
     },
     {
-      label: 'Proxima accion',
+      label: 'Próxima acción',
       value: decisionActionLabel,
-      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
     },
   ];
   const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
     {
-      label: 'Foco critico',
+      label: 'Foco crítico',
       value:
         backendCriticalHotspots !== undefined
           ? `${formatNumber(backendCriticalHotspots, '0')} zonas críticas`
@@ -1157,20 +1249,20 @@ export function PremiumTerritoryHeatmap({
       icon: ShieldAlert,
     },
     {
-      label: 'Accion siguiente',
+      label: 'Acción siguiente',
       value: decisionActionLabel,
-      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
     },
     {
-      label: 'Cobertura GPS',
+      label: 'Cobertura territorial',
       value: formatPercent(readiness.coveragePercent),
       detail: `${formatNumber(visiblePointCount, '0')} puntos visibles`,
       icon: Gauge,
     },
     {
-      label: 'Tiempo real',
-      value: heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : 'manual',
+      label: 'Actualización',
+      value: realtimeFreshness.label,
       detail: commandRealtimeDetail,
       icon: Activity,
     },
@@ -1179,7 +1271,7 @@ export function PremiumTerritoryHeatmap({
     {
       label: backendTopCategory ? 'Motivo prioritario' : 'Zona foco',
       value: backendTopCategory
-        ? humanizeContractValue(backendTopCategory, backendTopCategory)
+        ? humanizeCategoryValue(backendTopCategory)
         : hasTerritoryBoundaries
           ? decisionZone.zone.label
           : 'Sin delimitación oficial',
@@ -1211,7 +1303,7 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Datos pendientes',
       value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola visible',
+       detail: geocodingStatus ? humanizeContractValue(geocodingStatus, 'Estado no confirmado') : 'sin cola visible',
       icon: DatabaseZap,
     },
   ];
@@ -1245,16 +1337,8 @@ export function PremiumTerritoryHeatmap({
         { label: 'Alto', detail: 'prioridad operativa', color: fallbackLegendColors[2] },
         { label: 'Muestra insuficiente', detail: 'privacidad activa', color: fallbackLegendColors[3] },
       ];
-  const liveSignalValue = latestRealtime
-    ? 'En línea'
-    : showRealtimeLayer || realtimeEvents.length || realtimeSources.length
-      ? 'Escuchando'
-      : 'Sin actividad';
-  const liveSignalDetail =
-    latestRealtime ||
-    realtimeEvents.map((event) => humanizeContractValue(event, event)).join(' / ') ||
-    realtimeSources.map((source) => humanizeContractValue(source, source)).join(' / ') ||
-    'sin eventos recientes';
+  const liveSignalValue = realtimeFreshness.label;
+  const liveSignalDetail = realtimeFreshness.detail;
   const focusDetail =
     backendFocusCount !== undefined
       ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
@@ -1269,9 +1353,9 @@ export function PremiumTerritoryHeatmap({
     showCommerceLayer ? 'comercio' : null,
   ].filter(Boolean).join(' - ');
   const liveLegendCards = [
-    { label: 'Señal viva', value: liveSignalValue, detail: liveSignalDetail, icon: Activity },
+    { label: 'Estado de actualización', value: liveSignalValue, detail: liveSignalDetail, icon: Activity },
     { label: 'Foco', value: commandPrimaryCategory, detail: focusDetail, icon: Compass },
-    { label: 'Accion siguiente', value: decisionActionLabel, detail: decisionActionDetail || 'sin accion pendiente', icon: ListChecks },
+    { label: 'Acción siguiente', value: decisionActionLabel, detail: decisionActionDetail || 'sin acción pendiente', icon: ListChecks },
     { label: 'Sistema visual', value: backendRenderer, detail: visualSystemDetail || preferredVisualization, icon: Radar },
   ];
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
@@ -1287,11 +1371,7 @@ export function PremiumTerritoryHeatmap({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
-              {usesDemoData
-                ? 'Escenario de demostración'
-                : usesBackendCellPoints
-                  ? 'Zonas agregadas verificadas'
-                  : 'Datos operativos verificados'}
+              {executiveProvenanceLabel}
             </Badge>
             <Badge variant="outline" className="gap-1 capitalize">
               <Globe2 className="h-3.5 w-3.5" />
@@ -1314,7 +1394,7 @@ export function PremiumTerritoryHeatmap({
             {hasWarning ? (
               <Badge variant="outline" className="gap-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                fallback mapa
+                Vista alternativa activa
               </Badge>
             ) : null}
           </div>
@@ -1325,7 +1405,7 @@ export function PremiumTerritoryHeatmap({
         </div>
         <div className="grid grid-cols-2 gap-2 text-right sm:min-w-[430px] sm:grid-cols-4">
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Eventos</p>
+            <p className="text-xs text-muted-foreground">Volumen ponderado</p>
             <p className="text-lg font-semibold">{formatNumber(overallEventTotal)}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
@@ -1337,7 +1417,7 @@ export function PremiumTerritoryHeatmap({
             <p className="text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Actualización</p>
+            <p className="text-xs text-muted-foreground">Frecuencia configurada</p>
             <p className="text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
           </div>
         </div>
@@ -1378,13 +1458,13 @@ export function PremiumTerritoryHeatmap({
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Resumen operativo para leer demanda, calidad de datos y accion siguiente sin abrir paneles internos.
+              Resumen operativo para leer demanda, calidad de datos y acción siguiente sin abrir paneles internos.
             </p>
           </div>
           <Badge variant="outline" className="w-fit gap-1">
             <Activity className="h-3.5 w-3.5" />
             {hasBackendMapContract
-              ? 'fuente operativa conectada'
+              ? 'contrato operativo disponible'
               : hasTerritoryBoundaries
                 ? 'límites oficiales activos'
                 : 'sin límites oficiales'}
@@ -1430,7 +1510,7 @@ export function PremiumTerritoryHeatmap({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge variant="outline" className="gap-1">
               <Activity className="h-3.5 w-3.5" />
-              {realtimeSources.length || realtimeEvents.length ? 'senal viva' : 'modo operativo'}
+              {realtimeFreshness.isFresh ? 'actualización reciente' : 'conectividad no verificada'}
             </Badge>
             {commandLoopHref ? (
               <a
@@ -1471,7 +1551,7 @@ export function PremiumTerritoryHeatmap({
                 <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-teal-400 shadow-[0_0_0_4px_rgba(45,212,191,0.18)]" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decision</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decisión</p>
                 <h4 className="mt-1 text-base font-semibold leading-snug">{decisionActionLabel}</h4>
                 <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{decisionActionDetail}</p>
               </div>
@@ -1553,6 +1633,7 @@ export function PremiumTerritoryHeatmap({
             <div data-testid="live-territory-map" className="relative z-10 h-[450px] w-full overflow-hidden sm:h-[540px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
+                ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
                 heatmapData={visibleLiveMapPoints}
                 showHeatmap={showHeatLayer}
                 provider={liveMapProvider}
@@ -1975,7 +2056,7 @@ export function PremiumTerritoryHeatmap({
                 </div>
                 <h4 className="mt-3 text-lg font-semibold">Sin delimitación territorial oficial</h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un GeoJSON oficial para habilitar
+                  No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un archivo oficial de límites territoriales para habilitar
                   agregaciones, rankings y tasas por zona.
                 </p>
               </div>
@@ -2034,13 +2115,13 @@ export function PremiumTerritoryHeatmap({
               {geocodingStatus ? (
                 <Badge variant="outline" className="gap-1 bg-background/80 capitalize backdrop-blur">
                   <DatabaseZap className="h-3.5 w-3.5" />
-                  {humanizeContractValue(geocodingStatus, geocodingStatus)}
+                  {humanizeContractValue(geocodingStatus, 'Estado no confirmado')}
                 </Badge>
               ) : null}
               {latestRealtime ? (
                 <Badge variant="outline" className="gap-1 bg-background/80 backdrop-blur">
                   <Activity className="h-3.5 w-3.5" />
-                  {latestRealtime}
+                  {realtimeFreshness.detail}
                 </Badge>
               ) : null}
             </div>
@@ -2142,7 +2223,7 @@ export function PremiumTerritoryHeatmap({
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
-                  Actualización
+                  Frecuencia configurada
                 </div>
                 <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
               </div>
@@ -2152,7 +2233,7 @@ export function PremiumTerritoryHeatmap({
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...realtimeSources, ...realtimeEvents].slice(0, 4).map((item) => (
                   <Badge key={item} variant="outline" className="capitalize">
-                    {humanizeContractValue(item, item)}
+                    {humanizeContractValue(item, 'Canal configurado')}
                   </Badge>
                 ))}
               </div>
@@ -2168,7 +2249,7 @@ export function PremiumTerritoryHeatmap({
                 </div>
                 <Badge variant="outline" className="shrink-0 gap-1">
                   <Radar className="h-3.5 w-3.5" />
-                  {backendRadarEnabled ? 'radar activo' : 'capa estatica'}
+                  {backendRadarEnabled ? 'radar activo' : 'capa estática'}
                 </Badge>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2186,7 +2267,7 @@ export function PremiumTerritoryHeatmap({
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Foco principal</p>
-                      <p className="mt-1 truncate text-sm font-medium">{humanizeContractValue(backendTopCategory, backendTopCategory)}</p>
+                      <p className="mt-1 truncate text-sm font-medium">{humanizeCategoryValue(backendTopCategory)}</p>
                     </div>
                     <Badge variant="secondary" className="shrink-0 capitalize">
                       {backendFocusRiskLabel}
@@ -2234,7 +2315,7 @@ export function PremiumTerritoryHeatmap({
               <div className="mt-3 space-y-2">
                 {operationalHotspots.slice(0, 3).map((hotspot, index) => {
                   const signals = asRecord(hotspot.signals);
-                  const category = humanizeContractValue(readString(hotspot.top_category, hotspot.key, hotspot.label), 'sin categoria');
+                  const category = humanizeCategoryValue(readString(hotspot.top_category, hotspot.key, hotspot.label));
                   const channel = humanizeContractValue(readString(hotspot.top_channel), 'sin canal');
                   const signalChips = [
                     { label: 'SLA', value: readNumber(signals?.breached_sla) },
@@ -2309,7 +2390,7 @@ export function PremiumTerritoryHeatmap({
                     Resumen operativo asistido
                   </div>
                   <h4 className="mt-2 text-base font-semibold leading-snug">
-                    {narrativeTitle || 'Mapa territorial accionable'}
+                    {narrativeTitle || 'Mapa territorial para la acción'}
                   </h4>
                   {narrativeBody ? (
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">{narrativeBody}</p>
@@ -2360,7 +2441,7 @@ export function PremiumTerritoryHeatmap({
                   <div data-testid="heatmap-action-loop" className="rounded-lg border bg-background/65 p-3">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       <ListChecks className="h-3.5 w-3.5" />
-                      Proximas acciones
+                       Próximas acciones
                     </div>
                     <div className="mt-2 space-y-2">
                       {operationalActionSummaries
@@ -2375,7 +2456,7 @@ export function PremiumTerritoryHeatmap({
                               <p className="min-w-0 text-sm font-medium">{action.label}</p>
                               {action.priority || action.actionType ? (
                                 <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
-                                  {humanizeContractValue(action.priority ?? action.actionType, 'accion')}
+                                  {humanizeContractValue(action.priority ?? action.actionType, 'Prioridad operativa')}
                                 </Badge>
                               ) : null}
                             </div>
@@ -2385,11 +2466,11 @@ export function PremiumTerritoryHeatmap({
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               {action.uiHint ? (
                                 <Badge variant="secondary" className="text-[10px] capitalize">
-                                  {humanizeContractValue(action.uiHint, action.uiHint)}
+                                  {humanizeContractValue(action.uiHint, 'Acción operativa')}
                                 </Badge>
                               ) : null}
                               <Badge variant={action.writesEnabled ? 'outline' : 'secondary'} className="text-[10px]">
-                                {action.writesEnabled ? 'requiere confirmacion' : 'preparacion segura'}
+                                {action.writesEnabled ? 'requiere confirmación' : 'preparación segura'}
                               </Badge>
                               {action.href ? (
                                 <a
@@ -2430,7 +2511,7 @@ export function PremiumTerritoryHeatmap({
 
             {selectedZone.suppressed ? (
               <div className="mt-4 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                Muestra insuficiente. Se ocultan totales y categorias para evitar reidentificacion por segmentos.
+                Muestra insuficiente. Se ocultan totales y categorías para evitar la reidentificación por segmentos.
               </div>
             ) : (
               <div className="mt-4">

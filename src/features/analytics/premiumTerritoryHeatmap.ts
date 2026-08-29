@@ -186,7 +186,7 @@ export const resolveTerritoryMapReadiness = (
 
   const label =
     state === 'empty' && canRenderHeatmap === false
-      ? 'Mapa no renderizable'
+      ? 'Mapa sin datos suficientes'
       : readFirstString(quality?.label) ??
         (state === 'ready'
           ? 'Cobertura lista'
@@ -242,7 +242,7 @@ export const resolveTerritoryDataProvenance = (
       state: 'synthetic',
       label: 'Datos sintéticos declarados',
       shortLabel: 'sintéticos',
-      detail: 'La API declaró respuestas sintéticas incluidas; no deben usarse para decisiones operativas.',
+      detail: 'El sistema declaró respuestas sintéticas incluidas; no deben usarse para decisiones operativas.',
     };
   }
 
@@ -255,10 +255,10 @@ export const resolveTerritoryDataProvenance = (
   ) {
     return {
       state: 'real',
-      label: 'Procedencia validada por backend',
+      label: 'Procedencia validada por el sistema',
       shortLabel: 'procedencia validada',
       detail:
-        'La API clasificó las respuestas incluidas como reales y excluye las sintéticas o no verificadas; no certifica límites zonales.',
+        'El sistema clasificó las respuestas incluidas como reales y excluye las sintéticas o no verificadas; no certifica límites zonales.',
     };
   }
 
@@ -268,7 +268,7 @@ export const resolveTerritoryDataProvenance = (
       label: 'Procedencia parcial',
       shortLabel: 'validación parcial',
       detail:
-        'La API valida la procedencia de respuestas de encuesta, pero no certifica todos los puntos operativos representados.',
+        'El sistema valida la procedencia de respuestas de encuesta, pero no certifica todos los puntos operativos representados.',
     };
   }
 
@@ -276,7 +276,7 @@ export const resolveTerritoryDataProvenance = (
     state: 'unvalidated',
     label: 'Procedencia no validada',
     shortLabel: 'sin validación',
-    detail: 'La API no informó una clasificación verificable; revisá la fuente antes de usar este mapa para decisiones.',
+    detail: 'La fuente no informó una clasificación verificable; revisala antes de usar este mapa para decisiones.',
   };
 };
 

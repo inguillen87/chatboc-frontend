@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { PremiumTerritoryHeatmap } from '@/features/analytics/PremiumTerritoryMap';
+import { resolveTerritoryDataProvenance } from '@/features/analytics/premiumTerritoryHeatmap';
 import { getOperationsHeatmapV2 } from '@/features/analytics/analyticsApi';
 import type {
   OperationsBucketItem,
@@ -418,6 +420,7 @@ function IncidentsTelemetryOverlay({
   showHeatmap: boolean;
   isLoading: boolean;
 }) {
+  const shouldReduceMotion = useReducedMotion();
   const reactId = useId().replace(/:/g, '');
   const gridId = `${reactId}-grid`;
   const heatGradientId = `${reactId}-heat`;
@@ -426,9 +429,9 @@ function IncidentsTelemetryOverlay({
   const routePath = useMemo(() => buildTelemetryRoute(nodes), [nodes]);
   const focusNode = nodes[0];
   const statusLabel = isLoading
-    ? 'Sincronizando telemetria territorial'
+    ? 'Actualizando vista territorial'
     : nodes.length
-      ? `${nodes.length} nodos activos`
+      ? `${nodes.length} ubicaciones visibles`
       : 'Esperando coordenadas';
 
   return (
@@ -465,20 +468,26 @@ function IncidentsTelemetryOverlay({
           <g transform={`translate(${focusNode.x} ${focusNode.y})`}>
             <circle r="118" fill={`url(#${heatGradientId})`} opacity={showHeatmap ? 0.62 : 0.28} />
             <circle r="42" fill="none" stroke="rgba(34,211,238,0.42)" strokeWidth="1.4">
-              <animate attributeName="r" values="42;92;42" dur="5s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.72;0.08;0.72" dur="5s" repeatCount="indefinite" />
+              {!shouldReduceMotion ? (
+                <>
+                  <animate attributeName="r" values="42;92;42" dur="5s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.72;0.08;0.72" dur="5s" repeatCount="indefinite" />
+                </>
+              ) : null}
             </circle>
             <g opacity="0.62">
               <line x1="-96" x2="96" y1="0" y2="0" stroke="rgba(125,211,252,0.55)" strokeWidth="1" />
               <line x1="0" x2="0" y1="-96" y2="96" stroke="rgba(125,211,252,0.55)" strokeWidth="1" />
-              <animateTransform
-                attributeName="transform"
-                type="rotate"
-                from="0"
-                to="360"
-                dur="13s"
-                repeatCount="indefinite"
-              />
+              {!shouldReduceMotion ? (
+                <animateTransform
+                  attributeName="transform"
+                  type="rotate"
+                  from="0"
+                  to="360"
+                  dur="13s"
+                  repeatCount="indefinite"
+                />
+              ) : null}
             </g>
           </g>
         ) : null}
@@ -495,11 +504,13 @@ function IncidentsTelemetryOverlay({
               strokeWidth="3"
               opacity="0.78"
             />
-            <circle r="5" fill="#f8fafc" stroke="#22d3ee" strokeWidth="2">
-              <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
-                <mpath href={`#${reactId}-path`} />
-              </animateMotion>
-            </circle>
+            {!shouldReduceMotion ? (
+              <circle r="5" fill="#f8fafc" stroke="#22d3ee" strokeWidth="2">
+                <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
+                  <mpath href={`#${reactId}-path`} />
+                </animateMotion>
+              </circle>
+            ) : null}
           </g>
         ) : null}
 
@@ -508,8 +519,12 @@ function IncidentsTelemetryOverlay({
           return (
             <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
               <circle r={radius + 10} fill="#f59e0b" opacity="0.08">
-                <animate attributeName="r" values={`${radius + 8};${radius + 26};${radius + 8}`} dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.24;0.04;0.24" dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
+                {!shouldReduceMotion ? (
+                  <>
+                    <animate attributeName="r" values={`${radius + 8};${radius + 26};${radius + 8}`} dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.24;0.04;0.24" dur={`${4 + index * 0.25}s`} repeatCount="indefinite" />
+                  </>
+                ) : null}
               </circle>
               <circle r={radius} fill={index === 0 ? '#fbbf24' : '#38bdf8'} opacity="0.9" />
               <circle r={Math.max(3, radius / 2.8)} fill="#020617" opacity="0.72" />
@@ -521,7 +536,7 @@ function IncidentsTelemetryOverlay({
       <div className="absolute right-3 top-3 hidden w-[180px] rounded-xl border border-white/15 bg-slate-950/82 p-2.5 text-white shadow-2xl backdrop-blur md:block">
         <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan-100/80">
           <Radio className="h-4 w-4" />
-          Comando territorial
+          Estado territorial
         </div>
         <p className="mt-1.5 text-sm font-semibold leading-tight">{statusLabel}</p>
         <div className="mt-2 grid gap-1.5 text-[11px]">
@@ -531,7 +546,7 @@ function IncidentsTelemetryOverlay({
           </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.06] p-2">
             <span className="block text-white/55">
-              {hotZones[0] ? 'Top zona' : 'Calidad territorial'}
+              {hotZones[0] ? 'Zona principal' : 'Calidad territorial'}
             </span>
             <strong className="block truncate">
               {hotZones[0]
@@ -1186,6 +1201,16 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const operationsPrivacyLabel = operationsHeatmap?.privacy?.mode
     ? formatMapLabel(operationsHeatmap.privacy.mode)
     : 'Sin modo declarado';
+  const operationsDataProvenance = useMemo(
+    () => resolveTerritoryDataProvenance(operationsHeatmap, false, operationsHeatmap?.points ?? []),
+    [operationsHeatmap],
+  );
+  const operationsTrustLabel =
+    operationsDataProvenance.state === 'real'
+      ? 'Datos territoriales verificados'
+      : operationsDataProvenance.state === 'synthetic' || operationsDataProvenance.state === 'demo'
+        ? 'Datos de demostración declarados'
+        : 'Datos disponibles sin validación completa';
   const syntheticResponsesExcluded = readFiniteNumber(
     operationsHeatmap?.response_provenance?.synthetic_responses_excluded,
   );
@@ -1220,7 +1245,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
 
   const mapKpis = [
     {
-      label: 'Incidencias',
+      label: 'Volumen ponderado',
       value: formatNumber(mapInsights.totalWeight),
       detail: `${formatNumber(mapInsights.pointCount)} puntos`,
       icon: Activity,
@@ -1251,8 +1276,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       label: 'Estado dominante',
       value: formatMapLabel(mapInsights.topState?.label),
       detail: mapInsights.topCategory
-        ? `Categoria: ${formatMapLabel(mapInsights.topCategory.label)}`
-        : 'Sin categoria',
+        ? `Categoría: ${formatMapLabel(mapInsights.topCategory.label)}`
+        : 'Sin categoría',
       icon: AlertCircle,
     },
   ];
@@ -1265,7 +1290,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             Inteligencia territorial CRM
           </p>
           <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
-            Mapa vivo de reclamos y calor operativo
+            Mapa operativo de reclamos y demanda territorial
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
             Priorización por zona, categoría, estado y actividad reciente sobre el mapa operativo.
@@ -1277,7 +1302,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
             {heatmapContractSource === 'operations_v2'
-              ? 'Datos territoriales verificados'
+              ? operationsTrustLabel
               : showHeatmap
                 ? 'Capa calor activa'
                 : 'Puntos agrupados'}
@@ -1325,7 +1350,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 }`}
               >
                 <Flame className="h-4 w-4" />
-                {showHeatmap ? 'Calor activo' : 'Solo puntos'}
+                {showHeatmap ? 'Densidad activa' : 'Solo puntos'}
               </button>
             ) : (
               <span className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-primary">
@@ -1334,8 +1359,13 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               </span>
             )}
             <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
-              <span>Motor</span>
-              <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+              <span>Vista</span>
+              <MapProviderToggle
+                value={provider}
+                onChange={setProvider}
+                size="sm"
+                ariaLabel="Proveedor cartográfico"
+              />
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[180px_auto_auto] xl:min-w-[520px]">
@@ -1371,10 +1401,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-foreground">
             <span className="inline-flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              Filtros avanzados y segmentacion
+              Filtros avanzados y segmentación
             </span>
             <span className="text-xs font-medium text-muted-foreground group-open:hidden">
-              Categoria, estado, ubicacion, edad y genero
+              Categoría, estado, ubicación, edad y género
             </span>
             <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
               Ocultar filtros avanzados
@@ -1587,11 +1617,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           <AlertDescription className="space-y-4">
             <p>
               {operationsHeatmap?.map_narrative?.body ||
-                'No encontramos reclamos geocodificados con los filtros aplicados. Amplia el periodo o limpia la segmentacion para recuperar cobertura.'}
+                'No encontramos reclamos geocodificados con los filtros aplicados. Ampliá el período o limpiá la segmentación para recuperar cobertura.'}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" onClick={expandToNinetyDays}>
-                Ampliar a 90 dias
+                Ampliar a 90 días
               </Button>
               <Button type="button" variant="outline" onClick={clearFilters}>
                 Limpiar filtros
@@ -1612,7 +1642,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               <div>
                 <p className="text-sm font-semibold text-foreground">Calidad y privacidad de los datos</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Fuente operativa verificada · {operationsPrivacyLabel} ·{' '}
+                  {operationsDataProvenance.state === 'real'
+                    ? 'Fuente operativa verificada'
+                    : operationsDataProvenance.label}{' '}
+                  · {operationsPrivacyLabel} ·{' '}
                   {Object.keys(operationsHeatmap.applied_filters ?? {}).length === 1
                     ? '1 filtro aplicado'
                     : `${Object.keys(operationsHeatmap.applied_filters ?? {}).length} filtros aplicados`}
@@ -1685,10 +1718,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         className="border-amber-500/35 bg-amber-500/10"
       >
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Compatibilidad legado · evidencia parcial</AlertTitle>
+        <AlertTitle>Vista alternativa · evidencia parcial</AlertTitle>
         <AlertDescription>
-          El contrato territorial v2 no está publicado en este entorno. La vista conserva los puntos
-          disponibles, pero no certifica privacidad, procedencia ni todos los filtros enterprise.
+          La fuente territorial avanzada todavía no está disponible en este entorno. La vista conserva
+          los puntos publicados, pero no certifica privacidad, procedencia ni todos los filtros institucionales.
         </AlertDescription>
       </Alert>
       <div
@@ -1753,6 +1786,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           fitToBounds={heatmapBounds.length === 2 ? heatmapBounds : undefined}
           onProviderUnavailable={handleProviderUnavailable}
           disableClientClustering={disableClustering}
+          ariaLabel="Mapa operativo de reclamos y demanda territorial"
         />
         <IncidentsTelemetryOverlay
           points={heatmapData}
@@ -1798,7 +1832,9 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             {legendText}
           </div>
           <div className="rounded-xl bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-lg backdrop-blur">
-            {provider === 'google' ? 'Google con fallback MapLibre' : 'MapLibre GL local'}
+            {provider === 'google'
+              ? 'Cartografía Google con respaldo automático'
+              : 'Cartografía estándar'}
           </div>
         </div>
         {isLoading && (
