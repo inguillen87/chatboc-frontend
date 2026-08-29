@@ -15,6 +15,7 @@ $compiledConfig = Join-Path $projectRoot ".vercel\output\config.json"
 $previousBackendUrl = $env:VITE_BACKEND_URL
 $previousApiUrl = $env:VITE_API_URL
 $previousSocketUrl = $env:VITE_SOCKET_URL
+$previousAppVersion = $env:VITE_APP_VERSION
 $previousEffectiveVercelConfig = $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG
 $previousPrebuiltLocalConfigBinding = $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND
 
@@ -26,6 +27,21 @@ try {
     $env:VITE_BACKEND_URL = $previewFrontendOrigin
     $env:VITE_API_URL = $previewFrontendOrigin
     $env:VITE_SOCKET_URL = $previewBackendOrigin
+
+    $frontendRevision = (& git -C $projectRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $frontendRevision -notmatch '^[0-9a-f]{40}$') {
+        throw "Could not resolve an exact frontend Git revision."
+    }
+
+    $sourceChanges = @(& git -C $projectRoot status --porcelain --untracked-files=normal)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not verify the frontend worktree state."
+    }
+    if ($sourceChanges.Count -gt 0) {
+        throw "The frontend worktree must be clean before creating an auditable Preview build."
+    }
+
+    $env:VITE_APP_VERSION = $frontendRevision
     $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG = $previewConfig
     $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND = "1"
 
@@ -100,11 +116,17 @@ try {
         throw "The direct Socket.IO Preview origin was not embedded in the frontend bundle."
     }
 
+    $builtIndex = Get-Content -Raw -LiteralPath (Join-Path $projectRoot "dist\index.html")
+    if (-not $builtIndex.Contains($frontendRevision)) {
+        throw "The exact frontend revision was not embedded in dist/index.html."
+    }
+
     [pscustomobject]@{
         contract = "chatboc.frontend.preview-build.v1"
         target = "preview"
         backend_origin = $previewBackendOrigin
         browser_origin = $previewFrontendOrigin
+        frontend_revision = $frontendRevision
         compiled_preview_routes = $previewRouteCount
         compiled_render_routes = $renderRouteCount
         bundle_contains_same_origin = $bundleContainsPreviewFrontend
@@ -132,6 +154,13 @@ finally {
     }
     else {
         $env:VITE_SOCKET_URL = $previousSocketUrl
+    }
+
+    if ($null -eq $previousAppVersion) {
+        Remove-Item Env:VITE_APP_VERSION -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:VITE_APP_VERSION = $previousAppVersion
     }
 
     if ($null -eq $previousEffectiveVercelConfig) {
