@@ -695,6 +695,8 @@ describe('NewTicketsPanel CRM layout', () => {
 
       expect(screen.getByTestId('tickets-workspace-card')).toHaveAttribute('data-viewport-mode', 'focus');
       expect(screen.getByTestId('tickets-workspace-card')).toHaveClass('fixed', 'inset-3', 'z-50');
+      expect(screen.getByRole('dialog', { name: /conversación ampliada/i })).toHaveAttribute('aria-modal', 'true');
+      expect(screen.getByTestId('tickets-focus-backdrop')).toHaveAttribute('aria-hidden', 'true');
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-conversation-focus', 'true');
       expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
       expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument();
@@ -702,6 +704,28 @@ describe('NewTicketsPanel CRM layout', () => {
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({ gridTemplateColumns: 'minmax(0, 1fr)' });
       expect(screen.queryByText('Caso y conversación')).not.toBeInTheDocument();
       expect(document.body).toHaveStyle({ overflow: 'hidden' });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Salir de vista ampliada' })).toHaveFocus());
+
+      const detailsToggle = screen.getByRole('button', { name: 'Ver detalles del ticket' });
+      detailsToggle.focus();
+      fireEvent.click(detailsToggle);
+      expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-conversation')).toBe(originalConversation);
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      await waitFor(() => expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument());
+      expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-conversation-focus', 'true');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Ver detalles del ticket' })).toHaveFocus());
+
+      const focusDialog = screen.getByRole('dialog', { name: /conversación ampliada/i });
+      const focusableControls = Array.from(focusDialog.querySelectorAll<HTMLElement>('button:not([disabled])'));
+      const firstFocusable = focusableControls[0];
+      const lastFocusable = focusableControls.at(-1);
+      if (!firstFocusable || !lastFocusable) throw new Error('La vista ampliada debe conservar controles enfocados.');
+      firstFocusable.focus();
+      fireEvent.keyDown(firstFocusable, { key: 'Tab', shiftKey: true });
+      expect(lastFocusable).toHaveFocus();
 
       fireEvent.keyDown(document, { key: 'Escape' });
 

@@ -62,6 +62,14 @@ const DETAIL_MIN_WIDTH = 340;
 const DETAIL_MAX_WIDTH = 520;
 const DETAIL_DEFAULT_WIDTH = 420;
 const DETAIL_KEYBOARD_STEP = 20;
+const TICKET_WORKSPACE_FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 const readViewportWidth = () =>
   typeof window === 'undefined' ? Number.POSITIVE_INFINITY : window.innerWidth;
@@ -515,12 +523,68 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const [hydratedInspectorStorageKey, setHydratedInspectorStorageKey] = React.useState<string | null>(null);
   const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
   const [conversationFocusMode, setConversationFocusMode] = React.useState(false);
+  const [focusInspectorOpen, setFocusInspectorOpen] = React.useState(false);
+  const focusInspectorOpenRef = React.useRef(false);
   const conversationFocusButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const sidebarVisibilityBeforeDrawerRef = React.useRef<boolean | null>(null);
   const previousConstrainedDetailsRef = React.useRef(false);
   const resizeCleanupRef = React.useRef<(() => void) | null>(null);
   const detailsDrawerRef = React.useRef<HTMLElement | null>(null);
   const detailsTriggerRef = React.useRef<HTMLElement | null>(null);
+  const activeDesktopDetailsVisible = conversationFocusMode ? focusInspectorOpen : isDetailsVisible;
+
+  const restoreDetailsTriggerFocus = React.useCallback(() => {
+    const trigger = detailsTriggerRef.current;
+    detailsTriggerRef.current = null;
+    if (trigger?.isConnected) {
+      window.requestAnimationFrame(() => trigger.focus());
+    }
+  }, []);
+
+  const closeConversationFocusMode = React.useCallback(() => {
+    setFocusInspectorOpen(false);
+    setConversationFocusMode(false);
+    window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
+  }, []);
+
+  const toggleConversationFocusMode = React.useCallback(() => {
+    if (conversationFocusMode) {
+      closeConversationFocusMode();
+      return;
+    }
+
+    setFocusInspectorOpen(false);
+    setConversationFocusMode(true);
+  }, [closeConversationFocusMode, conversationFocusMode]);
+
+  const handleConversationFocusKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!conversationFocusMode || event.key !== 'Tab') return;
+
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+
+    const focusableElements = (
+      Array.from(workspace.querySelectorAll(TICKET_WORKSPACE_FOCUSABLE_SELECTOR)) as HTMLElement[]
+    ).filter((element) => element.getAttribute('aria-hidden') !== 'true');
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements.at(-1);
+    if (!firstFocusable || !lastFocusable) {
+      event.preventDefault();
+      workspace.focus();
+      return;
+    }
+
+    if (event.shiftKey && (document.activeElement === firstFocusable || !workspace.contains(document.activeElement))) {
+      event.preventDefault();
+      lastFocusable.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === lastFocusable) {
+      event.preventDefault();
+      firstFocusable.focus();
+    }
+  }, [conversationFocusMode]);
 
   const lastMobileTicketId = React.useRef<string | number | null>(null);
   const appliedDeskQueryKeyRef = React.useRef<string>('');
@@ -529,6 +593,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
   }, [mobileView]);
+
+  React.useEffect(() => {
+    focusInspectorOpenRef.current = focusInspectorOpen;
+  }, [focusInspectorOpen]);
 
   React.useEffect(() => {
     setHydratedInspectorStorageKey(null);
@@ -567,7 +635,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [detailsWidth, hydratedInspectorStorageKey, inspectorStorageKey, isDetailsVisible, isMobile]);
 
   const shouldPrioritizeConversation =
-    !isMobile && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH;
+    !isMobile && !conversationFocusMode && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH;
 
   React.useEffect(() => {
     const wasConstrained = previousConstrainedDetailsRef.current;
@@ -596,15 +664,21 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     }
     sidebarVisibilityBeforeDrawerRef.current = null;
 
-    const trigger = detailsTriggerRef.current;
-    detailsTriggerRef.current = null;
-    if (trigger?.isConnected) {
-      window.requestAnimationFrame(() => trigger.focus());
-    }
-  }, []);
+    restoreDetailsTriggerFocus();
+  }, [restoreDetailsTriggerFocus]);
+
+  const closeFocusedDetails = React.useCallback(() => {
+    setFocusInspectorOpen(false);
+    restoreDetailsTriggerFocus();
+  }, [restoreDetailsTriggerFocus]);
 
   React.useEffect(() => {
-    if (isMobile || !isDetailsVisible || !shouldUseDetailsDrawer) return;
+    if (
+      isMobile ||
+      conversationFocusMode ||
+      !activeDesktopDetailsVisible ||
+      !shouldUseDetailsDrawer
+    ) return;
 
     const focusFrame = window.requestAnimationFrame(() => {
       const closeButton = detailsDrawerRef.current?.querySelector<HTMLElement>(
@@ -623,7 +697,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [closeDesktopDetails, isDetailsVisible, isMobile, shouldUseDetailsDrawer]);
+  }, [activeDesktopDetailsVisible, closeDesktopDetails, conversationFocusMode, isMobile, shouldUseDetailsDrawer]);
 
   React.useEffect(
     () => () => {
@@ -637,22 +711,28 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     if (!conversationFocusMode) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const focusFrame = window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      setConversationFocusMode(false);
-      window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
+      if (focusInspectorOpenRef.current) {
+        closeFocusedDetails();
+        return;
+      }
+      closeConversationFocusMode();
     };
     document.addEventListener('keydown', handleEscape);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [conversationFocusMode]);
+  }, [closeConversationFocusMode, closeFocusedDetails, conversationFocusMode]);
 
   React.useEffect(() => {
     if (selectedTicket) return;
     setConversationFocusMode(false);
+    setFocusInspectorOpen(false);
   }, [selectedTicket]);
 
   React.useEffect(() => {
@@ -1131,7 +1211,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         ? operationalFilterBadges[0]
         : `${operationalFilterBadges[0]} +${operationalFilterBadges.length - 1}`;
   const effectiveSidebarVisible = isSidebarVisible && !conversationFocusMode;
-  const effectiveDetailsVisible = isDetailsVisible && !conversationFocusMode;
+  const effectiveDetailsVisible = activeDesktopDetailsVisible;
   const showDetailsAsDrawer = effectiveDetailsVisible && shouldUseDetailsDrawer;
   const showDetailsAsColumn = effectiveDetailsVisible && !shouldUseDetailsDrawer;
   const drawerDetailMaxWidth = Math.max(
@@ -1176,6 +1256,19 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   };
 
   const handleToggleDesktopDetails = () => {
+    if (conversationFocusMode) {
+      if (focusInspectorOpen) {
+        closeFocusedDetails();
+        return;
+      }
+
+      detailsTriggerRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      setFocusInspectorOpen(true);
+      return;
+    }
+
     if (isDetailsVisible) {
       closeDesktopDetails();
       return;
@@ -1261,11 +1354,17 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   };
 
   return (
+    <>
     <Card
       ref={workspaceRef}
       className={panelCardClass}
       data-testid="tickets-workspace-card"
       data-viewport-mode={conversationFocusMode ? 'focus' : 'standard'}
+      role={conversationFocusMode ? 'dialog' : undefined}
+      aria-modal={conversationFocusMode ? true : undefined}
+      aria-labelledby={conversationFocusMode ? 'tickets-focus-dialog-title' : undefined}
+      tabIndex={conversationFocusMode ? -1 : undefined}
+      onKeyDown={handleConversationFocusKeyDown}
     >
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
@@ -1280,11 +1379,18 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               <ListChecks className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">
-                {tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de tickets'}
+              <h2
+                id={conversationFocusMode ? 'tickets-focus-dialog-title' : undefined}
+                className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base"
+              >
+                {conversationFocusMode
+                  ? `Conversación ampliada${selectedTicket?.nro_ticket ? ` · ${selectedTicket.nro_ticket}` : ''}`
+                  : tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de tickets'}
               </h2>
               <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                Priorizá la cola, conversá y resolvé sin perder contexto.
+                {conversationFocusMode
+                  ? 'Historial, respuesta y panel del caso en un espacio de trabajo dedicado.'
+                  : 'Priorizá la cola, conversá y resolvé sin perder contexto.'}
               </p>
             </div>
           </div>
@@ -1297,9 +1403,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 variant={conversationFocusMode ? 'secondary' : 'outline'}
                 size="sm"
                 className="h-8 gap-1.5 px-2.5 text-xs"
-                onClick={() => setConversationFocusMode((active) => !active)}
+                onClick={toggleConversationFocusMode}
                 aria-pressed={conversationFocusMode}
                 aria-controls="tickets-conversation-region"
+                aria-label={conversationFocusMode ? 'Salir de vista ampliada' : 'Ampliar conversación'}
                 title={conversationFocusMode ? 'Volver a la bandeja completa (Escape)' : 'Ocultar cola e inspector para ampliar la conversación'}
               >
                 {conversationFocusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -1754,7 +1861,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               <div className="min-h-0 flex-1 overflow-hidden">
                 <DetailsPanel
                   className="h-full w-full border-l-0"
-                  onClose={closeDesktopDetails}
+                  onClose={conversationFocusMode ? closeFocusedDetails : closeDesktopDetails}
                   operationalWorkspace
                 />
               </div>
@@ -1793,7 +1900,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <DetailsPanel
                     className="h-full w-full border-l-0"
-                    onClose={closeDesktopDetails}
+                    onClose={conversationFocusMode ? closeFocusedDetails : closeDesktopDetails}
                     operationalWorkspace
                   />
                 </div>
@@ -1803,6 +1910,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </div>
       )}
     </Card>
+    {conversationFocusMode ? (
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px]"
+        data-testid="tickets-focus-backdrop"
+      />
+    ) : null}
+    </>
   );
 };
 
