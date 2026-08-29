@@ -140,9 +140,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
+                <h2 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
                   {subject}
-                </h3>
+                </h2>
                 <p
                   className="line-clamp-1 text-[11px] text-slate-700 dark:text-slate-300"
                   title={`${ticketNumber} - ${displayName}`}
@@ -215,9 +215,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         <div className="flex min-w-0 items-start gap-3">
           <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
-            <h3 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
+            <h2 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
               {subject}
-            </h3>
+            </h2>
             <div
               className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5"
               title={`${ticketNumber} - ${displayName}`}

@@ -99,7 +99,7 @@ export function PwaInstallPrompt() {
         <p id="chatboc-pwa-install-title" className="text-sm font-semibold text-foreground">
           Instalar Chatboc
         </p>
-        <p className="text-xs leading-5 text-muted-foreground">
+        <p className="hidden text-xs leading-5 text-muted-foreground sm:block">
           Acceso rápido, pantalla completa y mejor experiencia móvil.
         </p>
       </div>

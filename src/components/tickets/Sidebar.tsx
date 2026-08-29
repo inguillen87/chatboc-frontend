@@ -711,11 +711,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         title={listSummaryTitle}
       >
         <p
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-muted-foreground"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-slate-700 dark:text-slate-300"
         >
           <span
             className={cn(
-              'max-w-[48%] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary',
+              'max-w-[48%] truncate rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-800 dark:text-blue-300',
               compact && 'sr-only',
             )}
           >
@@ -725,13 +725,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             className={cn(
               'max-w-[32%] truncate rounded-full border px-2 py-0.5 font-semibold',
               hasActiveFilters
-                ? 'border-amber-300/60 bg-amber-500/10 text-amber-700 dark:text-amber-200'
-                : 'border-border/70 bg-muted/60 text-muted-foreground',
+                ? 'border-amber-300/60 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'border-border/70 bg-muted/60 text-slate-700 dark:text-slate-300',
             )}
           >
             {filterSummaryLabel}
           </span>
-          <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-semibold text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-semibold text-slate-700 dark:text-slate-300">
             {visibleTicketCountLabel}
           </span>
         </p>
@@ -787,9 +787,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                   compact && 'mb-1',
                 )}
+                role="group"
                 aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
               >
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-primary">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-800 dark:text-blue-300">
                 Cola
                 <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
               </span>
@@ -797,8 +798,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnreadCount > 0
-                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-700 dark:text-violet-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-800 dark:text-violet-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 No leidos
@@ -808,8 +809,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueRiskCount > 0
-                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 Riesgo
@@ -819,8 +820,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnassignedCount > 0
-                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-700 dark:text-sky-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-800 dark:text-sky-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 Sin resp.
