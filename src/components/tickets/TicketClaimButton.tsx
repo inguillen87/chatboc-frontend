@@ -1,12 +1,15 @@
 import React from 'react';
 import { CheckCircle2, Loader2, UserCheck } from 'lucide-react';
 
+import { postOmnichannelInboxActionV2 } from '@/api/v2/saas';
 import { Button } from '@/components/ui/button';
 import { useTickets } from '@/context/TicketContext';
+import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import useAssignableAgents from '@/hooks/useAssignableAgents';
 import { assignTicketToAgent, type AssignableAgent } from '@/services/ticketService';
 import type { Ticket } from '@/types/tickets';
+import { ApiError } from '@/utils/api';
 import { toast } from 'sonner';
 
 const normalize = (value: unknown) =>
@@ -62,6 +65,7 @@ const assignedUserId = (ticket: Ticket): string =>
 
 const TicketClaimButton: React.FC = () => {
   const { selectedTicket, updateTicket } = useTickets();
+  const { currentSlug } = useTenant();
   const { user } = useUser();
   const { agents, loading, error } = useAssignableAgents(selectedTicket?.tipo);
   const [assigning, setAssigning] = React.useState(false);
@@ -88,7 +92,24 @@ const TicketClaimButton: React.FC = () => {
     if (!userId || !currentAgent || blockReason || assigning || isAssignedToMe) return;
     setAssigning(true);
     try {
-      await assignTicketToAgent(selectedTicket.id, selectedTicket.tipo, currentAgent.id);
+      const sourceModel = String(selectedTicket.source_model ?? '').trim();
+      if (sourceModel === 'TenantTicket' || sourceModel === 'MunicipioTicket') {
+        await postOmnichannelInboxActionV2(
+          String(selectedTicket.id),
+          {
+            action: 'claim',
+            payload: {
+              source_model: sourceModel,
+              ticket_id: selectedTicket.id,
+            },
+          },
+          selectedTicket.tenant_slug || currentSlug,
+        );
+      } else {
+        // Old ticket payloads do not identify their backing model. Preserve the
+        // compatible route until every deployment publishes source_model.
+        await assignTicketToAgent(selectedTicket.id, selectedTicket.tipo, currentAgent.id);
+      }
       updateTicket(selectedTicket.id, {
         assignedAgent: currentAgent,
         assignedAgentId: currentAgent.id,
@@ -99,7 +120,11 @@ const TicketClaimButton: React.FC = () => {
       toast.success('Ticket asignado a tu usuario');
     } catch (claimError) {
       console.error('No se pudo tomar el ticket:', claimError);
-      toast.error('El backend no confirmó la asignación. El ticket sigue sin cambios.');
+      toast.error(
+        claimError instanceof ApiError && claimError.status === 409
+          ? 'Otro operador tomó este ticket. Actualizá la bandeja para ver el responsable.'
+          : 'El backend no confirmó la asignación. El ticket sigue sin cambios.',
+      );
     } finally {
       setAssigning(false);
     }

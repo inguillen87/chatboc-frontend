@@ -6,6 +6,7 @@ import type { Ticket } from '@/types/tickets';
 
 const mocks = vi.hoisted(() => ({
   assign: vi.fn(),
+  claim: vi.fn(),
   updateTicket: vi.fn(),
   agents: [] as Array<Record<string, unknown>>,
   loading: false,
@@ -17,6 +18,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/context/TicketContext', () => ({
   useTickets: () => ({ selectedTicket: mocks.ticket, updateTicket: mocks.updateTicket }),
 }));
+vi.mock('@/context/TenantContext', () => ({
+  useTenant: () => ({ currentSlug: 'junin' }),
+}));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: mocks.user }) }));
 vi.mock('@/hooks/useAssignableAgents', () => ({
   default: () => ({ agents: mocks.agents, loading: mocks.loading, error: mocks.error }),
@@ -24,6 +28,10 @@ vi.mock('@/hooks/useAssignableAgents', () => ({
 vi.mock('@/services/ticketService', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@/services/ticketService');
   return { ...actual, assignTicketToAgent: (...args: unknown[]) => mocks.assign(...args) };
+});
+vi.mock('@/api/v2/saas', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@/api/v2/saas');
+  return { ...actual, postOmnichannelInboxActionV2: (...args: unknown[]) => mocks.claim(...args) };
 });
 
 import TicketClaimButton from './TicketClaimButton';
@@ -43,6 +51,7 @@ const baseTicket: Ticket = {
 describe('TicketClaimButton', () => {
   beforeEach(() => {
     mocks.assign.mockReset().mockResolvedValue(undefined);
+    mocks.claim.mockReset().mockResolvedValue({});
     mocks.updateTicket.mockReset();
     mocks.loading = false;
     mocks.error = null;
@@ -61,6 +70,27 @@ describe('TicketClaimButton', () => {
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith(77, 'municipio', 10));
     expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({ assigned_user_id: 10 }));
     expect(screen.getByRole('button', { name: 'Asignado a mí' })).toBeDisabled();
+  });
+
+  it('usa el claim omnicanal atómico cuando el ticket publica su modelo de origen', async () => {
+    mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
+    render(<TicketClaimButton />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+
+    await waitFor(() => expect(mocks.claim).toHaveBeenCalledWith(
+      '77',
+      {
+        action: 'claim',
+        payload: {
+          source_model: 'MunicipioTicket',
+          ticket_id: 77,
+        },
+      },
+      'junin',
+    ));
+    expect(mocks.assign).not.toHaveBeenCalled();
+    expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({ assigned_user_id: 10 }));
   });
 
   it('bloquea la toma cuando el usuario no cubre la categoría', () => {
