@@ -353,7 +353,7 @@ export default function ProfileWorkspaceNavigation({
           size="sm"
           className={cn(
             "h-9 shrink-0 gap-2 rounded-lg px-3 text-sm",
-            isHomeActive && "bg-primary/10 text-primary hover:bg-primary/15",
+            isHomeActive && "bg-primary/10 text-blue-700 hover:bg-primary/15 dark:text-blue-300",
           )}
           aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}
@@ -378,7 +378,7 @@ export default function ProfileWorkspaceNavigation({
                   size="sm"
                   className={cn(
                     "h-9 min-w-0 gap-2 rounded-lg px-3 text-sm",
-                    isActive && "bg-primary/10 text-primary hover:bg-primary/15",
+                    isActive && "bg-primary/10 text-blue-700 hover:bg-primary/15 dark:text-blue-300",
                   )}
                   aria-label={`Abrir menú ${group.label}`}
                   data-active={isActive ? "true" : "false"}
@@ -418,7 +418,7 @@ export default function ProfileWorkspaceNavigation({
           type="button"
           variant={isHomeActive ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-9 w-9 shrink-0 rounded-lg", isHomeActive && "bg-primary/10 text-primary")}
+          className={cn("h-9 w-9 shrink-0 rounded-lg", isHomeActive && "bg-primary/10 text-blue-700 dark:text-blue-300")}
           aria-label="Abrir Inicio"
           aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}

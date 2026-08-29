@@ -7,14 +7,27 @@ import { useCrmWorkspaceState, useDebouncedValue } from "./useCrmWorkspaceState"
 
 const Harness = () => {
   const location = useLocation();
-  const { activeView, selectedContactId, setActiveView, setSelectedContactId } = useCrmWorkspaceState();
+  const {
+    activeView,
+    selectedContactId,
+    peopleQueueView,
+    peopleSort,
+    setActiveView,
+    setSelectedContactId,
+    setPeopleQueueView,
+    setPeopleSort,
+  } = useCrmWorkspaceState();
   return (
     <div>
       <output data-testid="view">{activeView}</output>
       <output data-testid="contact">{selectedContactId || "none"}</output>
+      <output data-testid="queue">{peopleQueueView}</output>
+      <output data-testid="sort">{peopleSort}</output>
       <output data-testid="search">{location.search}</output>
       <button type="button" onClick={() => setActiveView("segmentos")}>Abrir segmentos</button>
       <button type="button" onClick={() => setSelectedContactId("contact:77")}>Elegir 77</button>
+      <button type="button" onClick={() => setPeopleQueueView("review")}>Ver revisión</button>
+      <button type="button" onClick={() => setPeopleSort("score-asc")}>Ordenar incompletos</button>
     </div>
   );
 };
@@ -24,13 +37,15 @@ describe("useCrmWorkspaceState", () => {
 
   it("restores the workspace and selected person from a deep link", () => {
     render(
-      <MemoryRouter initialEntries={["/perfil?tab=usuarios&view=actividad&contact=contact%3A42"]}>
+      <MemoryRouter initialEntries={["/perfil?tab=usuarios&view=actividad&contact=contact%3A42&queue=whatsapp&sort=name"]}>
         <Harness />
       </MemoryRouter>,
     );
 
     expect(screen.getByTestId("view")).toHaveTextContent("actividad");
     expect(screen.getByTestId("contact")).toHaveTextContent("contact:42");
+    expect(screen.getByTestId("queue")).toHaveTextContent("whatsapp");
+    expect(screen.getByTestId("sort")).toHaveTextContent("name");
   });
 
   it("updates local CRM state without dropping the parent profile tab", () => {
@@ -42,12 +57,16 @@ describe("useCrmWorkspaceState", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir segmentos" }));
     fireEvent.click(screen.getByRole("button", { name: "Elegir 77" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver revisión" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ordenar incompletos" }));
 
     expect(screen.getByTestId("view")).toHaveTextContent("segmentos");
     expect(screen.getByTestId("contact")).toHaveTextContent("contact:77");
     expect(screen.getByTestId("search").textContent).toContain("tab=usuarios");
     expect(screen.getByTestId("search").textContent).toContain("view=segmentos");
     expect(screen.getByTestId("search").textContent).toContain("contact=contact%3A77");
+    expect(screen.getByTestId("search").textContent).toContain("queue=review");
+    expect(screen.getByTestId("search").textContent).toContain("sort=score-asc");
   });
 
   it("debounces server-facing search changes", () => {

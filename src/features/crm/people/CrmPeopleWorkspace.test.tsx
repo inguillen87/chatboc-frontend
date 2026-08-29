@@ -40,6 +40,9 @@ const Harness = ({
   onOpenTicketDesk?: (person: CrmPeopleRecord) => void;
 }) => {
   const [selectedContactId, setSelectedContactId] = React.useState("generic-phone");
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [queueView, setQueueView] = React.useState<"all" | "review" | "whatsapp" | "complete">("all");
+  const [peopleSort, setPeopleSort] = React.useState<"recent" | "name" | "score-desc" | "score-asc">("recent");
   return (
     <CrmPeopleWorkspace
       activeView="personas"
@@ -47,8 +50,24 @@ const Harness = ({
       people={records}
       selectedContactId={selectedContactId}
       onSelectContact={setSelectedContactId}
-      selectedIds={new Set()}
-      onToggleSelected={vi.fn()}
+      selectedIds={selectedIds}
+      onToggleSelected={(id) => setSelectedIds((current) => {
+        const next = new Set(current);
+        const key = String(id);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      })}
+      onSetSelected={(ids, selected) => setSelectedIds((current) => {
+        const next = new Set(current);
+        ids.forEach((id) => selected ? next.add(String(id)) : next.delete(String(id)));
+        return next;
+      })}
+      onClearSelected={() => setSelectedIds(new Set())}
+      queueView={queueView}
+      onQueueViewChange={setQueueView}
+      peopleSort={peopleSort}
+      onPeopleSortChange={setPeopleSort}
       search=""
       onSearchChange={vi.fn()}
       marketingOnly={false}
@@ -80,15 +99,15 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getAllByText("Mauricio Alonso").length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: /WhatsApp externo/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir en CRM" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir conversación" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
       target: { value: "42" },
     });
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /WhatsApp externo/i })).toHaveAttribute("href", "https://wa.me/17432643718");
-    fireEvent.click(screen.getByRole("button", { name: "Abrir en CRM" }));
+    expect(screen.getByRole("button", { name: "Más acciones" })).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir conversación" }));
     expect(onOpenTicketDesk).toHaveBeenCalledWith(expect.objectContaining({ contactId: "42" }));
     expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
   });
@@ -107,5 +126,20 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByText("5000 resultados")).toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: /Persona \d+/i }).length).toBeLessThan(100);
     expect(screen.getByText(/Buscá para ver 4750 personas más/i)).toBeInTheDocument();
+  });
+
+  it("turns the directory into an actionable CRM queue", () => {
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole("button", { name: /WhatsApp 1/i }));
+    expect(screen.getByText("1 de 2")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar personas visibles" }));
+    expect(screen.getByRole("region", { name: "Acciones sobre personas seleccionadas" })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Preparar campaña" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar selección" }));
+    expect(screen.queryByRole("region", { name: "Acciones sobre personas seleccionadas" })).not.toBeInTheDocument();
   });
 });

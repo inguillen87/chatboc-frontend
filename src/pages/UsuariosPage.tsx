@@ -3,6 +3,8 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
@@ -10,7 +12,7 @@ import { toast } from "@/components/ui/use-toast";
 import { getTenant } from "@/utils/tenant";
 import { useUser } from "@/hooks/useUser";
 import { useSocket } from "@/context/SocketContext";
-import { Bell, Clock3, Flame, History, MessageSquare, Phone, Target } from "lucide-react";
+import { AlertTriangle, Bell, Clock3, Flame, History, MessageSquare, Phone, RefreshCw, Target } from "lucide-react";
 import CampaignPreparationPanel from "@/components/admin/CampaignPreparationPanel";
 import type { CampaignChannel } from "@/features/campaigns/campaignPreparationTypes";
 import { shouldRenderProfileImage } from "@/utils/avatarConsent";
@@ -479,7 +481,16 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
   const [campaignActivityLoading, setCampaignActivityLoading] = useState(false);
   const [realtimeEvents, setRealtimeEvents] = useState(0);
   const fetchSequenceRef = React.useRef(0);
-  const { activeView, selectedContactId, setActiveView, setSelectedContactId } = useCrmWorkspaceState();
+  const {
+    activeView,
+    selectedContactId,
+    peopleQueueView,
+    peopleSort,
+    setActiveView,
+    setSelectedContactId,
+    setPeopleQueueView,
+    setPeopleSort,
+  } = useCrmWorkspaceState();
 
   const tenantSlug = React.useMemo(
     () =>
@@ -528,7 +539,10 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
     [selectedUsuarios],
   );
 
-  const hasRealEmail = (usuario: Usuario) => Boolean(usuario.email && usuario.email !== "Sin email real");
+  const hasRealEmail = React.useCallback(
+    (usuario: Usuario) => Boolean(usuario.email && usuario.email !== "Sin email real"),
+    [],
+  );
 
   const fetchData = React.useCallback(async (options: { silent?: boolean } = {}) => {
     const requestSequence = ++fetchSequenceRef.current;
@@ -680,6 +694,20 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
     });
   };
 
+  const setSelectedForIds = React.useCallback((ids: Array<number | string>, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => {
+        const key = String(id);
+        if (selected) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
+  const clearSelected = React.useCallback(() => setSelectedIds(new Set()), []);
+
   const selectMarketingContacts = (channel: CampaignChannel) => {
     setSelectedIds(
       new Set(
@@ -798,8 +826,11 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
     }
   };
 
-  const whatsappUrl = (usuario: Usuario | string | null | undefined) =>
-    typeof usuario === "object" && usuario ? getExplicitWhatsAppUrl(usuario) : null;
+  const whatsappUrl = React.useCallback(
+    (usuario: Usuario | string | null | undefined) =>
+      typeof usuario === "object" && usuario ? getExplicitWhatsAppUrl(usuario) : null,
+    [],
+  );
 
   const openTicketDesk = React.useCallback(
     (usuario: Usuario) => {
@@ -823,8 +854,46 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
     [navigate, tenantSlug],
   );
 
-  if (loading) return <div className="p-8">Cargando...</div>;
-  if (error) return <div className="p-8 text-destructive">{error}</div>;
+  if (loading) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 p-3 md:p-4" aria-label="Cargando CRM de personas">
+        <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-7 w-56" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </section>
+        <section className="grid min-h-[560px] overflow-hidden rounded-2xl border border-border/70 bg-card lg:grid-cols-[320px_minmax(0,1fr)_280px]">
+          <div className="space-y-3 border-r border-border/70 p-3">
+            {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-[70px] w-full" />)}
+          </div>
+          <div className="space-y-4 p-5"><Skeleton className="h-16 w-full" /><Skeleton className="h-44 w-full" /><Skeleton className="h-32 w-full" /></div>
+          <div className="hidden space-y-3 border-l border-border/70 p-4 lg:block"><Skeleton className="h-20 w-full" /><Skeleton className="h-32 w-full" /></div>
+        </section>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mx-auto flex min-h-[60dvh] w-full max-w-[1680px] items-center justify-center p-4">
+        <Card className="w-full max-w-lg border-destructive/30 shadow-sm" role="alert">
+          <CardContent className="flex flex-col items-center p-8 text-center">
+            <div className="rounded-2xl bg-destructive/10 p-3 text-destructive"><AlertTriangle className="h-6 w-6" /></div>
+            <h1 className="mt-4 text-xl font-bold">No pudimos cargar Personas</h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p>
+            <Button className="mt-5 gap-2" onClick={() => void fetchData()}>
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
       <CrmPeopleWorkspace
@@ -835,6 +904,12 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
         onSelectContact={setSelectedContactId}
         selectedIds={selectedIds}
         onToggleSelected={toggleSelected}
+        onSetSelected={setSelectedForIds}
+        onClearSelected={clearSelected}
+        queueView={peopleQueueView}
+        onQueueViewChange={setPeopleQueueView}
+        peopleSort={peopleSort}
+        onPeopleSortChange={setPeopleSort}
         search={searchInput}
         onSearchChange={setSearchInput}
         marketingOnly={marketingOnly}
@@ -858,8 +933,8 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
         hasRealEmail={hasRealEmail}
         hasExplicitWhatsApp={hasExplicitWhatsApp}
         whatsappUrl={(usuario) => whatsappUrl(usuario as Usuario)}
-        profileScore={(usuario) => getCrmProfileScore(usuario as Usuario)}
-        nextAction={(usuario) => resolveCrmNextAction(usuario as Usuario)}
+        profileScore={getCrmProfileScore}
+        nextAction={resolveCrmNextAction}
         formatDate={formatDate}
         copyToClipboard={copyToClipboard}
         segmentsPanel={(

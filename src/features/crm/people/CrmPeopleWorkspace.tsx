@@ -21,6 +21,7 @@ import {
   Target,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
@@ -28,7 +29,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -39,7 +55,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-import type { CrmWorkspaceView } from "./useCrmWorkspaceState";
+import type {
+  CrmPeopleQueueView,
+  CrmPeopleSort,
+  CrmWorkspaceView,
+} from "./useCrmWorkspaceState";
 
 export interface CrmPeopleRecord {
   id: number | string;
@@ -87,6 +107,12 @@ interface CrmPeopleWorkspaceProps {
   onSelectContact: (contactId: string | null) => void;
   selectedIds: Set<string>;
   onToggleSelected: (id: number | string) => void;
+  onSetSelected: (ids: Array<number | string>, selected: boolean) => void;
+  onClearSelected: () => void;
+  queueView: CrmPeopleQueueView;
+  onQueueViewChange: (view: CrmPeopleQueueView) => void;
+  peopleSort: CrmPeopleSort;
+  onPeopleSortChange: (sort: CrmPeopleSort) => void;
   search: string;
   onSearchChange: (value: string) => void;
   marketingOnly: boolean;
@@ -118,6 +144,13 @@ const viewItems: Array<{
   { value: "segmentos", label: "Segmentos", icon: Filter },
   { value: "campanas", label: "Campañas", icon: Megaphone },
   { value: "actividad", label: "Actividad", icon: Activity },
+];
+
+const queueViewItems: Array<{ value: CrmPeopleQueueView; label: string }> = [
+  { value: "all", label: "Todos" },
+  { value: "review", label: "Revisión CRM" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "complete", label: "Perfiles completos" },
 ];
 
 const channelLabel = (value?: string | null) => {
@@ -224,6 +257,12 @@ export default function CrmPeopleWorkspace({
   onSelectContact,
   selectedIds,
   onToggleSelected,
+  onSetSelected,
+  onClearSelected,
+  queueView,
+  onQueueViewChange,
+  peopleSort,
+  onPeopleSortChange,
   search,
   onSearchChange,
   marketingOnly,
@@ -248,6 +287,38 @@ export default function CrmPeopleWorkspace({
   const [contextOpen, setContextOpen] = React.useState(true);
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
 
+  const scoredPeople = React.useMemo(
+    () => people.map((person) => ({ person, score: profileScore(person) })),
+    [people, profileScore],
+  );
+  const queueViewCounts = React.useMemo(
+    () => ({
+      all: scoredPeople.length,
+      review: scoredPeople.filter(({ score }) => score < 75).length,
+      whatsapp: scoredPeople.filter(({ person }) => hasExplicitWhatsApp(person)).length,
+      complete: scoredPeople.filter(({ score }) => score >= 75).length,
+    }),
+    [hasExplicitWhatsApp, scoredPeople],
+  );
+  const visiblePeople = React.useMemo(() => {
+    const filtered = scoredPeople.filter(({ person, score }) => {
+      if (queueView === "review") return score < 75;
+      if (queueView === "whatsapp") return hasExplicitWhatsApp(person);
+      if (queueView === "complete") return score >= 75;
+      return true;
+    });
+    filtered.sort((a, b) => {
+      if (peopleSort === "name") return a.person.nombre.localeCompare(b.person.nombre, "es");
+      if (peopleSort === "score-desc") return b.score - a.score;
+      if (peopleSort === "score-asc") return a.score - b.score;
+      const aTime = a.person.lastSeen ? Date.parse(a.person.lastSeen) : 0;
+      const bTime = b.person.lastSeen ? Date.parse(b.person.lastSeen) : 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return a.person.nombre.localeCompare(b.person.nombre, "es");
+    });
+    return filtered.map(({ person }) => person);
+  }, [hasExplicitWhatsApp, peopleSort, queueView, scoredPeople]);
+
   const selectedPerson = React.useMemo(
     () => people.find((person) => getPersonKey(person) === selectedContactId) || null,
     [getPersonKey, people, selectedContactId],
@@ -256,7 +327,7 @@ export default function CrmPeopleWorkspace({
   const action = selectedPerson ? nextAction(selectedPerson) : "";
   const listViewportRef = React.useRef<HTMLDivElement>(null);
   const desktopList = useVirtualizer({
-    count: people.length,
+    count: visiblePeople.length,
     getScrollElement: () => listViewportRef.current,
     estimateSize: () => 82,
     overscan: 8,
@@ -264,12 +335,34 @@ export default function CrmPeopleWorkspace({
   });
   const mobilePeople = React.useMemo(() => {
     const limit = 250;
-    const first = people.slice(0, limit);
-    if (!selectedPerson || first.some((person) => getPersonKey(person) === getPersonKey(selectedPerson))) {
+    const first = visiblePeople.slice(0, limit);
+    if (
+      !selectedPerson ||
+      !visiblePeople.some((person) => getPersonKey(person) === getPersonKey(selectedPerson)) ||
+      first.some((person) => getPersonKey(person) === getPersonKey(selectedPerson))
+    ) {
       return first;
     }
     return [...first.slice(0, limit - 1), selectedPerson];
-  }, [getPersonKey, people, selectedPerson]);
+  }, [getPersonKey, selectedPerson, visiblePeople]);
+
+  React.useEffect(() => {
+    if (activeView !== "personas" || visiblePeople.length === 0) return;
+    const selectionIsVisible = visiblePeople.some(
+      (person) => getPersonKey(person) === selectedContactId,
+    );
+    if (!selectionIsVisible) onSelectContact(getPersonKey(visiblePeople[0]));
+  }, [activeView, getPersonKey, onSelectContact, selectedContactId, visiblePeople]);
+
+  const visibleIds = React.useMemo(
+    () => visiblePeople.map((person) => person.id),
+    [visiblePeople],
+  );
+  const selectedVisibleCount = React.useMemo(
+    () => visiblePeople.filter((person) => selectedIds.has(String(person.id))).length,
+    [selectedIds, visiblePeople],
+  );
+  const allVisibleSelected = visiblePeople.length > 0 && selectedVisibleCount === visiblePeople.length;
 
   const auxiliaryPanel =
     activeView === "segmentos"
@@ -323,7 +416,7 @@ export default function CrmPeopleWorkspace({
               type="button"
               size="sm"
               variant={active ? "secondary" : "ghost"}
-              className={cn("shrink-0 gap-2", active && "bg-primary/10 text-primary")}
+              className={cn("shrink-0 gap-2", active && "bg-primary/10 text-blue-700 dark:text-blue-300")}
               aria-current={active ? "page" : undefined}
               onClick={() => onViewChange(item.value)}
             >
@@ -360,12 +453,12 @@ export default function CrmPeopleWorkspace({
                 className="h-9 max-w-full rounded-md border border-input bg-background px-3 text-sm lg:hidden"
                 aria-label="Seleccionar persona"
               >
-                {people.length === 0 ? <option value="">Sin resultados</option> : null}
+                {visiblePeople.length === 0 ? <option value="">Sin resultados</option> : null}
                 {mobilePeople.map((person) => (
                   <option key={getPersonKey(person)} value={getPersonKey(person)}>{person.nombre}</option>
                 ))}
-                {people.length > mobilePeople.length ? (
-                  <option value="" disabled>Buscá para ver {people.length - mobilePeople.length} personas más</option>
+                {visiblePeople.length > mobilePeople.length ? (
+                  <option value="" disabled>Buscá para ver {visiblePeople.length - mobilePeople.length} personas más</option>
                 ) : null}
               </select>
             </div>
@@ -374,7 +467,11 @@ export default function CrmPeopleWorkspace({
                 <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
                 Con opt-in
               </label>
-              <Badge variant="outline">{people.length} resultados</Badge>
+              <Badge variant="outline">
+                {visiblePeople.length === people.length
+                  ? `${people.length} resultados`
+                  : `${visiblePeople.length} de ${people.length}`}
+              </Badge>
               <Button
                 type="button"
                 variant="ghost"
@@ -389,6 +486,78 @@ export default function CrmPeopleWorkspace({
             </div>
           </div>
 
+          <div className="flex flex-col gap-2 border-b border-border/70 bg-muted/15 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label="Vistas operativas de personas">
+              <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
+              {queueViewItems.map((item) => (
+                <Button
+                  key={item.value}
+                  type="button"
+                  size="sm"
+                  variant={queueView === item.value ? "secondary" : "ghost"}
+                  className={cn(
+                    "h-8 shrink-0 gap-1.5 px-2.5 text-xs",
+                    queueView === item.value && "bg-background text-foreground shadow-sm",
+                  )}
+                  aria-pressed={queueView === item.value}
+                  onClick={() => onQueueViewChange(item.value)}
+                >
+                  {item.label}
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                    {queueViewCounts[item.value]}
+                  </span>
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex h-8 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs">
+                <Checkbox
+                  checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
+                  onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
+                  aria-label="Seleccionar personas visibles"
+                  disabled={visiblePeople.length === 0}
+                />
+                Seleccionar vista
+              </label>
+              <Select value={peopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)}>
+                <SelectTrigger className="h-8 w-[178px] bg-background text-xs" aria-label="Ordenar personas">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Actividad reciente</SelectItem>
+                  <SelectItem value="name">Nombre A–Z</SelectItem>
+                  <SelectItem value="score-desc">Mayor completitud</SelectItem>
+                  <SelectItem value="score-asc">Menor completitud</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {selectedIds.size > 0 ? (
+            <div className="flex flex-col gap-2 border-b border-primary/20 bg-primary/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between" role="region" aria-label="Acciones sobre personas seleccionadas">
+              <div className="flex items-center gap-2 text-sm">
+                <Badge className="min-w-7 justify-center">{selectedIds.size}</Badge>
+                <span className="font-semibold">personas seleccionadas</span>
+                {selectedVisibleCount !== selectedIds.size ? (
+                  <span className="text-xs text-muted-foreground">({selectedVisibleCount} en esta vista)</span>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="outline" className="h-8 gap-2" onClick={() => onViewChange("segmentos")}>
+                  <Filter className="h-3.5 w-3.5" />
+                  Analizar segmento
+                </Button>
+                <Button type="button" size="sm" className="h-8 gap-2" onClick={() => onViewChange("campanas")}>
+                  <Megaphone className="h-3.5 w-3.5" />
+                  Preparar campaña
+                </Button>
+                <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={onClearSelected} aria-label="Limpiar selección">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div
             className={cn(
               "grid h-[min(72dvh,760px)] min-h-[560px] grid-cols-1",
@@ -399,12 +568,12 @@ export default function CrmPeopleWorkspace({
           >
             <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
               <div ref={listViewportRef} className="h-full overflow-y-auto">
-                {people.length === 0 ? (
+                {visiblePeople.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
                 ) : (
                   <div className="relative w-full" style={{ height: `${desktopList.getTotalSize()}px` }}>
                     {desktopList.getVirtualItems().map((virtualRow) => {
-                      const person = people[virtualRow.index];
+                      const person = visiblePeople[virtualRow.index];
                       const key = getPersonKey(person);
                       const active = key === selectedContactId;
                       const personScore = profileScore(person);
@@ -492,26 +661,43 @@ export default function CrmPeopleWorkspace({
                           onClick={() => onOpenTicketDesk(selectedPerson)}
                         >
                           <MessageCircle className="h-4 w-4" />
-                          Abrir en CRM
+                          Abrir conversación
                         </Button>
-                        {selectedPerson.telefono ? (
-                          <Button size="sm" variant="outline" className="gap-2" onClick={() => copyToClipboard(selectedPerson.telefono, "Teléfono")}>
-                            <Copy className="h-4 w-4" />
-                            Copiar teléfono
-                          </Button>
-                        ) : null}
-                        {hasExplicitWhatsApp(selectedPerson) && whatsappUrl(selectedPerson) ? (
-                          <Button size="sm" variant="outline" className="gap-2" asChild>
-                            <a href={whatsappUrl(selectedPerson) || undefined} target="_blank" rel="noreferrer">
-                              <MessageCircle className="h-4 w-4" />
-                              WhatsApp externo
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          </Button>
-                        ) : null}
-                        <Button size="icon" variant="ghost" aria-label="Más acciones">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" aria-label="Más acciones">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Acciones del contacto</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => onOpenTicketDesk(selectedPerson)}>
+                              <MessageCircle className="mr-2 h-4 w-4" />
+                              Abrir conversación
+                            </DropdownMenuItem>
+                            {selectedPerson.telefono ? (
+                              <DropdownMenuItem onSelect={() => copyToClipboard(selectedPerson.telefono, "Teléfono")}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copiar teléfono
+                              </DropdownMenuItem>
+                            ) : null}
+                            {hasRealEmail(selectedPerson) ? (
+                              <DropdownMenuItem onSelect={() => copyToClipboard(selectedPerson.email, "Email")}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copiar email
+                              </DropdownMenuItem>
+                            ) : null}
+                            {hasExplicitWhatsApp(selectedPerson) && whatsappUrl(selectedPerson) ? (
+                              <DropdownMenuItem asChild>
+                                <a href={whatsappUrl(selectedPerson) || undefined} target="_blank" rel="noreferrer">
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  WhatsApp externo
+                                </a>
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button
                           size="icon"
                           variant="outline"

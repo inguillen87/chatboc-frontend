@@ -2550,7 +2550,7 @@ export default function Perfil() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" aria-label="Contexto de la organización">
+            <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" role="group" aria-label="Contexto de la organización">
               {isTenantAdministrator ? (
                 <Button
                   type="button"
