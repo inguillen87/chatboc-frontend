@@ -139,6 +139,8 @@ const buildQuery = (params?: {
   zone?: string | null;
   status?: string | null;
   estado?: string | null;
+  sla_state?: string | null;
+  assignee_id?: number | string | null;
   severity?: string | null;
   severidad?: string | null;
   layer?: string | null;
@@ -175,8 +177,12 @@ const buildQuery = (params?: {
   append('rango_edad', params.rango_edad);
   append('barrio', params.barrio);
   append('distrito', params.distrito);
+  append('zona', params.zona);
+  append('zone', params.zone);
   append('status', params.status);
   append('estado', params.estado);
+  append('sla_state', params.sla_state);
+  append('assignee_id', params.assignee_id);
   append('severity', params.severity);
   append('severidad', params.severidad);
   append('layer', params.layer);
@@ -1183,9 +1189,16 @@ const normalizeHeatmapPrivacy = (...values: unknown[]): OperationsHeatmapV1['pri
   };
 
   const minimumSampleSize = first(
-    ['minimum_sample_size', 'min_sample_size', 'minimumSampleSize', 'k_anonymity_threshold', 'k_anonymity'],
+    ['minimum_sample_size', 'min_sample_size', 'minimumSampleSize', 'k_min', 'k_anonymity_threshold', 'k_anonymity'],
     asNumber,
   );
+  const coordinatePrecisionDecimals = first(
+    ['coordinate_precision_decimals', 'coordinatePrecisionDecimals'],
+    asNumber,
+  );
+  const suppressed = records
+    .map((record) => record.suppressed)
+    .find((value) => typeof value === 'boolean' || Boolean(pickRecord(value)));
   const privacy = {
     mode: first(['mode', 'privacy_mode', 'privacyMode'], asString),
     aggregation: first(['aggregation', 'aggregation_level', 'aggregationLevel'], asString),
@@ -1193,8 +1206,18 @@ const normalizeHeatmapPrivacy = (...values: unknown[]): OperationsHeatmapV1['pri
       minimumSampleSize !== undefined && minimumSampleSize >= 1
         ? Math.floor(minimumSampleSize)
         : undefined,
+    k_min:
+      minimumSampleSize !== undefined && minimumSampleSize >= 1
+        ? Math.floor(minimumSampleSize)
+        : undefined,
     raw_points_redacted: first(['raw_points_redacted', 'rawPointsRedacted', 'pii_redacted'], asBoolean),
     coordinate_precision: first(['coordinate_precision', 'coordinatePrecision'], asString),
+    coordinate_precision_decimals:
+      coordinatePrecisionDecimals !== undefined && coordinatePrecisionDecimals >= 0
+        ? Math.floor(coordinatePrecisionDecimals)
+        : undefined,
+    suppressed:
+      typeof suppressed === 'boolean' ? suppressed : pickRecord(suppressed),
     population_source: first(['population_source', 'populationSource'], asString),
     boundaries_source: first(['boundaries_source', 'boundary_source', 'boundariesSource'], asString),
   } satisfies NonNullable<OperationsHeatmapV1['privacy']>;
@@ -1212,12 +1235,16 @@ const pickEmbeddedPrivacyFields = (value: unknown) => {
     aggregation_level: record.aggregation_level,
     minimum_sample_size: record.minimum_sample_size,
     min_sample_size: record.min_sample_size,
+    k_min: record.k_min,
     k_anonymity_threshold: record.k_anonymity_threshold,
     raw_points_redacted: record.raw_points_redacted,
     rawPointsRedacted: record.rawPointsRedacted,
     pii_redacted: record.pii_redacted,
     coordinate_precision: record.coordinate_precision,
     coordinatePrecision: record.coordinatePrecision,
+    coordinate_precision_decimals: record.coordinate_precision_decimals,
+    coordinatePrecisionDecimals: record.coordinatePrecisionDecimals,
+    suppressed: record.suppressed,
     population_source: record.population_source,
     populationSource: record.populationSource,
     boundaries_source: record.boundaries_source,
@@ -1779,6 +1806,8 @@ export const getOperationsHeatmapV2 = async (params?: {
   zone?: string | null;
   status?: string | null;
   estado?: string | null;
+  sla_state?: string | null;
+  assignee_id?: number | string | null;
   severity?: string | null;
   severidad?: string | null;
   layer?: string | null;

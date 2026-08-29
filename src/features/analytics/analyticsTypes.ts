@@ -445,8 +445,12 @@ export interface OperationsHeatmapPrivacyMetadata {
   mode?: string;
   aggregation?: string;
   minimum_sample_size?: number;
+  /** Backend k-anonymity threshold, normalized separately for auditability. */
+  k_min?: number;
   raw_points_redacted?: boolean;
   coordinate_precision?: string;
+  coordinate_precision_decimals?: number;
+  suppressed?: boolean | Record<string, unknown>;
   population_source?: string;
   boundaries_source?: string;
   [key: string]: unknown;

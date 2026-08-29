@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
+import { PremiumTerritoryHeatmap } from '@/features/analytics/PremiumTerritoryMap';
+import { getOperationsHeatmapV2 } from '@/features/analytics/analyticsApi';
+import type {
+  OperationsBucketItem,
+  OperationsHeatmapPoint,
+  OperationsHeatmapV1,
+  PublicMapConfigV1,
+} from '@/features/analytics/analyticsTypes';
 import { Button } from '@/components/ui/button';
 import { ApiError, apiFetch } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
@@ -34,6 +42,9 @@ import {
 } from 'lucide-react';
 
 const HEATMAP_CACHE_LIMIT = 20;
+const LEGACY_COMPATIBILITY_STATUSES = new Set([404, 405, 501]);
+
+type HeatmapContractSource = 'operations_v2' | 'legacy_partial' | null;
 
 type IncidentTimeRange = 'custom' | '7d' | '30d' | '90d';
 
@@ -138,6 +149,134 @@ const buildWeightedBreakdown = (
   return Array.from(totals.entries())
     .map(([label, value]) => ({ label, ...value }))
     .sort((a, b) => b.weight - a.weight);
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const readFiniteNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return undefined;
+};
+
+const readString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+};
+
+const filterDisplayValue = (value: unknown): string | undefined => {
+  const values = (Array.isArray(value) ? value : [value])
+    .map((item) => (typeof item === 'string' || typeof item === 'number' ? String(item).trim() : ''))
+    .filter(Boolean);
+  return values.length > 0 ? values.join(', ') : undefined;
+};
+
+const OPERATIONS_FILTER_LABELS: Record<string, string> = {
+  category: 'Categorías',
+  categoria: 'Categorías',
+  status: 'Estados',
+  estado: 'Estados',
+  zone: 'Zona',
+  zona: 'Zona',
+  barrio: 'Barrio',
+  distrito: 'Distrito',
+  gender: 'Género',
+  genero: 'Género',
+  age_range: 'Edad',
+  rango_edad: 'Edad',
+  sla_state: 'SLA',
+  assignee_id: 'Responsable',
+  source: 'Fuente',
+  channel: 'Canal',
+};
+
+const bucketCount = (item?: OperationsBucketItem): number =>
+  Math.max(0, readFiniteNumber(item?.count, item?.total, item?.value) ?? 0);
+
+const operationPointToLegacyHeatPoint = (
+  value: OperationsHeatmapPoint | OperationsBucketItem,
+  index: number,
+): HeatPoint | null => {
+  const record = asRecord(value);
+  if (!record) return null;
+  const lat = readFiniteNumber(record.lat, record.latitude, record.centroid_lat);
+  const lng = readFiniteNumber(record.lng, record.lon, record.longitude, record.centroid_lng, record.centroid_lon);
+  if (lat === undefined || lng === undefined) return null;
+
+  return {
+    id: readFiniteNumber(record.id) ?? index + 1,
+    lat,
+    lng,
+    weight: Math.max(1, readFiniteNumber(record.weight, record.count, record.total) ?? 1),
+    categoria: readString(record.categoria, record.category),
+    estado: readString(record.estado, record.status),
+    barrio: readString(record.barrio, record.zone, record.zona),
+    distrito: readString(record.distrito),
+    ciudad: readString(record.ciudad, record.city, record.localidad),
+    canal: readString(record.canal, record.channel),
+    fuente: readString(record.fuente, record.source, record.layer),
+    severidad: readString(record.severidad, record.severity),
+  };
+};
+
+const heatPointsFromOperations = (heatmap: OperationsHeatmapV1): HeatPoint[] => {
+  const exactPoints = heatmap.points
+    .map(operationPointToLegacyHeatPoint)
+    .filter((point): point is HeatPoint => Boolean(point));
+  if (exactPoints.length > 0) return exactPoints;
+  return heatmap.cells
+    .map(operationPointToLegacyHeatPoint)
+    .filter((point): point is HeatPoint => Boolean(point));
+};
+
+const chartsFromOperations = (heatmap: OperationsHeatmapV1): TicketStatsResponse['charts'] => {
+  const chartSpecs = [
+    ['Por estado', heatmap.segments?.status],
+    ['Por categoría', heatmap.segments?.category],
+    ['Por zona', heatmap.segments?.zone],
+  ] as const;
+
+  return chartSpecs.flatMap(([title, items]) => {
+    const data = Object.fromEntries(
+      (items ?? [])
+        .map((item) => [readString(item.label, item.key) ?? 'Sin dato', bucketCount(item)] as const)
+        .filter(([, count]) => count > 0),
+    );
+    return Object.keys(data).length > 0 ? [{ title, data }] : [];
+  });
+};
+
+const isLegacyCompatibilityError = (error: unknown): error is ApiError =>
+  error instanceof ApiError && LEGACY_COMPATIBILITY_STATUSES.has(error.status);
+
+const ageBucketsForRange = (minimum?: string, maximum?: string): string | undefined => {
+  const min = readFiniteNumber(minimum);
+  const max = readFiniteNumber(maximum);
+  if (min === undefined && max === undefined) return undefined;
+  const lower = min ?? 0;
+  const upper = max ?? Number.POSITIVE_INFINITY;
+  const buckets = [
+    { key: 'menor_18', min: 0, max: 17 },
+    { key: '18_24', min: 18, max: 24 },
+    { key: '25_34', min: 25, max: 34 },
+    { key: '35_44', min: 35, max: 44 },
+    { key: '45_59', min: 45, max: 59 },
+    { key: '60_plus', min: 60, max: Number.POSITIVE_INFINITY },
+  ];
+  const selected = buckets
+    .filter((bucket) => bucket.max >= lower && bucket.min <= upper)
+    .map((bucket) => bucket.key);
+  return selected.length > 0 ? selected.join(',') : undefined;
 };
 
 const getExplicitTerritoryLabel = (point: HeatPoint): string | null => {
@@ -431,6 +570,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   }, [user?.latitud, user?.longitud]);
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [operationsHeatmap, setOperationsHeatmap] = useState<OperationsHeatmapV1 | null>(null);
+  const [heatmapContractSource, setHeatmapContractSource] = useState<HeatmapContractSource>(null);
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [center, setCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
@@ -470,7 +611,9 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
 
   const [heatmapBounds, setHeatmapBounds] = useState<[number, number][]>([]);
 
-  const heatmapCache = useRef<Map<string, HeatmapDataset>>(new Map());
+  const operationsHeatmapCache = useRef<Map<string, OperationsHeatmapV1>>(new Map());
+  const legacyHeatmapCache = useRef<Map<string, HeatmapDataset>>(new Map());
+  const requestGeneration = useRef(0);
 
   const computeDisableClustering = useCallback((dataset: HeatmapDataset | null | undefined) => {
     if (!dataset) {
@@ -595,6 +738,53 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     [adminCoords, computeDisableClustering],
   );
 
+  const applyOperationsHeatmap = useCallback(
+    (heatmap: OperationsHeatmapV1) => {
+      const points = heatPointsFromOperations(heatmap);
+      const bounds = asRecord(heatmap.bounds);
+      const west = readFiniteNumber(bounds?.west);
+      const south = readFiniteNumber(bounds?.south);
+      const east = readFiniteNumber(bounds?.east);
+      const north = readFiniteNumber(bounds?.north);
+      const hasBounds = [west, south, east, north].every(
+        (value) => value !== undefined && Number.isFinite(value),
+      );
+
+      applyHeatmapDataset({
+        points,
+        metadata: hasBounds
+          ? {
+              map: {
+                heatmap: {
+                  bounds: [west!, south!, east!, north!],
+                  pointCount: readFiniteNumber(heatmap.summary?.points) ?? points.length,
+                  cellCount: readFiniteNumber(heatmap.summary?.cells) ?? heatmap.cells.length,
+                },
+              },
+            }
+          : undefined,
+      });
+
+      const categoryLabels = (heatmap.segments?.category ?? [])
+        .map((item) => readString(item.label, item.key))
+        .filter((value): value is string => Boolean(value));
+      const stateLabels = (heatmap.segments?.status ?? [])
+        .map((item) => readString(item.label, item.key))
+        .filter((value): value is string => Boolean(value));
+      if (categoryLabels.length > 0) {
+        setCategories((current) => mergeAndSortStrings(current, categoryLabels));
+      }
+      if (stateLabels.length > 0) {
+        setStates((current) => mergeAndSortStrings(current, stateLabels));
+      }
+
+      setCharts(chartsFromOperations(heatmap));
+      setOperationsHeatmap(heatmap);
+      setHeatmapContractSource('operations_v2');
+    },
+    [applyHeatmapDataset],
+  );
+
   const setDateRange = useCallback((range: IncidentTimeRange) => {
     setTimeRange(range);
     const dates = dateValuesForRange(range);
@@ -670,32 +860,60 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const ticketType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipio'), [user]);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    const generation = ++requestGeneration.current;
+    const isCurrentRequest = () => requestGeneration.current === generation;
     setIsLoading(true);
     setError(null);
 
     try {
       const filters = appliedFilters;
-
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
         tipo: ticketType,
         tenant_slug: canonicalTenantSlug || undefined,
       });
+      const operationsCache = operationsHeatmapCache.current;
 
-      const cache = heatmapCache.current;
-      const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
-        ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
+      try {
+        const operations = !forceRefresh && operationsCache.has(heatmapKey)
+          ? operationsCache.get(heatmapKey)!
+          : await getOperationsHeatmapV2({
+              tenantSlug: canonicalTenantSlug || undefined,
+              from: filters.fecha_inicio,
+              to: filters.fecha_fin,
+              categoria: filters.categoria.length > 0 ? filters.categoria.join(',') : undefined,
+              estado: filters.estado.length > 0 ? filters.estado.join(',') : undefined,
+              zone: [filters.barrio, filters.distrito].filter(Boolean).join(',') || undefined,
+              genero: filters.genero,
+              age_range: ageBucketsForRange(filters.edad_min, filters.edad_max),
+              include_ai: 0,
+            });
+
+        operationsCache.set(heatmapKey, operations);
+        if (operationsCache.size > HEATMAP_CACHE_LIMIT) {
+          const firstKey = operationsCache.keys().next().value;
+          if (firstKey) operationsCache.delete(firstKey);
+        }
+        if (!isCurrentRequest()) return;
+        applyOperationsHeatmap(operations);
+        return;
+      } catch (operationsError) {
+        if (!isCurrentRequest()) return;
+        if (!isLegacyCompatibilityError(operationsError)) throw operationsError;
+      }
+
+      const legacyCache = legacyHeatmapCache.current;
+      const heatmapPromise = !forceRefresh && legacyCache.has(heatmapKey)
+        ? Promise.resolve(legacyCache.get(heatmapKey) ?? { points: [] })
         : getHeatmapDataset({
             tipo: ticketType,
             ...filters,
             tenant_slug: canonicalTenantSlug || undefined,
           }).then((data) => {
-            cache.set(heatmapKey, data);
-            if (cache.size > HEATMAP_CACHE_LIMIT) {
-              const firstKey = cache.keys().next().value;
-              if (firstKey) {
-                cache.delete(firstKey);
-              }
+            legacyCache.set(heatmapKey, data);
+            if (legacyCache.size > HEATMAP_CACHE_LIMIT) {
+              const firstKey = legacyCache.keys().next().value;
+              if (firstKey) legacyCache.delete(firstKey);
             }
             return data;
           });
@@ -708,38 +926,44 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           tenant_slug: canonicalTenantSlug || undefined,
         }),
       ]);
-      setCharts(stats.charts || []);
-
+      if (!isCurrentRequest()) return;
       const heatmapPoints = heatmapDatasetResult.points ?? [];
       const statsDataset = stats.heatmapDataset;
-      const combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsDataset?.points ?? stats.heatmap ?? [];
-      const usedFallback = combinedHeatmap.length === 0;
+      const combinedHeatmap = heatmapPoints.length > 0
+        ? heatmapPoints
+        : statsDataset?.points ?? stats.heatmap ?? [];
 
+      setOperationsHeatmap(null);
+      setHeatmapContractSource('legacy_partial');
+      setCharts(stats.charts || []);
       applyHeatmapDataset(
         heatmapPoints.length > 0
           ? heatmapDatasetResult
           : statsDataset && (statsDataset.points?.length ?? 0) > 0
             ? statsDataset
             : { points: combinedHeatmap, metadata: undefined },
-        {
-          mergeFilters: usedFallback,
-          fallback: usedFallback,
-        },
+        { mergeFilters: true, fallback: true },
       );
     } catch (err) {
+      if (!isCurrentRequest()) return;
       const message =
         err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
       setError(message);
       setCharts([]);
+      setOperationsHeatmap(null);
+      setHeatmapContractSource(null);
       applyHeatmapDataset({ points: [] }, { mergeFilters: false, fallback: false });
       console.error('Error fetching map data:', err);
     } finally {
-      setIsLoading(false);
+      if (isCurrentRequest()) setIsLoading(false);
     }
-  }, [appliedFilters, applyHeatmapDataset, canonicalTenantSlug, ticketType]);
+  }, [appliedFilters, applyHeatmapDataset, applyOperationsHeatmap, canonicalTenantSlug, ticketType]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
+    return () => {
+      requestGeneration.current += 1;
+    };
   }, [fetchData]);
 
   useEffect(() => {
@@ -797,6 +1021,78 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   ].join(' | ');
 
   const mapInsights = useMemo(() => {
+    if (operationsHeatmap && heatmapContractSource === 'operations_v2') {
+      const summary = operationsHeatmap.summary ?? {};
+      const quality = operationsHeatmap.quality ?? {};
+      const toBreakdown = (items: OperationsBucketItem[] | undefined) =>
+        (items ?? [])
+          .map((item) => ({
+            label: readString(item.label, item.key) ?? 'Sin dato',
+            count: bucketCount(item),
+            weight: bucketCount(item),
+          }))
+          .filter((item) => item.count > 0);
+      const zones = toBreakdown(operationsHeatmap.segments?.zone).filter(
+        (item) => !['sin_zona', 'sin zona', 'unknown'].includes(item.label.toLowerCase()),
+      );
+      const categories = toBreakdown(operationsHeatmap.segments?.category);
+      const statesFromContract = toBreakdown(operationsHeatmap.segments?.status);
+      const pointCount = Math.max(
+        0,
+        readFiniteNumber(summary.points, summary.aggregated_observations) ?? 0,
+      );
+      const totalTicketRecords = Math.max(
+        0,
+        readFiniteNumber(quality.total_ticket_records, pointCount) ?? pointCount,
+      );
+      const pointsWithCoordinates = Math.max(
+        0,
+        readFiniteNumber(quality.ticket_records_with_coordinates, quality.visible_points, pointCount) ?? pointCount,
+      );
+      const coveragePercent = Math.max(
+        0,
+        Math.min(
+          100,
+          readFiniteNumber(quality.coverage_percent, summary.coverage_percent) ??
+            (totalTicketRecords > 0 ? (pointsWithCoordinates / totalTicketRecords) * 100 : 0),
+        ),
+      );
+      const pendingClassification = Math.max(
+        0,
+        readFiniteNumber(
+          quality.pending_geocode,
+          quality.ticket_records_without_coordinates,
+          summary.pending_geocode,
+        ) ?? 0,
+      );
+      const territoryQuality: TerritoryDataQuality = {
+        coordinatePoints: totalTicketRecords,
+        classifiedPoints: pointsWithCoordinates,
+        pendingClassification,
+        coveragePercent: Math.round(coveragePercent),
+        state:
+          pointCount === 0
+            ? 'missing'
+            : coveragePercent >= 99.5
+              ? 'complete'
+              : coveragePercent > 0
+                ? 'partial'
+                : 'missing',
+      };
+
+      return {
+        totalWeight: Math.max(0, readFiniteNumber(summary.aggregated_observations, summary.points) ?? pointCount),
+        pointCount,
+        cellCount: Math.max(0, readFiniteNumber(summary.cells) ?? 0),
+        hotZones: zones.slice(0, 4),
+        topCategory: categories[0],
+        topState: statesFromContract[0],
+        territoryQuality,
+        classifiedTerritoryWeight: zones.reduce((sum, zone) => sum + zone.weight, 0),
+        isEnterpriseContract: true,
+      };
+    }
+
     const totalWeight = heatmapData.reduce((sum, point) => sum + getPointWeight(point), 0);
     const weightedZones = buildWeightedBreakdown(
       heatmapData,
@@ -815,8 +1111,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       topState: weightedStates[0],
       territoryQuality,
       classifiedTerritoryWeight,
+      cellCount: 0,
+      isEnterpriseContract: false,
     };
-  }, [heatmapData]);
+  }, [heatmapContractSource, heatmapData, operationsHeatmap]);
 
   const activeFilterCount = [
     appliedFilters.categoria.length,
@@ -827,6 +1125,84 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     appliedFilters.edad_min || appliedFilters.edad_max ? 1 : 0,
   ].reduce((sum, value) => sum + value, 0);
 
+  const premiumActiveFilters = useMemo(() => {
+    if (heatmapContractSource === 'operations_v2' && operationsHeatmap?.applied_filters) {
+      return Object.entries(operationsHeatmap.applied_filters)
+        .map(([key, value]) => {
+          const displayValue = filterDisplayValue(value);
+          return displayValue
+            ? { key, label: OPERATIONS_FILTER_LABELS[key] ?? formatMapLabel(key), value: displayValue }
+            : null;
+        })
+        .filter((item): item is { key: string; label: string; value: string } => Boolean(item));
+    }
+
+    return [
+      appliedFilters.categoria.length
+        ? { key: 'category', label: 'Categorías', value: appliedFilters.categoria.join(', ') }
+        : null,
+      appliedFilters.estado.length
+        ? { key: 'status', label: 'Estados', value: appliedFilters.estado.join(', ') }
+        : null,
+      appliedFilters.barrio
+        ? { key: 'barrio', label: 'Barrio', value: appliedFilters.barrio }
+        : null,
+      appliedFilters.distrito
+        ? { key: 'district', label: 'Distrito', value: appliedFilters.distrito }
+        : null,
+      appliedFilters.genero
+        ? { key: 'gender', label: 'Género', value: appliedFilters.genero }
+        : null,
+      appliedFilters.edad_min || appliedFilters.edad_max
+        ? {
+            key: 'age_range',
+            label: 'Edad',
+            value: `${appliedFilters.edad_min || '0'}–${appliedFilters.edad_max || 'más'}`,
+          }
+        : null,
+    ].filter((item): item is { key: string; label: string; value: string } => Boolean(item));
+  }, [appliedFilters, heatmapContractSource, operationsHeatmap?.applied_filters]);
+
+  const premiumMapConfig = useMemo<PublicMapConfigV1>(
+    () => ({ provider }),
+    [provider],
+  );
+
+  const operationsPrivacyLabel = operationsHeatmap?.privacy?.mode
+    ? formatMapLabel(operationsHeatmap.privacy.mode)
+    : 'Sin modo declarado';
+  const syntheticResponsesExcluded = readFiniteNumber(
+    operationsHeatmap?.response_provenance?.synthetic_responses_excluded,
+  );
+  const operationsKMin = readFiniteNumber(
+    operationsHeatmap?.privacy?.k_min,
+    operationsHeatmap?.privacy?.minimum_sample_size,
+  );
+  const operationsPrecision = readFiniteNumber(
+    operationsHeatmap?.privacy?.coordinate_precision_decimals,
+  );
+  const operationsSuppressed = asRecord(operationsHeatmap?.privacy?.suppressed);
+  const operationsSuppressedRecords = readFiniteNumber(
+    operationsSuppressed?.records,
+    operationsHeatmap?.summary?.suppressed_records,
+  );
+  const operationsSuppressedCells = readFiniteNumber(
+    operationsSuppressed?.cells,
+    operationsSuppressed?.low_cardinality_cells,
+    operationsHeatmap?.summary?.suppressed_cells,
+  );
+  const hasRenderableMapData =
+    heatmapContractSource === 'operations_v2'
+      ? operationsHeatmap?.render_contract?.can_render_heatmap !== undefined
+        ? operationsHeatmap.render_contract.can_render_heatmap
+        : Boolean(
+            operationsHeatmap?.points.length ||
+              operationsHeatmap?.cells.length ||
+              operationsHeatmap?.geo_layers?.points?.features.length ||
+              operationsHeatmap?.geo_layers?.cells?.features.length,
+          )
+      : heatmapData.length > 0;
+
   const mapKpis = [
     {
       label: 'Incidencias',
@@ -836,15 +1212,21 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     },
     {
       label: 'Cobertura territorial',
-      value: `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
-      detail: `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
+      value: mapInsights.isEnterpriseContract
+        ? `${formatNumber(mapInsights.territoryQuality.coveragePercent)}%`
+        : `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
+      detail: mapInsights.isEnterpriseContract
+        ? `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes de geocodificar`
+        : `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
       icon: Layers,
     },
     {
       label: mapInsights.hotZones[0] ? 'Zona prioritaria' : 'Calidad de datos',
       value: mapInsights.hotZones[0]
         ? formatMapLabel(mapInsights.hotZones[0].label)
-        : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes`,
+        : mapInsights.isEnterpriseContract && mapInsights.cellCount > 0
+          ? `${formatNumber(mapInsights.cellCount)} celdas seguras`
+          : `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes`,
       detail: mapInsights.hotZones[0]
         ? `${formatNumber(mapInsights.hotZones[0].weight)} reportes`
         : 'Con GPS, sin barrio, zona o localidad',
@@ -879,7 +1261,11 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             {activeFilterCount > 0 ? `${activeFilterCount} filtros activos` : 'Sin filtros activos'}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            {showHeatmap ? 'Capa calor activa' : 'Puntos y clusters'}
+            {heatmapContractSource === 'operations_v2'
+              ? 'Contrato territorial v2'
+              : showHeatmap
+                ? 'Capa calor activa'
+                : 'Puntos y clusters'}
           </span>
         </div>
       </div>
@@ -913,18 +1299,25 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               <SlidersHorizontal className="h-4 w-4" />
               Filtros operativos
             </span>
-            <button
-              type="button"
-              onClick={() => setShowHeatmap((value) => !value)}
-              className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition ${
-                showHeatmap
-                  ? 'border-amber-300/50 bg-amber-400/15 text-amber-700 dark:text-amber-100'
-                  : 'border-border bg-background text-muted-foreground'
-              }`}
-            >
-              <Flame className="h-4 w-4" />
-              {showHeatmap ? 'Calor activo' : 'Solo puntos'}
-            </button>
+            {heatmapContractSource === 'legacy_partial' ? (
+              <button
+                type="button"
+                onClick={() => setShowHeatmap((value) => !value)}
+                className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition ${
+                  showHeatmap
+                    ? 'border-amber-300/50 bg-amber-400/15 text-amber-700 dark:text-amber-100'
+                    : 'border-border bg-background text-muted-foreground'
+                }`}
+              >
+                <Flame className="h-4 w-4" />
+                {showHeatmap ? 'Calor activo' : 'Solo puntos'}
+              </button>
+            ) : (
+              <span className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-primary">
+                <Layers className="h-4 w-4" />
+                Capas verificadas por contrato
+              </span>
+            )}
             <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
               <span>Motor</span>
               <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
@@ -1150,7 +1543,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             </Button>
           </AlertDescription>
         </Alert>
-      ) : isLoading && heatmapData.length === 0 ? (
+      ) : isLoading && !hasRenderableMapData ? (
         <div
           data-testid="incidents-map-loading"
           role="status"
@@ -1166,17 +1559,20 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             </div>
           </div>
         </div>
-      ) : heatmapData.length === 0 ? (
+      ) : !hasRenderableMapData ? (
         <Alert
           data-testid="incidents-map-empty"
           variant="default"
           className="border-border/60 bg-muted/30"
         >
           <MapPin className="h-4 w-4" />
-          <AlertTitle>No hay ubicaciones para esta vista</AlertTitle>
+          <AlertTitle>
+            {operationsHeatmap?.map_narrative?.headline || 'No hay ubicaciones para esta vista'}
+          </AlertTitle>
           <AlertDescription className="space-y-4">
             <p>
-              No encontramos reclamos geocodificados con los filtros aplicados. Amplia el periodo o limpia la segmentacion para recuperar cobertura.
+              {operationsHeatmap?.map_narrative?.body ||
+                'No encontramos reclamos geocodificados con los filtros aplicados. Amplia el periodo o limpia la segmentacion para recuperar cobertura.'}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" onClick={expandToNinetyDays}>
@@ -1191,8 +1587,77 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             </div>
           </AlertDescription>
         </Alert>
+      ) : heatmapContractSource === 'operations_v2' && operationsHeatmap ? (
+        <>
+          <div
+            data-testid="operations-heatmap-evidence"
+            className="flex flex-col gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between"
+          >
+            <div>
+              <p className="text-sm font-semibold text-foreground">Contrato territorial verificable</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {operationsHeatmap.contract_version || 'operations.heatmap.v1'} · privacidad{' '}
+                {operationsPrivacyLabel} · filtros confirmados por backend{' '}
+                {Object.keys(operationsHeatmap.applied_filters ?? {}).length}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-medium">
+              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                Fuente: {operationsHeatmap.source_quality?.contract_version || 'no declarada'}
+              </span>
+              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                {operationsKMin !== undefined ? `Privacidad: k ≥ ${formatNumber(operationsKMin)}` : 'k mínimo no declarado'}
+              </span>
+              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                {operationsPrecision !== undefined
+                  ? `Precisión: ${formatNumber(operationsPrecision)} decimales`
+                  : operationsHeatmap.privacy?.coordinate_precision
+                    ? `Precisión: ${formatMapLabel(operationsHeatmap.privacy.coordinate_precision)}`
+                    : 'Precisión: no declarada'}
+              </span>
+              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                Supresión: {operationsSuppressedRecords !== undefined || operationsSuppressedCells !== undefined
+                  ? `${formatNumber(operationsSuppressedRecords ?? 0)} ${(operationsSuppressedRecords ?? 0) === 1 ? 'registro' : 'registros'} · ${formatNumber(operationsSuppressedCells ?? 0)} ${(operationsSuppressedCells ?? 0) === 1 ? 'celda' : 'celdas'}`
+                  : operationsHeatmap.privacy?.suppressed === true
+                    ? 'activa'
+                    : operationsHeatmap.privacy?.suppressed === false
+                      ? 'sin supresión declarada'
+                      : 'no declarada'}
+              </span>
+              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                {syntheticResponsesExcluded !== undefined
+                  ? `Encuestas sintéticas excluidas: ${formatNumber(syntheticResponsesExcluded)}`
+                  : operationsHeatmap.response_provenance?.mode
+                    ? `Procedencia: ${formatMapLabel(operationsHeatmap.response_provenance.mode)}`
+                    : 'Procedencia: no declarada'}
+              </span>
+            </div>
+          </div>
+          <PremiumTerritoryHeatmap
+            points={operationsHeatmap.points}
+            heatmap={operationsHeatmap}
+            labels={operationsHeatmap.ui?.labels}
+            activeFilters={premiumActiveFilters}
+            mapConfig={premiumMapConfig}
+            minSampleSize={operationsHeatmap.privacy?.minimum_sample_size}
+            allowDemoFallback={false}
+            className="min-h-[560px]"
+          />
+        </>
       ) : (
       <>
+      <Alert
+        data-testid="legacy-heatmap-evidence"
+        variant="default"
+        className="border-amber-500/35 bg-amber-500/10"
+      >
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Compatibilidad legado · evidencia parcial</AlertTitle>
+        <AlertDescription>
+          El contrato territorial v2 no está publicado en este entorno. La vista conserva los puntos
+          disponibles, pero no certifica privacidad, procedencia ni todos los filtros enterprise.
+        </AlertDescription>
+      </Alert>
       <div
         data-testid="territory-data-quality"
         className={`rounded-2xl border p-4 shadow-sm ${

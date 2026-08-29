@@ -161,6 +161,8 @@ describe('operations heatmap v2 contract', () => {
       privacy_metadata: {
         privacy_mode: 'tenant_aggregated',
         min_sample_size: '14',
+        coordinate_precision_decimals: '3',
+        suppressed: { records: '4', cells: '2', exact_points: true },
         rawPointsRedacted: 'true',
         coordinatePrecision: 'rounded_3_decimals',
         populationSource: 'INDEC 2022',
@@ -485,7 +487,10 @@ describe('operations heatmap v2 contract', () => {
       scope: 'historical',
       canal: 'whatsapp',
       barrio: 'Centro',
+      zone: 'centro',
       estado: 'nuevo',
+      sla_state: 'breached',
+      assignee_id: 77,
       include_ai: 0,
     });
 
@@ -499,7 +504,10 @@ describe('operations heatmap v2 contract', () => {
     expect(url).toContain('scope=historical');
     expect(url).toContain('canal=whatsapp');
     expect(url).toContain('barrio=Centro');
+    expect(url).toContain('zone=centro');
     expect(url).toContain('estado=nuevo');
+    expect(url).toContain('sla_state=breached');
+    expect(url).toContain('assignee_id=77');
     expect(url).toContain('include_ai=0');
     expect(options).toMatchObject({ tenantSlug: 'junin' });
 
@@ -580,8 +588,11 @@ describe('operations heatmap v2 contract', () => {
       mode: 'tenant_aggregated',
       aggregation: undefined,
       minimum_sample_size: 14,
+      k_min: 14,
       raw_points_redacted: true,
       coordinate_precision: 'rounded_3_decimals',
+      coordinate_precision_decimals: 3,
+      suppressed: { records: '4', cells: '2', exact_points: true },
       population_source: 'INDEC 2022',
       boundaries_source: 'Catastro Junín 2026',
     });
