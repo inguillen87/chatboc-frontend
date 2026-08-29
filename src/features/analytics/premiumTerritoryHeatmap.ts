@@ -305,7 +305,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   if (id.includes('geo') || id.includes('quality') || id.includes('coverage')) {
     return {
       id,
-      label: id.includes('geo') ? 'Geocoding' : 'Cobertura GPS',
+      label: id.includes('geo') ? 'Ubicaciones pendientes' : 'Calidad de cobertura',
       description: 'Calidad de coordenadas y direcciones pendientes.',
       tone: 'quality',
       source,
@@ -332,9 +332,36 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   if (id.includes('heat') || id.includes('hotspot') || id.includes('base')) {
     return {
       id,
-      label: id.includes('hotspot') ? 'Hotspots' : 'Calor territorial',
+      label: id.includes('hotspot') ? 'Zonas de mayor intensidad' : 'Calor territorial',
       description: 'Densidad y volumen operativo por zona agregada.',
       tone: 'heat',
+      source,
+    };
+  }
+  if (id.includes('category') || id.includes('categoria')) {
+    return {
+      id,
+      label: 'Capas por categoría',
+      description: 'Distribución territorial de los motivos de atención seleccionados.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id.includes('survey') || id.includes('encuesta') || id.includes('participation')) {
+    return {
+      id,
+      label: 'Participación en encuestas',
+      description: 'Volumen agregado de participación ciudadana por zona.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id.includes('ticket') || id.includes('reclamo') || id.includes('case')) {
+    return {
+      id,
+      label: 'Reclamos y casos',
+      description: 'Casos operativos agrupados por ubicación y categoría.',
+      tone: 'neutral',
       source,
     };
   }

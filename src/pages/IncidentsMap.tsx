@@ -115,9 +115,23 @@ const sanitizeFilterValue = (value?: string | null): string | undefined => {
 const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
   value.toLocaleString('es-AR', options);
 
+const MAP_LABELS: Record<string, string> = {
+  employee_aggregated: 'Datos agregados del equipo',
+  tenant_aggregated: 'Datos agregados del municipio',
+  public_aggregated: 'Datos públicos agregados',
+  coordinates_without_customer_pii: 'Sin datos personales',
+  client_filter: 'Filtro operativo',
+  pending: 'Pendiente',
+  queued: 'En revisión',
+  ready: 'Disponible',
+  real: 'Datos operativos verificados',
+  synthetic: 'Datos simulados',
+};
+
 const formatMapLabel = (value?: string | null) => {
   if (!value) return 'Sin dato';
-  return value.replace(/_/g, ' ');
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return MAP_LABELS[normalized] ?? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
 const getPointWeight = (point: HeatPoint) => {
@@ -1262,10 +1276,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
             {heatmapContractSource === 'operations_v2'
-              ? 'Contrato territorial v2'
+              ? 'Datos territoriales verificados'
               : showHeatmap
                 ? 'Capa calor activa'
-                : 'Puntos y clusters'}
+                : 'Puntos agrupados'}
           </span>
         </div>
       </div>
@@ -1591,47 +1605,65 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         <>
           <div
             data-testid="operations-heatmap-evidence"
-            className="flex flex-col gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between"
+            className="rounded-2xl border border-primary/25 bg-primary/5 p-4 shadow-sm"
           >
-            <div>
-              <p className="text-sm font-semibold text-foreground">Contrato territorial verificable</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {operationsHeatmap.contract_version || 'operations.heatmap.v1'} · privacidad{' '}
-                {operationsPrivacyLabel} · filtros confirmados por backend{' '}
-                {Object.keys(operationsHeatmap.applied_filters ?? {}).length}
-              </p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Calidad y privacidad de los datos</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Fuente operativa verificada · {operationsPrivacyLabel} ·{' '}
+                  {Object.keys(operationsHeatmap.applied_filters ?? {}).length === 1
+                    ? '1 filtro aplicado'
+                    : `${Object.keys(operationsHeatmap.applied_filters ?? {}).length} filtros aplicados`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                  {operationsKMin !== undefined
+                    ? `Privacidad protegida desde ${formatNumber(operationsKMin)} casos`
+                    : 'Privacidad protegida'}
+                </span>
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
+                  {syntheticResponsesExcluded !== undefined
+                    ? `${formatNumber(syntheticResponsesExcluded)} respuestas simuladas excluidas`
+                    : 'Sin mezcla de datos simulados'}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-medium">
-              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
-                Fuente: {operationsHeatmap.source_quality?.contract_version || 'no declarada'}
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
-                {operationsKMin !== undefined ? `Privacidad: k ≥ ${formatNumber(operationsKMin)}` : 'k mínimo no declarado'}
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
-                {operationsPrecision !== undefined
-                  ? `Precisión: ${formatNumber(operationsPrecision)} decimales`
-                  : operationsHeatmap.privacy?.coordinate_precision
-                    ? `Precisión: ${formatMapLabel(operationsHeatmap.privacy.coordinate_precision)}`
-                    : 'Precisión: no declarada'}
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
-                Supresión: {operationsSuppressedRecords !== undefined || operationsSuppressedCells !== undefined
-                  ? `${formatNumber(operationsSuppressedRecords ?? 0)} ${(operationsSuppressedRecords ?? 0) === 1 ? 'registro' : 'registros'} · ${formatNumber(operationsSuppressedCells ?? 0)} ${(operationsSuppressedCells ?? 0) === 1 ? 'celda' : 'celdas'}`
-                  : operationsHeatmap.privacy?.suppressed === true
-                    ? 'activa'
-                    : operationsHeatmap.privacy?.suppressed === false
-                      ? 'sin supresión declarada'
-                      : 'no declarada'}
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background px-3 py-1 text-foreground">
-                {syntheticResponsesExcluded !== undefined
-                  ? `Encuestas sintéticas excluidas: ${formatNumber(syntheticResponsesExcluded)}`
-                  : operationsHeatmap.response_provenance?.mode
+            <details className="mt-3 border-t border-primary/15 pt-3 text-xs text-muted-foreground">
+              <summary className="w-fit cursor-pointer font-medium text-foreground transition hover:text-primary">
+                Ver detalles técnicos de auditoría
+              </summary>
+              <div className="mt-3 flex flex-wrap gap-2" data-testid="operations-heatmap-audit-details">
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
+                  Contrato: {operationsHeatmap.contract_version || 'operations.heatmap.v1'}
+                </span>
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
+                  Fuente: {operationsHeatmap.source_quality?.contract_version || 'no declarada'}
+                </span>
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
+                  {operationsPrecision !== undefined
+                    ? `Precisión: ${formatNumber(operationsPrecision)} decimales`
+                    : operationsHeatmap.privacy?.coordinate_precision
+                      ? `Precisión: ${formatMapLabel(operationsHeatmap.privacy.coordinate_precision)}`
+                      : 'Precisión: no declarada'}
+                </span>
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
+                  Supresión: {operationsSuppressedRecords !== undefined || operationsSuppressedCells !== undefined
+                    ? `${formatNumber(operationsSuppressedRecords ?? 0)} ${(operationsSuppressedRecords ?? 0) === 1 ? 'registro' : 'registros'} · ${formatNumber(operationsSuppressedCells ?? 0)} ${(operationsSuppressedCells ?? 0) === 1 ? 'celda' : 'celdas'}`
+                    : operationsHeatmap.privacy?.suppressed === true
+                      ? 'activa'
+                      : operationsHeatmap.privacy?.suppressed === false
+                        ? 'sin supresión declarada'
+                        : 'no declarada'}
+                </span>
+                <span className="rounded-full border border-primary/20 bg-background px-3 py-1">
+                  {operationsHeatmap.response_provenance?.mode
                     ? `Procedencia: ${formatMapLabel(operationsHeatmap.response_provenance.mode)}`
                     : 'Procedencia: no declarada'}
-              </span>
-            </div>
+                </span>
+              </div>
+            </details>
           </div>
           <PremiumTerritoryHeatmap
             points={operationsHeatmap.points}

@@ -240,15 +240,20 @@ describe('IncidentsMap', () => {
     expect(map).toHaveAttribute('data-min-sample-size', '5');
     expect(map).toHaveAttribute('data-demo-fallback', 'false');
     expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
-      'Contrato territorial verificable',
+      'Calidad y privacidad de los datos',
     );
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent('Privacidad: k ≥ 5');
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent('Precisión: 3 decimales');
     expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
+      'Privacidad protegida desde 5 casos',
+    );
+    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
+      '2 respuestas simuladas excluidas',
+    );
+    expect(screen.getByText('Ver detalles técnicos de auditoría')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-heatmap-audit-details')).toHaveTextContent(
+      'Precisión: 3 decimales',
+    );
+    expect(screen.getByTestId('operations-heatmap-audit-details')).toHaveTextContent(
       'Supresión: 3 registros · 1 celda',
-    );
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
-      'Encuestas sintéticas excluidas: 2',
     );
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
     expect(mocks.getTicketStats).not.toHaveBeenCalled();
@@ -347,9 +352,7 @@ describe('IncidentsMap', () => {
     expect(map.getAttribute('data-active-filters')).toContain('breached');
     expect(map.getAttribute('data-active-filters')).toContain('Responsable');
     expect(map.getAttribute('data-active-filters')).toContain('77');
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
-      'filtros confirmados por backend 3',
-    );
+    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent('3 filtros aplicados');
   });
 
   it('keeps draft filters local and maps age ranges only after apply', async () => {

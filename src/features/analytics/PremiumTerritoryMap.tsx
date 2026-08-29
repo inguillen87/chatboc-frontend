@@ -186,8 +186,45 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
 const formatPercent = (value: number | undefined) =>
   value === undefined || Number.isNaN(value) ? '--' : `${numberFormatter.format(value)}%`;
 
-const humanizeContractValue = (value: string | undefined, fallback: string) =>
-  value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : fallback;
+const CONTRACT_VALUE_LABELS: Record<string, string> = {
+  pending: 'Pendiente',
+  queued: 'En revisión',
+  ready: 'Disponible',
+  online: 'En línea',
+  client_filter: 'Filtro operativo',
+  interactive_globe_heatmap: 'Mapa de calor interactivo',
+  show_geocoding_queue_and_ai_summary: 'Mostrar ubicaciones pendientes y resumen operativo',
+  local_fallback: 'Análisis local seguro',
+  municipal_risk_detection: 'Detección municipal de riesgos',
+  deterministic_lightweight_dashboard: 'Análisis local verificable',
+  webgl_heatmap: 'Mapa de calor acelerado',
+  fly_to: 'Encuadre automático',
+  open_geocoding_queue: 'Abrir ubicaciones pendientes',
+  open_ai_risk_layers: 'Revisar riesgos sugeridos',
+  open_template_or_live_chat: 'Abrir respuesta o conversación',
+  focus_map_cell_and_filter_tickets: 'Priorizar zona y filtrar reclamos',
+  open_ticket: 'Abrir reclamo',
+  operations_heatmap_updated: 'Mapa territorial actualizado',
+  ticket_updated: 'Reclamo actualizado',
+  base_heatmap: 'Mapa de calor',
+  hotspot_cells: 'Zonas de mayor intensidad',
+  category_layers: 'Capas por categoría',
+  ai_risk_layers: 'Riesgo sugerido por IA',
+  survey_participation: 'Participación en encuestas',
+  whatsapp_activity: 'Actividad de WhatsApp',
+  risk_pulses: 'Alertas de riesgo',
+  priority_forecast: 'Prioridad sugerida',
+  geocoding_queue: 'Ubicaciones pendientes',
+  realtime_telemetry: 'Actividad en tiempo real',
+  coverage_quality: 'Calidad de cobertura',
+};
+
+const humanizeContractValue = (value: string | undefined, fallback: string) => {
+  if (!value) return fallback;
+  const readable = value.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = readable.toLowerCase().replace(/\s+/g, '_');
+  return CONTRACT_VALUE_LABELS[normalized] ?? readable;
+};
 
 const privacyModeLabel = (value: string | undefined) => {
   const normalized = value?.trim().toLowerCase();
@@ -979,7 +1016,7 @@ export function PremiumTerritoryHeatmap({
   const decisionActionLabel =
     decisionAction?.label ??
     (readiness.pendingGeocode > 0
-      ? 'Resolver geocoding pendiente'
+      ? 'Resolver ubicaciones pendientes'
       : readiness.state === 'ready'
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
@@ -1001,7 +1038,7 @@ export function PremiumTerritoryHeatmap({
         ? humanizeContractValue(realtimeSources[0], realtimeSources[0])
         : latestRealtime
           ? `ultimo evento ${latestRealtime}`
-          : 'sin socket visible';
+          : 'sin actividad reciente';
   const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
   const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
   const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
@@ -1028,7 +1065,7 @@ export function PremiumTerritoryHeatmap({
   });
   const hudBars = [
     { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
-    { id: 'hotspots', label: 'hotspots', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' },
+    { id: 'hotspots', label: 'zonas', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' },
     { id: 'pend', label: 'pend.', value: readiness.pendingGeocode ?? 0, tone: 'rgba(245,158,11,0.86)' },
   ];
   const hudMax = Math.max(1, ...hudBars.map((bar) => bar.value));
@@ -1042,7 +1079,7 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Pendientes',
       value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola de geocoding',
+      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin ubicaciones pendientes',
       icon: DatabaseZap,
     },
     {
@@ -1070,7 +1107,7 @@ export function PremiumTerritoryHeatmap({
       label: 'Foco critico',
       value:
         backendCriticalHotspots !== undefined
-          ? `${formatNumber(backendCriticalHotspots, '0')} hotspots`
+          ? `${formatNumber(backendCriticalHotspots, '0')} zonas críticas`
           : `${formatNumber(aggregate.alerts, '0')} alertas`,
       detail: commandPrimaryCategory,
       icon: ShieldAlert,
@@ -1096,7 +1133,7 @@ export function PremiumTerritoryHeatmap({
   ];
   const commandSignals = [
     {
-      label: backendTopCategory ? 'Foco backend' : 'Zona foco',
+      label: backendTopCategory ? 'Motivo prioritario' : 'Zona foco',
       value: backendTopCategory
         ? humanizeContractValue(backendTopCategory, backendTopCategory)
         : hasTerritoryBoundaries
@@ -1207,10 +1244,10 @@ export function PremiumTerritoryHeatmap({
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
               {usesDemoData
-                ? 'modo demo local'
+                ? 'Escenario de demostración'
                 : usesBackendCellPoints
-                  ? 'heatmap backend'
-                  : heatmap?.contract_version ?? 'operations.heatmap.v1'}
+                  ? 'Zonas agregadas verificadas'
+                  : 'Datos operativos verificados'}
             </Badge>
             <Badge variant="outline" className="gap-1 capitalize">
               <Globe2 className="h-3.5 w-3.5" />
@@ -1252,11 +1289,11 @@ export function PremiumTerritoryHeatmap({
             <p className="text-lg font-semibold">{formatPercent(readiness.coveragePercent)}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Geocoding</p>
+            <p className="text-xs text-muted-foreground">Ubicaciones pendientes</p>
             <p className="text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Telemetria</p>
+            <p className="text-xs text-muted-foreground">Actualización</p>
             <p className="text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
           </div>
         </div>
@@ -1303,7 +1340,7 @@ export function PremiumTerritoryHeatmap({
           <Badge variant="outline" className="w-fit gap-1">
             <Activity className="h-3.5 w-3.5" />
             {hasBackendMapContract
-              ? 'contrato backend activo'
+              ? 'fuente operativa conectada'
               : hasTerritoryBoundaries
                 ? 'límites oficiales activos'
                 : 'sin límites oficiales'}
@@ -1335,7 +1372,7 @@ export function PremiumTerritoryHeatmap({
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="gap-1">
                 <Radar className="h-3.5 w-3.5" />
-                Command loop IA
+                Ciclo de decisión asistido
               </Badge>
               <Badge variant={readiness.state === 'ready' ? 'outline' : 'secondary'} className="capitalize">
                 {readiness.label}
@@ -1343,7 +1380,7 @@ export function PremiumTerritoryHeatmap({
             </div>
             <h4 className="mt-2 text-lg font-semibold leading-tight">Pulso operativo territorial</h4>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Priorizacion del mapa para convertir heatmaps, encuestas, tickets y WhatsApp en una cola de trabajo clara para el equipo.
+              Priorización territorial para convertir reclamos, encuestas y WhatsApp en una cola de trabajo clara para el equipo.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -1581,7 +1618,7 @@ export function PremiumTerritoryHeatmap({
             <g data-testid="territory-hud-overlay" aria-hidden="true" opacity="0.94">
               <rect x="5.5" y="6" width="27.5" height="13.6" rx="2.2" fill="rgba(15,23,42,0.58)" stroke="rgba(148,163,184,0.36)" strokeWidth="0.18" />
               <text x="8" y="10.2" className="fill-white text-[2.05px] font-semibold tracking-[0.18em]">
-                HEATMAP OPERATIVO
+                MAPA OPERATIVO
               </text>
               <text x="8" y="13.7" className="fill-cyan-100 text-[1.85px] font-medium">
                 {preferredVisualization.slice(0, 27)}
@@ -2045,7 +2082,7 @@ export function PremiumTerritoryHeatmap({
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <DatabaseZap className="h-3.5 w-3.5" />
-                  Geocoding
+                  Ubicaciones pendientes
                 </div>
                 <p className="mt-1 text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
               </div>
@@ -2061,7 +2098,7 @@ export function PremiumTerritoryHeatmap({
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
-                  Polling
+                  Actualización
                 </div>
                 <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
               </div>
@@ -2096,7 +2133,7 @@ export function PremiumTerritoryHeatmap({
                   <p className="mt-1 text-lg font-semibold">{formatNumber(backendTotalCases)}</p>
                 </div>
                 <div className="rounded-lg border bg-background/65 p-3">
-                  <p className="text-xs text-muted-foreground">Hotspots criticos</p>
+                  <p className="text-xs text-muted-foreground">Zonas críticas</p>
                   <p className="mt-1 text-lg font-semibold">{formatNumber(backendCriticalHotspots, '0')}</p>
                 </div>
               </div>
@@ -2127,7 +2164,7 @@ export function PremiumTerritoryHeatmap({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
-                    Hotspots operativos
+                    Prioridades territoriales
                   </p>
                   <h4 className="mt-1 text-lg font-semibold leading-tight">Focos para actuar primero</h4>
                 </div>
@@ -2225,7 +2262,7 @@ export function PremiumTerritoryHeatmap({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Brief operativo IA
+                    Resumen operativo asistido
                   </div>
                   <h4 className="mt-2 text-base font-semibold leading-snug">
                     {narrativeTitle || 'Mapa territorial accionable'}
@@ -2324,8 +2361,8 @@ export function PremiumTerritoryHeatmap({
                     </div>
                     {heatmap?.hotspot_actions ? (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {heatmap.hotspot_actions.safe_by_default ? 'Safe by default' : 'Revisar permisos'} -{' '}
-                        {heatmap.hotspot_actions.writes_enabled ? 'acciones con escritura' : 'solo preparacion operativa'}
+                        {heatmap.hotspot_actions.safe_by_default ? 'Acciones protegidas' : 'Revisar permisos'} -{' '}
+                        {heatmap.hotspot_actions.writes_enabled ? 'requiere confirmación' : 'solo preparación operativa'}
                       </p>
                     ) : null}
                   </div>
@@ -2375,7 +2412,7 @@ export function PremiumTerritoryHeatmap({
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <MapPin className="h-4 w-4 text-primary" />
-              Hotspots por zona
+              Intensidad por zona
             </div>
             <div className="mt-3 space-y-3">
               {topZones.length ? (

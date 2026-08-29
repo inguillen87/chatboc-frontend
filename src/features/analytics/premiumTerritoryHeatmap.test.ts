@@ -381,6 +381,12 @@ describe('premium territory heatmap aggregation', () => {
       'coverage_quality',
     ]);
     expect(layers.find((layer) => layer.id === 'ai_risk_layers')?.tone).toBe('ai');
+    expect(layers.find((layer) => layer.id === 'survey_participation')?.label).toBe(
+      'Participación en encuestas',
+    );
+    expect(layers.find((layer) => layer.id === 'geocoding_queue')?.label).toBe(
+      'Ubicaciones pendientes',
+    );
   });
 
   it('promotes ai status layer hints into selectable map layers', () => {
