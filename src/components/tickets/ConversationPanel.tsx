@@ -2085,31 +2085,38 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       <footer
         className={cn(
-          'sticky bottom-0 z-20 shrink-0 overflow-hidden border-t border-border/80 bg-card/95 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur',
-          isMobile ? 'px-2.5 py-2' : 'p-3',
+          'z-20 shrink-0 overflow-hidden border-t border-border/80 bg-card/95 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur',
+          isMobile ? 'relative px-2.5 py-2' : 'sticky bottom-0 p-3',
         )}
         data-testid="ticket-reply-footer"
       >
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div>
+        <div className={cn('flex items-center justify-between gap-2', isMobile ? 'mb-1.5' : 'mb-2 flex-wrap')}>
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Respuesta desde el ticket</p>
-            <p className="text-[11px] text-muted-foreground">
-              El mensaje queda auditado en el CRM; la entrega externa se confirma debajo del compositor.
-            </p>
+            {!isMobile && (
+              <p className="text-[11px] text-muted-foreground">
+                El mensaje queda auditado en el CRM; la entrega externa se confirma debajo del compositor.
+              </p>
+            )}
           </div>
-          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="h-6 rounded-full text-[11px]" data-testid="ticket-composer-sync-status">
+          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="h-6 shrink-0 rounded-full text-[11px]" data-testid="ticket-composer-sync-status">
             {realtimeOnline ? 'Tiempo real conectado' : 'Actualización por sondeo'}
           </Badge>
         </div>
         <div
-          className="mb-2 flex flex-wrap items-center gap-1.5"
+          className={cn(
+            'flex items-center gap-1.5',
+            isMobile
+              ? 'mb-1.5 flex-nowrap overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              : 'mb-2 flex-wrap',
+          )}
           role="group"
           aria-label="Acciones de respuesta"
           data-testid="ticket-composer-action-bar"
         >
           <div className="flex items-center gap-1 rounded-[8px] border border-border/70 bg-background px-1.5 pr-2 text-xs font-medium text-foreground [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[6px] [&_button]:border-0">
             <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
-            <span>Adjuntar archivo o imagen</span>
+            <span className={cn(isMobile && 'sr-only')}>Adjuntar archivo o imagen</span>
           </div>
           <Button
             type="button"
@@ -2212,7 +2219,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         <div
           className={cn(
             'min-h-0',
-            isMobile && 'max-h-[8.5rem] overflow-y-auto overscroll-contain pr-0.5 [scrollbar-gutter:stable]',
+            isMobile && 'max-h-14 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-gutter:stable]',
           )}
           data-testid="ticket-composer-context"
         >
