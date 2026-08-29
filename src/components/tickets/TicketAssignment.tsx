@@ -10,10 +10,29 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { MessageSquare, RefreshCcw, ShieldCheck, UserCheck, Users } from 'lucide-react';
+import type { Ticket } from '@/types/tickets';
+import { canAgentClaimTicketCategory } from './TicketClaimButton';
 
 interface TicketAssignmentProps {
   className?: string;
 }
+
+const hasPublishedTicketCategory = (ticket: Ticket): boolean =>
+  Boolean(
+    ticket.categoria_id ||
+      ticket.categoria_ids?.length ||
+      ticket.categorias?.length ||
+      ticket.categoria_principal?.trim() ||
+      ticket.categoria?.trim(),
+  );
+
+export const filterCategoryAssignableAgents = (
+  ticket: Ticket | null,
+  agents: AssignableAgent[],
+): AssignableAgent[] => {
+  if (!ticket || !hasPublishedTicketCategory(ticket)) return agents;
+  return agents.filter((agent) => canAgentClaimTicketCategory(ticket, agent));
+};
 
 const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   const { selectedTicket, tickets, updateTicket } = useTickets();
@@ -41,43 +60,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   }, [tickets]);
 
   const categoryCandidates = useMemo(() => {
-    if (!selectedTicket) return agents;
-
-    const ticketCategoryIds = new Set<number>();
-    if (selectedTicket.categoria_id) {
-      ticketCategoryIds.add(selectedTicket.categoria_id);
-    }
-    if (selectedTicket.categorias) {
-      for (const category of selectedTicket.categorias) {
-        ticketCategoryIds.add(category.id);
-      }
-    }
-
-    if (ticketCategoryIds.size === 0) return agents;
-
-    return agents.filter((agent) => {
-      if (!agent.categoria_ids && !agent.categorias) return true;
-
-      const agentCategoryIds = new Set<number>();
-      if (agent.categoria_ids) {
-        for (const categoryId of agent.categoria_ids) {
-          agentCategoryIds.add(categoryId);
-        }
-      }
-      if (agent.categorias) {
-        for (const category of agent.categorias) {
-          agentCategoryIds.add(category.id);
-        }
-      }
-
-      for (const ticketCategoryId of ticketCategoryIds) {
-        if (agentCategoryIds.has(ticketCategoryId)) {
-          return true;
-        }
-      }
-
-      return false;
-    });
+    return filterCategoryAssignableAgents(selectedTicket, agents);
   }, [agents, selectedTicket]);
 
   const recommendedAgent = useMemo(() => {
@@ -102,14 +85,19 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       setSelectedAgentId('');
       return;
     }
-    setSelectedAgentId(String(categoryCandidates[0].id));
-  }, [categoryCandidates]);
+    setSelectedAgentId(String(recommendedAgent?.id ?? categoryCandidates[0].id));
+  }, [categoryCandidates, recommendedAgent]);
 
   if (!selectedTicket) {
     return null;
   }
 
   const currentAssignee = selectedTicket.assignedAgent;
+  const categoryLabel =
+    selectedTicket.categoria_principal?.trim() ||
+    selectedTicket.categoria?.trim() ||
+    selectedTicket.categorias?.[0]?.nombre?.trim() ||
+    'la categoría del ticket';
 
   const buildAgentLabel = (agent: AssignableAgent) => {
     const load = openTicketsByAgent.get(String(agent.id)) || 0;
@@ -155,7 +143,13 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
     await handleAssignment(String(user.id));
   };
 
-  const canClaim = Boolean(user?.id) && (!currentAssignee || String(currentAssignee.id) !== String(user?.id));
+  const currentUserIsEligible = categoryCandidates.some(
+    (agent) => String(agent.id) === String(user?.id),
+  );
+  const canClaim =
+    Boolean(user?.id) &&
+    currentUserIsEligible &&
+    (!currentAssignee || String(currentAssignee.id) !== String(user?.id));
 
   return (
     <div
@@ -173,6 +167,28 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
           {currentAssignee ? `Asignado a ${currentAssignee.nombre_usuario}` : 'Sin asignar'}
         </Badge>
       </div>
+
+      {hasPublishedTicketCategory(selectedTicket) ? (
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
+            categoryCandidates.length
+              ? 'border-primary/20 bg-primary/5 text-foreground'
+              : 'border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-100',
+          )}
+          role={categoryCandidates.length ? 'status' : 'alert'}
+          data-testid="ticket-assignment-category-coverage"
+        >
+          <span className="font-medium">
+            {categoryCandidates.length
+              ? `${categoryCandidates.length} ${categoryCandidates.length === 1 ? 'persona habilitada' : 'personas habilitadas'} para ${categoryLabel}`
+              : `No hay personal habilitado para ${categoryLabel}`}
+          </span>
+          {!categoryCandidates.length ? (
+            <span>Asigná esta categoría desde Empleados antes de derivar el caso.</span>
+          ) : null}
+        </div>
+      ) : null}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
