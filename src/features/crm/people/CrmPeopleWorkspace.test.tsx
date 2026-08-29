@@ -1,8 +1,16 @@
 import * as React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CrmPeopleWorkspace, { type CrmPeopleRecord } from "./CrmPeopleWorkspace";
+
+const apiFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/utils/api", () => ({
+  apiFetch: apiFetchMock,
+  getErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback,
+}));
 
 const people: CrmPeopleRecord[] = [
   {
@@ -36,66 +44,78 @@ const Harness = ({
   records = people,
   onOpenTicketDesk = vi.fn(),
   embedded = false,
+  initialSelectedContactId = "generic-phone",
 }: {
   records?: CrmPeopleRecord[];
   onOpenTicketDesk?: (person: CrmPeopleRecord) => void;
   embedded?: boolean;
+  initialSelectedContactId?: string;
 }) => {
-  const [selectedContactId, setSelectedContactId] = React.useState("generic-phone");
+  const [selectedContactId, setSelectedContactId] = React.useState(initialSelectedContactId);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [queueView, setQueueView] = React.useState<"all" | "review" | "whatsapp" | "complete">("all");
   const [peopleSort, setPeopleSort] = React.useState<"recent" | "name" | "score-desc" | "score-asc">("recent");
+  const [queryClient] = React.useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  }));
   return (
-    <CrmPeopleWorkspace
-      embedded={embedded}
-      activeView="personas"
-      onViewChange={vi.fn()}
-      people={records}
-      selectedContactId={selectedContactId}
-      onSelectContact={setSelectedContactId}
-      selectedIds={selectedIds}
-      onToggleSelected={(id) => setSelectedIds((current) => {
-        const next = new Set(current);
-        const key = String(id);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        return next;
-      })}
-      onSetSelected={(ids, selected) => setSelectedIds((current) => {
-        const next = new Set(current);
-        ids.forEach((id) => selected ? next.add(String(id)) : next.delete(String(id)));
-        return next;
-      })}
-      onClearSelected={() => setSelectedIds(new Set())}
-      queueView={queueView}
-      onQueueViewChange={setQueueView}
-      peopleSort={peopleSort}
-      onPeopleSortChange={setPeopleSort}
-      search=""
-      onSearchChange={vi.fn()}
-      marketingOnly={false}
-      onMarketingOnlyChange={vi.fn()}
-      onRefresh={vi.fn()}
-      onBack={vi.fn()}
-      onOpenTicketDesk={onOpenTicketDesk}
-      isConnected
-      metrics={[{ label: "Personas", value: records.length, helper: "registros" }]}
-      getPersonKey={(person) => person.contactId || String(person.id)}
-      hasRealEmail={(person) => person.email !== "Sin email real"}
-      hasExplicitWhatsApp={(person) => Boolean(person.whatsappExplicit && person.whatsappNumber)}
-      whatsappUrl={(person) => person.whatsappNumber ? `https://wa.me/${person.whatsappNumber.replace(/\D/g, "")}` : null}
-      profileScore={() => 65}
-      nextAction={() => "Revisar contacto"}
-      formatDate={() => "Sin fecha"}
-      copyToClipboard={vi.fn()}
-      segmentsPanel={<div>Segmentos</div>}
-      campaignsPanel={<div>Campañas</div>}
-      activityPanel={<div>Actividad</div>}
-    />
+    <QueryClientProvider client={queryClient}>
+      <CrmPeopleWorkspace
+        embedded={embedded}
+        tenantSlug="junin"
+        activeView="personas"
+        onViewChange={vi.fn()}
+        people={records}
+        selectedContactId={selectedContactId}
+        onSelectContact={setSelectedContactId}
+        selectedIds={selectedIds}
+        onToggleSelected={(id) => setSelectedIds((current) => {
+          const next = new Set(current);
+          const key = String(id);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        })}
+        onSetSelected={(ids, selected) => setSelectedIds((current) => {
+          const next = new Set(current);
+          ids.forEach((id) => selected ? next.add(String(id)) : next.delete(String(id)));
+          return next;
+        })}
+        onClearSelected={() => setSelectedIds(new Set())}
+        queueView={queueView}
+        onQueueViewChange={setQueueView}
+        peopleSort={peopleSort}
+        onPeopleSortChange={setPeopleSort}
+        search=""
+        onSearchChange={vi.fn()}
+        marketingOnly={false}
+        onMarketingOnlyChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onBack={vi.fn()}
+        onOpenTicketDesk={onOpenTicketDesk}
+        isConnected
+        metrics={[{ label: "Personas", value: records.length, helper: "registros" }]}
+        getPersonKey={(person) => person.contactId || String(person.id)}
+        hasRealEmail={(person) => person.email !== "Sin email real"}
+        hasExplicitWhatsApp={(person) => Boolean(person.whatsappExplicit && person.whatsappNumber)}
+        whatsappUrl={(person) => person.whatsappNumber ? `https://wa.me/${person.whatsappNumber.replace(/\D/g, "")}` : null}
+        profileScore={() => 65}
+        nextAction={() => "Revisar contacto"}
+        formatDate={() => "Sin fecha"}
+        copyToClipboard={vi.fn()}
+        segmentsPanel={<div>Segmentos</div>}
+        campaignsPanel={<div>Campañas</div>}
+        activityPanel={<div>Actividad</div>}
+      />
+    </QueryClientProvider>
   );
 };
 
 describe("CrmPeopleWorkspace", () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
   it("keeps the document main landmark owned by the application layout", () => {
     const { container } = render(<Harness />);
 
@@ -220,5 +240,121 @@ describe("CrmPeopleWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Limpiar selección" }));
     expect(screen.queryByRole("region", { name: "Acciones sobre personas seleccionadas" })).not.toBeInTheDocument();
+  });
+
+  it("loads the real tenant-scoped history only when Interacciones opens", async () => {
+    apiFetchMock.mockResolvedValue({
+      interactions: [
+        {
+          channel: "whatsapp",
+          direction: "inbound",
+          content: "Necesito reparar una luminaria.",
+          ts: "2026-08-29T17:20:00Z",
+        },
+      ],
+    });
+
+    render(<Harness initialSelectedContactId="42" />);
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(await screen.findByText("Necesito reparar una luminaria.")).toBeInTheDocument();
+    expect(screen.getByText("Entrante")).toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/admin/tenants/junin/contacts/42/history",
+      { tenantSlug: "junin" },
+    );
+  });
+
+  it("never shows a previous contact history after the selected person changes", async () => {
+    let resolveFirstHistory: ((value: unknown) => void) | undefined;
+    const firstHistory = new Promise((resolve) => {
+      resolveFirstHistory = resolve;
+    });
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url.includes("/contacts/42/")) return firstHistory;
+      return Promise.resolve({
+        interactions: [{
+          channel: "web",
+          direction: "outbound",
+          content: "Historial vigente de Ana.",
+          ts: "2026-08-29T18:00:00Z",
+        }],
+      });
+    });
+
+    const records: CrmPeopleRecord[] = [
+      people[1],
+      {
+        id: "contact:84",
+        contactId: "84",
+        nombre: "Ana Pérez",
+        email: "ana@example.com",
+        telefono: "+5492634000084",
+        etiquetas: [],
+        canal: "web",
+      },
+    ];
+    render(<Harness records={records} initialSelectedContactId="42" />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
+      target: { value: "84" },
+    });
+    expect(await screen.findByText("Historial vigente de Ana.")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirstHistory?.({
+        interactions: [{
+          channel: "whatsapp",
+          direction: "inbound",
+          content: "Historial viejo de Vecina Junín.",
+          ts: "2026-08-29T16:00:00Z",
+        }],
+      });
+      await firstHistory;
+    });
+
+    expect(screen.queryByText("Historial viejo de Vecina Junín.")).not.toBeInTheDocument();
+    expect(screen.getByText("Historial vigente de Ana.")).toBeInTheDocument();
+  });
+
+  it("shows an honest non-fetching state for legacy records without contact identity", () => {
+    render(<Harness initialSelectedContactId="generic-phone" />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(screen.getByText("Historial detallado no disponible")).toBeInTheDocument();
+    expect(screen.getByText(/No se inventan eventos/i)).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("offers a retry without replacing the error with invented activity", async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new Error("Servicio temporalmente no disponible"))
+      .mockResolvedValueOnce({ interactions: [] });
+
+    render(<Harness initialSelectedContactId="42" />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Servicio temporalmente no disponible");
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    expect(await screen.findByText("Sin eventos publicados")).toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
   });
 });

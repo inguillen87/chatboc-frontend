@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -68,6 +69,7 @@ import type {
   CrmPeopleSort,
   CrmWorkspaceView,
 } from "./useCrmWorkspaceState";
+import { useCrmContactHistory } from "./useCrmContactHistory";
 
 export interface CrmPeopleRecord {
   id: number | string;
@@ -163,6 +165,7 @@ const MetricSummary = ({
 
 interface CrmPeopleWorkspaceProps {
   embedded?: boolean;
+  tenantSlug?: string | null;
   activeView: CrmWorkspaceView;
   onViewChange: (view: CrmWorkspaceView) => void;
   people: CrmPeopleRecord[];
@@ -314,6 +317,7 @@ const ContextPanel = ({ person, score, nextAction, formatDate }: ContextPanelPro
 
 export default function CrmPeopleWorkspace({
   embedded = false,
+  tenantSlug,
   activeView,
   onViewChange,
   people,
@@ -351,6 +355,7 @@ export default function CrmPeopleWorkspace({
   const [contextOpen, setContextOpen] = React.useState(true);
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
   const [detailFocusMode, setDetailFocusMode] = React.useState(false);
+  const [activePersonTab, setActivePersonTab] = React.useState("resumen");
 
   const scoredPeople = React.useMemo(
     () => people.map((person) => ({ person, score: profileScore(person) })),
@@ -390,6 +395,11 @@ export default function CrmPeopleWorkspace({
   );
   const score = selectedPerson ? profileScore(selectedPerson) : 0;
   const action = selectedPerson ? nextAction(selectedPerson) : "";
+  const contactHistory = useCrmContactHistory({
+    tenantSlug,
+    contactId: selectedPerson?.contactId,
+    enabled: activeView === "personas" && activePersonTab === "interacciones",
+  });
   const listViewportRef = React.useRef<HTMLDivElement>(null);
   const desktopList = useVirtualizer({
     count: visiblePeople.length,
@@ -921,7 +931,11 @@ export default function CrmPeopleWorkspace({
                     </div>
                   </header>
 
-                  <Tabs defaultValue="resumen" className="flex min-h-0 flex-1 flex-col">
+                  <Tabs
+                    value={activePersonTab}
+                    onValueChange={setActivePersonTab}
+                    className="flex min-h-0 flex-1 flex-col"
+                  >
                     <div
                       className={cn("border-b border-border/70 bg-card", embedded ? "overflow-hidden px-1 sm:overflow-x-auto sm:px-4" : "overflow-x-auto px-4")}
                       data-testid="crm-person-tabs"
@@ -959,12 +973,94 @@ export default function CrmPeopleWorkspace({
                         </div>
                       </TabsContent>
                       <TabsContent value="interacciones" className="m-0 p-4">
-                        <section className="rounded-xl border border-border/70 bg-card p-4">
-                          <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Historial multicanal</h3><Badge variant="outline">{selectedPerson.interactionCount || 0} interacciones</Badge></div>
-                          <div className="mt-4 border-l border-border/70 pl-4">
-                            <div className="relative pb-5"><span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary" /><p className="text-sm font-semibold">Última señal registrada</p><p className="text-xs text-muted-foreground">{formatDate(selectedPerson.lastSeen)} · {channelLabel(selectedPerson.canal)}</p><p className="mt-2 text-sm text-muted-foreground">{selectedPerson.lastMessageExcerpt || "Sin extracto publicado."}</p></div>
-                            <div className="relative"><span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-muted-foreground" /><p className="text-sm font-semibold">Alta del contacto</p><p className="text-xs text-muted-foreground">{formatDate(selectedPerson.createdAt)}</p></div>
+                        <section
+                          className="rounded-xl border border-border/70 bg-card p-4"
+                          aria-busy={contactHistory.isLoading}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="font-semibold">Historial multicanal</h3>
+                            <Badge variant="outline">
+                              {!selectedPerson.contactId
+                                ? "Sin vínculo"
+                                : contactHistory.isLoading
+                                  ? "Cargando…"
+                                  : contactHistory.error
+                                    ? "No disponible"
+                                    : `${contactHistory.data?.interactions.length || 0}${
+                                      Number(selectedPerson.interactionCount || 0) > (contactHistory.data?.interactions.length || 0)
+                                        ? ` de ${selectedPerson.interactionCount}`
+                                        : ""
+                                    } interacciones`}
+                            </Badge>
                           </div>
+
+                          {!selectedPerson.contactId ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4" role="status">
+                              <p className="text-sm font-semibold">Historial detallado no disponible</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                Este registro heredado todavía no tiene una identidad de contacto vinculada. No se inventan eventos para completar la vista.
+                              </p>
+                            </div>
+                          ) : contactHistory.isLoading ? (
+                            <div className="mt-4 space-y-4" aria-label="Cargando historial multicanal">
+                              {[0, 1, 2].map((item) => (
+                                <div key={item} className="space-y-2 rounded-xl border border-border/60 p-3">
+                                  <Skeleton className="h-4 w-36" />
+                                  <Skeleton className="h-3 w-52" />
+                                  <Skeleton className="h-4 w-full" />
+                                </div>
+                              ))}
+                            </div>
+                          ) : contactHistory.error ? (
+                            <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert">
+                              <p className="text-sm font-semibold">No pudimos cargar el historial</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">{contactHistory.error}</p>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="mt-3 gap-2"
+                                onClick={() => void contactHistory.refetch()}
+                              >
+                                <RefreshCw className={cn("h-4 w-4", contactHistory.isFetching && "animate-spin")} />
+                                Reintentar
+                              </Button>
+                            </div>
+                          ) : contactHistory.data?.interactions.length ? (
+                            <ol className="mt-4 border-l border-border/70 pl-4" aria-label="Eventos del contacto">
+                              {contactHistory.data.interactions.map((interaction, index) => {
+                                const direction = (interaction.direction || "").toLowerCase();
+                                const directionLabel = direction === "inbound"
+                                  ? "Entrante"
+                                  : direction === "outbound"
+                                    ? "Saliente"
+                                    : "Registro";
+                                return (
+                                  <li
+                                    key={`${interaction.timestamp || "sin-fecha"}-${interaction.channel || "sin-canal"}-${index}`}
+                                    className="relative pb-5 last:pb-0"
+                                  >
+                                    <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary" />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-semibold">{directionLabel}</p>
+                                      <Badge variant="secondary">{channelLabel(interaction.channel)}</Badge>
+                                    </div>
+                                    <p className="mt-1 text-xs text-muted-foreground">{formatDate(interaction.timestamp)}</p>
+                                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                                      {interaction.content}
+                                    </p>
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          ) : (
+                            <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4" role="status">
+                              <p className="text-sm font-semibold">Sin eventos publicados</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                El backend no devolvió interacciones para esta persona. La fecha de alta y el resumen permanecen disponibles en la ficha.
+                              </p>
+                            </div>
+                          )}
                         </section>
                       </TabsContent>
                       <TabsContent value="casos" className="m-0 p-4">

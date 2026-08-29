@@ -906,6 +906,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   return (
       <CrmPeopleWorkspace
         embedded={embedded}
+        tenantSlug={tenantSlug}
         activeView={activeView}
         onViewChange={setActiveView}
         people={sortedUsuarios}
