@@ -25,6 +25,7 @@ import {
   useCrmWorkspaceState,
   useDebouncedValue,
 } from "@/features/crm/people/useCrmWorkspaceState";
+import { cn } from "@/lib/utils";
 
 type RawUsuario = Record<string, any>;
 
@@ -461,9 +462,10 @@ export const eventBelongsToTenant = (payload: RawUsuario, tenantSlug?: string | 
 
 export interface UsuariosPageProps {
   tenantSlugOverride?: string | null;
+  embedded?: boolean;
 }
 
-export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps = {}) {
+export default function UsuariosPage({ tenantSlugOverride, embedded = false }: UsuariosPageProps = {}) {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const navigate = useNavigate();
   const { user } = useUser();
@@ -856,7 +858,13 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
 
   if (loading) {
     return (
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 p-3 md:p-4" aria-label="Cargando CRM de personas">
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-[1680px] flex-col gap-3",
+          embedded ? "h-full min-h-0 max-w-none overflow-hidden p-0" : "p-3 md:p-4",
+        )}
+        aria-label="Cargando CRM de personas"
+      >
         <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-2">
@@ -867,7 +875,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
             <Skeleton className="h-9 w-28" />
           </div>
         </section>
-        <section className="grid min-h-[560px] overflow-hidden rounded-2xl border border-border/70 bg-card lg:grid-cols-[320px_minmax(0,1fr)_280px]">
+        <section className={cn("grid overflow-hidden rounded-2xl border border-border/70 bg-card lg:grid-cols-[320px_minmax(0,1fr)_280px]", embedded ? "min-h-0 flex-1" : "min-h-[560px]")}>
           <div className="space-y-3 border-r border-border/70 p-3">
             {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-[70px] w-full" />)}
           </div>
@@ -879,7 +887,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
   }
   if (error) {
     return (
-      <div className="mx-auto flex min-h-[60dvh] w-full max-w-[1680px] items-center justify-center p-4">
+      <div className={cn("mx-auto flex w-full max-w-[1680px] items-center justify-center p-4", embedded ? "h-full min-h-0" : "min-h-[60dvh]")}>
         <Card className="w-full max-w-lg border-destructive/30 shadow-sm" role="alert">
           <CardContent className="flex flex-col items-center p-8 text-center">
             <div className="rounded-2xl bg-destructive/10 p-3 text-destructive"><AlertTriangle className="h-6 w-6" /></div>
@@ -897,6 +905,7 @@ export default function UsuariosPage({ tenantSlugOverride }: UsuariosPageProps =
 
   return (
       <CrmPeopleWorkspace
+        embedded={embedded}
         activeView={activeView}
         onViewChange={setActiveView}
         people={sortedUsuarios}

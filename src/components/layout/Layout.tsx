@@ -17,6 +17,10 @@ const Layout = () => {
   const isTenantTicketWorkspace =
     /^\/t\/[^/]+\/(?:reclamos|tickets|inbox)$/i.test(normalizedPath);
   const isTicketWorkspace = isProfileTicketWorkspace || isTenantTicketWorkspace;
+  const isProfileCrmWorkspace =
+    normalizedPath === '/perfil' &&
+    profileTab === 'usuarios';
+  const isViewportWorkspace = isTicketWorkspace || isProfileCrmWorkspace;
   const isProfileAnalyticsWorkspace =
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
@@ -32,7 +36,7 @@ const Layout = () => {
   }, [location.pathname, location.search]);
 
   useLayoutEffect(() => {
-    if (!isTicketWorkspace) return;
+    if (!isViewportWorkspace) return;
 
     const rootStyle = document.documentElement.style;
     const bodyStyle = document.body.style;
@@ -57,7 +61,7 @@ const Layout = () => {
       bodyStyle.overscrollBehavior = previousStyles.bodyOverscrollBehavior;
       bodyStyle.paddingBottom = previousStyles.bodyPaddingBottom;
     };
-  }, [isTicketWorkspace]);
+  }, [isViewportWorkspace]);
 
   if (isEmbed) {
     return (
@@ -72,20 +76,20 @@ const Layout = () => {
   return (
     <div
       className={
-        isTicketWorkspace
+        isViewportWorkspace
           ? 'flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background text-foreground transition-colors duration-300'
           : 'flex min-h-screen flex-col bg-background text-foreground transition-colors duration-300'
       }
-      data-workspace-shell={isTicketWorkspace ? 'tickets' : undefined}
+      data-workspace-shell={isTicketWorkspace ? 'tickets' : isProfileCrmWorkspace ? 'crm' : undefined}
     >
-      {isTicketWorkspace ? (
+      {isViewportWorkspace ? (
         <style data-ticket-workspace-chrome>
-          {'[data-workspace-shell="tickets"] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
+          {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
         </style>
       ) : null}
-      {!isTicketWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
+      {!isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
       {!isFocusedPublicExperience ? <Navbar /> : null}
-      {isTicketWorkspace ? (
+      {isViewportWorkspace ? (
         <div className="mt-14 shrink-0">
           <DemoModeBanner />
         </div>
@@ -94,7 +98,7 @@ const Layout = () => {
         id="main-content"
         tabIndex={-1}
         className={
-          isTicketWorkspace
+          isViewportWorkspace
             ? 'flex min-h-0 w-full flex-1 overflow-hidden'
             : isProfileAnalyticsWorkspace
               ? 'flex-1 w-full pt-14'

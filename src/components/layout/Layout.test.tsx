@@ -95,6 +95,23 @@ describe('Layout ticket workspace shell', () => {
     expect(document.body.style.overflow).toBe('hidden');
   });
 
+  it('contains the profile people CRM in the same viewport workspace contract', () => {
+    renderLayout('/perfil?tab=usuarios');
+
+    expect(screen.getByText('profile outlet')).toBeInTheDocument();
+    expect(screen.getByTestId('navbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main.parentElement).toHaveAttribute('data-workspace-shell', 'crm');
+    expect(main.parentElement).toHaveClass('h-dvh');
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    expect(document.body.style.overflow).toBe('hidden');
+  });
+
   it('removes public footer chrome from the embedded analytics CRM workspace', () => {
     renderLayout('/perfil?tab=analytics');
 

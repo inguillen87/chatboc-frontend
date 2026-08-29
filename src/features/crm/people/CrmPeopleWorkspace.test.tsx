@@ -35,9 +35,11 @@ const people: CrmPeopleRecord[] = [
 const Harness = ({
   records = people,
   onOpenTicketDesk = vi.fn(),
+  embedded = false,
 }: {
   records?: CrmPeopleRecord[];
   onOpenTicketDesk?: (person: CrmPeopleRecord) => void;
+  embedded?: boolean;
 }) => {
   const [selectedContactId, setSelectedContactId] = React.useState("generic-phone");
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -45,6 +47,7 @@ const Harness = ({
   const [peopleSort, setPeopleSort] = React.useState<"recent" | "name" | "score-desc" | "score-asc">("recent");
   return (
     <CrmPeopleWorkspace
+      embedded={embedded}
       activeView="personas"
       onViewChange={vi.fn()}
       people={records}
@@ -98,6 +101,15 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getByTestId("crm-person-detail")).toBeInTheDocument();
     expect(container.querySelectorAll("main")).toHaveLength(0);
+  });
+
+  it("contains the embedded CRM in the available profile height", () => {
+    render(<Harness embedded />);
+
+    expect(screen.getByTestId("crm-people-workspace")).toHaveAttribute("data-layout", "embedded");
+    expect(screen.getByTestId("crm-people-workspace")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+    expect(screen.getByTestId("crm-people-grid")).toHaveClass("min-h-0", "flex-1");
+    expect(screen.getByTestId("crm-people-grid")).not.toHaveClass("min-h-[560px]");
   });
 
   it("switches the record 360 from the compact list", () => {

@@ -2417,7 +2417,8 @@ export default function Perfil() {
     ? backendControlCards.slice(4)
     : secondaryControlCards;
   const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
-  const isWorkspaceProfileTab = activeProfileTab === "tickets" || activeProfileTab === "analytics";
+  const isViewportWorkspaceProfileTab = activeProfileTab === "tickets" || activeProfileTab === "usuarios";
+  const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || activeProfileTab === "analytics";
   const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
     <ProfileWorkspaceNavigation
       activeTab={activeProfileTab}
@@ -2504,7 +2505,7 @@ export default function Perfil() {
     <div
       className={cn(
         "flex flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
-        activeProfileTab === "tickets"
+        isViewportWorkspaceProfileTab
           ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
           : activeProfileTab === "analytics"
             ? "min-h-screen px-1 py-1 sm:px-2 md:px-3"
@@ -2524,7 +2525,11 @@ export default function Perfil() {
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
                 <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-                  {activeProfileTab === "tickets" ? "Consola tickets" : "Consola analitica"}
+                  {activeProfileTab === "tickets"
+                    ? "Consola tickets"
+                    : activeProfileTab === "usuarios"
+                      ? "Consola CRM"
+                      : "Consola analitica"}
                 </p>
                 <span className="hidden h-3 w-px bg-border sm:block" />
                 <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
@@ -2654,7 +2659,7 @@ export default function Perfil() {
       <div
         className={cn(
           "mx-auto w-full",
-          activeProfileTab === "tickets"
+          isViewportWorkspaceProfileTab
             ? "flex min-h-0 flex-1 flex-col max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
             : activeProfileTab === "analytics"
               ? "max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
@@ -2665,7 +2670,7 @@ export default function Perfil() {
           <div
             className={cn(
               "sticky z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-              activeProfileTab === "tickets"
+              isViewportWorkspaceProfileTab
                 ? "top-0 -mx-1 px-1 py-0.5"
                 : "top-0 -mx-1 px-1 py-1",
             )}
@@ -3849,9 +3854,14 @@ export default function Perfil() {
             <SmartPedidosWrapper />
           </React.Suspense>
         </WorkspacePanel>
-        <WorkspacePanel active={activeProfileTab === "usuarios" && workspaceCapabilities.contacts} label={esMunicipio ? "Personas y contactos" : "Clientes y contactos"}>
+        <WorkspacePanel
+          active={activeProfileTab === "usuarios" && workspaceCapabilities.contacts}
+          label={esMunicipio ? "Personas y contactos" : "Clientes y contactos"}
+          data-testid="profile-crm-workspace"
+          className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=crm-people-workspace]]:!h-full [&_[data-testid=crm-people-workspace]]:!min-h-0"
+        >
           <React.Suspense fallback={<ProfileTabFallback label="Cargando usuarios..." />}>
-            <UsuariosPage tenantSlugOverride={derivedTenantSlug} />
+            <UsuariosPage tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
         </WorkspacePanel>
         {workspaceCapabilities.team && (

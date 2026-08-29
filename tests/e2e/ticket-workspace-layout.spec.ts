@@ -71,6 +71,22 @@ const timeline = Array.from({ length: 36 }, (_, index) => ({
   es_admin: index % 2 === 1,
 }));
 
+const crmPeople = Array.from({ length: 80 }, (_, index) => ({
+  id: `contact-${index + 1}`,
+  contact_id: `contact-${index + 1}`,
+  nombre: `Persona CRM ${String(index + 1).padStart(2, '0')}`,
+  email: `persona${index + 1}@example.com`,
+  telefono: `+549110001${String(index).padStart(4, '0')}`,
+  canal: index % 2 === 0 ? 'whatsapp' : 'web',
+  etiquetas: index % 3 === 0 ? ['reclamo', 'seguimiento'] : ['contacto'],
+  marketing: index % 2 === 0,
+  motivo: index % 2 === 0 ? 'Seguimiento de reclamo municipal' : 'Consulta general',
+  resumen: `Contexto operativo publicado para la persona ${index + 1}.`,
+  last_seen: new Date(Date.UTC(2026, 6, 18, 12, index)).toISOString(),
+  created_at: new Date(Date.UTC(2026, 5, 1, 9, index)).toISOString(),
+  interaction_count: index + 1,
+}));
+
 type TimelineMessage = (typeof timeline)[number];
 
 type WorkspaceApiCapture = {
@@ -278,6 +294,11 @@ const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
           unread: [{ key: 'unread', label: 'No leidos', count: 6 }],
         },
       });
+      return;
+    }
+
+    if (path.endsWith('/api/crm/clientes')) {
+      await json(route, crmPeople);
       return;
     }
 
@@ -502,6 +523,41 @@ test('profile home exposes role-based enterprise work areas and nests plans unde
   await expect(page.getByText('Uso de la organización')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
   await expectNoHorizontalOverflow(page);
+});
+
+test('profile people CRM stays inside the viewport with an independently scrollable queue', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil?tab=usuarios&tenant_slug=municipio-demo', { waitUntil: 'domcontentloaded' });
+
+  const workspace = page.getByTestId('crm-people-workspace');
+  const grid = page.getByTestId('crm-people-grid');
+  await expect(page.getByTestId('profile-crm-workspace')).toBeVisible();
+  await expect(workspace).toHaveAttribute('data-layout', 'embedded');
+  await expect(page.getByText('Consola CRM')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Persona CRM 01' })).toBeVisible();
+
+  const bounds = await page.evaluate(() => {
+    const read = (testId: string) => {
+      const rect = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.getBoundingClientRect();
+      return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height } : null;
+    };
+    return {
+      workspace: read('crm-people-workspace'),
+      grid: read('crm-people-grid'),
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(bounds.workspace).not.toBeNull();
+  expect(bounds.grid).not.toBeNull();
+  expect(bounds.workspace?.bottom || 0).toBeLessThanOrEqual(bounds.viewportHeight + 1);
+  expect(bounds.grid?.height || 0).toBeGreaterThan(220);
+  await expectScrollable(page.locator('aside[aria-label="Lista de personas"] > div'));
+  await expectNoHorizontalOverflow(page);
+  await expectDocumentLocked(page);
 });
 
 const desktopPaths = [

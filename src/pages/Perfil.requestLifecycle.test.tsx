@@ -92,8 +92,8 @@ vi.mock('@/pages/TicketsPanel', () => ({
 vi.mock('@/pages/EstadisticasPage', () => ({ default: () => <div data-testid="mock-stats" /> }));
 vi.mock('@/pages/analytics/AnalyticsPage', () => ({ default: () => <div data-testid="mock-analytics" /> }));
 vi.mock('@/pages/UsuariosPage', () => ({
-  default: ({ tenantSlugOverride }: { tenantSlugOverride?: string | null }) => (
-    <div data-testid="mock-users" data-tenant-slug={tenantSlugOverride || ''} />
+  default: ({ tenantSlugOverride, embedded }: { tenantSlugOverride?: string | null; embedded?: boolean }) => (
+    <div data-testid="mock-users" data-tenant-slug={tenantSlugOverride || ''} data-embedded={String(Boolean(embedded))} />
   ),
 }));
 vi.mock('@/pages/SmartPedidosWrapper', () => ({ default: () => <div /> }));
@@ -357,6 +357,8 @@ describe('Perfil request lifecycle', () => {
     await waitFor(() =>
       expect(screen.getByTestId('mock-users')).toHaveAttribute('data-tenant-slug', 'junin'),
     );
+    expect(screen.getByTestId('mock-users')).toHaveAttribute('data-embedded', 'true');
+    expect(screen.getByTestId('profile-crm-workspace')).toHaveClass('min-h-0', 'overflow-hidden');
 
     await act(async () => {
       updateBrowserLocation('/perfil?tab=mapas&tenant_slug=junin&tenant=junin');

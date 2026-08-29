@@ -100,6 +100,7 @@ interface WorkspaceMetric {
 }
 
 interface CrmPeopleWorkspaceProps {
+  embedded?: boolean;
   activeView: CrmWorkspaceView;
   onViewChange: (view: CrmWorkspaceView) => void;
   people: CrmPeopleRecord[];
@@ -250,6 +251,7 @@ const ContextPanel = ({ person, score, nextAction, formatDate }: ContextPanelPro
 );
 
 export default function CrmPeopleWorkspace({
+  embedded = false,
   activeView,
   onViewChange,
   people,
@@ -372,9 +374,23 @@ export default function CrmPeopleWorkspace({
         : activityPanel;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 p-3 md:p-4" data-testid="crm-people-workspace">
-      <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
-        <header className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+    <div
+      className={cn(
+        "mx-auto flex w-full max-w-[1680px] flex-col",
+        embedded
+          ? "h-full min-h-0 max-w-none gap-1 overflow-hidden p-0"
+          : "gap-3 p-3 md:p-4",
+      )}
+      data-testid="crm-people-workspace"
+      data-layout={embedded ? "embedded" : "page"}
+    >
+      <section className="shrink-0 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <header
+          className={cn(
+            "flex flex-col border-b border-border/70 xl:flex-row xl:items-center xl:justify-between",
+            embedded ? "gap-2 px-3 py-2" : "gap-3 px-4 py-3",
+          )}
+        >
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">CRM municipal</p>
@@ -383,8 +399,8 @@ export default function CrmPeopleWorkspace({
                 {isConnected ? "En vivo" : "Sincronización 30 s"}
               </Badge>
             </div>
-            <h1 className="mt-1 text-xl font-bold tracking-tight md:text-2xl">Personas y relaciones</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
+            <h1 className={cn("mt-1 font-bold tracking-tight", embedded ? "text-lg md:text-xl" : "text-xl md:text-2xl")}>Personas y relaciones</h1>
+            <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden 2xl:block")}>Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" className="gap-2" onClick={onRefresh}>
@@ -397,16 +413,16 @@ export default function CrmPeopleWorkspace({
 
         <div className="grid grid-cols-2 divide-x divide-y divide-border/70 md:grid-cols-4 md:divide-y-0">
           {metrics.slice(0, 4).map((metric) => (
-            <div key={metric.label} className="min-w-0 px-4 py-3">
+            <div key={metric.label} className={cn("min-w-0", embedded ? "px-3 py-1.5" : "px-4 py-3")}>
               <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight">{metric.value}</p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">{metric.helper}</p>
+              <p className={cn("font-bold tracking-tight", embedded ? "text-lg" : "mt-1 text-2xl")}>{metric.value}</p>
+              <p className={cn("mt-0.5 truncate text-xs text-muted-foreground", embedded && "sr-only")}>{metric.helper}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <nav className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-card p-1" aria-label="Áreas del CRM">
+      <nav className={cn("flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-card", embedded ? "p-0.5" : "p-1")} aria-label="Áreas del CRM">
         {viewItems.map((item) => {
           const Icon = item.icon;
           const active = activeView === item.value;
@@ -428,13 +444,13 @@ export default function CrmPeopleWorkspace({
       </nav>
 
       {activeView !== "personas" ? (
-        <section className="min-h-[520px] overflow-hidden rounded-2xl border border-border/70 bg-card">
-          <ScrollArea className="h-[min(72dvh,760px)]">
+        <section className={cn("overflow-hidden rounded-2xl border border-border/70 bg-card", embedded ? "min-h-0 flex-1" : "min-h-[520px]")}>
+          <ScrollArea className={embedded ? "h-full" : "h-[min(72dvh,760px)]"}>
             <div className="p-4 md:p-5">{auxiliaryPanel}</div>
           </ScrollArea>
         </section>
       ) : (
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <section className={cn("overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm", embedded && "flex min-h-0 flex-1 flex-col")}>
           <div className="flex flex-col gap-2 border-b border-border/70 p-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row lg:max-w-2xl">
               <div className="relative min-w-0 flex-1">
@@ -560,11 +576,13 @@ export default function CrmPeopleWorkspace({
 
           <div
             className={cn(
-              "grid h-[min(72dvh,760px)] min-h-[560px] grid-cols-1",
+              "grid grid-cols-1",
+              embedded ? "min-h-0 flex-1" : "h-[min(72dvh,760px)] min-h-[560px]",
               contextOpen
                 ? "lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_280px]"
                 : "lg:grid-cols-[320px_minmax(0,1fr)]",
             )}
+            data-testid="crm-people-grid"
           >
             <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
               <div ref={listViewportRef} className="h-full overflow-y-auto">
