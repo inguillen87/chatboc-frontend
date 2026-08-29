@@ -217,6 +217,25 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   geocoding_queue: 'Ubicaciones pendientes',
   realtime_telemetry: 'Actividad en tiempo real',
   coverage_quality: 'Calidad de cobertura',
+  privileged_exact: 'Acceso institucional protegido',
+  employee_aggregated: 'Datos agregados del equipo',
+  tenant_aggregated: 'Datos agregados del municipio',
+  public_aggregated: 'Datos públicos agregados',
+  default: 'Predeterminada',
+  fit_bounds: 'Encuadre automático',
+  high: 'Alta',
+  medium: 'Media',
+  low: 'Baja',
+  open_queue: 'Abrir cola operativa',
+  open_panel: 'Abrir panel operativo',
+  open_heatmap_cell: 'Abrir zona prioritaria',
+  inspect_hotspot: 'Revisar zona prioritaria',
+  inspeccionar_hotspot: 'Revisar zona prioritaria',
+  ai_risk_pulses: 'Alertas de riesgo',
+  tickets: 'Reclamos',
+  surveys: 'Encuestas',
+  analytics_events: 'Eventos operativos',
+  whatsapp: 'WhatsApp',
 };
 
 const humanizeContractValue = (value: string | undefined, fallback: string) => {
@@ -226,12 +245,29 @@ const humanizeContractValue = (value: string | undefined, fallback: string) => {
   return CONTRACT_VALUE_LABELS[normalized] ?? readable;
 };
 
+const presentExecutiveText = (value: string | undefined) =>
+  value
+    ?.replace(/\bhotspots\b/gi, 'zonas prioritarias')
+    .replace(/\bhotspot\b/gi, 'zona prioritaria')
+    .replace(/\bAI\b/g, 'IA')
+    .replace(/\bmedium\b/gi, 'medio')
+    .replace(/\b1 zonas\b/gi, '1 zona')
+    .replace(/\bsenales\b/gi, 'señales')
+    .replace(/\bsenal\b/gi, 'señal')
+    .replace(/\bdecision\b/gi, 'decisión')
+    .replace(/\baccion\b/gi, 'acción')
+    .replace(/\bpreparacion\b/gi, 'preparación')
+    .replace(/\bubicacion\b/gi, 'ubicación')
+    .replace(/\bgeocodificacion\b/gi, 'localización');
+
 const privacyModeLabel = (value: string | undefined) => {
   const normalized = value?.trim().toLowerCase();
   if (['aggregated', 'tenant_aggregated', 'public_aggregated'].includes(normalized ?? '')) {
     return 'privacidad agregada';
   }
   if (normalized === 'coordinates_without_customer_pii') return 'sin datos personales';
+  if (normalized === 'privileged_exact') return 'acceso institucional protegido';
+  if (normalized === 'employee_aggregated') return 'datos agregados del equipo';
   return humanizeContractValue(value, 'privacidad protegida');
 };
 
@@ -343,7 +379,8 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
 const summarizeBackendAction = (action: unknown): BackendActionSummary | undefined => {
   const record = asRecord(action);
   if (!record) return undefined;
-  const label = readString(record.title, record.label, record.name);
+  const rawLabel = readString(record.title, record.label, record.name);
+  const label = rawLabel ? humanizeContractValue(rawLabel, rawLabel) : undefined;
   const contextLabel = readString(record.context_label, record.contextLabel);
   const method = readString(record.method);
   const endpoint = readString(record.endpoint, record.endpoint_template);
@@ -353,13 +390,16 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
   const targetId = readString(target?.cell_id, target?.record_id, target?.ticket_id) ?? (numericTargetId !== undefined ? String(numericTargetId) : undefined);
   const targetLabel = targetType || targetId ? [targetType, targetId].filter(Boolean).join(' ') : undefined;
   const endpointDetail = [method, endpoint].filter(Boolean).join(' ') || undefined;
-  const humanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
+  const rawHumanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
+  const humanDetail = rawHumanDetail
+    ? humanizeContractValue(rawHumanDetail, rawHumanDetail)
+    : undefined;
   const href = buildTicketDeskHref(record);
   const detail = contextLabel ?? humanDetail ?? targetLabel ?? (href ? undefined : endpointDetail);
   if (!label && !detail) return undefined;
   return {
     label: label ?? 'Accion disponible',
-    detail: detail || readString(record.description, record.reason_code),
+    detail: contextLabel ?? (detail ? humanizeContractValue(detail, detail) : undefined),
     priority: readString(record.priority),
     uiHint: readString(record.ui_hint),
     actionType: readString(record.action_type),
@@ -816,16 +856,20 @@ export function PremiumTerritoryHeatmap({
   const realtimeSources = heatmap?.realtime?.sources ?? [];
   const realtimeEvents = heatmap?.realtime?.socket_events ?? [];
   const latestRealtime = readString(heatmap?.realtime?.latest_event_at);
-  const narrativeTitle = readString(
-    heatmap?.map_narrative?.headline,
-    heatmap?.map_narrative?.title,
-    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_title : undefined,
+  const narrativeTitle = presentExecutiveText(
+    readString(
+      heatmap?.map_narrative?.headline,
+      heatmap?.map_narrative?.title,
+      readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_title : undefined,
+    ),
   );
-  const narrativeBody = readString(
-    heatmap?.map_narrative?.operator_summary,
-    heatmap?.map_narrative?.body,
-    heatmap?.map_narrative?.description,
-    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
+  const narrativeBody = presentExecutiveText(
+    readString(
+      heatmap?.map_narrative?.operator_summary,
+      heatmap?.map_narrative?.body,
+      heatmap?.map_narrative?.description,
+      readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
+    ),
   );
   const narrativeAction = summarizeBackendAction(heatmap?.map_narrative?.primary_cta);
   const viewportPresets = heatmap?.viewport_presets?.presets?.slice(0, 3) ?? [];
@@ -964,7 +1008,7 @@ export function PremiumTerritoryHeatmap({
     () => {
       const heatmapRecord = asRecord(heatmap);
       return {
-        source: usesDemoData ? 'demo_fallback' : usesBackendGeoLayerPoints ? 'backend_geo_layers' : usesBackendCellPoints ? 'backend_cells' : 'operations_heatmap',
+        source: usesDemoData ? 'demostración controlada' : 'operación municipal',
         provider: liveMapProvider,
         contractVersion: readString(heatmap?.contract_version, geoLayerConfig?.contract_version),
         usingSyntheticPoints: usesDemoData,
@@ -1202,26 +1246,26 @@ export function PremiumTerritoryHeatmap({
         { label: 'Muestra insuficiente', detail: 'privacidad activa', color: fallbackLegendColors[3] },
       ];
   const liveSignalValue = latestRealtime
-    ? 'online'
+    ? 'En línea'
     : showRealtimeLayer || realtimeEvents.length || realtimeSources.length
-      ? 'escuchando'
-      : 'sin pulso';
+      ? 'Escuchando'
+      : 'Sin actividad';
   const liveSignalDetail =
     latestRealtime ||
     realtimeEvents.map((event) => humanizeContractValue(event, event)).join(' / ') ||
     realtimeSources.map((source) => humanizeContractValue(source, source)).join(' / ') ||
-    'sin evento realtime';
+    'sin eventos recientes';
   const focusDetail =
     backendFocusCount !== undefined
       ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
       : operationalHotspotCount
-        ? `${formatNumber(operationalHotspotCount, '0')} hotspots`
+        ? `${formatNumber(operationalHotspotCount, '0')} zonas prioritarias`
         : `${formatNumber(visiblePointCount, '0')} puntos`;
   const visualSystemDetail = [
     backendRadarEnabled ? 'radar activo' : null,
     showHeatLayer ? 'calor' : null,
     showAiLayer ? 'IA' : null,
-    showRealtimeLayer ? 'realtime' : null,
+    showRealtimeLayer ? 'tiempo real' : null,
     showCommerceLayer ? 'comercio' : null,
   ].filter(Boolean).join(' - ');
   const liveLegendCards = [
@@ -1233,7 +1277,7 @@ export function PremiumTerritoryHeatmap({
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
     { id: 'territory', label: labelFor(labels, 'premium_map_mode_territory', 'Territorio'), icon: Globe2 },
     { id: 'quality', label: labelFor(labels, 'premium_map_mode_quality', 'Calidad'), icon: Gauge },
-    { id: 'telemetry', label: labelFor(labels, 'premium_map_mode_telemetry', 'Telemetria'), icon: Activity },
+    { id: 'telemetry', label: labelFor(labels, 'premium_map_mode_telemetry', 'Actualización'), icon: Activity },
   ];
 
   return (
@@ -2241,7 +2285,7 @@ export function PremiumTerritoryHeatmap({
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
-              Capas del contrato
+              Capas de análisis
             </div>
             <div className="mt-3 space-y-2">
               {displayLayers.slice(0, 5).map((layer) => (
@@ -2301,7 +2345,7 @@ export function PremiumTerritoryHeatmap({
                         <Compass className="h-3.5 w-3.5" />
                         Vista sugerida
                       </div>
-                      {defaultViewport.default ? <Badge variant="outline">default</Badge> : null}
+                      {defaultViewport.default ? <Badge variant="outline">Predeterminada</Badge> : null}
                     </div>
                     <p className="mt-1 truncate text-sm font-medium">
                       {defaultViewport.label || defaultViewport.id || 'Foco territorial'}

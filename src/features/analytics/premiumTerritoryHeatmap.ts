@@ -297,7 +297,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
     return {
       id,
       label: id.includes('risk') ? 'Riesgo IA' : 'Capa IA',
-      description: 'Prioridad, riesgo y patrones sugeridos por el backend.',
+      description: 'Prioridad, riesgo y patrones sugeridos por el sistema.',
       tone: 'ai',
       source,
     };
@@ -315,7 +315,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
     return {
       id,
       label: id.includes('whatsapp') ? 'WhatsApp' : 'Tiempo real',
-      description: 'Actividad reciente y telemetria de canales activos.',
+      description: 'Actividad reciente de los canales conectados.',
       tone: 'realtime',
       source,
     };
@@ -368,7 +368,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   return {
     id,
     label: humanizeLayer(id),
-    description: 'Segmento territorial publicado por el contrato del backend.',
+    description: 'Segmento territorial disponible para el análisis operativo.',
     tone: 'neutral',
     source,
   };

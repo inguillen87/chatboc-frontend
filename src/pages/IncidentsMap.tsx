@@ -126,6 +126,7 @@ const MAP_LABELS: Record<string, string> = {
   ready: 'Disponible',
   real: 'Datos operativos verificados',
   synthetic: 'Datos simulados',
+  privileged_exact: 'Acceso institucional protegido',
 };
 
 const formatMapLabel = (value?: string | null) => {
@@ -1230,7 +1231,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         ? `${formatNumber(mapInsights.territoryQuality.coveragePercent)}%`
         : `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
       detail: mapInsights.isEnterpriseContract
-        ? `${formatNumber(mapInsights.territoryQuality.pendingClassification)} pendientes de geocodificar`
+        ? `${formatNumber(mapInsights.territoryQuality.pendingClassification)} ubicaciones pendientes`
         : `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
       icon: Layers,
     },
@@ -1267,7 +1268,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             Mapa vivo de reclamos y calor operativo
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Priorizacion por zona, categoria, estado y actividad reciente con telemetria visual sobre el mapa real.
+            Priorización por zona, categoría, estado y actividad reciente sobre el mapa operativo.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -1329,7 +1330,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             ) : (
               <span className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-primary">
                 <Layers className="h-4 w-4" />
-                Capas verificadas por contrato
+                Capas de análisis disponibles
               </span>
             )}
             <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
