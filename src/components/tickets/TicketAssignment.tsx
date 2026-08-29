@@ -17,6 +17,46 @@ interface TicketAssignmentProps {
   className?: string;
 }
 
+export interface TicketAssignmentSelection {
+  agentId: string;
+  scopeKey: string;
+  source: 'automatic' | 'manual';
+}
+
+const normalizeScopeText = (value: unknown): string =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+export const buildTicketAssignmentScope = (ticket: Ticket | null): string => {
+  if (!ticket) return '';
+
+  const categoryIds = [
+    ticket.categoria_id,
+    ...(ticket.categoria_ids ?? []),
+    ...(ticket.categorias ?? []).map((category) => category.id),
+  ]
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    .sort((left, right) => left - right);
+  const categoryNames = [
+    ticket.categoria_principal,
+    ticket.categoria,
+    ...(ticket.categorias ?? []).map((category) => category.nombre),
+  ]
+    .map(normalizeScopeText)
+    .filter(Boolean)
+    .sort();
+
+  return [
+    ticket.tipo,
+    ticket.id,
+    `category-ids:${categoryIds.join(',')}`,
+    `category-names:${categoryNames.join(',')}`,
+  ].join('|');
+};
+
 const hasPublishedTicketCategory = (ticket: Ticket): boolean =>
   Boolean(
     ticket.categoria_id ||
@@ -34,11 +74,54 @@ export const filterCategoryAssignableAgents = (
   return agents.filter((agent) => canAgentClaimTicketCategory(ticket, agent));
 };
 
+export const resolveCategoryAssignmentCandidate = (
+  categoryCandidates: AssignableAgent[],
+  agentId?: string | number | null,
+): AssignableAgent | undefined => {
+  if (agentId === undefined || agentId === null || String(agentId).trim() === '') return undefined;
+  return categoryCandidates.find((agent) => String(agent.id) === String(agentId));
+};
+
+export const reconcileTicketAssignmentSelection = (
+  current: TicketAssignmentSelection,
+  scopeKey: string,
+  categoryCandidates: AssignableAgent[],
+  recommendedAgent?: AssignableAgent,
+): TicketAssignmentSelection => {
+  const currentCandidate =
+    current.scopeKey === scopeKey
+      ? resolveCategoryAssignmentCandidate(categoryCandidates, current.agentId)
+      : undefined;
+
+  if (currentCandidate && current.source === 'manual') return current;
+
+  const automaticAgent = recommendedAgent ?? categoryCandidates[0];
+  const automaticAgentId = automaticAgent ? String(automaticAgent.id) : '';
+  if (
+    current.scopeKey === scopeKey &&
+    current.source === 'automatic' &&
+    current.agentId === automaticAgentId
+  ) {
+    return current;
+  }
+
+  return {
+    agentId: automaticAgentId,
+    scopeKey,
+    source: 'automatic',
+  };
+};
+
 const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   const { selectedTicket, tickets, updateTicket } = useTickets();
   const { user } = useUser();
   const { agents, loading, error, refresh } = useAssignableAgents(selectedTicket?.tipo);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const assignmentScopeKey = buildTicketAssignmentScope(selectedTicket);
+  const [selection, setSelection] = useState<TicketAssignmentSelection>({
+    agentId: '',
+    scopeKey: '',
+    source: 'automatic',
+  });
   const [assigning, setAssigning] = useState(false);
 
   const openTicketsByAgent = useMemo(() => {
@@ -81,12 +164,20 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   }, [categoryCandidates, openTicketsByAgent]);
 
   useEffect(() => {
-    if (!categoryCandidates.length) {
-      setSelectedAgentId('');
-      return;
-    }
-    setSelectedAgentId(String(recommendedAgent?.id ?? categoryCandidates[0].id));
-  }, [categoryCandidates, recommendedAgent]);
+    setSelection((current) =>
+      reconcileTicketAssignmentSelection(
+        current,
+        assignmentScopeKey,
+        categoryCandidates,
+        recommendedAgent,
+      ),
+    );
+  }, [assignmentScopeKey, categoryCandidates, recommendedAgent]);
+
+  const selectedAgentId = selection.scopeKey === assignmentScopeKey ? selection.agentId : '';
+  const selectedAgentIsEligible = Boolean(
+    resolveCategoryAssignmentCandidate(categoryCandidates, selectedAgentId),
+  );
 
   if (!selectedTicket) {
     return null;
@@ -104,22 +195,35 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
     return `${agent.nombre_usuario}${load ? ` · ${load} activos` : ''}`;
   };
 
-  const resolveAgentById = (agentId: string | number): AssignableAgent => {
-    const fromList = agents.find((agent) => String(agent.id) === String(agentId));
-    if (fromList) return fromList;
-
-    return {
-      id: agentId,
-      nombre_usuario: currentAssignee?.nombre_usuario || 'Agente',
-      email: currentAssignee?.email || 'desconocido@chatboc.local',
-    };
+  const handleAgentSelectionChange = (agentId: string) => {
+    if (!resolveCategoryAssignmentCandidate(categoryCandidates, agentId)) return;
+    setSelection({
+      agentId,
+      scopeKey: assignmentScopeKey,
+      source: 'manual',
+    });
   };
 
   const handleAssignment = async (agentId?: string) => {
     if (!agentId || !selectedTicket) return;
+    const resolvedAgent = resolveCategoryAssignmentCandidate(categoryCandidates, agentId);
+    if (!resolvedAgent) {
+      setSelection((current) =>
+        reconcileTicketAssignmentSelection(
+          current,
+          assignmentScopeKey,
+          categoryCandidates,
+          recommendedAgent,
+        ),
+      );
+      toast.error(
+        'La persona elegida ya no está habilitada para la categoría actual. Actualizá la lista y elegí otro responsable.',
+      );
+      return;
+    }
+
     setAssigning(true);
     try {
-      const resolvedAgent = resolveAgentById(agentId);
       await assignTicketToAgent(selectedTicket.id, selectedTicket.tipo, resolvedAgent.id);
       updateTicket(selectedTicket.id, {
         assignedAgent: resolvedAgent,
@@ -201,7 +305,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
           <p className="text-xs font-medium text-muted-foreground">Elegí un agente</p>
           <Select
             value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            onValueChange={handleAgentSelectionChange}
             disabled={loading || !categoryCandidates.length}
           >
             <SelectTrigger className="w-full">
@@ -235,7 +339,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
         <Button
           size="sm"
           onClick={() => handleAssignment(selectedAgentId)}
-          disabled={!selectedAgentId || assigning || loading}
+          disabled={!selectedAgentIsEligible || assigning || loading}
         >
           <Users className="mr-2 h-4 w-4" />
           Asignar
