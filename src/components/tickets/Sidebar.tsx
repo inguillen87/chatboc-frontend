@@ -398,6 +398,38 @@ const Sidebar: React.FC<SidebarProps> = ({
   const queueUnassignedCount = queueEntries.filter(({ ticket }) => isUnassignedQueueTicket(ticket)).length;
   const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
   const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
+  const selectedQueueIndex = visibleQueueEntries.findIndex(
+    ({ ticket }) => String(ticket.id) === String(selectedTicket?.id ?? ''),
+  );
+  const queueTabStopIndex = selectedQueueIndex >= 0 ? selectedQueueIndex : 0;
+  const handleQueueItemKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, visibleQueueEntries.length - 1);
+    if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = visibleQueueEntries.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    if (nextIndex === currentIndex) return;
+
+    const nextTicket = visibleQueueEntries[nextIndex]?.ticket;
+    if (!nextTicket) return;
+
+    const queueRoot = event.currentTarget.closest<HTMLElement>('[data-testid="sidebar-ticket-queue"]');
+    selectTicket(nextTicket.id);
+    window.requestAnimationFrame(() => {
+      const nextButton = queueRoot?.querySelector<HTMLButtonElement>(
+        `[data-ticket-queue-index="${nextIndex}"]`,
+      );
+      nextButton?.focus();
+    });
+  };
   const queueCaseCountLabel =
     queueEntries.length === 1
       ? '1 caso'
@@ -773,12 +805,19 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
-          <div className={cn(compact ? 'px-2 py-1.5' : 'px-2 py-2')} data-testid="sidebar-ticket-queue">
+          <div
+            className={cn(compact ? 'px-2 py-1.5' : 'px-2 py-2')}
+            data-testid="sidebar-ticket-queue"
+            aria-describedby="sidebar-queue-keyboard-help"
+          >
             <p data-testid="sidebar-queue-summary" className="sr-only">
               Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
               {queueUnreadCount.toLocaleString('es-AR')} no leidos;
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
+            </p>
+            <p id="sidebar-queue-keyboard-help" className="sr-only">
+              Usá flecha arriba y flecha abajo para recorrer reclamos. Inicio y Fin llevan al primer o último caso visible.
             </p>
             {showQueueMetrics ? (
               <div
@@ -830,12 +869,16 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             ) : null}
             <div className="overflow-hidden rounded-[8px] border border-border/80 bg-background shadow-sm">
-              {visibleQueueEntries.map(({ ticket, category }) => (
+              {visibleQueueEntries.map(({ ticket, category }, index) => (
                 <div key={`${category}-${ticket.id}`} className="min-w-0 border-b border-border/60 last:border-b-0">
                   <TicketListItem
                     ticket={ticket}
                     isSelected={selectedTicket?.id === ticket.id}
                     compact
+                    queueIndex={index}
+                    tabIndex={index === queueTabStopIndex ? 0 : -1}
+                    ariaDescribedBy="sidebar-queue-keyboard-help"
+                    onKeyDown={(event) => handleQueueItemKeyDown(event, index)}
                     onClick={() => {
                       selectTicket(ticket.id);
                       onTicketSelected?.();

@@ -46,16 +46,28 @@ vi.mock('./TicketListItem', () => ({
     ticket,
     onClick,
     compact,
+    queueIndex,
+    tabIndex,
+    ariaDescribedBy,
+    onKeyDown,
   }: {
     ticket: { id?: number | string; asunto?: string; nro_ticket?: string };
     onClick: () => void;
     compact?: boolean;
+    queueIndex?: number;
+    tabIndex?: number;
+    ariaDescribedBy?: string;
+    onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   }) => (
     <button
       type="button"
       data-testid={`ticket-row-${ticket.id || ticket.nro_ticket || ticket.asunto}`}
       data-compact={compact ? 'true' : 'false'}
+      data-ticket-queue-index={queueIndex}
+      tabIndex={tabIndex}
+      aria-describedby={ariaDescribedBy}
       onClick={onClick}
+      onKeyDown={onKeyDown}
     >
       {ticket.asunto || ticket.nro_ticket}
     </button>
@@ -234,6 +246,71 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('supports keyboard-first navigation through the prioritized queue', async () => {
+    const tickets = [
+      {
+        id: 101,
+        tipo: 'municipio',
+        nro_ticket: 'M-101',
+        asunto: 'Caso uno',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'alta',
+      },
+      {
+        id: 102,
+        tipo: 'municipio',
+        nro_ticket: 'M-102',
+        asunto: 'Caso dos',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'media',
+      },
+      {
+        id: 103,
+        tipo: 'municipio',
+        nro_ticket: 'M-103',
+        asunto: 'Caso tres',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'baja',
+      },
+    ];
+
+    useTicketsMock.mockReturnValue({
+      tickets,
+      filteredTickets: tickets,
+      ticketsByCategory: { Luminarias: tickets },
+      selectedTicket: tickets[1],
+      selectTicket: selectTicketMock,
+      filters: defaultFilters,
+      setFilters: setFiltersMock,
+      filterOptions: defaultFilterOptions,
+    });
+
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    const first = screen.getByTestId('ticket-row-101');
+    const second = screen.getByTestId('ticket-row-102');
+    const third = screen.getByTestId('ticket-row-103');
+    expect(first).toHaveAttribute('tabindex', '-1');
+    expect(second).toHaveAttribute('tabindex', '0');
+    expect(third).toHaveAttribute('tabindex', '-1');
+
+    second.focus();
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(selectTicketMock).toHaveBeenCalledWith(103);
+    await waitFor(() => expect(third).toHaveFocus());
+
+    fireEvent.keyDown(third, { key: 'Home' });
+    expect(selectTicketMock).toHaveBeenLastCalledWith(101);
+    await waitFor(() => expect(first).toHaveFocus());
   });
 
   it('promotes sidebar search to the server-side ticket filters', async () => {

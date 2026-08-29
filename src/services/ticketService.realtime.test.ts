@@ -710,6 +710,48 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('normalizes the authoritative legacy assignee so assigned tickets cannot be claimed again', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 419,
+          tipo: 'municipio',
+          source_model: 'MunicipioTicket',
+          nro_ticket: 'M-419',
+          asunto: 'Demo reclamo - Alumbrado público',
+          estado: 'en_proceso',
+          fecha: '2026-08-29T12:00:00.000Z',
+          asignado_a: {
+            id: 10,
+            nombre: 'Marcelo',
+            email: 'operador@junin.example',
+          },
+        },
+      ],
+      pagination: {
+        page: 1,
+        per_page: 12,
+        total_items: 1,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+    });
+
+    const result = await getTickets('junin');
+
+    expect(result.tickets[0]).toMatchObject({
+      assignedAgentId: 10,
+      assigned_agent_id: 10,
+      assigned_user_id: 10,
+      assignedAgent: {
+        id: 10,
+        nombre_usuario: 'Marcelo',
+        email: 'operador@junin.example',
+      },
+    });
+  });
+
   it('passes unassigned inbox filters as backend query parameters', async () => {
     apiFetchMock.mockResolvedValueOnce({
       tickets: [],

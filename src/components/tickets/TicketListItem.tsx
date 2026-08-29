@@ -15,6 +15,10 @@ interface TicketListItemProps {
   isSelected: boolean;
   onClick: () => void;
   compact?: boolean;
+  queueIndex?: number;
+  tabIndex?: number;
+  ariaDescribedBy?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
 }
 
 const getCategoryColor = (category?: string) => {
@@ -37,7 +41,16 @@ const getCategoryColor = (category?: string) => {
   return { border: 'border-l-primary', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
 };
 
-const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick, compact = false }) => {
+const TicketListItem: React.FC<TicketListItemProps> = ({
+  ticket,
+  isSelected,
+  onClick,
+  compact = false,
+  queueIndex,
+  tabIndex,
+  ariaDescribedBy,
+  onKeyDown,
+}) => {
   const normalizeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     return String(value).trim();
@@ -121,7 +134,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           hasUnread && !isSelected && 'bg-primary/[0.04]',
         )}
         onClick={onClick}
+        onKeyDown={onKeyDown}
+        tabIndex={tabIndex}
+        data-ticket-queue-index={queueIndex}
         aria-pressed={isSelected}
+        aria-describedby={ariaDescribedBy}
         aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
       >
         {hasUnread && !isSelected && (
@@ -202,7 +219,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         hasUnread && !isSelected && 'border-primary/40 bg-primary/[0.02]',
       )}
       onClick={onClick}
+      onKeyDown={onKeyDown}
+      tabIndex={tabIndex}
+      data-ticket-queue-index={queueIndex}
       aria-pressed={isSelected}
+      aria-describedby={ariaDescribedBy}
       aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (

@@ -232,11 +232,71 @@ const normalizeTicketPagination = (
     };
 };
 
+const normalizeTicketAssignment = <T extends Ticket>(ticket: T): Partial<Ticket> => {
+    const rawTicket = ticket as T & {
+        asignado_a?: unknown;
+        asignado_a_id?: unknown;
+        assignee?: unknown;
+    };
+    const asAssigneeRecord = (value: unknown): Record<string, unknown> | null =>
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+            ? value as Record<string, unknown>
+            : null;
+    const canonicalAssignee = asAssigneeRecord(rawTicket.assignedAgent);
+    const nestedAssignee =
+        canonicalAssignee ??
+        asAssigneeRecord(rawTicket.asignado_a) ??
+        asAssigneeRecord(rawTicket.assignee);
+    const assignedId =
+        rawTicket.assignedAgentId ??
+        rawTicket.assigned_agent_id ??
+        rawTicket.assigned_user_id ??
+        rawTicket.asigned_user_id ??
+        rawTicket.asignado_a_id ??
+        nestedAssignee?.id ??
+        nestedAssignee?.user_id ??
+        null;
+
+    if (
+        (typeof assignedId !== 'string' && typeof assignedId !== 'number') ||
+        String(assignedId).trim() === ''
+    ) {
+        return {};
+    }
+
+    const assignedName = String(
+        nestedAssignee?.nombre_usuario ??
+        nestedAssignee?.nombre ??
+        nestedAssignee?.name ??
+        nestedAssignee?.email ??
+        `Agente ${assignedId}`,
+    ).trim();
+    const assignedEmail = String(
+        nestedAssignee?.email ??
+        nestedAssignee?.email_usuario ??
+        '',
+    ).trim();
+
+    return {
+        assignedAgent: {
+            ...canonicalAssignee,
+            id: assignedId,
+            nombre_usuario: assignedName || `Agente ${assignedId}`,
+            email: assignedEmail,
+        },
+        assignedAgentId: assignedId,
+        assigned_agent_id: assignedId,
+        assigned_user_id: assignedId,
+    };
+};
+
 const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     const location = normalizeTicketLocation(ticket);
+    const assignment = normalizeTicketAssignment(ticket);
     return {
         ...ticket,
         ...location,
+        ...assignment,
     };
 };
 
