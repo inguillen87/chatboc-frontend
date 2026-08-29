@@ -2,7 +2,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ResponseTemplate } from '@/features/tickets/responseTemplatesApi';
 import type { Ticket } from '@/types/tickets';
@@ -153,7 +153,13 @@ const renderConversation = (operationalWorkspace = false) => (
 );
 
 describe('ConversationPanel tenant invalidation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useRealTimers();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     harness.handlers.clear();
     harness.selectedTicket = selectedTicket;
@@ -190,6 +196,7 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.socket?.emit.mockClear();
     harness.socket?.off.mockClear();
     harness.socket?.on.mockClear();
+    if (harness.socket) harness.socket.connected = true;
   });
 
   it('keeps technical transport labels and ticket identifiers out of the operational workspace header', async () => {
@@ -348,6 +355,54 @@ describe('ConversationPanel tenant invalidation', () => {
 
     await waitFor(() => expect(harness.getTicketMessages).toHaveBeenCalledTimes(1));
     expect(screen.getByText('La luminaria sigue apagada')).toBeInTheDocument();
+  });
+
+  it('keeps the timeline and composer stable on an identical fallback poll without repeating read-state', async () => {
+    if (harness.socket) harness.socket.connected = false;
+    let pollingCallback: (() => void) | null = null;
+    vi.spyOn(window, 'setInterval').mockImplementation((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 15_000 && typeof handler === 'function') {
+        pollingCallback = () => handler();
+      }
+      return 321;
+    });
+    const durableMessage = {
+      id: 'message-stable-1',
+      author: 'user',
+      content: 'Bache informado con ubicación',
+      timestamp: '2026-08-20T12:05:00Z',
+    };
+    harness.getTicketTimeline.mockResolvedValueOnce({
+      messages: [durableMessage],
+      realtime_state: null,
+      unified_conversation_stream: [],
+    });
+    harness.getTicketMessages.mockResolvedValue([durableMessage]);
+
+    const view = render(renderConversation());
+    expect(await screen.findByText('Bache informado con ubicación')).toBeInTheDocument();
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1));
+
+    const panelBefore = screen.getByTestId('ticket-conversation-panel');
+    const composerBefore = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composerBefore, { target: { value: 'Borrador que no debe perderse' } });
+
+    harness.selectedTicket = { ...selectedTicket, asunto: 'Payload refrescado sin cambiar identidad' };
+    view.rerender(renderConversation());
+    expect(screen.getByTestId('ticket-conversation-panel')).toBe(panelBefore);
+    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toBe(composerBefore);
+
+    await act(async () => {
+      pollingCallback?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(harness.getTicketMessages).toHaveBeenCalledTimes(1);
+    expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Bache informado con ubicación')).toBeInTheDocument();
+    expect(screen.queryByText('Sincronizando conversacion')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Borrador que no debe perderse');
   });
 
   it('clears and reloads the conversation when another tenant has the same source, type and ticket id', async () => {

@@ -360,6 +360,55 @@ describe('TicketContext unread delta reconciliation', () => {
     expect(getTicketsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the hydrated inbox mounted while a collection invalidation revalidates silently', async () => {
+    render(
+      <TicketProvider>
+        <CachedInboxConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cached-selected-ticket')).toHaveTextContent('REC-1');
+      expect(screen.getByTestId('cached-loading')).toHaveTextContent('false');
+    });
+
+    let resolveRefresh: (value: unknown) => void = () => {};
+    getTicketsMock.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRefresh = resolve;
+    }));
+
+    act(() => {
+      ticketUpdateHandlers.onCollectionInvalidated?.({
+        contract_version: 'tickets.collection.invalidated.v1',
+        resource: 'tickets',
+        reason: 'collection_changed',
+        refetch: true,
+      });
+    });
+
+    await waitFor(() => expect(getTicketsMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('cached-selected-ticket')).toHaveTextContent('REC-1');
+    expect(screen.getByTestId('cached-loading')).toHaveTextContent('false');
+
+    act(() => {
+      resolveRefresh({
+        tickets: [
+          {
+            id: 1,
+            tipo: 'municipio',
+            nro_ticket: 'REC-1',
+            asunto: 'Alumbrado actualizado',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:00:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('cached-loading')).toHaveTextContent('false'));
+  });
+
   it('keeps cached tickets visible but surfaces auth errors from the live refresh', async () => {
     getTicketsMock.mockRejectedValueOnce(
       new ApiError('Acceso prohibido', 403, { error: 'forbidden' }),

@@ -8,6 +8,9 @@ const searchParamsState = vi.hoisted(() => ({
   value: new URLSearchParams(),
 }));
 const mobileState = vi.hoisted(() => ({ value: false }));
+const sonnerMocks = vi.hoisted(() => ({
+  Toaster: vi.fn(() => null),
+}));
 
 const useTicketsMock = vi.fn();
 
@@ -115,7 +118,7 @@ vi.mock('./DetailsPanel', () => ({
 }));
 
 vi.mock('@/components/ui/sonner', () => ({
-  Toaster: () => null,
+  Toaster: sonnerMocks.Toaster,
 }));
 
 describe('NewTicketsPanel CRM layout', () => {
@@ -123,6 +126,7 @@ describe('NewTicketsPanel CRM layout', () => {
     window.localStorage.clear();
     searchParamsState.value = new URLSearchParams();
     mobileState.value = false;
+    sonnerMocks.Toaster.mockClear();
     useTicketsMock.mockReset();
     useTicketsMock.mockReturnValue({
       loading: true,
@@ -137,6 +141,12 @@ describe('NewTicketsPanel CRM layout', () => {
       realtimeActivity: { pending: 0, lastLabel: null },
       clearRealtimeActivity: vi.fn(),
     });
+  });
+
+  it('uses the single application-level notification region', () => {
+    render(<NewTicketsPanel />);
+
+    expect(sonnerMocks.Toaster).not.toHaveBeenCalled();
   });
 
   it('shows an operational loading status instead of an empty CRM shell', () => {

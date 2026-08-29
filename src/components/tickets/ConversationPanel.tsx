@@ -429,6 +429,34 @@ const dedupeChatMessages = (items: ChatMessageData[]): ChatMessageData[] => {
   return accepted;
 };
 
+const stableChatMessageKey = (message: ChatMessageData): string => [
+  message.id === undefined || message.id === null ? '' : String(message.id),
+  normalizeMessageFingerprint(message),
+  String(normalizeMessageTimestamp(message)),
+  message.attachmentInfo?.name || '',
+  message.attachmentInfo?.url || '',
+  message.attachmentInfo?.mimeType || '',
+].join('|');
+
+const preserveChatMessagesWhenUnchanged = (
+  current: ChatMessageData[],
+  incoming: ChatMessageData[],
+  append = false,
+): ChatMessageData[] => {
+  const next = dedupeChatMessages(append ? [...current, ...incoming] : incoming);
+  if (current.length !== next.length) return next;
+  return current.every((message, index) => stableChatMessageKey(message) === stableChatMessageKey(next[index]))
+    ? current
+    : next;
+};
+
+const hasUnreadConversationState = (ticket: Ticket | null): boolean => Boolean(
+  ticket?.hasUnreadMessages ||
+  ticket?.collaboration_state?.has_unread ||
+  Number(ticket?.collaboration_state?.unread_count || 0) > 0 ||
+  Number(ticket?.collaboration_state?.unread_viewer_count || 0) > 0
+);
+
 export const shouldShowOperationalTimelineInChat = ({
   eventCount,
   isMobile,
@@ -648,6 +676,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     : null;
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
+  const latestReadableMessageId = useMemo(
+    () => messages
+      .map((item) => item.id)
+      .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
+      .filter((id) => {
+        const value = String(id);
+        if (!value || value.startsWith('sent-') || value.startsWith('temp-')) return false;
+        if (typeof id === 'number' && id > 1_000_000_000_000) return false;
+        return true;
+      })
+      .at(-1),
+    [messages],
+  );
+  const selectedTicketHasUnread = hasUnreadConversationState(selectedTicket);
   const { incomingMessagesCount, attachmentsCount } = useMemo(() => {
     let incoming = 0;
     let attachments = 0;
@@ -849,7 +891,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
         setTimelinePartial(false);
         if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
-          setMessages(dedupeChatMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, activeTicket))));
+          const incomingMessages = timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, activeTicket));
+          setMessages((current) => preserveChatMessagesWhenUnchanged(
+            current,
+            incomingMessages,
+            isBackgroundRefresh,
+          ));
           finishLoading();
           return;
         }
@@ -869,7 +916,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
       if (!isBackgroundRefresh && activeTicket.messages) {
         if (cancelled) return;
-        setMessages(dedupeChatMessages(activeTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, activeTicket))));
+        const incomingMessages = activeTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, activeTicket));
+        setMessages((current) => preserveChatMessagesWhenUnchanged(current, incomingMessages));
         finishLoading();
         return;
       }
@@ -882,7 +930,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         });
         if (cancelled) return;
         if (!isBackgroundRefresh || fetchedMessages.length > 0) {
-          setMessages(dedupeChatMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, activeTicket))));
+          const incomingMessages = fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, activeTicket));
+          setMessages((current) => preserveChatMessagesWhenUnchanged(
+            current,
+            incomingMessages,
+            isBackgroundRefresh,
+          ));
         }
       } catch (error) {
         if (cancelled) return;
@@ -963,53 +1016,62 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   useEffect(() => {
     if (
-      !selectedTicket ||
+      selectedTicketId === null ||
+      !selectedTicketType ||
       !selectedConversationKey ||
       loadedConversationKeyRef.current !== selectedConversationKey ||
-      messages.length === 0
+      latestReadableMessageId === undefined
     ) return;
 
-    const latestMessageId = [...messages]
-      .map((item) => item.id)
-      .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
-      .filter((id) => {
-        const value = String(id);
-        if (!value || value.startsWith('sent-') || value.startsWith('temp-')) return false;
-        if (typeof id === 'number' && id > 1_000_000_000_000) return false;
-        return true;
-      })
-      .at(-1);
-
-    if (latestMessageId === undefined) return;
-
-    const syncKey = `${selectedConversationKey}:${latestMessageId}`;
+    const syncKey = `${selectedConversationKey}:${latestReadableMessageId}`;
     if (lastReadStateSyncRef.current === syncKey) return;
+
+    // Opening a conversation may produce one read acknowledgement. Afterwards
+    // only a new unread message (and therefore a new durable message id) can
+    // advance it. Object refreshes and identical polls are deliberately inert.
+    if (lastReadStateSyncRef.current !== null && !selectedTicketHasUnread) return;
     lastReadStateSyncRef.current = syncKey;
 
-    updateTicketReadState(selectedTicket.id, selectedTicket.tipo, latestMessageId)
+    updateTicketReadState(selectedTicketId, selectedTicketType, latestReadableMessageId)
       .then((state) => {
+        const activeTicket = selectedTicketRef.current;
+        if (!activeTicket || selectedConversationKey !== `${
+          activeTicket.tenant_slug?.trim().toLowerCase() ||
+          (activeTicket.tenant_id != null ? `tenant-id-${activeTicket.tenant_id}` : 'tenant-unknown')
+        }:${activeTicket.source_model || activeTicket.tipo}:${activeTicket.id}`) return;
         if (state) {
           setRecipientPresenceActive(hasPublicRecipientPresence(state));
         }
-        updateTicket(selectedTicket.id, {
+        updateTicket(selectedTicketId, {
           hasUnreadMessages: false,
-          realtime_state: state || selectedTicket.realtime_state,
+          realtime_state: state || activeTicket.realtime_state,
           collaboration_state: {
-            ...(selectedTicket.collaboration_state || {}),
+            ...(activeTicket.collaboration_state || {}),
             has_unread: false,
+            unread_count: 0,
             unread_viewer_count: 0,
           },
         } as Partial<Ticket>);
       })
       .catch((error) => {
+        if (lastReadStateSyncRef.current === syncKey) {
+          lastReadStateSyncRef.current = null;
+        }
         if (!isLegacyHtmlGatewayError(error)) {
           console.warn('No se pudo sincronizar lectura del ticket.', {
-            ticketId: selectedTicket.id,
+            ticketId: selectedTicketId,
             ...summarizeTicketFetchError(error),
           });
         }
       });
-  }, [messages, selectedConversationKey, selectedTicket, updateTicket]);
+  }, [
+    latestReadableMessageId,
+    selectedConversationKey,
+    selectedTicketHasUnread,
+    selectedTicketId,
+    selectedTicketType,
+    updateTicket,
+  ]);
 
   useEffect(() => {
     if (!socket || selectedTicketId === null || !selectedTicketType) return;
@@ -1132,23 +1194,26 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [selectedConversationKey, selectedTicketId, selectedTicketSocketRoom, selectedTicketType, socket]);
 
   useEffect(() => {
-    if (!selectedTicket) return;
+    if (!selectedConversationKey || selectedTicketId === null || !selectedTicketType) return;
     if (socket?.connected) return;
 
     const interval = window.setInterval(async () => {
       if (Date.now() < pollingPausedUntilRef.current) return;
 
+      const activeTicket = selectedTicketRef.current;
+      if (!activeTicket || Number(activeTicket.id) !== Number(selectedTicketId)) return;
+
       try {
-        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo, {
+        const polledMessages = await getTicketMessages(selectedTicketId, selectedTicketType, {
           quiet: true,
-          ticket: selectedTicket,
-          tenantSlug: selectedTicket.tenant_slug,
+          ticket: activeTicket,
+          tenantSlug: activeTicket.tenant_slug,
         });
         pollingFailureCountRef.current = 0;
         pollingPausedUntilRef.current = 0;
         setMessages((prev) => {
-          const incoming = polledMessages.map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
-          return dedupeChatMessages([...prev, ...incoming]);
+          const incoming = polledMessages.map((item) => adaptTicketMessageToChatMessage(item, activeTicket));
+          return preserveChatMessagesWhenUnchanged(prev, incoming, true);
         });
       } catch (pollError) {
         pollingFailureCountRef.current += 1;
@@ -1160,7 +1225,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           (pollingFailureCountRef.current === 1 || pollingFailureCountRef.current % 4 === 0)
         ) {
           console.warn('Fallback polling de conversacion pausado temporalmente', {
-            ticketId: selectedTicket.id,
+            ticketId: selectedTicketId,
             pausedMs: backoffMs,
             ...summarizeTicketFetchError(pollError),
           });
@@ -1169,7 +1234,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     }, 15000);
 
     return () => window.clearInterval(interval);
-  }, [selectedTicket, socket?.connected]);
+  }, [selectedConversationKey, selectedTicketId, selectedTicketType, socket?.connected]);
 
   const scrollToBottom = useCallback(() => {
     const node = scrollAreaRef.current;
@@ -1452,7 +1517,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   return (
     <motion.div
-        key={selectedTicket.id}
         initial={shouldReduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}

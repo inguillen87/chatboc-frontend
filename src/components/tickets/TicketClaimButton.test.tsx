@@ -93,6 +93,46 @@ describe('TicketClaimButton', () => {
     expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({ assigned_user_id: 10 }));
   });
 
+  it('deja que el backend autorice el claim atómico aunque el listado auxiliar no publique al operador', async () => {
+    mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
+    mocks.agents = [];
+    render(<TicketClaimButton />);
+
+    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    expect(claim).toBeEnabled();
+    expect(claim).toHaveAttribute(
+      'title',
+      'El backend verificará tu permiso, tenant y categoría antes de asignar',
+    );
+
+    fireEvent.click(claim);
+
+    await waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(1));
+    expect(mocks.assign).not.toHaveBeenCalled();
+    expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({
+      assigned_user_id: 10,
+      assignedAgent: expect.objectContaining({ id: 10, nombre_usuario: 'Operadora Junín' }),
+    }));
+  });
+
+  it('no confirma cambios cuando el backend rechaza rol o categoría en el claim atómico', async () => {
+    mocks.ticket = { ...baseTicket, source_model: 'TenantTicket' };
+    mocks.agents = [{ id: 10, nombre_usuario: 'Operadora Junín', categoria_ids: [9] }];
+    mocks.claim.mockRejectedValueOnce(new (await import('@/utils/api')).ApiError(
+      'Categoría incompatible',
+      403,
+    ));
+    render(<TicketClaimButton />);
+
+    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    expect(claim).toBeEnabled();
+    fireEvent.click(claim);
+
+    await waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(1));
+    expect(mocks.updateTicket).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+  });
+
   it('bloquea la toma cuando el usuario no cubre la categoría', () => {
     mocks.agents = [{ id: 10, nombre_usuario: 'Operadora Junín', categoria_ids: [9] }];
     render(<TicketClaimButton />);

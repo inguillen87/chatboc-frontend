@@ -63,11 +63,38 @@ const assignedUserId = (ticket: Ticket): string =>
       '',
   ).trim();
 
+const supportsAtomicClaim = (ticket: Ticket | null): boolean => {
+  const sourceModel = String(ticket?.source_model ?? '').trim();
+  return sourceModel === 'TenantTicket' || sourceModel === 'MunicipioTicket';
+};
+
+const sessionAgent = (
+  user: ReturnType<typeof useUser>['user'],
+): AssignableAgent | null => {
+  const id = user?.id;
+  if (id === undefined || id === null || String(id).trim() === '') return null;
+
+  return {
+    id,
+    nombre_usuario: user?.name?.trim() || user?.email?.trim() || 'Mi usuario',
+    email: user?.email?.trim() || '',
+    categoria_id: user?.categoria_id ?? null,
+    categoria_ids: user?.categoria_ids ?? null,
+    categorias: (user?.categorias ?? []).map((category) => ({
+      id: category.id,
+      nombre: category.nombre?.trim() || `Categoría ${category.id}`,
+    })),
+  };
+};
+
 const TicketClaimButton: React.FC = () => {
   const { selectedTicket, updateTicket } = useTickets();
   const { currentSlug } = useTenant();
   const { user } = useUser();
-  const { agents, loading, error } = useAssignableAgents(selectedTicket?.tipo);
+  const atomicClaim = supportsAtomicClaim(selectedTicket);
+  const { agents, loading, error } = useAssignableAgents(
+    selectedTicket && !atomicClaim ? selectedTicket.tipo : undefined,
+  );
   const [assigning, setAssigning] = React.useState(false);
   const [confirmedTicketKey, setConfirmedTicketKey] = React.useState<string | null>(null);
 
@@ -77,23 +104,24 @@ const TicketClaimButton: React.FC = () => {
   const ticketKey = `${selectedTicket.tipo}:${selectedTicket.id}`;
   const currentAssigneeId = assignedUserId(selectedTicket);
   const currentAgent = agents.find((agent) => String(agent.id) === userId);
+  const confirmedAgent = currentAgent ?? (atomicClaim ? sessionAgent(user) : null);
   const isAssignedToMe = Boolean(userId) && (currentAssigneeId === userId || confirmedTicketKey === ticketKey);
   const isAssignedToSomeoneElse = Boolean(currentAssigneeId) && currentAssigneeId !== userId;
   const categoryAuthorized = Boolean(currentAgent && canAgentClaimTicketCategory(selectedTicket, currentAgent));
 
   let blockReason: string | null = null;
   if (!userId) blockReason = 'No hay una identidad de operador autenticada.';
-  else if (error) blockReason = 'No se pudo verificar la capacidad de asignación con el backend.';
-  else if (!loading && !currentAgent) blockReason = 'El backend no publicó este usuario como agente asignable.';
-  else if (!loading && currentAgent && !categoryAuthorized) blockReason = 'Tu perfil no tiene habilitada la categoría de este ticket.';
   else if (isAssignedToSomeoneElse) blockReason = 'El ticket ya tiene responsable. La reasignación se gestiona desde el inspector de supervisión.';
+  else if (!atomicClaim && error) blockReason = 'No se pudo verificar la capacidad de asignación con el backend.';
+  else if (!atomicClaim && !loading && !currentAgent) blockReason = 'El backend no publicó este usuario como agente asignable.';
+  else if (!atomicClaim && !loading && currentAgent && !categoryAuthorized) blockReason = 'Tu perfil no tiene habilitada la categoría de este ticket.';
 
   const claimTicket = async () => {
-    if (!userId || !currentAgent || blockReason || assigning || isAssignedToMe) return;
+    if (!userId || !confirmedAgent || blockReason || assigning || isAssignedToMe) return;
     setAssigning(true);
     try {
       const sourceModel = String(selectedTicket.source_model ?? '').trim();
-      if (sourceModel === 'TenantTicket' || sourceModel === 'MunicipioTicket') {
+      if (atomicClaim) {
         await postOmnichannelInboxActionV2(
           String(selectedTicket.id),
           {
@@ -108,13 +136,13 @@ const TicketClaimButton: React.FC = () => {
       } else {
         // Old ticket payloads do not identify their backing model. Preserve the
         // compatible route until every deployment publishes source_model.
-        await assignTicketToAgent(selectedTicket.id, selectedTicket.tipo, currentAgent.id);
+        await assignTicketToAgent(selectedTicket.id, selectedTicket.tipo, confirmedAgent.id);
       }
       updateTicket(selectedTicket.id, {
-        assignedAgent: currentAgent,
-        assignedAgentId: currentAgent.id,
-        assigned_agent_id: currentAgent.id,
-        assigned_user_id: currentAgent.id,
+        assignedAgent: confirmedAgent,
+        assignedAgentId: confirmedAgent.id,
+        assigned_agent_id: confirmedAgent.id,
+        assigned_user_id: confirmedAgent.id,
       });
       setConfirmedTicketKey(ticketKey);
       toast.success('Ticket asignado a tu usuario');
@@ -123,6 +151,8 @@ const TicketClaimButton: React.FC = () => {
       toast.error(
         claimError instanceof ApiError && claimError.status === 409
           ? 'Otro operador tomó este ticket. Actualizá la bandeja para ver el responsable.'
+          : claimError instanceof ApiError && claimError.status === 403
+            ? 'Tu usuario no tiene permiso o categoría habilitada para tomar este ticket.'
           : 'El backend no confirmó la asignación. El ticket sigue sin cambios.',
       );
     } finally {
@@ -147,13 +177,15 @@ const TicketClaimButton: React.FC = () => {
         size="sm"
         className="h-9 gap-1.5"
         onClick={() => void claimTicket()}
-        disabled={loading || assigning || Boolean(blockReason)}
-        title={blockReason || 'Asignar este ticket a mi usuario'}
+        disabled={(!atomicClaim && loading) || assigning || Boolean(blockReason)}
+        title={blockReason || (atomicClaim
+          ? 'El backend verificará tu permiso, tenant y categoría antes de asignar'
+          : 'Asignar este ticket a mi usuario')}
         aria-describedby={blockReason ? 'ticket-claim-block-reason' : undefined}
         data-testid="ticket-claim-action"
       >
-        {assigning || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
-        {assigning ? 'Asignando…' : loading ? 'Verificando…' : 'Tomar ticket'}
+        {assigning || (!atomicClaim && loading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+        {assigning ? 'Asignando…' : !atomicClaim && loading ? 'Verificando…' : 'Tomar ticket'}
       </Button>
       {blockReason ? <span id="ticket-claim-block-reason" className="sr-only">{blockReason}</span> : null}
     </>

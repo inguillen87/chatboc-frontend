@@ -5,7 +5,6 @@ import Sidebar from './Sidebar';
 import TicketFilterPopover from './TicketFilterPopover';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
-import { Toaster } from '@/components/ui/sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
@@ -1803,7 +1802,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           </AnimatePresence>
         </div>
       )}
-      <Toaster richColors />
     </Card>
   );
 };

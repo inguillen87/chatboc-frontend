@@ -93,6 +93,13 @@ const Harness = ({
 };
 
 describe("CrmPeopleWorkspace", () => {
+  it("keeps the document main landmark owned by the application layout", () => {
+    const { container } = render(<Harness />);
+
+    expect(screen.getByTestId("crm-person-detail")).toBeInTheDocument();
+    expect(container.querySelectorAll("main")).toHaveLength(0);
+  });
+
   it("switches the record 360 from the compact list", () => {
     const onOpenTicketDesk = vi.fn();
     render(<Harness onOpenTicketDesk={onOpenTicketDesk} />);

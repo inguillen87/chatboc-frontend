@@ -714,6 +714,8 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   tenantSlugOverride,
 }) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const ticketsRef = React.useRef<Ticket[]>([]);
+  const ticketsTenantScopeRef = React.useRef<string | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
@@ -738,6 +740,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     lastLabel: null,
     lastAt: null,
   });
+
+  useEffect(() => {
+    ticketsRef.current = tickets;
+  }, [tickets]);
   const { user } = useUser();
   const { currentSlug } = useTenant();
   const userTenantSlug = React.useMemo(
@@ -1074,13 +1080,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     return promise;
   }, [activeTenantSlug, filterTicketsForUser, tickets, updateTicketTargetResolution]);
 
-  const fetchTickets = useCallback(async (options: { force?: boolean } = {}) => {
+  const fetchTickets = useCallback(async (options: { force?: boolean; silent?: boolean } = {}) => {
     const tenantSlug = activeTenantSlug;
     const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
     const useCache = !serverTicketFiltersActive;
     const forceLive = options.force === true;
 
     if (!tenantSlug) {
+      ticketsTenantScopeRef.current = null;
       setError(null);
       setErrorDetails(null);
       setTickets([]);
@@ -1102,6 +1109,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       );
       if (cachedTickets.length > 0) {
         cacheWasApplied = true;
+        ticketsTenantScopeRef.current = tenantSlug;
         setTickets((current) => (current.length > 0 ? current : cachedTickets));
         setPagination((current) => current || cachedInbox.pagination || null);
         setSelectedTicket((current) => {
@@ -1115,7 +1123,16 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       }
     }
 
-    setLoading(true);
+    // Only the first hydration owns the blocking loading state. Revalidations
+    // keep the inbox, conversation and composer mounted while fresh data is in
+    // flight so an operator never loses visual context or an in-progress reply.
+    const shouldBlockWorkspace =
+      options.silent !== true &&
+      !cacheWasApplied &&
+      (ticketsTenantScopeRef.current !== tenantSlug || ticketsRef.current.length === 0);
+    if (shouldBlockWorkspace) {
+      setLoading(true);
+    }
     setError(null);
     setErrorDetails(null);
 
@@ -1137,6 +1154,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const nextTickets = resolvedTarget && filterTicketsForUser([resolvedTarget]).length > 0
           ? mergeTicketPages(filteredTickets, [resolvedTarget])
           : filteredTickets;
+        ticketsTenantScopeRef.current = tenantSlug;
         setServerFacets((apiResponse as any)?.facets || null);
         setTickets(nextTickets);
         setPagination(nextPagination);
@@ -1175,6 +1193,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         if (!cacheWasApplied) {
+          ticketsTenantScopeRef.current = tenantSlug;
           setTickets([]);
           setPagination(null);
           setServerFacets(null);
@@ -1194,6 +1213,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setError(nextError);
       setErrorDetails(nextErrorDetails);
       setTickets([]);
+      ticketsTenantScopeRef.current = tenantSlug;
       setPagination(null);
       setServerFacets(null);
     } finally {
@@ -1303,10 +1323,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         ticket.id === ticketId ? { ...ticket, ...updates } : ticket
       )
     );
-    if (selectedTicket && selectedTicket.id === ticketId) {
-      setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
-    }
-  }, [selectedTicket]);
+    setSelectedTicket(prev =>
+      prev && prev.id === ticketId ? { ...prev, ...updates } : prev,
+    );
+  }, []);
 
   const upsertTicket = useCallback((rawTicket: Ticket): boolean => {
     const normalizedTicket = normalizeTicketForInbox(rawTicket);
@@ -1340,7 +1360,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   useTicketUpdates({
     onCollectionInvalidated: () => {
-      fetchTickets();
+      void fetchTickets({ force: true, silent: true });
     },
     onNewTicket: (data) => {
       // Optimistic addition if we have enough data, otherwise fetch
@@ -1358,7 +1378,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
             return;
         }
       }
-      fetchTickets();
+      void fetchTickets({ force: true, silent: true });
     },
     onNewComment: (data) => {
       // Si la data incluye cambios de estado u otros campos del ticket, actualizarlos

@@ -630,7 +630,10 @@ export default function CrmPeopleWorkspace({
               </div>
             </aside>
 
-            <main className="min-h-0 min-w-0 bg-background/20">
+            <div
+              className="min-h-0 min-w-0 bg-background/20"
+              data-testid="crm-person-detail"
+            >
               {!selectedPerson ? (
                 <EmptySelection />
               ) : (
@@ -772,7 +775,7 @@ export default function CrmPeopleWorkspace({
                   </Tabs>
                 </div>
               )}
-            </main>
+            </div>
 
             {contextOpen && selectedPerson ? (
               <aside className="hidden min-h-0 border-l border-border/70 bg-card xl:block" aria-label="Panel contextual">
