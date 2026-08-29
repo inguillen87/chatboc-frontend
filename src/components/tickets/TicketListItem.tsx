@@ -20,21 +20,21 @@ interface TicketListItemProps {
 const getCategoryColor = (category?: string) => {
   const cat = (category || '').toLowerCase();
   if (cat.includes('alumbrad') || cat.includes('luz') || cat.includes('electr')) {
-    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
+    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-800 dark:text-amber-300' };
   }
   if (cat.includes('bach') || cat.includes('calle') || cat.includes('obra')) {
-    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
   }
   if (cat.includes('arbol') || cat.includes('poda') || cat.includes('verde') || cat.includes('plaza')) {
-    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
+    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' };
   }
   if (cat.includes('limpieza') || cat.includes('higiene') || cat.includes('residu') || cat.includes('basura')) {
-    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' };
+    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-800 dark:text-cyan-300' };
   }
   if (cat.includes('seguridad') || cat.includes('transit') || cat.includes('vial')) {
-    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' };
+    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-700 dark:text-purple-300' };
   }
-  return { border: 'border-l-primary', bg: 'bg-primary/10 text-primary' };
+  return { border: 'border-l-primary', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
 };
 
 const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick, compact = false }) => {
@@ -96,10 +96,12 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   
   const statusClass = cn(
     'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border',
-    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
-    normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
-    normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-    !normalizedStatus && 'bg-muted text-muted-foreground border-border/80',
+    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+    normalizedStatus === 'esperando_agente_en_vivo' && 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+    normalizedStatus === 'en_vivo' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border-cyan-500/30',
+    normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
+    normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    !normalizedStatus && 'bg-muted text-slate-700 dark:text-slate-300 border-border/80',
   );
 
   const categoryColors = getCategoryColor(categoryLabel);
@@ -138,11 +140,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">
-                <h4 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
+                <h3 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
                   {subject}
-                </h4>
+                </h3>
                 <p
-                  className="line-clamp-1 text-[11px] text-muted-foreground"
+                  className="line-clamp-1 text-[11px] text-slate-700 dark:text-slate-300"
                   title={`${ticketNumber} - ${displayName}`}
                   aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
                 >
@@ -152,7 +154,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-[10px] font-medium text-muted-foreground">{formattedTime}</span>
+                <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">{formattedTime}</span>
                 <span className={statusClass}>{statusLabel}</span>
               </div>
             </div>
@@ -213,9 +215,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         <div className="flex min-w-0 items-start gap-3">
           <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
-            <h4 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
+            <h3 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
               {subject}
-            </h4>
+            </h3>
             <div
               className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5"
               title={`${ticketNumber} - ${displayName}`}
@@ -231,7 +233,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
             <Clock className="w-3 h-3 text-muted-foreground/70" />
             {formattedTime}
           </span>

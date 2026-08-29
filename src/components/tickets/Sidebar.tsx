@@ -712,7 +712,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       >
         <p
           className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-muted-foreground"
-          aria-label={`${listSummaryLabel}. ${filterSummaryLabel}. ${visibleTicketCountLabel}.`}
         >
           <span
             className={cn(

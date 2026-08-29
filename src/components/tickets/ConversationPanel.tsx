@@ -1792,6 +1792,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
         <div
           className="mb-2 flex flex-wrap items-center gap-1.5"
+          role="group"
           aria-label="Acciones de respuesta"
           data-testid="ticket-composer-action-bar"
         >
