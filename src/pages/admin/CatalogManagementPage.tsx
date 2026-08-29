@@ -57,6 +57,15 @@ const firstDefined = (record: Record<string, any>, keys: string[]) => {
   return undefined;
 };
 
+const toFiniteMetric = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
 const normalizeCatalogRow = (row: unknown) => {
   const record = toRecord(row);
   const cells = toRecord(record.cells);
@@ -302,23 +311,54 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
   const inventoryStats = useMemo(() => {
     const summary = toRecord(catalogContract?.summary);
     const inventory = toRecord(catalogContract?.inventory);
-    const sellable =
-      summary.items_sellable ??
-      summary.ready_to_sell ??
-      products.filter((product) => {
-        const stockStatus = getCatalogStockStatus(product);
-        const available = firstDefined(toRecord(product), ['available_to_sell', 'disponible']);
-        return available !== false && stockStatus !== 'out_of_stock' && stockStatus !== 'stock_unknown';
-      }).length;
+    const readinessMetrics = toRecord(marketplaceReadiness?.metrics);
+    const hasItemDetail =
+      catalogContract === null ||
+      Array.isArray(catalogContract?.items) ||
+      Array.isArray(catalogContract?.rows);
+    const derivedAvailable = hasItemDetail
+      ? products.filter((product) => {
+          const stockStatus = getCatalogStockStatus(product);
+          const available = firstDefined(toRecord(product), ['available_to_sell', 'disponible', 'available']);
+          const stock = toFiniteMetric(getCatalogStock(product));
+          return (
+            available === true ||
+            stockStatus === 'in_stock' ||
+            stockStatus === 'available' ||
+            (stock !== null && stock > 0)
+          );
+        }).length
+      : null;
+    const total =
+      toFiniteMetric(firstDefined(summary, ['items_total', 'products'])) ??
+      toFiniteMetric(readinessMetrics.products_total) ??
+      (hasItemDetail ? products.length : null);
+    const available =
+      toFiniteMetric(firstDefined(summary, ['items_available', 'products_available'])) ??
+      toFiniteMetric(readinessMetrics.products_available) ??
+      derivedAvailable;
+    const stockUnknown =
+      toFiniteMetric(summary.stock_unknown) ??
+      (hasItemDetail
+        ? products.filter((product) => getCatalogStockStatus(product) === 'stock_unknown').length
+        : null);
+    const missingImages =
+      toFiniteMetric(firstDefined(summary, ['missing_images', 'products_without_image'])) ??
+      (total !== null && toFiniteMetric(readinessMetrics.products_with_images) !== null
+        ? Math.max(total - Number(readinessMetrics.products_with_images), 0)
+        : hasItemDetail
+          ? imageStats.missingImages
+          : null);
     return {
-      total: summary.items_total ?? summary.products ?? products.length,
-      sellable,
-      stockUnknown:
-        summary.stock_unknown ?? products.filter((product) => getCatalogStockStatus(product) === 'stock_unknown').length,
+      total,
+      available,
+      stockUnknown,
+      missingImages,
+      hasItemDetail,
       catalogVersion: catalogContract?.catalog_version || inventory?.rules?.catalog_version,
       requestId: catalogContract?.request_id,
     };
-  }, [catalogContract, products]);
+  }, [catalogContract, imageStats.missingImages, marketplaceReadiness?.metrics, products]);
 
   const handleImageUpdated = (updatedProduct: Record<string, any>) => {
     setProducts((prev) =>
@@ -444,11 +484,22 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard icon={Boxes} label="Items publicados" value={String(inventoryStats.total ?? products.length)} />
-        <MetricCard icon={PackageCheck} label="Listos para vender" value={String(inventoryStats.sellable ?? '--')} />
+        <MetricCard icon={Boxes} label="Ítems registrados" value={String(inventoryStats.total ?? '--')} />
+        <MetricCard icon={PackageCheck} label="Disponibles" value={String(inventoryStats.available ?? '--')} />
         <MetricCard icon={PackageX} label="Stock sin validar" value={String(inventoryStats.stockUnknown ?? '--')} />
-        <MetricCard icon={ImageOff} label="Sin imagen" value={String(imageStats.missingImages)} />
+        <MetricCard icon={ImageOff} label="Sin imagen" value={String(inventoryStats.missingImages ?? '--')} />
       </div>
+
+      {!loading && !inventoryStats.hasItemDetail && Number(inventoryStats.total || 0) > 0 ? (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          data-testid="catalog-summary-without-item-detail"
+        >
+          La organización tiene {inventoryStats.total} registros de catálogo. Esta vista recibió solo el resumen, por eso
+          conserva los indicadores sin mostrar fichas incompletas. Su origen aún no está informado: no se consideran
+          publicados ni validados.
+        </div>
+      ) : null}
 
       {marketplaceReadiness ? <MarketplaceReadinessPanel readiness={marketplaceReadiness} /> : null}
 
@@ -469,7 +520,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
             <div className="flex flex-wrap gap-2 text-sm">
               <Badge variant="outline">{activePromotions.length} activas</Badge>
               <Badge variant="secondary">{promotions.length} totales</Badge>
-              {promotionEndpoint ? <Badge variant="outline">{promotionEndpoint}</Badge> : null}
+              {promotionEndpoint ? <Badge variant="outline">Canal de promociones vinculado</Badge> : null}
             </div>
           </div>
         </CardHeader>
@@ -678,9 +729,15 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.length === 0 ? (
+                  {!inventoryStats.hasItemDetail && Number(inventoryStats.total || 0) > 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No hay items publicados por backend.</TableCell>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        Las fichas aún no están disponibles en esta vista. Usá Recargar para volver a sincronizarlas.
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No hay ítems disponibles con estos filtros.</TableCell>
                     </TableRow>
                   ) : (
                     filteredProducts.map((product) => {
@@ -786,12 +843,12 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
               <div>
                 <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   <Gauge className="h-4 w-4" />
-                  Marketplace readiness
+                  Preparación del marketplace
                 </p>
                 <h2 className="mt-2 text-2xl font-bold">{score}%</h2>
               </div>
               <Badge variant={ready ? 'default' : blockers.length ? 'destructive' : 'secondary'}>
-                {ready ? 'Listo' : blockers.length ? 'Bloqueado' : 'Revisar'}
+                {ready ? 'Sin bloqueos' : blockers.length ? 'Bloqueado' : 'Revisar'}
               </Badge>
             </div>
             <Progress value={score} className="mt-4 h-2" />
@@ -818,9 +875,12 @@ const MarketplaceReadinessPanel = ({ readiness }: { readiness: MarketplaceReadin
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                   <p className="flex items-center gap-2 font-semibold">
                     <CheckCircle2 className="h-4 w-4" />
-                    Sin bloqueos operativos
+                    Sin bloqueos técnicos reportados
                   </p>
-                  <p className="mt-1 text-sm text-emerald-800">El marketplace puede publicarse con el contrato actual.</p>
+                  <p className="mt-1 text-sm text-emerald-800">
+                    La verificación técnica no detectó bloqueos. La publicación y el origen de los registros requieren
+                    validación aparte.
+                  </p>
                 </div>
               )}
 
