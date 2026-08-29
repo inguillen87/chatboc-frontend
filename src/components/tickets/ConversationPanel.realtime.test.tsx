@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,10 +20,12 @@ const harness = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
   getTicketMessages: vi.fn(),
   getTicketTimeline: vi.fn(),
+  getOmnichannelInboxDetailV2: vi.fn(),
   listResponseTemplates: vi.fn(),
   previewResponseTemplateForTicket: vi.fn(),
   suggestResponseTemplates: vi.fn(),
   sendMessage: vi.fn(),
+  postOmnichannelInboxActionV2: vi.fn(),
   updateTicketReadState: vi.fn(),
   updateTicket: vi.fn(),
   user: { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' } as Record<string, unknown>,
@@ -96,6 +98,17 @@ vi.mock('@/hooks/useSpeechRecognition', () => ({
   }),
 }));
 
+vi.mock('@/api/v2/saas', async () => {
+  const actual = await vi.importActual<typeof import('@/api/v2/saas')>('@/api/v2/saas');
+  return {
+    ...actual,
+    getOmnichannelInboxDetailV2: (...args: unknown[]) =>
+      harness.getOmnichannelInboxDetailV2(...args),
+    postOmnichannelInboxActionV2: (...args: unknown[]) =>
+      harness.postOmnichannelInboxActionV2(...args),
+  };
+});
+
 vi.mock('@/services/ticketService', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@/services/ticketService');
   return {
@@ -132,7 +145,10 @@ vi.mock('../ui/AdjuntarArchivo', () => ({
   ),
 }));
 
-import ConversationPanel, { TENANT_TICKET_INVALIDATION_DEBOUNCE_MS } from './ConversationPanel';
+import ConversationPanel, {
+  createComposerActionAttemptKey,
+  TENANT_TICKET_INVALIDATION_DEBOUNCE_MS,
+} from './ConversationPanel';
 
 let queryClient: QueryClient;
 
@@ -170,6 +186,17 @@ describe('ConversationPanel tenant invalidation', () => {
       realtime_state: null,
       unified_conversation_stream: [],
     });
+    harness.getOmnichannelInboxDetailV2.mockReset().mockResolvedValue({
+      item: {
+        id: '77',
+        legacy_id: 77,
+        source_model: 'TenantTicket',
+        allowed_actions: [],
+        actions: [],
+      },
+      raw: {},
+    });
+    harness.postOmnichannelInboxActionV2.mockReset();
     harness.updateTicketReadState.mockReset().mockResolvedValue(null);
     const responseTemplate: ResponseTemplate = {
       id: 'template-1',
@@ -199,6 +226,48 @@ describe('ConversationPanel tenant invalidation', () => {
     if (harness.socket) harness.socket.connected = true;
   });
 
+  it('changes the idempotent attempt identity when the authoritative action semantics change', () => {
+    const baseAction = {
+      id: 'share_location',
+      label: 'Ubicación',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      idempotency: { contract_version: 'inbox.reply_idempotency.v1' },
+    };
+    const first = createComposerActionAttemptKey('junin:MunicipioTicket:419', baseAction, {
+      source_model: 'MunicipioTicket',
+      legacy_id: 419,
+      location: { address: 'Plaza departamental' },
+    });
+
+    expect(createComposerActionAttemptKey('junin:MunicipioTicket:419', baseAction, {
+      location: { address: 'Plaza departamental' },
+      legacy_id: 419,
+      source_model: 'MunicipioTicket',
+    })).toBe(first);
+    expect(createComposerActionAttemptKey('junin:MunicipioTicket:419', {
+      ...baseAction,
+      endpoint: '/api/v2/inbox/omnichannel/419/actions',
+    }, {
+      source_model: 'MunicipioTicket',
+      legacy_id: 419,
+      location: { address: 'Plaza departamental' },
+    })).not.toBe(first);
+    expect(createComposerActionAttemptKey('junin:MunicipioTicket:419', {
+      ...baseAction,
+      idempotency: { contract_version: 'inbox.reply_idempotency.v2' },
+    }, {
+      source_model: 'MunicipioTicket',
+      legacy_id: 419,
+      location: { address: 'Plaza departamental' },
+    })).not.toBe(first);
+    expect(createComposerActionAttemptKey('junin:MunicipioTicket:419', baseAction, {
+      source_model: 'MunicipioTicket',
+      legacy_id: 420,
+      location: { address: 'Plaza departamental' },
+    })).not.toBe(first);
+  });
+
   it('keeps technical transport labels and ticket identifiers out of the operational workspace header', async () => {
     render(renderConversation(true));
 
@@ -215,6 +284,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation(true));
 
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
     expect(screen.getByText('Respuesta desde el ticket')).toBeInTheDocument();
@@ -223,13 +293,324 @@ describe('ConversationPanel tenant invalidation', () => {
 
     expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Ubicación' })).toHaveAccessibleDescription(
-      'Ubicación bloqueada hasta que el backend publique el contrato de envío.',
+      'Este ticket no publicó una acción backend compatible para compartir ubicación.',
     );
     expect(screen.getByRole('button', { name: 'Formulario' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Derivar a humano' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Derivar a humano' })).toHaveAccessibleDescription(
-      'Derivación bloqueada porque el ticket no publicó una transición backend.',
+      'Este ticket no publicó una transición backend para derivar la conversación a una persona.',
     );
+  });
+
+  it('loads the authoritative M-419 contract and records one internal handoff without replying or dispatching WhatsApp', async () => {
+    const m419Ticket: Ticket = {
+      id: 419,
+      tipo: 'municipio',
+      nro_ticket: 'M-419',
+      asunto: 'Demo reclamo - Alumbrado público',
+      estado: 'nuevo',
+      fecha: '2026-08-29T17:53:00Z',
+      categoria: 'Luminarias',
+      channel: 'whatsapp',
+      source_model: 'MunicipioTicket',
+      tenant_slug: 'junin',
+    };
+    harness.selectedTicket = m419Ticket;
+    const allowedAction = {
+      id: 'accept_handoff',
+      label: 'Tomar ticket',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      requires: ['source_model', 'legacy_id'],
+      payload_defaults: {
+        source_model: 'MunicipioTicket',
+        legacy_id: 419,
+        ticket_id: 419,
+      },
+      delivery_mode: 'internal_event',
+      external_dispatch: false,
+    };
+    const authoritativeItem = {
+      id: 'municipio:419',
+      legacy_id: 419,
+      source_model: 'MunicipioTicket',
+      allowed_actions: [allowedAction],
+      actions: [allowedAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+      item: authoritativeItem,
+      raw: { item: authoritativeItem },
+    });
+    harness.postOmnichannelInboxActionV2.mockResolvedValue({
+      action: 'accept_handoff',
+      delivery: {
+        mode: 'internal_event',
+        delivery_mode: 'internal_event',
+        status: 'recorded_in_crm',
+        external_dispatch: false,
+        operator_message: 'Ticket tomado por el equipo de Luminarias.',
+        final_delivery: {
+          status: 'not_dispatched',
+          authoritative_source: 'not_applicable',
+        },
+      },
+      ticket: authoritativeItem,
+      raw: { action: 'accept_handoff' },
+    });
+
+    render(renderConversation(true));
+
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const actionBar = screen.getByTestId('ticket-composer-action-bar');
+    expect(within(actionBar).getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledWith(
+      '419',
+      'junin',
+      '/api/v2/inbox/omnichannel/419?source_model=MunicipioTicket',
+    );
+    expect(screen.getByTestId('ticket-handoff-internal-copy')).toHaveTextContent(
+      'Derivación interna del CRM · no envía un mensaje por WhatsApp.',
+    );
+
+    const handoffButton = within(actionBar).getByRole('button', { name: 'Tomar ticket' });
+    fireEvent.click(handoffButton);
+    fireEvent.click(handoffButton);
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
+      'municipio:419',
+      {
+        action: 'accept_handoff',
+        endpoint: '/api/v2/inbox/omnichannel/actions',
+        payload: {
+          source_model: 'MunicipioTicket',
+          legacy_id: 419,
+          ticket_id: 419,
+        },
+      },
+      'junin',
+    );
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
+      'Ticket tomado por el equipo de Luminarias.',
+    );
+  });
+
+  it('reuses the same M-419 location identity after an ambiguous failure', async () => {
+    harness.selectedTicket = {
+      id: 419,
+      tipo: 'municipio',
+      nro_ticket: 'M-419',
+      asunto: 'Demo reclamo - Alumbrado público',
+      estado: 'nuevo',
+      fecha: '2026-08-29T17:53:00Z',
+      categoria: 'Luminarias',
+      channel: 'whatsapp',
+      source_model: 'MunicipioTicket',
+      tenant_slug: 'junin',
+    };
+    const locationAction = {
+      id: 'share_location',
+      label: 'Ubicación',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      requires: ['location'],
+      payload_defaults: {
+        source_model: 'MunicipioTicket',
+        legacy_id: 419,
+        ticket_id: 419,
+      },
+      delivery_mode: 'internal_event',
+      external_dispatch: false,
+      idempotency: {
+        contract_version: 'inbox.reply_idempotency.v1',
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+      input_schema: {
+        type: 'object',
+        required: ['location'],
+        properties: {
+          location: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              address: { type: 'string', maxLength: 300 },
+              label: { type: 'string', maxLength: 100 },
+              lat: { type: 'number', minimum: -90, maximum: 90 },
+              lng: { type: 'number', minimum: -180, maximum: 180 },
+            },
+            anyOf: [{ required: ['address'] }, { required: ['lat', 'lng'] }],
+          },
+        },
+      },
+    };
+    const authoritativeItem = {
+      id: 'municipio:419',
+      legacy_id: 419,
+      source_model: 'MunicipioTicket',
+      allowed_actions: [locationAction],
+      actions: [locationAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+      item: authoritativeItem,
+      raw: { item: authoritativeItem },
+    });
+    harness.postOmnichannelInboxActionV2
+      .mockRejectedValueOnce(new Error('network outcome unknown'))
+      .mockResolvedValueOnce({
+        action: 'share_location',
+        delivery: {
+          mode: 'internal_event',
+          delivery_mode: 'internal_event',
+          status: 'already_recorded',
+          external_dispatch: false,
+          operator_message: 'Ubicación ya registrada en el CRM.',
+        },
+        ticket: authoritativeItem,
+        raw: { action: 'share_location' },
+      });
+
+    render(renderConversation(true));
+
+    const locationButton = await screen.findByRole('button', { name: 'Ubicación' });
+    expect(locationButton).toBeEnabled();
+    fireEvent.click(locationButton);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Dirección'), {
+      target: { value: 'Plaza departamental, Junín' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar acción interna' }));
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    await within(dialog).findByText('network outcome unknown');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar acción interna' }));
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(2));
+    const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
+    const secondIdentity = harness.postOmnichannelInboxActionV2.mock.calls[1][1].payload.client_message_id;
+    expect(firstIdentity).toMatch(/^crm-share_location:/);
+    expect(secondIdentity).toBe(firstIdentity);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
+      'Ubicación ya registrada en el CRM.',
+    );
+  });
+
+  it('closes and clears a share dialog when the operator changes tickets', async () => {
+    const actionFor = (legacyId: number) => ({
+      id: 'share_location',
+      label: 'Ubicación',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      requires: ['location'],
+      payload_defaults: {
+        source_model: 'MunicipioTicket',
+        legacy_id: legacyId,
+        ticket_id: legacyId,
+      },
+      delivery_mode: 'internal_event',
+      external_dispatch: false,
+      idempotency: {
+        contract_version: 'inbox.reply_idempotency.v1',
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+      input_schema: {
+        type: 'object',
+        required: ['location'],
+        properties: {
+          location: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              address: { type: 'string', maxLength: 300 },
+              label: { type: 'string', maxLength: 100 },
+              lat: { type: 'number', minimum: -90, maximum: 90 },
+              lng: { type: 'number', minimum: -180, maximum: 180 },
+            },
+            anyOf: [{ required: ['address'] }, { required: ['lat', 'lng'] }],
+          },
+        },
+      },
+    });
+    const ticketFor = (id: number): Ticket => ({
+      ...selectedTicket,
+      id,
+      nro_ticket: `M-${id}`,
+      source_model: 'MunicipioTicket',
+    });
+    harness.selectedTicket = ticketFor(419);
+    harness.getOmnichannelInboxDetailV2.mockImplementation(async (ticketId: string) => {
+      const id = Number(ticketId);
+      const action = actionFor(id);
+      const item = {
+        id: `municipio:${id}`,
+        legacy_id: id,
+        source_model: 'MunicipioTicket',
+        allowed_actions: [action],
+        actions: [action],
+      };
+      return { item, raw: { item } };
+    });
+
+    const view = render(renderConversation(true));
+    const locationButton = await screen.findByRole('button', { name: 'Ubicación' });
+    fireEvent.click(locationButton);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Dirección'), {
+      target: { value: 'Ubicación que pertenece únicamente a M-419' },
+    });
+
+    harness.selectedTicket = ticketFor(420);
+    view.rerender(renderConversation(true));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledWith(
+      '420',
+      'junin',
+      '/api/v2/inbox/omnichannel/420?source_model=MunicipioTicket',
+    ));
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the M-419 timeline visible and every backend action fail-closed when contract detail fails', async () => {
+    harness.selectedTicket = {
+      id: 419,
+      tipo: 'municipio',
+      nro_ticket: 'M-419',
+      asunto: 'Demo reclamo - Alumbrado público',
+      estado: 'nuevo',
+      fecha: '2026-08-29T17:53:00Z',
+      categoria: 'Luminarias',
+      channel: 'whatsapp',
+      source_model: 'MunicipioTicket',
+      tenant_slug: 'junin',
+    };
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{
+        id: 'm419-message-1',
+        author: 'user',
+        content: 'La luminaria sigue apagada',
+        timestamp: '2026-08-29T17:53:00Z',
+      }],
+      realtime_state: null,
+      unified_conversation_stream: [],
+    });
+    harness.getOmnichannelInboxDetailV2.mockRejectedValue(new Error('502 backend unavailable'));
+
+    render(renderConversation(true));
+
+    expect(await screen.findByText('La luminaria sigue apagada')).toBeInTheDocument();
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Formulario' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toBeDisabled();
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('sends a selected attachment through the existing ticket reply contract', async () => {

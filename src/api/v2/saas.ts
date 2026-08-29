@@ -25,6 +25,10 @@ export interface SaasAction {
   payload?: unknown;
   payload_defaults?: UnknownRecord;
   payloadDefaults?: UnknownRecord;
+  delivery_mode?: string;
+  external_dispatch?: boolean;
+  input_schema?: UnknownRecord;
+  idempotency?: UnknownRecord;
   disabled?: boolean;
   disabled_reason?: string;
   destructive?: boolean;
@@ -245,6 +249,7 @@ export interface OmnichannelInboxItem {
   next_steps: string[];
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
+  reply_contract?: UnknownRecord;
   source_metadata?: UnknownRecord;
   handoff?: UnknownRecord;
   live_chat?: OmnichannelLiveChatStatus;
@@ -736,6 +741,9 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     : isRecord(value.payloadDefaults)
       ? value.payloadDefaults
       : undefined;
+  const inputSchemaCandidate = getFirst(value, ['input_schema', 'inputSchema']);
+  const inputSchema = isRecord(inputSchemaCandidate) ? inputSchemaCandidate : undefined;
+  const idempotency = isRecord(value.idempotency) ? value.idempotency : undefined;
   return {
     id,
     label,
@@ -749,6 +757,10 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     payload: value.payload ?? payloadDefaults,
     payload_defaults: payloadDefaults,
     payloadDefaults,
+    delivery_mode: asString(getFirst(value, ['delivery_mode', 'deliveryMode'])),
+    external_dispatch: asBoolean(getFirst(value, ['external_dispatch', 'externalDispatch'])),
+    input_schema: inputSchema,
+    idempotency,
     disabled: asBoolean(value.disabled),
     disabled_reason: asString(
       getFirst(value, [
@@ -765,6 +777,12 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     raw: value,
   };
 };
+
+export const buildSaasActionPayload = (action: SaasAction): UnknownRecord => ({
+  ...(isRecord(action.payload_defaults) ? action.payload_defaults : {}),
+  ...(isRecord(action.payloadDefaults) ? action.payloadDefaults : {}),
+  ...(isRecord(action.payload) ? action.payload : {}),
+});
 
 export const normalizeSaasActions = (value: unknown): SaasAction[] => {
   const rawActions = Array.isArray(value)
@@ -1302,6 +1320,8 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     asRecord(asRecord(experienceBlueprint.agent_copilot).suggestions).items ??
     asRecord(experienceBlueprint.agent_copilot).suggestions;
   const normalizedActions = normalizeActions(getFirst(value, ['allowed_actions', 'actions', 'botones']));
+  const replyContractCandidate = getFirst(value, ['reply_contract', 'replyContract']);
+  const replyContract = isRecord(replyContractCandidate) ? replyContractCandidate : undefined;
   return {
     id,
     legacy_id: asString(getFirst(value, ['legacy_id', 'legacyId'])),
@@ -1342,6 +1362,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     next_steps: arrayOfStrings(getFirst(value, ['next_steps', 'suggested_next_steps'])),
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
+    reply_contract: replyContract,
     source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
     handoff: value.handoff ? asRecord(value.handoff) : undefined,
     live_chat: normalizeLiveChatStatus(value.live_chat),
@@ -2020,20 +2041,36 @@ export const getOmnichannelInboxDetailV2 = async (
   return normalizeOmnichannelInboxDetailV2(response);
 };
 
-export const createOmnichannelReplyClientMessageId = () => {
+const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
+  'reply',
+  'share_location',
+  'send_location',
+  'share_form',
+  'send_form',
+]);
+
+export const createOmnichannelActionClientMessageId = (action: string) => {
+  const normalizedAction = action.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  if (!IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction)) {
+    throw new Error(`La acción ${action || 'desconocida'} no publica identidad idempotente.`);
+  }
   const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
   if (typeof cryptoApi?.randomUUID === 'function') {
-    return `crm-reply:${cryptoApi.randomUUID()}`;
+    return `crm-${normalizedAction}:${cryptoApi.randomUUID()}`;
   }
   if (typeof cryptoApi?.getRandomValues === 'function') {
     const bytes = new Uint8Array(16);
     cryptoApi.getRandomValues(bytes);
-    return `crm-reply:${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
+    return `crm-${normalizedAction}:${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
   }
-  throw new Error('Este navegador no ofrece criptografía segura para identificar la respuesta.');
+  throw new Error('Este navegador no ofrece criptografía segura para identificar la acción.');
 };
 
-const resolveOmnichannelReplyClientMessageId = (
+export const createOmnichannelReplyClientMessageId = () =>
+  createOmnichannelActionClientMessageId('reply');
+
+const resolveOmnichannelActionClientMessageId = (
+  action: string,
   payload: OmnichannelInboxActionPayload,
   nestedPayload: UnknownRecord,
 ) => {
@@ -2048,7 +2085,7 @@ const resolveOmnichannelReplyClientMessageId = (
     throw new ApiError(
       'client_message_id e Idempotency-Key deben coincidir.',
       400,
-      { code: 'reply_idempotency_key_mismatch' },
+      { code: `${action}_idempotency_key_mismatch` },
     );
   }
   const clientMessageId = identities[0];
@@ -2059,9 +2096,9 @@ const resolveOmnichannelReplyClientMessageId = (
     /[\u0000-\u001f]/.test(clientMessageId)
   ) {
     throw new ApiError(
-      'La respuesta requiere un client_message_id estable y válido.',
+      'La acción requiere un client_message_id estable y válido.',
       400,
-      { code: 'reply_idempotency_key_required' },
+      { code: `${action}_idempotency_key_required` },
     );
   }
   return clientMessageId;
@@ -2080,9 +2117,11 @@ export const postOmnichannelInboxActionV2 = async (
   const explicitEndpoint =
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
-  const isReply = payload.action.trim().toLowerCase() === 'reply';
-  const replyClientMessageId = isReply
-    ? resolveOmnichannelReplyClientMessageId(payload, nestedPayload)
+  const normalizedAction = payload.action.trim().toLowerCase();
+  const isReply = normalizedAction === 'reply';
+  const requiresStableIdentity = IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
+  const actionClientMessageId = requiresStableIdentity
+    ? resolveOmnichannelActionClientMessageId(normalizedAction, payload, nestedPayload)
     : undefined;
   const payloadWithTicket = {
     ...nestedPayload,
@@ -2091,10 +2130,10 @@ export const postOmnichannelInboxActionV2 = async (
       ? {
           body: payload.body ?? payload.message ?? nestedPayload.body ?? nestedPayload.message,
           message: payload.message ?? payload.body ?? nestedPayload.message ?? nestedPayload.body,
-          client_message_id: replyClientMessageId,
           visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
         }
       : {}),
+    ...(actionClientMessageId ? { client_message_id: actionClientMessageId } : {}),
     ticket_id: payload.ticket_id ?? nestedPayload.ticket_id ?? nestedPayload.legacy_id ?? ticketId,
   };
   delete (payloadWithTicket as UnknownRecord).endpoint;
@@ -2102,8 +2141,8 @@ export const postOmnichannelInboxActionV2 = async (
   delete (payloadWithTicket as UnknownRecord).idempotency_key;
   const requestOptions = {
     tenantSlug,
-    ...(replyClientMessageId
-      ? { headers: { 'Idempotency-Key': replyClientMessageId } }
+    ...(actionClientMessageId
+      ? { headers: { 'Idempotency-Key': actionClientMessageId } }
       : {}),
   };
   let response: unknown;

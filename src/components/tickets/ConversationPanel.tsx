@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,7 +43,7 @@ import { useTickets } from '@/context/TicketContext';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
-import { apiFetch } from '@/utils/api';
+import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 import { cn } from '@/lib/utils';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import {
@@ -68,8 +69,114 @@ import { isTenantTicketCollectionInvalidation } from '@/utils/tenantTicketInvali
 import { buildTenantPath } from '@/utils/tenantPaths';
 import type { ResponseTemplateTicketSourceModel } from '@/features/tickets/responseTemplatesApi';
 import TicketClaimButton from './TicketClaimButton';
+import {
+  buildSaasActionPayload,
+  createOmnichannelActionClientMessageId,
+  getOmnichannelInboxDetailV2,
+  postOmnichannelInboxActionV2,
+  type OmnichannelInboxActionV2,
+  type OmnichannelInboxDetailV2,
+  type SaasAction,
+} from '@/api/v2/saas';
+import { getHandoffActionBlockReason, isAiHandoffAction } from './TicketAiHandoffControl';
+import TicketShareActionDialog, {
+  getTicketShareActionBlockReason,
+  type TicketShareActionKind,
+  type TicketShareActionPayload,
+} from './TicketShareActionDialog';
 
 type UploadResponse = UploadResponseLike;
+
+type ComposerActionResult = {
+  scopeKey: string;
+  result: OmnichannelInboxActionV2;
+};
+
+type ComposerActionMutationVariables = {
+  action: SaasAction;
+  actionKind: 'handoff' | TicketShareActionKind;
+  actionPayload: Record<string, unknown>;
+  attemptKey?: string;
+  scopeKey: string;
+  ticketId: string;
+  tenantSlug?: string | null;
+  detailEndpoint: string;
+};
+
+type ComposerActionAttempt = {
+  key: string;
+  clientMessageId: string;
+};
+
+const LOCATION_COMPOSER_ACTION_IDS = new Set(['share_location', 'send_location']);
+const FORM_COMPOSER_ACTION_IDS = new Set(['share_form', 'send_form']);
+
+const normalizeComposerActionToken = (value: unknown): string =>
+  String(value ?? '').trim().toLowerCase();
+
+const findComposerAction = (actions: SaasAction[], ids: Set<string>): SaasAction | null =>
+  actions.find((action) => (
+    ids.has(normalizeComposerActionToken(action.id)) ||
+    ids.has(normalizeComposerActionToken(action.type))
+  )) ?? null;
+
+const resolveComposerOmnichannelDetailEndpoint = (ticket: Ticket): string | null => {
+  const explicitEndpoint = typeof ticket.detail_endpoint === 'string'
+    ? ticket.detail_endpoint.trim()
+    : '';
+  if (explicitEndpoint.startsWith('/')) return explicitEndpoint;
+
+  const baseEndpoint = `/api/v2/inbox/omnichannel/${encodeURIComponent(String(ticket.id))}`;
+  const sourceModel = normalizeComposerActionToken(ticket.source_model);
+  if (['municipioticket', 'municipio_ticket', 'municipio', 'legacy_claim'].includes(sourceModel)) {
+    return `${baseEndpoint}?source_model=MunicipioTicket`;
+  }
+  if (['tenantticket', 'tenant_ticket'].includes(sourceModel)) return baseEndpoint;
+  return null;
+};
+
+const composerActionContractQueryKey = (scopeKey: string, detailEndpoint: string) => [
+  'ticket-composer-action-contract',
+  scopeKey,
+  detailEndpoint,
+] as const;
+
+const isDefinitiveComposerActionError = (error: unknown): boolean => {
+  if (!(error instanceof ApiError)) return false;
+  const status = Number(error.status || 0);
+  return status >= 400 && status < 500 && ![408, 425, 429].includes(status);
+};
+
+const isMissingComposerActionValue = (value: unknown): boolean =>
+  value === undefined || value === null || (typeof value === 'string' && !value.trim());
+
+const canonicalizeComposerActionPayload = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalizeComposerActionPayload);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalizeComposerActionPayload(entry)]),
+  );
+};
+
+export const createComposerActionAttemptKey = (
+  scopeKey: string,
+  action: SaasAction,
+  payload: Record<string, unknown>,
+): string => {
+  const idempotency = action.idempotency && typeof action.idempotency === 'object' && !Array.isArray(action.idempotency)
+    ? action.idempotency
+    : {};
+  return JSON.stringify([
+    scopeKey,
+    normalizeComposerActionToken(action.id),
+    action.endpoint || '',
+    (action.method || 'POST').trim().toUpperCase(),
+    String(idempotency.contract_version || ''),
+    canonicalizeComposerActionPayload(payload),
+  ]);
+};
 
 export const TENANT_TICKET_INVALIDATION_DEBOUNCE_MS = 180;
 
@@ -647,6 +754,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   operationalWorkspace = false,
 }) => {
   const { selectedTicket, updateTicket } = useTickets();
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
@@ -661,12 +769,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [lastComposerActionResult, setLastComposerActionResult] = useState<ComposerActionResult | null>(null);
+  const [shareActionDialogKind, setShareActionDialogKind] = useState<TicketShareActionKind | null>(null);
   const { user } = useUser();
   const shouldReduceMotion = useReducedMotion();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadedConversationKeyRef = useRef<string | null>(null);
   const invalidationRefreshTimerRef = useRef<number | null>(null);
+  const composerActionInFlightRef = useRef(false);
+  const composerActionAttemptRef = useRef<ComposerActionAttempt | null>(null);
   const selectedTicketRef = useRef<Ticket | null>(selectedTicket);
   const selectedConversationKey = selectedTicket
     ? `${
@@ -805,6 +917,202 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     }),
     [activeChannel, selectedTicket?.categoria, selectedTicket?.estado],
   );
+  const composerActionDetailEndpoint = useMemo(
+    () => (selectedTicket ? resolveComposerOmnichannelDetailEndpoint(selectedTicket) || '' : ''),
+    [selectedTicket?.detail_endpoint, selectedTicket?.id, selectedTicket?.source_model],
+  );
+  const composerActionSelectedTicketId = String(selectedTicket?.id ?? '');
+  const composerActionScopeKey = `${selectedConversationKey || 'no-ticket'}|${composerActionDetailEndpoint || 'no-detail'}`;
+  const composerActionQueryKey = useMemo(
+    () => composerActionContractQueryKey(composerActionScopeKey, composerActionDetailEndpoint),
+    [composerActionDetailEndpoint, composerActionScopeKey],
+  );
+  const activeComposerActionScopeRef = useRef(composerActionScopeKey);
+  activeComposerActionScopeRef.current = composerActionScopeKey;
+  const composerActionContractQuery = useQuery<OmnichannelInboxDetailV2>({
+    queryKey: composerActionQueryKey,
+    queryFn: () => getOmnichannelInboxDetailV2(
+      composerActionSelectedTicketId,
+      responseTemplateTenantSlug,
+      composerActionDetailEndpoint,
+    ),
+    enabled: Boolean(selectedTicket && composerActionDetailEndpoint),
+    retry: 0,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  });
+  const publishedComposerActions = useMemo(() => {
+    if (!composerActionContractQuery.isSuccess || composerActionContractQuery.isError) return [];
+    const item = composerActionContractQuery.data?.item;
+    if (!item) return [];
+    return item.allowed_actions?.length ? item.allowed_actions : item.actions || [];
+  }, [
+    composerActionContractQuery.data?.item,
+    composerActionContractQuery.isError,
+    composerActionContractQuery.isSuccess,
+  ]);
+  const composerActionTicketId = composerActionContractQuery.data?.item.id || String(selectedTicket?.id ?? '');
+  const handoffAction = useMemo(
+    () => publishedComposerActions.find(isAiHandoffAction) ?? null,
+    [publishedComposerActions],
+  );
+  const locationAction = useMemo(
+    () => findComposerAction(publishedComposerActions, LOCATION_COMPOSER_ACTION_IDS),
+    [publishedComposerActions],
+  );
+  const formAction = useMemo(
+    () => findComposerAction(publishedComposerActions, FORM_COMPOSER_ACTION_IDS),
+    [publishedComposerActions],
+  );
+  const composerReplyContract = composerActionContractQuery.data?.item.reply_contract;
+  const actionContractBlockReason = !composerActionDetailEndpoint
+    ? 'No se pudo identificar de forma segura el detalle omnicanal de este ticket.'
+    : composerActionContractQuery.isPending
+      ? 'Verificando las acciones habilitadas por el backend.'
+      : composerActionContractQuery.isError
+        ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
+        : null;
+  const handoffBlockReason = actionContractBlockReason || (
+    handoffAction
+      ? getHandoffActionBlockReason(handoffAction, composerActionTicketId)
+      : 'Este ticket no publicó una transición backend para derivar la conversación a una persona.'
+  );
+  const locationBlockReason = actionContractBlockReason || (
+    locationAction
+      ? getTicketShareActionBlockReason('location', locationAction, composerReplyContract)
+      : 'Este ticket no publicó una acción backend compatible para compartir ubicación.'
+  );
+  const formBlockReason = actionContractBlockReason || (
+    formAction
+      ? getTicketShareActionBlockReason('form', formAction, composerReplyContract)
+      : 'Este ticket no publicó una acción backend compatible para compartir formularios.'
+  );
+  const composerActionMutation = useMutation<
+    OmnichannelInboxActionV2,
+    unknown,
+    ComposerActionMutationVariables
+  >({
+    mutationFn: (variables: ComposerActionMutationVariables) => postOmnichannelInboxActionV2(
+      variables.ticketId,
+      {
+        action: variables.action.id,
+        endpoint: variables.action.endpoint,
+        payload: {
+          ...buildSaasActionPayload(variables.action),
+          ...variables.actionPayload,
+        },
+      },
+      variables.tenantSlug,
+    ),
+    onSuccess: (result, variables) => {
+      if (activeComposerActionScopeRef.current !== variables.scopeKey) return;
+      queryClient.setQueryData<OmnichannelInboxDetailV2>(
+        composerActionContractQueryKey(variables.scopeKey, variables.detailEndpoint),
+        (previous) => ({
+          ...(previous || {}),
+          item: result.ticket,
+          raw: result.raw,
+        }),
+      );
+      setLastComposerActionResult({ scopeKey: variables.scopeKey, result });
+      if (variables.actionKind !== 'handoff') setShareActionDialogKind(null);
+      if (variables.attemptKey && composerActionAttemptRef.current?.key === variables.attemptKey) {
+        composerActionAttemptRef.current = null;
+      }
+    },
+    onError: (error, variables) => {
+      if (
+        variables.attemptKey &&
+        composerActionAttemptRef.current?.key === variables.attemptKey &&
+        isDefinitiveComposerActionError(error)
+      ) {
+        composerActionAttemptRef.current = null;
+      }
+    },
+    onSettled: () => {
+      composerActionInFlightRef.current = false;
+    },
+  });
+  const executeComposerAction = useCallback((
+    action: SaasAction,
+    blockReason: string | null,
+    actionKind: 'handoff' | TicketShareActionKind,
+    inputPayload: Record<string, unknown> = {},
+  ) => {
+    if (
+      blockReason ||
+      composerActionInFlightRef.current ||
+      composerActionMutation.isPending ||
+      !selectedConversationKey ||
+      !composerActionDetailEndpoint ||
+      !composerActionTicketId
+    ) return;
+
+    const completePayload = {
+      ...buildSaasActionPayload(action),
+      ...inputPayload,
+      ticket_id: composerActionTicketId,
+    };
+    const missingRequiredFields = (action.requires || []).filter(
+      (field) => isMissingComposerActionValue(completePayload[field]),
+    );
+    if (missingRequiredFields.length) {
+      toast.error(`Falta completar: ${missingRequiredFields.join(', ')}.`);
+      return;
+    }
+
+    let attemptKey: string | undefined;
+    let actionPayload = { ...inputPayload };
+    if (actionKind !== 'handoff') {
+      attemptKey = createComposerActionAttemptKey(composerActionScopeKey, action, completePayload);
+      let attempt = composerActionAttemptRef.current;
+      if (!attempt || attempt.key !== attemptKey) {
+        try {
+          attempt = {
+            key: attemptKey,
+            clientMessageId: createOmnichannelActionClientMessageId(action.id),
+          };
+        } catch (error) {
+          toast.error(getErrorMessage(error, 'No se pudo generar una identidad segura para la acción.'));
+          return;
+        }
+        composerActionAttemptRef.current = attempt;
+      }
+      actionPayload = {
+        ...actionPayload,
+        client_message_id: attempt.clientMessageId,
+      };
+    }
+
+    composerActionMutation.reset();
+    setLastComposerActionResult(null);
+    composerActionInFlightRef.current = true;
+    composerActionMutation.mutate({
+      action,
+      actionKind,
+      actionPayload,
+      attemptKey,
+      scopeKey: composerActionScopeKey,
+      ticketId: composerActionTicketId,
+      tenantSlug: responseTemplateTenantSlug,
+      detailEndpoint: composerActionDetailEndpoint,
+    });
+  }, [
+    composerActionDetailEndpoint,
+    composerActionMutation,
+    composerActionScopeKey,
+    composerActionTicketId,
+    responseTemplateTenantSlug,
+    selectedConversationKey,
+  ]);
+  const activeComposerActionResult = lastComposerActionResult?.scopeKey === composerActionScopeKey
+    ? lastComposerActionResult.result
+    : null;
+  const activeComposerActionError = composerActionMutation.isError &&
+    composerActionMutation.variables?.scopeKey === composerActionScopeKey
+    ? composerActionMutation.error
+    : null;
   const composerPlaceholder = listening
     ? 'Escuchando...'
     : attachmentPreview
@@ -1010,9 +1318,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     pollingPausedUntilRef.current = 0;
     lastReadStateSyncRef.current = null;
     composerSelectionRef.current = null;
+    composerActionAttemptRef.current = null;
     setTemplatePickerOpen(false);
+    setShareActionDialogKind(null);
+    setLastComposerActionResult(null);
     setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
-  }, [selectedConversationKey]);
+  }, [composerActionScopeKey]);
 
   useEffect(() => {
     if (
@@ -1804,42 +2115,99 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             type="button"
             variant="outline"
             size="sm"
-            disabled
+            disabled={Boolean(locationBlockReason) || composerActionMutation.isPending}
             className="h-9 gap-1.5"
-            title="No hay un contrato backend publicado para enviar ubicaciones desde este ticket."
+            title={locationBlockReason || locationAction?.description}
             aria-describedby="ticket-location-block-reason"
+            onClick={() => {
+              composerActionMutation.reset();
+              setLastComposerActionResult(null);
+              setShareActionDialogKind('location');
+            }}
           >
             <MapPin className="h-4 w-4" />
-            Ubicación
+            {locationAction?.label || 'Ubicación'}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled
+            disabled={Boolean(formBlockReason) || composerActionMutation.isPending}
             className="h-9 gap-1.5"
-            title="No hay un contrato backend publicado para enviar formularios desde este ticket."
+            title={formBlockReason || formAction?.description}
             aria-describedby="ticket-form-block-reason"
+            onClick={() => {
+              composerActionMutation.reset();
+              setLastComposerActionResult(null);
+              setShareActionDialogKind('form');
+            }}
           >
             <ClipboardList className="h-4 w-4" />
-            Formulario
+            {formAction?.label || 'Formulario'}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled
+            disabled={Boolean(handoffBlockReason) || composerActionMutation.isPending}
             className="h-9 gap-1.5"
-            title="Este ticket no publicó una transición backend para derivar la conversación a un operador."
+            title={handoffBlockReason || handoffAction?.description}
             aria-describedby="ticket-handoff-block-reason"
+            onClick={() => {
+              if (!handoffAction) return;
+              executeComposerAction(handoffAction, handoffBlockReason, 'handoff');
+            }}
           >
-            <Headphones className="h-4 w-4" />
-            Derivar a humano
+            {composerActionMutation.isPending && composerActionMutation.variables?.actionKind === 'handoff' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Headphones className="h-4 w-4" />
+            )}
+            {handoffAction?.label || 'Derivar a humano'}
           </Button>
-          <span id="ticket-location-block-reason" className="sr-only">Ubicación bloqueada hasta que el backend publique el contrato de envío.</span>
-          <span id="ticket-form-block-reason" className="sr-only">Formulario bloqueado hasta que el backend publique el contrato de envío.</span>
-          <span id="ticket-handoff-block-reason" className="sr-only">Derivación bloqueada porque el ticket no publicó una transición backend.</span>
+          <span id="ticket-location-block-reason" className="sr-only">
+            {locationBlockReason || 'Acción interna disponible. No envía un mensaje por WhatsApp.'}
+          </span>
+          <span id="ticket-form-block-reason" className="sr-only">
+            {formBlockReason || 'Acción interna disponible. No envía un mensaje por WhatsApp.'}
+          </span>
+          <span id="ticket-handoff-block-reason" className="sr-only">
+            {handoffBlockReason || 'Derivación interna disponible. No envía un mensaje por WhatsApp.'}
+          </span>
         </div>
+
+        {handoffAction && !handoffBlockReason && (
+          handoffAction.external_dispatch === false || handoffAction.delivery_mode === 'internal_event'
+        ) ? (
+          <p className="mb-2 text-[11px] text-muted-foreground" data-testid="ticket-handoff-internal-copy">
+            Derivación interna del CRM · no envía un mensaje por WhatsApp.
+          </p>
+        ) : null}
+
+        {activeComposerActionResult ? (
+          <div
+            className="mb-2 rounded-[8px] border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-800 dark:text-emerald-200"
+            data-testid="ticket-composer-action-result"
+          >
+            <p className="font-semibold">Acción registrada por el backend.</p>
+            <p>
+              {activeComposerActionResult.delivery?.operator_message || (
+                activeComposerActionResult.delivery?.external_dispatch === false
+                  ? 'Quedó auditada en el CRM, sin despacho a un canal externo.'
+                  : `Transición ${activeComposerActionResult.action || 'operativa'} registrada.`
+              )}
+            </p>
+          </div>
+        ) : null}
+
+        {activeComposerActionError ? (
+          <div
+            className="mb-2 rounded-[8px] border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
+            role="alert"
+          >
+            {getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.')}
+          </div>
+        ) : null}
 
         <div
           className={cn(
@@ -2048,6 +2416,32 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </Button>
           </div>
         </div>
+
+        <TicketShareActionDialog
+          key={composerActionScopeKey}
+          action={shareActionDialogKind === 'location' ? locationAction : formAction}
+          kind={shareActionDialogKind || 'location'}
+          open={Boolean(shareActionDialogKind)}
+          replyContract={composerReplyContract}
+          submitting={Boolean(
+            composerActionMutation.isPending &&
+            composerActionMutation.variables?.actionKind === shareActionDialogKind
+          )}
+          errorMessage={shareActionDialogKind && activeComposerActionError
+            ? getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.')
+            : null}
+          onOpenChange={(open) => {
+            if (!open) setShareActionDialogKind(null);
+          }}
+          onConfirm={(payload: TicketShareActionPayload) => {
+            if (shareActionDialogKind === 'location' && locationAction) {
+              executeComposerAction(locationAction, locationBlockReason, 'location', { ...payload });
+            }
+            if (shareActionDialogKind === 'form' && formAction) {
+              executeComposerAction(formAction, formBlockReason, 'form', { ...payload });
+            }
+          }}
+        />
       </footer>
     </motion.div>
   );
