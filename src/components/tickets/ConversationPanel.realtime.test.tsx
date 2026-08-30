@@ -207,6 +207,16 @@ const renderConversation = (operationalWorkspace = false, isDetailsVisible = fal
   </QueryClientProvider>
 );
 
+const openComposerTools = async () => {
+  const trigger = screen.getByRole('button', { name: 'Herramientas de respuesta' });
+  act(() => {
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+  });
+  const menu = await screen.findByRole('menu', { name: 'Herramientas de respuesta' });
+  return { trigger, menu };
+};
+
 describe('ConversationPanel tenant invalidation', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -451,22 +461,45 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
-    expect(screen.getByText('Respuesta desde el ticket')).toBeInTheDocument();
-    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Tiempo real conectado');
-    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
-    expect(screen.getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+    expect(screen.getByTestId('ticket-composer')).toHaveAccessibleName('Respuesta desde el ticket');
+    expect(screen.getByTestId('ticket-composer-channel-status')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('En vivo');
+    expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
+
+    const { trigger, menu } = await openComposerTools();
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
       'no publicó un contrato seguro de adjuntos para TenantTicket',
     );
+    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    const locationItem = within(menu).getByRole('menuitem', { name: /Ubicación.*No disponible/i });
+    expect(locationItem).toHaveAttribute('aria-disabled', 'true');
+    expect(locationItem).toHaveAccessibleName(
+      'Ubicación. No disponible: Este ticket no publicó una acción backend compatible para compartir ubicación.',
+    );
+    expect(within(menu).getByRole('menuitem', { name: /Formulario.*No disponible/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(within(menu).getByRole('menuitem', { name: /Derivar a humano.*No disponible/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
 
-    expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Ubicación' })).toHaveAccessibleDescription(
-      'Este ticket no publicó una acción backend compatible para compartir ubicación.',
-    );
-    expect(screen.getByRole('button', { name: 'Formulario' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toHaveAccessibleDescription(
-      'Este ticket no publicó una transición backend para derivar la conversación a una persona.',
-    );
+    act(() => {
+      locationItem.focus();
+      fireEvent.keyDown(locationItem, { key: 'Enter' });
+    });
+    expect(screen.getByRole('menu', { name: 'Herramientas de respuesta' })).toBeVisible();
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
   });
 
   it('loads the authoritative M-419 contract and records one internal handoff without replying or dispatching WhatsApp', async () => {
@@ -528,8 +561,8 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation(true));
 
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
-    const actionBar = screen.getByTestId('ticket-composer-action-bar');
-    expect(within(actionBar).getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    const { menu: actionBar } = await openComposerTools();
+    expect(within(actionBar).getByRole('menuitem', { name: 'Tomar ticket' })).toHaveAttribute('aria-disabled', 'false');
     expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledWith(
       '419',
       'junin',
@@ -539,8 +572,7 @@ describe('ConversationPanel tenant invalidation', () => {
       'Derivación interna del CRM · no envía un mensaje por WhatsApp.',
     );
 
-    const handoffButton = within(actionBar).getByRole('button', { name: 'Tomar ticket' });
-    fireEvent.click(handoffButton);
+    const handoffButton = within(actionBar).getByRole('menuitem', { name: 'Tomar ticket' });
     fireEvent.click(handoffButton);
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
@@ -641,8 +673,10 @@ describe('ConversationPanel tenant invalidation', () => {
 
     render(renderConversation(true));
 
-    const locationButton = await screen.findByRole('button', { name: 'Ubicación' });
-    expect(locationButton).toBeEnabled();
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const { menu } = await openComposerTools();
+    const locationButton = within(menu).getByRole('menuitem', { name: 'Ubicación' });
+    expect(locationButton).toHaveAttribute('aria-disabled', 'false');
     fireEvent.click(locationButton);
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Dirección'), {
@@ -724,7 +758,9 @@ describe('ConversationPanel tenant invalidation', () => {
     });
 
     const view = render(renderConversation(true));
-    const locationButton = await screen.findByRole('button', { name: 'Ubicación' });
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const { menu } = await openComposerTools();
+    const locationButton = within(menu).getByRole('menuitem', { name: 'Ubicación' });
     fireEvent.click(locationButton);
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Dirección'), {
@@ -773,9 +809,10 @@ describe('ConversationPanel tenant invalidation', () => {
 
     expect(await screen.findByText('La luminaria sigue apagada')).toBeInTheDocument();
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('button', { name: 'Ubicación' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Formulario' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Derivar a humano' })).toBeDisabled();
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByRole('menuitem', { name: /Ubicación.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByRole('menuitem', { name: /Formulario.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByRole('menuitem', { name: /Derivar a humano.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
@@ -950,8 +987,10 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation());
 
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
-    expect(screen.getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+    expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
       'no publicó un contrato seguro de adjuntos para TenantTicket',
     );
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
@@ -1325,7 +1364,7 @@ describe('ConversationPanel tenant invalidation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Insertar respuesta guardada/i }));
     fireEvent.click(await screen.findByRole('option', { name: /Seguimiento operativo/ }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/versión segura/i);
+    expect(await screen.findByText(/Preparando una versión segura/i)).toBeInTheDocument();
     expect(harness.sendMessage).not.toHaveBeenCalled();
 
     resolvePreview?.({

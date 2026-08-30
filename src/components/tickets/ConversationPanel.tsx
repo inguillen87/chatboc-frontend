@@ -50,7 +50,14 @@ import {
   UploadResponseLike,
 } from '@/utils/uploadResponse';
 import { ensureAbsoluteUrl } from '@/utils/chatButtons';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatTicketStatusLabel, getPublishedTicketTransitions } from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
@@ -934,6 +941,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [composerToolsOpen, setComposerToolsOpen] = useState(false);
   const [lastComposerActionResult, setLastComposerActionResult] = useState<ComposerActionResult | null>(null);
   const [shareActionDialogKind, setShareActionDialogKind] = useState<TicketShareActionKind | null>(null);
   const { user } = useUser();
@@ -1661,6 +1669,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     composerActionAttemptRef.current = null;
     replyActionAttemptRef.current = null;
     setTemplatePickerOpen(false);
+    setComposerToolsOpen(false);
     setShareActionDialogKind(null);
     setLastComposerActionResult(null);
     setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
@@ -2592,126 +2601,47 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
         data-testid="ticket-reply-footer"
       >
-        <div className={cn('flex items-center justify-between gap-2', isMobile ? 'mb-1.5' : 'mb-2 flex-wrap')}>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Respuesta desde el ticket</p>
-            {!isMobile && (
-              <p className="text-[11px] text-muted-foreground">
-                El mensaje queda auditado en el CRM; la entrega externa se confirma debajo del compositor.
-              </p>
-            )}
-          </div>
-          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="h-6 shrink-0 rounded-full text-[11px]" data-testid="ticket-composer-sync-status">
-            {realtimeOnline ? 'Tiempo real conectado' : 'Actualización por sondeo'}
-          </Badge>
-        </div>
         <div
+          data-testid="ticket-composer-channel-status"
           className={cn(
-            'flex items-center gap-1.5',
-            isMobile
-              ? 'mb-1.5 flex-nowrap overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-              : 'mb-2 flex-wrap',
+            'mb-2 flex min-w-0 items-center justify-between gap-2 rounded-[8px] border px-2 py-1.5 text-xs',
+            composerChannelView.tone === 'success'
+              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+              : composerChannelView.tone === 'warning'
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'border-border/70 bg-muted/40 text-muted-foreground',
           )}
-          role="group"
-          aria-label="Acciones de respuesta"
-          data-testid="ticket-composer-action-bar"
+          role="status"
+          aria-live="polite"
         >
-          <div className="flex items-center gap-1 rounded-[8px] border border-border/70 bg-background px-1.5 pr-2 text-xs font-medium text-foreground [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[6px] [&_button]:border-0">
-            <AdjuntarArchivo
-              onFileSelected={handleFileSelected}
-              disabled={Boolean(tenantAttachmentBlockReason) || !!attachmentPreview || isSending}
-            />
-            <span className={cn(isMobile && 'sr-only')}>Adjuntar archivo o imagen</span>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={Boolean(locationBlockReason) || composerActionMutation.isPending}
-            className="h-9 gap-1.5"
-            title={locationBlockReason || locationAction?.description}
-            aria-describedby="ticket-location-block-reason"
-            onClick={() => {
-              composerActionMutation.reset();
-              setLastComposerActionResult(null);
-              setShareActionDialogKind('location');
-            }}
-          >
-            <MapPin className="h-4 w-4" />
-            {locationAction?.label || 'Ubicación'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={Boolean(formBlockReason) || composerActionMutation.isPending}
-            className="h-9 gap-1.5"
-            title={formBlockReason || formAction?.description}
-            aria-describedby="ticket-form-block-reason"
-            onClick={() => {
-              composerActionMutation.reset();
-              setLastComposerActionResult(null);
-              setShareActionDialogKind('form');
-            }}
-          >
-            <ClipboardList className="h-4 w-4" />
-            {formAction?.label || 'Formulario'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={Boolean(handoffBlockReason) || composerActionMutation.isPending}
-            className="h-9 gap-1.5"
-            title={handoffBlockReason || handoffAction?.description}
-            aria-describedby="ticket-handoff-block-reason"
-            onClick={() => {
-              if (!handoffAction) return;
-              executeComposerAction(handoffAction, handoffBlockReason, 'handoff');
-            }}
-          >
-            {composerActionMutation.isPending && composerActionMutation.variables?.actionKind === 'handoff' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="flex min-w-0 items-center gap-2">
+            {composerChannelView.tone === 'warning' ? (
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             ) : (
-              <Headphones className="h-4 w-4" />
+              <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             )}
-            {handoffAction?.label || 'Derivar a humano'}
-          </Button>
-          <span id="ticket-location-block-reason" className="sr-only">
-            {locationBlockReason || (
-              locationAction?.delivery_mode === 'runtime_preflight'
-                ? 'Disponible. El backend confirma si queda en cola para WhatsApp o sólo auditada en CRM.'
-                : 'Acción interna disponible. No envía un mensaje por WhatsApp.'
-            )}
-          </span>
-          <span id="ticket-form-block-reason" className="sr-only">
-            {formBlockReason || (
-              formAction?.delivery_mode === 'runtime_preflight'
-                ? 'Disponible. El backend confirma si queda en cola para WhatsApp o sólo auditada en CRM.'
-                : 'Acción interna disponible. No envía un mensaje por WhatsApp.'
-            )}
-          </span>
-          <span id="ticket-handoff-block-reason" className="sr-only">
-            {handoffBlockReason || 'Derivación interna disponible. No envía un mensaje por WhatsApp.'}
-          </span>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold uppercase tracking-wide sm:text-xs">
+                {composerChannelView.label}
+              </p>
+              <p className="hidden truncate text-[11px] leading-4 sm:block" title={composerChannelView.detail}>
+                {composerChannelView.detail}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Badge variant="outline" className="h-5 rounded-full px-2 text-[10px] sm:text-[11px]">
+              {formatReplyDeliveryChannel(activeChannel)}
+            </Badge>
+            <Badge
+              variant={realtimeOnline ? 'secondary' : 'outline'}
+              className="h-5 rounded-full px-2 text-[10px] sm:text-[11px]"
+              data-testid="ticket-composer-sync-status"
+            >
+              {realtimeOnline ? 'En vivo' : 'Sondeo'}
+            </Badge>
+          </div>
         </div>
-
-        {tenantAttachmentBlockReason ? (
-          <p
-            className="mb-2 text-[11px] text-muted-foreground"
-            data-testid="tenant-attachment-block-reason"
-          >
-            Adjuntos bloqueados: {tenantAttachmentBlockReason}
-          </p>
-        ) : null}
-
-        {handoffAction && !handoffBlockReason && (
-          handoffAction.external_dispatch === false || handoffAction.delivery_mode === 'internal_event'
-        ) ? (
-          <p className="mb-2 text-[11px] text-muted-foreground" data-testid="ticket-handoff-internal-copy">
-            Derivación interna del CRM · no envía un mensaje por WhatsApp.
-          </p>
-        ) : null}
 
         {activeComposerActionResult && activeComposerActionDeliveryView ? (
           <div
@@ -2750,35 +2680,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           )}
           data-testid="ticket-composer-context"
         >
-          <div
-            data-testid="ticket-composer-channel-status"
-            className={cn(
-              'mb-1.5 flex flex-row items-center justify-between gap-2 rounded-[8px] border text-xs sm:mb-2',
-              isMobile ? 'px-2 py-1.5' : 'px-2.5 py-2',
-              composerChannelView.tone === 'success'
-                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
-                : composerChannelView.tone === 'warning'
-                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                  : 'border-border/70 bg-muted/40 text-muted-foreground',
-            )}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              {composerChannelView.tone === 'warning' ? (
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-              ) : (
-                <MessageCircle className="h-4 w-4 shrink-0" />
-              )}
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide sm:text-xs">{composerChannelView.label}</p>
-                <p className="truncate text-[11px] leading-4 sm:max-w-[44rem] sm:text-xs sm:leading-5" title={composerChannelView.detail}>
-                  {composerChannelView.detail}
-                </p>
-              </div>
-            </div>
-            <Badge variant="outline" className="h-5 w-fit shrink-0 rounded-full px-2 text-[10px] sm:text-[11px]">
-              {formatReplyDeliveryChannel(activeChannel)}
-            </Badge>
-          </div>
           {attachmentPreview && (
             <div className="relative mb-1.5 flex w-full items-center gap-2 rounded-[8px] bg-muted p-1.5 sm:mb-2 sm:gap-3 sm:p-2">
               {attachmentPreview.previewUrl ? (
@@ -2874,18 +2775,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
         
         <div
-          className={cn(
-            'gap-2',
-            isMobile ? 'grid grid-cols-[minmax(0,1fr)_auto] items-end pt-1.5' : 'flex flex-col sm:flex-row sm:items-end',
-          )}
+          className="flex min-w-0 items-end gap-1.5 rounded-[10px] border border-border/80 bg-background p-1.5 shadow-sm"
           data-testid="ticket-composer"
+          role="group"
+          aria-label="Respuesta desde el ticket"
         >
           <Textarea
             ref={composerRef}
             placeholder={composerPlaceholder}
             className={cn(
-              'flex-1 resize-none rounded-[8px] border-border/80 bg-background pr-3 text-sm leading-5 shadow-sm focus-visible:ring-primary/40',
-              isMobile ? 'min-h-11 max-h-24' : 'min-h-[52px] max-h-36',
+              'min-w-0 flex-1 resize-none rounded-[8px] border-0 bg-transparent px-2 py-2 text-sm leading-5 shadow-none focus-visible:ring-1 focus-visible:ring-primary/40',
+              isMobile ? 'min-h-10 max-h-24' : 'min-h-10 max-h-36',
             )}
             rows={1}
             value={message}
@@ -2899,15 +2799,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           {replyBlockReason ? (
             <span id="ticket-reply-block-reason" className="sr-only">{replyBlockReason}</span>
           ) : null}
-          <div
-            className={cn(
-              'flex shrink-0 items-center rounded-[8px] border border-border/70 bg-muted/30',
-              isMobile
-                ? 'w-auto justify-end gap-0.5 p-0.5 [&_button]:!h-9 [&_button]:!w-9 [&_button]:!rounded-[8px]'
-                : 'w-full justify-between gap-1 p-1 sm:w-auto sm:justify-end',
-            )}
-          >
-            <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-9 [&_button]:!rounded-[7px]">
+            {!tenantAttachmentBlockReason ? (
+              <div className="[&_button]:!w-9 [&_button]:!border-0 [&_button]:!bg-transparent" data-testid="ticket-composer-attachment-action">
+                <AdjuntarArchivo
+                  onFileSelected={handleFileSelected}
+                  disabled={!!attachmentPreview || isSending}
+                />
+              </div>
+            ) : null}
+            <div className="flex items-center gap-0.5">
               {selectedTicket && (
                 <ResponseTemplatePicker
                   open={templatePickerOpen}
@@ -2938,6 +2839,147 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 </Button>
               )}
             </div>
+            <DropdownMenu open={composerToolsOpen} onOpenChange={setComposerToolsOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 px-2"
+                  aria-label="Herramientas de respuesta"
+                >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                  <span className={cn(isMobile && 'sr-only')}>Herramientas</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                side="top"
+                sideOffset={8}
+                className="w-[min(23rem,calc(100vw-1rem))] p-1.5"
+                aria-label="Herramientas de respuesta"
+                data-testid="ticket-composer-action-bar"
+              >
+                <DropdownMenuLabel className="px-2 py-1.5">
+                  <span className="block text-xs font-semibold">Herramientas de respuesta</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">
+                    Acciones publicadas para este expediente.
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {tenantAttachmentBlockReason ? (
+                  <DropdownMenuItem
+                    aria-disabled="true"
+                    aria-label={`Adjuntar archivo o imagen. No disponible: ${tenantAttachmentBlockReason}`}
+                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Adjuntar archivo o imagen</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="tenant-attachment-block-reason">
+                        {tenantAttachmentBlockReason}
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
+                ) : null}
+                {replyBlockReason ? (
+                  <DropdownMenuItem
+                    aria-disabled="true"
+                    aria-label={`Enviar respuesta. No disponible: ${replyBlockReason}`}
+                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <Send className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Enviar respuesta</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">{replyBlockReason}</span>
+                    </span>
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  aria-disabled={Boolean(locationBlockReason) || composerActionMutation.isPending}
+                  aria-label={locationBlockReason
+                    ? `${locationAction?.label || 'Ubicación'}. No disponible: ${locationBlockReason}`
+                    : locationAction?.label || 'Ubicación'}
+                  className={cn('items-start gap-2 py-2', locationBlockReason && 'opacity-70 focus:bg-muted')}
+                  onSelect={(event) => {
+                    if (locationBlockReason || composerActionMutation.isPending) {
+                      event.preventDefault();
+                      return;
+                    }
+                    composerActionMutation.reset();
+                    setLastComposerActionResult(null);
+                    setShareActionDialogKind('location');
+                  }}
+                >
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{locationAction?.label || 'Ubicación'}</span>
+                    <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
+                      {locationBlockReason || locationAction?.description || 'Compartir la ubicación publicada para el caso.'}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  aria-disabled={Boolean(formBlockReason) || composerActionMutation.isPending}
+                  aria-label={formBlockReason
+                    ? `${formAction?.label || 'Formulario'}. No disponible: ${formBlockReason}`
+                    : formAction?.label || 'Formulario'}
+                  className={cn('items-start gap-2 py-2', formBlockReason && 'opacity-70 focus:bg-muted')}
+                  onSelect={(event) => {
+                    if (formBlockReason || composerActionMutation.isPending) {
+                      event.preventDefault();
+                      return;
+                    }
+                    composerActionMutation.reset();
+                    setLastComposerActionResult(null);
+                    setShareActionDialogKind('form');
+                  }}
+                >
+                  <ClipboardList className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{formAction?.label || 'Formulario'}</span>
+                    <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
+                      {formBlockReason || formAction?.description || 'Compartir un formulario publicado para el caso.'}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  aria-disabled={Boolean(handoffBlockReason) || composerActionMutation.isPending}
+                  aria-label={handoffBlockReason
+                    ? `${handoffAction?.label || 'Derivar a humano'}. No disponible: ${handoffBlockReason}`
+                    : handoffAction?.label || 'Derivar a humano'}
+                  className={cn('items-start gap-2 py-2', handoffBlockReason && 'opacity-70 focus:bg-muted')}
+                  onSelect={(event) => {
+                    if (!handoffAction || handoffBlockReason || composerActionMutation.isPending) {
+                      event.preventDefault();
+                      return;
+                    }
+                    executeComposerAction(handoffAction, handoffBlockReason, 'handoff');
+                  }}
+                >
+                  {composerActionMutation.isPending && composerActionMutation.variables?.actionKind === 'handoff' ? (
+                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Headphones className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{handoffAction?.label || 'Derivar a humano'}</span>
+                    <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
+                      {handoffBlockReason || handoffAction?.description || 'Derivación interna disponible para este expediente.'}
+                    </span>
+                    {handoffAction && !handoffBlockReason && (
+                      handoffAction.external_dispatch === false || handoffAction.delivery_mode === 'internal_event'
+                    ) ? (
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="ticket-handoff-internal-copy">
+                        Derivación interna del CRM · no envía un mensaje por WhatsApp.
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')}
               onClick={() => void handleSendMessage()}
