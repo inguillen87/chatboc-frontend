@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '@/utils/api';
+import { ApiError, NetworkError } from '@/utils/api';
 
 import type { OperationsHeatmapV1 } from './analyticsTypes';
 import { TerritorialPendingLocationsInbox } from './TerritorialPendingLocationsInbox';
@@ -193,6 +193,21 @@ describe('TerritorialPendingLocationsInbox', () => {
     expect(await screen.findByText('Acceso administrativo requerido')).toBeInTheDocument();
     expect(screen.getByText(/falla cerrada/i)).toBeInTheDocument();
     expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['502', new ApiError('bad gateway', 502)],
+    ['503', new ApiError('service unavailable', 503)],
+    ['504', new ApiError('gateway timeout', 504)],
+    ['network error', new NetworkError('offline')],
+  ])('fails closed on %s and never requests the legacy heatmap', async (_label, error) => {
+    mocks.getQueue.mockRejectedValue(error);
+
+    renderInbox();
+
+    expect(await screen.findByText('No pudimos cargar ubicaciones pendientes')).toBeInTheDocument();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(screen.queryByText('Modo lectura de respaldo')).not.toBeInTheDocument();
   });
 
   it('uses the heatmap only as an explicit read-only fallback when the endpoint is unavailable', async () => {

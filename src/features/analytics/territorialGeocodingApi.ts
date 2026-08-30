@@ -1,5 +1,5 @@
 import { panelApi } from '@/api/v2/client';
-import { ApiError, NetworkError } from '@/utils/api';
+import { ApiError } from '@/utils/api';
 
 import {
   TERRITORIAL_GEOCODING_CONTRACT,
@@ -436,7 +436,7 @@ export const syncTerritorialGeocodingQueue = async (input: TerritorialGeocodingS
 };
 
 export const isTerritorialQueueEndpointUnavailable = (error: unknown) =>
-  error instanceof NetworkError || (error instanceof ApiError && [404, 405, 501, 502, 503, 504].includes(error.status));
+  error instanceof ApiError && [404, 405, 501].includes(error.status);
 
 export const isTerritorialApiStatus = (error: unknown, status: number) => error instanceof ApiError && error.status === status;
 

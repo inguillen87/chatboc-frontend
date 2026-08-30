@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '@/utils/api';
+import { ApiError, NetworkError } from '@/utils/api';
 
 import {
   getTerritorialGeocodingAttempts,
@@ -262,11 +262,16 @@ describe('territorialGeocodingApi', () => {
     })).toThrow('territorial_geocoding_sync_write_policy_invalid');
   });
 
-  it('does not reinterpret 403 or 409 as a read-only endpoint outage', () => {
+  it('only treats explicit endpoint-absence statuses as eligible for read-only fallback', () => {
     expect(isTerritorialQueueEndpointUnavailable(new ApiError('forbidden', 403))).toBe(false);
     expect(isTerritorialQueueEndpointUnavailable(new ApiError('conflict', 409))).toBe(false);
     expect(isTerritorialQueueEndpointUnavailable(new ApiError('not found', 404))).toBe(true);
-    expect(isTerritorialQueueEndpointUnavailable(new ApiError('temporarily unavailable', 503))).toBe(true);
+    expect(isTerritorialQueueEndpointUnavailable(new ApiError('method not allowed', 405))).toBe(true);
+    expect(isTerritorialQueueEndpointUnavailable(new ApiError('not implemented', 501))).toBe(true);
+    expect(isTerritorialQueueEndpointUnavailable(new ApiError('bad gateway', 502))).toBe(false);
+    expect(isTerritorialQueueEndpointUnavailable(new ApiError('temporarily unavailable', 503))).toBe(false);
+    expect(isTerritorialQueueEndpointUnavailable(new ApiError('gateway timeout', 504))).toBe(false);
+    expect(isTerritorialQueueEndpointUnavailable(new NetworkError('offline'))).toBe(false);
   });
 
   it('propagates authorization and idempotency conflicts without weakening them', async () => {
