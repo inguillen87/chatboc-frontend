@@ -18,6 +18,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     showPoints?: boolean;
     showPointLabels?: boolean;
     pointLabelMode?: string;
+    pointLabelMinZoom?: number;
     heatmapRadiusScale?: number;
     heatmapPalette?: string;
     adaptiveZoomMode?: boolean;
@@ -65,6 +66,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-show-points={String(Boolean(props.showPoints))}
       data-show-point-labels={String(Boolean(props.showPointLabels))}
       data-point-label-mode={props.pointLabelMode ?? ''}
+      data-point-label-min-zoom={String(props.pointLabelMinZoom ?? '')}
       data-heatmap-radius={String(props.heatmapRadiusScale ?? '')}
       data-heatmap-palette={props.heatmapPalette ?? ''}
       data-adaptive-zoom={String(Boolean(props.adaptiveZoomMode))}
@@ -148,6 +150,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
     expect(screen.getByRole('button', { name: 'Automático' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-point-label-min-zoom', '7');
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
   });
 

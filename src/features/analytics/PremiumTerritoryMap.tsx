@@ -2567,7 +2567,7 @@ export function PremiumTerritoryHeatmap({
                 showPointLabels={renderPointLayer}
                 pointLabelMode={automaticMapMode ? 'count' : 'categoria'}
                 pointMinZoom={7}
-                pointLabelMinZoom={10}
+                pointLabelMinZoom={automaticMapMode ? 7 : 10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
                 heatmapPalette="faro"
                 adaptiveZoomMode={automaticMapMode}
