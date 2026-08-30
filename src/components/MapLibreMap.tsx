@@ -780,8 +780,8 @@ export default function MapLibreMap({
     [normalizedHeatmap],
   );
   const shouldCluster = useMemo(
-    () => !disableClientClustering && !aggregatedHint,
-    [disableClientClustering, aggregatedHint],
+    () => normalizedHeatmap.length > 0 && !disableClientClustering && !aggregatedHint,
+    [disableClientClustering, aggregatedHint, normalizedHeatmap.length],
   );
   const processedHeatmap = useMemo(
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
@@ -802,6 +802,7 @@ export default function MapLibreMap({
     () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
     [geoLayerConfig?.source],
   );
+  const renderedGeoSource = shouldCluster ? null : configuredGeoSource;
   const configuredSourceOptions = useMemo(() => {
     const raw = geoLayerConfig?.source_options;
     if (!raw || typeof raw !== "object") return {} as { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
@@ -882,7 +883,7 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
   const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
-  const configuredGeoSourceRef = useRef(configuredGeoSource);
+  const configuredGeoSourceRef = useRef(renderedGeoSource);
   const configuredInteractionsRef = useRef(configuredInteractions);
   const contractVersionRef = useRef(geoLayerConfig?.contract_version ?? null);
   const popupContextRef = useRef<"tickets" | "survey" | "territory">(popupContext);
@@ -975,8 +976,8 @@ export default function MapLibreMap({
   }, [processedHeatmap]);
 
   useEffect(() => {
-    configuredGeoSourceRef.current = configuredGeoSource;
-  }, [configuredGeoSource]);
+    configuredGeoSourceRef.current = renderedGeoSource;
+  }, [renderedGeoSource]);
 
   useEffect(() => {
     configuredInteractionsRef.current = configuredInteractions;
@@ -1875,7 +1876,7 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map) return;
 
-    const sourceData = configuredGeoSource ?? buildGeoJson(processedHeatmap);
+    const sourceData = renderedGeoSource ?? buildGeoJson(processedHeatmap);
     const applyData = () => {
       const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
       if (heatSource && typeof (heatSource as any).setData === "function") {
@@ -1910,7 +1911,7 @@ export default function MapLibreMap({
       map.off("style.load", applyData);
     };
   }, [
-    configuredGeoSource,
+    renderedGeoSource,
     mapGeneration,
     processedHeatmap,
     resolvedShowPoints,
