@@ -1280,20 +1280,20 @@ export default function MapLibreMap({
                     4,
                     [
                       "+",
-                      6,
-                      ["min", 3, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.55]],
+                      10,
+                      ["min", 5, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.7]],
                     ],
                     14,
                     [
                       "+",
-                      9,
-                      ["min", 5, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.8]],
+                      14,
+                      ["min", 8, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 1]],
                     ],
                     16,
                     [
                       "+",
-                      10,
-                      ["min", 6, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.9]],
+                      16,
+                      ["min", 9, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 1.1]],
                     ],
                   ]
                 : [
@@ -1339,13 +1339,13 @@ export default function MapLibreMap({
                     ],
                   ],
               "circle-opacity": heatmapPalette === "faro"
-                ? 0.9
+                ? 0.96
                 : ["interpolate", ["linear"], ["zoom"], 4, 0.18, 14, 0.28, 16, 0.2],
               "circle-blur": heatmapPalette === "faro" ? 0.06 : 0.86,
               ...(heatmapPalette === "faro"
                 ? {
                     "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
-                    "circle-stroke-width": 2,
+                    "circle-stroke-width": 3,
                     "circle-stroke-opacity": 0.98,
                   }
                 : {}),
@@ -1981,6 +1981,10 @@ export default function MapLibreMap({
     let frame: number;
 
     const animate = () => {
+      // A style can disappear between a fast layer toggle and the next frame
+      // (or while the component is being torn down). Never ask MapLibre for a
+      // layer after the active instance/style changed.
+      if (mapRef.current !== map || !map.isStyleLoaded()) return;
       // Slower, deeper pulse for a "breathing" effect
       const t = (Date.now() % 4000) / 4000;
       const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);

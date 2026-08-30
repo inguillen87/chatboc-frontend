@@ -528,10 +528,10 @@ describe("MapLibreMap lifecycle", () => {
       minzoom: 4.5,
       paint: expect.objectContaining({
         "circle-color": ["case", ["has", "categoryColor"], ["get", "categoryColor"], "#2563eb"],
-        "circle-opacity": 0.9,
+        "circle-opacity": 0.96,
         "circle-blur": 0.06,
         "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
-        "circle-stroke-width": 2,
+        "circle-stroke-width": 3,
       }),
     }));
     expect(mapMocks.addedLayers.indexOf(heatLayer!)).toBeLessThan(mapMocks.addedLayers.indexOf(haloLayer!));

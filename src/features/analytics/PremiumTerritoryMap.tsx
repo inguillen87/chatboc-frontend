@@ -3072,7 +3072,10 @@ export function PremiumTerritoryHeatmap({
                     <Button type="button" size="sm" variant="default" onClick={resetTerritoryFilters}>
                       Restablecer mapa
                     </Button>
-                    {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0 ? (
+                    {Math.max(
+                      scopedTerritoryView.pendingGeocodeCount ?? 0,
+                      activeZeroMappedFacet?.pendingGeocodeCount ?? 0,
+                    ) > 0 ? (
                       <a
                         href={`/perfil?tab=tickets&focus=open_geocoding_queue${
                           activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
