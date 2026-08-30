@@ -2515,8 +2515,9 @@ export default function Perfil() {
 
   return (
     <div
+      data-testid="profile-page-shell"
       className={cn(
-        "flex flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
+        "flex w-full min-w-0 flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         isViewportWorkspaceProfileTab
           ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
           : activeProfileTab === "analytics"

@@ -279,6 +279,15 @@ describe('Perfil request lifecycle', () => {
     expect(runtime.refreshUser).not.toHaveBeenCalled();
   });
 
+  it('keeps the viewport workspace shell at full width inside the flex app layout', async () => {
+    renderProfile('/perfil?tab=tickets');
+
+    await waitFor(() => expect(screen.getByTestId('mock-tickets')).toBeInTheDocument());
+
+    expect(screen.getByTestId('profile-page-shell')).toHaveClass('w-full', 'min-w-0');
+    expect(screen.getByTestId('profile-ticket-workspace')).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
+  });
+
   it('restores an institutional section from the URL and keeps contact phone separate from WhatsApp', async () => {
     renderProfile('/perfil?tab=perfil&section=channels');
 
