@@ -84,6 +84,10 @@ const buildPoints = (count: number): OperationsHeatmapPoint[] =>
     canal: 'whatsapp',
   }));
 
+const chooseTerritoryFacet = (name: string, value: string) => {
+  fireEvent.change(screen.getByRole('combobox', { name }), { target: { value } });
+};
+
 describe('PremiumTerritoryHeatmap', () => {
   it('separates the bounded map workspace from secondary territorial intelligence', () => {
     const points = buildPoints(6);
@@ -112,6 +116,10 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(layout).toContainElement(mapShell);
     expect(layout).toContainElement(executiveRail);
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
+    expect(layout.className).not.toContain('2xl:grid-cols');
+    expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
+    expect(screen.getByRole('button', { name: 'Ambos' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('combobox')).toHaveLength(3);
   });
 
   it('keeps the live map unobstructed and filters visible heat points by category and zone', () => {
@@ -147,19 +155,19 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByTestId('territory-boundary-empty-state')).toBeNull();
     expect(screen.queryByRole('button', { name: /sin_zona/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Capas por categoría' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(map.getAttribute('data-show-points')).toBe('false');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
-    fireEvent.click(screen.getByRole('button', { name: 'Capas por categoría' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por Baches' }));
+    chooseTerritoryFacet('Filtrar mapa por categoría', 'baches');
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por zona Centro' }));
+    chooseTerritoryFacet('Filtrar mapa por zona o barrio', 'centro');
     expect(map.getAttribute('data-points')).toBe('1');
     expect(map.getAttribute('data-geo-features')).toBe('1');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
@@ -234,7 +242,7 @@ describe('PremiumTerritoryHeatmap', () => {
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
     const map = screen.getByTestId('mock-live-map');
-    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por Luminarias' }));
+    chooseTerritoryFacet('Filtrar mapa por categoría', 'luminarias');
 
     expect(map).toHaveAttribute('data-points', '3');
     expect(screen.getByTestId('territory-header-volume')).toHaveTextContent('38');
@@ -253,7 +261,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByTestId('operational-hotspots-panel')).toBeNull();
     expect(screen.queryByText('Narrativa territorial global')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por zona Centro' }));
+    chooseTerritoryFacet('Filtrar mapa por zona o barrio', 'centro');
 
     expect(map).toHaveAttribute('data-points', '2');
     expect(screen.getByTestId('territory-header-volume')).toHaveTextContent('2');
@@ -321,7 +329,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(document.body.textContent).not.toMatch(/Don Bosco 55|Don Bosco 99|Belgrano 102/);
     expect(screen.getByText('Sin domicilio exacto')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Sector Centro A' }));
+    const sectorOption = screen.getByRole('option', { name: /^Sector Centro A ·/ }) as HTMLOptionElement;
+    chooseTerritoryFacet('Filtrar mapa por corredor o celda', sectorOption.value);
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
   });
@@ -387,16 +396,17 @@ describe('PremiumTerritoryHeatmap', () => {
     );
     expect(document.body.textContent).not.toMatch(/M5570|\bMZ\b|\bAR\b|Junín centro|luminaria apagada frente/i);
 
-    const intersectionFilter = screen.getByRole('button', {
-      name: 'Filtrar mapa por ubicación Intersección Don Bosco / Sarmiento',
-    });
+    const intersectionFilter = screen.getByRole('option', {
+      name: /^Intersección Don Bosco \/ Sarmiento ·/,
+    }) as HTMLOptionElement;
     expect(intersectionFilter).toHaveTextContent('Total 9');
     expect(intersectionFilter).toHaveTextContent('Mapeados 2');
     expect(document.body.textContent).toContain('Corredor 25 de Mayo');
     expect(document.body.textContent).not.toContain('Corredor de Mayo');
-    expect(screen.getAllByRole('button', { name: /^Filtrar mapa por ubicación/ })).toHaveLength(6);
+    const locationFilter = screen.getByRole('combobox', { name: 'Filtrar mapa por corredor o celda' }) as HTMLSelectElement;
+    expect(locationFilter.options).toHaveLength(7);
 
-    fireEvent.click(intersectionFilter);
+    chooseTerritoryFacet('Filtrar mapa por corredor o celda', intersectionFilter.value);
     expect(map).toHaveAttribute('data-points', '2');
   });
 
@@ -488,10 +498,11 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('33,3%').length).toBeGreaterThan(0);
     expect(screen.getAllByText('3').length).toBeGreaterThan(0);
 
-    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Total 3');
-    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Mapeados 2');
-    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Revisar 1');
-    expect(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Corredor Belgrano' })).toHaveTextContent(
+    const bachesOption = screen.getByRole('option', { name: /^Baches ·/ });
+    expect(bachesOption).toHaveTextContent('Total 3');
+    expect(bachesOption).toHaveTextContent('Mapeados 2');
+    expect(bachesOption).toHaveTextContent('Revisar 1');
+    expect(screen.getByRole('option', { name: /^Corredor Belgrano ·/ })).toHaveTextContent(
       'Revisar 1',
     );
   });
@@ -573,15 +584,15 @@ describe('PremiumTerritoryHeatmap', () => {
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    const categoryFilter = screen.getByRole('button', { name: 'Filtrar mapa por Luminarias' });
+    const categoryFilter = screen.getByRole('option', { name: /^Luminarias ·/ }) as HTMLOptionElement;
     expect(categoryFilter).toHaveTextContent('Total 5');
     expect(categoryFilter).toHaveTextContent('Mapeados 0');
     expect(categoryFilter).toHaveTextContent('Pendientes 4');
     expect(categoryFilter).toHaveTextContent('Revisar 1');
-    expect(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Corredor Rivadavia' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: /^Corredor Rivadavia ·/ })).toBeTruthy();
     expect(document.body.textContent).not.toContain('Rivadavia 144');
 
-    fireEvent.click(categoryFilter);
+    chooseTerritoryFacet('Filtrar mapa por categoría', categoryFilter.value);
 
     const map = screen.getByTestId('mock-live-map');
     expect(map.getAttribute('data-points')).toBe('0');
@@ -593,6 +604,11 @@ describe('PremiumTerritoryHeatmap', () => {
       'href',
       '/perfil?tab=tickets&focus=open_geocoding_queue&facet=luminarias',
     );
+    expect(screen.getByRole('button', { name: 'Quitar último filtro' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Restablecer mapa' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Restablecer mapa' }));
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(screen.queryByTestId('territory-filter-empty')).toBeNull();
   });
 
   it('protects exact markers and small category or zone segments under aggregated privacy', () => {
@@ -626,9 +642,9 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
     expect(map.getAttribute('data-evidence-present')).toBe('false');
     expect(map.getAttribute('data-show-evidence-badge')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Capas por categoría' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Filtrar mapa por Baches' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Filtrar mapa por zona Centro' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Capas por categoría/ })).toBeDisabled();
+    expect(screen.queryByRole('option', { name: /^Baches ·/ })).toBeNull();
+    expect(screen.queryByRole('option', { name: /^Centro ·/ })).toBeNull();
     expect(screen.getAllByText(/Segmentación protegida · mínimo 10 registros/)).toHaveLength(2);
     expect(screen.getByText('detalle puntual protegido')).toBeTruthy();
   });
@@ -665,7 +681,7 @@ describe('PremiumTerritoryHeatmap', () => {
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
     const map = screen.getByTestId('mock-live-map');
-    const commerceToggle = screen.getByRole('button', { name: 'Pedidos y ventas' });
+    const commerceToggle = screen.getByRole('button', { name: /^Pedidos y ventas/ });
     expect(map.getAttribute('data-geo-features')).toBe('2');
     expect(map.getAttribute('data-points')).toBe('2');
     expect(commerceToggle.getAttribute('aria-pressed')).toBe('true');
@@ -953,9 +969,9 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveLegend).not.toHaveClass('absolute');
     expect(liveLegend.textContent).toContain('Lectura territorial');
     expect(liveLegend.textContent).toContain('12 puntos visibles');
-    expect(liveLegend.textContent).toContain('Categoría de reclamo');
-    expect(liveLegend.textContent).toContain('reclamos');
-    expect(liveLegend.textContent).toContain('Zona o barrio');
+    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('Categoría de reclamo');
+    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('reclamos');
+    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('Zona o barrio');
     expect(liveLegend.textContent).toContain('círculos por categoría');
     expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
     expect(document.body.textContent).not.toContain('Zona centro requiere seguimiento');
@@ -968,7 +984,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('sin responsable: 1')).toBeTruthy();
     expect(screen.getByText('24h: 4')).toBeTruthy();
     expect(screen.getAllByTestId('operational-hotspot-item').length).toBe(1);
-    expect(screen.getByRole('group', { name: 'Capas visibles' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Visualización del mapa' })).toBeTruthy();
     expect(screen.getByText('Resumen operativo asistido')).toBeTruthy();
     expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
     expect(document.body.textContent).toContain('La fuente no informó una clasificación verificable');

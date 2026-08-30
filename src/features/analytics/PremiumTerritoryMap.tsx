@@ -15,6 +15,7 @@ import {
   ListChecks,
   MapPin,
   Radar,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -60,6 +61,7 @@ type ActiveFilterSummary = {
 };
 
 type MapFocusMode = 'territory' | 'quality' | 'telemetry';
+type MapDisplayMode = 'heat' | 'points' | 'both';
 
 type BackendActionSummary = {
   label: string;
@@ -1119,6 +1121,7 @@ export function PremiumTerritoryHeatmap({
   const [mapCategoryFilter, setMapCategoryFilter] = useState<string | null>(null);
   const [mapZoneFilter, setMapZoneFilter] = useState<string | null>(null);
   const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('both');
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -1796,6 +1799,8 @@ export function PremiumTerritoryHeatmap({
   );
   const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
+  const renderHeatLayer = mapDisplayMode !== 'points' && showHeatLayer;
+  const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
   const liveHeatmapRadiusScale =
@@ -2063,10 +2068,27 @@ export function PremiumTerritoryHeatmap({
     { id: 'quality', label: labelFor(labels, 'premium_map_mode_quality', 'Calidad'), icon: Gauge },
     { id: 'telemetry', label: labelFor(labels, 'premium_map_mode_telemetry', 'Actualización'), icon: Activity },
   ];
+  const resetTerritoryFilters = () => {
+    setMapCategoryFilter(null);
+    setMapZoneFilter(null);
+    setMapAddressCellFilter(null);
+  };
+  const clearMostSpecificTerritoryFilter = () => {
+    if (mapAddressCellFilter) {
+      setMapAddressCellFilter(null);
+      return;
+    }
+    if (mapZoneFilter) {
+      setMapZoneFilter(null);
+      return;
+    }
+    setMapCategoryFilter(null);
+  };
 
   return (
-    <section className={cn('space-y-4', className)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <section className={cn('flex flex-col gap-4', className)} style={{ containerType: 'inline-size' }}>
+      <style>{`@container (min-width: 1080px) { [data-territory-map-layout="${svgId}"] { grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); } }`}</style>
+      <div className="order-1 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="gap-1">
@@ -2153,7 +2175,7 @@ export function PremiumTerritoryHeatmap({
       </div>
 
       {activeFilters.length ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="order-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Segmentos activos:</span>
           {activeFilters.map((filter) => (
             <Button
@@ -2173,7 +2195,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-executive-strip"
-        className="overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm"
+        className="order-5 overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm"
       >
         <div className="flex flex-col gap-2 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -2214,7 +2236,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-command-loop"
-        className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
+        className="order-7 overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
       >
         <div className="flex flex-col gap-4 border-b border-border/70 p-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -2271,7 +2293,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-decision-radar"
-        className="overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
+        className="order-8 overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
       >
         <div className="grid gap-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
           <div className="border-b border-border/70 p-4 lg:border-b-0 lg:border-r">
@@ -2305,7 +2327,7 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="order-2 flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de lectura del mapa">
           {focusModes.map((mode) => {
             const Icon = mode.icon;
@@ -2325,53 +2347,201 @@ export function PremiumTerritoryHeatmap({
             );
           })}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label="Capas visibles">
-          {displayLayers.map((layer) => {
-            const isCategoryControl = ['category', 'categoria'].some((fragment) => layer.id.includes(fragment));
-            const protectedByPrivacy = isCategoryControl && !canShowExactPointMarkers;
-            const active = !protectedByPrivacy && enabledLayerIds.includes(layer.id);
-            return (
-              <Button
-                key={layer.id}
-                type="button"
-                size="sm"
-                variant={active ? 'secondary' : 'outline'}
-                className={cn('h-auto min-h-9 max-w-full justify-start px-3 py-2 text-left', active && layerToneClass[layer.tone])}
-                disabled={protectedByPrivacy}
-                onClick={() =>
-                  setLayerSelection((current) => {
-                    const base = current ?? defaultEnabledLayerIds;
-                    return base.includes(layer.id) ? base.filter((item) => item !== layer.id) : [...base, layer.id];
-                  })
-                }
-                aria-pressed={active}
-                title={protectedByPrivacy ? 'La política de privacidad protege el detalle puntual' : layer.description}
-              >
-                <span className="truncate">{layer.label}</span>
-              </Button>
-            );
-          })}
+        <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1" role="group" aria-label="Visualización del mapa">
+          {([
+            { id: 'heat', label: 'Calor' },
+            { id: 'points', label: 'Puntos' },
+            { id: 'both', label: 'Ambos' },
+          ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
+            <Button
+              key={mode.id}
+              type="button"
+              size="sm"
+              variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
+              className="h-8 px-3"
+              onClick={() => setMapDisplayMode(mode.id)}
+              aria-pressed={mapDisplayMode === mode.id}
+              disabled={mode.id === 'points' && !canShowExactPointMarkers}
+            >
+              {mode.label}
+            </Button>
+          ))}
         </div>
       </div>
 
-      <div data-testid="territory-map-layout" className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        data-testid="territory-filter-toolbar"
+        className="order-3 sticky top-20 z-30 rounded-xl border border-border/70 bg-background/95 p-4 shadow-md backdrop-blur"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 shrink-0 text-primary" />
+              <h4 className="text-sm font-semibold">Explorar demanda territorial</h4>
+              {hasActiveTerritorialFacet ? (
+                <Badge variant="secondary" className="shrink-0">
+                  {[mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length} activos
+                </Badge>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Elegí una categoría, zona o corredor. El mapa y todos los indicadores responden a la misma selección.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-fit shrink-0 gap-2"
+            onClick={resetTerritoryFilters}
+            disabled={!hasActiveTerritorialFacet}
+            aria-label="Limpiar filtros territoriales"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Restablecer mapa
+          </Button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
+          <label htmlFor={`${svgId}-category-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+            <span className="text-xs font-semibold text-foreground">Categoría de reclamo</span>
+            <select
+              id={`${svgId}-category-filter`}
+              aria-label="Filtrar mapa por categoría"
+              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapCategoryFilter ?? ''}
+              onChange={(event) => setMapCategoryFilter(event.target.value || null)}
+              disabled={!mapCategoryFacets.length}
+            >
+              <option value="">Todas las categorías</option>
+              {mapCategoryFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
+                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                </option>
+              ))}
+            </select>
+            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+              {mapCategoryFacets.length ? (
+                <TerritoryFacetCounts facet={selectedCategoryFacet ?? territorialRecordCounts} />
+              ) : categoryBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : (
+                'Sin categorías verificadas'
+              )}
+            </span>
+          </label>
+
+          <label htmlFor={`${svgId}-zone-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+            <span className="text-xs font-semibold text-foreground">Zona o barrio</span>
+            <select
+              id={`${svgId}-zone-filter`}
+              aria-label="Filtrar mapa por zona o barrio"
+              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapZoneFilter ?? ''}
+              onChange={(event) => setMapZoneFilter(event.target.value || null)}
+              disabled={!mapZoneFacets.length}
+            >
+              <option value="">{mapZoneFacets.length ? 'Todas las zonas' : 'Sin zonas verificadas'}</option>
+              {mapZoneFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
+                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                </option>
+              ))}
+            </select>
+            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+              {selectedZoneFacet ? (
+                <TerritoryFacetCounts facet={selectedZoneFacet} />
+              ) : zoneBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : mapZoneFacets.length ? (
+                `${formatNumber(mapZoneFacets.length)} zonas disponibles`
+              ) : (
+                `${formatCountLabel(readiness.pendingGeocode, 'ubicación pendiente', 'ubicaciones pendientes')} de validación`
+              )}
+            </span>
+          </label>
+
+          <label htmlFor={`${svgId}-location-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+            <span className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
+              Corredor o celda
+              <span className="font-normal text-muted-foreground">Sin domicilio exacto</span>
+            </span>
+            <select
+              id={`${svgId}-location-filter`}
+              aria-label="Filtrar mapa por corredor o celda"
+              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapAddressCellFilter ?? ''}
+              onChange={(event) => setMapAddressCellFilter(event.target.value || null)}
+              disabled={!mapAddressCellFacets.length}
+            >
+              <option value="">Todas las ubicaciones</option>
+              {mapAddressCellFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
+                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                </option>
+              ))}
+            </select>
+            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+              {selectedAddressCellFacet ? (
+                <TerritoryFacetCounts facet={selectedAddressCellFacet} />
+              ) : addressCellBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : mapAddressCellFacets.length ? (
+                `${formatNumber(mapAddressCellFacets.length)} agrupaciones seguras disponibles`
+              ) : (
+                'Sin corredores ni celdas verificadas'
+              )}
+            </span>
+          </label>
+        </div>
+
+        {hasActiveTerritorialFacet ? (
+          <div data-testid="territory-active-filter-chips" className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Aplicados</span>
+            {selectedCategoryFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapCategoryFilter(null)}>
+                Categoría · {selectedCategoryFacet.label} ×
+              </Button>
+            ) : null}
+            {selectedZoneFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapZoneFilter(null)}>
+                Zona · {selectedZoneFacet.label} ×
+              </Button>
+            ) : null}
+            {selectedAddressCellFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapAddressCellFilter(null)}>
+                Corredor · {selectedAddressCellFacet.label} ×
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        data-testid="territory-map-layout"
+        data-territory-map-layout={svgId}
+        className="order-4 grid min-w-0 grid-cols-1 items-start gap-4"
+      >
         <div
           data-testid="territory-map-shell"
-          className="relative min-h-[500px] self-start overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+          className="relative self-start overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
           style={{ perspective: '1200px' }}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
           <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
           <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
           {showLiveMap ? (
-            <div data-testid="live-territory-map" className="relative z-10 h-[450px] w-full overflow-hidden sm:h-[540px]">
+            <div data-testid="live-territory-map" className="relative z-10 h-[520px] w-full overflow-hidden sm:h-[620px] 2xl:h-[680px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
                 ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
                 heatmapData={visibleLiveMapPoints}
-                showHeatmap={showHeatLayer}
-                showPoints={showCategoryLayer}
-                showPointLabels={showCategoryLayer}
+                showHeatmap={renderHeatLayer}
+                showPoints={renderPointLayer}
+                showPointLabels={renderPointLayer}
                 pointLabelMode="categoria"
                 pointMinZoom={7}
                 pointLabelMinZoom={10}
@@ -2394,7 +2564,7 @@ export function PremiumTerritoryHeatmap({
             role="img"
             aria-label={title}
             viewBox="0 0 100 68"
-            className="relative z-10 h-[450px] w-full touch-pan-y select-none sm:h-[540px]"
+              className="relative z-10 h-[520px] w-full touch-pan-y select-none sm:h-[620px] 2xl:h-[680px]"
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>
@@ -2843,7 +3013,7 @@ export function PremiumTerritoryHeatmap({
                     <span>Alta intensidad</span>
                     <span aria-hidden="true">·</span>
                     <span>
-                      {showCategoryLayer
+                      {renderPointLayer
                         ? 'círculos por categoría'
                         : exactPointsSuppressed || aggregatedPrivacyMode
                           ? 'detalle puntual protegido'
@@ -2895,191 +3065,45 @@ export function PremiumTerritoryHeatmap({
                       </div>
                     ) : null}
                   </div>
-                  {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0 ? (
-                    <a
-                      href={`/perfil?tab=tickets&focus=open_geocoding_queue${
-                        activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
-                      }`}
-                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Abrir cola pendiente
-                    </a>
-                  ) : null}
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={clearMostSpecificTerritoryFilter}>
+                      Quitar último filtro
+                    </Button>
+                    <Button type="button" size="sm" variant="default" onClick={resetTerritoryFilters}>
+                      Restablecer mapa
+                    </Button>
+                    {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0 ? (
+                      <a
+                        href={`/perfil?tab=tickets&focus=open_geocoding_queue${
+                          activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
+                        }`}
+                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Abrir cola pendiente
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 
-              <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                <div role="group" aria-label="Filtrar mapa por categoría" className="rounded-lg border bg-muted/20 p-3">
-                  <p className="text-xs font-semibold text-foreground">Categoría de reclamo</p>
-                  {mapCategoryFacets.length ? (
-                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={mapCategoryFilter === null ? 'default' : 'outline'}
-                        className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
-                        aria-pressed={mapCategoryFilter === null}
-                        aria-label="Mostrar todas las categorías"
-                        onClick={() => setMapCategoryFilter(null)}
-                      >
-                        <span>Todas las categorías</span>
-                        <TerritoryFacetCounts facet={territorialRecordCounts} />
-                      </Button>
-                      {mapCategoryFacets.map((facet) => (
-                        <Button
-                          key={facet.key}
-                          type="button"
-                          size="sm"
-                          variant={mapCategoryFilter === facet.key ? 'default' : 'outline'}
-                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
-                          aria-pressed={mapCategoryFilter === facet.key}
-                          aria-label={`Filtrar mapa por ${facet.label}`}
-                          onClick={() => setMapCategoryFilter((current) => (current === facet.key ? null : facet.key))}
-                        >
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: facet.color }}
-                              aria-hidden="true"
-                            />
-                            <span className="truncate">{facet.label}</span>
-                          </span>
-                          <TerritoryFacetCounts facet={facet} />
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-xs text-muted-foreground">
-                      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      <span>
-                        {categoryBreakdownProtected
-                          ? `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros por categoría`
-                          : 'Sin categorías verificadas en los puntos visibles'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div role="group" aria-label="Filtrar mapa por zona o barrio" className="rounded-lg border bg-muted/20 p-3">
-                  <p className="text-xs font-semibold text-foreground">Zona o barrio</p>
-                  {mapZoneFacets.length ? (
-                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={mapZoneFilter === null ? 'default' : 'outline'}
-                        className="h-auto min-h-11 w-full items-center justify-start rounded-lg px-3 py-2 text-left"
-                        aria-pressed={mapZoneFilter === null}
-                        onClick={() => setMapZoneFilter(null)}
-                      >
-                        Todas las zonas
-                      </Button>
-                      {mapZoneFacets.map((facet) => (
-                        <Button
-                          key={facet.key}
-                          type="button"
-                          size="sm"
-                          variant={mapZoneFilter === facet.key ? 'default' : 'outline'}
-                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
-                          aria-pressed={mapZoneFilter === facet.key}
-                          aria-label={`Filtrar mapa por zona ${facet.label}`}
-                          onClick={() => setMapZoneFilter((current) => (current === facet.key ? null : facet.key))}
-                        >
-                          <span className="truncate">{facet.label}</span>
-                          <TerritoryFacetCounts facet={facet} />
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-xs text-muted-foreground">
-                      {zoneBreakdownProtected ? (
-                        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      ) : (
-                        <DatabaseZap className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                      )}
-                      <span>
-                        {zoneBreakdownProtected
-                          ? `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros por zona`
-                          : `Sin zonas verificadas · ${formatCountLabel(readiness.pendingGeocode, 'ubicación pendiente', 'ubicaciones pendientes')}`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  role="group"
-                  aria-label="Filtrar mapa por dirección agregada o celda"
-                  className="rounded-lg border bg-muted/20 p-3 lg:col-span-2 2xl:col-span-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-foreground">Dirección agregada / celda</p>
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
-                      Sin domicilio exacto
-                    </Badge>
-                  </div>
-                  {mapAddressCellFacets.length ? (
-                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={mapAddressCellFilter === null ? 'default' : 'outline'}
-                        className="h-auto min-h-11 w-full items-center justify-start rounded-lg px-3 py-2 text-left"
-                        aria-pressed={mapAddressCellFilter === null}
-                        onClick={() => setMapAddressCellFilter(null)}
-                      >
-                        Todas las ubicaciones
-                      </Button>
-                      {mapAddressCellFacets.map((facet) => (
-                        <Button
-                          key={facet.key}
-                          type="button"
-                          size="sm"
-                          variant={mapAddressCellFilter === facet.key ? 'default' : 'outline'}
-                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
-                          aria-pressed={mapAddressCellFilter === facet.key}
-                          aria-label={`Filtrar mapa por ubicación ${facet.label}`}
-                          onClick={() =>
-                            setMapAddressCellFilter((current) => (current === facet.key ? null : facet.key))
-                          }
-                        >
-                          <span className="truncate">{facet.label}</span>
-                          <TerritoryFacetCounts facet={facet} />
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-xs text-muted-foreground">
-                      {addressCellBreakdownProtected ? (
-                        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      ) : (
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                      )}
-                      <span>
-                        {addressCellBreakdownProtected
-                          ? `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros por celda`
-                          : 'Sin direcciones agrupadas ni celdas verificadas en los puntos visibles'}
-                      </span>
-                    </div>
-                  )}
-                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                    El domicilio exacto se consulta sólo dentro del reclamo autorizado; esta vista agrupa por corredor o celda.
-                  </p>
-                </div>
-              </div>
             </div>
           ) : null}
         </div>
 
-        <aside data-testid="territory-executive-rail" className="space-y-4 self-start xl:sticky xl:top-24">
-          <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+        <aside data-testid="territory-executive-rail" className="self-start 2xl:sticky 2xl:top-24">
+          <details open className="group rounded-xl border border-border bg-background p-4 shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+              <span className="text-sm font-semibold">Inspector territorial</span>
+              <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
+                {territoryScopeBadgeLabel}
+              </Badge>
+            </summary>
+            <div className="mt-4 border-t border-border/60 pt-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
                 <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
-              <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
-                {territoryScopeBadgeLabel}
-              </Badge>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-lg border bg-muted/20 p-3">
@@ -3131,7 +3155,8 @@ export function PremiumTerritoryHeatmap({
                 ))}
               </div>
             ) : null}
-          </div>
+            </div>
+          </details>
 
         </aside>
       </div>
@@ -3139,7 +3164,7 @@ export function PremiumTerritoryHeatmap({
       <section
         data-testid="territory-intelligence-workspace"
         aria-labelledby={`${svgId}-territory-intelligence-title`}
-        className="grid items-start gap-4 lg:grid-cols-2"
+        className="order-6 grid items-start gap-4 lg:grid-cols-2"
       >
         <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -3306,15 +3331,33 @@ export function PremiumTerritoryHeatmap({
               </Badge>
             </summary>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {displayLayers.slice(0, 5).map((layer) => (
-                <div key={`${layer.id}-summary`} className="rounded-lg border bg-muted/20 px-3 py-2">
+              {displayLayers.slice(0, 5).map((layer) => {
+                const isCategoryControl = ['category', 'categoria'].some((fragment) => layer.id.includes(fragment));
+                const protectedByPrivacy = isCategoryControl && !canShowExactPointMarkers;
+                const active = !protectedByPrivacy && enabledLayerIds.includes(layer.id);
+                return (
+                <Button
+                  key={`${layer.id}-summary`}
+                  type="button"
+                  variant="outline"
+                  className={cn('h-auto min-h-16 w-full flex-col items-stretch rounded-lg px-3 py-2 text-left', active && layerToneClass[layer.tone])}
+                  disabled={protectedByPrivacy}
+                  aria-pressed={active}
+                  title={protectedByPrivacy ? 'La política de privacidad protege el detalle puntual' : layer.description}
+                  onClick={() =>
+                    setLayerSelection((current) => {
+                      const base = current ?? defaultEnabledLayerIds;
+                      return base.includes(layer.id) ? base.filter((item) => item !== layer.id) : [...base, layer.id];
+                    })
+                  }
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">{layer.label}</span>
                     <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full border', layerToneClass[layer.tone])} />
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">{layer.description}</p>
-                </div>
-              ))}
+                </Button>
+              )})}
             </div>
           </details>
 
