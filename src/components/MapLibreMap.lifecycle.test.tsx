@@ -423,7 +423,14 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
     expect(mapMocks.addedLayers.find((layer) => layer.id === "territory-points-labels")).toEqual(
-      expect.objectContaining({ type: "symbol", source: "chatboc-runtime-points" }),
+      expect.objectContaining({
+        type: "symbol",
+        source: "chatboc-runtime-points",
+        layout: expect.objectContaining({
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        }),
+      }),
     );
     expect(mapMocks.constructorCalls[0]).toEqual(
       expect.objectContaining({ cooperativeGestures: true, maxPitch: 60 }),

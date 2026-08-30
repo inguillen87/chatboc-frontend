@@ -1465,8 +1465,8 @@ export default function MapLibreMap({
                     "text-padding": 4,
                     "text-max-width": 12,
                   }),
-              "text-allow-overlap": false,
-              "text-ignore-placement": false,
+              "text-allow-overlap": pointLabelMode === "count",
+              "text-ignore-placement": pointLabelMode === "count",
             },
             paint: {
               "text-color": pointLabelMode === "count" ? "#ffffff" : "#0f172a",
