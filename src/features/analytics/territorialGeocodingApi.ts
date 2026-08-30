@@ -3,11 +3,14 @@ import { ApiError } from '@/utils/api';
 
 import {
   TERRITORIAL_GEOCODING_CONTRACT,
+  TERRITORIAL_GEOCODING_PREVIEW_CONTRACT,
   TERRITORIAL_GEOCODING_SYNC_CONTRACT,
   type TerritorialGeocodingAttempt,
   type TerritorialGeocodingAttemptsResponse,
   type TerritorialGeocodingDetail,
   type TerritorialGeocodingItem,
+  type TerritorialGeocodingPreviewParams,
+  type TerritorialGeocodingPreviewQueue,
   type TerritorialGeocodingProposal,
   type TerritorialGeocodingQueue,
   type TerritorialGeocodingQueueParams,
@@ -372,6 +375,132 @@ export const normalizeTerritorialGeocodingSyncResponse = (value: unknown): Terri
   };
 };
 
+export const normalizeTerritorialGeocodingPreviewQueue = (value: unknown): TerritorialGeocodingPreviewQueue => {
+  const source = record(value);
+  if (source.contract_version !== TERRITORIAL_GEOCODING_PREVIEW_CONTRACT) {
+    throw new TerritorialGeocodingContractError('territorial_geocoding_preview_contract_version_invalid');
+  }
+  const execution = record(source.execution);
+  if (
+    execution.read_only !== true
+    || execution.database_write_performed !== false
+    || execution.provider_call_performed !== false
+    || execution.coordinate_write_performed !== false
+  ) throw new TerritorialGeocodingContractError('territorial_geocoding_preview_write_policy_invalid');
+  const privacy = record(source.privacy);
+  if (
+    privacy.raw_address_exposed !== false
+    || privacy.address_digest_exposed !== false
+    || privacy.candidate_fingerprint_exposed !== false
+    || privacy.exact_coordinates_exposed !== false
+    || privacy.tenant_scoped !== true
+  ) throw new TerritorialGeocodingContractError('territorial_geocoding_preview_privacy_invalid');
+
+  const items = (Array.isArray(source.items) ? source.items : []).map((value) => {
+    const item = record(value);
+    const actions = record(item.actions);
+    const inspectSource = record(actions.inspect_source);
+    const providerLookup = record(actions.provider_lookup);
+    const review = record(actions.review);
+    const coordinateWrite = record(actions.coordinate_write);
+    if (
+      inspectSource.enabled !== true
+      || inspectSource.mutates_state !== false
+      || providerLookup.enabled !== false
+      || providerLookup.mutates_state !== false
+      || review.enabled !== false
+      || review.mutates_state !== false
+      || coordinateWrite.enabled !== false
+      || coordinateWrite.mutates_state !== false
+    ) throw new TerritorialGeocodingContractError('territorial_geocoding_preview_action_policy_invalid');
+    const id = text(item.id);
+    const ticketId = text(item.ticket_id);
+    const sourceModelRaw = text(item.source_model);
+    if (!id || !ticketId || !sourceModelRaw) {
+      throw new TerritorialGeocodingContractError('territorial_geocoding_preview_identity_missing');
+    }
+    const ticketSourceModel = normalizeTerritorialTicketSourceModel(sourceModelRaw);
+    if (!ticketSourceModel) {
+      throw new TerritorialGeocodingContractError('territorial_geocoding_preview_source_model_invalid');
+    }
+    if (
+      item.state !== 'awaiting_materialization'
+      || item.reason_code !== 'persisted_address_without_coordinates'
+    ) throw new TerritorialGeocodingContractError('territorial_geocoding_preview_state_invalid');
+    return {
+      id,
+      ticketId,
+      sourceModelRaw,
+      ticketSourceModel,
+      category: text(item.category),
+      zone: text(item.zone),
+      state: 'awaiting_materialization' as const,
+      reasonCode: 'persisted_address_without_coordinates' as const,
+      inspectSourceEnabled: true as const,
+    };
+  });
+  const summary = record(source.summary);
+  const pagination = record(source.pagination);
+  const exactNonNegativeInteger = (value: unknown, code: string) => {
+    const parsed = number(value);
+    if (parsed === null || !Number.isInteger(parsed) || parsed < 0) {
+      throw new TerritorialGeocodingContractError(code);
+    }
+    return parsed;
+  };
+  const discovered = exactNonNegativeInteger(summary.discovered, 'territorial_geocoding_preview_summary_invalid');
+  const unique = exactNonNegativeInteger(summary.unique, 'territorial_geocoding_preview_summary_invalid');
+  const matching = exactNonNegativeInteger(summary.matching, 'territorial_geocoding_preview_summary_invalid');
+  const hidden = exactNonNegativeInteger(summary.hidden, 'territorial_geocoding_preview_summary_invalid');
+  const page = exactNonNegativeInteger(pagination.page, 'territorial_geocoding_preview_pagination_invalid');
+  const perPage = exactNonNegativeInteger(pagination.per_page, 'territorial_geocoding_preview_pagination_invalid');
+  const total = exactNonNegativeInteger(pagination.total, 'territorial_geocoding_preview_pagination_invalid');
+  if (page < 1 || perPage < 1 || perPage > 100 || discovered < unique || unique < matching || matching !== total) {
+    throw new TerritorialGeocodingContractError('territorial_geocoding_preview_counts_incoherent');
+  }
+  const firstIndex = (page - 1) * perPage;
+  const expectedItemCount = Math.max(0, Math.min(perPage, total - firstIndex));
+  const expectedHasNext = firstIndex + expectedItemCount < total;
+  if (
+    items.length !== expectedItemCount
+    || pagination.has_next !== expectedHasNext
+    || new Set(items.map((item) => item.id)).size !== items.length
+  ) throw new TerritorialGeocodingContractError('territorial_geocoding_preview_page_incoherent');
+  return {
+    contractVersion: TERRITORIAL_GEOCODING_PREVIEW_CONTRACT,
+    tenantId: String(source.tenant_id ?? ''),
+    summary: {
+      discovered,
+      unique,
+      matching,
+      hidden,
+      bySourceModel: countRecord(summary.by_source_model),
+      byCategory: countRecord(summary.by_category),
+      byZone: countRecord(summary.by_zone),
+    },
+    pagination: {
+      page,
+      perPage,
+      total,
+      hasNext: expectedHasNext,
+    },
+    items,
+    execution: {
+      readOnly: true,
+      databaseWritePerformed: false,
+      providerCallPerformed: false,
+      coordinateWritePerformed: false,
+    },
+    privacy: {
+      rawAddressExposed: false,
+      addressDigestExposed: false,
+      candidateFingerprintExposed: false,
+      exactCoordinatesExposed: false,
+      tenantScoped: true,
+    },
+  };
+};
+
 const addParam = (params: URLSearchParams, key: string, value: unknown) => {
   if (value === undefined || value === null || value === '') return;
   params.set(key, String(value));
@@ -391,6 +520,18 @@ export const getTerritorialGeocodingQueue = async (input: TerritorialGeocodingQu
   addParam(params, 'quality_state', input.qualityState);
   const response = await panelApi.get<unknown>(`${QUEUE_PATH}?${params}`, { tenantSlug: input.tenantSlug });
   return normalizeTerritorialGeocodingQueue(response);
+};
+
+export const getTerritorialGeocodingPreviewQueue = async (input: TerritorialGeocodingPreviewParams) => {
+  const params = new URLSearchParams();
+  addParam(params, 'page', input.page ?? 1);
+  addParam(params, 'per_page', input.perPage ?? 100);
+  addParam(params, 'source_model', input.sourceModel);
+  addParam(params, 'ticket_id', input.ticketId);
+  addParam(params, 'category', input.category);
+  addParam(params, 'zone', input.zone);
+  const response = await panelApi.get<unknown>(`${QUEUE_PATH}/preview?${params}`, { tenantSlug: input.tenantSlug });
+  return normalizeTerritorialGeocodingPreviewQueue(response);
 };
 
 export const getTerritorialGeocodingDetail = async (jobId: string, tenantSlug: string) => {

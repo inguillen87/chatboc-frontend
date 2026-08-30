@@ -1,5 +1,6 @@
 export const TERRITORIAL_GEOCODING_CONTRACT = 'operations.territorial_geocoding_admin.v1' as const;
 export const TERRITORIAL_GEOCODING_SYNC_CONTRACT = 'operations.territorial_geocoding_sync.v1' as const;
+export const TERRITORIAL_GEOCODING_PREVIEW_CONTRACT = 'operations.territorial_geocoding_preview.v1' as const;
 
 export type TerritorialReviewDecision = 'approved' | 'rejected';
 export type TerritorialReviewState = 'unreviewed' | 'approved' | 'rejected' | 'stale';
@@ -201,4 +202,55 @@ export interface TerritorialGeocodingSyncResponse {
 export interface TerritorialGeocodingSyncRequest {
   tenantSlug: string;
   idempotencyKey: string;
+}
+
+export interface TerritorialGeocodingPreviewItem {
+  id: string;
+  ticketId: string;
+  sourceModelRaw: string;
+  ticketSourceModel: TerritorialTicketSourceModel;
+  category: string | null;
+  zone: string | null;
+  state: 'awaiting_materialization';
+  reasonCode: 'persisted_address_without_coordinates';
+  inspectSourceEnabled: true;
+}
+
+export interface TerritorialGeocodingPreviewQueue {
+  contractVersion: typeof TERRITORIAL_GEOCODING_PREVIEW_CONTRACT;
+  tenantId: string;
+  summary: {
+    discovered: number;
+    unique: number;
+    matching: number;
+    hidden: number;
+    bySourceModel: Record<string, number>;
+    byCategory: Record<string, number>;
+    byZone: Record<string, number>;
+  };
+  pagination: { page: number; perPage: number; total: number; hasNext: boolean };
+  items: TerritorialGeocodingPreviewItem[];
+  execution: {
+    readOnly: true;
+    databaseWritePerformed: false;
+    providerCallPerformed: false;
+    coordinateWritePerformed: false;
+  };
+  privacy: {
+    rawAddressExposed: false;
+    addressDigestExposed: false;
+    candidateFingerprintExposed: false;
+    exactCoordinatesExposed: false;
+    tenantScoped: true;
+  };
+}
+
+export interface TerritorialGeocodingPreviewParams {
+  tenantSlug: string;
+  page?: number;
+  perPage?: number;
+  sourceModel?: string;
+  ticketId?: string;
+  category?: string;
+  zone?: string;
 }

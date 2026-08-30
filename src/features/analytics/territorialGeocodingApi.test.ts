@@ -5,9 +5,11 @@ import { ApiError, NetworkError } from '@/utils/api';
 import {
   getTerritorialGeocodingAttempts,
   getTerritorialGeocodingDetail,
+  getTerritorialGeocodingPreviewQueue,
   getTerritorialGeocodingQueue,
   isTerritorialQueueEndpointUnavailable,
   normalizeTerritorialGeocodingQueue,
+  normalizeTerritorialGeocodingPreviewQueue,
   normalizeTerritorialGeocodingSyncResponse,
   reviewTerritorialGeocodingJob,
   syncTerritorialGeocodingQueue,
@@ -98,6 +100,49 @@ const queuePayload = () => ({
   },
 });
 
+const previewPayload = () => ({
+  contract_version: 'operations.territorial_geocoding_preview.v1',
+  tenant_id: 4,
+  summary: {
+    discovered: 34,
+    unique: 34,
+    matching: 34,
+    hidden: 0,
+    by_source_model: { tenant_ticket: 34 },
+    by_category: { luminarias: 23, bacheo: 11 },
+    by_zone: { centro: 18, unclassified: 16 },
+  },
+  pagination: { page: 1, per_page: 1, total: 34, has_next: true },
+  items: [{
+    id: 'tenant_ticket:419',
+    ticket_id: '419',
+    source_model: 'tenant_ticket',
+    category: 'luminarias',
+    zone: 'centro',
+    state: 'awaiting_materialization',
+    reason_code: 'persisted_address_without_coordinates',
+    actions: {
+      inspect_source: { enabled: true, mutates_state: false },
+      provider_lookup: { enabled: false, mutates_state: false },
+      review: { enabled: false, mutates_state: false },
+      coordinate_write: { enabled: false, mutates_state: false },
+    },
+  }],
+  execution: {
+    read_only: true,
+    database_write_performed: false,
+    provider_call_performed: false,
+    coordinate_write_performed: false,
+  },
+  privacy: {
+    raw_address_exposed: false,
+    address_digest_exposed: false,
+    candidate_fingerprint_exposed: false,
+    exact_coordinates_exposed: false,
+    tenant_scoped: true,
+  },
+});
+
 const attempt = {
   id: 3,
   attempt_number: 1,
@@ -158,6 +203,46 @@ describe('territorialGeocodingApi', () => {
     unsafeWrite.items[0] = structuredClone(item);
     unsafeWrite.items[0].actions.review.coordinate_application_supported = true;
     expect(() => normalizeTerritorialGeocodingQueue(unsafeWrite)).toThrow('territorial_geocoding_coordinate_policy_invalid');
+  });
+
+  it('normalizes the live read-only preview without accepting provider, review, or coordinate actions', async () => {
+    const result = normalizeTerritorialGeocodingPreviewQueue(previewPayload());
+    expect(result).toMatchObject({
+      tenantId: '4',
+      summary: { discovered: 34, matching: 34, byCategory: { luminarias: 23, bacheo: 11 } },
+      items: [{
+        id: 'tenant_ticket:419',
+        ticketId: '419',
+        ticketSourceModel: 'TenantTicket',
+        inspectSourceEnabled: true,
+      }],
+      execution: { readOnly: true, providerCallPerformed: false, coordinateWritePerformed: false },
+    });
+
+    mocks.get.mockResolvedValueOnce(previewPayload());
+    await getTerritorialGeocodingPreviewQueue({ tenantSlug: 'junin', page: 1, perPage: 100, category: 'luminarias' });
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/api/v2/analytics/operations/geocoding-queue/preview?page=1&per_page=100&category=luminarias',
+      { tenantSlug: 'junin' },
+    );
+
+    const unsafe = previewPayload();
+    unsafe.items[0].actions.provider_lookup.enabled = true;
+    expect(() => normalizeTerritorialGeocodingPreviewQueue(unsafe)).toThrow(
+      'territorial_geocoding_preview_action_policy_invalid',
+    );
+
+    const ambiguousIdentity = previewPayload();
+    ambiguousIdentity.items[0].source_model = 'future_ticket';
+    expect(() => normalizeTerritorialGeocodingPreviewQueue(ambiguousIdentity)).toThrow(
+      'territorial_geocoding_preview_source_model_invalid',
+    );
+
+    const incoherentCounts = previewPayload();
+    incoherentCounts.pagination.total = 33;
+    expect(() => normalizeTerritorialGeocodingPreviewQueue(incoherentCounts)).toThrow(
+      'territorial_geocoding_preview_counts_incoherent',
+    );
   });
 
   it('uses panel authentication and tenant scope for list, detail, and attempts', async () => {

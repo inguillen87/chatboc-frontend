@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { OperationsHeatmapV1 } from './analyticsTypes';
+import type { TerritorialGeocodingPreviewQueue } from './territorialGeocodingTypes';
 import {
   adaptPendingLocationQueue,
+  adaptTerritorialPreviewQueue,
   buildPendingLocationTicketHref,
   safeAggregateAreaLabel,
 } from './territorialPendingLocations';
@@ -67,6 +69,67 @@ describe('territorialPendingLocations adapter', () => {
 
     expect(queue).toMatchObject({ state: 'summary_only', total: 34, published: 0, hidden: 34 });
     expect(queue.candidates).toEqual([]);
+  });
+
+  it('turns the provider-free preview into actionable ticket links without enabling writes', () => {
+    const response: TerritorialGeocodingPreviewQueue = {
+      contractVersion: 'operations.territorial_geocoding_preview.v1',
+      tenantId: '4',
+      summary: {
+        discovered: 34,
+        unique: 34,
+        matching: 34,
+        hidden: 0,
+        bySourceModel: { tenant_ticket: 34 },
+        byCategory: { luminarias: 23 },
+        byZone: { centro: 18 },
+      },
+      pagination: { page: 1, perPage: 1, total: 34, hasNext: true },
+      items: [{
+        id: 'tenant_ticket:419',
+        ticketId: '419',
+        sourceModelRaw: 'tenant_ticket',
+        ticketSourceModel: 'TenantTicket',
+        category: 'luminarias',
+        zone: 'centro',
+        state: 'awaiting_materialization',
+        reasonCode: 'persisted_address_without_coordinates',
+        inspectSourceEnabled: true,
+      }],
+      execution: {
+        readOnly: true,
+        databaseWritePerformed: false,
+        providerCallPerformed: false,
+        coordinateWritePerformed: false,
+      },
+      privacy: {
+        rawAddressExposed: false,
+        addressDigestExposed: false,
+        candidateFingerprintExposed: false,
+        exactCoordinatesExposed: false,
+        tenantScoped: true,
+      },
+    };
+
+    const queue = adaptTerritorialPreviewQueue(response, 'junin');
+    expect(queue).toMatchObject({
+      state: 'partial',
+      total: 34,
+      published: 1,
+      hidden: 0,
+      paginated: 33,
+      writesEnabled: false,
+    });
+    expect(queue.candidates[0]).toMatchObject({
+      ticketId: '419',
+      sourceModel: 'TenantTicket',
+      safeAreaLabel: 'centro',
+      actions: {
+        review: { enabled: true },
+        approve: { enabled: false },
+        reject: { enabled: false },
+      },
+    });
   });
 
   it('only includes supported source models in ticket deep links', () => {

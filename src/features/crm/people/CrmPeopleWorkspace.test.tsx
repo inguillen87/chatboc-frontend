@@ -394,6 +394,27 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
   });
 
+  it("keeps sequential queue navigation available when the directory is hidden", () => {
+    render(<Harness embedded />);
+
+    const navigator = screen.getByRole("group", { name: "Navegar personas filtradas" });
+    expect(navigator).toHaveTextContent("1 de 2");
+    expect(screen.getByRole("button", { name: "Persona anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Persona siguiente" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ampliar ficha de la persona" }));
+    expect(screen.queryByRole("complementary", { name: "Lista de personas" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Persona siguiente" }));
+    expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
+    expect(navigator).toHaveTextContent("2 de 2");
+    expect(screen.getByRole("button", { name: "Persona siguiente" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Persona anterior" }));
+    expect(screen.getByRole("heading", { name: "Mauricio Alonso" })).toBeInTheDocument();
+    expect(navigator).toHaveTextContent("1 de 2");
+  });
+
   it("keeps the executive context compact and discloses the full detail on demand", () => {
     render(<Harness embedded initialSelectedContactId="42" />);
 

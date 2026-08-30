@@ -1,5 +1,8 @@
 import type { OperationsActionItem, OperationsHeatmapV1 } from './analyticsTypes';
-import type { TerritorialGeocodingQueue } from './territorialGeocodingTypes';
+import type {
+  TerritorialGeocodingPreviewQueue,
+  TerritorialGeocodingQueue,
+} from './territorialGeocodingTypes';
 
 type HeatmapGeocoding = NonNullable<OperationsHeatmapV1['geocoding']>;
 type HeatmapGeocodingCandidate = NonNullable<HeatmapGeocoding['candidates']>[number];
@@ -36,6 +39,7 @@ export interface PendingLocationQueue {
   total: number;
   published: number;
   hidden: number;
+  paginated: number;
   writesEnabled: boolean;
   candidates: PendingLocationCandidate[];
 }
@@ -247,6 +251,7 @@ export const adaptPendingLocationQueue = (
       total: 0,
       published: 0,
       hidden: 0,
+      paginated: 0,
       writesEnabled: false,
       candidates: [],
     };
@@ -273,6 +278,7 @@ export const adaptPendingLocationQueue = (
     total,
     published,
     hidden,
+    paginated: 0,
     writesEnabled,
     candidates,
   };
@@ -331,15 +337,77 @@ export const adaptTerritorialAdminQueue = (
     } satisfies PendingLocationCandidate;
   });
   const total = response.summary.total;
-  const hidden = Math.max(0, total - candidates.length);
+  const paginated = Math.max(0, total - candidates.length);
   return {
-    state: total === 0 ? 'empty' : hidden > 0 ? 'partial' : 'ready',
+    state: total === 0 ? 'empty' : paginated > 0 ? 'partial' : 'ready',
     contractVersion: response.contractVersion,
     status: response.summary.needsHumanReview > 0 ? 'pending' : 'ready',
     total,
     published: candidates.length,
-    hidden,
+    hidden: 0,
+    paginated,
     writesEnabled: candidates.some((candidate) => candidate.actions.approve.enabled || candidate.actions.reject.enabled),
+    candidates,
+  };
+};
+
+export const adaptTerritorialPreviewQueue = (
+  response: TerritorialGeocodingPreviewQueue,
+  tenantSlug?: string | null,
+): PendingLocationQueue => {
+  const candidates = response.items.map((item) => {
+    const quality = describeLocationQuality(item.reasonCode);
+    const ticketHref = buildPendingLocationTicketHref(item.ticketId, tenantSlug, item.ticketSourceModel);
+    return {
+      id: item.id,
+      ticketId: item.ticketId,
+      sourceModel: item.ticketSourceModel,
+      category: item.category ?? 'Categoría no publicada',
+      source: item.sourceModelRaw,
+      safeAreaLabel: item.zone ?? 'Área todavía no publicada',
+      qualityCode: item.reasonCode,
+      qualityLabel: quality.label,
+      qualityDetail: quality.detail,
+      ticketHref,
+      actions: {
+        review: {
+          kind: 'review' as const,
+          label: 'Abrir reclamo',
+          href: ticketHref,
+          enabled: Boolean(ticketHref && item.inspectSourceEnabled),
+          reason: ticketHref
+            ? 'Abre el reclamo original para completar la ubicación sin exponerla en la cola.'
+            : 'El contrato no publicó una identidad de reclamo navegable.',
+        },
+        approve: {
+          kind: 'approve' as const,
+          label: 'Aprobar ubicación',
+          href: null,
+          enabled: false,
+          reason: 'La vista previa no materializa propuestas ni habilita decisiones.',
+        },
+        reject: {
+          kind: 'reject' as const,
+          label: 'Rechazar ubicación',
+          href: null,
+          enabled: false,
+          reason: 'La vista previa no materializa propuestas ni habilita decisiones.',
+        },
+      },
+    } satisfies PendingLocationCandidate;
+  });
+  const total = response.summary.matching + response.summary.hidden;
+  const paginated = Math.max(0, response.summary.matching - candidates.length);
+  const hidden = response.summary.hidden;
+  return {
+    state: total === 0 ? 'empty' : hidden > 0 || paginated > 0 ? 'partial' : 'ready',
+    contractVersion: response.contractVersion,
+    status: 'awaiting_materialization',
+    total,
+    published: candidates.length,
+    hidden,
+    paginated,
+    writesEnabled: false,
     candidates,
   };
 };

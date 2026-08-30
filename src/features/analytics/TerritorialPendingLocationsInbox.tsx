@@ -34,6 +34,7 @@ import { getErrorMessage } from '@/utils/api';
 
 import { getOperationsHeatmapV2 } from './analyticsApi';
 import {
+  adaptTerritorialPreviewQueue,
   adaptTerritorialAdminQueue,
   adaptPendingLocationQueue,
   normalizeTerritorialFilter,
@@ -45,6 +46,7 @@ import {
   createTerritorialSyncIdempotencyKey,
   getTerritorialGeocodingAttempts,
   getTerritorialGeocodingDetail,
+  getTerritorialGeocodingPreviewQueue,
   getTerritorialGeocodingQueue,
   isTerritorialApiStatus,
   isTerritorialQueueEndpointUnavailable,
@@ -55,6 +57,7 @@ import type {
   TerritorialGeocodingAttempt,
   TerritorialGeocodingDetail,
   TerritorialGeocodingItem,
+  TerritorialGeocodingPreviewQueue,
   TerritorialGeocodingQueue,
   TerritorialGeocodingSyncResponse,
   TerritorialReviewDecision,
@@ -69,6 +72,7 @@ interface TerritorialPendingLocationsInboxProps {
 
 type QueueQueryResult =
   | { source: 'admin'; queue: TerritorialGeocodingQueue }
+  | { source: 'preview'; queue: TerritorialGeocodingPreviewQueue }
   | { source: 'heatmap_fallback'; queue: ReturnType<typeof adaptPendingLocationQueue> };
 
 interface ReviewDraft {
@@ -550,14 +554,25 @@ export function TerritorialPendingLocationsInbox({
   const query = useQuery({
     queryKey: ['territorial-pending-locations', tenantSlug],
     queryFn: async (): Promise<QueueQueryResult> => {
+      let emptyAdminQueue: TerritorialGeocodingQueue | null = null;
       try {
         const adminQueue = await getTerritorialGeocodingQueue({ tenantSlug: tenantSlug!, page: 1, perPage: 100 });
-        return { source: 'admin', queue: adminQueue };
+        if (adminQueue.summary.total > 0) return { source: 'admin', queue: adminQueue };
+        emptyAdminQueue = adminQueue;
       } catch (error) {
         if (!isTerritorialQueueEndpointUnavailable(error)) throw error;
-        const heatmap = await getOperationsHeatmapV2({ tenantSlug, scope: 'municipio', range: '30d', include_ai: 0, limit: 100 });
-        return { source: 'heatmap_fallback', queue: adaptPendingLocationQueue(heatmap, tenantSlug) };
       }
+      try {
+        const previewQueue = await getTerritorialGeocodingPreviewQueue({ tenantSlug: tenantSlug!, page: 1, perPage: 100 });
+        if (previewQueue.summary.matching > 0 || previewQueue.summary.hidden > 0 || !emptyAdminQueue) {
+          return { source: 'preview', queue: previewQueue };
+        }
+      } catch (error) {
+        if (!isTerritorialQueueEndpointUnavailable(error)) throw error;
+      }
+      if (emptyAdminQueue) return { source: 'admin', queue: emptyAdminQueue };
+      const heatmap = await getOperationsHeatmapV2({ tenantSlug, scope: 'municipio', range: '30d', include_ai: 0, limit: 100 });
+      return { source: 'heatmap_fallback', queue: adaptPendingLocationQueue(heatmap, tenantSlug) };
     },
     enabled: Boolean(tenantSlug),
     retry: 0,
@@ -566,6 +581,7 @@ export function TerritorialPendingLocationsInbox({
   const adminQueue = query.data?.source === 'admin' ? query.data.queue : null;
   const queue = useMemo(() => {
     if (query.data?.source === 'admin') return adaptTerritorialAdminQueue(query.data.queue, tenantSlug);
+    if (query.data?.source === 'preview') return adaptTerritorialPreviewQueue(query.data.queue, tenantSlug);
     if (query.data?.source === 'heatmap_fallback') return query.data.queue;
     return adaptPendingLocationQueue(undefined, tenantSlug);
   }, [query.data, tenantSlug]);
@@ -773,7 +789,15 @@ export function TerritorialPendingLocationsInbox({
         </div>
       ) : (
         <>
-          {query.data?.source === 'heatmap_fallback' ? (
+          {query.data?.source === 'preview' ? (
+            <div role="status" className="flex flex-col gap-1 border-b border-primary/20 bg-primary/[0.04] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">Pendientes detectadas sin alterar datos</p>
+                <p className="text-xs text-muted-foreground">La cola descubre los reclamos vigentes en modo lectura. Abrí el caso para completar su ubicación; no se consultó ningún proveedor ni se escribieron coordenadas.</p>
+              </div>
+              <Badge variant="outline" className="w-fit border-primary/30">Vista previa segura</Badge>
+            </div>
+          ) : query.data?.source === 'heatmap_fallback' ? (
             <div role="status" className="flex flex-col gap-1 border-b border-amber-500/30 bg-amber-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Modo lectura de respaldo</p>
@@ -785,6 +809,7 @@ export function TerritorialPendingLocationsInbox({
           <div className="flex flex-wrap items-center gap-2 border-b bg-muted/15 px-4 py-2 text-xs" role="status" aria-live="polite">
             <Badge variant="secondary">{queue.total} informadas</Badge>
             <Badge variant="outline">{queue.published} con detalle seguro</Badge>
+            {queue.paginated ? <Badge variant="outline">{queue.paginated} fuera de esta página</Badge> : null}
             {queue.hidden ? <Badge variant="outline">{queue.hidden} sin detalle publicado</Badge> : null}
             <span className="text-muted-foreground">{statusLabel(queue.status)}</span>
             <span className="ml-auto text-muted-foreground">Revisión humana: {queue.writesEnabled ? 'habilitada' : 'no publicada'}</span>

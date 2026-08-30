@@ -10,12 +10,14 @@ import { TerritorialPendingLocationsInbox } from './TerritorialPendingLocationsI
 import type {
   TerritorialGeocodingDetail,
   TerritorialGeocodingItem,
+  TerritorialGeocodingPreviewQueue,
   TerritorialGeocodingQueue,
 } from './territorialGeocodingTypes';
 
 const mocks = vi.hoisted(() => ({
   getOperationsHeatmapV2: vi.fn(),
   getQueue: vi.fn(),
+  getPreview: vi.fn(),
   getDetail: vi.fn(),
   getAttempts: vi.fn(),
   review: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('./territorialGeocodingApi', async (importOriginal) => {
   return {
     ...actual,
     getTerritorialGeocodingQueue: mocks.getQueue,
+    getTerritorialGeocodingPreviewQueue: mocks.getPreview,
     getTerritorialGeocodingDetail: mocks.getDetail,
     getTerritorialGeocodingAttempts: mocks.getAttempts,
     reviewTerritorialGeocodingJob: mocks.review,
@@ -147,9 +150,49 @@ const adminDetail = (): TerritorialGeocodingDetail => ({
   writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: false, reviewIsHumanDecisionOnly: true },
 });
 
+const previewQueue = (): TerritorialGeocodingPreviewQueue => ({
+  contractVersion: 'operations.territorial_geocoding_preview.v1',
+  tenantId: '4',
+  summary: {
+    discovered: 34,
+    unique: 34,
+    matching: 34,
+    hidden: 0,
+    bySourceModel: { tenant_ticket: 34 },
+    byCategory: { luminarias: 23 },
+    byZone: { centro: 18 },
+  },
+  pagination: { page: 1, perPage: 100, total: 34, hasNext: false },
+  items: Array.from({ length: 34 }, (_, index) => ({
+    id: `tenant_ticket:${419 + index}`,
+    ticketId: String(419 + index),
+    sourceModelRaw: 'tenant_ticket',
+    ticketSourceModel: 'TenantTicket' as const,
+    category: index < 23 ? 'Luminarias' : 'Bacheo',
+    zone: index < 18 ? 'Centro' : 'Área todavía no publicada',
+    state: 'awaiting_materialization' as const,
+    reasonCode: 'persisted_address_without_coordinates' as const,
+    inspectSourceEnabled: true as const,
+  })),
+  execution: {
+    readOnly: true,
+    databaseWritePerformed: false,
+    providerCallPerformed: false,
+    coordinateWritePerformed: false,
+  },
+  privacy: {
+    rawAddressExposed: false,
+    addressDigestExposed: false,
+    candidateFingerprintExposed: false,
+    exactCoordinatesExposed: false,
+    tenantScoped: true,
+  },
+});
+
 describe('TerritorialPendingLocationsInbox', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
+    mocks.getPreview.mockRejectedValue(new ApiError('not found', 404));
     mocks.getDetail.mockResolvedValue(adminDetail());
     mocks.getAttempts.mockResolvedValue({ attempts: [] });
   });
@@ -230,6 +273,30 @@ describe('TerritorialPendingLocationsInbox', () => {
       include_ai: 0,
       limit: 100,
     });
+  });
+
+  it('discovers current pending tickets in read-only preview before requiring queue materialization', async () => {
+    const emptyQueue = adminQueue();
+    emptyQueue.summary.total = 0;
+    emptyQueue.pagination.total = 0;
+    emptyQueue.items = [];
+    mocks.getQueue.mockResolvedValue(emptyQueue);
+    mocks.getPreview.mockResolvedValue(previewQueue());
+
+    renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
+
+    expect(await screen.findByText('Pendientes detectadas sin alterar datos')).toBeInTheDocument();
+    expect(screen.getByText('34 informadas')).toBeInTheDocument();
+    expect(screen.getByText('34 con detalle seguro')).toBeInTheDocument();
+    expect(screen.queryByText(/sin detalle publicado/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Reclamo #419')).not.toHaveLength(0);
+    expect(screen.getAllByText('Centro')).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Actualizar cola' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('ticket_id=419'),
+    );
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
   });
 
   it('keeps a 409 review conflict visible and asks the operator to refresh', async () => {

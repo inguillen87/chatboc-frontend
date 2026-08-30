@@ -407,6 +407,62 @@ const DecisionStrip = ({
   </section>
 );
 
+interface RecordNavigatorProps {
+  currentIndex: number;
+  total: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}
+
+const RecordNavigator = ({
+  currentIndex,
+  total,
+  onPrevious,
+  onNext,
+}: RecordNavigatorProps) => {
+  const hasCurrent = currentIndex >= 0 && total > 0;
+  const currentPosition = hasCurrent ? currentIndex + 1 : 0;
+
+  return (
+    <div
+      className="flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-border/70 bg-background"
+      role="group"
+      aria-label="Navegar personas filtradas"
+      data-testid="crm-person-record-navigator"
+    >
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 rounded-none border-r border-border/70"
+        onClick={onPrevious}
+        disabled={!hasCurrent || currentIndex === 0}
+        aria-label="Persona anterior"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <span
+        className="sr-only min-w-[4.5rem] px-2 text-center text-[11px] font-semibold tabular-nums text-muted-foreground sm:not-sr-only sm:block"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {currentPosition} de {total}
+      </span>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 rounded-none border-l border-border/70"
+        onClick={onNext}
+        disabled={!hasCurrent || currentIndex >= total - 1}
+        aria-label="Persona siguiente"
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  );
+};
+
 export default function CrmPeopleWorkspace({
   embedded = false,
   tenantSlug,
@@ -581,6 +637,18 @@ export default function CrmPeopleWorkspace({
     overscan: 8,
     initialRect: { width: 320, height: 760 },
   });
+  const selectedVisibleIndex = React.useMemo(
+    () => visiblePeople.findIndex((person) => getPersonKey(person) === selectedContactId),
+    [getPersonKey, selectedContactId, visiblePeople],
+  );
+  const navigateVisiblePerson = React.useCallback((offset: -1 | 1) => {
+    const nextIndex = selectedVisibleIndex + offset;
+    const nextPerson = visiblePeople[nextIndex];
+    if (!nextPerson) return;
+
+    onSelectContact(getPersonKey(nextPerson));
+    desktopList.scrollToIndex(nextIndex, { align: "auto" });
+  }, [desktopList, getPersonKey, onSelectContact, selectedVisibleIndex, visiblePeople]);
   const mobilePeople = React.useMemo(() => {
     const limit = 250;
     const first = visiblePeople.slice(0, limit);
@@ -1033,6 +1101,12 @@ export default function CrmPeopleWorkspace({
                         </div>
                       </div>
                       <div className={cn("flex flex-wrap items-center gap-2", embedded && "shrink-0 gap-1 sm:gap-2")}>
+                        <RecordNavigator
+                          currentIndex={selectedVisibleIndex}
+                          total={visiblePeople.length}
+                          onPrevious={() => navigateVisiblePerson(-1)}
+                          onNext={() => navigateVisiblePerson(1)}
+                        />
                         <Button
                           size="sm"
                           className={cn("gap-2", embedded && "h-8 w-8 p-0 sm:w-auto sm:px-3")}
