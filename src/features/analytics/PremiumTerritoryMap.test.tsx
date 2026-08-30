@@ -6,8 +6,8 @@ import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTyp
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
   default: (props: {
-    heatmapData?: Array<{ direccion?: string; addressCellLabel?: string }>;
-    fitToBounds?: unknown[];
+    heatmapData?: Array<{ lat?: number; lng?: number; direccion?: string; addressCellLabel?: string }>;
+    fitToBounds?: Array<[number, number]>;
     fitBoundsRequestKey?: string;
     provider?: string;
     mapStyleUrl?: string | null;
@@ -56,6 +56,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
         .filter(Boolean)
         .join('|')}
       data-bounds={String(props.fitToBounds?.length ?? 0)}
+      data-bounds-coordinates={JSON.stringify(props.fitToBounds ?? [])}
       data-fit-request-key={props.fitBoundsRequestKey ?? ''}
       data-provider={props.provider}
       data-style-url={props.mapStyleUrl ?? ''}
@@ -201,6 +202,12 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-geo-features')).toBe('2');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
     expect(map.getAttribute('data-fit-request-key')).toContain('baches');
+    expect(map.getAttribute('data-bounds-coordinates')).toBe(
+      JSON.stringify([
+        [-60.91, -34.61],
+        [-60.92, -34.62],
+      ]),
+    );
 
     chooseTerritoryFacet('Filtrar mapa por zona o barrio', 'centro');
     expect(map.getAttribute('data-points')).toBe('1');
@@ -210,6 +217,8 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: /Luminarias\s+2/ }));
     expect(map.getAttribute('data-points')).toBe('1');
     expect(screen.getByRole('button', { name: /Luminarias\s+2/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(map.getAttribute('data-fit-request-key')).toContain('luminarias');
+    expect(map.getAttribute('data-bounds-coordinates')).toBe(JSON.stringify([[-60.93, -34.63]]));
 
     fireEvent.click(screen.getByRole('button', { name: 'Ambos' }));
     expect(map.getAttribute('data-adaptive-zoom')).toBe('false');

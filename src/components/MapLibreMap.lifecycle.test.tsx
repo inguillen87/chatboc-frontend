@@ -11,6 +11,7 @@ const mapMocks = vi.hoisted(() => ({
     resize: ReturnType<typeof vi.fn>;
     setStyle: ReturnType<typeof vi.fn>;
     setPaintProperty: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
     flyTo: ReturnType<typeof vi.fn>;
     jumpTo: ReturnType<typeof vi.fn>;
     fitBounds: ReturnType<typeof vi.fn>;
@@ -83,6 +84,7 @@ vi.mock("maplibre-gl", () => {
     remove = vi.fn();
     resize = vi.fn();
     setPaintProperty = vi.fn();
+    stop = vi.fn();
     flyTo = vi.fn();
     jumpTo = vi.fn();
     fitBounds = vi.fn();
@@ -357,7 +359,12 @@ describe("MapLibreMap lifecycle", () => {
     const initialSource = sourceFor("initial", -60.95);
     const nextSource = sourceFor("filtered", -60.91);
     const { rerender } = render(
-      <MapLibreMap geoLayerConfig={configFor(initialSource)} showHeatmap showPoints />,
+      <MapLibreMap
+        geoLayerConfig={configFor(initialSource)}
+        heatmapRadiusScale={2.8}
+        showHeatmap
+        showPoints
+      />,
     );
 
     await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
@@ -367,7 +374,12 @@ describe("MapLibreMap lifecycle", () => {
     const updatesBeforeFilter = mapMocks.pointSourceSetData.mock.calls.length;
 
     rerender(
-      <MapLibreMap geoLayerConfig={configFor(nextSource)} showHeatmap showPoints />,
+      <MapLibreMap
+        geoLayerConfig={configFor(nextSource)}
+        heatmapRadiusScale={2.35}
+        showHeatmap
+        showPoints
+      />,
     );
 
     await waitFor(() =>
@@ -378,6 +390,13 @@ describe("MapLibreMap lifecycle", () => {
     );
     expect(mapMocks.heatSourceSetData.mock.calls.length).toBeGreaterThan(heatUpdatesBeforeFilter);
     expect(mapMocks.pointSourceSetData.mock.calls.length).toBeGreaterThan(updatesBeforeFilter);
+    await waitFor(() =>
+      expect(mapMocks.instances[0]?.setPaintProperty).toHaveBeenCalledWith(
+        "territory-heat",
+        "heatmap-radius",
+        expect.arrayContaining(["*", 2.35]),
+      ),
+    );
     expect(mapMocks.constructorCalls).toHaveLength(1);
     expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
   });
@@ -758,6 +777,78 @@ describe("MapLibreMap lifecycle", () => {
     await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(3));
     expect(mapMocks.constructorCalls).toHaveLength(1);
     expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
+  });
+
+  it("reframes the same map for a new filtered category and caps coincident locations", async () => {
+    const luminariasCoordinates: [number, number][] = [
+      [-60.95, -34.61],
+      [-60.93, -34.59],
+      [-60.91, -34.57],
+    ];
+    const treeCoordinates: [number, number][] = [
+      [-60.84, -34.64],
+      [-60.83, -34.63],
+      [-60.82, -34.62],
+      [-60.81, -34.61],
+      [-60.8, -34.6],
+    ];
+    const initialSource = sourceFor("luminarias", -60.93);
+    const filteredSource = sourceFor("arbol-caido", -60.82);
+    const { rerender } = render(
+      <MapLibreMap
+        fitToBounds={luminariasCoordinates}
+        fitBoundsRequestKey="luminarias:all:all"
+        geoLayerConfig={configFor(initialSource)}
+        heatmapRadiusScale={2.8}
+        showHeatmap
+        showPoints
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <MapLibreMap
+        fitToBounds={treeCoordinates}
+        fitBoundsRequestKey="arbol-caido:all:all"
+        geoLayerConfig={configFor(filteredSource)}
+        heatmapRadiusScale={2.35}
+        showHeatmap
+        showPoints
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.pointSourceSetData).toHaveBeenCalledWith(filteredSource));
+    await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2));
+    expect(mapMocks.instances[0]?.stop).toHaveBeenCalled();
+    expect(mapMocks.constructorCalls).toHaveLength(1);
+    expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
+
+    const coincidentTreeCoordinates = Array.from(
+      { length: 5 },
+      () => [-60.805, -34.605] as [number, number],
+    );
+    rerender(
+      <MapLibreMap
+        fitToBounds={coincidentTreeCoordinates}
+        fitBoundsRequestKey="arbol-caido:centro:all"
+        geoLayerConfig={configFor(filteredSource)}
+        heatmapRadiusScale={2.35}
+        showHeatmap
+        showPoints
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mapMocks.instances[0]?.flyTo).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          center: [-60.805, -34.605],
+          zoom: 12,
+        }),
+      ),
+    );
+    expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(2);
+    expect(mapMocks.constructorCalls).toHaveLength(1);
   });
 
   it("debounces bounding-box events, toggles callbacks without recreating the map, and cleans up", async () => {

@@ -138,10 +138,53 @@ const addLayer = (map: Map, layer: any) => {
 
 const MAP_HEAT_SOURCE_ID = "chatboc-runtime-heatmap";
 const MAP_POINT_SOURCE_ID = "chatboc-runtime-points";
+const FILTERED_VIEW_MAX_ZOOM = 14;
+const COMPACT_FILTERED_VIEW_MAX_ZOOM = 13;
+const COMPACT_FILTERED_VIEW_SPAN_DEGREES = 0.0025;
 const EMPTY_MAP_FEATURE_COLLECTION: { type: "FeatureCollection"; features: unknown[] } = {
   type: "FeatureCollection" as const,
   features: [],
 };
+
+const heatmapRadiusExpression = (scale: number) => [
+  "*",
+  scale,
+  [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    0,
+    [
+      "max",
+      4,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        2.6,
+      ],
+    ],
+    9,
+    [
+      "max",
+      14,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        4.8,
+      ],
+    ],
+    13,
+    [
+      "max",
+      18,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        6.4,
+      ],
+    ],
+  ],
+];
 
 const sourceDataForLayer = (
   source: { type: "FeatureCollection"; features: unknown[] },
@@ -917,6 +960,7 @@ export default function MapLibreMap({
   const initialZoomRef = useRef(initialZoom);
   const prefersReducedMotionRef = useRef(prefersReducedMotion);
   const boundsPaddingRef = useRef(boundsPadding);
+  const heatmapRadiusScaleRef = useRef(resolvedHeatmapRadiusScale);
 
   useEffect(() => {
     apiKeyRef.current = resolvedMaptilerKey;
@@ -965,6 +1009,10 @@ export default function MapLibreMap({
   useEffect(() => {
     boundsPaddingRef.current = boundsPadding;
   }, [boundsPadding]);
+
+  useEffect(() => {
+    heatmapRadiusScaleRef.current = resolvedHeatmapRadiusScale;
+  }, [resolvedHeatmapRadiusScale]);
 
   useEffect(() => {
     latestHeatmap.current = processedHeatmap;
@@ -1194,45 +1242,7 @@ export default function MapLibreMap({
               "heatmap-intensity": heatmapPalette === "faro"
                 ? ["interpolate", ["linear"], ["zoom"], 0, 1.8, 15, 4.6]
                 : ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
-              "heatmap-radius": [
-                "*",
-                resolvedHeatmapRadiusScale,
-                [
-                  "interpolate",
-                  ["linear"],
-                  ["zoom"],
-                  0,
-                  [
-                    "max",
-                    4,
-                    [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                      2.6,
-                    ],
-                  ],
-                  9,
-                  [
-                    "max",
-                    14,
-                    [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                      4.8,
-                    ],
-                  ],
-                  13,
-                  [
-                    "max",
-                    18,
-                    [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                      6.4,
-                    ],
-                  ],
-                ],
-              ],
+              "heatmap-radius": heatmapRadiusExpression(heatmapRadiusScaleRef.current),
               "heatmap-opacity": adaptiveZoomMode
                 ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
                 : heatmapPalette === "faro"
@@ -1846,7 +1856,6 @@ export default function MapLibreMap({
     mapTileAttribution,
     mapTileUrl,
     pointLabelMode,
-    resolvedHeatmapRadiusScale,
     resolvedMaptilerKey,
     resolvedPointLabelMinZoom,
     resolvedPointMinZoom,
@@ -1930,6 +1939,32 @@ export default function MapLibreMap({
           : 0.65,
     );
   }, [adaptiveZoomMode, configuredLayerIds.heat, heatmapPalette, mapGeneration]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyRadius = () => {
+      if (!map.getLayer(configuredLayerIds.heat)) return;
+      map.setPaintProperty(
+        configuredLayerIds.heat,
+        "heatmap-radius",
+        heatmapRadiusExpression(resolvedHeatmapRadiusScale),
+      );
+    };
+
+    if (map.isStyleLoaded()) {
+      applyRadius();
+      return;
+    }
+
+    map.once("load", applyRadius);
+    map.once("style.load", applyRadius);
+    return () => {
+      map.off("load", applyRadius);
+      map.off("style.load", applyRadius);
+    };
+  }, [configuredLayerIds.heat, mapGeneration, resolvedHeatmapRadiusScale]);
 
   useEffect(() => {
     if (!configuredInteractions.timeSliderEnabled) return;
@@ -2171,11 +2206,17 @@ export default function MapLibreMap({
   }, [adminLocation, mapGeneration]);
 
   const fitBoundsCoordinatesKey = JSON.stringify(
-    (fitToBounds ?? []).filter(
-      (value): value is [number, number] =>
-        Array.isArray(value) &&
-        value.length === 2 &&
-        isRenderableCoordinatePair(value[1], value[0]),
+    Array.from(
+      new globalThis.Map(
+        (fitToBounds ?? [])
+          .filter(
+            (value): value is [number, number] =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              isRenderableCoordinatePair(value[1], value[0]),
+          )
+          .map((coordinate) => [`${coordinate[0]}:${coordinate[1]}`, coordinate] as const),
+      ).values(),
     ).sort(([leftLng, leftLat], [rightLng, rightLat]) =>
       leftLng - rightLng || leftLat - rightLat,
     ),
@@ -2197,8 +2238,31 @@ export default function MapLibreMap({
     }
 
     const applyBounds = () => {
-      const moveTo = (nextCenter: [number, number]) => {
-        const options = { center: nextCenter, zoom: initialZoomRef.current };
+      let west = coords[0][0];
+      let east = coords[0][0];
+      let south = coords[0][1];
+      let north = coords[0][1];
+      for (let index = 1; index < coords.length; index += 1) {
+        const [lng, lat] = coords[index];
+        west = Math.min(west, lng);
+        east = Math.max(east, lng);
+        south = Math.min(south, lat);
+        north = Math.max(north, lat);
+      }
+      const center: [number, number] = [(west + east) / 2, (south + north) / 2];
+      const longitudeScale = Math.max(0.2, Math.cos((center[1] * Math.PI) / 180));
+      const effectiveSpan = Math.max((east - west) * longitudeScale, north - south);
+      const compactSet = effectiveSpan <= COMPACT_FILTERED_VIEW_SPAN_DEGREES;
+
+      try {
+        map.stop();
+        map.resize();
+      } catch {
+        // A style transition can finish between the render and this camera request.
+      }
+
+      const moveTo = (nextCenter: [number, number], zoom = initialZoomRef.current) => {
+        const options = { center: nextCenter, zoom };
         if (prefersReducedMotionRef.current) {
           map.jumpTo(options);
         } else {
@@ -2206,8 +2270,12 @@ export default function MapLibreMap({
         }
       };
 
-      if (coords.length === 1) {
-        moveTo(coords[0]);
+      if (coords.length === 1 || compactSet) {
+        const compactZoom = Math.min(
+          COMPACT_FILTERED_VIEW_MAX_ZOOM,
+          Math.max(10, initialZoomRef.current),
+        );
+        moveTo(center, compactZoom);
         return;
       }
 
@@ -2217,21 +2285,11 @@ export default function MapLibreMap({
           new maplibre.LngLatBounds(coords[0], coords[0]),
         );
 
-        const samePoint =
-          typeof bounds.getNorth === "function" &&
-          bounds.getNorth() === bounds.getSouth() &&
-          bounds.getEast() === bounds.getWest();
-
-        if (samePoint && typeof bounds.getCenter === "function") {
-          moveTo(bounds.getCenter().toArray() as [number, number]);
-          return;
-        }
-
         try {
           map.fitBounds(bounds, {
             padding: boundsPaddingRef.current ?? 48,
-            maxZoom: coords.length <= 2 ? 14 : 15,
-            duration: prefersReducedMotionRef.current ? 0 : 1000,
+            maxZoom: FILTERED_VIEW_MAX_ZOOM,
+            duration: prefersReducedMotionRef.current ? 0 : 700,
           });
           return;
         } catch (err) {
