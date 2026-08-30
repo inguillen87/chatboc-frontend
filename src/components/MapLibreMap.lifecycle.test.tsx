@@ -458,9 +458,10 @@ describe("MapLibreMap lifecycle", () => {
   });
 
   it("supports the Faro territorial presentation without changing global map defaults", async () => {
-    render(
+    const source = sourceFor("faro-territory", -67.7);
+    const { rerender } = render(
       <MapLibreMap
-        geoLayerConfig={configFor(sourceFor("faro-territory", -67.7))}
+        geoLayerConfig={configFor(source)}
         showHeatmap
         showPoints
         showPointLabels
@@ -476,6 +477,7 @@ describe("MapLibreMap lifecycle", () => {
     const pointLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points");
     const labelLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points-labels");
     const heatLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-heat");
+    const haloLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points-halo");
 
     expect(pointLayer).toEqual(expect.objectContaining({ minzoom: 4.5 }));
     expect(labelLayer).toEqual(expect.objectContaining({
@@ -487,9 +489,32 @@ describe("MapLibreMap lifecycle", () => {
     expect(heatLayer).toEqual(expect.objectContaining({
       paint: expect.objectContaining({ "heatmap-opacity": 0.88 }),
     }));
+    expect(haloLayer).toEqual(expect.objectContaining({ source: "chatboc-runtime-heatmap" }));
     expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
+
+    mapMocks.layoutCalls.length = 0;
+    rerender(
+      <MapLibreMap
+        geoLayerConfig={configFor(source)}
+        showHeatmap
+        showPoints={false}
+        showPointLabels={false}
+        pointMinZoom={4.5}
+        pointLabelMinZoom={9}
+        pointLabelMode="barrio"
+        heatmapRadiusScale={2.8}
+        heatmapPalette="faro"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mapMocks.layoutCalls).toContainEqual(["territory-points-halo", "visibility", "visible"]),
+    );
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
   });
 
   it("exposes an accessible map region and refits on an explicit request without recreating it", async () => {

@@ -668,6 +668,7 @@ const toggleLayers = (
   showPointLabels: boolean,
   showPolygons: boolean,
   layerIds: { heat: string; halo: string; circles: string; labels: string },
+  haloFollowsHeat = false,
 ) => {
   if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
@@ -680,7 +681,7 @@ const toggleLayers = (
     map.setLayoutProperty(
       layerIds.halo,
       "visibility",
-      showPoints && !showPolygons ? "visible" : "none",
+      (haloFollowsHeat ? showHeatmap : showPoints) && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer(layerIds.circles)) {
@@ -1253,7 +1254,7 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.halo,
             type: "circle",
-            source: MAP_POINT_SOURCE_ID,
+            source: heatmapPalette === "faro" ? MAP_HEAT_SOURCE_ID : MAP_POINT_SOURCE_ID,
             minzoom: resolvedPointMinZoom,
             paint: {
               "circle-radius": heatmapPalette === "faro"
@@ -1444,6 +1445,7 @@ export default function MapLibreMap({
             showPointLabelsRef.current,
             showPolygonsRef.current,
             configuredLayerIds,
+            heatmapPalette === "faro",
           );
           const currentInteractions = configuredInteractionsRef.current;
           trackFrontendEvent("map_loaded", {
@@ -1853,6 +1855,7 @@ export default function MapLibreMap({
         resolvedShowPointLabels,
         showPolygons,
         configuredLayerIds,
+        heatmapPalette === "faro",
       );
       map.once("load", handler);
       return () => {
@@ -1867,6 +1870,7 @@ export default function MapLibreMap({
       resolvedShowPointLabels,
       showPolygons,
       configuredLayerIds,
+      heatmapPalette === "faro",
     );
     trackFrontendEvent("map_layer_toggle", {
       provider: "maplibre",
@@ -1889,6 +1893,7 @@ export default function MapLibreMap({
     configuredLayerIds.labels,
     emitBackendMapEvent,
     geoLayerConfig?.contract_version,
+    heatmapPalette,
     mapGeneration,
     resolvedShowPointLabels,
     resolvedShowPoints,
