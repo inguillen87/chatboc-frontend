@@ -67,7 +67,7 @@ type ActiveFilterSummary = {
 };
 
 type MapFocusMode = 'territory' | 'quality' | 'telemetry';
-type MapDisplayMode = 'points' | 'clusters' | 'heat';
+type MapDisplayMode = 'hybrid' | 'clusters' | 'heat';
 
 type BackendActionSummary = {
   label: string;
@@ -1760,7 +1760,7 @@ export function PremiumTerritoryHeatmap({
     ? canShowExactPointMarkers && layerIsEnabled(enabledLayerIds, ['category', 'categoria'])
     : canShowExactPointMarkers && mapCategoryFacets.length > 0;
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(() =>
-    showCategoryLayer ? 'points' : 'heat',
+    showCategoryLayer && showHeatLayer ? 'hybrid' : showCategoryLayer ? 'clusters' : 'heat',
   );
   const temporarilyHiddenPointModeRef = useRef<Exclude<MapDisplayMode, 'heat'> | null>(null);
 
@@ -1775,10 +1775,17 @@ export function PremiumTerritoryHeatmap({
     }
 
     if (mapDisplayMode === 'heat' && !showHeatLayer && showCategoryLayer) {
-      const restoredMode = temporarilyHiddenPointModeRef.current ?? 'points';
+      const restoredMode = temporarilyHiddenPointModeRef.current ?? 'hybrid';
       temporarilyHiddenPointModeRef.current = null;
       setSelectedMapPoint(null);
       setMapDisplayMode(restoredMode);
+      return;
+    }
+
+    if (mapDisplayMode === 'hybrid' && !showHeatLayer && showCategoryLayer) {
+      temporarilyHiddenPointModeRef.current = 'hybrid';
+      setSelectedMapPoint(null);
+      setMapDisplayMode('clusters');
       return;
     }
 
@@ -1791,7 +1798,7 @@ export function PremiumTerritoryHeatmap({
       return;
     }
 
-    if (temporarilyHiddenPointModeRef.current) {
+    if (temporarilyHiddenPointModeRef.current && showHeatLayer) {
       const restoredMode = temporarilyHiddenPointModeRef.current;
       temporarilyHiddenPointModeRef.current = null;
       setMapDisplayMode(restoredMode);
@@ -1908,7 +1915,7 @@ export function PremiumTerritoryHeatmap({
   );
   const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
-  const renderHeatLayer = mapDisplayMode === 'heat' && showHeatLayer;
+  const renderHeatLayer = mapDisplayMode !== 'clusters' && showHeatLayer;
   const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
   const clusterDisplayMode = mapDisplayMode === 'clusters';
   const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
@@ -1919,8 +1926,8 @@ export function PremiumTerritoryHeatmap({
       ? 'La visualización seleccionada está desactivada. Elegí uno de los modos disponibles.'
       : filteredMapEmpty
     ? 'La selección no tiene coordenadas mapeadas. No se agregan puntos estimados.'
-    : mapDisplayMode === 'points'
-      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. Cada marcador usa coordenadas persistidas válidas y conserva su categoría.`
+    : mapDisplayMode === 'hybrid'
+      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. El calor y los marcadores categorizados usan únicamente coordenadas persistidas válidas.`
       : mapDisplayMode === 'clusters'
         ? visibleLiveMapPoints.length > 1
           ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada agrupada', 'ubicaciones mapeadas agrupadas')} por proximidad, sin alterar los filtros.`
@@ -2483,9 +2490,9 @@ export function PremiumTerritoryHeatmap({
               aria-label="Visualización del mapa"
             >
               {([
-                { id: 'points', label: 'Puntos' },
+                { id: 'hybrid', label: 'Mapa operativo' },
                 { id: 'clusters', label: 'Clústeres' },
-                { id: 'heat', label: 'Calor' },
+                { id: 'heat', label: 'Solo calor' },
               ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
                 <Button
                   key={mode.id}

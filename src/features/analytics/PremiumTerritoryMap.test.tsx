@@ -170,18 +170,20 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
-    expect(screen.getByRole('radio', { name: 'Puntos' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getAllByRole('radio').map((control) => control.textContent)).toEqual([
-      'Puntos',
+      'Mapa operativo',
       'Clústeres',
-      'Calor',
+      'Solo calor',
     ]);
     expect(mapShell).not.toContainElement(screen.getByTestId('territory-display-mode-control'));
     expect(screen.queryByRole('radio', { name: 'Automático' })).toBeNull();
     expect(screen.queryByRole('radio', { name: 'Ambos' })).toBeNull();
     const liveMap = screen.getByTestId('mock-live-map');
-    expect(liveMap).toHaveAttribute('data-point-label-min-zoom', '10');
-    expect(liveMap).toHaveAttribute('data-disable-client-clustering', 'true');
+    expect(liveMap).toHaveAttribute('data-show-heatmap', 'false');
+    expect(liveMap).toHaveAttribute('data-show-points', 'true');
+    expect(liveMap).toHaveAttribute('data-point-label-min-zoom', '7');
+    expect(liveMap).toHaveAttribute('data-disable-client-clustering', 'false');
     const describedBy = liveMap.getAttribute('data-aria-describedby');
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent('Ver puntos en lista');
@@ -225,7 +227,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-points')).toBe('4');
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
-    expect(map.getAttribute('data-show-heatmap')).toBe('false');
+    expect(map.getAttribute('data-show-heatmap')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
     expect(map.getAttribute('data-point-label-mode')).toBe('count');
     expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
@@ -238,10 +240,10 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(map.getAttribute('data-show-points')).toBe('false');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
-    expect(screen.getByRole('radio', { name: 'Calor' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Puntos' })).not.toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Puntos' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toHaveAttribute('aria-checked', 'true');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
 
@@ -276,16 +278,16 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-points')).toBe('1');
 
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Calor' })).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('radio', { name: 'Calor' }));
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Solo calor' }));
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Calor' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     expect(map.getAttribute('data-disable-client-clustering')).toBe('true');
 
     fireEvent.click(screen.getByRole('radio', { name: 'Clústeres' }));
     expect(map.getAttribute('data-disable-client-clustering')).toBe('false');
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Calor' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Solo calor' }));
     expect(map.getAttribute('data-show-heatmap')).toBe('true');
     expect(map.getAttribute('data-show-points')).toBe('false');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
@@ -809,8 +811,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-evidence-present')).toBe('false');
     expect(map.getAttribute('data-show-evidence-badge')).toBe('false');
     expect(map.getAttribute('data-heatmap-palette')).toBe('default');
-    expect(screen.getByRole('radio', { name: 'Calor' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('radio', { name: 'Puntos' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Capas por categoría/ })).toBeDisabled();
     expect(screen.queryByRole('option', { name: /^Baches ·/ })).toBeNull();
@@ -837,12 +839,12 @@ describe('PremiumTerritoryHeatmap', () => {
 
     const map = screen.getByTestId('mock-live-map');
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Calor' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     expect(map).toHaveAttribute('data-show-heatmap', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: /^Calor territorial/ }));
 
-    expect(screen.getByRole('radio', { name: 'Calor' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toBeDisabled();
     expect(map).toHaveAttribute('data-show-heatmap', 'false');
     expect(map).toHaveAttribute('data-show-points', 'false');
     expect(screen.getByTestId('territory-display-mode-status')).toHaveTextContent(
@@ -850,7 +852,7 @@ describe('PremiumTerritoryHeatmap', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Puntos' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(map).toHaveAttribute('data-show-points', 'true');
   });
 
@@ -1120,7 +1122,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-geo-enabled-layers')).toContain('heat');
     expect(liveMap.getAttribute('data-geo-default-viewport')).toBe('centro');
     expect(liveMap.getAttribute('data-geo-time-slider')).toBe('true');
-    expect(liveMap.getAttribute('data-show-heatmap')).toBe('false');
+    expect(liveMap.getAttribute('data-show-heatmap')).toBe('true');
     expect(liveMap.getAttribute('data-show-points')).toBe('true');
     expect(liveMap.getAttribute('data-show-point-labels')).toBe('false');
     expect(liveMap.getAttribute('data-point-label-mode')).toBe('count');
