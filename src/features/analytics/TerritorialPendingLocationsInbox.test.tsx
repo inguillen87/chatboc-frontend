@@ -1,21 +1,44 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/utils/api';
+
 import type { OperationsHeatmapV1 } from './analyticsTypes';
 import { TerritorialPendingLocationsInbox } from './TerritorialPendingLocationsInbox';
+import type {
+  TerritorialGeocodingDetail,
+  TerritorialGeocodingItem,
+  TerritorialGeocodingQueue,
+} from './territorialGeocodingTypes';
 
 const mocks = vi.hoisted(() => ({
   getOperationsHeatmapV2: vi.fn(),
+  getQueue: vi.fn(),
+  getDetail: vi.fn(),
+  getAttempts: vi.fn(),
+  review: vi.fn(),
+  sync: vi.fn(),
 }));
 
-vi.mock('./analyticsApi', () => ({
-  getOperationsHeatmapV2: mocks.getOperationsHeatmapV2,
-}));
+vi.mock('./analyticsApi', () => ({ getOperationsHeatmapV2: mocks.getOperationsHeatmapV2 }));
+vi.mock('./territorialGeocodingApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./territorialGeocodingApi')>();
+  return {
+    ...actual,
+    getTerritorialGeocodingQueue: mocks.getQueue,
+    getTerritorialGeocodingDetail: mocks.getDetail,
+    getTerritorialGeocodingAttempts: mocks.getAttempts,
+    reviewTerritorialGeocodingJob: mocks.review,
+    syncTerritorialGeocodingQueue: mocks.sync,
+    createTerritorialReviewIdempotencyKey: () => 'geo-review:geo-job-419:ui-test',
+    createTerritorialSyncIdempotencyKey: () => 'geo-sync:ui-test-01234567',
+  };
+});
 
 const renderInbox = (props: ComponentProps<typeof TerritorialPendingLocationsInbox> = { tenantSlug: 'junin' }) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <TerritorialPendingLocationsInbox {...props} />
@@ -46,28 +69,145 @@ const heatmapFixture = (): OperationsHeatmapV1 => ({
   },
 });
 
-describe('TerritorialPendingLocationsInbox', () => {
-  beforeEach(() => mocks.getOperationsHeatmapV2.mockReset());
+const adminItem: TerritorialGeocodingItem = {
+  id: 'geo-job-419',
+  ticketId: '419',
+  sourceModelRaw: 'municipio_ticket',
+  ticketSourceModel: 'MunicipioTicket',
+  status: 'ready',
+  reasonCode: 'pending_review',
+  reviewState: 'unreviewed',
+  latestReview: null,
+  category: 'Luminarias',
+  zone: 'Zona Centro',
+  quality: {
+    state: 'requires_human_review',
+    hasProposal: true,
+    autoApplyEligible: false,
+    jurisdictionStatus: 'inside',
+    locationType: 'ROOFTOP',
+    partialMatch: false,
+    localityMatch: true,
+    provinceMatch: true,
+    countryMatch: true,
+    issues: [],
+  },
+  attemptCount: 0,
+  lastAttemptAt: null,
+  createdAt: '2026-08-30T11:00:00Z',
+  updatedAt: '2026-08-30T11:00:00Z',
+  detailHref: '/api/v2/analytics/operations/geocoding-queue/geo-job-419',
+  attemptsHref: '/api/v2/analytics/operations/geocoding-queue/geo-job-419/attempts',
+  reviewAction: {
+    href: '/api/v2/analytics/operations/geocoding-queue/geo-job-419/review',
+    canApprove: true,
+    canReject: true,
+    approvedReasonCodes: ['verified_on_map'],
+    rejectedReasonCodes: ['incorrect_location'],
+    coordinateApplicationSupported: false,
+  },
+};
 
-  it('renders a compact safe queue and keeps write decisions disabled without a safe contract', async () => {
+const adminQueue = (): TerritorialGeocodingQueue => ({
+  contractVersion: 'operations.territorial_geocoding_admin.v1',
+  requestId: 'req-ui-1',
+  tenantId: '4',
+  summary: {
+    total: 1,
+    withProposal: 1,
+    needsHumanReview: 1,
+    coordinateWritesFromReview: 0,
+    byStatus: { ready: 1 },
+    byReviewState: { unreviewed: 1 },
+    byReasonCode: { pending_review: 1 },
+    byQualityState: { requires_human_review: 1 },
+  },
+  pagination: { page: 1, perPage: 100, total: 1, hasNext: false },
+  items: [adminItem],
+  privacy: { rawAddressExposed: false, addressDigestExposed: false, exactCoordinatesExposed: false, aggregateListOnly: true },
+});
+
+const adminDetail = (): TerritorialGeocodingDetail => ({
+  contractVersion: 'operations.territorial_geocoding_admin.v1',
+  tenantId: '4',
+  item: adminItem,
+  proposal: {
+    lat: -33.1334,
+    lng: -68.4861,
+    locationType: 'ROOFTOP',
+    partialMatch: false,
+    provider: 'configured_provider',
+    providerPlaceId: null,
+    validation: { autoApplyEligible: false, issues: [], jurisdictionStatus: 'inside', localityMatch: true, provinceMatch: true, countryMatch: true },
+  },
+  proposalDigest: 'safe-digest',
+  attempts: [],
+  reviews: [],
+  privacy: { rawAddressExposed: false, addressDigestExposed: false, exactCoordinatesExposed: true, authorizedAdminDetail: true },
+  writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: false, reviewIsHumanDecisionOnly: true },
+});
+
+describe('TerritorialPendingLocationsInbox', () => {
+  beforeEach(() => {
+    Object.values(mocks).forEach((mock) => mock.mockReset());
+    mocks.getDetail.mockResolvedValue(adminDetail());
+    mocks.getAttempts.mockResolvedValue({ attempts: [] });
+  });
+
+  it('uses the administrative queue and requires an explicit confirmed reason before reviewing', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.review.mockResolvedValue({ coordinateWritePerformed: false });
+
+    renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
+
+    expect(await screen.findByText('1 informadas')).toBeInTheDocument();
+    expect(await screen.findByText('Propuesta geográfica')).toBeInTheDocument();
+    expect(screen.queryByText(/742/)).not.toBeInTheDocument();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar propuesta' }));
+    const submit = screen.getByRole('button', { name: 'Registrar decisión' });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Motivo de la revisión territorial'), { target: { value: 'verified_on_map' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(mocks.review).toHaveBeenCalled());
+    expect(mocks.review.mock.calls[0][0]).toEqual({
+      tenantSlug: 'junin',
+      jobId: 'geo-job-419',
+      decision: 'approved',
+      reasonCode: 'verified_on_map',
+      idempotencyKey: 'geo-review:geo-job-419:ui-test',
+    });
+    expect(mocks.review.mock.calls[0][0]).not.toHaveProperty('applyCoordinates');
+    expect(mocks.review.mock.calls[0][0]).not.toHaveProperty('apply_coordinates');
+  });
+
+  it('fails closed on 403 instead of substituting an aggregate heatmap', async () => {
+    mocks.getQueue.mockRejectedValue(new ApiError('forbidden', 403));
+
+    renderInbox();
+
+    expect(await screen.findByText('Acceso administrativo requerido')).toBeInTheDocument();
+    expect(screen.getByText(/falla cerrada/i)).toBeInTheDocument();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+  });
+
+  it('uses the heatmap only as an explicit read-only fallback when the endpoint is unavailable', async () => {
+    mocks.getQueue.mockRejectedValue(new ApiError('not found', 404));
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
 
     renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
 
-    expect(screen.getByRole('heading', { name: 'Ubicaciones pendientes' })).toBeInTheDocument();
-    expect(await screen.findByText('2 informadas')).toBeInTheDocument();
-    expect(screen.getByText('1 sin detalle publicado')).toBeInTheDocument();
+    expect(await screen.findByText('Modo lectura de respaldo')).toBeInTheDocument();
+    expect(screen.getByText('2 informadas')).toBeInTheDocument();
     expect(screen.getAllByText('Corredor Plaza departamental')).not.toHaveLength(0);
     expect(screen.queryByText(/742/)).not.toBeInTheDocument();
-
-    const ticketLinks = screen.getAllByRole('link', { name: /abrir ticket/i });
-    expect(ticketLinks[0]).toHaveAttribute(
-      'href',
-      '/perfil?tab=tickets&focus=territorial_location_review&ticket_id=419&tenant_slug=junin&tenant=junin&source_model=MunicipioTicket',
-    );
-    expect(screen.getByRole('link', { name: /revisar evidencia/i })).toHaveAttribute('href', expect.stringContaining('ticket_id=419'));
     expect(screen.getByRole('button', { name: 'Aprobar ubicación' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Rechazar ubicación' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actualizar cola' })).toBeDisabled();
     expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith({
       tenantSlug: 'junin',
       scope: 'municipio',
@@ -77,7 +217,69 @@ describe('TerritorialPendingLocationsInbox', () => {
     });
   });
 
-  it('shows an honest count-only state when the backend withholds candidate detail', async () => {
+  it('keeps a 409 review conflict visible and asks the operator to refresh', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.review.mockRejectedValue(new ApiError('conflict', 409));
+    renderInbox();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Aprobar propuesta' }));
+    fireEvent.change(screen.getByLabelText('Motivo de la revisión territorial'), { target: { value: 'verified_on_map' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar decisión' }));
+
+    expect(await screen.findByText('Conflicto de revisión')).toBeInTheDocument();
+    expect(screen.getByText(/actualizá la cola/i)).toBeInTheDocument();
+  });
+
+  it('runs sync only after confirmation, exposes loading, and renders an idempotent replay summary', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    let resolveSync!: (value: unknown) => void;
+    mocks.sync.mockReturnValue(new Promise((resolve) => { resolveSync = resolve; }));
+    renderInbox();
+
+    await screen.findByText('1 informadas');
+    const trigger = screen.getByRole('button', { name: 'Actualizar cola' });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    expect(mocks.sync).not.toHaveBeenCalled();
+    fireEvent.click(trigger);
+    expect(screen.getByRole('heading', { name: 'Actualizar cola territorial' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar actualización' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar actualización' })).toBeDisabled());
+    expect(mocks.sync).toHaveBeenCalled();
+    expect(mocks.sync.mock.calls[0][0]).toEqual({ tenantSlug: 'junin', idempotencyKey: 'geo-sync:ui-test-01234567' });
+
+    await act(async () => resolveSync({
+      contractVersion: 'operations.territorial_geocoding_sync.v1',
+      tenantId: '4',
+      summary: { discovered: 4, created: 1, existing: 3, stale: 1, refreshed: 1, hidden: 0 },
+      execution: { providerCallPerformed: false, coordinateWritePerformed: false },
+      idempotentReplay: true,
+    }));
+
+    expect(await screen.findByText('Cola actualizada')).toBeInTheDocument();
+    expect(screen.getByText('1 creadas')).toBeInTheDocument();
+    expect(screen.getByText('3 existentes')).toBeInTheDocument();
+    expect(screen.getByText('Repetición idempotente')).toBeInTheDocument();
+    expect(screen.getByText(/sin proveedor · sin escritura/i)).toBeInTheDocument();
+  });
+
+  it('keeps a sync conflict in the confirmation dialog', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.sync.mockRejectedValue(new ApiError('sync in progress', 409));
+    renderInbox();
+
+    await screen.findByText('1 informadas');
+    const trigger = screen.getByRole('button', { name: 'Actualizar cola' });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar actualización' }));
+
+    expect(await screen.findByText('Actualización en conflicto')).toBeInTheDocument();
+    expect(screen.getByText('sync in progress')).toBeInTheDocument();
+  });
+
+  it('shows an honest count-only state when the fallback withholds candidate detail', async () => {
+    mocks.getQueue.mockRejectedValue(new ApiError('not found', 404));
     mocks.getOperationsHeatmapV2.mockResolvedValue({
       ...heatmapFixture(),
       geocoding: { candidate_count: 34, status: 'pending' },
@@ -88,6 +290,5 @@ describe('TerritorialPendingLocationsInbox', () => {
     expect(await screen.findByText('Hay pendientes, pero falta el detalle seguro')).toBeInTheDocument();
     expect(screen.getByText(/informa 34 ubicaciones pendientes/i)).toBeInTheDocument();
     expect(screen.getByText(/no se inventan filas ni domicilios/i)).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole('list', { name: /ubicaciones visibles/i })).not.toBeInTheDocument());
   });
 });

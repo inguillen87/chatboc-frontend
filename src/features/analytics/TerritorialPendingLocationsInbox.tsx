@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Filter,
   LocateFixed,
+  LockKeyhole,
   Map as MapIcon,
   MapPinOff,
   RefreshCw,
@@ -20,16 +21,44 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 
 import { getOperationsHeatmapV2 } from './analyticsApi';
 import {
+  adaptTerritorialAdminQueue,
   adaptPendingLocationQueue,
   normalizeTerritorialFilter,
   type PendingLocationAction,
   type PendingLocationCandidate,
 } from './territorialPendingLocations';
+import {
+  createTerritorialReviewIdempotencyKey,
+  createTerritorialSyncIdempotencyKey,
+  getTerritorialGeocodingAttempts,
+  getTerritorialGeocodingDetail,
+  getTerritorialGeocodingQueue,
+  isTerritorialApiStatus,
+  isTerritorialQueueEndpointUnavailable,
+  reviewTerritorialGeocodingJob,
+  syncTerritorialGeocodingQueue,
+} from './territorialGeocodingApi';
+import type {
+  TerritorialGeocodingAttempt,
+  TerritorialGeocodingDetail,
+  TerritorialGeocodingItem,
+  TerritorialGeocodingQueue,
+  TerritorialGeocodingSyncResponse,
+  TerritorialReviewDecision,
+} from './territorialGeocodingTypes';
 
 interface TerritorialPendingLocationsInboxProps {
   tenantSlug?: string | null;
@@ -37,6 +66,43 @@ interface TerritorialPendingLocationsInboxProps {
   initialZone?: string | null;
   embedded?: boolean;
 }
+
+type QueueQueryResult =
+  | { source: 'admin'; queue: TerritorialGeocodingQueue }
+  | { source: 'heatmap_fallback'; queue: ReturnType<typeof adaptPendingLocationQueue> };
+
+interface ReviewDraft {
+  jobId: string;
+  decision: TerritorialReviewDecision;
+  reasonCode: string;
+  idempotencyKey: string;
+  confirmed: boolean;
+}
+
+const REVIEW_REASON_LABELS: Record<string, string> = {
+  verified_against_source: 'Verificada contra la fuente del reclamo',
+  verified_on_map: 'Verificada manualmente en el mapa',
+  verified_with_field_team: 'Verificada con el equipo de territorio',
+  ambiguous_candidate: 'La propuesta es ambigua',
+  duplicate_job: 'La revisión está duplicada',
+  incorrect_location: 'La ubicación propuesta es incorrecta',
+  insufficient_precision: 'La precisión es insuficiente',
+  outside_jurisdiction: 'La propuesta está fuera de jurisdicción',
+  stale_source: 'La fuente quedó desactualizada',
+};
+
+const humanizeCode = (value: string | null | undefined) =>
+  value ? REVIEW_REASON_LABELS[value] ?? value.replace(/[_-]+/g, ' ') : 'No publicado';
+
+const formatCoordinate = (value: number | null) => value === null ? 'No disponible' : value.toFixed(5);
+
+const formatAuditDate = (value: string | null) => {
+  if (!value) return 'Sin fecha publicada';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? 'Fecha no válida'
+    : new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed);
+};
 
 const statusLabel = (status: string | null) => {
   const normalized = normalizeTerritorialFilter(status);
@@ -161,6 +227,307 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
   );
 };
 
+const TerritorialAdminDetail = ({
+  candidate,
+  item,
+  detail,
+  attempts,
+  loading,
+  detailError,
+  attemptsError,
+  onReview,
+}: {
+  candidate: PendingLocationCandidate | null;
+  item: TerritorialGeocodingItem | null;
+  detail: TerritorialGeocodingDetail | undefined;
+  attempts: TerritorialGeocodingAttempt[];
+  loading: boolean;
+  detailError: unknown;
+  attemptsError: unknown;
+  onReview: (decision: TerritorialReviewDecision) => void;
+}) => {
+  if (!candidate || !item) return <PendingLocationDetail candidate={null} />;
+  const proposal = detail?.proposal;
+  const reviewAction = item.reviewAction;
+  const accessDenied = isTerritorialApiStatus(detailError, 403);
+
+  return (
+    <article aria-labelledby="territorial-admin-detail-title" className="min-w-0 rounded-xl border bg-background shadow-sm">
+      <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Expediente territorial autorizado</p>
+          <h3 id="territorial-admin-detail-title" className="mt-1 truncate text-lg font-semibold">
+            {candidate.ticketId ? `Reclamo #${candidate.ticketId}` : `Trabajo territorial ${item.id}`}
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="secondary">{candidate.category}</Badge>
+            <Badge variant="outline">{humanizeCode(item.reviewState)}</Badge>
+            <Badge variant="outline">{humanizeCode(item.quality.state)}</Badge>
+          </div>
+        </div>
+        {candidate.ticketHref ? (
+          <Button asChild size="sm" className="shrink-0 gap-2">
+            <a href={candidate.ticketHref}>
+              <Ticket className="h-4 w-4" /> Abrir ticket <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </Button>
+        ) : (
+          <Button type="button" size="sm" disabled title="La identidad de ticket no es compatible con el CRM">
+            Abrir ticket
+          </Button>
+        )}
+      </header>
+
+      <div className="grid gap-3 p-4 sm:grid-cols-3">
+        <section className="rounded-lg border bg-muted/15 p-3 sm:col-span-2">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <MapPinOff className="h-4 w-4 text-amber-600" /> Área agregada
+          </div>
+          <p className="mt-2 text-base font-semibold">{candidate.safeAreaLabel}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            El contrato no entrega domicilio crudo, digest del domicilio ni evidencia libre del proveedor.
+          </p>
+        </section>
+        <section className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">Calidad</p>
+          <p className="mt-2 text-sm font-semibold">{candidate.qualityLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{humanizeCode(item.reasonCode)}</p>
+        </section>
+      </div>
+
+      {loading ? (
+        <div role="status" className="mx-4 mb-4 rounded-lg border p-4 text-sm text-muted-foreground">
+          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" /> Recuperando propuesta y auditoría…
+        </div>
+      ) : detailError ? (
+        <div role="alert" className="mx-4 mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <p className="font-semibold">{accessDenied ? 'Acceso administrativo requerido' : 'No pudimos abrir el detalle territorial'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {accessDenied ? 'La cola falla cerrada: sólo administradores y superadministradores pueden revisar evidencia.' : getErrorMessage(detailError)}
+          </p>
+        </div>
+      ) : detail ? (
+        <>
+          <section className="grid gap-3 border-t p-4 lg:grid-cols-2" aria-label="Propuesta territorial autorizada">
+            <div className="rounded-lg border bg-primary/[0.03] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Propuesta geográfica</h4>
+                <Badge variant="outline"><LockKeyhole className="mr-1 h-3.5 w-3.5" /> Vista admin</Badge>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Latitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lat ?? null)}</dd></div>
+                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Longitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lng ?? null)}</dd></div>
+                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Precisión</dt><dd className="mt-1 font-semibold">{proposal?.locationType ?? item.quality.locationType ?? 'No publicada'}</dd></div>
+                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Jurisdicción</dt><dd className="mt-1 font-semibold">{proposal?.validation.jurisdictionStatus ?? item.quality.jurisdictionStatus ?? 'No publicada'}</dd></div>
+              </dl>
+              {(proposal?.validation.issues.length ?? 0) > 0 ? (
+                <ul className="mt-3 space-y-1 text-xs text-amber-800 dark:text-amber-200">
+                  {proposal?.validation.issues.map((issue) => <li key={issue}>• {humanizeCode(issue)}</li>)}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Decisión humana</h4>
+                <Badge variant="outline">No aplica coordenadas</Badge>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Aprobar o rechazar agrega un recibo inmutable. No llama al proveedor y no modifica el ticket.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-2"
+                  disabled={!reviewAction.canApprove}
+                  title={!reviewAction.canApprove ? 'Se requiere una propuesta y autoridad publicada por el contrato' : undefined}
+                  onClick={() => onReview('approved')}
+                >
+                  <Check className="h-4 w-4" /> Aprobar propuesta
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!reviewAction.canReject}
+                  title={!reviewAction.canReject ? 'El contrato no habilita el rechazo de este trabajo' : undefined}
+                  onClick={() => onReview('rejected')}
+                >
+                  <X className="h-4 w-4" /> Rechazar propuesta
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-3 border-t p-4 lg:grid-cols-2">
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Intentos auditables</h4>
+                <Badge variant="secondary">{attempts.length}</Badge>
+              </div>
+              {attemptsError ? (
+                <p role="alert" className="mt-3 text-xs text-destructive">No se pudieron recuperar los intentos autorizados.</p>
+              ) : attempts.length ? (
+                <ol className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                  {attempts.slice(0, 8).map((attempt) => (
+                    <li key={attempt.id} className="rounded-md border bg-muted/10 p-2 text-xs">
+                      <div className="flex items-center justify-between gap-2"><span className="font-semibold">Intento {attempt.attemptNumber}</span><span>{formatAuditDate(attempt.createdAt)}</span></div>
+                      <p className="mt-1 text-muted-foreground">{humanizeCode(attempt.outcomeStatus)} · {humanizeCode(attempt.reasonCode)}</p>
+                      <p className="mt-1">Proveedor: {attempt.externalCallPerformed ? 'consultado' : 'sin llamada'} · Escritura: {attempt.coordinateWritePerformed ? 'registrada por otro flujo' : 'no realizada'}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="mt-3 text-xs text-muted-foreground">Sin intentos publicados.</p>}
+            </div>
+
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Revisiones humanas</h4>
+                <Badge variant="secondary">{detail.reviews.length}</Badge>
+              </div>
+              {detail.reviews.length ? (
+                <ol className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                  {detail.reviews.slice(0, 8).map((review) => (
+                    <li key={review.id} className="rounded-md border bg-muted/10 p-2 text-xs">
+                      <div className="flex items-center justify-between gap-2"><span className="font-semibold">{humanizeCode(review.decision)}</span><span>{formatAuditDate(review.createdAt)}</span></div>
+                      <p className="mt-1 text-muted-foreground">{humanizeCode(review.reasonCode)} · {humanizeCode(review.effectiveState)}</p>
+                      {!review.proposalCurrent ? <p className="mt-1 font-semibold text-amber-700 dark:text-amber-300">La propuesta cambió: requiere nueva revisión.</p> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="mt-3 text-xs text-muted-foreground">Todavía no hay decisiones humanas.</p>}
+            </div>
+          </section>
+        </>
+      ) : null}
+    </article>
+  );
+};
+
+const TerritorialReviewDialog = ({
+  draft,
+  item,
+  submitting,
+  error,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  draft: ReviewDraft | null;
+  item: TerritorialGeocodingItem | null;
+  submitting: boolean;
+  error: unknown;
+  onChange: (draft: ReviewDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => {
+  const reasons = !draft || !item
+    ? []
+    : draft.decision === 'approved'
+      ? item.reviewAction.approvedReasonCodes
+      : item.reviewAction.rejectedReasonCodes;
+  const conflict = isTerritorialApiStatus(error, 409);
+
+  return (
+    <Dialog open={Boolean(draft)} onOpenChange={(open) => { if (!open && !submitting) onClose(); }}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{draft?.decision === 'approved' ? 'Confirmar aprobación territorial' : 'Confirmar rechazo territorial'}</DialogTitle>
+          <DialogDescription>
+            Esta operación registra una decisión humana auditable. Nunca aplica coordenadas ni llama al proveedor.
+          </DialogDescription>
+        </DialogHeader>
+        {draft ? (
+          <div className="space-y-4">
+            <label className="block text-sm font-medium">
+              Motivo obligatorio
+              <select
+                aria-label="Motivo de la revisión territorial"
+                value={draft.reasonCode}
+                onChange={(event) => onChange({ ...draft, reasonCode: event.target.value, confirmed: false })}
+                className="mt-1 h-10 w-full rounded-md border bg-background px-3"
+              >
+                <option value="">Seleccionar un motivo…</option>
+                {reasons.map((reason) => <option key={reason} value={reason}>{humanizeCode(reason)}</option>)}
+              </select>
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border bg-muted/15 p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={draft.confirmed}
+                onChange={(event) => onChange({ ...draft, confirmed: event.target.checked })}
+              />
+              <span>Confirmo que revisé la propuesta y comprendo que esta decisión no modifica coordenadas.</span>
+            </label>
+            {error ? (
+              <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <p className="font-semibold">{conflict ? 'Conflicto de revisión' : 'No se pudo registrar la revisión'}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {conflict ? 'La propuesta cambió o la clave idempotente ya fue usada con otra decisión. Actualizá la cola antes de volver a revisar.' : getErrorMessage(error)}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button type="button" onClick={onSubmit} disabled={!draft?.reasonCode || !draft.confirmed || submitting}>
+            {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Registrar decisión
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const TerritorialSyncDialog = ({
+  open,
+  submitting,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  submitting: boolean;
+  error: unknown;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => (
+  <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !submitting) onClose(); }}>
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Actualizar cola territorial</DialogTitle>
+        <DialogDescription>
+          Se materializarán referencias actuales sin coordenadas. No se consulta un proveedor, no se geocodifica y no se modifica ningún reclamo.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="rounded-lg border bg-muted/15 p-3 text-sm">
+        <p className="font-semibold">Ejecución explícita y auditable</p>
+        <p className="mt-1 text-muted-foreground">Al terminar se recarga la bandeja redactada con creadas, existentes, desactualizadas y ocultas.</p>
+      </div>
+      {error ? (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+          <p className="font-semibold">
+            {isTerritorialApiStatus(error, 403) ? 'Acceso administrativo requerido' : isTerritorialApiStatus(error, 409) ? 'Actualización en conflicto' : 'No se pudo actualizar la cola'}
+          </p>
+          <p className="mt-1 text-muted-foreground">{getErrorMessage(error)}</p>
+        </div>
+      ) : null}
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+        <Button type="button" onClick={onSubmit} disabled={submitting}>
+          {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Confirmar actualización
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
 export function TerritorialPendingLocationsInbox({
   tenantSlug,
   initialFacet,
@@ -172,18 +539,36 @@ export function TerritorialPendingLocationsInbox({
   const [zoneFilter, setZoneFilter] = useState(() => normalizeTerritorialFilter(initialZone));
   const [qualityFilter, setQualityFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
+  const [syncIdempotencyKey, setSyncIdempotencyKey] = useState<string | null>(null);
+  const [lastSyncResult, setLastSyncResult] = useState<TerritorialGeocodingSyncResponse | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => setCategoryFilter(normalizeTerritorialFilter(initialFacet)), [initialFacet]);
   useEffect(() => setZoneFilter(normalizeTerritorialFilter(initialZone)), [initialZone]);
 
   const query = useQuery({
     queryKey: ['territorial-pending-locations', tenantSlug],
-    queryFn: () => getOperationsHeatmapV2({ tenantSlug, scope: 'municipio', range: '30d', include_ai: 0, limit: 100 }),
+    queryFn: async (): Promise<QueueQueryResult> => {
+      try {
+        const adminQueue = await getTerritorialGeocodingQueue({ tenantSlug: tenantSlug!, page: 1, perPage: 100 });
+        return { source: 'admin', queue: adminQueue };
+      } catch (error) {
+        if (!isTerritorialQueueEndpointUnavailable(error)) throw error;
+        const heatmap = await getOperationsHeatmapV2({ tenantSlug, scope: 'municipio', range: '30d', include_ai: 0, limit: 100 });
+        return { source: 'heatmap_fallback', queue: adaptPendingLocationQueue(heatmap, tenantSlug) };
+      }
+    },
     enabled: Boolean(tenantSlug),
     retry: 0,
     staleTime: 30_000,
   });
-  const queue = useMemo(() => adaptPendingLocationQueue(query.data, tenantSlug), [query.data, tenantSlug]);
+  const adminQueue = query.data?.source === 'admin' ? query.data.queue : null;
+  const queue = useMemo(() => {
+    if (query.data?.source === 'admin') return adaptTerritorialAdminQueue(query.data.queue, tenantSlug);
+    if (query.data?.source === 'heatmap_fallback') return query.data.queue;
+    return adaptPendingLocationQueue(undefined, tenantSlug);
+  }, [query.data, tenantSlug]);
   const normalizedSearch = normalizeTerritorialFilter(search);
 
   const categories = useMemo(() => {
@@ -218,6 +603,79 @@ export function TerritorialPendingLocationsInbox({
     [categoryFilter, normalizedSearch, qualityFilter, queue.candidates, zoneFilter],
   );
   const selectedCandidate = visibleCandidates.find((candidate) => candidate.id === selectedId) ?? visibleCandidates[0] ?? null;
+  const selectedAdminItem = adminQueue?.items.find((item) => item.id === selectedCandidate?.id) ?? null;
+
+  const detailQuery = useQuery({
+    queryKey: ['territorial-geocoding-detail', tenantSlug, selectedAdminItem?.id],
+    queryFn: () => getTerritorialGeocodingDetail(selectedAdminItem!.id, tenantSlug!),
+    enabled: Boolean(tenantSlug && selectedAdminItem?.detailHref),
+    retry: 0,
+    staleTime: 15_000,
+  });
+  const attemptsQuery = useQuery({
+    queryKey: ['territorial-geocoding-attempts', tenantSlug, selectedAdminItem?.id],
+    queryFn: () => getTerritorialGeocodingAttempts(selectedAdminItem!.id, tenantSlug!),
+    enabled: Boolean(tenantSlug && selectedAdminItem?.attemptsHref),
+    retry: 0,
+    staleTime: 15_000,
+  });
+  const reviewMutation = useMutation({
+    mutationFn: reviewTerritorialGeocodingJob,
+    onSuccess: async (_response, variables) => {
+      setReviewDraft(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['territorial-pending-locations', tenantSlug] }),
+        queryClient.invalidateQueries({ queryKey: ['territorial-geocoding-detail', tenantSlug, variables.jobId] }),
+        queryClient.invalidateQueries({ queryKey: ['territorial-geocoding-attempts', tenantSlug, variables.jobId] }),
+      ]);
+    },
+  });
+  const syncMutation = useMutation({
+    mutationFn: syncTerritorialGeocodingQueue,
+    onSuccess: async (response) => {
+      setLastSyncResult(response);
+      setSyncIdempotencyKey(null);
+      await queryClient.invalidateQueries({ queryKey: ['territorial-pending-locations', tenantSlug] });
+    },
+  });
+
+  const openReview = (decision: TerritorialReviewDecision) => {
+    if (!selectedAdminItem) return;
+    const permitted = decision === 'approved'
+      ? selectedAdminItem.reviewAction.canApprove
+      : selectedAdminItem.reviewAction.canReject;
+    if (!permitted) return;
+    setReviewDraft({
+      jobId: selectedAdminItem.id,
+      decision,
+      reasonCode: '',
+      idempotencyKey: createTerritorialReviewIdempotencyKey(selectedAdminItem.id),
+      confirmed: false,
+    });
+    reviewMutation.reset();
+  };
+
+  const submitReview = () => {
+    if (!reviewDraft || !tenantSlug || !reviewDraft.reasonCode || !reviewDraft.confirmed) return;
+    reviewMutation.mutate({
+      tenantSlug,
+      jobId: reviewDraft.jobId,
+      decision: reviewDraft.decision,
+      reasonCode: reviewDraft.reasonCode,
+      idempotencyKey: reviewDraft.idempotencyKey,
+    });
+  };
+
+  const openSync = () => {
+    if (query.data?.source !== 'admin' || !tenantSlug) return;
+    setSyncIdempotencyKey(createTerritorialSyncIdempotencyKey());
+    syncMutation.reset();
+  };
+
+  const submitSync = () => {
+    if (!tenantSlug || !syncIdempotencyKey) return;
+    syncMutation.mutate({ tenantSlug, idempotencyKey: syncIdempotencyKey });
+  };
 
   const normalInboxHref = tenantSlug
     ? `/perfil?tab=tickets&tenant_slug=${encodeURIComponent(tenantSlug)}&tenant=${encodeURIComponent(tenantSlug)}`
@@ -254,7 +712,17 @@ export function TerritorialPendingLocationsInbox({
             <a href={mapHref}><MapIcon className="h-4 w-4" /> Volver al mapa</a>
           </Button>
           <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => void query.refetch()} disabled={query.isFetching}>
-            <RefreshCw className={cn('h-4 w-4', query.isFetching && 'animate-spin')} /> Actualizar
+            <RefreshCw className={cn('h-4 w-4', query.isFetching && 'animate-spin')} /> Recargar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-2"
+            onClick={openSync}
+            disabled={query.data?.source !== 'admin' || query.isFetching || syncMutation.isPending}
+            title={query.data?.source !== 'admin' ? 'Disponible sólo con el contrato administrativo activo' : 'Materializa referencias pendientes sin geocodificar'}
+          >
+            <DatabaseZap className="h-4 w-4" /> Actualizar cola
           </Button>
         </nav>
       </header>
@@ -268,8 +736,14 @@ export function TerritorialPendingLocationsInbox({
       ) : query.isError ? (
         <div role="alert" className="m-4 flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
           <AlertTriangle className="h-8 w-8 text-destructive" />
-          <h3 className="mt-3 text-base font-semibold">No pudimos cargar ubicaciones pendientes</h3>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">{getErrorMessage(query.error)}</p>
+          <h3 className="mt-3 text-base font-semibold">
+            {isTerritorialApiStatus(query.error, 403) ? 'Acceso administrativo requerido' : 'No pudimos cargar ubicaciones pendientes'}
+          </h3>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            {isTerritorialApiStatus(query.error, 403)
+              ? 'Esta bandeja contiene evidencia territorial autorizada y falla cerrada para perfiles sin rol admin o superadmin.'
+              : getErrorMessage(query.error)}
+          </p>
           <Button type="button" size="sm" className="mt-4 gap-2" onClick={() => void query.refetch()}>
             <RefreshCw className="h-4 w-4" /> Reintentar
           </Button>
@@ -299,13 +773,34 @@ export function TerritorialPendingLocationsInbox({
         </div>
       ) : (
         <>
+          {query.data?.source === 'heatmap_fallback' ? (
+            <div role="status" className="flex flex-col gap-1 border-b border-amber-500/30 bg-amber-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Modo lectura de respaldo</p>
+                <p className="text-xs text-muted-foreground">La API administrativa no está disponible. Se muestran sólo señales compatibles del mapa; no se habilitan revisiones ni escrituras.</p>
+              </div>
+              <Badge variant="outline" className="w-fit border-amber-500/40">Sólo lectura</Badge>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 border-b bg-muted/15 px-4 py-2 text-xs" role="status" aria-live="polite">
             <Badge variant="secondary">{queue.total} informadas</Badge>
             <Badge variant="outline">{queue.published} con detalle seguro</Badge>
             {queue.hidden ? <Badge variant="outline">{queue.hidden} sin detalle publicado</Badge> : null}
             <span className="text-muted-foreground">{statusLabel(queue.status)}</span>
-            <span className="ml-auto text-muted-foreground">Decisiones de escritura: {queue.writesEnabled ? 'publicadas' : 'no publicadas'}</span>
+            <span className="ml-auto text-muted-foreground">Revisión humana: {queue.writesEnabled ? 'habilitada' : 'no publicada'}</span>
           </div>
+          {lastSyncResult ? (
+            <div role="status" className="flex flex-wrap items-center gap-2 border-b border-primary/20 bg-primary/[0.04] px-4 py-3 text-xs" aria-live="polite">
+              <span className="font-semibold">Cola actualizada</span>
+              <Badge variant="secondary">{lastSyncResult.summary.created} creadas</Badge>
+              <Badge variant="outline">{lastSyncResult.summary.existing} existentes</Badge>
+              <Badge variant="outline">{lastSyncResult.summary.refreshed} refrescadas</Badge>
+              <Badge variant="outline">{lastSyncResult.summary.stale} desactualizadas</Badge>
+              {lastSyncResult.summary.hidden ? <Badge variant="outline">{lastSyncResult.summary.hidden} ocultas</Badge> : null}
+              {lastSyncResult.idempotentReplay ? <Badge variant="outline">Repetición idempotente</Badge> : null}
+              <span className="ml-auto text-muted-foreground">Sin proveedor · sin escritura de coordenadas</span>
+            </div>
+          ) : null}
 
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]">
             <aside className="min-h-0 border-b bg-muted/10 lg:border-b-0 lg:border-r" aria-label="Cola de ubicaciones pendientes">
@@ -406,11 +901,40 @@ export function TerritorialPendingLocationsInbox({
             </aside>
 
             <main className="min-w-0 overflow-y-auto p-3 sm:p-4">
-              <PendingLocationDetail candidate={selectedCandidate} />
+              {selectedAdminItem ? (
+                <TerritorialAdminDetail
+                  candidate={selectedCandidate}
+                  item={selectedAdminItem}
+                  detail={detailQuery.data}
+                  attempts={attemptsQuery.data?.attempts ?? detailQuery.data?.attempts ?? []}
+                  loading={detailQuery.isLoading || attemptsQuery.isLoading}
+                  detailError={detailQuery.error}
+                  attemptsError={attemptsQuery.error}
+                  onReview={openReview}
+                />
+              ) : (
+                <PendingLocationDetail candidate={selectedCandidate} />
+              )}
             </main>
           </div>
         </>
       )}
+      <TerritorialReviewDialog
+        draft={reviewDraft}
+        item={selectedAdminItem}
+        submitting={reviewMutation.isPending}
+        error={reviewMutation.error}
+        onChange={setReviewDraft}
+        onClose={() => { setReviewDraft(null); reviewMutation.reset(); }}
+        onSubmit={submitReview}
+      />
+      <TerritorialSyncDialog
+        open={Boolean(syncIdempotencyKey)}
+        submitting={syncMutation.isPending}
+        error={syncMutation.error}
+        onClose={() => { setSyncIdempotencyKey(null); syncMutation.reset(); }}
+        onSubmit={submitSync}
+      />
     </section>
   );
 }

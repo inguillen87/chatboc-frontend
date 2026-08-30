@@ -1,4 +1,5 @@
 import type { OperationsActionItem, OperationsHeatmapV1 } from './analyticsTypes';
+import type { TerritorialGeocodingQueue } from './territorialGeocodingTypes';
 
 type HeatmapGeocoding = NonNullable<OperationsHeatmapV1['geocoding']>;
 type HeatmapGeocodingCandidate = NonNullable<HeatmapGeocoding['candidates']>[number];
@@ -273,6 +274,72 @@ export const adaptPendingLocationQueue = (
     published,
     hidden,
     writesEnabled,
+    candidates,
+  };
+};
+
+export const adaptTerritorialAdminQueue = (
+  response: TerritorialGeocodingQueue,
+  tenantSlug?: string | null,
+): PendingLocationQueue => {
+  const candidates = response.items.map((item) => {
+    const quality = describeLocationQuality(item.reasonCode);
+    const ticketHref = buildPendingLocationTicketHref(item.ticketId, tenantSlug, item.ticketSourceModel);
+    const reviewEnabled = Boolean(item.detailHref);
+    const approveEnabled = Boolean(item.reviewAction.href && item.reviewAction.canApprove);
+    const rejectEnabled = Boolean(item.reviewAction.href && item.reviewAction.canReject);
+    return {
+      id: item.id,
+      ticketId: item.ticketId,
+      sourceModel: item.ticketSourceModel,
+      category: item.category ?? 'Categoría no publicada',
+      source: item.sourceModelRaw ?? 'Origen no publicado',
+      safeAreaLabel: item.zone ?? 'Área todavía no publicada',
+      qualityCode: item.reasonCode,
+      qualityLabel: quality.label,
+      qualityDetail: quality.detail,
+      ticketHref,
+      actions: {
+        review: {
+          kind: 'review' as const,
+          label: 'Revisar evidencia',
+          href: item.detailHref,
+          enabled: reviewEnabled,
+          reason: reviewEnabled
+            ? 'El contrato administrativo publicó detalle autorizado y auditable.'
+            : 'El contrato no publicó una ruta de detalle segura.',
+        },
+        approve: {
+          kind: 'approve' as const,
+          label: 'Aprobar ubicación',
+          href: null,
+          enabled: approveEnabled,
+          reason: approveEnabled
+            ? 'Requiere motivo controlado y confirmación humana explícita.'
+            : 'La propuesta o la autoridad de revisión no permiten aprobar.',
+        },
+        reject: {
+          kind: 'reject' as const,
+          label: 'Rechazar ubicación',
+          href: null,
+          enabled: rejectEnabled,
+          reason: rejectEnabled
+            ? 'Requiere motivo controlado y confirmación humana explícita.'
+            : 'La autoridad de revisión no permite rechazar este caso.',
+        },
+      },
+    } satisfies PendingLocationCandidate;
+  });
+  const total = response.summary.total;
+  const hidden = Math.max(0, total - candidates.length);
+  return {
+    state: total === 0 ? 'empty' : hidden > 0 ? 'partial' : 'ready',
+    contractVersion: response.contractVersion,
+    status: response.summary.needsHumanReview > 0 ? 'pending' : 'ready',
+    total,
+    published: candidates.length,
+    hidden,
+    writesEnabled: candidates.some((candidate) => candidate.actions.approve.enabled || candidate.actions.reject.enabled),
     candidates,
   };
 };
