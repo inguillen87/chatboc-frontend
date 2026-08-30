@@ -8,7 +8,6 @@ import {
   MapPin,
   Info,
   FileDown,
-  User,
   Copy,
   X,
   Maximize2,
@@ -1074,6 +1073,10 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 </p>
               </section>
 
+              <section aria-label="Responsable del caso" data-testid="ticket-resolution-ownership">
+                <TicketAssignment variant="compact" />
+              </section>
+
               {primaryResolutionActions.length ? (
                 <section aria-label="Acciones operativas" className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -1315,18 +1318,11 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
             <AccordionItem value="historial" className="rounded-xl border border-border/70 bg-background px-4">
               <AccordionTrigger className="py-3 text-left hover:no-underline">
                 <span>
-                  <span className="block text-sm font-semibold">Historial y asignación</span>
-                  <span className="block text-xs font-normal text-muted-foreground">Seguimiento interno del caso</span>
+                  <span className="block text-sm font-semibold">Historial del caso</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Actividad, mensajes y cambios registrados</span>
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pb-4 pt-1">
-                <TicketAssignment />
-                {ticket.assignedAgent ? (
-                  <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
-                    <User className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <span>Agente asignado: {ticket.assignedAgent.nombre_usuario}</span>
-                  </div>
-                ) : null}
                 <TicketTimeline
                   history={timelineHistory}
                   messages={timelineMessages}

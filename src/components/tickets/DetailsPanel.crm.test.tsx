@@ -32,7 +32,9 @@ vi.mock('./TicketLogisticsSummary', () => ({
 }));
 
 vi.mock('./TicketAssignment', () => ({
-  default: () => <div data-testid="ticket-assignment" />,
+  default: ({ variant }: { variant?: string }) => (
+    <div data-testid="ticket-assignment" data-variant={variant || 'default'} />
+  ),
 }));
 
 vi.mock('./TicketTimeline', () => ({
@@ -138,6 +140,8 @@ describe('DetailsPanel resolution guide', () => {
     expect(guide).toHaveTextContent('Resumen del caso');
     expect(guide).toHaveTextContent('Próximo paso');
     expect(guide).toHaveTextContent('Reclamo por Arreglo de calle en Don Bosco 55, Junin');
+    expect(within(guide).getByTestId('ticket-assignment')).toHaveAttribute('data-variant', 'compact');
+    expect(screen.getAllByTestId('ticket-assignment')).toHaveLength(1);
     expect(screen.queryByTestId('ticket-operator-contact-card')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ticket-technical-details')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-assist-panel')).not.toBeInTheDocument();
@@ -163,6 +167,10 @@ describe('DetailsPanel resolution guide', () => {
     fireEvent.click(screen.getByRole('button', { name: /herramientas internas/i }));
     expect(screen.getByTestId('ai-assist-panel')).toBeInTheDocument();
     expect(screen.getByTestId('ticket-technical-details')).toHaveTextContent('M-378430');
+
+    fireEvent.click(screen.getByRole('button', { name: /historial del caso/i }));
+    expect(screen.getByTestId('ticket-timeline')).toBeInTheDocument();
+    expect(screen.getAllByTestId('ticket-assignment')).toHaveLength(1);
   });
 
   it('keeps long municipal content readable inside the responsive inspector', () => {

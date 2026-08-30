@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -41,6 +42,7 @@ import {
 
 interface TicketAssignmentProps {
   className?: string;
+  variant?: 'default' | 'compact';
 }
 
 export interface TicketAssignmentSelection {
@@ -101,11 +103,15 @@ export const buildSupervisedAssignmentPayload = (
     : null,
 });
 
-const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
+const TicketAssignment: React.FC<TicketAssignmentProps> = ({
+  className,
+  variant = 'default',
+}) => {
   const { selectedTicket, updateTicket } = useTickets();
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const { hasCapability } = useCapabilities();
+  const queryClient = useQueryClient();
   const routingState = useTicketRoutingAuthority(selectedTicket);
   const [selection, setSelection] = useState<TicketAssignmentSelection>({
     agentId: '',
@@ -152,6 +158,25 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   const assignedToMe = Boolean(
     authority?.currentAssigneeId && String(authority.currentAssigneeId) === String(user?.id),
   );
+  const compact = variant === 'compact';
+  const currentAssignee = authority?.currentAssigneeId
+    ? candidates.find(
+        (candidate) => String(candidate.id) === String(authority.currentAssigneeId),
+      ) ?? null
+    : null;
+  const localAssigneeId = selectedTicket?.assignedAgentId ??
+    selectedTicket?.assigned_agent_id ??
+    selectedTicket?.assigned_user_id ??
+    selectedTicket?.assignedAgent?.id ??
+    null;
+  const localAssigneeMatchesAuthority = Boolean(
+    authority?.currentAssigneeId &&
+    localAssigneeId != null &&
+    String(localAssigneeId) === String(authority.currentAssigneeId),
+  );
+  const currentAssigneeLabel = currentAssignee?.name ||
+    (localAssigneeMatchesAuthority ? selectedTicket?.assignedAgent?.nombre_usuario : null) ||
+    (authority?.currentAssigneeId ? `Responsable #${authority.currentAssigneeId}` : 'Sin asignar');
 
   if (!selectedTicket) return null;
 
@@ -163,6 +188,16 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       assigned_agent_id: employee.id,
       assigned_user_id: employee.id,
     }, authority?.sourceModel ?? selectedTicket.source_model);
+  };
+
+  const refreshConfirmedAssignment = async () => {
+    const results = await Promise.allSettled([
+      routingState.refresh(),
+      queryClient.invalidateQueries({ queryKey: ['ticket-composer-action-contract'] }),
+    ]);
+    if (results.some((result) => result.status === 'rejected')) {
+      console.warn('La asignación quedó confirmada, pero una vista dependiente no pudo refrescarse.');
+    }
   };
 
   const postAssignment = async (employee: EmployeeRoutingEmployee) => {
@@ -188,7 +223,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       await postAssignment(employee);
       updateLocalAssignment(employee);
       toast.success(`Caso asignado a ${employee.name}`);
-      await routingState.refresh();
+      await refreshConfirmedAssignment();
     } catch (assignmentError) {
       console.error('No se pudo confirmar la asignación supervisada:', assignmentError);
       toast.error(
@@ -224,7 +259,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       );
       updateLocalAssignment(currentEmployee);
       toast.success('Caso asignado a tu usuario');
-      await routingState.refresh();
+      await refreshConfirmedAssignment();
     } catch (claimError) {
       console.error('No se pudo tomar el ticket:', claimError);
       toast.error(
@@ -244,7 +279,8 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
     return (
       <div
         className={cn(
-          'rounded-xl border border-amber-300/70 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100',
+          compact ? 'rounded-lg p-2.5' : 'rounded-xl p-3',
+          'border border-amber-300/70 bg-amber-50/80 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100',
           className,
         )}
         role={routingState.loading ? 'status' : 'alert'}
@@ -270,8 +306,13 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   if (!canSupervise) {
     return (
       <div
-        className={cn('space-y-3 rounded-xl border border-border/70 bg-muted/30 p-3', className)}
+        className={cn(
+          compact ? 'space-y-2 rounded-lg p-2.5' : 'space-y-3 rounded-xl p-3',
+          'border border-border/70 bg-muted/30',
+          className,
+        )}
         data-testid="ticket-assignment-employee-view"
+        data-variant={variant}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -313,6 +354,127 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
 
   const recommendation = authority.recommendation;
   const reasons = recommendation?.reasons ?? [];
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          'space-y-3 rounded-lg border border-border/70 bg-background/80 p-3 shadow-sm',
+          className,
+        )}
+        data-testid="ticket-assignment-supervisor-view"
+        data-variant="compact"
+      >
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Responsable
+            </p>
+            <p className="mt-0.5 truncate text-sm font-semibold" title={currentAssigneeLabel}>
+              {currentAssigneeLabel}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {authority.category
+                ? `Cobertura validada para ${authority.category}.`
+                : 'Cobertura validada por employee.routing.v1.'}
+            </p>
+          </div>
+          <Badge variant={authority.currentAssigneeId ? 'secondary' : 'outline'}>
+            {authority.currentAssigneeId ? 'Asignado' : 'Disponible'}
+          </Badge>
+        </div>
+
+        {candidates.length ? (
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <Select
+              value={selectedAgentId}
+              onValueChange={(agentId) => setSelection({
+                agentId,
+                scopeKey: authority.identity,
+                source: 'manual',
+              })}
+              disabled={assigning}
+            >
+              <SelectTrigger
+                id="ticket-assignment-agent-compact"
+                className="min-w-0 flex-1"
+                aria-label="Responsable compatible"
+              >
+                <SelectValue placeholder="Elegí una persona" />
+              </SelectTrigger>
+              <SelectContent>
+                {candidates.map((employee) => (
+                  <SelectItem key={employee.id} value={String(employee.id)}>
+                    {employee.name} · {employee.workload_open ?? 0} activos
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleAssignment(selectedEmployee)}
+              disabled={
+                !selectedEmployee ||
+                assigning ||
+                String(selectedEmployee.id) === String(authority.currentAssigneeId ?? '')
+              }
+              className="shrink-0"
+            >
+              {assigning ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Users className="mr-2 h-4 w-4" />
+              )}
+              {authority.currentAssigneeId ? 'Reasignar' : 'Asignar'}
+            </Button>
+          </div>
+        ) : (
+          <p
+            className="rounded-lg border border-amber-300/70 bg-amber-50 p-2.5 text-xs text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+            role="alert"
+          >
+            No hay personal compatible publicado para esta categoría.
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {suggested ? (
+            <span className="min-w-0 flex-1 truncate">
+              Sugerencia: <strong className="font-semibold text-foreground">{suggested.name}</strong>
+              {' · '}{suggested.workload_open ?? 0} activos
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1">Sin recomendación compatible.</span>
+          )}
+          {!authority.currentAssigneeId && currentUserEligible ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void handleClaim()}
+              disabled={assigning}
+              className="h-8 shrink-0"
+            >
+              <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+              Tomar ticket
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => void routingState.refresh()}
+            disabled={routingState.loading || assigning}
+            className="h-8 shrink-0 px-2"
+            aria-label="Actualizar matriz de asignación"
+          >
+            <RefreshCcw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

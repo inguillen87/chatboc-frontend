@@ -154,6 +154,7 @@ vi.mock('@/services/ticketService', async () => {
 });
 
 vi.mock('./CaseStrip', () => ({ default: () => null }));
+vi.mock('./TicketClaimButton', () => ({ default: () => null }));
 vi.mock('./ChatMessage', () => ({
   default: ({ message }: { message: { text?: string } }) => <div>{message.text}</div>,
 }));
@@ -180,18 +181,19 @@ vi.mock('../ui/AdjuntarArchivo', () => ({
 
 import ConversationPanel, {
   createComposerActionAttemptKey,
+  shouldShowTicketClaimAction,
   TENANT_TICKET_INVALIDATION_DEBOUNCE_MS,
 } from './ConversationPanel';
 
 let queryClient: QueryClient;
 
-const renderConversation = (operationalWorkspace = false) => (
+const renderConversation = (operationalWorkspace = false, isDetailsVisible = false) => (
   <QueryClientProvider client={queryClient}>
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <ConversationPanel
         isMobile={false}
         isSidebarVisible
-        isDetailsVisible={false}
+        isDetailsVisible={isDetailsVisible}
         onToggleSidebar={vi.fn()}
         onToggleDetails={vi.fn()}
         desktopView="chat"
@@ -320,6 +322,11 @@ describe('ConversationPanel tenant invalidation', () => {
       legacy_id: 420,
       location: { address: 'Plaza departamental' },
     })).not.toBe(first);
+  });
+
+  it('mantiene la toma en el header solamente cuando el inspector no está visible', () => {
+    expect(shouldShowTicketClaimAction(false)).toBe(true);
+    expect(shouldShowTicketClaimAction(true)).toBe(false);
   });
 
   it('offers only API-published state transitions and applies the confirmed workflow', async () => {

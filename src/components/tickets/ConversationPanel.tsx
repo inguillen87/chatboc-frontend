@@ -451,6 +451,9 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
   };
 };
 
+export const shouldShowTicketClaimAction = (isDetailsVisible: boolean): boolean =>
+  !isDetailsVisible;
+
 export const getComposerActionDeliveryView = (
   delivery?: OmnichannelInboxActionV2['delivery'],
 ) => {
@@ -2200,9 +2203,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 min-[760px]:justify-end">
-            <TicketClaimButton onClaimConfirmed={async () => {
-              await composerActionContractQuery.refetch();
-            }} />
+            {shouldShowTicketClaimAction(isDetailsVisible) ? (
+              <TicketClaimButton onClaimConfirmed={async () => {
+                await composerActionContractQuery.refetch();
+              }} />
+            ) : null}
             {!operationalWorkspace ? (
               <>
                 <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">

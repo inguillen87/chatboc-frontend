@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Ticket } from '@/types/tickets';
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   postAction: vi.fn(),
   updateTicket: vi.fn(),
   refresh: vi.fn(),
+  invalidateQueries: vi.fn(),
 }));
 
 vi.mock('@/context/TicketContext', () => ({
@@ -42,6 +43,13 @@ vi.mock('@/context/CapabilitiesContext', () => ({
     hasCapability: (capability: string) => capability === 'tickets.assign' && mocks.hasAssignCapability,
   }),
 }));
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
+  };
+});
 vi.mock('@/hooks/useTicketRoutingAuthority', () => ({
   default: () => {
     const employee = {
@@ -103,6 +111,14 @@ import TicketAssignment from './TicketAssignment';
 
 describe('TicketAssignment enterprise authority UI', () => {
   beforeEach(() => {
+    mocks.ticket = {
+      id: 403,
+      tipo: 'municipio',
+      estado: 'nuevo',
+      source_model: 'MunicipioTicket',
+      categoria: 'General',
+      tenant_slug: 'junin',
+    } as Ticket;
     mocks.user = { id: 10, name: 'Operadora Junín', rol: 'empleado' };
     mocks.hasAssignCapability = false;
     mocks.loading = false;
@@ -113,6 +129,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.postAction.mockReset().mockResolvedValue({});
     mocks.updateTicket.mockReset();
     mocks.refresh.mockReset().mockResolvedValue(undefined);
+    mocks.invalidateQueries.mockReset().mockResolvedValue(undefined);
   });
 
   it('muestra Tomar ticket al empleado compatible sin exponer el selector', () => {
@@ -122,6 +139,34 @@ describe('TicketAssignment enterprise authority UI', () => {
     expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText(/luminarias/i)).toBeInTheDocument();
+  });
+
+  it('permite tomar el caso desde el control compacto sin mutarlo al montar', async () => {
+    render(<TicketAssignment variant="compact" />);
+
+    expect(screen.getByTestId('ticket-assignment-employee-view')).toHaveAttribute(
+      'data-variant',
+      'compact',
+    );
+    expect(mocks.postAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+
+    await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith(
+      '403',
+      {
+        action: 'claim',
+        payload: {
+          source_model: 'MunicipioTicket',
+          ticket_id: 403,
+        },
+      },
+      'junin',
+    ));
+    expect(mocks.updateTicket).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['ticket-composer-action-contract'],
+    });
   });
 
   it('reserva el selector y la recomendación a supervisión o tickets.assign', async () => {
@@ -153,9 +198,59 @@ describe('TicketAssignment enterprise authority UI', () => {
     ));
   });
 
+  it('compacta la reasignación supervisada en una sola superficie', async () => {
+    mocks.user = { id: 99, name: 'Supervisora', rol: 'supervisor' };
+    mocks.currentAssigneeId = '22';
+    render(<TicketAssignment variant="compact" />);
+
+    const ownership = screen.getByTestId('ticket-assignment-supervisor-view');
+    expect(ownership).toHaveAttribute('data-variant', 'compact');
+    expect(within(ownership).getByRole('combobox', { name: 'Responsable compatible' })).toBeEnabled();
+    expect(within(ownership).getByRole('button', { name: 'Reasignar' })).toBeEnabled();
+    expect(within(ownership).queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(within(ownership).queryByRole('button', { name: 'Aplicar sugerencia' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(ownership).getByRole('button', { name: 'Reasignar' }));
+
+    await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith(
+      '403',
+      {
+        action: 'assign',
+        payload: {
+          source_model: 'MunicipioTicket',
+          ticket_id: 403,
+          assignee_id: 10,
+          expected_assignee_id: 22,
+        },
+      },
+      'junin',
+    ));
+  });
+
+  it('no muestra un responsable cacheado si su identidad difiere de la autoridad', () => {
+    mocks.user = { id: 99, name: 'Supervisora', rol: 'supervisor' };
+    mocks.currentAssigneeId = '22';
+    mocks.ticket = {
+      ...mocks.ticket,
+      assignedAgentId: 77,
+      assigned_agent_id: 77,
+      assignedAgent: {
+        id: 77,
+        nombre_usuario: 'Responsable cacheado',
+        email: 'cacheado@junin.gob.ar',
+      },
+    };
+
+    render(<TicketAssignment variant="compact" />);
+
+    const ownership = screen.getByTestId('ticket-assignment-supervisor-view');
+    expect(within(ownership).getByText('Responsable #22')).toBeInTheDocument();
+    expect(within(ownership).queryByText('Responsable cacheado')).not.toBeInTheDocument();
+  });
+
   it('falla cerrado y no monta acciones si el contrato autoritativo falta', () => {
     mocks.resolutionOk = false;
-    render(<TicketAssignment />);
+    render(<TicketAssignment variant="compact" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Asignación protegida');
     expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
