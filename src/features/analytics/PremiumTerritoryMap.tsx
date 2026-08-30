@@ -2282,9 +2282,9 @@ export function PremiumTerritoryHeatmap({
       <section
         data-testid="territory-intelligence-workspace"
         aria-labelledby={`${svgId}-territory-intelligence-title`}
-        className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+        className="grid items-start gap-4 lg:grid-cols-2"
       >
-        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between 2xl:col-span-3">
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inteligencia territorial</p>
             <h4 id={`${svgId}-territory-intelligence-title`} className="mt-1 text-lg font-semibold">
@@ -2342,7 +2342,7 @@ export function PremiumTerritoryHeatmap({
           {operationalHotspots.length ? (
             <div
               data-testid="operational-hotspots-panel"
-              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2 2xl:col-span-2"
+              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2445,7 +2445,7 @@ export function PremiumTerritoryHeatmap({
           </details>
 
           {hasOperationalBrief ? (
-            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2 2xl:col-span-2">
+            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold">
@@ -2647,7 +2647,7 @@ export function PremiumTerritoryHeatmap({
           ) : (
             <div
               data-testid="territory-zone-analytics-unavailable"
-              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm lg:col-span-2 2xl:col-span-3"
+              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm lg:col-span-2"
             >
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4 text-primary" />

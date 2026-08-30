@@ -83,6 +83,8 @@ describe('PremiumTerritoryHeatmap', () => {
 
     expect(layout).toHaveClass('items-start');
     expect(mapShell).toHaveClass('self-start');
+    expect(intelligenceWorkspace).toHaveClass('lg:grid-cols-2');
+    expect(intelligenceWorkspace).not.toHaveClass('2xl:grid-cols-3');
     expect(layout).toContainElement(mapShell);
     expect(layout).toContainElement(executiveRail);
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
