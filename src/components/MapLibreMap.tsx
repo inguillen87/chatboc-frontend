@@ -104,6 +104,7 @@ export type MapLibreMapProps = {
   ) => void;
   disableClientClustering?: boolean;
   evidence?: MapEvidenceInput | null;
+  showEvidenceBadge?: boolean;
   providerFallbackMessage?: string | null;
   ariaLabel?: string;
   ariaDescribedBy?: string;
@@ -690,6 +691,7 @@ export default function MapLibreMap({
   onBoundingBoxChange,
   disableClientClustering = false,
   evidence,
+  showEvidenceBadge = true,
   providerFallbackMessage,
   ariaLabel,
   ariaDescribedBy,
@@ -2040,10 +2042,12 @@ export default function MapLibreMap({
       aria-describedby={ariaDescribedBy}
     >
       <div ref={mapContainerRef} className="h-full w-full" />
-      <MapEvidenceBadge
-        evidence={mapEvidence}
-        className="absolute left-3 right-14 top-3 z-10 max-w-none sm:right-auto sm:max-w-[min(82vw,24rem)]"
-      />
+      {showEvidenceBadge ? (
+        <MapEvidenceBadge
+          evidence={mapEvidence}
+          className="absolute left-3 right-14 top-3 z-10 max-w-none sm:right-auto sm:max-w-[min(82vw,24rem)]"
+        />
+      ) : null}
       {providerFallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           {providerFallbackMessage}

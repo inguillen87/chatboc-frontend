@@ -266,6 +266,19 @@ describe("MapLibreMap lifecycle", () => {
     cleanup();
   });
 
+  it("can keep the map canvas free of the evidence overlay", async () => {
+    render(
+      <MapLibreMap
+        geoLayerConfig={configFor(sourceFor("unobstructed", -60.95))}
+        showHeatmap
+        showEvidenceBadge={false}
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    expect(screen.queryByTestId("map-evidence-badge")).not.toBeInTheDocument();
+  });
+
   it("constructs MapLibre once and updates a new GeoJSON filter with setData", async () => {
     const initialSource = sourceFor("initial", -60.95);
     const nextSource = sourceFor("filtered", -60.91);

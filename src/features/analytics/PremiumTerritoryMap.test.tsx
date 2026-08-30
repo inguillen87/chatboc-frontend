@@ -13,6 +13,15 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     maptilerKey?: string | null;
     googleMapsKey?: string | null;
     ariaLabel?: string;
+    showHeatmap?: boolean;
+    showPoints?: boolean;
+    showPointLabels?: boolean;
+    pointLabelMode?: string;
+    heatmapRadiusScale?: number;
+    popupContext?: string;
+    boundsPadding?: { top?: number; right?: number; bottom?: number; left?: number };
+    evidence?: unknown;
+    showEvidenceBadge?: boolean;
     geoLayerConfig?: {
       contract_version?: string;
       source?: { features?: unknown[] };
@@ -35,6 +44,15 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-maptiler-key={props.maptilerKey ?? ''}
       data-google-key={props.googleMapsKey ?? ''}
       data-aria-label={props.ariaLabel ?? ''}
+      data-show-heatmap={String(Boolean(props.showHeatmap))}
+      data-show-points={String(Boolean(props.showPoints))}
+      data-show-point-labels={String(Boolean(props.showPointLabels))}
+      data-point-label-mode={props.pointLabelMode ?? ''}
+      data-heatmap-radius={String(props.heatmapRadiusScale ?? '')}
+      data-popup-context={props.popupContext ?? ''}
+      data-bounds-padding={JSON.stringify(props.boundsPadding ?? {})}
+      data-evidence-present={String(Boolean(props.evidence))}
+      data-show-evidence-badge={String(props.showEvidenceBadge !== false)}
       data-geo-contract={props.geoLayerConfig?.contract_version ?? ''}
       data-geo-features={String(props.geoLayerConfig?.source?.features?.length ?? 0)}
       data-geo-heat-layer={props.geoLayerConfig?.layers?.heatmap?.id ?? ''}
@@ -88,6 +106,91 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(layout).toContainElement(mapShell);
     expect(layout).toContainElement(executiveRail);
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
+  });
+
+  it('keeps the live map unobstructed and filters visible heat points by category and zone', () => {
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'bache-centro', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 3 },
+      { id: 'bache-norte', lat: -34.62, lng: -60.92, categoria: 'Baches', barrio: 'Norte', weight: 2 },
+      { id: 'luz-centro', lat: -34.63, lng: -60.93, categoria: 'Luminarias', barrio: 'Centro', weight: 1 },
+      { id: 'luz-pendiente', lat: -34.64, lng: -60.94, categoria: 'Luminarias', barrio: 'sin_zona', weight: 1 },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 4, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    const legend = screen.getByTestId('territory-live-legend');
+    expect(map.getAttribute('data-points')).toBe('4');
+    expect(map.getAttribute('data-geo-features')).toBe('4');
+    expect(map.getAttribute('data-show-points')).toBe('true');
+    expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(legend).not.toHaveClass('absolute');
+    expect(screen.queryByTestId('territory-boundary-empty-state')).toBeNull();
+    expect(screen.queryByRole('button', { name: /sin_zona/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Capas por categoría' }));
+    expect(map.getAttribute('data-show-points')).toBe('false');
+    expect(map.getAttribute('data-show-point-labels')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'Capas por categoría' }));
+    expect(map.getAttribute('data-show-points')).toBe('true');
+    expect(map.getAttribute('data-show-point-labels')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por Baches' }));
+    expect(map.getAttribute('data-points')).toBe('2');
+    expect(map.getAttribute('data-geo-features')).toBe('2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por zona Centro' }));
+    expect(map.getAttribute('data-points')).toBe('1');
+    expect(map.getAttribute('data-geo-features')).toBe('1');
+  });
+
+  it('protects exact markers and small category or zone segments under aggregated privacy', () => {
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'bache-1', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 1 },
+      { id: 'bache-2', lat: -34.62, lng: -60.92, categoria: 'Baches', barrio: 'Centro', weight: 1 },
+      { id: 'luz-1', lat: -34.63, lng: -60.93, categoria: 'Luminarias', barrio: 'Norte', weight: 1 },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: {
+        mode: 'aggregated',
+        minimum_sample_size: 3,
+        raw_points_redacted: true,
+        suppressed: { exact_points: true },
+      },
+      quality: { state: 'ready', visible_points: 3, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} minSampleSize={3} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map.getAttribute('data-show-heatmap')).toBe('true');
+    expect(map.getAttribute('data-show-points')).toBe('false');
+    expect(map.getAttribute('data-show-point-labels')).toBe('false');
+    expect(map.getAttribute('data-evidence-present')).toBe('false');
+    expect(map.getAttribute('data-show-evidence-badge')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Capas por categoría' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Filtrar mapa por Baches' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Filtrar mapa por zona Centro' })).toBeNull();
+    expect(screen.getAllByText(/Segmentación protegida · mínimo 10 registros/)).toHaveLength(2);
+    expect(screen.getByText('detalle puntual protegido')).toBeTruthy();
   });
 
   it('toggles commerce geo features without exposing customer fields', () => {
@@ -356,10 +459,17 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-geo-enabled-layers')).toContain('heat');
     expect(liveMap.getAttribute('data-geo-default-viewport')).toBe('centro');
     expect(liveMap.getAttribute('data-geo-time-slider')).toBe('true');
+    expect(liveMap.getAttribute('data-show-heatmap')).toBe('true');
+    expect(liveMap.getAttribute('data-show-points')).toBe('true');
+    expect(liveMap.getAttribute('data-show-point-labels')).toBe('true');
+    expect(liveMap.getAttribute('data-point-label-mode')).toBe('categoria');
+    expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.45');
+    expect(liveMap.getAttribute('data-popup-context')).toBe('territory');
+    expect(liveMap.getAttribute('data-bounds-padding')).toBe('{"top":40,"right":40,"bottom":40,"left":40}');
     expect(screen.getAllByText('Cobertura parcial').length).toBeGreaterThan(0);
     expect(screen.getByText('Mapa de calor interactivo')).toBeTruthy();
     expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
-    expect(screen.getByText('Resolver direcciones')).toBeTruthy();
+    expect(screen.getAllByText('Ubicaciones pendientes').length).toBeGreaterThan(0);
     const executiveStrip = screen.getByTestId('territory-executive-strip');
     expect(executiveStrip.textContent).toContain('Lectura ejecutiva');
     expect(executiveStrip.textContent).toContain('Puntos visibles');
@@ -399,22 +509,16 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('22 casos agrupados en el foco operativo.')).toBeTruthy();
     const liveLegend = screen.getByTestId('territory-live-legend');
     expect(liveLegend).toBeTruthy();
-    expect(liveLegend.textContent).toContain('Estado de actualización');
-    expect(liveLegend.textContent).toContain('Actualización pendiente');
-    expect(liveLegend.textContent).toContain('Foco');
+    expect(liveLegend).not.toHaveClass('absolute');
+    expect(liveLegend.textContent).toContain('Lectura territorial');
+    expect(liveLegend.textContent).toContain('12 puntos visibles');
+    expect(liveLegend.textContent).toContain('Categoría de reclamo');
     expect(liveLegend.textContent).toContain('reclamos');
-    expect(liveLegend.textContent).toContain('Acción siguiente');
-    expect(liveLegend.textContent).toContain('Abrir cola operativa');
-    expect(liveLegend.textContent).toContain('Sistema visual');
-    expect(liveLegend.textContent).toContain('Mapa de calor acelerado');
-    expect(liveLegend.textContent).toContain('Puntos geolocalizados');
-    expect(liveLegend.textContent).toContain('Zonas agregadas');
+    expect(liveLegend.textContent).toContain('Zona o barrio');
+    expect(liveLegend.textContent).toContain('círculos por categoría');
     expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
     expect(document.body.textContent).not.toContain('Zona centro requiere seguimiento');
     expect(document.body.textContent).not.toMatch(/[ap]\. m\.\./i);
-    expect(liveLegend.textContent).toContain('SLA crítico');
-    expect(liveLegend.textContent).toContain('WhatsApp activo');
-    expect(liveLegend.textContent).toContain('Prioridad IA');
     expect(screen.getByTestId('operational-hotspots-panel')).toBeTruthy();
     expect(screen.getByText('Prioridades territoriales')).toBeTruthy();
     expect(screen.getByText('Focos para actuar primero')).toBeTruthy();

@@ -153,7 +153,10 @@ function SparseChartSummary({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div
+        data-testid="ticket-stats-sparse-grid"
+        className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(16rem,1fr))]"
+      >
         {charts.map((chart, chartIndex) => {
           const entries = Object.entries(chart.data)
             .map(([label, value]) => [label, Number.isFinite(value) ? value : Number(value) || 0] as const)

@@ -50,6 +50,9 @@ describe('TicketStatsCharts', () => {
     );
 
     expect(screen.getByTestId('ticket-stats-sparse-summary')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-stats-sparse-grid')).toHaveClass(
+      'sm:grid-cols-[repeat(auto-fit,minmax(16rem,1fr))]',
+    );
     expect(screen.getByText('2 puntos georreferenciados')).toBeInTheDocument();
     expect(screen.getByText('2. En proceso')).toBeInTheDocument();
     expect(screen.getByText('1. Sin zona')).toBeInTheDocument();
