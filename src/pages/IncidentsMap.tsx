@@ -1379,24 +1379,26 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {mapKpis.map(({ label, value, detail, icon: Icon }) => (
-          <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </p>
-                <p className="mt-2 truncate text-2xl font-bold text-foreground">{value}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      {heatmapContractSource !== 'operations_v2' ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {mapKpis.map(({ label, value, detail, icon: Icon }) => (
+            <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className="mt-2 truncate text-2xl font-bold text-foreground">{value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+                </div>
+                <span className="rounded-lg bg-primary/10 p-2 text-primary">
+                  <Icon className="h-4 w-4" />
+                </span>
               </div>
-              <span className="rounded-lg bg-primary/10 p-2 text-primary">
-                <Icon className="h-4 w-4" />
-              </span>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       <section
         className="rounded-2xl border border-border/70 bg-card/95 p-3 shadow-sm"
@@ -1804,6 +1806,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             mapConfig={premiumMapConfig}
             minSampleSize={operationsHeatmap.privacy?.minimum_sample_size}
             allowDemoFallback={false}
+            tenantSlug={canonicalTenantSlug}
             className="min-h-[560px]"
           />
         </>

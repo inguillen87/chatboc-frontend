@@ -287,7 +287,7 @@ const ContextPanel = ({ person, score, nextAction, formatDate }: ContextPanelPro
       <div
         className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-label="Completitud del perfil CRM"
+        aria-label="Completitud detallada del perfil CRM"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={score}
@@ -313,6 +313,79 @@ const ContextPanel = ({ person, score, nextAction, formatDate }: ContextPanelPro
       Los datos de contacto no prueban por sí solos la disponibilidad de un canal. WhatsApp solo se habilita con evidencia explícita.
     </div>
   </div>
+);
+
+interface DecisionStripProps extends ContextPanelProps {
+  onOpenDetails: () => void;
+}
+
+const DecisionStrip = ({
+  person,
+  score,
+  nextAction,
+  formatDate,
+  onOpenDetails,
+}: DecisionStripProps) => (
+  <section
+    className="border-b border-border/70 bg-card px-2 py-2 sm:px-4"
+    aria-label="Resumen ejecutivo del contacto"
+    data-testid="crm-person-decision-strip"
+  >
+    <div className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-[minmax(220px,2fr)_minmax(120px,0.8fr)_minmax(140px,0.9fr)_minmax(145px,0.9fr)_auto] lg:items-center">
+      <div className="col-span-2 min-w-0 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 lg:col-span-1">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+          <Target className="h-3.5 w-3.5" aria-hidden="true" />
+          Siguiente acción
+        </div>
+        <div className="mt-1 truncate text-sm font-semibold" title={nextAction}>{nextAction}</div>
+      </div>
+
+      <div className="min-w-0 px-2 py-1">
+        <div className="flex items-center justify-between gap-2 text-[11px]">
+          <span className="truncate text-muted-foreground">Completitud CRM</span>
+          <span className="font-mono font-bold">{score}%</span>
+        </div>
+        <div
+          className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label="Completitud del perfil CRM"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={score}
+        >
+          <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
+        </div>
+      </div>
+
+      <dl className="contents text-xs">
+        <div className="min-w-0 border-l border-border/70 px-3 py-1">
+          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+            <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            Canal
+          </dt>
+          <dd className="mt-1 truncate font-semibold">{channelLabel(person.canal)}</dd>
+        </div>
+        <div className="min-w-0 border-l border-border/70 px-3 py-1">
+          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+            <Activity className="h-3.5 w-3.5" aria-hidden="true" />
+            Última actividad
+          </dt>
+          <dd className="mt-1 truncate font-semibold">{formatDate(person.lastSeen)}</dd>
+        </div>
+      </dl>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="col-span-2 h-8 shrink-0 gap-2 justify-self-stretch lg:col-span-1 lg:justify-self-end"
+        onClick={onOpenDetails}
+      >
+        <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+        Detalle operativo
+      </Button>
+    </div>
+  </section>
 );
 
 export default function CrmPeopleWorkspace({
@@ -352,7 +425,7 @@ export default function CrmPeopleWorkspace({
   campaignsPanel,
   activityPanel,
 }: CrmPeopleWorkspaceProps) {
-  const [contextOpen, setContextOpen] = React.useState(true);
+  const [contextOpen, setContextOpen] = React.useState(false);
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
   const [detailFocusMode, setDetailFocusMode] = React.useState(false);
   const [activePersonTab, setActivePersonTab] = React.useState("resumen");
@@ -930,6 +1003,14 @@ export default function CrmPeopleWorkspace({
                       </div>
                     </div>
                   </header>
+
+                  <DecisionStrip
+                    person={selectedPerson}
+                    score={score}
+                    nextAction={action}
+                    formatDate={formatDate}
+                    onOpenDetails={() => setMobileContextOpen(true)}
+                  />
 
                   <Tabs
                     value={activePersonTab}

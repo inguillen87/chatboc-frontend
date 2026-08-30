@@ -27,6 +27,7 @@ import type {
   OperationsTrend,
   PublicMapConfigV1,
 } from './analyticsTypes';
+import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdentity';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -790,10 +791,19 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
       coordinateProvenance?.source ??
       addressProvenance?.source,
   );
+  const ticketIdentity = resolveTerritorialTicketIdentity(value);
+  const canonicalTicketIdentity = ticketIdentity.status === 'valid' ? ticketIdentity.identity : null;
+  const rawRecordId = asString(value.record_id ?? value.recordId) ?? asNumber(value.record_id ?? value.recordId);
+  const rawTicketId = asString(value.ticket_id ?? value.ticketId) ?? asNumber(value.ticket_id ?? value.ticketId);
 
   return {
     ...value,
     id: (typeof value.id === 'string' || typeof value.id === 'number') ? value.id : undefined,
+    record_id: rawRecordId,
+    ticket_id: canonicalTicketIdentity?.ticketId ?? rawTicketId,
+    source_model: canonicalTicketIdentity?.sourceModel ?? asString(value.source_model ?? value.sourceModel),
+    record_source: asString(value.record_source ?? value.recordSource),
+    ticket_identity_status: ticketIdentity.status,
     lat,
     lng,
     weight: asNumber(value.weight ?? value.count ?? value.intensity) ?? 1,

@@ -57,7 +57,7 @@ export type TicketTargetResolutionStatus =
   | 'error';
 
 export interface TicketTargetResolution {
-  ticketId: number | null;
+  ticketId: string | null;
   sourceModel: TicketInboxSourceModel | null;
   status: TicketTargetResolutionStatus;
   ticket: Ticket | null;
@@ -421,7 +421,7 @@ interface TicketContextType {
   selectTicket: (ticketId: number | null) => void;
   ticketTargetResolution: TicketTargetResolution;
   resolveTicketTarget: (
-    ticketId: number,
+    ticketId: string | number,
     sourceModel?: TicketInboxSourceModel | null,
   ) => Promise<Ticket | null>;
   clearTicketTarget: () => void;
@@ -686,22 +686,29 @@ const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
   } as Ticket;
 };
 
-const normalizeTicketTargetId = (value: unknown): number | null => {
+const normalizeTicketTargetId = (
+  value: unknown,
+  preserveOpaqueValue = false,
+): string | null => {
   if (value === undefined || value === null) return null;
-  const normalized = String(value).trim().replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) return null;
+  const raw = String(value);
+  if (!raw || raw !== raw.trim()) return null;
+  const normalized = preserveOpaqueValue
+    ? raw
+    : raw.replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
   if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
+  return preserveOpaqueValue || /^\d+$/.test(normalized) ? normalized : null;
 };
 
 const ticketMatchesTarget = (
   ticket: Ticket | null | undefined,
-  ticketId: number,
+  ticketId: string,
   sourceModel: TicketInboxSourceModel | null = null,
 ): boolean => {
   if (!ticket) return false;
   const idMatches = [ticket.id, (ticket as any).ticket_id]
-    .map(normalizeTicketTargetId)
+    .map((candidate) => normalizeTicketTargetId(candidate, sourceModel !== null))
     .some((candidateId) => candidateId === ticketId);
   if (!idMatches || !sourceModel) return idMatches;
   const ticketSourceModel = ticket.source_model ?? (ticket as any).sourceModel;
@@ -735,7 +742,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const ticketTargetResolutionRef = React.useRef<TicketTargetResolution>(IDLE_TICKET_TARGET_RESOLUTION);
   const ticketTargetRequestSequenceRef = React.useRef(0);
   const ticketTargetInflightRef = React.useRef<{
-    ticketId: number;
+    ticketId: string;
     sourceModel: TicketInboxSourceModel | null;
     promise: Promise<Ticket | null>;
   } | null>(null);
@@ -935,15 +942,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   }, [updateTicketTargetResolution]);
 
   const resolveTicketTarget = useCallback((
-    ticketId: number,
+    ticketId: string | number,
     sourceModel?: TicketInboxSourceModel | null,
   ): Promise<Ticket | null> => {
-    const normalizedTicketId = normalizeTicketTargetId(ticketId);
     const normalizedSourceModel = sourceModel == null
       ? null
       : isTicketInboxSourceModel(sourceModel)
         ? sourceModel
         : null;
+    const normalizedTicketId = normalizeTicketTargetId(ticketId, normalizedSourceModel !== null);
     if (normalizedTicketId === null || (sourceModel != null && normalizedSourceModel === null)) {
       updateTicketTargetResolution({
         ticketId: null,

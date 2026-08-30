@@ -187,6 +187,9 @@ describe("CrmPeopleWorkspace", () => {
     const grid = screen.getByTestId("crm-people-grid");
     expect(grid).toHaveAttribute("data-focus-mode", "split");
     expect(screen.getByRole("complementary", { name: "Lista de personas" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar panel contextual" }));
     expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
 
     const expandButton = screen.getByRole("button", { name: "Ampliar ficha de la persona" });
@@ -209,6 +212,23 @@ describe("CrmPeopleWorkspace", () => {
     expect(grid).toHaveAttribute("data-focus-mode", "split");
     expect(screen.getByRole("complementary", { name: "Lista de personas" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
+  });
+
+  it("keeps the executive context compact and discloses the full detail on demand", () => {
+    render(<Harness embedded initialSelectedContactId="42" />);
+
+    const summary = screen.getByRole("region", { name: "Resumen ejecutivo del contacto" });
+    expect(summary).toHaveTextContent("Siguiente acción");
+    expect(summary).toHaveTextContent("Revisar contacto");
+    expect(summary).toHaveTextContent("WhatsApp");
+    expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
+
+    fireEvent.click(screen.getByRole("button", { name: "Detalle operativo" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Contexto operativo" })).toBeInTheDocument();
+    expect(screen.getByText("Opt-in registrado")).toBeInTheDocument();
   });
 
   it("virtualizes a large directory instead of mounting every desktop row", () => {

@@ -218,7 +218,7 @@ describe('NewTicketsPanel CRM layout', () => {
       selectedTicket: otherTicket,
       selectTicket: vi.fn(),
       ticketTargetResolution: {
-        ticketId: 99,
+        ticketId: '99',
         status: 'resolving',
         ticket: null,
         message: null,
@@ -235,7 +235,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
     expect(screen.getByTestId('tickets-target-resolution')).toHaveTextContent('Abriendo reclamo #99');
     expect(screen.queryByTestId('tickets-conversation')).not.toBeInTheDocument();
-    expect(resolveTicketTarget).toHaveBeenCalledWith(99);
+    expect(resolveTicketTarget).toHaveBeenCalledWith('99');
   });
 
   it('propaga source_model al resolver un deep link con ID potencialmente colisionado', () => {
@@ -251,7 +251,7 @@ describe('NewTicketsPanel CRM layout', () => {
       selectedTicket: null,
       selectTicket: vi.fn(),
       ticketTargetResolution: {
-        ticketId: 99,
+        ticketId: '99',
         sourceModel: 'PymeTicket',
         status: 'resolving',
         ticket: null,
@@ -268,8 +268,54 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel />);
 
     expect(screen.getByTestId('tickets-target-resolution')).toHaveTextContent('Abriendo reclamo #99');
-    expect(resolveTicketTarget).toHaveBeenCalledWith(99, 'PymeTicket');
+    expect(resolveTicketTarget).toHaveBeenCalledWith('99', 'PymeTicket');
   });
+
+  it.each([
+    ['0000419', 'TenantTicket'],
+    ['9007199254740993123', 'MunicipioTicket'],
+    ['case:2026/08/30-A', 'PymeTicket'],
+  ] as const)(
+    'preserva el ID opaco %s y su source_model desde el deep link territorial',
+    (ticketId, sourceModel) => {
+      const resolveTicketTarget = vi.fn().mockReturnValue(new Promise(() => {}));
+      searchParamsState.value = new URLSearchParams({
+        tab: 'tickets',
+        ticket_id: ticketId,
+        source_model: sourceModel,
+        tenant_slug: 'junin',
+        tenant: 'junin',
+      });
+      useTicketsMock.mockReturnValue({
+        loading: false,
+        error: null,
+        tickets: [],
+        filteredTickets: [],
+        selectedTicket: null,
+        selectTicket: vi.fn(),
+        ticketTargetResolution: {
+          ticketId,
+          sourceModel,
+          status: 'resolving',
+          ticket: null,
+          message: null,
+        },
+        resolveTicketTarget,
+        filters: {},
+        setFilters: vi.fn(),
+        refreshTickets: vi.fn(),
+        realtimeActivity: { pending: 0, lastLabel: null },
+        clearRealtimeActivity: vi.fn(),
+      });
+
+      render(<NewTicketsPanel />);
+
+      expect(screen.getByTestId('tickets-target-resolution')).toHaveTextContent(
+        `Abriendo reclamo #${ticketId}`,
+      );
+      expect(resolveTicketTarget).toHaveBeenCalledWith(ticketId, sourceModel);
+    },
+  );
 
   it('aplica q como búsqueda segura sin seleccionar un ticket por aproximación', () => {
     const setFilters = vi.fn();
@@ -354,7 +400,7 @@ describe('NewTicketsPanel CRM layout', () => {
       selectedTicket: otherTicket,
       selectTicket: vi.fn(),
       ticketTargetResolution: {
-        ticketId: 99,
+        ticketId: '99',
         status,
         ticket: null,
         message,
@@ -1083,7 +1129,7 @@ describe('NewTicketsPanel CRM layout', () => {
       selectedTicket: targetTicket,
       selectTicket: vi.fn(),
       ticketTargetResolution: {
-        ticketId: 378430,
+        ticketId: '378430',
         status: 'resolved',
         ticket: targetTicket,
         message: null,

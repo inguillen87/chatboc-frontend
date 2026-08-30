@@ -25,7 +25,16 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
     allowDemoFallback,
   }: {
     points?: unknown[];
-    heatmap?: { privacy?: { mode?: string } };
+    heatmap?: {
+      privacy?: { mode?: string };
+      summary?: { points?: number; pending_geocode?: number };
+      quality?: { coverage_percent?: number; total_ticket_records?: number };
+      segments?: {
+        category?: Array<{ label?: string }>;
+        status?: Array<{ label?: string }>;
+        zone?: Array<{ label?: string }>;
+      };
+    };
     activeFilters?: unknown[];
     minSampleSize?: number;
     allowDemoFallback?: boolean;
@@ -34,6 +43,13 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
       data-testid="mock-premium-territory-map"
       data-points={String(points?.length ?? 0)}
       data-privacy-mode={heatmap?.privacy?.mode ?? ''}
+      data-summary-points={String(heatmap?.summary?.points ?? '')}
+      data-pending-geocode={String(heatmap?.summary?.pending_geocode ?? '')}
+      data-coverage-percent={String(heatmap?.quality?.coverage_percent ?? '')}
+      data-total-ticket-records={String(heatmap?.quality?.total_ticket_records ?? '')}
+      data-category-segments={JSON.stringify(heatmap?.segments?.category ?? [])}
+      data-status-segments={JSON.stringify(heatmap?.segments?.status ?? [])}
+      data-zone-segments={JSON.stringify(heatmap?.segments?.zone ?? [])}
       data-active-filters={JSON.stringify(activeFilters ?? [])}
       data-min-sample-size={String(minSampleSize ?? '')}
       data-demo-fallback={String(allowDemoFallback)}
@@ -312,13 +328,15 @@ describe('IncidentsMap', () => {
   it('derives executive KPIs from v2 summary and segments, not sparse point fields', async () => {
     render(<IncidentsMap />);
 
-    await screen.findByTestId('mock-premium-territory-map');
-    expect(screen.getByText('21 puntos')).toBeInTheDocument();
-    expect(screen.getByText('21/28')).toBeInTheDocument();
-    expect(screen.getByText('75% geolocalizado · 1 dirección pendiente')).toBeInTheDocument();
-    expect(screen.getByText('Categoría: Luminaria')).toBeInTheDocument();
-    expect(screen.getAllByText('Nuevo').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Centro').length).toBeGreaterThan(0);
+    const map = await screen.findByTestId('mock-premium-territory-map');
+    expect(map).toHaveAttribute('data-summary-points', '21');
+    expect(map).toHaveAttribute('data-total-ticket-records', '28');
+    expect(map).toHaveAttribute('data-coverage-percent', '75');
+    expect(map).toHaveAttribute('data-pending-geocode', '1');
+    expect(screen.queryByText('21 puntos')).not.toBeInTheDocument();
+    expect(map.getAttribute('data-category-segments')).toContain('Luminaria');
+    expect(map.getAttribute('data-status-segments')).toContain('Nuevo');
+    expect(map.getAttribute('data-zone-segments')).toContain('Centro');
   });
 
   it('scopes the v2 request to the canonical tenant and does not call legacy services', async () => {
@@ -365,7 +383,7 @@ describe('IncidentsMap', () => {
     });
 
     const currentMap = await screen.findByTestId('mock-premium-territory-map');
-    expect(screen.getByText('44 puntos')).toBeInTheDocument();
+    expect(currentMap).toHaveAttribute('data-summary-points', '44');
     expect(currentMap.getAttribute('data-active-filters')).toContain('Centro');
 
     await act(async () => {
@@ -378,10 +396,10 @@ describe('IncidentsMap', () => {
       await first.promise;
     });
 
-    expect(screen.getByText('44 puntos')).toBeInTheDocument();
+    expect(currentMap).toHaveAttribute('data-summary-points', '44');
     expect(currentMap.getAttribute('data-active-filters')).toContain('Centro');
     expect(currentMap.getAttribute('data-active-filters')).not.toContain('Respuesta vieja');
-    expect(screen.queryByText('7 puntos')).not.toBeInTheDocument();
+    expect(currentMap).not.toHaveAttribute('data-summary-points', '7');
   });
 
   it('uses only backend-confirmed filters in the premium map contract', async () => {

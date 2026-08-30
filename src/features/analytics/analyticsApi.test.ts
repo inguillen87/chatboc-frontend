@@ -508,7 +508,8 @@ describe('operations heatmap v2 contract', () => {
       },
       points: [
         {
-          id: 10,
+          id: 'municipio_ticket:10',
+          record_source: 'municipio_ticket',
           lat: '-34.58',
           lng: '-60.94',
           weight: '2',
@@ -585,6 +586,11 @@ describe('operations heatmap v2 contract', () => {
       rango_edad: '35-44',
       canal: 'whatsapp',
       source: 'tickets',
+      id: 'municipio_ticket:10',
+      record_source: 'municipio_ticket',
+      source_model: 'MunicipioTicket',
+      ticket_id: '10',
+      ticket_identity_status: 'valid',
       barrio: 'Centro',
       address: 'Don Bosco 55',
       direccion: 'Don Bosco 55',

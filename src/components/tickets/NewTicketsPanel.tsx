@@ -152,11 +152,9 @@ const normalizeQueryValue = (value: string | null) => {
   return trimmed || null;
 };
 
-const normalizeTicketQueryNumber = (value: string | null): number | null => {
-  const normalized = normalizeQueryValue(value);
-  if (!normalized) return null;
-  const parsed = Number(normalized.replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, ''));
-  return Number.isFinite(parsed) ? parsed : null;
+const normalizeTicketQueryId = (value: string | null): string | null => {
+  if (!value || value !== value.trim()) return null;
+  return value;
 };
 
 const formatDeskDeepLinkFocus = (value: string | null) =>
@@ -168,7 +166,7 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     searchParams.get('source_model') ?? searchParams.get('sourceModel'),
   );
   const sourceModel = isTicketInboxSourceModel(rawSourceModel) ? rawSourceModel : null;
-  const ticketId = normalizeTicketQueryNumber(
+  const ticketId = normalizeTicketQueryId(
     searchParams.get('ticket_id') ??
       searchParams.get('ticketId') ??
       searchParams.get('record_id') ??
@@ -856,7 +854,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   const ticketDeskQuery = React.useMemo(() => readTicketDeskQuery(searchParams), [searchParams]);
   const resolveDeskTicketTarget = React.useCallback((
-    ticketId: number,
+    ticketId: string,
     sourceModel: TicketInboxSourceModel | null,
   ) => sourceModel
     ? resolveTicketTarget(ticketId, sourceModel)

@@ -8,6 +8,11 @@ import { MapEvidenceBadge, buildMapEvidence, type MapEvidenceInput } from "@/com
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { runtimeDiagnostics } from "@/utils/runtimeDiagnostics";
+import {
+  buildTerritorialTicketHref,
+  isTerritorialTenantScopeCompatible,
+  resolveTerritorialTicketIdentity,
+} from "@/utils/territorialTicketIdentity";
 
 const normalizeExternalMapLibreAsset = (value: unknown): string => {
   const trimmed = String(value ?? "").trim();
@@ -58,6 +63,8 @@ export type MapLibreMapProps = {
   onSelect?: (lat: number, lon: number, address?: string) => void;
   onFeatureSelect?: (point: HeatPoint | null) => void;
   heatmapData?: HeatPoint[];
+  /** Expected tenant scope for points, GeoJSON features and exact CRM links. */
+  tenantSlug?: string | null;
   polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
   showPoints?: boolean;
@@ -329,6 +336,17 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       intensity: p.intensity ?? p.totalWeight ?? p.weight ?? 1,
       id: p.id,
       ticket: p.ticket,
+      ticketId: p.ticketId,
+      ticket_id: p.ticketId,
+      sourceModel: p.sourceModel,
+      source_model: p.sourceModel,
+      recordId: p.recordId,
+      record_id: p.recordId,
+      recordSource: p.recordSource,
+      record_source: p.recordSource,
+      ticketIdentityStatus: p.ticketIdentityStatus,
+      ticketHref: p.ticketHref,
+      tenantSlug: p.tenantSlug,
       categoria: p.categoria,
       canal: p.canal,
       fuente: p.fuente,
@@ -465,6 +483,36 @@ const appendPopupTicketLink = (
   return link;
 };
 
+const appendTerritorialTicketLink = (
+  parent: HTMLElement,
+  candidate: unknown,
+  clusterSize = 1,
+) => {
+  if (clusterSize > 1) return null;
+  const candidateRecord = candidate !== null && typeof candidate === "object"
+    ? candidate as Record<string, unknown>
+    : {};
+  const candidateTenantSlug = typeof candidateRecord.tenantSlug === "string"
+    ? candidateRecord.tenantSlug
+    : null;
+  const resolution = resolveTerritorialTicketIdentity(candidate, candidateTenantSlug);
+  const href = buildTerritorialTicketHref(
+    resolution.status === "valid" ? resolution.identity : null,
+    candidateTenantSlug,
+  );
+  if (!href) return null;
+
+  const paragraph = document.createElement("p");
+  paragraph.className = "mt-3 border-t border-slate-200 pt-2 text-xs";
+  const link = document.createElement("a");
+  link.href = href;
+  link.className = "font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-600";
+  link.textContent = "Abrir reclamo en CRM";
+  paragraph.appendChild(link);
+  parent.appendChild(paragraph);
+  return link;
+};
+
 export const buildMapClusterPopupContent = ({
   cluster,
   properties,
@@ -519,6 +567,7 @@ export const buildMapClusterPopupContent = ({
           "mt-1 text-xs font-semibold text-slate-700",
         );
       }
+      appendTerritorialTicketLink(root, cluster, clusterSize);
       return root;
     }
 
@@ -661,6 +710,11 @@ export const buildMapClusterPopupContent = ({
         "mt-1 text-xs font-semibold text-slate-700",
       );
     }
+    appendTerritorialTicketLink(
+      root,
+      safeProperties,
+      Number(safeProperties.clusterSize ?? safeProperties.point_count ?? 1),
+    );
     return root;
   }
 
@@ -734,7 +788,7 @@ const toggleLayers = (
     map.setLayoutProperty(
       layerIds.halo,
       "visibility",
-      (haloFollowsHeat ? showHeatmap : showPoints) && !showPolygons ? "visible" : "none",
+      (haloFollowsHeat ? showHeatmap || showPoints : showPoints) && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer(layerIds.circles)) {
@@ -765,6 +819,7 @@ export default function MapLibreMap({
   onSelect,
   onFeatureSelect,
   heatmapData = [],
+  tenantSlug,
   polygons,
   showHeatmap = true,
   showPoints,
@@ -803,9 +858,11 @@ export default function MapLibreMap({
     () =>
       (heatmapData ?? []).filter(
         (point): point is HeatPoint & { lat: number; lng: number } =>
-          Boolean(point) && isRenderableCoordinatePair(point.lat, point.lng),
+          Boolean(point) &&
+          isRenderableCoordinatePair(point.lat, point.lng) &&
+          isTerritorialTenantScopeCompatible(point, tenantSlug),
       ),
-    [heatmapData],
+    [heatmapData, tenantSlug],
   );
   const aggregatedHint = useMemo(
     () =>
@@ -835,10 +892,22 @@ export default function MapLibreMap({
   const resolvedHeatmapRadiusScale = Number.isFinite(heatmapRadiusScale)
     ? Math.max(0.5, Math.min(4, heatmapRadiusScale))
     : 1;
-  const configuredGeoSource = useMemo(
-    () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
-    [geoLayerConfig?.source],
-  );
+  const configuredGeoSource = useMemo(() => {
+    if (!isFeatureCollection(geoLayerConfig?.source)) return null;
+    if (!tenantSlug) return geoLayerConfig.source;
+    return {
+      ...geoLayerConfig.source,
+      features: geoLayerConfig.source.features.filter((feature) => {
+        const featureRecord = feature && typeof feature === "object"
+          ? feature as Record<string, unknown>
+          : {};
+        const properties = featureRecord.properties && typeof featureRecord.properties === "object"
+          ? featureRecord.properties
+          : featureRecord;
+        return isTerritorialTenantScopeCompatible(properties, tenantSlug);
+      }),
+    };
+  }, [geoLayerConfig?.source, tenantSlug]);
   const renderedGeoSource = shouldCluster ? null : configuredGeoSource;
   const configuredSourceOptions = useMemo(() => {
     const raw = geoLayerConfig?.source_options;
@@ -1153,7 +1222,8 @@ export default function MapLibreMap({
               type: "geojson",
               data: sourceDataForLayer(
                 currentSource,
-                showHeatmapRef.current && !showPolygonsRef.current,
+                (showHeatmapRef.current || (heatmapPalette === "faro" && showPointsRef.current)) &&
+                  !showPolygonsRef.current,
               ),
               ...configuredSourceOptions,
             });
@@ -1360,9 +1430,9 @@ export default function MapLibreMap({
                     ],
                   ],
               "circle-opacity": heatmapPalette === "faro"
-                ? 0.96
+                ? 0.42
                 : ["interpolate", ["linear"], ["zoom"], 4, 0.18, 14, 0.28, 16, 0.2],
-              "circle-blur": heatmapPalette === "faro" ? 0.06 : 0.86,
+              "circle-blur": heatmapPalette === "faro" ? 0.08 : 0.86,
               ...(heatmapPalette === "faro"
                 ? {
                     "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
@@ -1379,39 +1449,63 @@ export default function MapLibreMap({
             source: MAP_POINT_SOURCE_ID,
             minzoom: resolvedPointMinZoom,
             paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                9,
-                [
-                  "max",
-                  [
-                    "+",
-                    4,
-                    [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                      1.2,
-                    ],
-                  ],
-                  6,
-                ],
-                16,
-                [
-                  "max",
-                  [
-                    "+",
+              "circle-radius": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
                     6,
                     [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-                      2.4,
+                      "max",
+                      9,
+                      ["+", 7, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 1.4]],
+                    ],
+                    14,
+                    [
+                      "max",
+                      13,
+                      ["+", 9, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 2.2]],
+                    ],
+                    17,
+                    [
+                      "max",
+                      16,
+                      ["+", 11, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 2.6]],
+                    ],
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    9,
+                    [
+                      "max",
+                      [
+                        "+",
+                        4,
+                        [
+                          "*",
+                          ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                          1.2,
+                        ],
+                      ],
+                      6,
+                    ],
+                    16,
+                    [
+                      "max",
+                      [
+                        "+",
+                        6,
+                        [
+                          "*",
+                          ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                          2.4,
+                        ],
+                      ],
+                      14,
                     ],
                   ],
-                  14,
-                ],
-              ],
               "circle-color": [
                 "case",
                 ["has", "categoryColor"],
@@ -1430,15 +1524,18 @@ export default function MapLibreMap({
                   "#ef4444",
                 ],
               ],
-              "circle-stroke-color": [
-                "case",
-                [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 12],
-                "rgba(15, 23, 42, 0.35)",
-                "rgba(255, 255, 255, 0.95)",
-              ],
-              "circle-stroke-width": 1.5,
-              "circle-opacity": 0.88,
-              "circle-blur": 0.12,
+              "circle-stroke-color": heatmapPalette === "faro"
+                ? "rgba(15, 23, 42, 0.90)"
+                : [
+                    "case",
+                    [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 12],
+                    "rgba(15, 23, 42, 0.35)",
+                    "rgba(255, 255, 255, 0.95)",
+                  ],
+              "circle-stroke-width": heatmapPalette === "faro" ? 2.25 : 1.5,
+              "circle-stroke-opacity": heatmapPalette === "faro" ? 0.98 : 1,
+              "circle-opacity": heatmapPalette === "faro" ? 0.98 : 0.88,
+              "circle-blur": heatmapPalette === "faro" ? 0.02 : 0.12,
             },
           });
 
@@ -1518,7 +1615,8 @@ export default function MapLibreMap({
             (heatSource as any).setData(
               sourceDataForLayer(
                 latestSource,
-                showHeatmapRef.current && !showPolygonsRef.current,
+                (showHeatmapRef.current || (heatmapPalette === "faro" && showPointsRef.current)) &&
+                  !showPolygonsRef.current,
               ),
             );
           }
@@ -1665,15 +1763,56 @@ export default function MapLibreMap({
             ? latestHeatmap.current.find((point) => point.clusterId === clusterId)
             : undefined;
           const featureId = String(properties.id ?? properties.ticket ?? "").trim();
-          const matchedPoint = cluster ?? latestHeatmap.current.find((point) => {
-            const pointId = String(point.id ?? point.ticket ?? "").trim();
-            if (featureId && pointId === featureId) return true;
-            return Math.abs(point.lng - Number(coords[0])) < 0.0000001 && Math.abs(point.lat - Number(coords[1])) < 0.0000001;
-          });
-          const selectedPoint: HeatPoint = matchedPoint ?? {
-            lat: Number(coords[1]),
-            lng: Number(coords[0]),
-            ...(featureId ? { ticket: featureId } : {}),
+          const featureIdentityResolution = resolveTerritorialTicketIdentity(
+            properties,
+            tenantSlug,
+          );
+          const featureIdentity = featureIdentityResolution.status === "valid"
+            ? featureIdentityResolution.identity
+            : null;
+          const featureClusterSize = Number(properties.clusterSize ?? properties.point_count ?? cluster?.clusterSize ?? 1);
+          const isAggregateCluster = Number.isFinite(featureClusterSize) && featureClusterSize > 1;
+          const exactIdentityMatch = featureIdentity && !isAggregateCluster
+            ? latestHeatmap.current.find((point) => {
+                const pointResolution = resolveTerritorialTicketIdentity(point, tenantSlug);
+                return pointResolution.status === "valid"
+                  && pointResolution.identity.opaqueKey === featureIdentity.opaqueKey;
+              })
+            : undefined;
+          const legacyMatch = !featureIdentity && featureIdentityResolution.status === "missing"
+            ? latestHeatmap.current.find((point) => {
+                const pointId = String(point.id ?? point.ticket ?? "").trim();
+                if (featureId && pointId === featureId) return true;
+                return Math.abs(point.lng - Number(coords[0])) < 0.0000001
+                  && Math.abs(point.lat - Number(coords[1])) < 0.0000001;
+              })
+            : undefined;
+          const matchedPoint = cluster ?? exactIdentityMatch ?? legacyMatch;
+          const authoritativeIdentity = featureIdentity && !isAggregateCluster
+            ? featureIdentity
+            : null;
+          const featureTenantSlug = authoritativeIdentity?.tenantSlug ?? tenantSlug ?? undefined;
+          const selectedPoint: HeatPoint = {
+            ...(matchedPoint ?? {
+              lat: Number(coords[1]),
+              lng: Number(coords[0]),
+              ...(featureId ? { id: featureId } : {}),
+            }),
+            ...(authoritativeIdentity
+              ? {
+                  ticket: authoritativeIdentity.ticketId,
+                  ticketId: authoritativeIdentity.ticketId,
+                  sourceModel: authoritativeIdentity.sourceModel,
+                  ticketIdentityStatus: "valid" as const,
+                  ticketHref: buildTerritorialTicketHref(
+                    authoritativeIdentity,
+                    featureTenantSlug,
+                  ) ?? undefined,
+                  ...(featureTenantSlug ? { tenantSlug: featureTenantSlug } : {}),
+                }
+              : matchedPoint
+                ? {}
+                : { ticketIdentityStatus: featureIdentityResolution.status }),
             ...(typeof properties.categoria === "string" ? { categoria: properties.categoria } : {}),
             ...(typeof properties.barrio === "string" ? { barrio: properties.barrio } : {}),
             ...(typeof properties.distrito === "string" ? { distrito: properties.distrito } : {}),
@@ -1887,7 +2026,10 @@ export default function MapLibreMap({
       const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
       if (heatSource && typeof (heatSource as any).setData === "function") {
         (heatSource as any).setData(
-          sourceDataForLayer(sourceData, showHeatmap && !showPolygons),
+          sourceDataForLayer(
+            sourceData,
+            (showHeatmap || (heatmapPalette === "faro" && resolvedShowPoints)) && !showPolygons,
+          ),
         );
       }
 
@@ -1921,6 +2063,7 @@ export default function MapLibreMap({
     mapGeneration,
     processedHeatmap,
     resolvedShowPoints,
+    heatmapPalette,
     showHeatmap,
     showPolygons,
   ]);

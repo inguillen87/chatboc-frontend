@@ -104,6 +104,50 @@ describe('MapLibreMap popup content', () => {
     expect(node.querySelector('a')).toBeNull();
   });
 
+  it('opens an exact territorial ticket identity in the enterprise CRM', () => {
+    const node = buildMapClusterPopupContent({
+      popupContext: 'territory',
+      properties: {
+        id: 'municipio_ticket:419',
+        record_source: 'municipio_ticket',
+        barrio: 'Centro',
+        categoria: 'Luminarias',
+      },
+    });
+
+    expect(node.querySelector('a')).toHaveTextContent('Abrir reclamo en CRM');
+    expect(node.querySelector('a')).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419',
+    );
+  });
+
+  it('does not link aggregated or ambiguous territorial records', () => {
+    const aggregated = buildMapClusterPopupContent({
+      popupContext: 'territory',
+      cluster: {
+        id: 'municipio_ticket:419',
+        recordSource: 'municipio_ticket',
+        ticketId: '419',
+        sourceModel: 'MunicipioTicket',
+        lat: -34.61,
+        lng: -60.91,
+        clusterSize: 2,
+      },
+    });
+    const ambiguous = buildMapClusterPopupContent({
+      popupContext: 'territory',
+      properties: {
+        id: 'municipio_ticket:419',
+        source_model: 'TenantTicket',
+        ticket_id: 419,
+      },
+    });
+
+    expect(aggregated.querySelector('a')).toBeNull();
+    expect(ambiguous.querySelector('a')).toBeNull();
+  });
+
   it('replaces technical territory placeholders with an honest pending-location message', () => {
     const node = buildMapClusterPopupContent({
       popupContext: 'territory',

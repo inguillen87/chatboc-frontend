@@ -35,6 +35,12 @@ import type {
 } from './analyticsTypes';
 import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
+import { TerritorialMapAccessibleSheet } from './TerritorialMapAccessibleSheet';
+import {
+  buildTerritorialTicketHref,
+  isTerritorialTenantScopeCompatible,
+  resolveTerritorialTicketIdentity,
+} from '@/utils/territorialTicketIdentity';
 import {
   aggregateTerritoryHeatmap,
   DEVELOPMENT_TERRITORY_ZONES,
@@ -84,6 +90,7 @@ type PremiumTerritoryHeatmapProps = {
   minSampleSize?: number;
   allowDemoFallback?: boolean;
   demoProfile?: DemoProfile;
+  tenantSlug?: string | null;
   className?: string;
 };
 
@@ -447,13 +454,19 @@ const isOutsideJurisdictionRecord = (value: unknown) => {
   return status === 'outside' || reasonCode === 'coordinates_outside_configured_jurisdiction';
 };
 
-const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
+const toLiveHeatPoint = (
+  point: OperationsHeatmapPoint,
+  tenantSlug?: string | null,
+): HeatPoint | null => {
   const location = asRecord(point.location);
   const lat = readNumber(point.lat, location?.lat, point.latitude);
   const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
   if (lat === undefined || lng === undefined) return null;
+  if (!isTerritorialTenantScopeCompatible(point, tenantSlug)) return null;
 
-  const id = readNumber(point.id, point.ticket_id, point.record_id);
+  const id = readStringOrNumber(point.id, point.ticket_id, point.record_id);
+  const ticketIdentity = resolveTerritorialTicketIdentity(point, tenantSlug);
+  const canonicalTicketIdentity = ticketIdentity.status === 'valid' ? ticketIdentity.identity : null;
   const locationFacet = safeLocationFacetForPoint(point);
   const addressCorridor = safeStreetCorridor(
     readString(point.direccion, point.address, location?.direccion, location?.address),
@@ -464,7 +477,14 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     ...(id !== undefined ? { id } : {}),
     weight: readNumber(point.weight, point.total, point.count, point.value) ?? 1,
     total: readNumber(point.total, point.count, point.value),
-    ticket: readString(point.ticket, point.ticket_id, point.record_id),
+    ticket: canonicalTicketIdentity?.ticketId ?? readString(point.ticket, point.ticket_id, point.record_id),
+    ticketId: canonicalTicketIdentity?.ticketId,
+    sourceModel: canonicalTicketIdentity?.sourceModel,
+    recordId: readStringOrNumber(point.record_id, point.ticket_id),
+    recordSource: readString(point.record_source),
+    ticketIdentityStatus: ticketIdentity.status,
+    ticketHref: buildTerritorialTicketHref(canonicalTicketIdentity, tenantSlug),
+    tenantSlug: canonicalTicketIdentity?.tenantSlug ?? undefined,
     categoria: readString(point.categoria, point.category, point.type, point.layer),
     canal: readString(point.canal, point.channel),
     barrio: readString(point.zone, point.zona, point.barrio, point.district, point.distrito),
@@ -489,6 +509,19 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     last_ticket_at: readString(point.last_ticket_at, point.updated_at, point.created_at) ?? null,
     feature: { raw: point },
   };
+};
+
+const exactTicketHrefForPoint = (
+  point: HeatPoint | null | undefined,
+  tenantSlug?: string | null,
+) => {
+  if (!point || Number(point.clusterSize ?? 1) > 1) return null;
+  const expectedTenantSlug = point.tenantSlug ?? tenantSlug;
+  const resolution = resolveTerritorialTicketIdentity(point, expectedTenantSlug);
+  return buildTerritorialTicketHref(
+    resolution.status === 'valid' ? resolution.identity : null,
+    expectedTenantSlug,
+  );
 };
 
 const formatPercent = (value: number | undefined) =>
@@ -712,7 +745,14 @@ const readStringOrNumber = (...values: unknown[]) => {
 
 const buildTicketDeskHref = (record: Record<string, unknown>) => {
   const frontendPath = readString(record.frontend_path, record.route, record.href);
-  if (frontendPath?.startsWith('/')) return frontendPath;
+  const isSafeSameOriginPath = Boolean(
+    frontendPath
+      && frontendPath.startsWith('/')
+      && !frontendPath.startsWith('//')
+      && !frontendPath.includes('\\')
+      && !/[\r\n]/.test(frontendPath),
+  );
+  if (isSafeSameOriginPath) return frontendPath;
 
   const endpoint = readString(record.endpoint, record.endpoint_template);
   const target = asRecord(record.target);
@@ -725,6 +765,20 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
   const ticketId =
     readStringOrNumber(record.ticket_id, record.record_id, target?.ticket_id, target?.record_id) ??
     extractTicketIdFromEndpoint(endpoint);
+  const inferredSourceModel = readString(
+    record.source_model,
+    record.sourceModel,
+    record.record_source,
+    target?.source_model,
+    target?.sourceModel,
+    target?.record_source,
+  ) ?? (endpoint?.includes('/api/v2/tickets/') ? 'TenantTicket' : undefined);
+  const exactIdentity = ticketId
+    ? resolveTerritorialTicketIdentity({
+        source_model: inferredSourceModel,
+        ticket_id: ticketId,
+      })
+    : null;
   const category = readString(record.categoria, record.category, target?.categoria, target?.category, filters?.category, filters?.categoria);
   const status = readString(record.estado, record.status, target?.estado, target?.status);
   const channel = readString(record.canal, record.channel, target?.canal, target?.channel, filters?.channel, filters?.canal);
@@ -732,7 +786,10 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
 
   if (uiHint) params.set('focus', uiHint);
   else if (actionType) params.set('focus', actionType);
-  if (ticketId) params.set('ticket_id', ticketId);
+  if (exactIdentity?.status === 'valid') {
+    params.set('source_model', exactIdentity.identity.sourceModel);
+    params.set('ticket_id', exactIdentity.identity.ticketId);
+  }
   if (category) params.set('categoria', category);
   if (status) params.set('estado', status);
   if (channel) params.set('canal', channel);
@@ -947,6 +1004,16 @@ const buildOperationsGeoLayerConfig = ({
         properties: {
           id: pointId,
           ticket: readString(point.ticket, rawPoint?.ticket, rawPoint?.ticket_id, rawPoint?.record_id),
+          ticketId: point.ticketId,
+          ticket_id: point.ticketId,
+          sourceModel: point.sourceModel,
+          source_model: point.sourceModel,
+          recordId: point.recordId,
+          record_id: point.recordId,
+          recordSource: point.recordSource,
+          record_source: point.recordSource,
+          ticketIdentityStatus: point.ticketIdentityStatus,
+          ticketHref: point.ticketHref,
           categoria: category,
           category,
           categoryColor: point.categoryColor ?? categoryColorFor(category),
@@ -1110,9 +1177,11 @@ export function PremiumTerritoryHeatmap({
   minSampleSize = PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   allowDemoFallback = false,
   demoProfile = 'general',
+  tenantSlug,
   className,
 }: PremiumTerritoryHeatmapProps) {
   const svgId = useId().replace(/:/g, '');
+  const mapInstructionsId = `${svgId}-map-instructions`;
   const shouldReduceMotion = useReducedMotion();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [comparisonEnabled, setComparisonEnabled] = useState(false);
@@ -1123,6 +1192,7 @@ export function PremiumTerritoryHeatmap({
   const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('auto');
   const [selectedMapPoint, setSelectedMapPoint] = useState<HeatPoint | null>(null);
+  const selectedTicketHref = exactTicketHrefForPoint(selectedMapPoint, tenantSlug);
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -1258,13 +1328,13 @@ export function PremiumTerritoryHeatmap({
   const liveMapPoints = useMemo(
     () =>
       sourcePoints
-        .map(toLiveHeatPoint)
+        .map((point) => toLiveHeatPoint(point, tenantSlug))
         .filter((point): point is HeatPoint => Boolean(point))
         .map((point) => ({
           ...point,
           categoryColor: point.categoryColor ?? categoryColorFor(point.categoria),
         })),
-    [sourcePoints],
+    [sourcePoints, tenantSlug],
   );
   const canonicalCategoryFacets = heatmap?.territorial_facets?.categories ?? [];
   const canonicalZoneFacets = heatmap?.territorial_facets?.explicit_zones ?? [];
@@ -1801,7 +1871,7 @@ export function PremiumTerritoryHeatmap({
   const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
   const renderHeatLayer = mapDisplayMode !== 'points' && showHeatLayer;
-  const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
+  const renderPointLayer = showCategoryLayer;
   const automaticMapMode = mapDisplayMode === 'auto';
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
@@ -2351,26 +2421,39 @@ export function PremiumTerritoryHeatmap({
             );
           })}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1" role="group" aria-label="Visualización del mapa">
-          {([
-            { id: 'auto', label: 'Automático' },
-            { id: 'heat', label: 'Calor' },
-            { id: 'points', label: 'Puntos' },
-            { id: 'both', label: 'Ambos' },
-          ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
-            <Button
-              key={mode.id}
-              type="button"
-              size="sm"
-              variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
-              className="h-8 px-3"
-              onClick={() => setMapDisplayMode(mode.id)}
-              aria-pressed={mapDisplayMode === mode.id}
-              disabled={mode.id === 'points' && !canShowExactPointMarkers}
-            >
-              {mode.label}
-            </Button>
-          ))}
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1" role="group" aria-label="Visualización del mapa">
+            {([
+              { id: 'auto', label: 'Automático' },
+              { id: 'heat', label: 'Calor' },
+              { id: 'points', label: 'Puntos' },
+              { id: 'both', label: 'Ambos' },
+            ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
+              <Button
+                key={mode.id}
+                type="button"
+                size="sm"
+                variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
+                className="h-8 px-3"
+                onClick={() => setMapDisplayMode(mode.id)}
+                aria-pressed={mapDisplayMode === mode.id}
+                disabled={mode.id === 'points' && !canShowExactPointMarkers}
+              >
+                {mode.label}
+              </Button>
+            ))}
+          </div>
+          <TerritorialMapAccessibleSheet
+            points={visibleLiveMapPoints}
+            canShowExactPointMarkers={canShowExactPointMarkers}
+            tenantSlug={tenantSlug}
+            summaries={[
+              { id: 'coverage', label: 'Cobertura', value: scopedCoverageLabel },
+              { id: 'mapped', label: 'Puntos mapeados', value: scopedVisiblePointLabel },
+              { id: 'pending', label: 'Pendientes de geocodificar', value: scopedPendingLabel },
+              { id: 'scope', label: 'Alcance', value: scopedTerritoryView.label },
+            ]}
+          />
         </div>
       </div>
 
@@ -2556,16 +2639,22 @@ export function PremiumTerritoryHeatmap({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
           <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
           <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
+          <p id={mapInstructionsId} className="sr-only">
+            El mapa es una visualización. Para recorrer los puntos con teclado o lector de pantalla,
+            usá el botón Ver puntos en lista.
+          </p>
           {showLiveMap ? (
             <div data-testid="live-territory-map" className="relative z-10 h-[520px] w-full overflow-hidden sm:h-[620px] 2xl:h-[680px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
                 ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
+                ariaDescribedBy={mapInstructionsId}
+                tenantSlug={tenantSlug}
                 heatmapData={visibleLiveMapPoints}
                 showHeatmap={renderHeatLayer}
                 showPoints={renderPointLayer}
-                showPointLabels={renderPointLayer}
-                pointLabelMode={automaticMapMode ? 'count' : 'categoria'}
+                showPointLabels={false}
+                pointLabelMode="count"
                 pointMinZoom={7}
                 pointLabelMinZoom={automaticMapMode ? 7 : 10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
@@ -3181,17 +3270,15 @@ export function PremiumTerritoryHeatmap({
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
-                    {selectedMapPoint.ticket ?? selectedMapPoint.id ? (
+                    {selectedTicketHref ? (
                       <Button asChild type="button" size="sm" variant="default">
-                        <a
-                          href={`/chat/${encodeURIComponent(String(selectedMapPoint.ticket ?? selectedMapPoint.id))}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
+                        <a href={selectedTicketHref}>
                           Abrir reclamo
                         </a>
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Badge variant="outline">Sin vínculo CRM verificable</Badge>
+                    )}
                     <Button type="button" size="sm" variant="outline" onClick={() => setSelectedMapPoint(null)}>
                       Cerrar detalle
                     </Button>
@@ -3274,11 +3361,31 @@ export function PremiumTerritoryHeatmap({
         </aside>
       </div>
 
-      <section
-        data-testid="territory-intelligence-workspace"
-        aria-labelledby={`${svgId}-territory-intelligence-title`}
-        className="order-6 grid items-start gap-4 lg:grid-cols-2"
+      <details
+        data-testid="territory-intelligence-details"
+        className="group order-6 rounded-xl border border-border/80 bg-background shadow-sm"
       >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Layers className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Análisis y acciones territoriales</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                Capas, prioridades y evidencia secundaria
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-medium text-primary group-open:hidden">Mostrar</span>
+          <span className="hidden shrink-0 text-xs font-medium text-primary group-open:inline">Ocultar</span>
+        </summary>
+
+        <section
+          data-testid="territory-intelligence-workspace"
+          aria-labelledby={`${svgId}-territory-intelligence-title`}
+          className="grid items-start gap-4 border-t border-border/70 p-4 lg:grid-cols-2"
+        >
         <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inteligencia territorial</p>
@@ -3689,7 +3796,8 @@ export function PremiumTerritoryHeatmap({
               </p>
             </div>
           )}
-      </section>
+        </section>
+      </details>
     </section>
   );
 }

@@ -18,6 +18,10 @@ import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
 import { normalizeTicketLocation } from '@/utils/location';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import {
+    TERRITORIAL_TICKET_SOURCE_MODELS,
+    type TerritorialTicketSourceModel,
+} from '@/utils/territorialTicketIdentity';
 
 const ticketApiPath = (path: string): string => {
     const normalized = path.startsWith('/') ? path : `/${path}`;
@@ -825,13 +829,9 @@ export interface TicketInboxTargetOptions {
     sourceModel?: TicketInboxSourceModel;
 }
 
-export const TICKET_INBOX_SOURCE_MODELS = [
-    'TenantTicket',
-    'MunicipioTicket',
-    'PymeTicket',
-] as const;
+export const TICKET_INBOX_SOURCE_MODELS = TERRITORIAL_TICKET_SOURCE_MODELS;
 
-export type TicketInboxSourceModel = (typeof TICKET_INBOX_SOURCE_MODELS)[number];
+export type TicketInboxSourceModel = TerritorialTicketSourceModel;
 
 export const isTicketInboxSourceModel = (value: unknown): value is TicketInboxSourceModel =>
     typeof value === 'string' &&
@@ -876,7 +876,7 @@ export const getTicketById = async (id: string, opts?: TicketDetailOptions): Pro
         const legacyType = opts?.ticket?.tipo === 'pyme' ? 'pyme' : 'municipio';
         const response = await apiFetch<
             Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
-        >(ticketApiPath(`/tickets/${legacyType}/${id}`), {
+        >(ticketApiPath(`/tickets/${legacyType}/${encodeURIComponent(String(id))}`), {
             tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
         });
         const normalizedResponse = applyConsentedAvatar(normalizeTicketPayload(response));
@@ -913,7 +913,7 @@ export const getInboxTicketById = async (
 ): Promise<Ticket> => {
     const normalizedId = String(id).trim();
     const numericId = Number(normalizedId);
-    if (!normalizedId || !Number.isFinite(numericId)) {
+    if (!normalizedId || String(id) !== normalizedId) {
         throw new ApiError('El identificador del ticket no es valido', 400);
     }
 
@@ -927,7 +927,6 @@ export const getInboxTicketById = async (
         const sourceModel = options.sourceModel;
         const exactTicketContext: TicketEndpointContext = sourceModel === 'TenantTicket'
             ? {
-                id: numericId,
                 tipo: 'municipio',
                 source_model: sourceModel,
                 ticket_type: 'tenant_ticket',
@@ -935,7 +934,6 @@ export const getInboxTicketById = async (
                 detail_endpoint: `/api/v2/tickets/${encodeURIComponent(normalizedId)}`,
             }
             : {
-                id: numericId,
                 tipo: sourceModel === 'PymeTicket' ? 'pyme' : 'municipio',
                 source_model: sourceModel,
             };
@@ -948,6 +946,10 @@ export const getInboxTicketById = async (
             ...ticket,
             source_model: sourceModel,
         };
+    }
+
+    if (!Number.isSafeInteger(numericId)) {
+        throw new ApiError('El identificador del ticket no es valido', 400);
     }
 
     const normalizeCandidateId = (value: unknown): number | null => {

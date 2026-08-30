@@ -6,7 +6,23 @@ import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTyp
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
   default: (props: {
-    heatmapData?: Array<{ lat?: number; lng?: number; direccion?: string; addressCellLabel?: string }>;
+    heatmapData?: Array<{
+      id?: string | number;
+      lat?: number;
+      lng?: number;
+      direccion?: string;
+      addressCellLabel?: string;
+      ticket?: string;
+      ticketId?: string;
+      sourceModel?: 'TenantTicket' | 'MunicipioTicket' | 'PymeTicket';
+      recordSource?: string;
+      ticketIdentityStatus?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
+      categoria?: string;
+      barrio?: string;
+      estado?: string;
+      canal?: string;
+      categoryColor?: string;
+    }>;
     fitToBounds?: Array<[number, number]>;
     fitBoundsRequestKey?: string;
     provider?: string;
@@ -14,6 +30,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     maptilerKey?: string | null;
     googleMapsKey?: string | null;
     ariaLabel?: string;
+    ariaDescribedBy?: string;
     showHeatmap?: boolean;
     showPoints?: boolean;
     showPointLabels?: boolean;
@@ -23,8 +40,12 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     heatmapPalette?: string;
     adaptiveZoomMode?: boolean;
     onFeatureSelect?: (point: {
-      id?: number;
+      id?: string | number;
       ticket?: string;
+      ticketId?: string;
+      sourceModel?: 'TenantTicket' | 'MunicipioTicket' | 'PymeTicket';
+      recordSource?: string;
+      ticketIdentityStatus?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
       categoria?: string;
       barrio?: string;
       estado?: string;
@@ -63,6 +84,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-maptiler-key={props.maptilerKey ?? ''}
       data-google-key={props.googleMapsKey ?? ''}
       data-aria-label={props.ariaLabel ?? ''}
+      data-aria-describedby={props.ariaDescribedBy ?? ''}
       data-show-heatmap={String(Boolean(props.showHeatmap))}
       data-show-points={String(Boolean(props.showPoints))}
       data-show-point-labels={String(Boolean(props.showPointLabels))}
@@ -88,14 +110,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       <button
         type="button"
         onClick={() =>
-          props.onFeatureSelect?.({
-            id: 419,
-            categoria: 'Luminarias',
-            barrio: 'Centro',
-            estado: 'nuevo',
-            canal: 'whatsapp',
-            categoryColor: '#2563eb',
-          })
+          props.onFeatureSelect?.(props.heatmapData?.[0] ?? {})
         }
       >
         Seleccionar punto de muestra
@@ -139,6 +154,7 @@ describe('PremiumTerritoryHeatmap', () => {
     const layout = screen.getByTestId('territory-map-layout');
     const mapShell = screen.getByTestId('territory-map-shell');
     const executiveRail = screen.getByTestId('territory-executive-rail');
+    const intelligenceDetails = screen.getByTestId('territory-intelligence-details');
     const intelligenceWorkspace = screen.getByTestId('territory-intelligence-workspace');
 
     expect(layout).toHaveClass('items-start');
@@ -148,10 +164,17 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(layout).toContainElement(mapShell);
     expect(layout).toContainElement(executiveRail);
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
+    expect(intelligenceDetails).not.toHaveAttribute('open');
+    expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
     expect(screen.getByRole('button', { name: 'Automático' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-point-label-min-zoom', '7');
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(liveMap).toHaveAttribute('data-point-label-min-zoom', '7');
+    const describedBy = liveMap.getAttribute('data-aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent('Ver puntos en lista');
+    expect(screen.getByRole('button', { name: 'Ver puntos en lista (6)' })).toBeInTheDocument();
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
   });
 
@@ -159,7 +182,17 @@ describe('PremiumTerritoryHeatmap', () => {
     const points: OperationsHeatmapPoint[] = [
       { id: 'bache-centro', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 3 },
       { id: 'bache-norte', lat: -34.62, lng: -60.92, categoria: 'Baches', barrio: 'Norte', weight: 2 },
-      { id: 'luz-centro', lat: -34.63, lng: -60.93, categoria: 'Luminarias', barrio: 'Centro', weight: 1 },
+      {
+        id: 'municipio_ticket:419',
+        record_source: 'municipio_ticket',
+        lat: -34.63,
+        lng: -60.93,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+        estado: 'nuevo',
+        canal: 'whatsapp',
+        weight: 1,
+      },
       { id: 'luz-pendiente', lat: -34.64, lng: -60.94, categoria: 'Luminarias', barrio: 'sin_zona', weight: 1 },
     ];
     const heatmap = {
@@ -181,7 +214,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-points')).toBe('4');
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
-    expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(map.getAttribute('data-show-point-labels')).toBe('false');
     expect(map.getAttribute('data-point-label-mode')).toBe('count');
     expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(map.getAttribute('data-adaptive-zoom')).toBe('true');
@@ -195,7 +228,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(map.getAttribute('data-show-points')).toBe('true');
-    expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(map.getAttribute('data-show-point-labels')).toBe('false');
 
     chooseTerritoryFacet('Filtrar mapa por categoría', 'baches');
     expect(map.getAttribute('data-points')).toBe('2');
@@ -226,9 +259,45 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar punto de muestra' }));
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Luminarias');
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Centro');
-    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute('href', '/chat/419');
+    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }));
     expect(screen.queryByTestId('territory-selected-point')).toBeNull();
+  });
+
+  it('fails closed when a territorial point publishes conflicting ticket models', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'municipio_ticket:419',
+        source_model: 'MunicipioTicket',
+        record_source: 'tenant_ticket',
+        ticket_id: 419,
+        lat: -34.61,
+        lng: -60.91,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 1, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar punto de muestra' }));
+
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Luminarias');
+    expect(screen.queryByRole('link', { name: 'Abrir reclamo' })).toBeNull();
+    expect(screen.getByText('Sin vínculo CRM verificable')).toBeInTheDocument();
   });
 
   it('scopes executive metrics to Luminarias and avoids invented metrics for combined filters', () => {
@@ -975,7 +1044,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-geo-time-slider')).toBe('true');
     expect(liveMap.getAttribute('data-show-heatmap')).toBe('true');
     expect(liveMap.getAttribute('data-show-points')).toBe('true');
-    expect(liveMap.getAttribute('data-show-point-labels')).toBe('true');
+    expect(liveMap.getAttribute('data-show-point-labels')).toBe('false');
     expect(liveMap.getAttribute('data-point-label-mode')).toBe('count');
     expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.9');
     expect(liveMap.getAttribute('data-heatmap-palette')).toBe('faro');

@@ -303,6 +303,14 @@ export interface OperationsDashboardV1 {
 
 export interface OperationsHeatmapPoint {
   id?: string | number;
+  /** Exact record id paired with source_model; never use it without that model. */
+  record_id?: string | number;
+  ticket_id?: string | number;
+  /** Canonical CRM model when the backend can prove the point-to-ticket relation. */
+  source_model?: string;
+  /** Raw backend source retained for opaque identities such as municipio_ticket:419. */
+  record_source?: string;
+  ticket_identity_status?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
   lat?: number;
   lng?: number;
   weight?: number;

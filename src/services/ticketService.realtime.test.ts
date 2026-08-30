@@ -515,6 +515,72 @@ describe('ticketService realtime normalization', () => {
     expect(apiFetchMock).toHaveBeenCalledWith(endpoint, { tenantSlug: 'junin' });
   });
 
+  it.each([
+    {
+      ticketId: '0000419',
+      sourceModel: 'TenantTicket' as const,
+      endpoint: '/api/v2/tickets/0000419',
+      response: {
+        contract_version: 'tickets.v2.detail',
+        source_model: 'TenantTicket',
+        ticket: {
+          id: '0000419',
+          ticket_id: '0000419',
+          tipo: 'municipio',
+          nro_ticket: 'T-0000419',
+          estado: 'nuevo',
+          fecha: '2026-08-30T10:00:00.000Z',
+          messages: [{ id: 1, body: 'Detalle exacto', actor_type: 'citizen' }],
+        },
+      },
+    },
+    {
+      ticketId: '9007199254740993123',
+      sourceModel: 'MunicipioTicket' as const,
+      endpoint: '/api/tickets/municipio/9007199254740993123',
+      response: {
+        id: '9007199254740993123',
+        ticket_id: '9007199254740993123',
+        tipo: 'municipio',
+        nro_ticket: 'M-9007199254740993123',
+        asunto: 'Identidad fuera del rango seguro de JavaScript',
+        estado: 'nuevo',
+        fecha: '2026-08-30T10:00:00.000Z',
+        mensajes: [{ id: 2, mensaje: 'Detalle exacto', es_admin: false }],
+      },
+    },
+    {
+      ticketId: 'case:2026/08/30-A',
+      sourceModel: 'PymeTicket' as const,
+      endpoint: '/api/tickets/pyme/case%3A2026%2F08%2F30-A',
+      response: {
+        id: 'case:2026/08/30-A',
+        ticket_id: 'case:2026/08/30-A',
+        tipo: 'pyme',
+        nro_ticket: 'P-CASE-A',
+        asunto: 'Identidad opaca con separadores',
+        estado: 'nuevo',
+        fecha: '2026-08-30T10:00:00.000Z',
+        mensajes: [{ id: 3, mensaje: 'Detalle exacto', es_admin: false }],
+      },
+    },
+  ])(
+    'conserva el ID opaco $ticketId y el tenant al resolver $sourceModel',
+    async ({ ticketId, sourceModel, endpoint, response }) => {
+      apiFetchMock.mockResolvedValueOnce(response);
+
+      const ticket = await getInboxTicketById(ticketId, {
+        tenantSlug: 'junin',
+        sourceModel,
+      });
+
+      expect(String(ticket.id)).toBe(ticketId);
+      expect(ticket.source_model).toBe(sourceModel);
+      expect(apiFetchMock).toHaveBeenCalledTimes(1);
+      expect(apiFetchMock).toHaveBeenCalledWith(endpoint, { tenantSlug: 'junin' });
+    },
+  );
+
   it('rechaza un source_model ajeno al contrato antes de consultar la API', async () => {
     await expect(getInboxTicketById(99, {
       tenantSlug: 'junin',

@@ -1,6 +1,7 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import type { MapProvider } from '@/hooks/useMapProvider';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
+import type { TerritorialTicketSourceModel } from '@/utils/territorialTicketIdentity';
 
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
@@ -15,8 +16,15 @@ export interface HeatPoint {
   lat: number;
   lng: number;
   weight?: number;
-  id?: number;
+  id?: string | number;
   ticket?: string;
+  ticketId?: string;
+  sourceModel?: TerritorialTicketSourceModel;
+  recordId?: string | number;
+  recordSource?: string;
+  ticketIdentityStatus?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
+  ticketHref?: string;
+  tenantSlug?: string;
   categoria?: string;
   direccion?: string;
   /** Aggregated address/cell label; unlike direccion it must not identify a household. */

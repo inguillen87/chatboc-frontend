@@ -563,7 +563,16 @@ describe("MapLibreMap lifecycle", () => {
     const heatLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-heat");
     const haloLayer = mapMocks.addedLayers.find((layer) => layer.id === "territory-points-halo");
 
-    expect(pointLayer).toEqual(expect.objectContaining({ minzoom: 4.5 }));
+    expect(pointLayer).toEqual(expect.objectContaining({
+      minzoom: 4.5,
+      paint: expect.objectContaining({
+        "circle-stroke-color": "rgba(15, 23, 42, 0.90)",
+        "circle-stroke-width": 2.25,
+        "circle-stroke-opacity": 0.98,
+        "circle-opacity": 0.98,
+        "circle-blur": 0.02,
+      }),
+    }));
     expect(labelLayer).toEqual(expect.objectContaining({
       minzoom: 9,
       layout: expect.objectContaining({
@@ -595,8 +604,8 @@ describe("MapLibreMap lifecycle", () => {
       minzoom: 4.5,
       paint: expect.objectContaining({
         "circle-color": ["case", ["has", "categoryColor"], ["get", "categoryColor"], "#2563eb"],
-        "circle-opacity": 0.96,
-        "circle-blur": 0.06,
+        "circle-opacity": 0.42,
+        "circle-blur": 0.08,
         "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
         "circle-stroke-width": 3,
       }),
@@ -668,7 +677,110 @@ describe("MapLibreMap lifecycle", () => {
       closeButton: true,
       maxWidth: "320px",
     });
-    expect(onFeatureSelect).toHaveBeenCalledWith(expect.objectContaining({ ticket: "faro-territory" }));
+    expect(onFeatureSelect).toHaveBeenCalledWith(expect.objectContaining({
+      id: "faro-territory",
+      ticketIdentityStatus: "missing",
+    }));
+  });
+
+  it("keeps Faro point anchors visible in points-only mode on a light basemap", async () => {
+    const source = sourceFor("municipio_ticket:419", -60.95);
+    Object.assign(source.features[0].properties, {
+      record_source: "municipio_ticket",
+      categoria: "Luminarias",
+      categoryColor: "#2563eb",
+    });
+
+    render(
+      <MapLibreMap
+        geoLayerConfig={configFor(source)}
+        showHeatmap={false}
+        showPoints
+        showPointLabels
+        pointMinZoom={7}
+        pointLabelMode="categoria"
+        heatmapPalette="faro"
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    await waitFor(() => {
+      const latestHaloSource = mapMocks.heatSourceSetData.mock.calls.at(-1)?.[0] as {
+        features?: unknown[];
+      };
+      expect(latestHaloSource.features).toHaveLength(1);
+    });
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-halo", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
+  });
+
+  it("selects a territorial point by source model and ticket id before a colliding scalar id", async () => {
+    const onFeatureSelect = vi.fn();
+    const source = sourceFor("419", -60.94);
+    Object.assign(source.features[0].properties, {
+      source_model: "TenantTicket",
+      ticket_id: "419",
+      tenantSlug: "junin",
+      clusterSize: 1,
+    });
+
+    render(
+      <MapLibreMap
+        tenantSlug="junin"
+        geoLayerConfig={configFor(source)}
+        heatmapData={[
+          {
+            lat: -34.56,
+            lng: -60.93,
+            id: "419",
+            ticketId: "419",
+            sourceModel: "TenantTicket",
+            tenantSlug: "otro-municipio",
+          },
+          {
+            lat: -34.58,
+            lng: -60.95,
+            id: "419",
+            ticketId: "419",
+            sourceModel: "MunicipioTicket",
+            tenantSlug: "junin",
+          },
+          {
+            lat: -34.57,
+            lng: -60.94,
+            id: "419",
+            ticketId: "419",
+            sourceModel: "TenantTicket",
+            tenantSlug: "junin",
+          },
+        ]}
+        disableClientClustering
+        showHeatmap
+        showPoints
+        heatmapPalette="faro"
+        onFeatureSelect={onFeatureSelect}
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    mapMocks.instances[0]?.emitLayer("click", "territory-points", {
+      features: [
+        {
+          geometry: { coordinates: [-60.94, -34.57] },
+          properties: source.features[0].properties,
+        },
+      ],
+      lngLat: { lng: -60.94 },
+    });
+
+    expect(onFeatureSelect).toHaveBeenCalledWith(expect.objectContaining({
+      sourceModel: "TenantTicket",
+      ticketId: "419",
+      lat: -34.57,
+      lng: -60.94,
+      tenantSlug: "junin",
+      ticketHref: "/perfil?tab=tickets&source_model=TenantTicket&ticket_id=419&tenant_slug=junin&tenant=junin",
+    }));
   });
 
   it("keeps the basemap usable and explains a filtered view with no geolocated points", async () => {
