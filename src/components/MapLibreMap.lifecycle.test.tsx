@@ -17,12 +17,14 @@ const mapMocks = vi.hoisted(() => ({
     emit: (eventName: string, payload?: unknown) => void;
     setBounds: (bbox: [number, number, number, number]) => void;
   }>,
+  heatSourceSetData: vi.fn(),
   pointSourceSetData: vi.fn(),
   polygonSourceSetData: vi.fn(),
   googleModuleLoads: 0,
   reducedMotion: false,
   rafCallbacks: [] as FrameRequestCallback[],
   addedLayers: [] as Array<Record<string, unknown>>,
+  addedSources: [] as Array<{ id: string; options: Record<string, unknown> }>,
   layoutCalls: [] as Array<[string, string, unknown]>,
 }));
 
@@ -90,9 +92,14 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
 
-    addSource(id: string) {
-      const setData = id === "points" ? mapMocks.pointSourceSetData : mapMocks.polygonSourceSetData;
+    addSource(id: string, options: Record<string, unknown>) {
+      const setData = id === "chatboc-runtime-heatmap"
+        ? mapMocks.heatSourceSetData
+        : id === "chatboc-runtime-points"
+          ? mapMocks.pointSourceSetData
+          : mapMocks.polygonSourceSetData;
       this.sources.set(id, { setData });
+      mapMocks.addedSources.push({ id, options });
     }
 
     getSource(id: string) {
@@ -239,12 +246,14 @@ describe("MapLibreMap lifecycle", () => {
   beforeEach(() => {
     mapMocks.constructorCalls.length = 0;
     mapMocks.instances.length = 0;
+    mapMocks.heatSourceSetData.mockReset();
     mapMocks.pointSourceSetData.mockReset();
     mapMocks.polygonSourceSetData.mockReset();
     mapMocks.googleModuleLoads = 0;
     mapMocks.reducedMotion = false;
     mapMocks.rafCallbacks.length = 0;
     mapMocks.addedLayers.length = 0;
+    mapMocks.addedSources.length = 0;
     mapMocks.layoutCalls.length = 0;
 
     Object.defineProperty(window, "matchMedia", {
@@ -288,22 +297,30 @@ describe("MapLibreMap lifecycle", () => {
     expect(screen.queryByTestId("map-evidence-badge")).not.toBeInTheDocument();
   });
 
-  it("constructs MapLibre once and updates a new GeoJSON filter with setData", async () => {
+  it("constructs MapLibre once and updates both filtered datasets with setData", async () => {
     const initialSource = sourceFor("initial", -60.95);
     const nextSource = sourceFor("filtered", -60.91);
     const { rerender } = render(
-      <MapLibreMap geoLayerConfig={configFor(initialSource)} showHeatmap />,
+      <MapLibreMap geoLayerConfig={configFor(initialSource)} showHeatmap showPoints />,
     );
 
     await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
-    await waitFor(() => expect(mapMocks.pointSourceSetData).toHaveBeenCalled());
+    await waitFor(() => expect(mapMocks.heatSourceSetData).toHaveBeenCalledWith(initialSource));
+    await waitFor(() => expect(mapMocks.pointSourceSetData).toHaveBeenCalledWith(initialSource));
+    const heatUpdatesBeforeFilter = mapMocks.heatSourceSetData.mock.calls.length;
     const updatesBeforeFilter = mapMocks.pointSourceSetData.mock.calls.length;
 
-    rerender(<MapLibreMap geoLayerConfig={configFor(nextSource)} showHeatmap />);
+    rerender(
+      <MapLibreMap geoLayerConfig={configFor(nextSource)} showHeatmap showPoints />,
+    );
 
+    await waitFor(() =>
+      expect(mapMocks.heatSourceSetData).toHaveBeenCalledWith(nextSource),
+    );
     await waitFor(() =>
       expect(mapMocks.pointSourceSetData).toHaveBeenCalledWith(nextSource),
     );
+    expect(mapMocks.heatSourceSetData.mock.calls.length).toBeGreaterThan(heatUpdatesBeforeFilter);
     expect(mapMocks.pointSourceSetData.mock.calls.length).toBeGreaterThan(updatesBeforeFilter);
     expect(mapMocks.constructorCalls).toHaveLength(1);
     expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
@@ -362,7 +379,7 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
     expect(mapMocks.addedLayers.find((layer) => layer.id === "territory-points-labels")).toEqual(
-      expect.objectContaining({ type: "symbol", source: "points" }),
+      expect.objectContaining({ type: "symbol", source: "chatboc-runtime-points" }),
     );
     expect(mapMocks.constructorCalls[0]).toEqual(
       expect.objectContaining({ cooperativeGestures: true, maxPitch: 60 }),
@@ -381,6 +398,63 @@ describe("MapLibreMap lifecycle", () => {
     );
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
     expect(mapMocks.constructorCalls).toHaveLength(1);
+  });
+
+  it("keeps heat and point-label datasets independent across every visibility combination", async () => {
+    const source = sourceFor("visibility-contract", -60.93);
+    const emptySource = expect.objectContaining({
+      type: "FeatureCollection",
+      features: [],
+    });
+    const { rerender } = render(
+      <MapLibreMap
+        geoLayerConfig={configFor(source)}
+        showHeatmap
+        showPoints={false}
+        showPointLabels={false}
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.constructorCalls).toHaveLength(1));
+    await waitFor(() => expect(mapMocks.heatSourceSetData).toHaveBeenCalledWith(source));
+    await waitFor(() => expect(mapMocks.pointSourceSetData).toHaveBeenCalledWith(emptySource));
+    expect(
+      mapMocks.addedSources.find((candidate) => candidate.id === "chatboc-runtime-heatmap")
+        ?.options.data,
+    ).toBe(source);
+    expect(
+      mapMocks.addedSources.find((candidate) => candidate.id === "chatboc-runtime-points")
+        ?.options.data,
+    ).toEqual(emptySource);
+    expect(mapMocks.addedLayers.find((layer) => layer.id === "territory-heat")).toEqual(
+      expect.objectContaining({ source: "chatboc-runtime-heatmap" }),
+    );
+    expect(mapMocks.addedLayers.find((layer) => layer.id === "territory-points")).toEqual(
+      expect.objectContaining({ source: "chatboc-runtime-points" }),
+    );
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
+
+    mapMocks.heatSourceSetData.mockClear();
+    mapMocks.pointSourceSetData.mockClear();
+    mapMocks.layoutCalls.length = 0;
+    rerender(
+      <MapLibreMap
+        geoLayerConfig={configFor(source)}
+        showHeatmap={false}
+        showPoints={false}
+        showPointLabels={false}
+      />,
+    );
+
+    await waitFor(() => expect(mapMocks.heatSourceSetData).toHaveBeenCalledWith(emptySource));
+    await waitFor(() => expect(mapMocks.pointSourceSetData).toHaveBeenCalledWith(emptySource));
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "none"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
+    expect(mapMocks.constructorCalls).toHaveLength(1);
+    expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
   });
 
   it("supports the Faro territorial presentation without changing global map defaults", async () => {

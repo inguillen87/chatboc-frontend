@@ -675,6 +675,7 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     const zoneFilter = await screen.findByLabelText('Zona declarada');
     expect(zoneFilter).toHaveTextContent('Centro declarado');
+    expect(zoneFilter).not.toHaveTextContent('Sin zona');
     fireEvent.change(zoneFilter, { target: { value: 'centro' } });
 
     await waitFor(() => {
@@ -686,6 +687,54 @@ describe('OperationsDashboardPanel territory UX', () => {
         }),
       );
     });
+  });
+
+  it('keeps the declared-zone selector honest and disabled when backend only publishes placeholders', async () => {
+    const fixture = heatmapFixture({
+      segments: {
+        zone: [
+          { key: 'sin_zona', label: 'Sin zona', count: 1 },
+          { key: 'unknown', label: 'Unknown', count: 1 },
+        ],
+      },
+    });
+    fixture.points = fixture.points.map((point) => ({ ...point, barrio: 'sin barrio' }));
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+
+    renderPanel();
+
+    const zoneFilter = await screen.findByLabelText('Zona declarada');
+    expect(zoneFilter).toBeDisabled();
+    expect(zoneFilter).toHaveValue('');
+    expect(zoneFilter).toHaveTextContent('Todos');
+    expect(zoneFilter).not.toHaveTextContent('Sin zona');
+    expect(zoneFilter).not.toHaveTextContent('Unknown');
+    expect(screen.getByText('Sin zonas verificadas. Las ubicaciones pendientes no se ofrecen como zonas.')).toBeTruthy();
+    expect(screen.getByLabelText('Categoría')).not.toBeDisabled();
+    expect(screen.getByLabelText('Categoría')).toHaveTextContent(/alumbrado/i);
+  });
+
+  it('does not expose named territorial facets when the privacy contract suppresses zones', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(
+      heatmapFixture({
+        privacy: {
+          mode: 'aggregated',
+          suppressed: { zones: true },
+        },
+        segments: {
+          zone: [{ key: 'centro', label: 'Centro declarado', count: 2 }],
+        },
+      }),
+    );
+
+    renderPanel();
+
+    const zoneFilter = await screen.findByLabelText('Zona declarada');
+    expect(zoneFilter).toBeDisabled();
+    expect(zoneFilter).not.toHaveTextContent('Centro declarado');
+    expect(screen.getByText('Segmentación territorial protegida por privacidad.')).toBeTruthy();
+    expect(screen.getByLabelText('Categoría')).not.toBeDisabled();
+    expect(screen.getByLabelText('Categoría')).toHaveTextContent(/alumbrado/i);
   });
 
   it('does not render queue truth or a healthy SLA state when the validated contract is unavailable', async () => {

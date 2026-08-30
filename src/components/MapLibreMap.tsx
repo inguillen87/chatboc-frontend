@@ -133,6 +133,18 @@ const addLayer = (map: Map, layer: any) => {
   }
 };
 
+const MAP_HEAT_SOURCE_ID = "chatboc-runtime-heatmap";
+const MAP_POINT_SOURCE_ID = "chatboc-runtime-points";
+const EMPTY_MAP_FEATURE_COLLECTION: { type: "FeatureCollection"; features: unknown[] } = {
+  type: "FeatureCollection" as const,
+  features: [],
+};
+
+const sourceDataForLayer = (
+  source: { type: "FeatureCollection"; features: unknown[] },
+  visible: boolean,
+) => (visible ? source : EMPTY_MAP_FEATURE_COLLECTION);
+
 type MapLibreModule = typeof import("maplibre-gl");
 
 declare global {
@@ -1045,10 +1057,27 @@ export default function MapLibreMap({
           const map = mapRef.current;
           setMapError(null);
 
-          if (!map.getSource("points")) {
-            map.addSource("points", {
+          const currentSource =
+            configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current);
+
+          if (!map.getSource(MAP_HEAT_SOURCE_ID)) {
+            map.addSource(MAP_HEAT_SOURCE_ID, {
               type: "geojson",
-              data: configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
+              data: sourceDataForLayer(
+                currentSource,
+                showHeatmapRef.current && !showPolygonsRef.current,
+              ),
+              ...configuredSourceOptions,
+            });
+          }
+
+          if (!map.getSource(MAP_POINT_SOURCE_ID)) {
+            map.addSource(MAP_POINT_SOURCE_ID, {
+              type: "geojson",
+              data: sourceDataForLayer(
+                currentSource,
+                showPointsRef.current && !showPolygonsRef.current,
+              ),
               ...configuredSourceOptions,
             });
           }
@@ -1102,7 +1131,7 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.heat,
             type: "heatmap",
-            source: "points",
+            source: MAP_HEAT_SOURCE_ID,
             maxzoom: 15,
             paint: {
               "heatmap-weight": heatmapPalette === "faro"
@@ -1198,7 +1227,7 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.halo,
             type: "circle",
-            source: "points",
+            source: MAP_POINT_SOURCE_ID,
             minzoom: resolvedPointMinZoom,
             paint: {
               "circle-radius": heatmapPalette === "faro"
@@ -1272,7 +1301,7 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.circles,
             type: "circle",
-            source: "points",
+            source: MAP_POINT_SOURCE_ID,
             minzoom: resolvedPointMinZoom,
             paint: {
               "circle-radius": [
@@ -1341,7 +1370,7 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.labels,
             type: "symbol",
-            source: "points",
+            source: MAP_POINT_SOURCE_ID,
             minzoom: resolvedPointLabelMinZoom,
             layout: {
               "text-field": pointLabelMode === "barrio"
@@ -1405,10 +1434,24 @@ export default function MapLibreMap({
             time_slider_enabled: currentInteractions.timeSliderEnabled,
             time_slider_field: currentInteractions.timeSliderField ?? null,
           });
-          const pointSource = map.getSource("points");
+          const latestSource =
+            configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current);
+          const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+          if (heatSource && typeof (heatSource as any).setData === "function") {
+            (heatSource as any).setData(
+              sourceDataForLayer(
+                latestSource,
+                showHeatmapRef.current && !showPolygonsRef.current,
+              ),
+            );
+          }
+          const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
           if (pointSource && typeof (pointSource as any).setData === "function") {
             (pointSource as any).setData(
-              configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
+              sourceDataForLayer(
+                latestSource,
+                showPointsRef.current && !showPolygonsRef.current,
+              ),
             );
           }
         };
@@ -1713,22 +1756,48 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map) return;
 
+    const sourceData = configuredGeoSource ?? buildGeoJson(processedHeatmap);
     const applyData = () => {
-      const source = map.getSource("points");
-      if (!source || typeof (source as any).setData !== "function") return;
-      (source as any).setData(configuredGeoSource ?? buildGeoJson(processedHeatmap));
+      const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+      if (heatSource && typeof (heatSource as any).setData === "function") {
+        (heatSource as any).setData(
+          sourceDataForLayer(sourceData, showHeatmap && !showPolygons),
+        );
+      }
+
+      const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
+      if (pointSource && typeof (pointSource as any).setData === "function") {
+        (pointSource as any).setData(
+          sourceDataForLayer(sourceData, resolvedShowPoints && !showPolygons),
+        );
+      }
     };
-    const source = map.getSource("points");
-    if (source && typeof (source as any).setData === "function") {
+    const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+    const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
+    if (
+      heatSource &&
+      typeof (heatSource as any).setData === "function" &&
+      pointSource &&
+      typeof (pointSource as any).setData === "function"
+    ) {
       applyData();
       return;
     }
 
     map.once("load", applyData);
+    map.once("style.load", applyData);
     return () => {
       map.off("load", applyData);
+      map.off("style.load", applyData);
     };
-  }, [configuredGeoSource, mapGeneration, processedHeatmap]);
+  }, [
+    configuredGeoSource,
+    mapGeneration,
+    processedHeatmap,
+    resolvedShowPoints,
+    showHeatmap,
+    showPolygons,
+  ]);
 
   useEffect(() => {
     if (!configuredInteractions.timeSliderEnabled) return;
