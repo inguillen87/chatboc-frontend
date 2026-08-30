@@ -29,6 +29,7 @@ const mapMocks = vi.hoisted(() => ({
   layoutCalls: [] as Array<[string, string, unknown]>,
   popupAddCalls: 0,
   popupOptions: [] as unknown[],
+  markerElements: [] as HTMLElement[],
 }));
 
 vi.mock("@/components/GoogleHeatmapMap", () => {
@@ -188,6 +189,11 @@ vi.mock("maplibre-gl", () => {
   }
 
   class FakeMarker {
+    constructor(options?: { element?: HTMLElement }) {
+      if (options?.element) {
+        mapMocks.markerElements.push(options.element);
+      }
+    }
     setLngLat() {
       return this;
     }
@@ -272,6 +278,7 @@ describe("MapLibreMap lifecycle", () => {
     mapMocks.layoutCalls.length = 0;
     mapMocks.popupAddCalls = 0;
     mapMocks.popupOptions.length = 0;
+    mapMocks.markerElements.length = 0;
 
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -338,6 +345,11 @@ describe("MapLibreMap lifecycle", () => {
       expect(latestSource.features).toHaveLength(1);
       expect(latestSource.features?.[0]?.properties?.clusterSize).toBe(3);
       expect(latestSource.features?.[0]?.properties?.sampleTickets).toEqual(["M-1", "M-2", "M-3"]);
+      expect(
+        mapMocks.markerElements.some(
+          (element) => element.getAttribute("aria-label") === "3 reclamos agrupados",
+        ),
+      ).toBe(true);
     });
   });
 

@@ -876,6 +876,7 @@ export default function MapLibreMap({
   const libRef = useRef<MapLibreModule | null>(null);
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
+  const clusterCountMarkersRef = useRef<any[]>([]);
   const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
   const configuredGeoSourceRef = useRef(renderedGeoSource);
   const configuredInteractionsRef = useRef(configuredInteractions);
@@ -1828,6 +1829,8 @@ export default function MapLibreMap({
         adminMarkerRef.current.remove();
         adminMarkerRef.current = null;
       }
+      clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+      clusterCountMarkersRef.current = [];
     };
   }, [
     configuredLayerIds.circles,
@@ -2041,6 +2044,65 @@ export default function MapLibreMap({
     animate();
     return () => cancelAnimationFrame(frame);
   }, [configuredLayerIds.heat, mapGeneration, prefersReducedMotion, showHeatmap, showPolygons]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+
+    clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+    clusterCountMarkersRef.current = [];
+
+    if (
+      !map ||
+      !maplibre ||
+      !resolvedShowPoints ||
+      !resolvedShowPointLabels ||
+      showPolygons ||
+      pointLabelMode !== "count"
+    ) {
+      return;
+    }
+
+    clusterCountMarkersRef.current = processedHeatmap
+      .filter((point) => Number(point.clusterSize ?? 1) > 1)
+      .map((point) => {
+        const count = Math.max(2, Math.round(Number(point.clusterSize ?? 1)));
+        const element = document.createElement("span");
+        element.textContent = count.toLocaleString("es-AR");
+        element.setAttribute("role", "img");
+        element.setAttribute("aria-label", `${count.toLocaleString("es-AR")} reclamos agrupados`);
+        element.style.alignItems = "center";
+        element.style.background = point.categoryColor || "#7c3aed";
+        element.style.border = "2px solid rgba(255,255,255,0.96)";
+        element.style.borderRadius = "999px";
+        element.style.boxShadow = "0 5px 16px rgba(15,23,42,0.38)";
+        element.style.color = "#ffffff";
+        element.style.display = "flex";
+        element.style.fontSize = "12px";
+        element.style.fontWeight = "800";
+        element.style.height = "28px";
+        element.style.justifyContent = "center";
+        element.style.lineHeight = "1";
+        element.style.pointerEvents = "none";
+        element.style.width = "28px";
+
+        return new maplibre.Marker({ element, anchor: "center" })
+          .setLngLat([point.lng, point.lat])
+          .addTo(map);
+      });
+
+    return () => {
+      clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+      clusterCountMarkersRef.current = [];
+    };
+  }, [
+    mapGeneration,
+    pointLabelMode,
+    processedHeatmap,
+    resolvedShowPointLabels,
+    resolvedShowPoints,
+    showPolygons,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
