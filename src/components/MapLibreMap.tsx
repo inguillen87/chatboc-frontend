@@ -769,13 +769,7 @@ export default function MapLibreMap({
       normalizedHeatmap.some(
         (point) =>
           (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
-          Boolean(point.clusterId) ||
-          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
-          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
-          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
-          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
-          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
-          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+          Boolean(point.clusterId),
       ),
     [normalizedHeatmap],
   );

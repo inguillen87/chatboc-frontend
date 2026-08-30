@@ -314,6 +314,33 @@ describe("MapLibreMap lifecycle", () => {
     expect(screen.queryByTestId("map-evidence-badge")).not.toBeInTheDocument();
   });
 
+  it("clusters overlapping audited cases even when each point includes ticket samples", async () => {
+    const heatmapData = [
+      { lat: -34.58, lng: -60.9, weight: 1, ticket: "M-1", sampleTickets: ["M-1"] },
+      { lat: -34.58, lng: -60.9, weight: 1, ticket: "M-2", sampleTickets: ["M-2"] },
+      { lat: -34.58, lng: -60.9, weight: 1, ticket: "M-3", sampleTickets: ["M-3"] },
+    ];
+
+    render(
+      <MapLibreMap
+        heatmapData={heatmapData}
+        geoLayerConfig={configFor(sourceFor("server-contract", -60.95))}
+        showHeatmap
+        showPoints
+        pointLabelMode="count"
+      />,
+    );
+
+    await waitFor(() => {
+      const latestSource = mapMocks.pointSourceSetData.mock.calls.at(-1)?.[0] as {
+        features?: Array<{ properties?: { clusterSize?: number; sampleTickets?: string[] } }>;
+      };
+      expect(latestSource.features).toHaveLength(1);
+      expect(latestSource.features?.[0]?.properties?.clusterSize).toBe(3);
+      expect(latestSource.features?.[0]?.properties?.sampleTickets).toEqual(["M-1", "M-2", "M-3"]);
+    });
+  });
+
   it("constructs MapLibre once and updates both filtered datasets with setData", async () => {
     const initialSource = sourceFor("initial", -60.95);
     const nextSource = sourceFor("filtered", -60.91);
