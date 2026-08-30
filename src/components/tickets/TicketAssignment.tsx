@@ -79,19 +79,25 @@ const authorityFailureMessage = (
   return 'El backend no publicó el contrato employee.routing.v1 requerido para asignar.';
 };
 
+export const serializeAssignmentIdentifier = (value: string | number) => {
+  const normalized = String(value).trim();
+  const numeric = Number(normalized);
+  return /^(?:0|[1-9]\d*)$/.test(normalized) &&
+    Number.isSafeInteger(numeric) &&
+    String(numeric) === normalized
+    ? numeric
+    : normalized;
+};
+
 export const buildSupervisedAssignmentPayload = (
   authority: TicketRoutingAuthority,
   assigneeId: string | number,
 ) => ({
   source_model: authority.sourceModel,
-  ticket_id: Number.isFinite(Number(authority.ticketId))
-    ? Number(authority.ticketId)
-    : authority.ticketId,
-  assignee_id: Number.isFinite(Number(assigneeId)) ? Number(assigneeId) : assigneeId,
+  ticket_id: serializeAssignmentIdentifier(authority.ticketId),
+  assignee_id: serializeAssignmentIdentifier(assigneeId),
   expected_assignee_id: authority.currentAssigneeId
-    ? (Number.isFinite(Number(authority.currentAssigneeId))
-      ? Number(authority.currentAssigneeId)
-      : authority.currentAssigneeId)
+    ? serializeAssignmentIdentifier(authority.currentAssigneeId)
     : null,
 });
 
@@ -211,9 +217,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
           action: 'claim',
           payload: {
             source_model: authority.sourceModel,
-            ticket_id: Number.isFinite(Number(authority.ticketId))
-              ? Number(authority.ticketId)
-              : authority.ticketId,
+            ticket_id: serializeAssignmentIdentifier(authority.ticketId),
           },
         },
         selectedTicket.tenant_slug || currentSlug,

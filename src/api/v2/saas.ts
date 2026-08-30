@@ -282,6 +282,8 @@ export interface OmnichannelInboxDetailV2 {
 export interface OmnichannelInboxActionPayload {
   action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
   ticket_id?: string | number;
+  source_model?: 'TenantTicket' | 'MunicipioTicket';
+  legacy_model?: 'TenantTicket' | 'MunicipioTicket';
   endpoint?: string;
   body?: string;
   message?: string;
@@ -2146,6 +2148,17 @@ export const postOmnichannelInboxActionV2 = async (
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
   const normalizedAction = payload.action.trim().toLowerCase();
+  if (normalizedAction === 'claim' || normalizedAction === 'assign') {
+    const sourceModel = asString(payload.source_model) ||
+      asString(nestedPayload.source_model);
+    if (sourceModel !== 'TenantTicket' && sourceModel !== 'MunicipioTicket') {
+      throw new ApiError(
+        'La toma o asignación requiere la identidad exacta source_model + ticket_id.',
+        400,
+        { code: 'source_model_required' },
+      );
+    }
+  }
   const isReply = normalizedAction === 'reply';
   const requiresStableIdentity = IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
   const actionClientMessageId = requiresStableIdentity

@@ -59,4 +59,22 @@ describe('employee routing transport', () => {
     expect(panelPostMock).toHaveBeenCalledTimes(1);
     expect(panelPostMock.mock.calls[0][0]).toBe('/api/v2/inbox/omnichannel/403/actions');
   });
+
+  it.each(['claim', 'assign'])('bloquea %s antes de la red si falta source_model', async (action) => {
+    await expect(
+      postOmnichannelInboxActionV2(
+        '403',
+        {
+          action,
+          payload: {
+            ticket_id: 403,
+            ...(action === 'assign' ? { assignee_id: 10, expected_assignee_id: null } : {}),
+          },
+        },
+        'junin',
+      ),
+    ).rejects.toMatchObject({ status: 400, body: { code: 'source_model_required' } });
+
+    expect(panelPostMock).not.toHaveBeenCalled();
+  });
 });

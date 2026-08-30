@@ -10,7 +10,10 @@ import useTicketRoutingAuthority from '@/hooks/useTicketRoutingAuthority';
 import type { Ticket, User } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
 import { toast } from 'sonner';
-import { employeeIsEligibleForRoutingTicket } from './ticketRoutingAuthority';
+import {
+  employeeIsEligibleForRoutingTicket,
+  getTicketRoutingIdentity,
+} from './ticketRoutingAuthority';
 
 const supportsAtomicClaim = (ticket: Ticket | null): boolean => {
   const sourceModel = String(ticket?.source_model ?? '').trim();
@@ -41,7 +44,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
   if (!selectedTicket) return null;
 
   const userId = String(user?.id ?? '').trim();
-  const ticketKey = `${selectedTicket.tipo}:${selectedTicket.id}`;
+  const ticketKey = getTicketRoutingIdentity(selectedTicket) ?? `invalid:${selectedTicket.tipo}:${selectedTicket.id}`;
   const routingAuthority = routingState.resolution?.ok
     ? routingState.resolution.authority
     : null;

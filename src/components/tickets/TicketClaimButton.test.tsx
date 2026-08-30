@@ -215,6 +215,18 @@ describe('TicketClaimButton', () => {
     expect(await screen.findByRole('button', { name: 'Asignado a mí' })).toBeDisabled();
   });
 
+  it('no comparte la confirmación local entre modelos con el mismo id', async () => {
+    mocks.ticket = { ...baseTicket, source_model: 'TenantTicket' };
+    const view = render(<TicketClaimButton />);
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+    expect(await screen.findByRole('button', { name: 'Asignado a mí' })).toBeDisabled();
+
+    mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
+    view.rerender(<TicketClaimButton />);
+
+    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+  });
+
   it('no permite tomar un ticket asignado a otra persona y reserva la reasignación al supervisor', () => {
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
     mocks.routingAssigneeId = '22';

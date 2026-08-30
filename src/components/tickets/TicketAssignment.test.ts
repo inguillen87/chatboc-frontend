@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizeEmployeeRoutingV2 } from '@/api/v2/saas';
 import type { Ticket } from '@/types/tickets';
-import { buildSupervisedAssignmentPayload } from './TicketAssignment';
+import {
+  buildSupervisedAssignmentPayload,
+  serializeAssignmentIdentifier,
+} from './TicketAssignment';
 import {
   buildRoutingTicketIdentity,
   canSuperviseTicketAssignments,
@@ -122,7 +125,77 @@ describe('resolveTicketRoutingAuthority', () => {
       selectedTicket(),
     );
 
-    expect(resolution).toEqual({ ok: false, reason: 'ticket_not_published' });
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si un alias de identidad está publicado pero vacío', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: '',
+            ticket_id: 403,
+            category: 'luminarias',
+          }],
+          unassigned: [],
+        },
+        recommendations: [],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('no ignora una recomendación con identidad contradictoria junto a una cola válida', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          ticket: {
+            source_model: 'MunicipioTicket',
+            sourceModel: 'TenantTicket',
+            id: 403,
+            category: 'luminarias',
+          },
+          eligible_assignees: [{ id: 10 }],
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('detecta identidad contradictoria aunque el id opaco contenga dos puntos', () => {
+    const opaqueId = 'case:403';
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: opaqueId,
+            category: 'luminarias',
+          }],
+          unassigned: [],
+        },
+        recommendations: [{
+          ticket: {
+            source_model: 'MunicipioTicket',
+            id: opaqueId,
+            ticket_id: 'case',
+            category: 'luminarias',
+          },
+          suggested_assignee: { id: 10 },
+        }],
+      }),
+      selectedTicket({ id: opaqueId as unknown as number }),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
   });
 
   it('falla cerrado cuando dos superficies publican autoridad contradictoria para la misma identidad', () => {
@@ -153,6 +226,258 @@ describe('resolveTicketRoutingAuthority', () => {
             eligible_assignees: [{ id: 11 }],
           },
         ],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si una superficie omite la asignación que otra declara', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{ source_model: 'MunicipioTicket', id: 403, category: 'luminarias' }],
+          unassigned: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            category: 'luminarias',
+            assignee_id: 77,
+          }],
+        },
+        recommendations: [],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado cuando un mismo ticket publica aliases operativos contradictorios', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            category: 'luminarias',
+            categoria: 'tributos',
+            assignee_id: 20,
+            assigned_user_id: 21,
+          }],
+          unassigned: [],
+        },
+        recommendations: [],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado ante aliases contradictorios de candidatos o de su identidad', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+
+    expect(resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          eligible_assignees: [{ id: 10 }],
+          candidates: [{ id: 11 }],
+        }],
+      }),
+      selectedTicket(),
+    )).toEqual({ ok: false, reason: 'conflicting_authority' });
+
+    expect(resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          eligible_assignees: [{ id: 10, employee_id: 11 }],
+        }],
+      }),
+      selectedTicket(),
+    )).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si la sugerencia publica dos identidades de empleado', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          suggested_assignee: { id: 10, employee_id: 11 },
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('nunca amplía elegibilidad con una sugerencia fuera de la categoría autoritativa', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        employees: [
+          ...base.employees.map((employee) => employee.raw),
+          {
+            id: 12,
+            name: 'Equipo de tributos',
+            scope: { categorias: ['tributos'], zonas: ['centro'], channels: ['whatsapp'] },
+          },
+        ],
+        recommendations: [{
+          ...recommendation,
+          suggested_assignee: { id: 12, name: 'Equipo de tributos' },
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.authority.eligibleEmployees.map((employee) => employee.id)).toEqual(['10']);
+    expect(resolution.authority.suggestedEmployee).toBeNull();
+    expect(employeeIsEligibleForRoutingTicket(resolution.authority, 12)).toBe(false);
+  });
+
+  it('falla cerrado cuando dos recomendaciones sugieren empleados distintos', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [
+          { ...recommendation, suggested_assignee: { id: 10 } },
+          { ...recommendation, suggested_assignee: { id: 11 } },
+        ],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si sólo una recomendación publica la lista autoritativa de candidatos', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [
+          recommendation,
+          { ...recommendation, eligible_assignees: [{ id: 10 }] },
+        ],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('firma listas candidatas sin colisiones por separadores dentro de IDs opacos', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [
+          { ...recommendation, eligible_assignees: [{ id: 'a' }, { id: 'b' }] },
+          { ...recommendation, eligible_assignees: [{ id: 'a|b' }] },
+        ],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('acepta aliases redundantes cuando normalizan a la misma autoridad', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            sourceModel: 'municipioticket',
+            id: 403,
+            ticket_id: '403',
+            category: 'Luminarias',
+            categoria: 'luminarias',
+            zone: 'Centro',
+            zona: 'centro',
+            channel: 'WhatsApp',
+            canal: 'whatsapp',
+          }],
+          unassigned: [],
+        },
+        recommendations: [{
+          ...recommendation,
+          eligible_assignees: [{ id: 10, employee_id: '10' }],
+          candidates: [{ user_id: 10 }],
+          suggested_assignee: { id: 10, employee_id: '10' },
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.authority.eligibleEmployees.map((employee) => employee.id)).toEqual(['10']);
+  });
+
+  it('acepta el contrato real candidate_ids más eligible_assignees anidados', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          candidate_ids: [10],
+          eligible_assignees: [{
+            employee: { id: 10, name: 'Cuadrilla de luminarias' },
+            score: 91,
+            reasons: ['category_match'],
+            workload_open: 2,
+          }],
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.authority.eligibleEmployees.map((employee) => employee.id)).toEqual(['10']);
+    expect(resolution.authority.suggestedEmployee?.id).toBe('10');
+  });
+
+  it('falla cerrado si un candidato anidado contradice el id del wrapper', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          eligible_assignees: [{ id: 10, employee: { id: 11 } }],
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si la sugerencia anidada contradice el id del wrapper', () => {
+    const base = routing();
+    const recommendation = base.recommendations[0].raw;
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        recommendations: [{
+          ...recommendation,
+          suggested_assignee: { id: 10, employee: { id: 11 } },
+        }],
       }),
       selectedTicket(),
     );
@@ -221,5 +546,12 @@ describe('supervised assignment authority', () => {
       currentAssigneeId: '22',
     };
     expect(buildSupervisedAssignmentPayload(reassignment, 10).expected_assignee_id).toBe(22);
+  });
+
+  it('preserva identificadores opacos, con ceros iniciales o fuera del rango seguro', () => {
+    expect(serializeAssignmentIdentifier('403')).toBe(403);
+    expect(serializeAssignmentIdentifier('00403')).toBe('00403');
+    expect(serializeAssignmentIdentifier('9007199254740993')).toBe('9007199254740993');
+    expect(serializeAssignmentIdentifier('case-403')).toBe('case-403');
   });
 });
