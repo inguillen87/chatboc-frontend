@@ -10,7 +10,8 @@ type UnknownRecord = Record<string, unknown>;
 export type TicketRoutingAuthorityFailure =
   | 'missing_ticket_identity'
   | 'invalid_contract'
-  | 'ticket_not_published';
+  | 'ticket_not_published'
+  | 'conflicting_authority';
 
 export interface TicketRoutingAuthority {
   identity: string;
@@ -127,6 +128,39 @@ const recommendationCandidateContract = (
   };
 };
 
+const normalizedPublishedValue = (
+  record: UnknownRecord,
+  keys: string[],
+  normalize: (value: unknown) => string,
+): string | null => {
+  const publishedKey = keys.find((key) => Object.prototype.hasOwnProperty.call(record, key));
+  if (!publishedKey) return null;
+  return normalize(record[publishedKey]) || '__empty__';
+};
+
+const recordsConflictOn = (
+  records: UnknownRecord[],
+  keys: string[],
+  normalize: (value: unknown) => string,
+): boolean => {
+  const values = records
+    .map((record) => normalizedPublishedValue(record, keys, normalize))
+    .filter((value): value is string => value !== null);
+  return new Set(values).size > 1;
+};
+
+const candidateContractSignature = (
+  recommendation: EmployeeRoutingRecommendation,
+): string | null => {
+  const contract = recommendationCandidateContract(recommendation);
+  if (!contract.published) return null;
+  return contract.records
+    .map((candidate) => asIdentifier(first(candidate, ['id', 'employee_id', 'user_id'])))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+};
+
 const employeeMatchesTicketCategory = (
   employee: EmployeeRoutingEmployee,
   ticket: UnknownRecord,
@@ -188,18 +222,40 @@ export const resolveTicketRoutingAuthority = (
     return { ok: false, reason: 'invalid_contract' };
   }
 
-  const recommendation = routing.recommendations.find(
+  const matchingRecommendations = routing.recommendations.filter(
     (item) => getRecordRoutingIdentity(asRecord(item.ticket)) === identity,
-  ) ?? null;
+  );
+  const recommendation = matchingRecommendations[0] ?? null;
   const publishedTickets = [
     ...routing.queues.open,
     ...routing.queues.unassigned,
-    ...(recommendation ? [recommendation.ticket] : []),
+    ...matchingRecommendations.map((item) => item.ticket),
   ].map(asRecord);
-  const authoritativeTicket = publishedTickets.find(
+  const matchingTickets = publishedTickets.filter(
     (item) => getRecordRoutingIdentity(item) === identity,
   );
+  const authoritativeTicket = matchingTickets[0];
   if (!authoritativeTicket) return { ok: false, reason: 'ticket_not_published' };
+
+  const categoryKeys = [
+    'authoritative_category',
+    'authoritativeCategory',
+    'category',
+    'categoria',
+    'category_name',
+    'categoria_principal',
+  ];
+  const assigneeKeys = ['assignee_id', 'assigned_user_id', 'assigned_agent_id'];
+  const candidateSignatures = matchingRecommendations
+    .map(candidateContractSignature)
+    .filter((value): value is string => value !== null);
+  if (
+    recordsConflictOn(matchingTickets, categoryKeys, normalizeRoutingDimension) ||
+    recordsConflictOn(matchingTickets, assigneeKeys, asIdentifier) ||
+    new Set(candidateSignatures).size > 1
+  ) {
+    return { ok: false, reason: 'conflicting_authority' };
+  }
 
   const sourceModel = asIdentifier(first(authoritativeTicket, ['source_model', 'sourceModel', 'model']));
   const ticketId = asIdentifier(first(authoritativeTicket, ['id', 'ticket_id', 'ticketId']));
@@ -232,7 +288,7 @@ export const resolveTicketRoutingAuthority = (
       eligibleEmployees,
       suggestedEmployee,
       currentAssigneeId: currentAssignee || null,
-      category: dimension(['category', 'categoria', 'category_name', 'categoria_principal']),
+      category: dimension(categoryKeys),
       zone: dimension(['zone', 'zona', 'district', 'distrito']),
       channel: dimension(['channel', 'canal', 'canal_ingreso']),
     },

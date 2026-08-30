@@ -84,7 +84,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
         assignedAgentId: confirmedAgent.id,
         assigned_agent_id: confirmedAgent.id,
         assigned_user_id: confirmedAgent.id,
-      });
+      }, sourceModel);
       setConfirmedTicketKey(ticketKey);
       try {
         await routingState.refresh();

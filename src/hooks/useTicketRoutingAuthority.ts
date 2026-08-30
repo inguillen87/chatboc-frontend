@@ -17,6 +17,9 @@ const routingRequests = new Map<string, Promise<EmployeeRoutingV2>>();
 const routingCacheKey = (tenantSlug?: string | null) =>
   String(tenantSlug || '__session_tenant__').trim().toLowerCase();
 
+const normalizedTenantSlug = (value?: string | null) =>
+  String(value ?? '').trim().toLowerCase();
+
 const loadRouting = async (
   tenantSlug?: string | null,
   force = false,
@@ -61,6 +64,12 @@ export const useTicketRoutingAuthority = (
   const [error, setError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const ticketIdentity = getTicketRoutingIdentity(ticket);
+  const ticketTenantSlug = normalizedTenantSlug(ticket?.tenant_slug);
+  const contextTenantSlug = normalizedTenantSlug(currentSlug);
+  const tenantConflict = Boolean(
+    ticketTenantSlug && contextTenantSlug && ticketTenantSlug !== contextTenantSlug,
+  );
+  const routingTenantSlug = ticketTenantSlug || contextTenantSlug || null;
 
   useEffect(() => {
     let active = true;
@@ -72,9 +81,17 @@ export const useTicketRoutingAuthority = (
         active = false;
       };
     }
+    if (tenantConflict) {
+      setRouting(null);
+      setLoading(false);
+      setError('El caso no pertenece al tenant operativo seleccionado.');
+      return () => {
+        active = false;
+      };
+    }
     setLoading(true);
     setError(null);
-    loadRouting(currentSlug)
+    loadRouting(routingTenantSlug)
       .then((value) => {
         if (active) setRouting(value);
       })
@@ -89,7 +106,7 @@ export const useTicketRoutingAuthority = (
     return () => {
       active = false;
     };
-  }, [currentSlug, reloadVersion, ticketIdentity]);
+  }, [reloadVersion, routingTenantSlug, tenantConflict, ticketIdentity]);
 
   const resolution = useMemo(
     () => (ticket ? resolveTicketRoutingAuthority(routing, ticket) : null),
@@ -97,9 +114,9 @@ export const useTicketRoutingAuthority = (
   );
 
   const refresh = useCallback(async () => {
-    clearTicketRoutingAuthorityCache(currentSlug);
+    clearTicketRoutingAuthorityCache(routingTenantSlug);
     setReloadVersion((value) => value + 1);
-  }, [currentSlug]);
+  }, [routingTenantSlug]);
 
   return { loading, error, resolution, routing, refresh };
 };

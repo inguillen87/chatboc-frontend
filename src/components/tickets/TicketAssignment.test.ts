@@ -125,6 +125,41 @@ describe('resolveTicketRoutingAuthority', () => {
     expect(resolution).toEqual({ ok: false, reason: 'ticket_not_published' });
   });
 
+  it('falla cerrado cuando dos superficies publican autoridad contradictoria para la misma identidad', () => {
+    const base = routing();
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'luminarias',
+            assignee_id: null,
+          }],
+          unassigned: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'bacheo',
+            assignee_id: 77,
+          }],
+        },
+        recommendations: [
+          {
+            ...base.recommendations[0].raw,
+            eligible_assignees: [{ id: 10 }],
+          },
+          {
+            ...base.recommendations[0].raw,
+            eligible_assignees: [{ id: 11 }],
+          },
+        ],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
   it('falla cerrado si falta identidad o el contrato no es employee.routing.v1', () => {
     expect(resolveTicketRoutingAuthority(routing(), selectedTicket({ source_model: null }))).toEqual({
       ok: false,

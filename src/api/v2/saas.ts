@@ -2183,6 +2183,11 @@ export const postOmnichannelInboxActionV2 = async (
       requestOptions,
     );
   } catch (error) {
+    // Claim and supervised assignment are identity-bound writes. Retrying
+    // either mutation against the compatibility collection endpoint would
+    // discard the ticket identity carried by the scoped path and could turn
+    // a safe 404/405 into a write against a different contract.
+    if (normalizedAction === 'claim' || normalizedAction === 'assign') throw error;
     if (!shouldFallbackEndpoint(error)) throw error;
     response = await panelApi.post<unknown>(
       '/api/v2/inbox/omnichannel/actions',

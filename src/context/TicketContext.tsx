@@ -425,7 +425,11 @@ interface TicketContextType {
     sourceModel?: TicketInboxSourceModel | null,
   ) => Promise<Ticket | null>;
   clearTicketTarget: () => void;
-  updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
+  updateTicket: (
+    ticketId: number,
+    updates: Partial<Ticket>,
+    sourceModel?: string | null,
+  ) => void;
   loading: boolean;
   error: string | null;
   errorDetails: TicketInboxErrorDetails | null;
@@ -1317,14 +1321,24 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setSelectedTicket(ticket || null);
   }, [tickets]);
 
-  const updateTicket = useCallback((ticketId: number, updates: Partial<Ticket>) => {
+  const updateTicket = useCallback((
+    ticketId: number,
+    updates: Partial<Ticket>,
+    sourceModel?: string | null,
+  ) => {
+    const normalizedSourceModel = String(sourceModel ?? '').trim().toLowerCase();
+    const matchesIdentity = (ticket: Ticket) => {
+      if (ticket.id !== ticketId) return false;
+      if (!normalizedSourceModel) return true;
+      return String(ticket.source_model ?? '').trim().toLowerCase() === normalizedSourceModel;
+    };
     setTickets(prevTickets =>
       prevTickets.map(ticket =>
-        ticket.id === ticketId ? { ...ticket, ...updates } : ticket
+        matchesIdentity(ticket) ? { ...ticket, ...updates } : ticket
       )
     );
     setSelectedTicket(prev =>
-      prev && prev.id === ticketId ? { ...prev, ...updates } : prev,
+      prev && matchesIdentity(prev) ? { ...prev, ...updates } : prev,
     );
   }, []);
 

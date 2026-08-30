@@ -126,7 +126,11 @@ describe('TicketClaimButton', () => {
       },
       'junin',
     ));
-    expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({ assigned_user_id: 10 }));
+    expect(mocks.updateTicket).toHaveBeenCalledWith(
+      77,
+      expect.objectContaining({ assigned_user_id: 10 }),
+      'MunicipioTicket',
+    );
     expect(onClaimConfirmed).toHaveBeenCalledTimes(1);
   });
 
@@ -144,10 +148,14 @@ describe('TicketClaimButton', () => {
     fireEvent.click(claim);
 
     await waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(1));
-    expect(mocks.updateTicket).toHaveBeenCalledWith(77, expect.objectContaining({
-      assigned_user_id: 10,
-      assignedAgent: expect.objectContaining({ id: 10, nombre_usuario: 'Operadora Junín' }),
-    }));
+    expect(mocks.updateTicket).toHaveBeenCalledWith(
+      77,
+      expect.objectContaining({
+        assigned_user_id: 10,
+        assignedAgent: expect.objectContaining({ id: 10, nombre_usuario: 'Operadora Junín' }),
+      }),
+      'MunicipioTicket',
+    );
   });
 
   it('oculta Tomar ticket si employee.routing.v1 no publica al usuario como compatible', () => {

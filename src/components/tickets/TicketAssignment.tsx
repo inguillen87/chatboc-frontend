@@ -156,7 +156,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       assignedAgentId: employee.id,
       assigned_agent_id: employee.id,
       assigned_user_id: employee.id,
-    });
+    }, authority?.sourceModel ?? selectedTicket.source_model);
   };
 
   const postAssignment = async (employee: EmployeeRoutingEmployee) => {

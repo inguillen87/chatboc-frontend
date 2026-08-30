@@ -10,7 +10,8 @@ vi.mock('@/api/v2/client', () => ({
   },
 }));
 
-import { postEmployeeRoutingAutoAssignV2 } from './saas';
+import { ApiError } from '@/utils/api';
+import { postEmployeeRoutingAutoAssignV2, postOmnichannelInboxActionV2 } from './saas';
 
 describe('employee routing transport', () => {
   beforeEach(() => {
@@ -35,5 +36,27 @@ describe('employee routing transport', () => {
       { tenantSlug: 'junin' },
     );
     expect(panelPostMock.mock.calls[0][1]).not.toHaveProperty('ticket_ids');
+  });
+
+  it.each(['claim', 'assign'])('no reintenta %s por el endpoint legacy ante una respuesta ambigua', async (action) => {
+    panelPostMock.mockRejectedValueOnce(new ApiError('not found', 404));
+
+    await expect(
+      postOmnichannelInboxActionV2(
+        '403',
+        {
+          action,
+          payload: {
+            source_model: 'MunicipioTicket',
+            ticket_id: 403,
+            ...(action === 'assign' ? { assignee_id: 10, expected_assignee_id: null } : {}),
+          },
+        },
+        'junin',
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+
+    expect(panelPostMock).toHaveBeenCalledTimes(1);
+    expect(panelPostMock.mock.calls[0][0]).toBe('/api/v2/inbox/omnichannel/403/actions');
   });
 });
