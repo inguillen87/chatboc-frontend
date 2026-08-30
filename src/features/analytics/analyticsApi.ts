@@ -992,6 +992,7 @@ const normalizeHeatmapGeocoding = (value: unknown): OperationsHeatmapV1['geocodi
           label: asString(candidate.label ?? candidate.title ?? candidate.name),
           category: asString(candidate.category ?? candidate.categoria),
           source: asString(candidate.source ?? candidate.origen),
+          source_model: asString(candidate.source_model ?? candidate.sourceModel),
           reason_code: asString(candidate.reason_code),
           actions: actions.length ? actions : undefined,
         });

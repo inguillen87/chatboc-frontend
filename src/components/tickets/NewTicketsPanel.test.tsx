@@ -11,6 +11,9 @@ const mobileState = vi.hoisted(() => ({ value: false }));
 const sonnerMocks = vi.hoisted(() => ({
   Toaster: vi.fn(() => null),
 }));
+const territorialInboxMocks = vi.hoisted(() => ({
+  render: vi.fn(),
+}));
 
 const useTicketsMock = vi.fn();
 
@@ -42,6 +45,22 @@ vi.mock('@/context/TenantContext', () => ({
 
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({ user: { id: 77 } }),
+}));
+
+vi.mock('@/features/analytics/TerritorialPendingLocationsInbox', () => ({
+  default: (props: { tenantSlug?: string; initialFacet?: string; initialZone?: string; embedded?: boolean }) => {
+    territorialInboxMocks.render(props);
+    return (
+      <section
+        data-testid="territorial-pending-locations-inbox"
+        data-tenant={props.tenantSlug ?? ''}
+        data-facet={props.initialFacet ?? ''}
+        data-zone={props.initialZone ?? ''}
+      >
+        Ubicaciones pendientes
+      </section>
+    );
+  },
 }));
 
 vi.mock('@/services/backofficeService', () => ({
@@ -127,6 +146,7 @@ describe('NewTicketsPanel CRM layout', () => {
     searchParamsState.value = new URLSearchParams();
     mobileState.value = false;
     sonnerMocks.Toaster.mockClear();
+    territorialInboxMocks.render.mockClear();
     useTicketsMock.mockReset();
     useTicketsMock.mockReturnValue({
       loading: true,
@@ -1039,9 +1059,8 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.queryByText('Agente: unassigned')).not.toBeInTheDocument();
   });
 
-  it('opens CRM desk from heatmap query links with filters and selected ticket', async () => {
+  it('opens the dedicated territorial queue without disguising it as an SLA filter', async () => {
     const setFilters = vi.fn();
-    const selectTicket = vi.fn();
     const targetTicket = {
       id: 378430,
       nro_ticket: 'M-378430',
@@ -1054,7 +1073,7 @@ describe('NewTicketsPanel CRM layout', () => {
     };
     const resolveTicketTarget = vi.fn().mockResolvedValue(targetTicket);
     searchParamsState.value = new URLSearchParams(
-      'tab=tickets&focus=open_geocoding_queue&ticket_id=378430&categoria=Arreglo_De_Calle&canal=whatsapp',
+      'tab=tickets&focus=open_geocoding_queue&ticket_id=378430&categoria=Arreglo_De_Calle&zona=Centro&canal=whatsapp',
     );
     useTicketsMock.mockReturnValue({
       loading: false,
@@ -1062,7 +1081,7 @@ describe('NewTicketsPanel CRM layout', () => {
       tickets: [targetTicket],
       filteredTickets: [targetTicket],
       selectedTicket: targetTicket,
-      selectTicket,
+      selectTicket: vi.fn(),
       ticketTargetResolution: {
         ticketId: 378430,
         status: 'resolved',
@@ -1087,28 +1106,11 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel />);
 
-    await waitFor(() => {
-      expect(setFilters).toHaveBeenCalledWith(expect.any(Function));
-      expect(resolveTicketTarget).toHaveBeenCalledWith(378430);
-    });
-
-    const filterUpdater = setFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
-    expect(
-      filterUpdater({
-        channel: 'all',
-        status: 'all',
-        area: 'all',
-        agent: 'all',
-        priority: 'all',
-        sla: 'all',
-        unread: 'all',
-      }),
-    ).toMatchObject({
-      channel: 'whatsapp',
-      area: 'Arreglo_De_Calle',
-      sla: 'risk',
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Más opciones' }));
-    expect(screen.getByTestId('tickets-deeplink-focus')).toHaveTextContent('open geocoding queue');
+    expect(screen.getByTestId('territorial-pending-locations-inbox')).toHaveAttribute('data-tenant', 'junin');
+    expect(screen.getByTestId('territorial-pending-locations-inbox')).toHaveAttribute('data-facet', 'Arreglo_De_Calle');
+    expect(screen.getByTestId('territorial-pending-locations-inbox')).toHaveAttribute('data-zone', 'Centro');
+    expect(screen.queryByTestId('tickets-sidebar')).not.toBeInTheDocument();
+    expect(setFilters).not.toHaveBeenCalled();
+    expect(resolveTicketTarget).not.toHaveBeenCalled();
   });
 });

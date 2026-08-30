@@ -730,6 +730,7 @@ export interface OperationsHeatmapV1 {
       label?: string;
       category?: string;
       source?: string;
+      source_model?: string;
       reason_code?: string;
       actions?: OperationsHeatmapAction[];
       [key: string]: unknown;

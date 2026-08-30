@@ -474,6 +474,7 @@ describe('operations heatmap v2 contract', () => {
         candidates: [
           {
             record_id: 42,
+            source_model: 'MunicipioTicket',
             direccion: 'Av. San Martin 123, Junin',
             categoria: 'limpieza',
             origen: 'ticket',
@@ -827,6 +828,7 @@ describe('operations heatmap v2 contract', () => {
     });
     expect(response.geocoding?.candidates?.[0]).toMatchObject({
       record_id: 42,
+      source_model: 'MunicipioTicket',
       address: 'Av. San Martin 123, Junin',
       category: 'limpieza',
       source: 'ticket',

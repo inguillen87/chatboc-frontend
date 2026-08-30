@@ -43,6 +43,7 @@ import {
   isTicketInboxSourceModel,
   type TicketInboxSourceModel,
 } from '@/services/ticketService';
+import TerritorialPendingLocationsInbox from '@/features/analytics/TerritorialPendingLocationsInbox';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -181,6 +182,8 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     ticketId,
     sourceModel,
     invalidSourceModel: rawSourceModel !== null && sourceModel === null,
+    territorialFacet: normalizeQueryValue(searchParams.get('facet') ?? searchParams.get('categoria') ?? searchParams.get('category')),
+    territorialZone: normalizeQueryValue(searchParams.get('zona') ?? searchParams.get('zone') ?? searchParams.get('barrio')),
     filters: {
       search: normalizeQueryValue(searchParams.get('q') ?? searchParams.get('search')),
       channel: normalizeQueryValue(searchParams.get('canal') ?? searchParams.get('channel')),
@@ -862,6 +865,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   React.useEffect(() => {
     if (!ticketDeskQuery.key || appliedDeskQueryKeyRef.current === ticketDeskQuery.key) return;
 
+    if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+      appliedDeskQueryKeyRef.current = ticketDeskQuery.key;
+      return;
+    }
+
     const nextFilters = Object.entries(ticketDeskQuery.filters).reduce<Partial<typeof filters>>((acc, [key, value]) => {
       if (typeof value !== 'string' || !value) return acc;
       if (key === 'unread') {
@@ -871,10 +879,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       acc[key as keyof typeof filters] = value;
       return acc;
     }, {});
-
-    if (ticketDeskQuery.focus === 'open_geocoding_queue' && !nextFilters.sla) {
-      nextFilters.sla = 'risk';
-    }
 
     if (Object.keys(nextFilters).length > 0) {
       setFilters((current) => {
@@ -888,6 +892,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [setFilters, ticketDeskQuery, filters]);
 
   React.useEffect(() => {
+    if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+      selectedDeskQueryTicketRef.current = '';
+      clearTicketTarget();
+      return;
+    }
+
     if (!ticketDeskQuery.ticketId) {
       selectedDeskQueryTicketRef.current = '';
       clearTicketTarget();
@@ -972,6 +982,17 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   const hasLoadedInboxData = tickets.length > 0 || filteredTickets.length > 0 || selectedTicket !== null;
   const showInitialLoading = loading && !hasLoadedInboxData;
+
+  if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+    return (
+      <TerritorialPendingLocationsInbox
+        tenantSlug={currentSlug || tenant?.slug}
+        initialFacet={ticketDeskQuery.territorialFacet}
+        initialZone={ticketDeskQuery.territorialZone}
+        embedded={embedded}
+      />
+    );
+  }
 
   if (showInitialLoading && loadingTimedOut) {
     return (
