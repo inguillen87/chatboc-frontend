@@ -476,6 +476,7 @@ describe("MapLibreMap lifecycle", () => {
 
   it("supports the Faro territorial presentation without changing global map defaults", async () => {
     const source = sourceFor("faro-territory", -67.7);
+    const onFeatureSelect = vi.fn();
     const { rerender } = render(
       <MapLibreMap
         geoLayerConfig={configFor(source)}
@@ -487,6 +488,7 @@ describe("MapLibreMap lifecycle", () => {
         pointLabelMode="barrio"
         heatmapRadiusScale={2.8}
         heatmapPalette="faro"
+        onFeatureSelect={onFeatureSelect}
       />,
     );
 
@@ -539,6 +541,30 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
 
+    rerender(
+      <MapLibreMap
+        geoLayerConfig={configFor(source)}
+        showHeatmap
+        showPoints
+        showPointLabels
+        pointMinZoom={4.5}
+        pointLabelMinZoom={9}
+        pointLabelMode="barrio"
+        heatmapRadiusScale={2.8}
+        heatmapPalette="faro"
+        adaptiveZoomMode
+        onFeatureSelect={onFeatureSelect}
+      />,
+    );
+    await waitFor(() =>
+      expect(mapMocks.instances[0]?.setPaintProperty).toHaveBeenCalledWith(
+        "territory-heat",
+        "heatmap-opacity",
+        ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0],
+      ),
+    );
+    expect(mapMocks.constructorCalls).toHaveLength(1);
+
     mapMocks.layoutCalls.length = 0;
     rerender(
       <MapLibreMap
@@ -551,6 +577,7 @@ describe("MapLibreMap lifecycle", () => {
         pointLabelMode="barrio"
         heatmapRadiusScale={2.8}
         heatmapPalette="faro"
+        onFeatureSelect={onFeatureSelect}
       />,
     );
 
@@ -576,6 +603,7 @@ describe("MapLibreMap lifecycle", () => {
       closeButton: true,
       maxWidth: "320px",
     });
+    expect(onFeatureSelect).toHaveBeenCalledWith(expect.objectContaining({ ticket: "faro-territory" }));
   });
 
   it("keeps the basemap usable and explains a filtered view with no geolocated points", async () => {

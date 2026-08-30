@@ -8,6 +8,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
   default: (props: {
     heatmapData?: Array<{ direccion?: string; addressCellLabel?: string }>;
     fitToBounds?: unknown[];
+    fitBoundsRequestKey?: string;
     provider?: string;
     mapStyleUrl?: string | null;
     maptilerKey?: string | null;
@@ -19,6 +20,16 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     pointLabelMode?: string;
     heatmapRadiusScale?: number;
     heatmapPalette?: string;
+    adaptiveZoomMode?: boolean;
+    onFeatureSelect?: (point: {
+      id?: number;
+      ticket?: string;
+      categoria?: string;
+      barrio?: string;
+      estado?: string;
+      canal?: string;
+      categoryColor?: string;
+    }) => void;
     popupContext?: string;
     boundsPadding?: { top?: number; right?: number; bottom?: number; left?: number };
     evidence?: unknown;
@@ -44,6 +55,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
         .filter(Boolean)
         .join('|')}
       data-bounds={String(props.fitToBounds?.length ?? 0)}
+      data-fit-request-key={props.fitBoundsRequestKey ?? ''}
       data-provider={props.provider}
       data-style-url={props.mapStyleUrl ?? ''}
       data-maptiler-key={props.maptilerKey ?? ''}
@@ -55,6 +67,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-point-label-mode={props.pointLabelMode ?? ''}
       data-heatmap-radius={String(props.heatmapRadiusScale ?? '')}
       data-heatmap-palette={props.heatmapPalette ?? ''}
+      data-adaptive-zoom={String(Boolean(props.adaptiveZoomMode))}
       data-popup-context={props.popupContext ?? ''}
       data-bounds-padding={JSON.stringify(props.boundsPadding ?? {})}
       data-evidence-present={String(Boolean(props.evidence))}
@@ -68,7 +81,23 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-geo-enabled-layers={props.geoLayerConfig?.source_options?.enabled_layers?.join('|') ?? ''}
       data-geo-default-viewport={props.geoLayerConfig?.source_options?.default_viewport_id ?? ''}
       data-geo-time-slider={props.geoLayerConfig?.interactions?.time_slider?.enabled ? 'true' : 'false'}
-    />
+    >
+      <button
+        type="button"
+        onClick={() =>
+          props.onFeatureSelect?.({
+            id: 419,
+            categoria: 'Luminarias',
+            barrio: 'Centro',
+            estado: 'nuevo',
+            canal: 'whatsapp',
+            categoryColor: '#2563eb',
+          })
+        }
+      >
+        Seleccionar punto de muestra
+      </button>
+    </div>
   ),
 }));
 
@@ -118,7 +147,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
-    expect(screen.getByRole('button', { name: 'Ambos' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Automático' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
   });
 
@@ -150,6 +179,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('true');
     expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
+    expect(map.getAttribute('data-adaptive-zoom')).toBe('true');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.35');
     expect(legend).not.toHaveClass('absolute');
     expect(screen.queryByTestId('territory-boundary-empty-state')).toBeNull();
@@ -166,11 +196,26 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
+    expect(map.getAttribute('data-fit-request-key')).toContain('baches');
 
     chooseTerritoryFacet('Filtrar mapa por zona o barrio', 'centro');
     expect(map.getAttribute('data-points')).toBe('1');
     expect(map.getAttribute('data-geo-features')).toBe('1');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
+
+    fireEvent.click(screen.getByRole('button', { name: /Luminarias\s+2/ }));
+    expect(map.getAttribute('data-points')).toBe('1');
+    expect(screen.getByRole('button', { name: /Luminarias\s+2/ })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ambos' }));
+    expect(map.getAttribute('data-adaptive-zoom')).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar punto de muestra' }));
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Luminarias');
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Centro');
+    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute('href', '/chat/419');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }));
+    expect(screen.queryByTestId('territory-selected-point')).toBeNull();
   });
 
   it('scopes executive metrics to Luminarias and avoids invented metrics for combined filters', () => {

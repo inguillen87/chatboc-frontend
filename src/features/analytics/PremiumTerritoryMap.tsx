@@ -61,7 +61,7 @@ type ActiveFilterSummary = {
 };
 
 type MapFocusMode = 'territory' | 'quality' | 'telemetry';
-type MapDisplayMode = 'heat' | 'points' | 'both';
+type MapDisplayMode = 'auto' | 'heat' | 'points' | 'both';
 
 type BackendActionSummary = {
   label: string;
@@ -1121,7 +1121,8 @@ export function PremiumTerritoryHeatmap({
   const [mapCategoryFilter, setMapCategoryFilter] = useState<string | null>(null);
   const [mapZoneFilter, setMapZoneFilter] = useState<string | null>(null);
   const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
-  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('both');
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('auto');
+  const [selectedMapPoint, setSelectedMapPoint] = useState<HeatPoint | null>(null);
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -1801,6 +1802,7 @@ export function PremiumTerritoryHeatmap({
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
   const renderHeatLayer = mapDisplayMode !== 'points' && showHeatLayer;
   const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
+  const automaticMapMode = mapDisplayMode === 'auto';
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
   const liveHeatmapRadiusScale =
@@ -2072,8 +2074,10 @@ export function PremiumTerritoryHeatmap({
     setMapCategoryFilter(null);
     setMapZoneFilter(null);
     setMapAddressCellFilter(null);
+    setSelectedMapPoint(null);
   };
   const clearMostSpecificTerritoryFilter = () => {
+    setSelectedMapPoint(null);
     if (mapAddressCellFilter) {
       setMapAddressCellFilter(null);
       return;
@@ -2349,6 +2353,7 @@ export function PremiumTerritoryHeatmap({
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1" role="group" aria-label="Visualización del mapa">
           {([
+            { id: 'auto', label: 'Automático' },
             { id: 'heat', label: 'Calor' },
             { id: 'points', label: 'Puntos' },
             { id: 'both', label: 'Ambos' },
@@ -2410,7 +2415,10 @@ export function PremiumTerritoryHeatmap({
               aria-label="Filtrar mapa por categoría"
               className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapCategoryFilter ?? ''}
-              onChange={(event) => setMapCategoryFilter(event.target.value || null)}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapCategoryFilter(event.target.value || null);
+              }}
               disabled={!mapCategoryFacets.length}
             >
               <option value="">Todas las categorías</option>
@@ -2439,7 +2447,10 @@ export function PremiumTerritoryHeatmap({
               aria-label="Filtrar mapa por zona o barrio"
               className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapZoneFilter ?? ''}
-              onChange={(event) => setMapZoneFilter(event.target.value || null)}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapZoneFilter(event.target.value || null);
+              }}
               disabled={!mapZoneFacets.length}
             >
               <option value="">{mapZoneFacets.length ? 'Todas las zonas' : 'Sin zonas verificadas'}</option>
@@ -2473,7 +2484,10 @@ export function PremiumTerritoryHeatmap({
               aria-label="Filtrar mapa por corredor o celda"
               className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapAddressCellFilter ?? ''}
-              onChange={(event) => setMapAddressCellFilter(event.target.value || null)}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapAddressCellFilter(event.target.value || null);
+              }}
               disabled={!mapAddressCellFacets.length}
             >
               <option value="">Todas las ubicaciones</option>
@@ -2502,17 +2516,26 @@ export function PremiumTerritoryHeatmap({
           <div data-testid="territory-active-filter-chips" className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Aplicados</span>
             {selectedCategoryFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapCategoryFilter(null)}>
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+                setSelectedMapPoint(null);
+                setMapCategoryFilter(null);
+              }}>
                 Categoría · {selectedCategoryFacet.label} ×
               </Button>
             ) : null}
             {selectedZoneFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapZoneFilter(null)}>
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+                setSelectedMapPoint(null);
+                setMapZoneFilter(null);
+              }}>
                 Zona · {selectedZoneFacet.label} ×
               </Button>
             ) : null}
             {selectedAddressCellFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => setMapAddressCellFilter(null)}>
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+                setSelectedMapPoint(null);
+                setMapAddressCellFilter(null);
+              }}>
                 Corredor · {selectedAddressCellFacet.label} ×
               </Button>
             ) : null}
@@ -2547,6 +2570,8 @@ export function PremiumTerritoryHeatmap({
                 pointLabelMinZoom={10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
                 heatmapPalette="faro"
+                adaptiveZoomMode={automaticMapMode}
+                onFeatureSelect={setSelectedMapPoint}
                 popupContext="territory"
                 provider={liveMapProvider}
                 mapStyleUrl={mapConfig?.style_url}
@@ -2554,6 +2579,7 @@ export function PremiumTerritoryHeatmap({
                 googleMapsKey={mapConfig?.google_maps_key}
                 geoLayerConfig={geoLayerConfig}
                 fitToBounds={liveMapBounds}
+                fitBoundsRequestKey={`${mapCategoryFilter ?? 'all'}:${mapZoneFilter ?? 'all'}:${mapAddressCellFilter ?? 'all'}`}
                 boundsPadding={{ top: 40, right: 40, bottom: 40, left: 40 }}
                 disableClientClustering
                 showEvidenceBadge={false}
@@ -3020,6 +3046,44 @@ export function PremiumTerritoryHeatmap({
                           : 'capa categórica oculta'}
                     </span>
                   </div>
+                  {mapCategoryFacets.some((facet) => facet.mappedCount > 0) ? (
+                    <div
+                      data-testid="territory-category-legend"
+                      className="mt-3 flex flex-wrap items-center gap-2"
+                      aria-label="Leyenda interactiva por categoría"
+                    >
+                      {mapCategoryFacets
+                        .filter((facet) => facet.mappedCount > 0)
+                        .slice(0, 6)
+                        .map((facet) => {
+                          const active = selectedCategoryFacet?.key === facet.key;
+                          return (
+                            <Button
+                              key={facet.key}
+                              type="button"
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              className="h-8 gap-2 rounded-full px-3 text-xs"
+                              aria-pressed={active}
+                              onClick={() => {
+                                setSelectedMapPoint(null);
+                                setMapCategoryFilter(active ? null : facet.key);
+                              }}
+                            >
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/80 shadow-sm"
+                                style={{ backgroundColor: facet.color ?? categoryColorFor(facet.key) }}
+                                aria-hidden="true"
+                              />
+                              {facet.label}
+                              <span className={cn('tabular-nums', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                                {formatNumber(facet.mappedCount)}
+                              </span>
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  ) : null}
                 </div>
                 <Button
                   type="button"
@@ -3085,6 +3149,52 @@ export function PremiumTerritoryHeatmap({
                         Abrir cola pendiente
                       </a>
                     ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {selectedMapPoint ? (
+                <div
+                  data-testid="territory-selected-point"
+                  className="mt-3 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/[0.04] p-3 sm:flex-row sm:items-center sm:justify-between"
+                  role="status"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full border-2 border-white shadow-sm"
+                        style={{ backgroundColor: selectedMapPoint.categoryColor ?? categoryColorFor(selectedMapPoint.categoria) }}
+                        aria-hidden="true"
+                      />
+                      <p className="font-semibold text-foreground">
+                        {humanizeCategoryValue(selectedMapPoint.categoria ?? 'Reclamo territorial')}
+                      </p>
+                      {selectedMapPoint.estado ? <Badge variant="secondary">{humanizeCategoryValue(selectedMapPoint.estado)}</Badge> : null}
+                      {selectedMapPoint.canal ? <Badge variant="outline">{humanizeCategoryValue(selectedMapPoint.canal)}</Badge> : null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedMapPoint.addressCellLabel ??
+                        selectedMapPoint.barrio ??
+                        selectedMapPoint.distrito ??
+                        'Ubicación validada sin zona pública'}
+                      {' · '}Coordenada disponible para operación autorizada
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {selectedMapPoint.ticket ?? selectedMapPoint.id ? (
+                      <Button asChild type="button" size="sm" variant="default">
+                        <a
+                          href={`/chat/${encodeURIComponent(String(selectedMapPoint.ticket ?? selectedMapPoint.id))}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir reclamo
+                        </a>
+                      </Button>
+                    ) : null}
+                    <Button type="button" size="sm" variant="outline" onClick={() => setSelectedMapPoint(null)}>
+                      Cerrar detalle
+                    </Button>
                   </div>
                 </div>
               ) : null}

@@ -56,6 +56,7 @@ export type MapLibreMapProps = {
   center?: [number, number]; // [lon, lat]
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
+  onFeatureSelect?: (point: HeatPoint | null) => void;
   heatmapData?: HeatPoint[];
   polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
@@ -114,6 +115,8 @@ export type MapLibreMapProps = {
   pointLabelMode?: "count" | "barrio" | "categoria" | "none";
   heatmapRadiusScale?: number;
   heatmapPalette?: "default" | "faro";
+  /** Fade density as the operator zooms in so concrete points become the primary evidence. */
+  adaptiveZoomMode?: boolean;
 };
 
 const isRenderableCoordinatePair = (lat: unknown, lng: unknown): lat is number =>
@@ -290,6 +293,7 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       total: p.total,
       categoryColor: p.categoryColor,
       direccion: p.direccion,
+      addressCellLabel: p.addressCellLabel,
       distrito: p.distrito,
       barrio: p.barrio,
       ciudad: p.ciudad,
@@ -716,6 +720,7 @@ export default function MapLibreMap({
   center,
   initialZoom = 12,
   onSelect,
+  onFeatureSelect,
   heatmapData = [],
   polygons,
   showHeatmap = true,
@@ -746,6 +751,7 @@ export default function MapLibreMap({
   pointLabelMode = "count",
   heatmapRadiusScale = 1,
   heatmapPalette = "default",
+  adaptiveZoomMode = false,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapGeneration, setMapGeneration] = useState(0);
@@ -911,6 +917,7 @@ export default function MapLibreMap({
   const showPolygonsRef = useRef(showPolygons);
   const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
+  const onFeatureSelectRef = useRef(onFeatureSelect);
   const initialZoomRef = useRef(initialZoom);
   const prefersReducedMotionRef = useRef(prefersReducedMotion);
   const boundsPaddingRef = useRef(boundsPadding);
@@ -946,6 +953,10 @@ export default function MapLibreMap({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onFeatureSelectRef.current = onFeatureSelect;
+  }, [onFeatureSelect]);
 
   useEffect(() => {
     initialZoomRef.current = initialZoom;
@@ -1226,7 +1237,11 @@ export default function MapLibreMap({
                   ],
                 ],
               ],
-              "heatmap-opacity": heatmapPalette === "faro" ? 0.76 : 0.65,
+              "heatmap-opacity": adaptiveZoomMode
+                ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
+                : heatmapPalette === "faro"
+                  ? 0.76
+                  : 0.65,
               "heatmap-color": heatmapPalette === "faro"
                 ? [
                     "interpolate",
@@ -1643,6 +1658,24 @@ export default function MapLibreMap({
           const cluster = clusterId
             ? latestHeatmap.current.find((point) => point.clusterId === clusterId)
             : undefined;
+          const featureId = String(properties.id ?? properties.ticket ?? "").trim();
+          const matchedPoint = cluster ?? latestHeatmap.current.find((point) => {
+            const pointId = String(point.id ?? point.ticket ?? "").trim();
+            if (featureId && pointId === featureId) return true;
+            return Math.abs(point.lng - Number(coords[0])) < 0.0000001 && Math.abs(point.lat - Number(coords[1])) < 0.0000001;
+          });
+          const selectedPoint: HeatPoint = matchedPoint ?? {
+            lat: Number(coords[1]),
+            lng: Number(coords[0]),
+            ...(featureId ? { ticket: featureId } : {}),
+            ...(typeof properties.categoria === "string" ? { categoria: properties.categoria } : {}),
+            ...(typeof properties.barrio === "string" ? { barrio: properties.barrio } : {}),
+            ...(typeof properties.distrito === "string" ? { distrito: properties.distrito } : {}),
+            ...(typeof properties.estado === "string" ? { estado: properties.estado } : {}),
+            ...(typeof properties.canal === "string" ? { canal: properties.canal } : {}),
+            ...(typeof properties.categoryColor === "string" ? { categoryColor: properties.categoryColor } : {}),
+            ...(typeof properties.addressCellLabel === "string" ? { addressCellLabel: properties.addressCellLabel } : {}),
+          };
 
           while (Math.abs(e.lngLat.lng - coords[0]) > 180) {
             coords[0] += e.lngLat.lng > coords[0] ? 360 : -360;
@@ -1660,6 +1693,7 @@ export default function MapLibreMap({
             feature_id: properties?.id ?? null,
             contract_version: contractVersionRef.current,
           });
+          onFeatureSelectRef.current?.(selectedPoint);
 
           const popup = new maplibre.Popup({
             offset: 16,
@@ -1883,6 +1917,21 @@ export default function MapLibreMap({
     showHeatmap,
     showPolygons,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getLayer(configuredLayerIds.heat)) return;
+
+    map.setPaintProperty(
+      configuredLayerIds.heat,
+      "heatmap-opacity",
+      adaptiveZoomMode
+        ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
+        : heatmapPalette === "faro"
+          ? 0.76
+          : 0.65,
+    );
+  }, [adaptiveZoomMode, configuredLayerIds.heat, heatmapPalette, mapGeneration]);
 
   useEffect(() => {
     if (!configuredInteractions.timeSliderEnabled) return;
