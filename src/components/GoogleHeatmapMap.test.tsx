@@ -50,6 +50,7 @@ const installGoogleRuntime = () => {
     writable: true,
     value: {
       maps: {
+        version: "3.64.0",
         Map: class {},
         LatLng,
         LatLngBounds,
@@ -196,6 +197,31 @@ describe("GoogleHeatmapMap visibility contract", () => {
         googleMapsKey="configured"
       />,
     );
+    expect(screen.getByTestId("google-point-marker")).toBeInTheDocument();
+  });
+
+  it("reports the removed Google heat layer before React can instantiate it", async () => {
+    Object.defineProperty(window.google.maps, "version", {
+      configurable: true,
+      value: "3.66.2d",
+    });
+    const onProviderUnavailable = vi.fn();
+
+    render(
+      <GoogleHeatmapMap
+        initialZoom={12}
+        heatmapData={heatmapData}
+        showHeatmap
+        disableClustering
+        googleMapsKey="configured"
+        onProviderUnavailable={onProviderUnavailable}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onProviderUnavailable).toHaveBeenCalledWith("heatmap-unavailable", undefined),
+    );
+    expect(screen.queryByTestId("google-heat-layer")).not.toBeInTheDocument();
     expect(screen.getByTestId("google-point-marker")).toBeInTheDocument();
   });
 

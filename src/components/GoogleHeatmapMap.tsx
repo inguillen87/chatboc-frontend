@@ -110,6 +110,13 @@ const computeFallbackCenter = (
 
 const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
 
+const supportsLegacyGoogleHeatmapLayer = (version: unknown) => {
+  if (typeof version !== "string") return true;
+  const match = version.trim().match(/^3\.(\d+)/);
+  if (!match) return true;
+  return Number(match[1]) < 65;
+};
+
 export function GoogleHeatmapMap({
   center,
   initialZoom,
@@ -248,7 +255,8 @@ export function GoogleHeatmapMap({
     }
 
     const visualization = window.google?.maps?.visualization;
-    const available = Boolean(visualization?.HeatmapLayer);
+    const available = Boolean(visualization?.HeatmapLayer) &&
+      supportsLegacyGoogleHeatmapLayer(window.google?.maps?.version);
 
     setHeatmapLayerAvailable(available);
 
