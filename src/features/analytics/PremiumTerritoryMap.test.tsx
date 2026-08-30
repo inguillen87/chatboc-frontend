@@ -6,7 +6,7 @@ import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTyp
 
 vi.mock('@/components/LazyMapLibreMap', () => ({
   default: (props: {
-    heatmapData?: unknown[];
+    heatmapData?: Array<{ direccion?: string; addressCellLabel?: string }>;
     fitToBounds?: unknown[];
     provider?: string;
     mapStyleUrl?: string | null;
@@ -39,6 +39,10 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     <div
       data-testid="mock-live-map"
       data-points={String(props.heatmapData?.length ?? 0)}
+      data-addresses={(props.heatmapData ?? [])
+        .map((point) => point.addressCellLabel ?? point.direccion ?? '')
+        .filter(Boolean)
+        .join('|')}
       data-bounds={String(props.fitToBounds?.length ?? 0)}
       data-provider={props.provider}
       data-style-url={props.mapStyleUrl ?? ''}
@@ -159,6 +163,66 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-points')).toBe('1');
     expect(map.getAttribute('data-geo-features')).toBe('1');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
+  });
+
+  it('filters by backend address cells while keeping household numbers out of the executive map', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'luz-centro-1',
+        lat: -34.61,
+        lng: -60.91,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+        direccion: 'Don Bosco 55, Junín',
+        cell_id: 'h3:centro-a',
+        address_cell_label: 'Sector Centro A',
+        weight: 2,
+      },
+      {
+        id: 'luz-centro-2',
+        lat: -34.611,
+        lng: -60.911,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+        direccion: 'Don Bosco 99, Junín',
+        cell_id: 'h3:centro-a',
+        address_cell_label: 'Sector Centro A',
+        weight: 3,
+      },
+      {
+        id: 'bache-norte',
+        lat: -34.62,
+        lng: -60.92,
+        categoria: 'Baches',
+        barrio: 'Norte',
+        direccion: 'Belgrano 102, Junín',
+        weight: 1,
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 3, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map.getAttribute('data-addresses')).toContain('Sector Centro A');
+    expect(map.getAttribute('data-addresses')).toContain('Corredor Belgrano');
+    expect(map.getAttribute('data-addresses')).not.toMatch(/Don Bosco 55|Don Bosco 99|Belgrano 102/);
+    expect(document.body.textContent).not.toMatch(/Don Bosco 55|Don Bosco 99|Belgrano 102/);
+    expect(screen.getByText('Sin domicilio exacto')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Sector Centro A' }));
+    expect(map.getAttribute('data-points')).toBe('2');
+    expect(map.getAttribute('data-geo-features')).toBe('2');
   });
 
   it('protects exact markers and small category or zone segments under aggregated privacy', () => {

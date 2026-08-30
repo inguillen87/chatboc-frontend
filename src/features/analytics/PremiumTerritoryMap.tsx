@@ -117,6 +117,96 @@ const categoryColorFor = (value: string | undefined) => {
   return MAP_CATEGORY_COLORS[hash % MAP_CATEGORY_COLORS.length];
 };
 
+type SafeLocationFacet = {
+  key: string;
+  label: string;
+  kind: 'cell' | 'street';
+};
+
+const compactWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const stableLocationCode = (value: string) => {
+  const hash = Array.from(value).reduce((total, character) => (total * 33 + character.charCodeAt(0)) >>> 0, 5381);
+  return String((hash % 97) + 1).padStart(2, '0');
+};
+
+/**
+ * Executive maps must never turn a heat-point tooltip or filter into a list of
+ * household addresses. Exact locations remain available from the authorized
+ * ticket workspace; this view only keeps a street corridor or backend-issued
+ * aggregated cell label.
+ */
+const safeStreetCorridor = (value: string | undefined) => {
+  if (!value) return undefined;
+  const withoutCoordinates = value.replace(/-?\d{1,3}\.\d{3,}\s*[,;/]\s*-?\d{1,3}\.\d{3,}/g, '');
+  const withoutUnit = withoutCoordinates.replace(
+    /\b(?:piso|depto\.?|departamento|unidad|lote|casa|oficina)\b.*$/i,
+    '',
+  );
+  const withoutHouseNumber = withoutUnit
+    .replace(/\b(?:altura|nro\.?|n[°º]|numero|número)\s*\d+[a-z]?\b/gi, '')
+    .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?=$|[\s,])/gi, ' ')
+    .replace(/\s*[,;]\s*(?:jun[ií]n|mendoza|argentina)\b.*$/i, '');
+  const normalized = compactWhitespace(withoutHouseNumber.replace(/^[,;\s]+|[,;\s]+$/g, ''));
+  if (!isNamedFacetValue(normalized) || normalized.length < 3) return undefined;
+  return normalized;
+};
+
+const safeAggregateCellLabel = (value: string | undefined) => {
+  if (!value) return undefined;
+  const normalized = compactWhitespace(value);
+  if (!isNamedFacetValue(normalized)) return undefined;
+  if (/\b(?:celda|sector|zona|barrio|distrito|cuadr[ií]cula|tramo|corredor)\b/i.test(normalized)) {
+    return normalized;
+  }
+  return safeStreetCorridor(normalized);
+};
+
+const safeLocationFacetForPoint = (point: OperationsHeatmapPoint): SafeLocationFacet | undefined => {
+  const location = asRecord(point.location);
+  const explicitCellLabel = safeAggregateCellLabel(
+    readString(
+      point.address_cell_label,
+      point.cell_label,
+      point.address_cell,
+      point.street_segment,
+      point.block_label,
+      point.location_bucket_label,
+      location?.address_cell_label,
+      location?.cell_label,
+      location?.street_segment,
+    ),
+  );
+  const cellId = readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id, location?.cellId);
+  if (explicitCellLabel) {
+    return {
+      key: normalizedFacetValue(cellId ? `cell:${cellId}` : `label:${explicitCellLabel}`),
+      label: explicitCellLabel,
+      kind: 'cell',
+    };
+  }
+
+  const corridor = safeStreetCorridor(
+    readString(point.direccion, point.address, location?.direccion, location?.address),
+  );
+  if (corridor) {
+    return {
+      key: normalizedFacetValue(`street:${corridor}`),
+      label: `Corredor ${corridor}`,
+      kind: 'street',
+    };
+  }
+
+  if (cellId) {
+    return {
+      key: normalizedFacetValue(`cell:${cellId}`),
+      label: `Sector territorial ${stableLocationCode(cellId)}`,
+      kind: 'cell',
+    };
+  }
+  return undefined;
+};
+
 const presentExecutiveText = (value: string | undefined) =>
   value
     ?.replace(/\bGeoJSON\b/gi, 'archivo oficial de límites territoriales')
@@ -227,6 +317,7 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
   if (lat === undefined || lng === undefined) return null;
 
   const id = readNumber(point.id, point.ticket_id, point.record_id);
+  const locationFacet = safeLocationFacetForPoint(point);
   return {
     lat,
     lng,
@@ -240,7 +331,18 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     estado: readString(point.estado, point.status),
     severidad: readString(point.severidad, point.severity),
     fuente: readString(point.fuente, point.source),
-    direccion: readString(point.direccion, point.address, point.label),
+    // Never forward a household address into the executive map popup.
+    direccion: locationFacet?.label,
+    addressCellLabel: locationFacet?.label,
+    addressCellKey: locationFacet?.key,
+    cellId: readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id),
+    locationQuality: readString(point.location_quality, point.locationQuality, point.geocode_quality),
+    locationProvenance: readString(
+      point.location_provenance,
+      point.locationProvenance,
+      point.address_source,
+      point.coordinate_source,
+    ),
     last_ticket_at: readString(point.last_ticket_at, point.updated_at, point.created_at) ?? null,
     feature: { raw: point },
   };
@@ -597,6 +699,24 @@ const operationsPointsFromFeatureCollection = (
       zona: readString(properties.zona, properties.zone),
       barrio: readString(properties.barrio, properties.neighborhood, properties.zone, properties.zona),
       distrito: readString(properties.distrito, properties.district),
+      address: readString(properties.address, properties.direccion),
+      direccion: readString(properties.direccion, properties.address),
+      address_cell: readString(properties.address_cell, properties.addressCell, properties.street_segment),
+      address_cell_label: readString(
+        properties.address_cell_label,
+        properties.addressCellLabel,
+        properties.cell_label,
+        properties.location_bucket_label,
+      ),
+      cell_id: readString(properties.cell_id, properties.cellId, properties.location_cell_id),
+      cell_label: readString(properties.cell_label, properties.cellLabel, properties.address_cell_label),
+      location_quality: readString(properties.location_quality, properties.locationQuality, properties.geocode_quality),
+      location_provenance: readString(
+        properties.location_provenance,
+        properties.locationProvenance,
+        properties.address_source,
+        properties.coordinate_source,
+      ),
       status: readString(properties.status, properties.estado),
       estado: readString(properties.estado, properties.status),
       source: readString(properties.source, properties.fuente),
@@ -694,7 +814,9 @@ const buildOperationsGeoLayerConfig = ({
           weight,
           intensity: readNumber(point.intensity, rawPoint?.intensity, weight) ?? weight,
           totalWeight: readNumber(point.totalWeight, rawPoint?.total_weight, weight) ?? weight,
-          direccion: readString(point.direccion, rawPoint?.direccion, rawPoint?.address, rawPoint?.label),
+          // The executive map only receives the aggregated/corridor label.
+          direccion: readString(point.addressCellLabel, point.direccion),
+          address_cell_label: readString(point.addressCellLabel),
           barrio: readString(
             point.barrio,
             rawPoint?.zone,
@@ -704,6 +826,12 @@ const buildOperationsGeoLayerConfig = ({
             rawPoint?.distrito,
           ),
           cell_id: readString(point.cellId, rawPoint?.cell_id),
+          location_quality: readString(point.locationQuality, rawPoint?.location_quality, rawPoint?.quality_state),
+          location_provenance: readString(
+            point.locationProvenance,
+            rawPoint?.location_provenance,
+            rawPoint?.address_source,
+          ),
           fuente: readString(point.fuente, point.source, rawPoint?.fuente, rawPoint?.source) ?? 'operations',
           latest_event_at: latestEventAt,
           operational_score: readNumber(rawPoint?.operational_score),
@@ -846,6 +974,7 @@ export function PremiumTerritoryHeatmap({
   const [layerSelection, setLayerSelection] = useState<string[] | null>(null);
   const [mapCategoryFilter, setMapCategoryFilter] = useState<string | null>(null);
   const [mapZoneFilter, setMapZoneFilter] = useState<string | null>(null);
+  const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -875,7 +1004,12 @@ export function PremiumTerritoryHeatmap({
             estado: readString(risk?.level, record.estado, record.status),
             severidad: readString(risk?.label, risk?.level, record.severidad, record.severity),
             fuente: 'heatmap_cell',
-            cell_id: record.cell_id,
+            cell_id: readString(record.cell_id, record.id),
+            cell_label: readString(record.cell_label, record.address_cell_label, record.location_bucket_label),
+            address_cell: readString(record.address_cell, record.street_segment),
+            address_cell_label: readString(record.address_cell_label, record.cell_label, record.location_bucket_label),
+            location_quality: readString(record.location_quality, record.quality_state),
+            location_provenance: readString(record.location_provenance, record.source),
           };
         })
         .filter((point): point is OperationsHeatmapPoint => Boolean(point)),
@@ -929,6 +1063,13 @@ export function PremiumTerritoryHeatmap({
     suppressedPrivacy?.zones === true ||
     suppressedPrivacy?.zone === true ||
     suppressedPrivacy?.neighborhoods === true;
+  const addressCellFacetsSuppressed =
+    allTerritoryFacetsSuppressed ||
+    suppressedPrivacy?.addresses === true ||
+    suppressedPrivacy?.address === true ||
+    suppressedPrivacy?.exact_addresses === true ||
+    suppressedPrivacy?.cells === true ||
+    suppressedPrivacy?.location_cells === true;
   const canShowExactPointMarkers =
     !exactPointsSuppressed && !aggregatedPrivacyMode && (!hasPrivacyContract || exactPrivacyMode);
   const liveMapPoints = useMemo(
@@ -946,6 +1087,7 @@ export function PremiumTerritoryHeatmap({
   const hasNamedMapZones = liveMapPoints.some((point) =>
     isNamedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
   );
+  const hasNamedMapAddressCells = liveMapPoints.some((point) => isNamedFacetValue(point.addressCellLabel));
   const mapCategoryFacets = useMemo(() => {
     const counts = new Map<string, { label: string; count: number; color: string }>();
     liveMapPoints.forEach((point) => {
@@ -980,12 +1122,36 @@ export function PremiumTerritoryHeatmap({
       .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.count >= effectiveMinSampleSize)
       .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'es'));
   }, [effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints, zoneFacetsSuppressed]);
+  const mapAddressCellFacets = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number; volume: number }>();
+    liveMapPoints.forEach((point) => {
+      const key = point.addressCellKey;
+      const label = point.addressCellLabel?.trim();
+      if (!key || !isNamedFacetValue(label)) return;
+      const current = counts.get(key);
+      const pointVolume = Math.max(1, readNumber(point.totalWeight, point.total, point.weight) ?? 1);
+      counts.set(key, {
+        label: current?.label ?? label,
+        count: (current?.count ?? 0) + 1,
+        volume: (current?.volume ?? 0) + pointVolume,
+      });
+    });
+    if (addressCellFacetsSuppressed) return [];
+    return Array.from(counts.entries())
+      .map(([key, value]) => ({ key, ...value }))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.count >= effectiveMinSampleSize)
+      .sort((left, right) => right.volume - left.volume || left.label.localeCompare(right.label, 'es'))
+      .slice(0, 8);
+  }, [addressCellFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
   const categoryBreakdownProtected =
     categoryFacetsSuppressed ||
     (hasPrivacyContract && !exactPrivacyMode && hasNamedMapCategories && mapCategoryFacets.length === 0);
   const zoneBreakdownProtected =
     zoneFacetsSuppressed ||
     (hasPrivacyContract && !exactPrivacyMode && hasNamedMapZones && mapZoneFacets.length === 0);
+  const addressCellBreakdownProtected =
+    addressCellFacetsSuppressed ||
+    (hasPrivacyContract && !exactPrivacyMode && hasNamedMapAddressCells && mapAddressCellFacets.length === 0);
 
   useEffect(() => {
     if (mapCategoryFilter && !mapCategoryFacets.some((facet) => facet.key === mapCategoryFilter)) {
@@ -998,6 +1164,12 @@ export function PremiumTerritoryHeatmap({
       setMapZoneFilter(null);
     }
   }, [mapZoneFacets, mapZoneFilter]);
+
+  useEffect(() => {
+    if (mapAddressCellFilter && !mapAddressCellFacets.some((facet) => facet.key === mapAddressCellFilter)) {
+      setMapAddressCellFilter(null);
+    }
+  }, [mapAddressCellFacets, mapAddressCellFilter]);
   const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
   const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
   const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
@@ -1162,7 +1334,12 @@ export function PremiumTerritoryHeatmap({
     ...(heatmap?.operator_playbook ?? []),
   ]).slice(0, 4);
   const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
-    const contextLabel = readString(candidate.address, candidate.label, candidate.category);
+    const safeCandidateCorridor = safeStreetCorridor(candidate.address);
+    const contextLabel = readString(
+      safeCandidateCorridor ? `Corredor ${safeCandidateCorridor}` : undefined,
+      candidate.label,
+      candidate.category,
+    );
     return (Array.isArray(candidate.actions) ? candidate.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const pointActions = sourcePoints.flatMap((point) => {
@@ -1223,9 +1400,10 @@ export function PremiumTerritoryHeatmap({
         ) {
           return false;
         }
+        if (mapAddressCellFilter && point.addressCellKey !== mapAddressCellFilter) return false;
         return true;
       }),
-    [liveMapPoints, mapCategoryFilter, mapZoneFilter, showCommerceLayer],
+    [liveMapPoints, mapAddressCellFilter, mapCategoryFilter, mapZoneFilter, showCommerceLayer],
   );
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
@@ -2196,7 +2374,7 @@ export function PremiumTerritoryHeatmap({
                 </Button>
               </div>
 
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 <div role="group" aria-label="Filtrar mapa por categoría" className="rounded-lg border bg-muted/20 p-3">
                   <p className="text-xs font-semibold text-foreground">Categoría de reclamo</p>
                   {mapCategoryFacets.length ? (
@@ -2284,6 +2462,66 @@ export function PremiumTerritoryHeatmap({
                       </span>
                     </div>
                   )}
+                </div>
+
+                <div
+                  role="group"
+                  aria-label="Filtrar mapa por dirección agregada o celda"
+                  className="rounded-lg border bg-muted/20 p-3 lg:col-span-2 2xl:col-span-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-foreground">Dirección agregada / celda</p>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      Sin domicilio exacto
+                    </Badge>
+                  </div>
+                  {mapAddressCellFacets.length ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={mapAddressCellFilter === null ? 'default' : 'outline'}
+                        className="h-8 rounded-full px-3"
+                        aria-pressed={mapAddressCellFilter === null}
+                        onClick={() => setMapAddressCellFilter(null)}
+                      >
+                        Todas las ubicaciones
+                      </Button>
+                      {mapAddressCellFacets.map((facet) => (
+                        <Button
+                          key={facet.key}
+                          type="button"
+                          size="sm"
+                          variant={mapAddressCellFilter === facet.key ? 'default' : 'outline'}
+                          className="h-8 max-w-full rounded-full px-3"
+                          aria-pressed={mapAddressCellFilter === facet.key}
+                          aria-label={`Filtrar mapa por ubicación ${facet.label}`}
+                          onClick={() =>
+                            setMapAddressCellFilter((current) => (current === facet.key ? null : facet.key))
+                          }
+                        >
+                          <span className="truncate">{facet.label}</span>
+                          <span className="ml-2 text-current/65">{formatNumber(facet.volume)}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-xs text-muted-foreground">
+                      {addressCellBreakdownProtected ? (
+                        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      ) : (
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                      )}
+                      <span>
+                        {addressCellBreakdownProtected
+                          ? `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros por celda`
+                          : 'Sin direcciones agrupadas ni celdas verificadas en los puntos visibles'}
+                      </span>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    El domicilio exacto se consulta sólo dentro del reclamo autorizado; esta vista agrupa por corredor o celda.
+                  </p>
                 </div>
               </div>
             </div>

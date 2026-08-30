@@ -19,6 +19,9 @@ export interface HeatPoint {
   ticket?: string;
   categoria?: string;
   direccion?: string;
+  /** Aggregated address/cell label; unlike direccion it must not identify a household. */
+  addressCellLabel?: string;
+  addressCellKey?: string;
   distrito?: string;
   barrio?: string;
   tipo_ticket?: string;
@@ -50,6 +53,8 @@ export interface HeatPoint {
   // New fields for completeness
   source?: string;
   cellId?: string;
+  locationQuality?: string;
+  locationProvenance?: string;
   pointCount?: number;
   aggregatedCanales?: HeatmapBreakdownItem[];
   aggregatedFuentes?: HeatmapBreakdownItem[];

@@ -461,6 +461,13 @@ describe('operations heatmap v2 contract', () => {
           canal: 'whatsapp',
           source: 'tickets',
           barrio: 'Centro',
+          direccion: 'Don Bosco 55',
+          addressCellLabel: 'Sector Centro A',
+          cellId: 'h3:centro-a',
+          geocode_quality: 'verified_gps',
+          location_provenance: {
+            coordinate: { source: 'whatsapp_location' },
+          },
           estado: 'nuevo',
           actions: [
             { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },
@@ -522,6 +529,12 @@ describe('operations heatmap v2 contract', () => {
       canal: 'whatsapp',
       source: 'tickets',
       barrio: 'Centro',
+      address: 'Don Bosco 55',
+      direccion: 'Don Bosco 55',
+      address_cell_label: 'Sector Centro A',
+      cell_id: 'h3:centro-a',
+      location_quality: 'verified_gps',
+      location_provenance: 'whatsapp_location',
       estado: 'nuevo',
       actions: [
         { title: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },

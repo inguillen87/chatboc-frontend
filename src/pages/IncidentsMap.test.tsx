@@ -273,11 +273,49 @@ describe('IncidentsMap', () => {
     expect(screen.queryByTestId('legacy-heatmap-evidence')).not.toBeInTheDocument();
   });
 
+  it('defaults only the territorial workspace to full history and keeps shorter ranges selectable', async () => {
+    render(<IncidentsMap tenantSlugOverride="junin" />);
+
+    await waitFor(() => {
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'junin',
+          range: 'all',
+          scope: 'historical',
+          from: undefined,
+          to: undefined,
+        }),
+      );
+    });
+
+    const range = screen.getByLabelText('Cobertura del mapa') as HTMLSelectElement;
+    expect(range.value).toBe('all');
+    expect(range).toHaveAccessibleDescription('Independiente del período operativo.');
+    expect(
+      screen.getByTestId('mock-premium-territory-map').getAttribute('data-active-filters'),
+    ).toContain('Histórico completo');
+
+    fireEvent.change(range, { target: { value: '7d' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
+
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(2));
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        range: undefined,
+        scope: undefined,
+        from: expect.any(String),
+        to: expect.any(String),
+      }),
+    );
+  });
+
   it('derives executive KPIs from v2 summary and segments, not sparse point fields', async () => {
     render(<IncidentsMap />);
 
     await screen.findByTestId('mock-premium-territory-map');
     expect(screen.getByText('21 puntos')).toBeInTheDocument();
+    expect(screen.getByText('21/28')).toBeInTheDocument();
+    expect(screen.getByText('75% geolocalizado · 1 dirección pendiente')).toBeInTheDocument();
     expect(screen.getByText('Categoría: Luminaria')).toBeInTheDocument();
     expect(screen.getAllByText('Nuevo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Centro').length).toBeGreaterThan(0);
@@ -485,7 +523,7 @@ describe('IncidentsMap', () => {
   });
 
   it.each([404, 405, 501])(
-    'falls back to visibly partial legacy evidence only for compatibility status %s',
+    'fails closed instead of exposing legacy exact coordinates for compatibility status %s',
     async (status) => {
       mocks.getOperationsHeatmapV2.mockRejectedValue(
         new ApiError('Contrato no publicado', status),
@@ -493,16 +531,13 @@ describe('IncidentsMap', () => {
 
       render(<IncidentsMap />);
 
-      expect(await screen.findByTestId('legacy-heatmap-evidence')).toHaveTextContent(
-        'Vista alternativa · evidencia parcial',
+      expect(await screen.findByTestId('incidents-map-error')).toHaveTextContent(
+        'No se muestran coordenadas de la vista heredada',
       );
-      expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-points', '2');
-      expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute(
-        'data-aria-label',
-        'Mapa operativo de reclamos y demanda territorial',
-      );
-      expect(mocks.getHeatmapDataset).toHaveBeenCalledTimes(1);
-      expect(mocks.getTicketStats).toHaveBeenCalledTimes(1);
+      expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
+      expect(mocks.getTicketStats).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('legacy-heatmap-evidence')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('mock-incidents-map')).not.toBeInTheDocument();
       expect(screen.queryByTestId('mock-premium-territory-map')).not.toBeInTheDocument();
     },
   );
@@ -551,18 +586,13 @@ describe('IncidentsMap', () => {
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
   });
 
-  it('keeps the legacy heat/point toggle only inside explicit compatibility mode', async () => {
+  it('does not expose the legacy heat/point toggle when the secure contract is unavailable', async () => {
     mocks.getOperationsHeatmapV2.mockRejectedValue(new ApiError('No disponible', 404));
 
     render(<IncidentsMap />);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'heatmap');
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /Densidad activa/i }));
-
-    expect(screen.getByTestId('mock-incidents-map')).toHaveAttribute('data-heatmap', 'points');
-    expect(screen.getByText('Solo puntos')).toBeInTheDocument();
+    expect(await screen.findByTestId('incidents-map-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-incidents-map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Densidad activa/i })).not.toBeInTheDocument();
   });
 });

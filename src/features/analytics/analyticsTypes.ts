@@ -325,6 +325,15 @@ export interface OperationsHeatmapPoint {
   distrito?: string;
   zone?: string;
   zona?: string;
+  address?: string;
+  direccion?: string;
+  /** Aggregated, non-household label safe for executive territorial views. */
+  address_cell?: string;
+  address_cell_label?: string;
+  cell_id?: string;
+  cell_label?: string;
+  location_quality?: string;
+  location_provenance?: string;
   status?: string;
   estado?: string;
   severity?: string;

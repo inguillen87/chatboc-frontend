@@ -777,6 +777,19 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
   const lng = asNumber(value.lng ?? value.lon ?? value.longitude);
   if (lat === undefined || lng === undefined) return null;
   const actions = normalizeActions(value.actions);
+  const provenance = isRecord(value.location_provenance)
+    ? value.location_provenance
+    : isRecord(value.locationProvenance)
+      ? value.locationProvenance
+      : undefined;
+  const coordinateProvenance = isRecord(provenance?.coordinate) ? provenance.coordinate : undefined;
+  const addressProvenance = isRecord(provenance?.address) ? provenance.address : undefined;
+  const locationProvenanceSource = asString(
+    value.address_source ??
+      value.coordinate_source ??
+      coordinateProvenance?.source ??
+      addressProvenance?.source,
+  );
 
   return {
     ...value,
@@ -803,6 +816,16 @@ const normalizeHeatmapPoint = (value: unknown): OperationsHeatmapPoint | null =>
     distrito: asString(value.distrito ?? value.district),
     zone: asString(value.zone ?? value.zona),
     zona: asString(value.zona ?? value.zone),
+    address: asString(value.address ?? value.direccion),
+    direccion: asString(value.direccion ?? value.address),
+    address_cell: asString(value.address_cell ?? value.addressCell ?? value.location_cell ?? value.street_segment),
+    address_cell_label: asString(
+      value.address_cell_label ?? value.addressCellLabel ?? value.cell_label ?? value.location_bucket_label,
+    ),
+    cell_id: asString(value.cell_id ?? value.cellId ?? value.location_cell_id),
+    cell_label: asString(value.cell_label ?? value.cellLabel ?? value.address_cell_label),
+    location_quality: asString(value.location_quality ?? value.locationQuality ?? value.geocode_quality),
+    location_provenance: asString(value.locationProvenance) ?? locationProvenanceSource,
     status: asString(value.status ?? value.estado),
     estado: asString(value.estado ?? value.status),
     severity: asString(value.severity ?? value.severidad),

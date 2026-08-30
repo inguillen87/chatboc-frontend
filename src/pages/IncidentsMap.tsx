@@ -17,8 +17,6 @@ import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
 import {
-  getTicketStats,
-  getHeatmapDataset,
   HeatPoint,
   HeatmapDataset,
   TicketStatsResponse,
@@ -48,9 +46,10 @@ const LEGACY_COMPATIBILITY_STATUSES = new Set([404, 405, 501]);
 
 type HeatmapContractSource = 'operations_v2' | 'legacy_partial' | null;
 
-type IncidentTimeRange = 'custom' | '7d' | '30d' | '90d';
+type IncidentTimeRange = 'all' | 'custom' | '7d' | '30d' | '90d';
 
 type IncidentMapFilters = {
+  range: IncidentTimeRange;
   fecha_inicio?: string;
   fecha_fin?: string;
   categoria: string[];
@@ -63,7 +62,7 @@ type IncidentMapFilters = {
 };
 
 const dateValuesForRange = (range: IncidentTimeRange, now = new Date()) => {
-  if (range === 'custom') return { start: '', end: '' };
+  if (range === 'custom' || range === 'all') return { start: '', end: '' };
 
   const end = now.toISOString().slice(0, 10);
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
@@ -73,10 +72,11 @@ const dateValuesForRange = (range: IncidentTimeRange, now = new Date()) => {
 };
 
 const defaultIncidentMapFilters = (): IncidentMapFilters => {
-  const dates = dateValuesForRange('30d');
+  const dates = dateValuesForRange('all');
   return {
-    fecha_inicio: dates.start,
-    fecha_fin: dates.end,
+    range: 'all',
+    fecha_inicio: sanitizeFilterValue(dates.start),
+    fecha_fin: sanitizeFilterValue(dates.end),
     categoria: [],
     estado: [],
   };
@@ -267,6 +267,8 @@ const OPERATIONS_FILTER_LABELS: Record<string, string> = {
   assignee_id: 'Responsable',
   source: 'Fuente',
   channel: 'Canal',
+  range: 'Cobertura',
+  scope: 'Alcance',
 };
 
 const bucketCount = (item?: OperationsBucketItem): number =>
@@ -671,7 +673,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const [states, setStates] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const initialDateRange = useMemo(() => dateValuesForRange('30d'), []);
+  const initialDateRange = useMemo(() => dateValuesForRange('all'), []);
   const [startDate, setStartDate] = useState(initialDateRange.start);
   const [endDate, setEndDate] = useState(initialDateRange.end);
   const [selectedDistrict, setSelectedDistrict] = useState('');
@@ -685,11 +687,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const availableBarrios = useMemo(
     () =>
       Array.from(
-        new Set(
-          heatmapData
-            .map((point) => point.barrio)
-            .filter(isPublishedTerritoryValue)
-            .map((value) => value.trim()),
+        new Set<string>(
+          heatmapData.flatMap<string>((point) =>
+            isPublishedTerritoryValue(point.barrio) ? [point.barrio.trim()] : [],
+          ),
         ),
       ).sort((a, b) => a.localeCompare(b)),
     [heatmapData],
@@ -697,17 +698,18 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const availableDistritos = useMemo(
     () =>
       Array.from(
-        new Set(
-          heatmapData
-            .map((point) => point.distrito)
-            .filter(isPublishedTerritoryValue)
-            .map((value) => value.trim()),
+        new Set<string>(
+          heatmapData.flatMap<string>((point) =>
+            isPublishedTerritoryValue(point.distrito) ? [point.distrito.trim()] : [],
+          ),
         ),
       ).sort((a, b) => a.localeCompare(b)),
     [heatmapData],
   );
   const [disableClustering, setDisableClustering] = useState(false);
-  const [timeRange, setTimeRange] = useState<IncidentTimeRange>('30d');
+  // The territorial workspace defaults to the full available history. This is
+  // intentionally independent from the shorter period used by the operational dashboard.
+  const [timeRange, setTimeRange] = useState<IncidentTimeRange>('all');
   const { provider, setProvider } = useMapProvider();
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -724,7 +726,6 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const [heatmapBounds, setHeatmapBounds] = useState<[number, number][]>([]);
 
   const operationsHeatmapCache = useRef<Map<string, OperationsHeatmapV1>>(new Map());
-  const legacyHeatmapCache = useRef<Map<string, HeatmapDataset>>(new Map());
   const requestGeneration = useRef(0);
 
   const computeDisableClustering = useCallback((dataset: HeatmapDataset | null | undefined) => {
@@ -896,6 +897,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
 
   const draftFilters = useMemo<IncidentMapFilters>(
     () => ({
+      range: timeRange,
       fecha_inicio: sanitizeFilterValue(startDate),
       fecha_fin: sanitizeFilterValue(endDate),
       categoria: selectedCategories,
@@ -916,6 +918,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       selectedGender,
       selectedStates,
       startDate,
+      timeRange,
     ],
   );
 
@@ -928,8 +931,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   }, [draftFilters]);
 
   const clearFilters = useCallback(() => {
-    const dates = dateValuesForRange('30d');
-    setTimeRange('30d');
+    const dates = dateValuesForRange('all');
+    setTimeRange('all');
     setStartDate(dates.start);
     setEndDate(dates.end);
     setSelectedCategories([]);
@@ -940,8 +943,9 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     setAgeMin('');
     setAgeMax('');
     setAppliedFilters({
-      fecha_inicio: dates.start,
-      fecha_fin: dates.end,
+      range: 'all',
+      fecha_inicio: sanitizeFilterValue(dates.start),
+      fecha_fin: sanitizeFilterValue(dates.end),
       categoria: [],
       estado: [],
     });
@@ -954,6 +958,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     setEndDate(dates.end);
     setAppliedFilters((current) => ({
       ...current,
+      range: '90d',
       fecha_inicio: dates.start,
       fecha_fin: dates.end,
     }));
@@ -969,6 +974,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
 
     try {
       const filters = appliedFilters;
+      const historicalTerritoryView = filters.range === 'all';
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
         tipo: ticketType,
@@ -981,6 +987,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           ? operationsCache.get(heatmapKey)!
           : await getOperationsHeatmapV2({
               tenantSlug: canonicalTenantSlug || undefined,
+              range: historicalTerritoryView ? 'all' : undefined,
+              scope: historicalTerritoryView ? 'historical' : undefined,
               from: filters.fecha_inicio,
               to: filters.fecha_fin,
               categoria: filters.categoria.length > 0 ? filters.categoria.join(',') : undefined,
@@ -1001,51 +1009,16 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         return;
       } catch (operationsError) {
         if (!isCurrentRequest()) return;
-        if (!isLegacyCompatibilityError(operationsError)) throw operationsError;
+        if (isLegacyCompatibilityError(operationsError)) {
+          throw new ApiError(
+            'El contrato territorial seguro todavía no está disponible. No se muestran coordenadas de la vista heredada porque esa fuente no declara agregación ni supresión de domicilios.',
+            operationsError.status,
+            operationsError.body,
+            operationsError.requestId,
+          );
+        }
+        throw operationsError;
       }
-
-      const legacyCache = legacyHeatmapCache.current;
-      const heatmapPromise = !forceRefresh && legacyCache.has(heatmapKey)
-        ? Promise.resolve(legacyCache.get(heatmapKey) ?? { points: [] })
-        : getHeatmapDataset({
-            tipo: ticketType,
-            ...filters,
-            tenant_slug: canonicalTenantSlug || undefined,
-          }).then((data) => {
-            legacyCache.set(heatmapKey, data);
-            if (legacyCache.size > HEATMAP_CACHE_LIMIT) {
-              const firstKey = legacyCache.keys().next().value;
-              if (firstKey) legacyCache.delete(firstKey);
-            }
-            return data;
-          });
-
-      const [heatmapDatasetResult, stats] = await Promise.all([
-        heatmapPromise,
-        getTicketStats({
-          tipo: ticketType,
-          ...filters,
-          tenant_slug: canonicalTenantSlug || undefined,
-        }),
-      ]);
-      if (!isCurrentRequest()) return;
-      const heatmapPoints = heatmapDatasetResult.points ?? [];
-      const statsDataset = stats.heatmapDataset;
-      const combinedHeatmap = heatmapPoints.length > 0
-        ? heatmapPoints
-        : statsDataset?.points ?? stats.heatmap ?? [];
-
-      setOperationsHeatmap(null);
-      setHeatmapContractSource('legacy_partial');
-      setCharts(stats.charts || []);
-      applyHeatmapDataset(
-        heatmapPoints.length > 0
-          ? heatmapDatasetResult
-          : statsDataset && (statsDataset.points?.length ?? 0) > 0
-            ? statsDataset
-            : { points: combinedHeatmap, metadata: undefined },
-        { mergeFilters: true, fallback: true },
-      );
     } catch (err) {
       if (!isCurrentRequest()) return;
       const message =
@@ -1114,6 +1087,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   };
 
   const legendText = [
+    appliedFilters.range === 'all' ? 'Cobertura histórica completa' : `Período: ${appliedFilters.range}`,
     appliedFilters.categoria.length
       ? `Categorías: ${appliedFilters.categoria.join(', ')}`
       : 'Todas las categorías',
@@ -1229,17 +1203,36 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
 
   const premiumActiveFilters = useMemo(() => {
     if (heatmapContractSource === 'operations_v2' && operationsHeatmap?.applied_filters) {
-      return Object.entries(operationsHeatmap.applied_filters)
+      const contractFilters = Object.entries(operationsHeatmap.applied_filters)
         .map(([key, value]) => {
-          const displayValue = filterDisplayValue(value);
+          const rawDisplayValue = filterDisplayValue(value);
+          const displayValue =
+            key === 'range' && rawDisplayValue === 'all'
+              ? 'Histórico completo'
+              : key === 'scope' && rawDisplayValue === 'historical'
+                ? 'Histórico'
+                : rawDisplayValue;
           return displayValue
             ? { key, label: OPERATIONS_FILTER_LABELS[key] ?? formatMapLabel(key), value: displayValue }
             : null;
         })
         .filter((item): item is { key: string; label: string; value: string } => Boolean(item));
+      if (!contractFilters.some((filter) => filter.key === 'range')) {
+        contractFilters.unshift({
+          key: 'range',
+          label: 'Cobertura',
+          value: appliedFilters.range === 'all' ? 'Histórico completo' : appliedFilters.range,
+        });
+      }
+      return contractFilters;
     }
 
     return [
+      {
+        key: 'range',
+        label: 'Cobertura',
+        value: appliedFilters.range === 'all' ? 'Histórico completo' : appliedFilters.range,
+      },
       appliedFilters.categoria.length
         ? { key: 'category', label: 'Categorías', value: appliedFilters.categoria.join(', ') }
         : null,
@@ -1325,14 +1318,14 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     {
       label: 'Cobertura territorial',
       value: mapInsights.isEnterpriseContract
-        ? `${formatNumber(mapInsights.territoryQuality.coveragePercent)}%`
+        ? `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`
         : `${formatNumber(mapInsights.territoryQuality.classifiedPoints)}/${formatNumber(mapInsights.territoryQuality.coordinatePoints)}`,
       detail: mapInsights.isEnterpriseContract
-        ? formatCountLabel(
+        ? `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% geolocalizado · ${formatCountLabel(
             mapInsights.territoryQuality.pendingClassification,
-            'ubicación pendiente',
-            'ubicaciones pendientes',
-          )
+            'dirección pendiente',
+            'direcciones pendientes',
+          )}`
         : `${formatNumber(mapInsights.territoryQuality.coveragePercent)}% con zona explícita`,
       icon: Layers,
     },
@@ -1446,17 +1439,25 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           </div>
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[180px_auto_auto] xl:min-w-[520px]">
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">Rango rápido</label>
+                <label htmlFor="territoryTimeRange" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Cobertura del mapa
+                </label>
                 <select
+                  id="territoryTimeRange"
+                  aria-describedby="territoryTimeRangeHelp"
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   value={timeRange}
                   onChange={(e) => setDateRange(e.target.value as typeof timeRange)}
                 >
+                  <option value="all">Histórico completo</option>
                   <option value="7d">Últimos 7 días</option>
                   <option value="30d">Últimos 30 días</option>
                   <option value="90d">Últimos 90 días</option>
                   <option value="custom">Personalizado</option>
                 </select>
+                <p id="territoryTimeRangeHelp" className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Independiente del período operativo.
+                </p>
               </div>
             <Button
               onClick={applyDraftFilters}
