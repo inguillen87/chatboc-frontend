@@ -178,6 +178,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(map.getAttribute('data-point-label-mode')).toBe('count');
     expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(map.getAttribute('data-adaptive-zoom')).toBe('true');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.35');
@@ -963,7 +964,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-show-heatmap')).toBe('true');
     expect(liveMap.getAttribute('data-show-points')).toBe('true');
     expect(liveMap.getAttribute('data-show-point-labels')).toBe('true');
-    expect(liveMap.getAttribute('data-point-label-mode')).toBe('categoria');
+    expect(liveMap.getAttribute('data-point-label-mode')).toBe('count');
     expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.9');
     expect(liveMap.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(liveMap.getAttribute('data-popup-context')).toBe('territory');

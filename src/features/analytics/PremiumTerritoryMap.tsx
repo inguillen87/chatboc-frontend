@@ -2565,7 +2565,7 @@ export function PremiumTerritoryHeatmap({
                 showHeatmap={renderHeatLayer}
                 showPoints={renderPointLayer}
                 showPointLabels={renderPointLayer}
-                pointLabelMode="categoria"
+                pointLabelMode={automaticMapMode ? 'count' : 'categoria'}
                 pointMinZoom={7}
                 pointLabelMinZoom={10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
@@ -2581,7 +2581,7 @@ export function PremiumTerritoryHeatmap({
                 fitToBounds={liveMapBounds}
                 fitBoundsRequestKey={`${mapCategoryFilter ?? 'all'}:${mapZoneFilter ?? 'all'}:${mapAddressCellFilter ?? 'all'}`}
                 boundsPadding={{ top: 40, right: 40, bottom: 40, left: 40 }}
-                disableClientClustering
+                disableClientClustering={!automaticMapMode}
                 showEvidenceBadge={false}
               />
             </div>
