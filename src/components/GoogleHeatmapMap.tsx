@@ -12,6 +12,8 @@ type GoogleHeatmapMapProps = {
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData: HeatPoint[];
   showHeatmap: boolean;
+  showPoints?: boolean;
+  showPointLabels?: boolean;
   marker?: [number, number];
   className?: string;
   adminLocation?: [number, number];
@@ -22,6 +24,7 @@ type GoogleHeatmapMapProps = {
   disableClustering?: boolean;
   googleMapsKey?: string | null;
   evidence?: MapEvidenceInput | null;
+  showEvidenceBadge?: boolean;
 };
 
 declare global {
@@ -113,6 +116,8 @@ export function GoogleHeatmapMap({
   onSelect,
   heatmapData,
   showHeatmap,
+  showPoints,
+  showPointLabels = true,
   marker,
   className,
   adminLocation,
@@ -123,6 +128,7 @@ export function GoogleHeatmapMap({
   disableClustering,
   googleMapsKey,
   evidence,
+  showEvidenceBadge = true,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
@@ -265,6 +271,9 @@ export function GoogleHeatmapMap({
     !className && "h-[500px]",
     className,
   );
+  const evidenceBadge = showEvidenceBadge ? (
+    <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+  ) : null;
 
   const fallbackCenter = useMemo(
     () => computeFallbackCenter(center, marker, adminLocation, aggregatedHeatmap, fitToBounds),
@@ -391,7 +400,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("missing-api-key");
     return (
       <div className={mapContainerClassName}>
-        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+        {evidenceBadge}
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           La configuracion de mapas todavia no esta completa. Cuando este lista, este mapa se activara automaticamente.
         </div>
@@ -403,7 +412,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("load-error", loadError);
     return (
       <div className={mapContainerClassName}>
-        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+        {evidenceBadge}
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           No se pudo cargar Google Maps. Revisá la clave (`VITE_GOOGLE_MAPS_API_KEY`) o la conexión a Internet.
         </div>
@@ -414,7 +423,7 @@ export function GoogleHeatmapMap({
   if (!isLoaded) {
     return (
       <div className={mapContainerClassName}>
-        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+        {evidenceBadge}
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           Cargando mapa de Google Maps...
         </div>
@@ -426,7 +435,7 @@ export function GoogleHeatmapMap({
     reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
     return (
       <div className={mapContainerClassName}>
-        <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+        {evidenceBadge}
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           No se pudo inicializar Google Maps. Verificá la clave (`VITE_GOOGLE_MAPS_API_KEY`) y la configuración de facturación.
         </div>
@@ -436,6 +445,8 @@ export function GoogleHeatmapMap({
 
   const shouldRenderHeatmap =
     showHeatmap && heatmapPoints && heatmapLayerAvailable && aggregatedHeatmap.length > 0;
+  const resolvedShowPoints = showPoints ?? !shouldRenderHeatmap;
+  const shouldRenderPoints = resolvedShowPoints && aggregatedHeatmap.length > 0;
 
   return (
     <div className={mapContainerClassName}>
@@ -461,69 +472,70 @@ export function GoogleHeatmapMap({
           data={heatmapPoints}
           options={{ radius: heatmapRadius, opacity: 0.6 }}
         />
-      ) : (
-        aggregatedHeatmap
-          .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-          .map((point) => {
-            const clusterSize = Number.isFinite(point.clusterSize)
-              ? Number(point.clusterSize)
-              : 1;
-            const scale = Math.max(6, Math.min(18, 4 + Math.sqrt(clusterSize) * 2));
-            const labelText = clusterSize > 1 ? clusterSize.toLocaleString("es-AR") : undefined;
-            const titleParts: string[] = [];
-            if (clusterSize > 1) {
-              titleParts.push(`Reportes: ${clusterSize}`);
-            }
-            if (Number.isFinite(point.totalWeight)) {
-              titleParts.push(
-                `Peso total: ${titleNumberFormatter.format(Number(point.totalWeight))}`,
-              );
-            }
-            if (Number.isFinite(point.averageWeight) && clusterSize > 1) {
-              titleParts.push(
-                `Promedio: ${titleNumberFormatter.format(Number(point.averageWeight))}`,
-              );
-            }
-            if (point.aggregatedCategorias?.length) {
-              titleParts.push(`Categoría principal: ${point.aggregatedCategorias[0].label}`);
-            }
-            if (point.last_ticket_at) {
-              const parsed = Date.parse(point.last_ticket_at);
-              if (Number.isFinite(parsed)) {
-                titleParts.push(`Último ticket: ${new Date(parsed).toLocaleString("es-AR")}`);
+      ) : null}
+      {shouldRenderPoints
+        ? aggregatedHeatmap
+            .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+            .map((point) => {
+              const clusterSize = Number.isFinite(point.clusterSize)
+                ? Number(point.clusterSize)
+                : 1;
+              const scale = Math.max(6, Math.min(18, 4 + Math.sqrt(clusterSize) * 2));
+              const labelText = showPointLabels && clusterSize > 1 ? clusterSize.toLocaleString("es-AR") : undefined;
+              const titleParts: string[] = [];
+              if (clusterSize > 1) {
+                titleParts.push(`Reportes: ${clusterSize}`);
               }
-            }
-
-            return (
-              <MarkerF
-                key={`${point.clusterId ?? `${point.lat}-${point.lng}`}`}
-                position={{ lat: point.lat, lng: point.lng }}
-                label={
-                  labelText
-                    ? {
-                        text: labelText,
-                        color: "#1f2937",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }
-                    : undefined
+              if (Number.isFinite(point.totalWeight)) {
+                titleParts.push(
+                  `Peso total: ${titleNumberFormatter.format(Number(point.totalWeight))}`,
+                );
+              }
+              if (Number.isFinite(point.averageWeight) && clusterSize > 1) {
+                titleParts.push(
+                  `Promedio: ${titleNumberFormatter.format(Number(point.averageWeight))}`,
+                );
+              }
+              if (point.aggregatedCategorias?.length) {
+                titleParts.push(`Categoría principal: ${point.aggregatedCategorias[0].label}`);
+              }
+              if (point.last_ticket_at) {
+                const parsed = Date.parse(point.last_ticket_at);
+                if (Number.isFinite(parsed)) {
+                  titleParts.push(`Último ticket: ${new Date(parsed).toLocaleString("es-AR")}`);
                 }
-                title={titleParts.join(" · ") || undefined}
-                options={{
-                  icon: {
-                    path: circleSymbolPath,
-                    scale,
-                    fillColor: "#2563eb",
-                    fillOpacity: 0.82,
-                    strokeColor: "#1d4ed8",
-                    strokeOpacity: 0.95,
-                    strokeWeight: 1.6,
-                  },
-                }}
-              />
-            );
-          })
-      )}
+              }
+
+              return (
+                <MarkerF
+                  key={`${point.clusterId ?? `${point.lat}-${point.lng}`}`}
+                  position={{ lat: point.lat, lng: point.lng }}
+                  label={
+                    labelText
+                      ? {
+                          text: labelText,
+                          color: "#1f2937",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }
+                      : undefined
+                  }
+                  title={titleParts.join(" · ") || undefined}
+                  options={{
+                    icon: {
+                      path: circleSymbolPath,
+                      scale,
+                      fillColor: "#2563eb",
+                      fillOpacity: 0.82,
+                      strokeColor: "#1d4ed8",
+                      strokeOpacity: 0.95,
+                      strokeWeight: 1.6,
+                    },
+                  }}
+                />
+              );
+            })
+        : null}
 
       {marker ? (
         <MarkerF position={{ lat: marker[1], lng: marker[0] }} />
@@ -540,7 +552,7 @@ export function GoogleHeatmapMap({
         />
       ) : null}
       </GoogleMapComponent>
-      <MapEvidenceBadge evidence={evidence} className="absolute left-3 top-3 z-10" />
+      {evidenceBadge}
     </div>
   );
 }

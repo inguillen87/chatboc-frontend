@@ -34,11 +34,17 @@ vi.mock("@/components/GoogleHeatmapMap", () => {
       evidence,
       heatmapData,
       disableClustering,
+      showEvidenceBadge,
+      showPoints,
+      showPointLabels,
     }: {
       onProviderUnavailable?: (reason: "load-error", details?: unknown) => void;
       evidence?: { pointCount?: number; featureCount?: number };
       heatmapData?: Array<{ lat: number; lng: number }>;
       disableClustering?: boolean;
+      showEvidenceBadge?: boolean;
+      showPoints?: boolean;
+      showPointLabels?: boolean;
     }) => (
       <>
         <button
@@ -53,6 +59,9 @@ vi.mock("@/components/GoogleHeatmapMap", () => {
         </output>
         <output data-testid="google-render-contract">
           {heatmapData?.length ?? -1}/{String(disableClustering)}
+        </output>
+        <output data-testid="google-visibility-contract">
+          {String(showEvidenceBadge)}/{String(showPoints)}/{String(showPointLabels)}
         </output>
       </>
     ),
@@ -722,5 +731,24 @@ describe("MapLibreMap lifecycle", () => {
       expect(screen.getByTestId("google-render-contract")).toHaveTextContent("2/true"),
     );
     expect(screen.getByTestId("google-evidence")).toHaveTextContent("2/0");
+  });
+
+  it("forwards the unobstructed and point visibility contract to Google", async () => {
+    render(
+      <MapProviderMap
+        provider="google"
+        googleMapsKey="configured"
+        heatmapData={[{ lat: -34.58, lng: -60.9, weight: 1 }]}
+        showHeatmap
+        showPoints
+        showPointLabels={false}
+        showEvidenceBadge={false}
+      />,
+    );
+
+    await screen.findByTestId("google-map");
+    expect(screen.getByTestId("google-visibility-contract")).toHaveTextContent(
+      "false/true/false",
+    );
   });
 });
