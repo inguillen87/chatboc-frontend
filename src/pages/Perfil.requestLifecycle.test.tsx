@@ -288,6 +288,17 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByTestId('profile-ticket-workspace')).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
   });
 
+  it('uses the compact full-width console shell for the territorial workspace', async () => {
+    renderProfile('/perfil?tab=mapas');
+
+    await waitFor(() => expect(screen.getByTestId('mock-map')).toBeInTheDocument());
+
+    expect(screen.getByTestId('profile-page-shell')).toHaveClass('w-full', 'min-w-0', 'px-1', 'py-1');
+    expect(screen.getByTestId('profile-map-workspace')).toHaveClass('min-w-0', 'pb-0');
+    expect(screen.getByText('Consola territorial')).toBeInTheDocument();
+    expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument();
+  });
+
   it('restores an institutional section from the URL and keeps contact phone separate from WhatsApp', async () => {
     renderProfile('/perfil?tab=perfil&section=channels');
 

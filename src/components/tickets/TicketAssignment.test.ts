@@ -90,6 +90,124 @@ describe('resolveTicketRoutingAuthority', () => {
     expect(employeeIsEligibleForRoutingTicket(resolution.authority, 11)).toBe(false);
   });
 
+  it('prioriza authoritative_category sobre la etiqueta de presentación del contrato real', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'luminarias',
+            category: 'alumbrado publico',
+            zone: 'centro',
+            channel: 'whatsapp',
+            assignee_id: null,
+          }],
+          unassigned: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'luminarias',
+            category: 'alumbrado publico',
+            zone: 'centro',
+            channel: 'whatsapp',
+            assignee_id: null,
+          }],
+        },
+        recommendations: [{
+          ticket: {
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritativeCategory: 'Luminarias',
+            category: 'Alumbrado público',
+            zone: 'centro',
+            channel: 'whatsapp',
+            assignee_id: null,
+          },
+          suggested_assignee: { id: 10, name: 'Cuadrilla de luminarias' },
+          score: 91,
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.authority.category).toBe('luminarias');
+    expect(resolution.authority.eligibleEmployees.map((employee) => employee.id)).toEqual(['10']);
+    expect(resolution.authority.suggestedEmployee?.id).toBe('10');
+  });
+
+  it('ignora fallbacks de presentación contradictorios cuando existe autoridad publicada', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'luminarias',
+            category: 'alumbrado publico',
+          }],
+          unassigned: [],
+        },
+        recommendations: [{
+          ticket: {
+            source_model: 'MunicipioTicket',
+            id: 403,
+            category: 'etiqueta operativa heredada',
+          },
+          suggested_assignee: { id: 10 },
+        }],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.authority.category).toBe('luminarias');
+    expect(resolution.authority.eligibleEmployees.map((employee) => employee.id)).toEqual(['10']);
+  });
+
+  it('falla cerrado si dos aliases autoritativos publican categorías diferentes', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            authoritative_category: 'luminarias',
+            authoritativeCategory: 'bacheo',
+            category: 'alumbrado publico',
+          }],
+          unassigned: [],
+        },
+        recommendations: [],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
+  it('falla cerrado si los fallbacks de categoría se contradicen sin autoridad publicada', () => {
+    const resolution = resolveTicketRoutingAuthority(
+      routing({
+        queues: {
+          open: [{
+            source_model: 'MunicipioTicket',
+            id: 403,
+            category: 'luminarias',
+            categoria: 'bacheo',
+          }],
+          unassigned: [],
+        },
+        recommendations: [],
+      }),
+      selectedTicket(),
+    );
+
+    expect(resolution).toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
   it('no confunde tickets con el mismo id respaldados por modelos distintos', () => {
     expect(buildRoutingTicketIdentity('TenantTicket', 403)).not.toBe(
       buildRoutingTicketIdentity('MunicipioTicket', 403),

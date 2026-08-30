@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   loading: false,
   error: null as string | null,
   resolutionOk: true,
+  failureReason: 'invalid_contract',
   eligible: true,
   currentAssigneeId: null as string | null,
   postAction: vi.fn(),
@@ -95,7 +96,7 @@ vi.mock('@/hooks/useTicketRoutingAuthority', () => ({
               channel: 'whatsapp',
             },
           }
-        : { ok: false, reason: 'invalid_contract' },
+        : { ok: false, reason: mocks.failureReason },
     };
   },
 }));
@@ -124,6 +125,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.loading = false;
     mocks.error = null;
     mocks.resolutionOk = true;
+    mocks.failureReason = 'invalid_contract';
     mocks.eligible = true;
     mocks.currentAssigneeId = null;
     mocks.postAction.mockReset().mockResolvedValue({});
@@ -253,6 +255,21 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment variant="compact" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Asignación protegida');
+    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('distingue un contrato ausente de datos autoritativos contradictorios', () => {
+    mocks.resolutionOk = false;
+    mocks.failureReason = 'conflicting_authority';
+    render(<TicketAssignment variant="compact" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'El backend publicó datos de asignación contradictorios para este caso',
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'no publicó el contrato employee.routing.v1',
+    );
     expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });

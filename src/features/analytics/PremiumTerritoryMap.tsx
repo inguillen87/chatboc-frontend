@@ -1917,7 +1917,7 @@ export function PremiumTerritoryHeatmap({
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
   const renderHeatLayer = mapDisplayMode !== 'clusters' && showHeatLayer;
   const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
-  const clusterDisplayMode = mapDisplayMode === 'clusters';
+  const clusteredPointDisplayMode = mapDisplayMode !== 'heat';
   const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
   const selectedDisplayModeUnavailable = mapDisplayMode === 'heat' ? !showHeatLayer : !showCategoryLayer;
   const mapDisplayStatus = noBaseMapLayerAvailable
@@ -1927,7 +1927,7 @@ export function PremiumTerritoryHeatmap({
       : filteredMapEmpty
     ? 'La selección no tiene coordenadas mapeadas. No se agregan puntos estimados.'
     : mapDisplayMode === 'hybrid'
-      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. El calor y los marcadores categorizados usan únicamente coordenadas persistidas válidas.`
+      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. El calor conserva la densidad y las coordenadas superpuestas o próximas se agrupan con contador, sin separar puntos artificialmente.`
       : mapDisplayMode === 'clusters'
         ? visibleLiveMapPoints.length > 1
           ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada agrupada', 'ubicaciones mapeadas agrupadas')} por proximidad, sin alterar los filtros.`
@@ -2220,15 +2220,15 @@ export function PremiumTerritoryHeatmap({
   };
 
   return (
-    <section className={cn('flex flex-col gap-4', className)} style={{ containerType: 'inline-size' }}>
+    <section className={cn('flex flex-col gap-2', className)} style={{ containerType: 'inline-size' }}>
       <style>{`@container (min-width: 1080px) { [data-territory-map-layout="${svgId}"] { grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); } }`}</style>
-      <div className="order-1 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+      <div className="order-1 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div>
             <h3 className="text-lg font-semibold tracking-normal text-foreground">{title}</h3>
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+            <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm lg:line-clamp-1">{description}</p>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
               {executiveProvenanceLabel}
@@ -2451,7 +2451,7 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div className="order-2 flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-2 lg:flex-row lg:items-center lg:justify-between">
+      <div className="order-2 flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/20 p-1.5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de lectura del mapa">
           {focusModes.map((mode) => {
             const Icon = mode.icon;
@@ -2531,7 +2531,7 @@ export function PremiumTerritoryHeatmap({
           </div>
           <p
             data-testid="territory-display-mode-status"
-            className="max-w-2xl text-xs leading-5 text-muted-foreground lg:text-right"
+            className="sr-only"
             role="status"
             aria-live="polite"
           >
@@ -2543,10 +2543,31 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div
+      <details
         data-testid="territory-filter-toolbar"
-        className="order-3 sticky top-20 z-30 rounded-xl border border-border/70 bg-background/95 p-3 shadow-md backdrop-blur"
+        className="group order-3 rounded-xl border border-border/70 bg-background/95 shadow-sm"
       >
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-foreground">
+            <Filter className="h-4 w-4 shrink-0 text-primary" />
+            Filtros territoriales
+            {hasActiveTerritorialFacet ? (
+              <Badge variant="secondary" className="shrink-0">
+                {[mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length} activos
+              </Badge>
+            ) : null}
+          </span>
+          <span
+            data-testid="territory-filter-disclosure-summary"
+            className="hidden min-w-0 truncate text-xs font-medium text-muted-foreground sm:block"
+          >
+            {scopedVisiblePointLabel} mapeados · {scopedPendingLabel} pendientes ·{' '}
+            {formatNumber(scopedOutsideJurisdictionCount ?? 0)} para revisar
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Abrir</span>
+          <span className="hidden shrink-0 text-xs font-semibold text-primary group-open:inline">Cerrar</span>
+        </summary>
+        <div className="border-t border-border/70 p-3">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -2710,7 +2731,8 @@ export function PremiumTerritoryHeatmap({
             ) : null}
           </div>
         ) : null}
-      </div>
+        </div>
+      </details>
 
       <div
         data-testid="territory-map-layout"
@@ -2739,10 +2761,10 @@ export function PremiumTerritoryHeatmap({
                 heatmapData={visibleLiveMapPoints}
                 showHeatmap={renderHeatLayer}
                 showPoints={renderPointLayer}
-                showPointLabels={clusterDisplayMode}
+                showPointLabels={clusteredPointDisplayMode}
                 pointLabelMode="count"
                 pointMinZoom={7}
-                pointLabelMinZoom={clusterDisplayMode ? 7 : 10}
+                pointLabelMinZoom={clusteredPointDisplayMode ? 7 : 10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
                 // En privacidad agregada conservamos la densidad, pero evitamos que la
                 // paleta Faro agregue un halo/ancla sobre cada coordenada persistida.
@@ -2758,7 +2780,7 @@ export function PremiumTerritoryHeatmap({
                 fitToBounds={liveMapBounds}
                 fitBoundsRequestKey={`${mapCategoryFilter ?? 'all'}:${mapZoneFilter ?? 'all'}:${mapAddressCellFilter ?? 'all'}`}
                 boundsPadding={{ top: 40, right: 40, bottom: 40, left: 40 }}
-                disableClientClustering={!clusterDisplayMode}
+                disableClientClustering={!clusteredPointDisplayMode}
                 showEvidenceBadge={false}
               />
             </div>

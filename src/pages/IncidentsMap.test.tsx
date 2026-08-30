@@ -264,6 +264,8 @@ describe('IncidentsMap', () => {
 
     const map = await screen.findByTestId('mock-premium-territory-map');
     const evidence = screen.getByTestId('operations-heatmap-evidence');
+    expect(screen.getByTestId('incidents-map-workspace')).toHaveClass('max-w-[1680px]', 'space-y-2');
+    expect(screen.getByTestId('incidents-filter-command')).toHaveClass('p-1.5');
     expect(map).toHaveAttribute('data-points', '2');
     expect(map).toHaveAttribute('data-privacy-mode', 'employee_aggregated');
     expect(map).toHaveAttribute('data-min-sample-size', '5');

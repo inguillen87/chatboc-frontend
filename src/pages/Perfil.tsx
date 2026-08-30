@@ -2427,7 +2427,9 @@ export default function Perfil() {
     activeProfileTab === "tickets" ||
     activeProfileTab === "usuarios" ||
     isInstitutionProfileViewport;
-  const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || activeProfileTab === "analytics";
+  const isWideWorkspaceProfileTab =
+    activeProfileTab === "analytics" || activeProfileTab === "mapas";
+  const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || isWideWorkspaceProfileTab;
   const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
     <ProfileWorkspaceNavigation
       activeTab={activeProfileTab}
@@ -2520,7 +2522,7 @@ export default function Perfil() {
         "flex w-full min-w-0 flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         isViewportWorkspaceProfileTab
           ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
-          : activeProfileTab === "analytics"
+          : isWideWorkspaceProfileTab
             ? "min-h-screen px-1 py-1 sm:px-2 md:px-3"
           : "min-h-screen px-2 py-4 sm:px-4 md:px-6 lg:px-8",
       )}
@@ -2542,6 +2544,8 @@ export default function Perfil() {
                     ? "Consola tickets"
                     : activeProfileTab === "usuarios"
                       ? "Consola CRM"
+                      : activeProfileTab === "mapas"
+                        ? "Consola territorial"
                       : isInstitutionProfileViewport
                         ? "Perfil institucional"
                       : "Consola analitica"}
@@ -2683,7 +2687,7 @@ export default function Perfil() {
           "mx-auto w-full",
           isViewportWorkspaceProfileTab
             ? "flex min-h-0 flex-1 flex-col max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
-            : activeProfileTab === "analytics"
+            : isWideWorkspaceProfileTab
               ? "max-w-[min(2200px,calc(100vw-0.5rem))] px-1"
             : "max-w-7xl",
         )}
@@ -3899,7 +3903,12 @@ export default function Perfil() {
           </WorkspacePanel>
         )}
         {workspaceCapabilities.territory && (
-          <WorkspacePanel active={activeProfileTab === "mapas" && workspaceCapabilities.territory} label="Mapa operativo">
+          <WorkspacePanel
+            active={activeProfileTab === "mapas" && workspaceCapabilities.territory}
+            label="Mapa operativo"
+            data-testid="profile-map-workspace"
+            className="mt-1 min-w-0 pb-0"
+          >
             <React.Suspense fallback={<ProfileTabFallback label="Cargando mapas..." />}>
               <IncidentsMap tenantSlugOverride={derivedTenantSlug} />
             </React.Suspense>

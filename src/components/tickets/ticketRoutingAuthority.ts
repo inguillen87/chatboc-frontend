@@ -261,13 +261,60 @@ const candidateContractSignature = (
   return contract.conflict ? '__conflict__' : (contract.signature ?? '__invalid__');
 };
 
+const authoritativeCategoryKeys = ['authoritative_category', 'authoritativeCategory'];
+const fallbackCategoryKeys = [
+  'category',
+  'categoria',
+  'category_name',
+  'categoria_principal',
+];
+
+interface CategoryAuthorityResolution {
+  value: string | null;
+  conflict: boolean;
+}
+
+const resolveCategoryAuthority = (records: UnknownRecord[]): CategoryAuthorityResolution => {
+  const authoritative = records
+    .map((record) => publishedAliasValue(
+      record,
+      authoritativeCategoryKeys,
+      normalizeRoutingDimension,
+    ))
+    .filter((value) => value.published);
+
+  if (authoritative.length) {
+    const values = authoritative
+      .map((value) => value.value)
+      .filter((value): value is string => Boolean(value));
+    const conflict = authoritative.some((value) => value.conflict || !value.value) ||
+      new Set(values).size !== 1;
+    return { value: conflict ? null : values[0], conflict };
+  }
+
+  if (recordsConflictOn(records, fallbackCategoryKeys, normalizeRoutingDimension)) {
+    return { value: null, conflict: true };
+  }
+
+  const fallback = records
+    .map((record) => publishedAliasValue(
+      record,
+      fallbackCategoryKeys,
+      normalizeRoutingDimension,
+    ))
+    .find((value) => value.published && value.value);
+  return { value: fallback?.value ?? null, conflict: false };
+};
+
+const resolveRecordCategory = (ticket: UnknownRecord): string | null =>
+  resolveCategoryAuthority([ticket]).value;
+
 const employeeMatchesTicketCategory = (
   employee: EmployeeRoutingEmployee,
   ticket: UnknownRecord,
+  resolvedCategory?: string | null,
 ): boolean => {
-  const category = normalizeRoutingDimension(
-    first(ticket, ['category', 'categoria', 'category_name', 'categoria_principal']),
-  );
+  const category = resolvedCategory ?? resolveRecordCategory(ticket);
   if (!category || category === 'sin categoria') return false;
   return employee.scope.categorias.some(
     (employeeCategory) => normalizeRoutingDimension(employeeCategory) === category,
@@ -278,6 +325,7 @@ const resolveEligibleEmployees = (
   routing: EmployeeRoutingV2,
   ticket: UnknownRecord,
   candidateContract: RecommendationCandidateContract,
+  resolvedCategory: string | null,
 ): EmployeeRoutingEmployee[] => {
   if (candidateContract.published) {
     const candidateIds = new Set(
@@ -288,7 +336,9 @@ const resolveEligibleEmployees = (
     return routing.employees.filter((employee) => candidateIds.has(String(employee.id)));
   }
 
-  return routing.employees.filter((employee) => employeeMatchesTicketCategory(employee, ticket));
+  return routing.employees.filter(
+    (employee) => employeeMatchesTicketCategory(employee, ticket, resolvedCategory),
+  );
 };
 
 const resolveSuggestedEmployee = (
@@ -350,14 +400,6 @@ export const resolveTicketRoutingAuthority = (
   const authoritativeTicket = matchingTickets[0];
   if (!authoritativeTicket) return { ok: false, reason: 'ticket_not_published' };
 
-  const categoryKeys = [
-    'authoritative_category',
-    'authoritativeCategory',
-    'category',
-    'categoria',
-    'category_name',
-    'categoria_principal',
-  ];
   const assigneeKeys = ['assignee_id', 'assigned_user_id', 'assigned_agent_id'];
   const zoneKeys = ['zone', 'zona', 'district', 'distrito'];
   const channelKeys = ['channel', 'canal', 'canal_ingreso'];
@@ -366,8 +408,9 @@ export const resolveTicketRoutingAuthority = (
     .map((item) => candidateValueIdentifier(item.suggested_assignee))
     .filter((value) => value.published);
   const candidateSignatures = matchingRecommendations.map(candidateContractSignature);
+  const categoryAuthority = resolveCategoryAuthority(matchingTickets);
   if (
-    recordsConflictOn(matchingTickets, categoryKeys, normalizeRoutingDimension) ||
+    categoryAuthority.conflict ||
     recordsConflictOn(matchingTickets, assigneeKeys, asIdentifier) ||
     recordsConflictOn(matchingTickets, zoneKeys, normalizeRoutingDimension) ||
     recordsConflictOn(matchingTickets, channelKeys, normalizeRoutingDimension) ||
@@ -382,7 +425,12 @@ export const resolveTicketRoutingAuthority = (
   const sourceModel = asIdentifier(first(authoritativeTicket, ['source_model', 'sourceModel', 'model']));
   const ticketId = asIdentifier(first(authoritativeTicket, ['id', 'ticket_id', 'ticketId']));
   const candidateContract = recommendationCandidateContract(recommendation);
-  const eligibleEmployees = resolveEligibleEmployees(routing, authoritativeTicket, candidateContract);
+  const eligibleEmployees = resolveEligibleEmployees(
+    routing,
+    authoritativeTicket,
+    candidateContract,
+    categoryAuthority.value,
+  );
   const suggestedCandidate = resolveSuggestedEmployee(routing, recommendation, candidateContract);
   const suggestedEmployee = suggestedCandidate &&
     eligibleEmployees.some((employee) => String(employee.id) === String(suggestedCandidate.id))
@@ -408,7 +456,7 @@ export const resolveTicketRoutingAuthority = (
       eligibleEmployees,
       suggestedEmployee,
       currentAssigneeId: currentAssignee || null,
-      category: dimension(categoryKeys),
+      category: categoryAuthority.value,
       zone: dimension(zoneKeys),
       channel: dimension(channelKeys),
     },

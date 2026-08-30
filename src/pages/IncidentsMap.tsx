@@ -1353,16 +1353,19 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-3 p-3 sm:p-4 lg:p-5">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+    <div
+      className="mx-auto max-w-[1680px] space-y-2 p-2 sm:p-3"
+      data-testid="incidents-map-workspace"
+    >
+      <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="sr-only">
             Inteligencia territorial CRM
           </p>
-          <h1 className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
+          <h1 className="text-lg font-bold leading-tight text-foreground sm:text-xl">
             Mapa operativo de reclamos y demanda territorial
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground sm:text-sm">
             Priorización por zona, categoría, estado y actividad reciente sobre el mapa operativo.
           </p>
         </div>
@@ -1402,14 +1405,14 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       ) : null}
 
       <section
-        className="rounded-xl border border-border/70 bg-card/95 p-2 shadow-sm"
+        className="rounded-xl border border-border/70 bg-card/95 p-1.5 shadow-sm"
         data-testid="incidents-filter-command"
       >
-        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-1.5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
               <SlidersHorizontal className="h-4 w-4" />
-              Filtros operativos
+              Período y fuente
             </span>
             {heatmapContractSource === 'legacy_partial' ? (
               <button
@@ -1431,7 +1434,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               </span>
             )}
             <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
-              <span>Vista</span>
+              <span>Mapa base</span>
               <MapProviderToggle
                 value={provider}
                 onChange={setProvider}

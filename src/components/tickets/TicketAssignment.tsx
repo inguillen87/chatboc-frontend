@@ -78,7 +78,9 @@ const authorityFailureMessage = (
   if (error) return 'No se pudo verificar la autoridad de asignación. Las acciones permanecen bloqueadas.';
   if (reason === 'missing_ticket_identity') return 'Este caso no publica la identidad source_model + id requerida para asignar con seguridad.';
   if (reason === 'ticket_not_published') return 'El caso no figura en la cola operativa autoritativa del tenant.';
-  return 'El backend no publicó el contrato employee.routing.v1 requerido para asignar.';
+  if (reason === 'invalid_contract') return 'El backend no publicó el contrato employee.routing.v1 requerido para asignar.';
+  if (reason === 'conflicting_authority') return 'El backend publicó datos de asignación contradictorios para este caso. Las acciones permanecen bloqueadas.';
+  return 'No se pudo validar la autoridad de asignación. Las acciones permanecen bloqueadas.';
 };
 
 export const serializeAssignmentIdentifier = (value: string | number) => {

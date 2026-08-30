@@ -133,7 +133,16 @@ const buildPoints = (count: number): OperationsHeatmapPoint[] =>
     canal: 'whatsapp',
   }));
 
+const openTerritoryFilters = () => {
+  const toolbar = screen.getByTestId('territory-filter-toolbar') as HTMLDetailsElement;
+  if (!toolbar.open) {
+    fireEvent.click(toolbar.querySelector('summary') as HTMLElement);
+  }
+  return toolbar;
+};
+
 const chooseTerritoryFacet = (name: string, value: string) => {
+  openTerritoryFilters();
   fireEvent.change(screen.getByRole('combobox', { name }), { target: { value } });
 };
 
@@ -161,7 +170,10 @@ describe('PremiumTerritoryHeatmap', () => {
     const intelligenceWorkspace = screen.getByTestId('territory-intelligence-workspace');
 
     expect(layout).toHaveClass('items-start');
-    expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('order-3');
+    const filterDisclosure = screen.getByTestId('territory-filter-toolbar') as HTMLDetailsElement;
+    expect(filterDisclosure).toHaveClass('order-3');
+    expect(filterDisclosure.tagName).toBe('DETAILS');
+    expect(filterDisclosure).not.toHaveAttribute('open');
     expect(layout).toHaveClass('order-4');
     expect(executiveStrip).toHaveClass('order-5');
     expect(mapShell).toHaveClass('self-start');
@@ -173,7 +185,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(intelligenceDetails).not.toHaveAttribute('open');
     expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
-    expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
+    expect(filterDisclosure).not.toHaveClass('sticky');
     expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Registros territoriales 6');
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getAllByRole('radio').map((control) => control.textContent)).toEqual([
@@ -193,7 +205,52 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent('Ver puntos en lista');
     expect(screen.getByRole('button', { name: 'Ver puntos en lista (6)' })).toBeInTheDocument();
+    openTerritoryFilters();
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
+  });
+
+  it('keeps the Junín territorial truth visible in the compact filter disclosure', () => {
+    const points = buildPoints(12);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 3 },
+      quality: { state: 'partial', visible_points: 12, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        city: 'Junín',
+        state_name: 'Mendoza',
+        excluded_coordinate_records: 9,
+        review_candidate_count: 9,
+      },
+      territorial_facets: {
+        summary: {
+          ticket_records: 63,
+          mapped_records: 12,
+          pending_geocode_records: 34,
+          records_outside_jurisdiction: 9,
+        },
+        categories: [{ key: 'reclamos', label: 'Reclamos', count: 63, mapped_count: 12, pending_geocode_count: 34, outside_jurisdiction_count: 9 }],
+        addresses: [],
+        explicit_zones: [],
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByTestId('territory-filter-disclosure-summary')).toHaveTextContent(
+      '12 mapeados · 34 pendientes · 9 para revisar',
+    );
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
+      'Fuera de jurisdicción / revisar · 9',
+    );
+    expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-points', '12');
   });
 
   it('keeps the live map unobstructed and filters visible heat points by category and zone', () => {
@@ -233,8 +290,10 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-heatmap')).toBe('true');
-    expect(map.getAttribute('data-show-point-labels')).toBe('false');
+    expect(map.getAttribute('data-show-point-labels')).toBe('true');
     expect(map.getAttribute('data-point-label-mode')).toBe('count');
+    expect(map.getAttribute('data-point-label-min-zoom')).toBe('7');
+    expect(map.getAttribute('data-disable-client-clustering')).toBe('false');
     expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(map.getAttribute('data-adaptive-zoom')).toBe('false');
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.35');
@@ -245,12 +304,17 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(map.getAttribute('data-show-points')).toBe('false');
     expect(map.getAttribute('data-show-point-labels')).toBe('false');
+    expect(map.getAttribute('data-disable-client-clustering')).toBe('true');
     expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
     expect(screen.getByRole('radio', { name: 'Mapa operativo' })).not.toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toHaveAttribute('aria-checked', 'true');
     expect(map.getAttribute('data-show-points')).toBe('true');
-    expect(map.getAttribute('data-show-point-labels')).toBe('false');
+    expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(map.getAttribute('data-disable-client-clustering')).toBe('false');
+    expect(screen.getByTestId('territory-display-mode-status')).toHaveTextContent(
+      'se agrupan con contador, sin separar puntos artificialmente',
+    );
 
     chooseTerritoryFacet('Filtrar mapa por categoría', 'baches');
     expect(map.getAttribute('data-points')).toBe('2');
@@ -499,6 +563,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(document.body.textContent).not.toMatch(/Don Bosco 55|Don Bosco 99|Belgrano 102/);
     expect(screen.getByText('Sin domicilio exacto')).toBeTruthy();
 
+    openTerritoryFilters();
     const sectorOption = screen.getByRole('option', { name: /^Sector Centro A ·/ }) as HTMLOptionElement;
     chooseTerritoryFacet('Filtrar mapa por corredor o celda', sectorOption.value);
     expect(map.getAttribute('data-points')).toBe('2');
@@ -566,6 +631,7 @@ describe('PremiumTerritoryHeatmap', () => {
     );
     expect(document.body.textContent).not.toMatch(/M5570|\bMZ\b|\bAR\b|Junín centro|luminaria apagada frente/i);
 
+    openTerritoryFilters();
     const intersectionFilter = screen.getByRole('option', {
       name: /^Intersección Don Bosco \/ Sarmiento ·/,
     }) as HTMLOptionElement;
@@ -668,6 +734,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('33,3%').length).toBeGreaterThan(0);
     expect(screen.getAllByText('3').length).toBeGreaterThan(0);
 
+    openTerritoryFilters();
     const bachesOption = screen.getByRole('option', { name: /^Baches ·/ });
     expect(bachesOption).toHaveTextContent('Total 3');
     expect(bachesOption).toHaveTextContent('Mapeados 2');
@@ -754,6 +821,7 @@ describe('PremiumTerritoryHeatmap', () => {
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
+    openTerritoryFilters();
     const categoryFilter = screen.getByRole('option', { name: /^Luminarias ·/ }) as HTMLOptionElement;
     expect(categoryFilter).toHaveTextContent('Total 5');
     expect(categoryFilter).toHaveTextContent('Mapeados 0');
@@ -1129,8 +1197,9 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-geo-time-slider')).toBe('true');
     expect(liveMap.getAttribute('data-show-heatmap')).toBe('true');
     expect(liveMap.getAttribute('data-show-points')).toBe('true');
-    expect(liveMap.getAttribute('data-show-point-labels')).toBe('false');
+    expect(liveMap.getAttribute('data-show-point-labels')).toBe('true');
     expect(liveMap.getAttribute('data-point-label-mode')).toBe('count');
+    expect(liveMap.getAttribute('data-disable-client-clustering')).toBe('false');
     expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.9');
     expect(liveMap.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(liveMap.getAttribute('data-popup-context')).toBe('territory');

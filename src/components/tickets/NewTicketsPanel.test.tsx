@@ -674,6 +674,72 @@ describe('NewTicketsPanel CRM layout', () => {
     }
   });
 
+  it('keeps the resolution guide docked and keyboard-accessible at 1745px when the inspector is persisted closed', async () => {
+    const originalInnerWidth = window.innerWidth;
+    const ticket = {
+      id: 1,
+      nro_ticket: 'M-1',
+      asunto: 'Consulta general',
+      estado: 'nuevo',
+      fecha: '2026-06-01T10:00:00.000Z',
+      tipo: 'municipio',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [ticket],
+      filteredTickets: [ticket],
+      selectedTicket: ticket,
+      selectTicket: vi.fn(),
+      filters: {},
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1745 });
+      window.localStorage.setItem(
+        'chatboc:tickets:inspector-layout:junin:77',
+        JSON.stringify({ open: false, width: 420 }),
+      );
+      render(<NewTicketsPanel embedded />);
+
+      const grid = screen.getByTestId('tickets-desktop-grid');
+      await waitFor(() => expect(grid).toHaveAttribute('data-detail-presentation', 'dock'));
+      expect(grid).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 52px',
+      });
+      expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
+      expect(screen.getByTestId('tickets-conversation-region')).toBeInTheDocument();
+      expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument();
+
+      const dock = screen.getByTestId('tickets-detail-dock');
+      expect(dock).toHaveAccessibleName('Resolución guiada contraída');
+      const openInspector = screen.getByRole('button', { name: 'Abrir resolución guiada' });
+      expect(openInspector).toHaveAttribute('aria-controls', 'tickets-resolution-panel');
+      expect(openInspector).toHaveAttribute('aria-expanded', 'false');
+      openInspector.focus();
+      fireEvent.click(openInspector);
+
+      await waitFor(() => expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument());
+      expect(screen.queryByTestId('tickets-detail-dock')).not.toBeInTheDocument();
+      expect(grid).toHaveAttribute('data-detail-presentation', 'column');
+      expect(screen.getByTestId('tickets-detail-region')).toHaveAttribute('id', 'tickets-resolution-panel');
+      expect(grid).toHaveStyle({
+        gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 420px',
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Abrir resolución guiada' })).toHaveFocus());
+      expect(grid).toHaveAttribute('data-detail-presentation', 'dock');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
+  });
+
   it('opens the inspector as a drawer at 1024px and restores the ticket list when it closes', async () => {
     const originalInnerWidth = window.innerWidth;
     const ticket = {

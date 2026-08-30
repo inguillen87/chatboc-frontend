@@ -63,6 +63,7 @@ const DETAIL_MIN_WIDTH = 340;
 const DETAIL_MAX_WIDTH = 520;
 const DETAIL_DEFAULT_WIDTH = 420;
 const DETAIL_KEYBOARD_STEP = 20;
+const DETAIL_DOCK_WIDTH = 52;
 const TICKET_WORKSPACE_FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
@@ -447,6 +448,42 @@ const TicketInspectorResizeHandle = ({
   </div>
 );
 
+const TicketInspectorDock = ({
+  onOpen,
+  buttonRef,
+}: {
+  onOpen: () => void;
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+}) => (
+  <aside
+    className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70 bg-muted/20"
+    data-testid="tickets-detail-dock"
+    aria-label="Resolución guiada contraída"
+  >
+    <button
+      ref={buttonRef}
+      type="button"
+      className="group flex h-full min-h-0 w-full flex-col items-center gap-3 px-1.5 py-3 text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/70"
+      onClick={onOpen}
+      aria-label="Abrir resolución guiada"
+      aria-expanded="false"
+      aria-controls="tickets-resolution-panel"
+      title="Abrir resolución guiada"
+    >
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        3
+      </span>
+      <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+      <span className="min-h-0 flex-1 overflow-hidden text-[11px] font-semibold tracking-wide [writing-mode:vertical-rl] [text-orientation:mixed]">
+        Resolución guiada
+      </span>
+      <span className="sr-only">
+        Abrir siguiente paso, responsable y herramientas para resolver el caso.
+      </span>
+    </button>
+  </aside>
+);
+
 interface NewTicketsPanelProps {
   embedded?: boolean;
 }
@@ -532,14 +569,19 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const resizeCleanupRef = React.useRef<(() => void) | null>(null);
   const detailsDrawerRef = React.useRef<HTMLElement | null>(null);
   const detailsTriggerRef = React.useRef<HTMLElement | null>(null);
+  const detailsDockButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const activeDesktopDetailsVisible = conversationFocusMode ? focusInspectorOpen : isDetailsVisible;
 
   const restoreDetailsTriggerFocus = React.useCallback(() => {
     const trigger = detailsTriggerRef.current;
     detailsTriggerRef.current = null;
-    if (trigger?.isConnected) {
-      window.requestAnimationFrame(() => trigger.focus());
-    }
+    window.requestAnimationFrame(() => {
+      if (trigger?.isConnected) {
+        trigger.focus();
+        return;
+      }
+      detailsDockButtonRef.current?.focus();
+    });
   }, []);
 
   const closeConversationFocusMode = React.useCallback(() => {
@@ -1233,6 +1275,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const effectiveDetailsVisible = activeDesktopDetailsVisible;
   const showDetailsAsDrawer = effectiveDetailsVisible && shouldUseDetailsDrawer;
   const showDetailsAsColumn = effectiveDetailsVisible && !shouldUseDetailsDrawer;
+  const showDetailsDock = Boolean(
+    selectedTicket &&
+      !conversationFocusMode &&
+      !effectiveDetailsVisible &&
+      workspaceWidth >= DETAILS_WITH_SIDEBAR_MIN_WIDTH,
+  );
   const drawerDetailMaxWidth = Math.max(
     DETAIL_MIN_WIDTH,
     Math.min(DETAIL_MAX_WIDTH, Math.floor(workspaceWidth - 560)),
@@ -1244,10 +1292,14 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const detailColumn = `${renderedDetailsWidth}px`;
   const desktopGridTemplate = effectiveSidebarVisible && showDetailsAsColumn
     ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${detailColumn}`
+    : effectiveSidebarVisible && showDetailsDock
+      ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${DETAIL_DOCK_WIDTH}px`
     : effectiveSidebarVisible
       ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
       : showDetailsAsColumn
         ? `minmax(560px, 1fr) ${detailColumn}`
+        : showDetailsDock
+          ? `minmax(0, 1fr) ${DETAIL_DOCK_WIDTH}px`
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
@@ -1803,7 +1855,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           data-testid="tickets-desktop-grid"
           className="relative grid h-full min-h-0 w-full flex-1 overflow-hidden"
           data-conversation-focus={conversationFocusMode ? 'true' : 'false'}
-          data-detail-presentation={showDetailsAsDrawer ? 'drawer' : showDetailsAsColumn ? 'column' : 'collapsed'}
+          data-detail-presentation={showDetailsAsDrawer ? 'drawer' : showDetailsAsColumn ? 'column' : showDetailsDock ? 'dock' : 'collapsed'}
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
           {effectiveSidebarVisible && (
@@ -1857,8 +1909,16 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             </div>
           </section>
 
+          {showDetailsDock ? (
+            <TicketInspectorDock
+              buttonRef={detailsDockButtonRef}
+              onOpen={handleToggleDesktopDetails}
+            />
+          ) : null}
+
           {showDetailsAsColumn && (
             <section
+              id="tickets-resolution-panel"
               className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
               data-testid="tickets-detail-region"
               data-inspector-width={renderedDetailsWidth}
@@ -1890,6 +1950,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           <AnimatePresence initial={false}>
             {showDetailsAsDrawer ? (
               <motion.section
+                id="tickets-resolution-panel"
                 key="ticket-details-drawer"
                 initial={{ opacity: 0, x: 28 }}
                 animate={{ opacity: 1, x: 0 }}
