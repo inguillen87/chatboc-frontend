@@ -217,8 +217,12 @@ const safeStreetCorridor = (value: string | undefined) => {
     compactWhitespace(
       segment
         .replace(/\b(?:altura|nro\.?|n[°º]|numero|número)\s*\d+[a-z]?\b/gi, '')
-        .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?:\s+bis)?(?=$|[\s,])/gi, ' ')
+        // Preserve official numeric street names such as "25 de Mayo" or
+        // "9 de Julio" while still removing household numbers.
+        .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?:\s+bis)?(?=$|[\s,])(?!\s+de\b)/gi, ' ')
         .replace(/^(?:avenida|av(?:da)?)\s*[.:]?\s+/i, 'Av. ')
+        .replace(/\s+([,;:])/g, '$1')
+        .replace(/([,;:])\s*/g, '$1 ')
         .replace(/\s*[,;:\-]+\s*$/g, '')
         .replace(/^[,;:\s]+|[,;:\s]+$/g, ''),
     );

@@ -366,7 +366,7 @@ describe('PremiumTerritoryHeatmap', () => {
         addresses: [
           { key: 'don-bosco-sarmiento-a', label: 'Don Bosco esquina Sarmiento, M5570, MZ, AR', count: 5, mapped_count: 1 },
           { key: 'don-bosco-sarmiento-b', label: 'Sarmiento y Don Bosco en Junín centro', count: 4, mapped_count: 1 },
-          { key: 'mitre-a', label: 'Av. Mitre 10, Junín', count: 3, mapped_count: 0 },
+          { key: '25-de-mayo', label: '25 de Mayo 10, Junín', count: 3, mapped_count: 0 },
           { key: 'mitre-b', label: 'Avenida Mitre 20, Mendoza', count: 2, mapped_count: 0 },
           { key: 'belgrano', label: 'Belgrano 30, Junín', count: 2, mapped_count: 0 },
           { key: 'rivadavia', label: 'Rivadavia 40, Junín', count: 1, mapped_count: 0 },
@@ -392,6 +392,8 @@ describe('PremiumTerritoryHeatmap', () => {
     });
     expect(intersectionFilter).toHaveTextContent('Total 9');
     expect(intersectionFilter).toHaveTextContent('Mapeados 2');
+    expect(document.body.textContent).toContain('Corredor 25 de Mayo');
+    expect(document.body.textContent).not.toContain('Corredor de Mayo');
     expect(screen.getAllByRole('button', { name: /^Filtrar mapa por ubicación/ })).toHaveLength(6);
 
     fireEvent.click(intersectionFilter);
