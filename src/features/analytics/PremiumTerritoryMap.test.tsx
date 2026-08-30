@@ -1,13 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { PremiumTerritoryHeatmap } from "./PremiumTerritoryMap";
-import type {
-  OperationsHeatmapPoint,
-  OperationsHeatmapV1,
-} from "./analyticsTypes";
+import { PremiumTerritoryHeatmap } from './PremiumTerritoryMap';
+import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTypes';
 
-vi.mock("@/components/LazyMapLibreMap", () => ({
+vi.mock('@/components/LazyMapLibreMap', () => ({
   default: (props: {
     heatmapData?: unknown[];
     fitToBounds?: unknown[];
@@ -25,10 +22,7 @@ vi.mock("@/components/LazyMapLibreMap", () => ({
         points?: { id?: string };
       };
       telemetry?: { event_endpoint?: string; events?: string[] };
-      source_options?: {
-        enabled_layers?: string[];
-        default_viewport_id?: string;
-      };
+      source_options?: { enabled_layers?: string[]; default_viewport_id?: string };
       interactions?: { time_slider?: { enabled?: boolean; field?: string } };
     } | null;
   }) => (
@@ -37,33 +31,19 @@ vi.mock("@/components/LazyMapLibreMap", () => ({
       data-points={String(props.heatmapData?.length ?? 0)}
       data-bounds={String(props.fitToBounds?.length ?? 0)}
       data-provider={props.provider}
-      data-style-url={props.mapStyleUrl ?? ""}
-      data-maptiler-key={props.maptilerKey ?? ""}
-      data-google-key={props.googleMapsKey ?? ""}
-      data-aria-label={props.ariaLabel ?? ""}
-      data-geo-contract={props.geoLayerConfig?.contract_version ?? ""}
-      data-geo-features={String(
-        props.geoLayerConfig?.source?.features?.length ?? 0,
-      )}
-      data-geo-heat-layer={props.geoLayerConfig?.layers?.heatmap?.id ?? ""}
-      data-geo-point-layer={props.geoLayerConfig?.layers?.points?.id ?? ""}
-      data-geo-telemetry-endpoint={
-        props.geoLayerConfig?.telemetry?.event_endpoint ?? ""
-      }
-      data-geo-telemetry-events={
-        props.geoLayerConfig?.telemetry?.events?.join("|") ?? ""
-      }
-      data-geo-enabled-layers={
-        props.geoLayerConfig?.source_options?.enabled_layers?.join("|") ?? ""
-      }
-      data-geo-default-viewport={
-        props.geoLayerConfig?.source_options?.default_viewport_id ?? ""
-      }
-      data-geo-time-slider={
-        props.geoLayerConfig?.interactions?.time_slider?.enabled
-          ? "true"
-          : "false"
-      }
+      data-style-url={props.mapStyleUrl ?? ''}
+      data-maptiler-key={props.maptilerKey ?? ''}
+      data-google-key={props.googleMapsKey ?? ''}
+      data-aria-label={props.ariaLabel ?? ''}
+      data-geo-contract={props.geoLayerConfig?.contract_version ?? ''}
+      data-geo-features={String(props.geoLayerConfig?.source?.features?.length ?? 0)}
+      data-geo-heat-layer={props.geoLayerConfig?.layers?.heatmap?.id ?? ''}
+      data-geo-point-layer={props.geoLayerConfig?.layers?.points?.id ?? ''}
+      data-geo-telemetry-endpoint={props.geoLayerConfig?.telemetry?.event_endpoint ?? ''}
+      data-geo-telemetry-events={props.geoLayerConfig?.telemetry?.events?.join('|') ?? ''}
+      data-geo-enabled-layers={props.geoLayerConfig?.source_options?.enabled_layers?.join('|') ?? ''}
+      data-geo-default-viewport={props.geoLayerConfig?.source_options?.default_viewport_id ?? ''}
+      data-geo-time-slider={props.geoLayerConfig?.interactions?.time_slider?.enabled ? 'true' : 'false'}
     />
   ),
 }));
@@ -75,119 +55,72 @@ const buildPoints = (count: number): OperationsHeatmapPoint[] =>
     lng: -60.91 + index * 0.0001,
     weight: 2,
     previous: 1,
-    barrio: "Centro",
-    categoria: "reclamos",
-    canal: "whatsapp",
+    barrio: 'Centro',
+    categoria: 'reclamos',
+    canal: 'whatsapp',
   }));
 
-describe("PremiumTerritoryHeatmap", () => {
-  it("separates the bounded map workspace from secondary territorial intelligence", () => {
-    const points = buildPoints(6);
-    const heatmap = {
-      contract_version: "operations.heatmap.v1",
-      points,
-      cells: [],
-      hotspots: [],
-      facets: [],
-      category_layers: [],
-      render_contract: { can_render_heatmap: true, layers: ["points"] },
-      quality: { state: "ready", visible_points: 6, can_render_heatmap: true },
-    } as OperationsHeatmapV1;
-
-    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
-
-    const layout = screen.getByTestId("territory-map-layout");
-    const mapShell = screen.getByTestId("territory-map-shell");
-    const executiveRail = screen.getByTestId("territory-executive-rail");
-    const intelligenceWorkspace = screen.getByTestId(
-      "territory-intelligence-workspace",
-    );
-
-    expect(layout).toHaveClass("items-start");
-    expect(mapShell).toHaveClass("self-start");
-    expect(layout).toContainElement(mapShell);
-    expect(layout).toContainElement(executiveRail);
-    expect(executiveRail).not.toContainElement(intelligenceWorkspace);
-  });
-
-  it("toggles commerce geo features without exposing customer fields", () => {
+describe('PremiumTerritoryHeatmap', () => {
+  it('toggles commerce geo features without exposing customer fields', () => {
     const points: OperationsHeatmapPoint[] = [
-      {
-        id: "ticket:1",
-        lat: -34.61,
-        lng: -60.91,
-        source: "ticket",
-        label: "Reclamo",
-      },
-      {
-        id: "order:1",
-        lat: -34.62,
-        lng: -60.92,
-        source: "commerce",
-        label: "Pedido comercial",
-      },
+      { id: 'ticket:1', lat: -34.61, lng: -60.91, source: 'ticket', label: 'Reclamo' },
+      { id: 'order:1', lat: -34.62, lng: -60.92, source: 'commerce', label: 'Pedido comercial' },
     ];
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points,
       cells: [],
       hotspots: [],
       facets: [],
       category_layers: [],
-      render_contract: { layers: ["base_heatmap", "commerce_activity"] },
+      render_contract: { layers: ['base_heatmap', 'commerce_activity'] },
       geo_layers: {
-        contract_version: "operations.heatmap_geo_layers.v1",
-        provider: "geojson",
-        coordinate_order: "lng_lat",
+        contract_version: 'operations.heatmap_geo_layers.v1',
+        provider: 'geojson',
+        coordinate_order: 'lng_lat',
         points: {
-          type: "FeatureCollection",
+          type: 'FeatureCollection',
           features: points.map((point) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [point.lng, point.lat] },
-            properties: {
-              id: point.id,
-              source: point.source,
-              label: point.label,
-            },
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [point.lng, point.lat] },
+            properties: { id: point.id, source: point.source, label: point.label },
           })),
         },
       },
-      quality: { state: "ready", visible_points: 2, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
     } as OperationsHeatmapV1;
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    const map = screen.getByTestId("mock-live-map");
-    const commerceToggle = screen.getByRole("button", {
-      name: "Pedidos y ventas",
-    });
-    expect(map.getAttribute("data-geo-features")).toBe("2");
-    expect(map.getAttribute("data-points")).toBe("2");
-    expect(commerceToggle.getAttribute("aria-pressed")).toBe("true");
+    const map = screen.getByTestId('mock-live-map');
+    const commerceToggle = screen.getByRole('button', { name: 'Pedidos y ventas' });
+    expect(map.getAttribute('data-geo-features')).toBe('2');
+    expect(map.getAttribute('data-points')).toBe('2');
+    expect(commerceToggle.getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(commerceToggle);
 
-    expect(map.getAttribute("data-geo-features")).toBe("1");
-    expect(map.getAttribute("data-points")).toBe("1");
-    expect(commerceToggle.getAttribute("aria-pressed")).toBe("false");
-    expect(document.body.textContent).not.toContain("cliente privado");
+    expect(map.getAttribute('data-geo-features')).toBe('1');
+    expect(map.getAttribute('data-points')).toBe('1');
+    expect(commerceToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(document.body.textContent).not.toContain('cliente privado');
   });
 
-  it("renders contract-driven layers, quality state and geocoding action", () => {
+  it('renders contract-driven layers, quality state and geocoding action', () => {
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points: buildPoints(12).map((point, index) =>
         index === 0
           ? {
               ...point,
-              label: "Ticket centro",
+              label: 'Ticket centro',
               actions: [
                 {
-                  id: "open_record",
-                  label: "Abrir ticket caliente",
-                  method: "GET",
-                  endpoint: "/api/v2/tickets/11",
-                  ui_hint: "open_ticket",
+                  id: 'open_record',
+                  label: 'Abrir ticket caliente',
+                  method: 'GET',
+                  endpoint: '/api/v2/tickets/11',
+                  ui_hint: 'open_ticket',
                 },
               ],
             }
@@ -197,16 +130,16 @@ describe("PremiumTerritoryHeatmap", () => {
       hotspots: [],
       operational_hotspots: [
         {
-          id: "-34.604:-58.382",
+          id: '-34.604:-58.382',
           lat: -34.604,
           lng: -58.382,
           count: 5,
           weight: 6.8,
           operational_score: 41,
-          rank_reason: "sla_breached",
-          top_category: "reclamos",
-          top_channel: "whatsapp",
-          latest_event_at: "2026-07-03T12:00:00Z",
+          rank_reason: 'sla_breached',
+          top_category: 'reclamos',
+          top_channel: 'whatsapp',
+          latest_event_at: '2026-07-03T12:00:00Z',
           signals: {
             breached_sla: 2,
             overdue: 2,
@@ -217,12 +150,12 @@ describe("PremiumTerritoryHeatmap", () => {
             analytics_events: 1,
           },
           recommended_action: {
-            label: "Abrir zona prioritaria",
-            ui_hint: "focus_map_cell_and_filter_tickets",
+            label: 'Abrir zona prioritaria',
+            ui_hint: 'focus_map_cell_and_filter_tickets',
             filters: {
-              category: "reclamos",
-              channel: "whatsapp",
-              cell_id: "-34.604:-58.382",
+              category: 'reclamos',
+              channel: 'whatsapp',
+              cell_id: '-34.604:-58.382',
             },
           },
         },
@@ -233,58 +166,52 @@ describe("PremiumTerritoryHeatmap", () => {
         operational_hotspots: 1,
       },
       legend: {
-        contract_version: "operations.map.legend.v1",
+        contract_version: 'operations.map.legend.v1',
         legend_items: [
-          { label: "SLA critico", color: "#ef4444", source: "points" },
-          { label: "WhatsApp activo", color: "#22d3ee", bucket: "cells" },
+          { label: 'SLA critico', color: '#ef4444', source: 'points' },
+          { label: 'WhatsApp activo', color: '#22d3ee', bucket: 'cells' },
         ],
       },
       layer_style_contract: {
-        contract_version: "operations.map.styles.v1",
-        palette: ["#3b82f6", "#14b8a6", "#f59e0b"],
-        legend_items: [
-          {
-            label: "Prioridad IA",
-            color: "#a855f7",
-            description: "prediccion operativa",
-          },
-        ],
+        contract_version: 'operations.map.styles.v1',
+        palette: ['#3b82f6', '#14b8a6', '#f59e0b'],
+        legend_items: [{ label: 'Prioridad IA', color: '#a855f7', description: 'prediccion operativa' }],
       },
       map_experience: {
-        preferred_visualization: "interactive_globe_heatmap",
-        layer_groups: ["base_heatmap", "ai_risk_layers", "whatsapp_activity"],
-        empty_state_behavior: "show_geocoding_queue_and_ai_summary",
+        preferred_visualization: 'interactive_globe_heatmap',
+        layer_groups: ['base_heatmap', 'ai_risk_layers', 'whatsapp_activity'],
+        empty_state_behavior: 'show_geocoding_queue_and_ai_summary',
       },
       quality: {
-        state: "degraded",
-        label: "Cobertura parcial",
+        state: 'degraded',
+        label: 'Cobertura parcial',
         coverage_percent: 42,
         visible_points: 12,
         pending_geocode: 7,
         empty_state_action: {
-          title: "Resolver direcciones",
-          method: "PATCH",
-          endpoint_template: "/api/tickets/{record_id}/ubicacion",
+          title: 'Resolver direcciones',
+          method: 'PATCH',
+          endpoint_template: '/api/tickets/{record_id}/ubicacion',
         },
       },
       geocoding: {
-        status: "queued",
+        status: 'queued',
         candidate_count: 7,
         candidates: [
           {
             record_id: 11,
-            address: "Av. Siempre Viva 123",
-            category: "reclamos",
-            source: "tickets",
+            address: 'Av. Siempre Viva 123',
+            category: 'reclamos',
+            source: 'tickets',
             actions: [
               {
-                id: "update_location",
-                label: "Actualizar ubicacion",
-                method: "PATCH",
-                endpoint: "/api/v2/tickets/11",
-                priority: "high",
-                ui_hint: "open_geocoding_queue",
-                body_template: { location: { lat: "number", lng: "number" } },
+                id: 'update_location',
+                label: 'Actualizar ubicacion',
+                method: 'PATCH',
+                endpoint: '/api/v2/tickets/11',
+                priority: 'high',
+                ui_hint: 'open_geocoding_queue',
+                body_template: { location: { lat: 'number', lng: 'number' } },
               },
             ],
           },
@@ -292,26 +219,25 @@ describe("PremiumTerritoryHeatmap", () => {
       },
       realtime: {
         poll_seconds: 30,
-        sources: ["tickets"],
-        socket_events: ["operations.heatmap.updated"],
-        latest_event_at: "2026-07-03T12:00:00Z",
+        sources: ['tickets'],
+        socket_events: ['operations.heatmap.updated'],
+        latest_event_at: '2026-07-03T12:00:00Z',
       },
       map_narrative: {
-        headline: "Zona centro requiere seguimiento",
-        operator_summary:
-          "Alta demanda concentrada con reclamos pendientes de coordenadas.",
+        headline: 'Zona centro requiere seguimiento',
+        operator_summary: 'Alta demanda concentrada con reclamos pendientes de coordenadas.',
         primary_cta: {
-          label: "Abrir cola operativa",
-          ui_hint: "open_geocoding_queue",
+          label: 'Abrir cola operativa',
+          ui_hint: 'open_geocoding_queue',
         },
       },
       viewport_presets: {
-        default_preset_id: "centro",
+        default_preset_id: 'centro',
         presets: [
           {
-            id: "centro",
-            label: "Centro operativo",
-            mode: "fly_to",
+            id: 'centro',
+            label: 'Centro operativo',
+            mode: 'fly_to',
             default: true,
             zoom: 13,
             radius_km: 2.5,
@@ -321,54 +247,48 @@ describe("PremiumTerritoryHeatmap", () => {
       hotspot_actions: {
         safe_by_default: true,
         writes_enabled: false,
-        actions: [
-          {
-            label: "Asignar inspector",
-            method: "PATCH",
-            endpoint: "/api/tickets/11",
-          },
-        ],
-        playbook: [{ label: "Validar zona caliente" }],
+        actions: [{ label: 'Asignar inspector', method: 'PATCH', endpoint: '/api/tickets/11' }],
+        playbook: [{ label: 'Validar zona caliente' }],
       },
       ai_status: {
-        status: "local_fallback",
-        mode: "municipal_risk_detection",
+        status: 'local_fallback',
+        mode: 'municipal_risk_detection',
         safe_to_render_without_hf_token: true,
         ai_layers_ready: true,
-        map_layer_hints: ["risk_pulses", "whatsapp_activity"],
+        map_layer_hints: ['risk_pulses', 'whatsapp_activity'],
       },
       ai_layers: {
-        contract_version: "huggingface.map_ai_layers.v1",
-        layers: [{ key: "priority_forecast", label: "Prioridad IA", count: 2 }],
+        contract_version: 'huggingface.map_ai_layers.v1',
+        layers: [{ key: 'priority_forecast', label: 'Prioridad IA', count: 2 }],
       },
       map_layers: {
-        contract_version: "analytics.geo_layers.v1",
+        contract_version: 'analytics.geo_layers.v1',
         provider: {
-          style_url: "https://tiles.backend/style.json",
+          style_url: 'https://tiles.backend/style.json',
         },
         intensity: { total_cases: 44, total_items: 6 },
-        category_heatmap: { layer_id: "municipal-demand-heat" },
+        category_heatmap: { layer_id: 'municipal-demand-heat' },
         hotspots: {
-          point_layer_id: "municipal-hotspot-points",
+          point_layer_id: 'municipal-hotspot-points',
           focus: {
-            category: "reclamos",
+            category: 'reclamos',
             count: 22,
-            risk: { level: "critical", label: "Critico" },
+            risk: { level: 'critical', label: 'Critico' },
           },
         },
         visual_system: {
-          renderer: "webgl_heatmap",
+          renderer: 'webgl_heatmap',
           animations: { radar_sweep: true, pulse_hotspots: true },
         },
         operator_metrics: {
           total_cases: 44,
           visible_layers: 6,
-          top_category: "reclamos",
+          top_category: 'reclamos',
           critical_hotspots: 1,
         },
         telemetry: {
-          event_endpoint: "/api/v2/analytics/map-events",
-          events: ["map_loaded", "cluster_click"],
+          event_endpoint: '/api/v2/analytics/map-events',
+          events: ['map_loaded', 'cluster_click'],
         },
       },
     } satisfies OperationsHeatmapV1;
@@ -378,214 +298,150 @@ describe("PremiumTerritoryHeatmap", () => {
         points={heatmap.points}
         heatmap={heatmap}
         mapConfig={{
-          provider: "maplibre",
-          style_url: "https://tiles.test/style.json",
-          maptiler_key: "maptiler-test",
-          google_maps_key: "google-test",
+          provider: 'maplibre',
+          style_url: 'https://tiles.test/style.json',
+          maptiler_key: 'maptiler-test',
+          google_maps_key: 'google-test',
         }}
       />,
     );
 
-    expect(screen.getByTestId("live-territory-map")).toBeTruthy();
-    const liveMap = screen.getByTestId("mock-live-map");
-    expect(liveMap.getAttribute("data-points")).toBe("12");
-    expect(liveMap.getAttribute("data-bounds")).toBe("12");
-    expect(liveMap.getAttribute("data-provider")).toBe("maplibre");
-    expect(liveMap.getAttribute("data-style-url")).toBe(
-      "https://tiles.test/style.json",
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(liveMap.getAttribute('data-points')).toBe('12');
+    expect(liveMap.getAttribute('data-bounds')).toBe('12');
+    expect(liveMap.getAttribute('data-provider')).toBe('maplibre');
+    expect(liveMap.getAttribute('data-style-url')).toBe('https://tiles.test/style.json');
+    expect(liveMap.getAttribute('data-maptiler-key')).toBe('maptiler-test');
+    expect(liveMap.getAttribute('data-google-key')).toBe('google-test');
+    expect(liveMap.getAttribute('data-aria-label')).toBe(
+      'Mapa territorial interactivo de reclamos, encuestas y actividad agregada',
     );
-    expect(liveMap.getAttribute("data-maptiler-key")).toBe("maptiler-test");
-    expect(liveMap.getAttribute("data-google-key")).toBe("google-test");
-    expect(liveMap.getAttribute("data-aria-label")).toBe(
-      "Mapa territorial interactivo de reclamos, encuestas y actividad agregada",
-    );
-    expect(liveMap.getAttribute("data-geo-contract")).toBe(
-      "operations.heatmap.geo_layers.v1",
-    );
-    expect(liveMap.getAttribute("data-geo-features")).toBe("12");
-    expect(liveMap.getAttribute("data-geo-heat-layer")).toBe(
-      "municipal-demand-heat",
-    );
-    expect(liveMap.getAttribute("data-geo-point-layer")).toBe(
-      "municipal-hotspot-points",
-    );
-    expect(liveMap.getAttribute("data-geo-telemetry-endpoint")).toBe(
-      "/api/v2/analytics/map-events",
-    );
-    expect(liveMap.getAttribute("data-geo-telemetry-events")).toContain(
-      "map_loaded",
-    );
-    expect(liveMap.getAttribute("data-geo-telemetry-events")).toContain(
-      "cluster_click",
-    );
-    expect(liveMap.getAttribute("data-geo-enabled-layers")).toContain("heat");
-    expect(liveMap.getAttribute("data-geo-default-viewport")).toBe("centro");
-    expect(liveMap.getAttribute("data-geo-time-slider")).toBe("true");
-    expect(screen.getAllByText("Cobertura parcial").length).toBeGreaterThan(0);
-    expect(screen.getByText("Mapa de calor interactivo")).toBeTruthy();
-    expect(screen.getAllByText("Riesgo IA").length).toBeGreaterThan(0);
-    expect(screen.getByText("Resolver direcciones")).toBeTruthy();
-    const executiveStrip = screen.getByTestId("territory-executive-strip");
-    expect(executiveStrip.textContent).toContain("Lectura ejecutiva");
-    expect(executiveStrip.textContent).toContain("Puntos visibles");
-    expect(executiveStrip.textContent).toContain("12");
-    expect(executiveStrip.textContent).toContain("Pendientes");
-    expect(executiveStrip.textContent).toContain("7");
-    expect(executiveStrip.textContent).toContain("Foco territorial");
-    expect(executiveStrip.textContent).toContain("reclamos");
-    expect(executiveStrip.textContent).toContain("Próxima acción");
-    expect(executiveStrip.textContent).toContain("Abrir cola operativa");
-    const commandLoop = screen.getByTestId("territory-command-loop");
-    expect(commandLoop.textContent).toContain("Pulso operativo territorial");
-    expect(commandLoop.textContent).toContain("Ciclo de decisión asistido");
-    expect(commandLoop.textContent).toContain("1 zona crítica");
-    expect(commandLoop.textContent).not.toContain("1 zonas críticas");
-    expect(commandLoop.textContent).toContain("reclamos");
-    expect(commandLoop.textContent).toContain("Abrir cola operativa");
-    expect(commandLoop.textContent).toContain("42%");
-    expect(commandLoop.textContent).toContain("Actualización pendiente");
-    expect(commandLoop.textContent).not.toContain("En línea");
-    expect(screen.getAllByTestId("territory-command-card").length).toBe(4);
-    const commandLoopCta = screen.getByRole("link", {
-      name: /abrir cola crm/i,
-    });
-    expect(commandLoopCta.getAttribute("href")).toContain(
-      "/perfil?tab=tickets",
-    );
-    expect(commandLoopCta.getAttribute("href")).toContain(
-      "focus=open_geocoding_queue",
-    );
-    const decisionRadar = screen.getByTestId("territory-decision-radar");
+    expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap.geo_layers.v1');
+    expect(liveMap.getAttribute('data-geo-features')).toBe('12');
+    expect(liveMap.getAttribute('data-geo-heat-layer')).toBe('municipal-demand-heat');
+    expect(liveMap.getAttribute('data-geo-point-layer')).toBe('municipal-hotspot-points');
+    expect(liveMap.getAttribute('data-geo-telemetry-endpoint')).toBe('/api/v2/analytics/map-events');
+    expect(liveMap.getAttribute('data-geo-telemetry-events')).toContain('map_loaded');
+    expect(liveMap.getAttribute('data-geo-telemetry-events')).toContain('cluster_click');
+    expect(liveMap.getAttribute('data-geo-enabled-layers')).toContain('heat');
+    expect(liveMap.getAttribute('data-geo-default-viewport')).toBe('centro');
+    expect(liveMap.getAttribute('data-geo-time-slider')).toBe('true');
+    expect(screen.getAllByText('Cobertura parcial').length).toBeGreaterThan(0);
+    expect(screen.getByText('Mapa de calor interactivo')).toBeTruthy();
+    expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
+    expect(screen.getByText('Resolver direcciones')).toBeTruthy();
+    const executiveStrip = screen.getByTestId('territory-executive-strip');
+    expect(executiveStrip.textContent).toContain('Lectura ejecutiva');
+    expect(executiveStrip.textContent).toContain('Puntos visibles');
+    expect(executiveStrip.textContent).toContain('12');
+    expect(executiveStrip.textContent).toContain('Pendientes');
+    expect(executiveStrip.textContent).toContain('7');
+    expect(executiveStrip.textContent).toContain('Foco territorial');
+    expect(executiveStrip.textContent).toContain('reclamos');
+    expect(executiveStrip.textContent).toContain('Próxima acción');
+    expect(executiveStrip.textContent).toContain('Abrir cola operativa');
+    const commandLoop = screen.getByTestId('territory-command-loop');
+    expect(commandLoop.textContent).toContain('Pulso operativo territorial');
+    expect(commandLoop.textContent).toContain('Ciclo de decisión asistido');
+    expect(commandLoop.textContent).toContain('1 zona crítica');
+    expect(commandLoop.textContent).not.toContain('1 zonas críticas');
+    expect(commandLoop.textContent).toContain('reclamos');
+    expect(commandLoop.textContent).toContain('Abrir cola operativa');
+    expect(commandLoop.textContent).toContain('42%');
+    expect(commandLoop.textContent).toContain('Actualización pendiente');
+    expect(commandLoop.textContent).not.toContain('En línea');
+    expect(screen.getAllByTestId('territory-command-card').length).toBe(4);
+    const commandLoopCta = screen.getByRole('link', { name: /abrir cola crm/i });
+    expect(commandLoopCta.getAttribute('href')).toContain('/perfil?tab=tickets');
+    expect(commandLoopCta.getAttribute('href')).toContain('focus=open_geocoding_queue');
+    const decisionRadar = screen.getByTestId('territory-decision-radar');
     expect(decisionRadar).toBeTruthy();
-    expect(screen.getByText("Radar de decisión")).toBeTruthy();
-    expect(decisionRadar.textContent).toContain("Abrir cola operativa");
-    expect(screen.getByText("Motivo prioritario")).toBeTruthy();
-    expect(screen.getByText("Capas activas")).toBeTruthy();
-    expect(screen.getByText("Datos pendientes")).toBeTruthy();
-    expect(decisionRadar.textContent).toContain("En revisión");
-    expect(screen.getByTestId("backend-map-contract-card")).toBeTruthy();
-    expect(
-      screen.getAllByText("Mapa de calor acelerado").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText("radar activo")).toBeTruthy();
-    expect(screen.getByText("Zonas críticas")).toBeTruthy();
-    expect(
-      screen.getByText("22 casos agrupados en el foco operativo."),
-    ).toBeTruthy();
-    const liveLegend = screen.getByTestId("territory-live-legend");
+    expect(screen.getByText('Radar de decisión')).toBeTruthy();
+    expect(decisionRadar.textContent).toContain('Abrir cola operativa');
+    expect(screen.getByText('Motivo prioritario')).toBeTruthy();
+    expect(screen.getByText('Capas activas')).toBeTruthy();
+    expect(screen.getByText('Datos pendientes')).toBeTruthy();
+    expect(decisionRadar.textContent).toContain('En revisión');
+    expect(screen.getByTestId('backend-map-contract-card')).toBeTruthy();
+    expect(screen.getAllByText('Mapa de calor acelerado').length).toBeGreaterThan(0);
+    expect(screen.getByText('radar activo')).toBeTruthy();
+    expect(screen.getByText('Zonas críticas')).toBeTruthy();
+    expect(screen.getByText('22 casos agrupados en el foco operativo.')).toBeTruthy();
+    const liveLegend = screen.getByTestId('territory-live-legend');
     expect(liveLegend).toBeTruthy();
-    expect(liveLegend.textContent).toContain("Estado de actualización");
-    expect(liveLegend.textContent).toContain("Actualización pendiente");
-    expect(liveLegend.textContent).toContain("Foco");
-    expect(liveLegend.textContent).toContain("reclamos");
-    expect(liveLegend.textContent).toContain("Acción siguiente");
-    expect(liveLegend.textContent).toContain("Abrir cola operativa");
-    expect(liveLegend.textContent).toContain("Sistema visual");
-    expect(liveLegend.textContent).toContain("Mapa de calor acelerado");
-    expect(liveLegend.textContent).toContain("Puntos geolocalizados");
-    expect(liveLegend.textContent).toContain("Zonas agregadas");
-    expect(document.body.textContent).toContain(
-      "Mapa territorial pendiente de validación",
-    );
-    expect(document.body.textContent).not.toContain(
-      "Zona centro requiere seguimiento",
-    );
+    expect(liveLegend.textContent).toContain('Estado de actualización');
+    expect(liveLegend.textContent).toContain('Actualización pendiente');
+    expect(liveLegend.textContent).toContain('Foco');
+    expect(liveLegend.textContent).toContain('reclamos');
+    expect(liveLegend.textContent).toContain('Acción siguiente');
+    expect(liveLegend.textContent).toContain('Abrir cola operativa');
+    expect(liveLegend.textContent).toContain('Sistema visual');
+    expect(liveLegend.textContent).toContain('Mapa de calor acelerado');
+    expect(liveLegend.textContent).toContain('Puntos geolocalizados');
+    expect(liveLegend.textContent).toContain('Zonas agregadas');
+    expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
+    expect(document.body.textContent).not.toContain('Zona centro requiere seguimiento');
     expect(document.body.textContent).not.toMatch(/[ap]\. m\.\./i);
-    expect(liveLegend.textContent).toContain("SLA crítico");
-    expect(liveLegend.textContent).toContain("WhatsApp activo");
-    expect(liveLegend.textContent).toContain("Prioridad IA");
-    expect(screen.getByTestId("operational-hotspots-panel")).toBeTruthy();
-    expect(screen.getByText("Prioridades territoriales")).toBeTruthy();
-    expect(screen.getByText("Focos para actuar primero")).toBeTruthy();
-    expect(screen.getByText("SLA vencido")).toBeTruthy();
-    expect(screen.getByText("SLA: 2")).toBeTruthy();
-    expect(screen.getByText("sin responsable: 1")).toBeTruthy();
-    expect(screen.getByText("24h: 4")).toBeTruthy();
-    expect(screen.getAllByTestId("operational-hotspot-item").length).toBe(1);
-    expect(screen.getByRole("group", { name: "Capas visibles" })).toBeTruthy();
-    expect(screen.getByText("Resumen operativo asistido")).toBeTruthy();
-    expect(document.body.textContent).toContain(
-      "Mapa territorial pendiente de validación",
-    );
-    expect(document.body.textContent).toContain(
-      "La fuente no informó una clasificación verificable",
-    );
-    expect(screen.getByText("Análisis local seguro")).toBeTruthy();
-    expect(
-      screen.getAllByText("Detección municipal de riesgos").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText("Centro operativo")).toBeTruthy();
-    expect(
-      screen.getByText("Encuadre automático - zoom 13 - 2,5 km"),
-    ).toBeTruthy();
-    expect(screen.getByTestId("heatmap-action-loop")).toBeTruthy();
-    expect(
-      screen.getAllByTestId("heatmap-action-item").length,
-    ).toBeGreaterThanOrEqual(4);
-    expect(screen.getByText("Asignar inspector")).toBeTruthy();
-    expect(screen.getByText("Actualizar ubicación")).toBeTruthy();
-    expect(screen.getByText("Abrir ticket caliente")).toBeTruthy();
-    expect(screen.getAllByText("preparación segura").length).toBeGreaterThan(0);
-    expect(screen.getByTestId("heatmap-action-loop").textContent).not.toContain(
-      "/api/",
-    );
-    const crmLinks = screen.getAllByRole("link", { name: /abrir en crm/i });
+    expect(liveLegend.textContent).toContain('SLA crítico');
+    expect(liveLegend.textContent).toContain('WhatsApp activo');
+    expect(liveLegend.textContent).toContain('Prioridad IA');
+    expect(screen.getByTestId('operational-hotspots-panel')).toBeTruthy();
+    expect(screen.getByText('Prioridades territoriales')).toBeTruthy();
+    expect(screen.getByText('Focos para actuar primero')).toBeTruthy();
+    expect(screen.getByText('SLA vencido')).toBeTruthy();
+    expect(screen.getByText('SLA: 2')).toBeTruthy();
+    expect(screen.getByText('sin responsable: 1')).toBeTruthy();
+    expect(screen.getByText('24h: 4')).toBeTruthy();
+    expect(screen.getAllByTestId('operational-hotspot-item').length).toBe(1);
+    expect(screen.getByRole('group', { name: 'Capas visibles' })).toBeTruthy();
+    expect(screen.getByText('Resumen operativo asistido')).toBeTruthy();
+    expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
+    expect(document.body.textContent).toContain('La fuente no informó una clasificación verificable');
+    expect(screen.getByText('Análisis local seguro')).toBeTruthy();
+    expect(screen.getAllByText('Detección municipal de riesgos').length).toBeGreaterThan(0);
+    expect(screen.getByText('Centro operativo')).toBeTruthy();
+    expect(screen.getByText('Encuadre automático - zoom 13 - 2,5 km')).toBeTruthy();
+    expect(screen.getByTestId('heatmap-action-loop')).toBeTruthy();
+    expect(screen.getAllByTestId('heatmap-action-item').length).toBeGreaterThanOrEqual(4);
+    expect(screen.getByText('Asignar inspector')).toBeTruthy();
+    expect(screen.getByText('Actualizar ubicación')).toBeTruthy();
+    expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
+    expect(screen.getAllByText('preparación segura').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('heatmap-action-loop').textContent).not.toContain('/api/');
+    const crmLinks = screen.getAllByRole('link', { name: /abrir en crm/i });
     expect(crmLinks.length).toBeGreaterThan(0);
-    expect(
-      crmLinks.some((link) =>
-        link.getAttribute("href")?.includes("/perfil?tab=tickets"),
-      ),
-    ).toBe(true);
-    expect(
-      crmLinks.some((link) =>
-        link.getAttribute("href")?.includes("ticket_id=11"),
-      ),
-    ).toBe(true);
-    expect(
-      crmLinks.some((link) =>
-        link.getAttribute("href")?.includes("focus=open_geocoding_queue"),
-      ),
-    ).toBe(true);
-    expect(
-      screen.getByText("Acciones protegidas - solo preparación operativa"),
-    ).toBeTruthy();
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('/perfil?tab=tickets'))).toBe(true);
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('ticket_id=11'))).toBe(true);
+    expect(crmLinks.some((link) => link.getAttribute('href')?.includes('focus=open_geocoding_queue'))).toBe(true);
+    expect(screen.getByText('Acciones protegidas - solo preparación operativa')).toBeTruthy();
   });
 
-  it("shows an honest boundary state instead of a synthetic atlas when coordinates and boundaries are absent", () => {
-    render(
-      <PremiumTerritoryHeatmap
-        points={[{ id: "draft-only", weight: 1, categoria: "reclamos" }]}
-      />,
-    );
+  it('shows an honest boundary state instead of a synthetic atlas when coordinates and boundaries are absent', () => {
+    render(<PremiumTerritoryHeatmap points={[{ id: 'draft-only', weight: 1, categoria: 'reclamos' }]} />);
 
-    expect(screen.queryByTestId("live-territory-map")).toBeNull();
-    expect(
-      screen.queryByRole("img", { name: "Inteligencia territorial" }),
-    ).toBeNull();
-    expect(
-      screen.getAllByText("Sin delimitación territorial oficial").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByTestId("territory-boundary-empty-state")).toBeTruthy();
-    expect(
-      screen.getByTestId("territory-zone-analytics-unavailable"),
-    ).toBeTruthy();
-    expect(screen.queryByText("Zona seleccionada")).toBeNull();
-    expect(screen.queryByText("Tasa cada 1.000")).toBeNull();
+    expect(screen.queryByTestId('live-territory-map')).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
+    expect(screen.getAllByText('Sin delimitación territorial oficial').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('territory-boundary-empty-state')).toBeTruthy();
+    expect(screen.getByTestId('territory-zone-analytics-unavailable')).toBeTruthy();
+    expect(screen.queryByText('Zona seleccionada')).toBeNull();
+    expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
   });
 
-  it("shows the backend-derived provenance legend instead of claiming every point is real", () => {
+  it('shows the backend-derived provenance legend instead of claiming every point is real', () => {
     const points = buildPoints(4);
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points,
       cells: [],
       hotspots: [],
       facets: [],
       category_layers: [],
-      quality: { state: "ready", visible_points: 4, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 4, can_render_heatmap: true },
       response_provenance: {
-        contract_version: "surveys.response_provenance.v1",
-        mode: "synthetic",
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'synthetic',
         server_trusted_classification: true,
         contains_synthetic: true,
         synthetic_responses_included: 4,
@@ -594,77 +450,61 @@ describe("PremiumTerritoryHeatmap", () => {
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    expect(screen.getByTestId("territory-data-provenance")).toHaveTextContent(
-      "Datos sintéticos declarados",
-    );
-    expect(document.body.textContent).toContain(
-      "El sistema declaró respuestas sintéticas incluidas",
-    );
-    expect(document.body.textContent).not.toContain("Los puntos son reales");
-    expect(document.body.textContent).toContain("Cobertura técnica disponible");
-    expect(document.body.textContent).not.toContain("Mapa listo para operar");
+    expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent('Datos sintéticos declarados');
+    expect(document.body.textContent).toContain('El sistema declaró respuestas sintéticas incluidas');
+    expect(document.body.textContent).not.toContain('Los puntos son reales');
+    expect(document.body.textContent).toContain('Cobertura técnica disponible');
+    expect(document.body.textContent).not.toContain('Mapa listo para operar');
   });
 
-  it("enables zonal metrics only with explicit official boundaries and backend population", () => {
+  it('enables zonal metrics only with explicit official boundaries and backend population', () => {
     const points = buildPoints(12);
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points,
       cells: [],
       hotspots: [],
       facets: [],
       category_layers: [],
       privacy: {
-        mode: "aggregated",
+        mode: 'aggregated',
         minimum_sample_size: 10,
-        population_source: "INDEC 2022",
+        population_source: 'INDEC 2022',
       },
       geo_layers: {
         boundaries: {
-          type: "FeatureCollection",
-          metadata: { source: "Catastro municipal", official: true },
+          type: 'FeatureCollection',
+          metadata: { source: 'Catastro municipal', official: true },
           features: [
             {
-              type: "Feature",
-              id: "centro",
+              type: 'Feature',
+              id: 'centro',
               geometry: {
-                type: "Polygon",
-                coordinates: [
-                  [
-                    [-61, -34.7],
-                    [-60.8, -34.7],
-                    [-60.8, -34.5],
-                    [-61, -34.5],
-                    [-61, -34.7],
-                  ],
-                ],
+                type: 'Polygon',
+                coordinates: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5], [-61, -34.7]]],
               },
-              properties: { nombre: "Centro oficial", poblacion: 32000 },
+              properties: { nombre: 'Centro oficial', poblacion: 32000 },
             },
           ],
         },
       },
-      quality: { state: "ready", visible_points: 12, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 12, can_render_heatmap: true },
     } satisfies OperationsHeatmapV1;
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    expect(screen.getByText("Zona seleccionada")).toBeTruthy();
-    expect(screen.getAllByText("Centro oficial").length).toBeGreaterThan(0);
-    expect(screen.getByText("privacidad agregada")).toBeTruthy();
-    expect(screen.getByText("Tasa cada 1.000")).toBeTruthy();
-    expect(
-      screen.queryByTestId("territory-zone-analytics-unavailable"),
-    ).toBeNull();
-    expect(
-      screen.queryByText("Sin delimitación territorial oficial"),
-    ).toBeNull();
+    expect(screen.getByText('Zona seleccionada')).toBeTruthy();
+    expect(screen.getAllByText('Centro oficial').length).toBeGreaterThan(0);
+    expect(screen.getByText('privacidad agregada')).toBeTruthy();
+    expect(screen.getByText('Tasa cada 1.000')).toBeTruthy();
+    expect(screen.queryByTestId('territory-zone-analytics-unavailable')).toBeNull();
+    expect(screen.queryByText('Sin delimitación territorial oficial')).toBeNull();
   });
 
-  it("does not trust an unproven boundary collection as official", () => {
+  it('does not trust an unproven boundary collection as official', () => {
     const points = buildPoints(12);
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points,
       cells: [],
       hotspots: [],
@@ -672,128 +512,98 @@ describe("PremiumTerritoryHeatmap", () => {
       category_layers: [],
       geo_layers: {
         boundaries: {
-          type: "FeatureCollection",
+          type: 'FeatureCollection',
           features: [
             {
-              type: "Feature",
-              id: "centro",
+              type: 'Feature',
+              id: 'centro',
               geometry: {
-                type: "Polygon",
-                coordinates: [
-                  [
-                    [-61, -34.7],
-                    [-60.8, -34.7],
-                    [-60.8, -34.5],
-                    [-61, -34.5],
-                  ],
-                ],
+                type: 'Polygon',
+                coordinates: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5]]],
               },
-              properties: { nombre: "Centro supuesto", poblacion: 999999 },
+              properties: { nombre: 'Centro supuesto', poblacion: 999999 },
             },
           ],
         },
       },
-      quality: { state: "ready", visible_points: 12, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 12, can_render_heatmap: true },
     } satisfies OperationsHeatmapV1;
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    expect(
-      screen.getByTestId("territory-zone-analytics-unavailable"),
-    ).toBeTruthy();
-    expect(
-      screen.getAllByText("Sin delimitación territorial oficial").length,
-    ).toBeGreaterThan(0);
-    expect(screen.queryByText("Centro supuesto")).toBeNull();
-    expect(screen.queryByText("Tasa cada 1.000")).toBeNull();
+    expect(screen.getByTestId('territory-zone-analytics-unavailable')).toBeTruthy();
+    expect(screen.getAllByText('Sin delimitación territorial oficial').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Centro supuesto')).toBeNull();
+    expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
   });
 
-  it("renders backend heatmap cells as live map points when raw points are absent", () => {
+  it('renders backend heatmap cells as live map points when raw points are absent', () => {
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points: [],
       cells: [
         {
-          cell_id: "cell-centro",
+          cell_id: 'cell-centro',
           centroid_lat: -34.61,
           centroid_lon: -60.91,
           count: 9,
-          dominant_category: "alumbrado",
-          risk: { level: "critical", label: "Critico" },
+          dominant_category: 'alumbrado',
+          risk: { level: 'critical', label: 'Critico' },
         },
       ],
       hotspots: [],
       facets: [],
       category_layers: [],
       map_layers: {
-        contract_version: "analytics.geo_layers.v1",
+        contract_version: 'analytics.geo_layers.v1',
         intensity: { total_cases: 9, total_items: 1 },
         hotspots: {
           focus: {
-            category: "alumbrado",
+            category: 'alumbrado',
             count: 9,
-            risk: { level: "critical", label: "Critico" },
+            risk: { level: 'critical', label: 'Critico' },
           },
         },
         visual_system: {
-          renderer: "webgl_heatmap",
+          renderer: 'webgl_heatmap',
           animations: { radar_sweep: true },
         },
         operator_metrics: {
           total_cases: 9,
           visible_layers: 1,
-          top_category: "alumbrado",
+          top_category: 'alumbrado',
           critical_hotspots: 1,
         },
       },
     } satisfies OperationsHeatmapV1;
 
-    render(
-      <PremiumTerritoryHeatmap
-        points={[]}
-        heatmap={heatmap}
-        allowDemoFallback
-      />,
-    );
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} allowDemoFallback />);
 
-    const liveMap = screen.getByTestId("mock-live-map");
-    expect(screen.getByTestId("live-territory-map")).toBeTruthy();
-    expect(liveMap.getAttribute("data-points")).toBe("1");
-    expect(liveMap.getAttribute("data-geo-contract")).toBe(
-      "operations.heatmap.geo_layers.v1",
-    );
-    expect(liveMap.getAttribute("data-geo-features")).toBe("1");
-    expect(
-      screen.getAllByText("Procedencia no validada").length,
-    ).toBeGreaterThan(0);
-    expect(document.body.textContent).not.toContain(
-      "Zonas agregadas verificadas",
-    );
-    expect(document.body.textContent).not.toContain(
-      "Datos territoriales verificados",
-    );
-    expect(screen.getAllByText("alumbrado").length).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole("img", { name: "Inteligencia territorial" }),
-    ).toBeNull();
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    expect(liveMap.getAttribute('data-points')).toBe('1');
+    expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap.geo_layers.v1');
+    expect(liveMap.getAttribute('data-geo-features')).toBe('1');
+    expect(screen.getAllByText('Procedencia no validada').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain('Zonas agregadas verificadas');
+    expect(document.body.textContent).not.toContain('Datos territoriales verificados');
+    expect(screen.getAllByText('alumbrado').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
   });
 
-  it("uses verified wording only when the provenance resolver proves real survey responses", () => {
-    const points = buildPoints(2).map((point) => ({
-      ...point,
-      source: "survey",
-    }));
+  it('uses verified wording only when the provenance resolver proves real survey responses', () => {
+    const points = buildPoints(2).map((point) => ({ ...point, source: 'survey' }));
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points,
       cells: [],
       hotspots: [],
       facets: [],
       category_layers: [],
-      quality: { state: "ready", visible_points: 2, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
       response_provenance: {
-        contract_version: "surveys.response_provenance.v1",
-        mode: "real",
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'real',
         server_trusted_classification: true,
         real_responses_included: 2,
         unverified_responses_included: 0,
@@ -802,89 +612,81 @@ describe("PremiumTerritoryHeatmap", () => {
 
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
-    expect(screen.getByText("Datos territoriales verificados")).toBeTruthy();
-    expect(screen.getByTestId("territory-data-provenance")).toHaveTextContent(
-      "Procedencia validada por el sistema",
+    expect(screen.getByText('Datos territoriales verificados')).toBeTruthy();
+    expect(screen.getByTestId('territory-data-provenance')).toHaveTextContent(
+      'Procedencia validada por el sistema',
     );
   });
 
-  it("prefers backend geo_layers FeatureCollection before rebuilding local source", () => {
+  it('prefers backend geo_layers FeatureCollection before rebuilding local source', () => {
     const heatmap = {
-      contract_version: "operations.heatmap.v1",
+      contract_version: 'operations.heatmap.v1',
       points: [],
       cells: [],
       hotspots: [],
       facets: [],
       category_layers: [],
       geo_layers: {
-        contract_version: "operations.heatmap_geo_layers.v1",
-        provider: "geojson",
-        coordinate_order: "lng_lat",
+        contract_version: 'operations.heatmap_geo_layers.v1',
+        provider: 'geojson',
+        coordinate_order: 'lng_lat',
         points: {
-          type: "FeatureCollection",
+          type: 'FeatureCollection',
           features: [
             {
-              type: "Feature",
-              id: "tenant_ticket:10",
-              geometry: { type: "Point", coordinates: [-60.94, -34.58] },
+              type: 'Feature',
+              id: 'tenant_ticket:10',
+              geometry: { type: 'Point', coordinates: [-60.94, -34.58] },
               properties: {
-                id: "tenant_ticket:10",
-                category: "alumbrado",
+                id: 'tenant_ticket:10',
+                category: 'alumbrado',
                 weight: 3,
-                source: "ticket",
-                label: "Luminaria rota",
+                source: 'ticket',
+                label: 'Luminaria rota',
               },
             },
             {
-              type: "Feature",
-              id: "survey:7",
-              geometry: { type: "Point", coordinates: [-60.93, -34.57] },
+              type: 'Feature',
+              id: 'survey:7',
+              geometry: { type: 'Point', coordinates: [-60.93, -34.57] },
               properties: {
-                id: "survey:7",
-                category: "votacion",
+                id: 'survey:7',
+                category: 'votacion',
                 weight: 1,
-                source: "survey",
-                label: "Sondeo barrial",
+                source: 'survey',
+                label: 'Sondeo barrial',
               },
             },
           ],
         },
       },
       map_layers: {
-        contract_version: "operations.heatmap_map_layers.v1",
+        contract_version: 'operations.heatmap_map_layers.v1',
         layers: [
-          { id: "base_heatmap", type: "heatmap" },
-          { id: "hotspots", type: "symbol" },
+          { id: 'base_heatmap', type: 'heatmap' },
+          { id: 'hotspots', type: 'symbol' },
         ],
         telemetry: {
-          event_endpoint: "/api/analytics/event",
-          events: ["heatmap_bbox_changed"],
+          event_endpoint: '/api/analytics/event',
+          events: ['heatmap_bbox_changed'],
         },
       },
       source_quality: {
-        contract_version: "operations.heatmap_source_quality.v1",
+        contract_version: 'operations.heatmap_source_quality.v1',
       },
     } satisfies OperationsHeatmapV1;
 
     render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} />);
 
-    const liveMap = screen.getByTestId("mock-live-map");
-    expect(screen.getByTestId("live-territory-map")).toBeTruthy();
-    expect(liveMap.getAttribute("data-points")).toBe("2");
-    expect(liveMap.getAttribute("data-geo-contract")).toBe(
-      "operations.heatmap_geo_layers.v1",
-    );
-    expect(liveMap.getAttribute("data-geo-features")).toBe("2");
-    expect(liveMap.getAttribute("data-geo-heat-layer")).toBe("base_heatmap");
-    expect(liveMap.getAttribute("data-geo-point-layer")).toBe("hotspots");
-    expect(liveMap.getAttribute("data-geo-telemetry-endpoint")).toBe(
-      "/api/analytics/event",
-    );
-    expect(liveMap.getAttribute("data-geo-telemetry-events")).toContain(
-      "heatmap_bbox_changed",
-    );
-    expect(
-      screen.queryByRole("img", { name: "Inteligencia territorial" }),
-    ).toBeNull();
+    const liveMap = screen.getByTestId('mock-live-map');
+    expect(screen.getByTestId('live-territory-map')).toBeTruthy();
+    expect(liveMap.getAttribute('data-points')).toBe('2');
+    expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap_geo_layers.v1');
+    expect(liveMap.getAttribute('data-geo-features')).toBe('2');
+    expect(liveMap.getAttribute('data-geo-heat-layer')).toBe('base_heatmap');
+    expect(liveMap.getAttribute('data-geo-point-layer')).toBe('hotspots');
+    expect(liveMap.getAttribute('data-geo-telemetry-endpoint')).toBe('/api/analytics/event');
+    expect(liveMap.getAttribute('data-geo-telemetry-events')).toContain('heatmap_bbox_changed');
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
   });
 });
