@@ -84,6 +84,7 @@ describe('MapLibreMap popup content', () => {
         barrio: 'Centro',
         ciudad: 'Río Grande',
         categoria: 'CUD / CMO',
+        direccion: 'Corredor San Martín',
         tipo_ticket: 'Consulta',
         canal: 'WhatsApp',
         estado: 'Orientado',
@@ -94,6 +95,7 @@ describe('MapLibreMap popup content', () => {
 
     expect(node).toHaveTextContent('Centro · Río Grande');
     expect(node).toHaveTextContent('Categoría: CUD / CMO');
+    expect(node).toHaveTextContent('Área agrupada: Corredor San Martín');
     expect(node).toHaveTextContent('Tipo: Consulta');
     expect(node).toHaveTextContent('Canal: WhatsApp');
     expect(node).toHaveTextContent('Estado: Orientado');

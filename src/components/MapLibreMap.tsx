@@ -452,6 +452,9 @@ export const buildMapClusterPopupContent = ({
       if (cluster.categoria) {
         appendPopupText(root, "p", `Categoría: ${cluster.categoria}`, "text-xs text-slate-600");
       }
+      if (cluster.direccion) {
+        appendPopupText(root, "p", `Área agrupada: ${cluster.direccion}`, "text-xs text-slate-600");
+      }
       if (cluster.tipo_ticket) {
         appendPopupText(root, "p", `Tipo: ${cluster.tipo_ticket}`, "text-xs text-slate-600");
       }
@@ -589,6 +592,9 @@ export const buildMapClusterPopupContent = ({
     );
     if (categoria) {
       appendPopupText(root, "p", `Categoría: ${String(categoria)}`, "text-xs text-slate-600");
+    }
+    if (direccion) {
+      appendPopupText(root, "p", `Área agrupada: ${String(direccion)}`, "text-xs text-slate-600");
     }
     if (safeProperties.tipo_ticket) {
       appendPopupText(root, "p", `Tipo: ${String(safeProperties.tipo_ticket)}`, "text-xs text-slate-600");
@@ -1167,8 +1173,14 @@ export default function MapLibreMap({
                     ["linear"],
                     ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
                     0,
-                    0.45,
+                    0,
                     1,
+                    0.42,
+                    4,
+                    0.58,
+                    16,
+                    0.78,
+                    64,
                     1,
                   ]
                 : ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
@@ -1214,7 +1226,7 @@ export default function MapLibreMap({
                   ],
                 ],
               ],
-              "heatmap-opacity": heatmapPalette === "faro" ? 0.88 : 0.65,
+              "heatmap-opacity": heatmapPalette === "faro" ? 0.76 : 0.65,
               "heatmap-color": heatmapPalette === "faro"
                 ? [
                     "interpolate",
@@ -1255,7 +1267,10 @@ export default function MapLibreMap({
             id: configuredLayerIds.halo,
             type: "circle",
             source: heatmapPalette === "faro" ? MAP_HEAT_SOURCE_ID : MAP_POINT_SOURCE_ID,
-            minzoom: resolvedPointMinZoom,
+            // Faro's heat layer always keeps a concrete location anchor on top
+            // of the density field. At regional zooms the heat remains
+            // interpretable instead of becoming an unlabeled colour cloud.
+            minzoom: heatmapPalette === "faro" ? Math.min(resolvedPointMinZoom, 5) : resolvedPointMinZoom,
             paint: {
               "circle-radius": heatmapPalette === "faro"
                 ? [
@@ -1263,11 +1278,23 @@ export default function MapLibreMap({
                     ["linear"],
                     ["zoom"],
                     4,
-                    ["max", 14, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 2.2]],
+                    [
+                      "+",
+                      6,
+                      ["min", 3, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.55]],
+                    ],
                     14,
-                    ["max", 28, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 4.2]],
+                    [
+                      "+",
+                      9,
+                      ["min", 5, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.8]],
+                    ],
                     16,
-                    ["max", 34, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 4.8]],
+                    [
+                      "+",
+                      10,
+                      ["min", 6, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.9]],
+                    ],
                   ]
                 : [
                     "interpolate",
@@ -1288,17 +1315,10 @@ export default function MapLibreMap({
                   ],
               "circle-color": heatmapPalette === "faro"
                 ? [
-                    "interpolate",
-                    ["linear"],
-                    ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1],
-                    10,
-                    "#69d5df",
-                    32,
-                    "#087c81",
-                    48,
-                    "#f2b84b",
-                    64,
-                    "#d55d39",
+                    "case",
+                    ["has", "categoryColor"],
+                    ["get", "categoryColor"],
+                    "#2563eb",
                   ]
                 : [
                     "case",
@@ -1319,9 +1339,16 @@ export default function MapLibreMap({
                     ],
                   ],
               "circle-opacity": heatmapPalette === "faro"
-                ? ["interpolate", ["linear"], ["zoom"], 4, 0.3, 14, 0.4, 16, 0.3]
+                ? 0.9
                 : ["interpolate", ["linear"], ["zoom"], 4, 0.18, 14, 0.28, 16, 0.2],
-              "circle-blur": heatmapPalette === "faro" ? 0.8 : 0.86,
+              "circle-blur": heatmapPalette === "faro" ? 0.06 : 0.86,
+              ...(heatmapPalette === "faro"
+                ? {
+                    "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
+                    "circle-stroke-width": 2,
+                    "circle-stroke-opacity": 0.98,
+                  }
+                : {}),
             },
           });
 
@@ -1424,16 +1451,17 @@ export default function MapLibreMap({
                 ? {}
                 : {
                     "text-anchor": "top",
-                    "text-offset": [0, 1.15],
-                    "text-padding": 3,
+                    "text-offset": [0, 1.35],
+                    "text-padding": 4,
+                    "text-max-width": 12,
                   }),
               "text-allow-overlap": false,
               "text-ignore-placement": false,
             },
             paint: {
-              "text-color": pointLabelMode === "count" ? "#ffffff" : "#173c39",
+              "text-color": pointLabelMode === "count" ? "#ffffff" : "#0f172a",
               "text-halo-color": pointLabelMode === "count" ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.96)",
-              "text-halo-width": pointLabelMode === "count" ? 1 : 1.5,
+              "text-halo-width": pointLabelMode === "count" ? 1 : 2,
               "text-opacity": 0.96,
             },
           });
@@ -1633,7 +1661,11 @@ export default function MapLibreMap({
             contract_version: contractVersionRef.current,
           });
 
-          const popup = new maplibre.Popup();
+          const popup = new maplibre.Popup({
+            offset: 16,
+            closeButton: true,
+            maxWidth: "320px",
+          });
           popup
             .setLngLat(coords as LngLatLike)
             .setDOMContent(buildMapClusterPopupContent({
@@ -1653,6 +1685,21 @@ export default function MapLibreMap({
           mapInstance.getCanvas().style.cursor = "";
         };
 
+        const handleHeatAnchorClick = (event: any) => {
+          if (showPointsRef.current) return;
+          handleCircleClick(event);
+        };
+
+        const handleHeatAnchorMouseEnter = () => {
+          if (showPointsRef.current) return;
+          handlePointMouseEnter();
+        };
+
+        const handleHeatAnchorMouseLeave = () => {
+          if (showPointsRef.current) return;
+          handlePointMouseLeave();
+        };
+
         const handleMissingImage = (e: any) => {
           const id = e.id;
           if (!mapInstance.hasImage(id)) {
@@ -1665,6 +1712,11 @@ export default function MapLibreMap({
         mapInstance.on("click", configuredLayerIds.circles, handleCircleClick);
         mapInstance.on("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
         mapInstance.on("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
+        if (heatmapPalette === "faro") {
+          mapInstance.on("click", configuredLayerIds.halo, handleHeatAnchorClick);
+          mapInstance.on("mouseenter", configuredLayerIds.halo, handleHeatAnchorMouseEnter);
+          mapInstance.on("mouseleave", configuredLayerIds.halo, handleHeatAnchorMouseLeave);
+        }
         mapInstance.on("styleimagemissing", handleMissingImage);
         const bboxEvents = [
           "boxzoomend",
@@ -1695,6 +1747,11 @@ export default function MapLibreMap({
           mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
           mapInstance.off("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
           mapInstance.off("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
+          if (heatmapPalette === "faro") {
+            mapInstance.off("click", configuredLayerIds.halo, handleHeatAnchorClick);
+            mapInstance.off("mouseenter", configuredLayerIds.halo, handleHeatAnchorMouseEnter);
+            mapInstance.off("mouseleave", configuredLayerIds.halo, handleHeatAnchorMouseLeave);
+          }
           mapInstance.off("styleimagemissing", handleMissingImage);
           bboxEvents.forEach((eventName) => mapInstance.off(eventName, scheduleBoundingBox));
           mapInstance.off("load", scheduleBoundingBox);
@@ -2063,6 +2120,7 @@ export default function MapLibreMap({
         try {
           map.fitBounds(bounds, {
             padding: boundsPaddingRef.current ?? 48,
+            maxZoom: coords.length <= 2 ? 14 : 15,
             duration: prefersReducedMotionRef.current ? 0 : 1000,
           });
           return;
@@ -2133,6 +2191,9 @@ export default function MapLibreMap({
     className,
     !className && "h-[500px]",
   );
+  const renderedFeatureCount = configuredGeoSource?.features.length ?? processedHeatmap.length;
+  const showEmptyMapState =
+    !showPolygons && (showHeatmap || resolvedShowPoints) && renderedFeatureCount === 0;
 
   return (
     <div
@@ -2153,6 +2214,20 @@ export default function MapLibreMap({
           {providerFallbackMessage}
         </div>
       )}
+      {showEmptyMapState && !mapError ? (
+        <div
+          className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(90%,22rem)] -translate-x-1/2 rounded-xl border border-slate-200/90 bg-white/95 px-4 py-3 text-center shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-950/95"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+            Sin puntos geolocalizados para esta vista
+          </p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            El mapa permanece disponible; la selección actual no contiene ubicaciones representables.
+          </p>
+        </div>
+      ) : null}
       {mapError && (
         <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           No se pudo cargar el mapa: {mapError}

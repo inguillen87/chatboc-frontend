@@ -15,6 +15,7 @@ const mapMocks = vi.hoisted(() => ({
     jumpTo: ReturnType<typeof vi.fn>;
     fitBounds: ReturnType<typeof vi.fn>;
     emit: (eventName: string, payload?: unknown) => void;
+    emitLayer: (eventName: string, layerId: string, payload?: unknown) => void;
     setBounds: (bbox: [number, number, number, number]) => void;
   }>,
   heatSourceSetData: vi.fn(),
@@ -26,6 +27,8 @@ const mapMocks = vi.hoisted(() => ({
   addedLayers: [] as Array<Record<string, unknown>>,
   addedSources: [] as Array<{ id: string; options: Record<string, unknown> }>,
   layoutCalls: [] as Array<[string, string, unknown]>,
+  popupAddCalls: 0,
+  popupOptions: [] as unknown[],
 }));
 
 vi.mock("@/components/GoogleHeatmapMap", () => {
@@ -131,9 +134,11 @@ vi.mock("maplibre-gl", () => {
     on(eventName: string, ...args: unknown[]) {
       const handler = args.at(-1);
       if (typeof handler === "function") {
-        const eventHandlers = this.handlers.get(eventName) ?? new Set();
+        const layerId = typeof args[0] === "string" && args.length > 1 ? args[0] : null;
+        const handlerKey = layerId ? `${eventName}:${layerId}` : eventName;
+        const eventHandlers = this.handlers.get(handlerKey) ?? new Set();
         eventHandlers.add(handler as (...handlerArgs: unknown[]) => void);
-        this.handlers.set(eventName, eventHandlers);
+        this.handlers.set(handlerKey, eventHandlers);
       }
       return this;
     }
@@ -152,13 +157,19 @@ vi.mock("maplibre-gl", () => {
     off(eventName: string, ...args: unknown[]) {
       const handler = args.at(-1);
       if (typeof handler === "function") {
-        this.handlers.get(eventName)?.delete(handler as (...handlerArgs: unknown[]) => void);
+        const layerId = typeof args[0] === "string" && args.length > 1 ? args[0] : null;
+        const handlerKey = layerId ? `${eventName}:${layerId}` : eventName;
+        this.handlers.get(handlerKey)?.delete(handler as (...handlerArgs: unknown[]) => void);
       }
       return this;
     }
 
     emit(eventName: string, payload?: unknown) {
       [...(this.handlers.get(eventName) ?? [])].forEach((handler) => handler(payload));
+    }
+
+    emitLayer(eventName: string, layerId: string, payload?: unknown) {
+      [...(this.handlers.get(`${eventName}:${layerId}`) ?? [])].forEach((handler) => handler(payload));
     }
 
     setBounds(bbox: [number, number, number, number]) {
@@ -193,6 +204,9 @@ vi.mock("maplibre-gl", () => {
   }
 
   class FakePopup {
+    constructor(options?: unknown) {
+      mapMocks.popupOptions.push(options);
+    }
     setLngLat() {
       return this;
     }
@@ -200,6 +214,7 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
     addTo() {
+      mapMocks.popupAddCalls += 1;
       return this;
     }
   }
@@ -255,6 +270,8 @@ describe("MapLibreMap lifecycle", () => {
     mapMocks.addedLayers.length = 0;
     mapMocks.addedSources.length = 0;
     mapMocks.layoutCalls.length = 0;
+    mapMocks.popupAddCalls = 0;
+    mapMocks.popupOptions.length = 0;
 
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -487,9 +504,37 @@ describe("MapLibreMap lifecycle", () => {
       }),
     }));
     expect(heatLayer).toEqual(expect.objectContaining({
-      paint: expect.objectContaining({ "heatmap-opacity": 0.88 }),
+      paint: expect.objectContaining({
+        "heatmap-opacity": 0.76,
+        "heatmap-weight": [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
+          0,
+          0,
+          1,
+          0.42,
+          4,
+          0.58,
+          16,
+          0.78,
+          64,
+          1,
+        ],
+      }),
     }));
-    expect(haloLayer).toEqual(expect.objectContaining({ source: "chatboc-runtime-heatmap" }));
+    expect(haloLayer).toEqual(expect.objectContaining({
+      source: "chatboc-runtime-heatmap",
+      minzoom: 4.5,
+      paint: expect.objectContaining({
+        "circle-color": ["case", ["has", "categoryColor"], ["get", "categoryColor"], "#2563eb"],
+        "circle-opacity": 0.9,
+        "circle-blur": 0.06,
+        "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
+        "circle-stroke-width": 2,
+      }),
+    }));
+    expect(mapMocks.addedLayers.indexOf(heatLayer!)).toBeLessThan(mapMocks.addedLayers.indexOf(haloLayer!));
     expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "visible"]);
@@ -515,6 +560,40 @@ describe("MapLibreMap lifecycle", () => {
     expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]);
     expect(mapMocks.layoutCalls).toContainEqual(["territory-points-labels", "visibility", "none"]);
+
+    mapMocks.instances[0]?.emitLayer("click", "territory-points-halo", {
+      features: [
+        {
+          geometry: { coordinates: [-67.7, -34.58] },
+          properties: { id: "faro-territory", categoria: "Luminarias" },
+        },
+      ],
+      lngLat: { lng: -67.7 },
+    });
+    expect(mapMocks.popupAddCalls).toBe(1);
+    expect(mapMocks.popupOptions).toContainEqual({
+      offset: 16,
+      closeButton: true,
+      maxWidth: "320px",
+    });
+  });
+
+  it("keeps the basemap usable and explains a filtered view with no geolocated points", async () => {
+    render(
+      <MapLibreMap
+        ariaLabel="Mapa territorial filtrado"
+        heatmapPalette="faro"
+        heatmapData={[]}
+        showHeatmap
+        showPoints={false}
+      />,
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Sin puntos geolocalizados para esta vista",
+    );
+    expect(screen.getByRole("region", { name: "Mapa territorial filtrado" })).toBeInTheDocument();
+    expect(mapMocks.constructorCalls).toHaveLength(1);
   });
 
   it("exposes an accessible map region and refits on an explicit request without recreating it", async () => {
@@ -537,6 +616,10 @@ describe("MapLibreMap lifecycle", () => {
       screen.getByRole("region", { name: "Mapa de participación de Junin, Mendoza" }),
     ).toHaveAttribute("aria-describedby", "territory-map-description");
     await waitFor(() => expect(mapMocks.instances[0]?.fitBounds).toHaveBeenCalledTimes(1));
+    expect(mapMocks.instances[0]?.fitBounds).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxZoom: 14 }),
+    );
     const mapOptions = mapMocks.constructorCalls[0] as { container: HTMLElement };
     expect(mapOptions.container).toHaveClass("h-full", "w-full");
     expect(mapOptions.container).not.toHaveClass("absolute", "inset-0");
