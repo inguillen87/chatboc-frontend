@@ -835,25 +835,8 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   );
 
   const openTicketDesk = React.useCallback(
-    (usuario: Usuario) => {
-      const realEmail =
-        usuario.email && usuario.email !== "Sin email real"
-          ? usuario.email
-          : null;
-      const query =
-        usuario.whatsappNumber ||
-        usuario.telefono ||
-        realEmail ||
-        usuario.nombre;
-      const params = new URLSearchParams({ tab: "tickets" });
-      if (tenantSlug) {
-        params.set("tenant_slug", tenantSlug);
-        params.set("tenant", tenantSlug);
-      }
-      if (query?.trim()) params.set("q", query.trim());
-      navigate(`/perfil?${params.toString()}`);
-    },
-    [navigate, tenantSlug],
+    (exactHref: string) => navigate(exactHref),
+    [navigate],
   );
 
   if (loading) {
@@ -931,7 +914,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
           }
         }}
         onBack={() => navigate("/perfil")}
-        onOpenTicketDesk={(usuario) => openTicketDesk(usuario as Usuario)}
+        onOpenTicketDesk={openTicketDesk}
         isConnected={isConnected}
         metrics={[
           { label: "Personas", value: usuarios.length, helper: "registros disponibles" },

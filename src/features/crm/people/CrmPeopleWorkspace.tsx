@@ -69,7 +69,10 @@ import type {
   CrmPeopleSort,
   CrmWorkspaceView,
 } from "./useCrmWorkspaceState";
-import { useCrmContactHistory } from "./useCrmContactHistory";
+import {
+  useCrmContactHistory,
+  type CrmContactCase,
+} from "./useCrmContactHistory";
 
 export interface CrmPeopleRecord {
   id: number | string;
@@ -185,7 +188,7 @@ interface CrmPeopleWorkspaceProps {
   onMarketingOnlyChange: (value: boolean) => void;
   onRefresh: () => void;
   onBack: () => void;
-  onOpenTicketDesk: (person: CrmPeopleRecord) => void;
+  onOpenTicketDesk: (exactHref: string) => void;
   isConnected: boolean;
   metrics: WorkspaceMetric[];
   getPersonKey: (person: CrmPeopleRecord) => string;
@@ -243,6 +246,22 @@ const intentLabel = (value?: string | null) => {
     consulta_general: "Consulta general",
   };
   return labels[normalized] || normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const caseValueLabel = (value?: string | null) => {
+  const normalized = (value || "").trim();
+  return normalized
+    ? normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : null;
+};
+
+const caseSourceLabel = (caseItem: CrmContactCase) => {
+  const labels = {
+    TenantTicket: "Caso institucional",
+    MunicipioTicket: "Reclamo municipal",
+    PymeTicket: "Caso empresarial",
+  } as const;
+  return labels[caseItem.sourceModel];
 };
 
 const selectedTone = (score: number) => {
@@ -429,6 +448,7 @@ export default function CrmPeopleWorkspace({
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
   const [detailFocusMode, setDetailFocusMode] = React.useState(false);
   const [activePersonTab, setActivePersonTab] = React.useState("resumen");
+  const [caseActionLoading, setCaseActionLoading] = React.useState(false);
 
   const scoredPeople = React.useMemo(
     () => people.map((person) => ({ person, score: profileScore(person) })),
@@ -471,8 +491,88 @@ export default function CrmPeopleWorkspace({
   const contactHistory = useCrmContactHistory({
     tenantSlug,
     contactId: selectedPerson?.contactId,
-    enabled: activeView === "personas" && activePersonTab === "interacciones",
+    enabled: activeView === "personas" && (
+      activePersonTab === "interacciones" || activePersonTab === "casos"
+    ),
   });
+  const selectedCaseContactId = selectedPerson?.contactId || null;
+  const selectedCaseScopeKey = selectedCaseContactId && tenantSlug
+    ? `${tenantSlug.trim().toLowerCase()}:${selectedCaseContactId}`
+    : null;
+  const selectedCaseScopeKeyRef = React.useRef(selectedCaseScopeKey);
+  selectedCaseScopeKeyRef.current = selectedCaseScopeKey;
+  const exactCases = contactHistory.data?.cases || [];
+  const casesContractVerified = contactHistory.data?.casesContractStatus === "verified";
+  const hasVerifiedZeroCases = Boolean(
+    casesContractVerified
+      && contactHistory.data?.casesTotalIsExact
+      && contactHistory.data.casesTotal === 0
+      && contactHistory.data.casesRejected === 0
+      && !contactHistory.data.casesTruncated,
+  );
+  const hasOneAuthoritativeCase = Boolean(
+    casesContractVerified
+      && contactHistory.data?.casesTotalIsExact
+      && contactHistory.data.casesTotal === 1
+      && exactCases.length === 1
+      && contactHistory.data.casesRejected === 0
+      && !contactHistory.data.casesTruncated,
+  );
+  const visibleCaseCountLabel = contactHistory.data?.casesTotalIsExact
+    ? String(contactHistory.data.casesTotal)
+    : `${exactCases.length}+`;
+  const caseCountSummary = contactHistory.data?.casesRejected
+    ? `${contactHistory.data.casesTotal} informados · ${exactCases.length} verificables`
+    : contactHistory.data?.casesTotalIsExact
+      ? `${contactHistory.data.casesTotal} exactos`
+      : contactHistory.data?.casesTruncated
+        ? `${exactCases.length} verificables · vista parcial`
+        : `${exactCases.length}+ verificables`;
+  const caseActionLabel = !selectedPerson?.contactId
+    ? "Sin caso exacto"
+    : caseActionLoading
+      ? "Verificando casos"
+      : contactHistory.data && !casesContractVerified
+        ? "Casos no disponibles"
+        : hasVerifiedZeroCases
+          ? "Sin caso exacto"
+          : hasOneAuthoritativeCase
+            ? "Abrir caso"
+            : casesContractVerified && (exactCases.length > 0 || (contactHistory.data?.casesTotal || 0) > 0)
+              ? `Ver ${visibleCaseCountLabel} casos`
+              : casesContractVerified
+                ? "Revisar vínculos"
+              : "Ver casos";
+  const caseActionDisabled = Boolean(
+    !selectedPerson?.contactId
+      || caseActionLoading
+      || (contactHistory.data && (!casesContractVerified || hasVerifiedZeroCases)),
+  );
+  const handleCaseAction = React.useCallback(async () => {
+    const requestedScopeKey = selectedCaseScopeKey;
+    if (!requestedScopeKey) {
+      setActivePersonTab("casos");
+      return;
+    }
+    setCaseActionLoading(true);
+    try {
+      const history = contactHistory.data || (await contactHistory.refetch()).data || null;
+      if (selectedCaseScopeKeyRef.current !== requestedScopeKey) return;
+      const canOpenOnlyCase = history?.casesContractStatus === "verified"
+        && history.casesTotalIsExact
+        && history.casesTotal === 1
+        && history.cases.length === 1
+        && history.casesRejected === 0
+        && !history.casesTruncated;
+      if (canOpenOnlyCase) {
+        onOpenTicketDesk(history.cases[0].href);
+        return;
+      }
+      setActivePersonTab("casos");
+    } finally {
+      setCaseActionLoading(false);
+    }
+  }, [contactHistory.data, contactHistory.refetch, onOpenTicketDesk, selectedCaseScopeKey]);
   const listViewportRef = React.useRef<HTMLDivElement>(null);
   const desktopList = useVirtualizer({
     count: visiblePeople.length,
@@ -936,11 +1036,12 @@ export default function CrmPeopleWorkspace({
                         <Button
                           size="sm"
                           className={cn("gap-2", embedded && "h-8 w-8 p-0 sm:w-auto sm:px-3")}
-                          onClick={() => onOpenTicketDesk(selectedPerson)}
-                          aria-label="Abrir conversación"
+                          onClick={() => void handleCaseAction()}
+                          disabled={caseActionDisabled}
+                          aria-label={caseActionLabel}
                         >
-                          <MessageCircle className="h-4 w-4" />
-                          <span className={cn(embedded && "sr-only sm:not-sr-only")}>Abrir conversación</span>
+                          {caseActionLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                          <span className={cn(embedded && "sr-only sm:not-sr-only")}>{caseActionLabel}</span>
                         </Button>
                         <Button
                           type="button"
@@ -965,9 +1066,12 @@ export default function CrmPeopleWorkspace({
                           <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel>Acciones del contacto</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => onOpenTicketDesk(selectedPerson)}>
-                              <MessageCircle className="mr-2 h-4 w-4" />
-                              Abrir conversación
+                            <DropdownMenuItem
+                              disabled={caseActionDisabled}
+                              onSelect={() => void handleCaseAction()}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              {caseActionLabel}
                             </DropdownMenuItem>
                             {selectedPerson.telefono ? (
                               <DropdownMenuItem onSelect={() => copyToClipboard(selectedPerson.telefono, "Teléfono")}>
@@ -1024,7 +1128,14 @@ export default function CrmPeopleWorkspace({
                       <TabsList className={cn("rounded-none bg-transparent p-0", embedded ? "grid h-10 w-full grid-cols-4 sm:flex sm:h-11 sm:w-max" : "h-11 w-max")}>
                         <TabsTrigger value="resumen" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Resumen</TabsTrigger>
                         <TabsTrigger value="interacciones" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Interacciones</TabsTrigger>
-                        <TabsTrigger value="casos" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Casos</TabsTrigger>
+                        <TabsTrigger value="casos" className={cn("gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>
+                          Casos
+                          {casesContractVerified && exactCases.length > 0 ? (
+                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                              {exactCases.length}
+                            </span>
+                          ) : null}
+                        </TabsTrigger>
                         <TabsTrigger value="consentimiento" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Consentimiento</TabsTrigger>
                       </TabsList>
                     </div>
@@ -1145,10 +1256,124 @@ export default function CrmPeopleWorkspace({
                         </section>
                       </TabsContent>
                       <TabsContent value="casos" className="m-0 p-4">
-                        <section className="rounded-xl border border-border/70 bg-card p-4">
-                          <div className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4 text-primary" />Casos y solicitudes</div>
-                          <p className="mt-3 text-sm text-muted-foreground">{selectedPerson.motivo ? `Motivo asociado: ${selectedPerson.motivo}` : "No hay un caso asociado publicado en este resumen."}</p>
-                          {selectedPerson.conversationStatus ? <Badge className="mt-3" variant="outline">{intentLabel(selectedPerson.conversationStatus)}</Badge> : null}
+                        <section
+                          className="rounded-xl border border-border/70 bg-card p-4"
+                          aria-busy={contactHistory.isLoading || contactHistory.isFetching}
+                          aria-label="Casos exactos del contacto"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2 font-semibold">
+                                <FileText className="h-4 w-4 text-primary" />
+                                Casos y solicitudes
+                              </div>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                Solo relaciones exactas publicadas por el backend para este tenant.
+                              </p>
+                            </div>
+                            {casesContractVerified ? (
+                              <Badge variant="outline">
+                                {caseCountSummary}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          {!selectedPerson.contactId ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4">
+                              <p className="text-sm font-semibold">Sin identidad CRM verificable</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                No se buscan casos por nombre, teléfono ni email. Este registro necesita una identidad de contacto persistida.
+                              </p>
+                            </div>
+                          ) : contactHistory.isLoading ? (
+                            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                              <Skeleton className="h-28 w-full" />
+                              <Skeleton className="h-28 w-full" />
+                            </div>
+                          ) : contactHistory.error ? (
+                            <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert">
+                              <p className="text-sm font-semibold">No pudimos verificar los casos</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{contactHistory.error}</p>
+                              <Button className="mt-3 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
+                                <RefreshCw className="h-4 w-4" />
+                                Reintentar
+                              </Button>
+                            </div>
+                          ) : !contactHistory.data ? (
+                            <p className="mt-4 text-sm text-muted-foreground">Verificando relaciones exactas...</p>
+                          ) : contactHistory.data.casesContractStatus !== "verified" ? (
+                            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                              <p className="text-sm font-semibold">Casos exactos no disponibles</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                El backend no publicó el contrato crm.contact_cases.v1. No se realiza ninguna búsqueda aproximada.
+                              </p>
+                            </div>
+                          ) : hasVerifiedZeroCases ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4">
+                              <p className="text-sm font-semibold">Sin caso exacto asociado</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                No existe una relación persistida por identidad de ticket para este contacto.
+                              </p>
+                            </div>
+                          ) : exactCases.length === 0 ? (
+                            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                              <p className="text-sm font-semibold">Vínculos parciales sin apertura segura</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                El backend informó referencias truncadas, inexactas o inválidas. No se abre ningún caso hasta contar con una identidad verificable.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                              {exactCases.map((caseItem) => (
+                                <article
+                                  key={caseItem.caseKey}
+                                  className="flex min-w-0 flex-col rounded-xl border border-border/70 bg-background/60 p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                                        {caseSourceLabel(caseItem)}
+                                      </p>
+                                      <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{caseItem.title}</h3>
+                                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                                        {caseItem.sourceModel} · #{caseItem.ticketId}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 shrink-0 gap-1.5"
+                                      aria-label={`Abrir caso ${caseItem.title}`}
+                                      onClick={() => onOpenTicketDesk(caseItem.href)}
+                                    >
+                                      Abrir
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-1.5">
+                                    {caseItem.category ? <Badge variant="secondary">{caseValueLabel(caseItem.category)}</Badge> : null}
+                                    {caseItem.status ? <Badge variant="outline">{caseValueLabel(caseItem.status)}</Badge> : null}
+                                    {caseItem.channel ? <Badge variant="outline">{channelLabel(caseItem.channel)}</Badge> : null}
+                                  </div>
+                                  <p className="mt-auto pt-3 text-[11px] text-muted-foreground">
+                                    Última actividad: {formatDate(caseItem.updatedAt || caseItem.createdAt)}
+                                  </p>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+
+                          {contactHistory.data?.casesRejected ? (
+                            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                              {contactHistory.data.casesRejected} referencia(s) inválida(s) fueron descartadas de forma segura.
+                            </p>
+                          ) : null}
+                          {contactHistory.data?.casesTruncated ? (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              La vista está limitada por el backend. Abrí el centro de reclamos para consultar el resto.
+                            </p>
+                          ) : null}
                         </section>
                       </TabsContent>
                       <TabsContent value="consentimiento" className="m-0 p-4">
