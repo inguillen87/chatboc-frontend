@@ -1715,7 +1715,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           <AlertDescription className="space-y-4">
             <p>
               {operationsHeatmap?.map_narrative?.body ||
-                'No encontramos reclamos geocodificados con los filtros aplicados. Ampliá el período o limpiá la segmentación para recuperar cobertura.'}
+                'No encontramos reclamos con coordenadas mapeadas para los filtros aplicados. Ampliá el período o limpiá la segmentación para recuperar cobertura.'}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" onClick={expandToNinetyDays}>

@@ -545,7 +545,7 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   healthy: 'Operación estable',
   degraded: 'Operación parcial',
   client_filter: 'Filtro operativo',
-  interactive_globe_heatmap: 'Mapa de calor interactivo',
+  interactive_globe_heatmap: 'Mapa territorial interactivo',
   show_geocoding_queue_and_ai_summary: 'Mostrar ubicaciones pendientes y resumen operativo',
   local_fallback: 'Análisis local seguro',
   municipal_risk_detection: 'Detección municipal de riesgos',
@@ -589,7 +589,7 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   surveys: 'Encuestas',
   analytics_events: 'Eventos operativos',
   whatsapp: 'WhatsApp',
-  points: 'Puntos geolocalizados',
+  points: 'Puntos mapeados',
   cells: 'Zonas agregadas',
   layers: 'Capas de análisis',
 };

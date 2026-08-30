@@ -1129,7 +1129,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-popup-context')).toBe('territory');
     expect(liveMap.getAttribute('data-bounds-padding')).toBe('{"top":40,"right":40,"bottom":40,"left":40}');
     expect(screen.getAllByText('Cobertura parcial').length).toBeGreaterThan(0);
-    expect(screen.getByText('Mapa de calor interactivo')).toBeTruthy();
+    expect(screen.getByText('Mapa territorial interactivo')).toBeTruthy();
     expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ubicaciones pendientes').length).toBeGreaterThan(0);
     const executiveStrip = screen.getByTestId('territory-executive-strip');
