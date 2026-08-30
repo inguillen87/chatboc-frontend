@@ -156,10 +156,14 @@ describe('PremiumTerritoryHeatmap', () => {
     const layout = screen.getByTestId('territory-map-layout');
     const mapShell = screen.getByTestId('territory-map-shell');
     const executiveRail = screen.getByTestId('territory-executive-rail');
+    const executiveStrip = screen.getByTestId('territory-executive-strip');
     const intelligenceDetails = screen.getByTestId('territory-intelligence-details');
     const intelligenceWorkspace = screen.getByTestId('territory-intelligence-workspace');
 
     expect(layout).toHaveClass('items-start');
+    expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('order-3');
+    expect(layout).toHaveClass('order-4');
+    expect(executiveStrip).toHaveClass('order-5');
     expect(mapShell).toHaveClass('self-start');
     expect(intelligenceWorkspace).toHaveClass('lg:grid-cols-2');
     expect(intelligenceWorkspace).not.toHaveClass('2xl:grid-cols-3');
@@ -170,6 +174,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(screen.getByTestId('territory-filter-toolbar')).toHaveClass('sticky');
+    expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Registros territoriales 6');
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getAllByRole('radio').map((control) => control.textContent)).toEqual([
       'Mapa operativo',

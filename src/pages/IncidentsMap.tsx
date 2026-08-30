@@ -1353,16 +1353,16 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5 p-3 sm:p-4 lg:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-[1400px] space-y-3 p-3 sm:p-4 lg:p-5">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Inteligencia territorial CRM
           </p>
-          <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
+          <h1 className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
             Mapa operativo de reclamos y demanda territorial
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Priorización por zona, categoría, estado y actividad reciente sobre el mapa operativo.
           </p>
         </div>
@@ -1402,10 +1402,10 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       ) : null}
 
       <section
-        className="rounded-2xl border border-border/70 bg-card/95 p-3 shadow-sm"
+        className="rounded-xl border border-border/70 bg-card/95 p-2 shadow-sm"
         data-testid="incidents-filter-command"
       >
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
               <SlidersHorizontal className="h-4 w-4" />
@@ -1440,15 +1440,15 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               />
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[180px_auto_auto] xl:min-w-[520px]">
+          <div className="grid items-center gap-2 sm:grid-cols-3 lg:grid-cols-[180px_auto_auto] xl:min-w-[520px]">
               <div>
-                <label htmlFor="territoryTimeRange" className="block text-sm font-medium text-muted-foreground mb-1">
+                <label htmlFor="territoryTimeRange" className="sr-only">
                   Cobertura del mapa
                 </label>
                 <select
                   id="territoryTimeRange"
                   aria-describedby="territoryTimeRangeHelp"
-                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className="block h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-primary sm:text-sm"
                   value={timeRange}
                   onChange={(e) => setDateRange(e.target.value as typeof timeRange)}
                 >
@@ -1458,7 +1458,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                   <option value="90d">Últimos 90 días</option>
                   <option value="custom">Personalizado</option>
                 </select>
-                <p id="territoryTimeRangeHelp" className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                <p id="territoryTimeRangeHelp" className="sr-only">
                   Independiente del período operativo.
                 </p>
               </div>
@@ -1477,7 +1477,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           </div>
         </div>
 
-        <details className="group mt-3 rounded-xl border border-dashed border-border/70 bg-muted/25">
+        <details className="group mt-2 rounded-lg border border-dashed border-border/70 bg-muted/25">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-foreground">
             <span className="inline-flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
@@ -1732,11 +1732,22 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
         </Alert>
       ) : heatmapContractSource === 'operations_v2' && operationsHeatmap ? (
         <>
+          <PremiumTerritoryHeatmap
+            points={operationsHeatmap.points}
+            heatmap={operationsHeatmap}
+            labels={operationsHeatmap.ui?.labels}
+            activeFilters={premiumActiveFilters}
+            mapConfig={premiumMapConfig}
+            minSampleSize={operationsHeatmap.privacy?.minimum_sample_size}
+            allowDemoFallback={false}
+            tenantSlug={canonicalTenantSlug}
+            className="min-h-[560px]"
+          />
           <div
             data-testid="operations-heatmap-evidence"
-            className="rounded-2xl border border-primary/25 bg-primary/5 p-4 shadow-sm"
+            className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 shadow-sm"
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-semibold text-foreground">Calidad y privacidad de los datos</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1766,7 +1777,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                 </span>
               </div>
             </div>
-            <details className="mt-3 border-t border-primary/15 pt-3 text-xs text-muted-foreground">
+            <details className="mt-2 border-t border-primary/15 pt-2 text-xs text-muted-foreground">
               <summary className="w-fit cursor-pointer font-medium text-foreground transition hover:text-primary">
                 Ver detalles técnicos de auditoría
               </summary>
@@ -1799,17 +1810,6 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               </div>
             </details>
           </div>
-          <PremiumTerritoryHeatmap
-            points={operationsHeatmap.points}
-            heatmap={operationsHeatmap}
-            labels={operationsHeatmap.ui?.labels}
-            activeFilters={premiumActiveFilters}
-            mapConfig={premiumMapConfig}
-            minSampleSize={operationsHeatmap.privacy?.minimum_sample_size}
-            allowDemoFallback={false}
-            tenantSlug={canonicalTenantSlug}
-            className="min-h-[560px]"
-          />
         </>
       ) : (
       <>

@@ -263,17 +263,19 @@ describe('IncidentsMap', () => {
     );
 
     const map = await screen.findByTestId('mock-premium-territory-map');
+    const evidence = screen.getByTestId('operations-heatmap-evidence');
     expect(map).toHaveAttribute('data-points', '2');
     expect(map).toHaveAttribute('data-privacy-mode', 'employee_aggregated');
     expect(map).toHaveAttribute('data-min-sample-size', '5');
     expect(map).toHaveAttribute('data-demo-fallback', 'false');
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
+    expect(map.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(evidence).toHaveTextContent(
       'Calidad y privacidad de los datos',
     );
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
+    expect(evidence).toHaveTextContent(
       'Privacidad protegida desde 5 casos',
     );
-    expect(screen.getByTestId('operations-heatmap-evidence')).toHaveTextContent(
+    expect(evidence).toHaveTextContent(
       '2 respuestas simuladas excluidas',
     );
     expect(screen.getByText('Ver detalles técnicos de auditoría')).toBeInTheDocument();

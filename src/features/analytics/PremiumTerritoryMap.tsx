@@ -2222,9 +2222,13 @@ export function PremiumTerritoryHeatmap({
   return (
     <section className={cn('flex flex-col gap-4', className)} style={{ containerType: 'inline-size' }}>
       <style>{`@container (min-width: 1080px) { [data-territory-map-layout="${svgId}"] { grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); } }`}</style>
-      <div className="order-1 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="order-1 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <div>
+            <h3 className="text-lg font-semibold tracking-normal text-foreground">{title}</h3>
+            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
               {executiveProvenanceLabel}
@@ -2237,16 +2241,6 @@ export function PremiumTerritoryHeatmap({
               {readiness.state === 'ready' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
               {executiveReadinessLabel}
             </Badge>
-            <Badge variant="outline" className="gap-1">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              mínimo {effectiveMinSampleSize}
-            </Badge>
-            {heatmap?.privacy?.mode ? (
-              <Badge variant="outline" className="gap-1 capitalize">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {privacyModeLabel(heatmap.privacy.mode)}
-              </Badge>
-            ) : null}
             {jurisdictionEnforced && jurisdictionLabel ? (
               <Badge data-testid="territory-jurisdiction" variant="outline" className="gap-1">
                 <MapPin className="h-3.5 w-3.5" />
@@ -2271,41 +2265,37 @@ export function PremiumTerritoryHeatmap({
               </Badge>
             ) : null}
           </div>
-          <div>
-            <h3 className="text-xl font-semibold tracking-normal text-foreground">{title}</h3>
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
-          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-right sm:min-w-[430px] sm:grid-cols-4">
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">
-              {scopedTerritoryView.mode === 'single'
-                ? 'Registros del segmento'
-                : scopedTerritoryView.mode === 'combined'
-                  ? 'Puntos mapeados'
-                  : 'Registros territoriales'}
-            </p>
-            <p data-testid="territory-header-volume" className="text-lg font-semibold">
+        <p
+          data-testid="territory-primary-summary"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground lg:max-w-[420px] lg:justify-end lg:text-right"
+          aria-label="Resumen de cobertura territorial"
+        >
+          <span>
+            {scopedTerritoryView.mode === 'single'
+              ? 'Registros del segmento'
+              : scopedTerritoryView.mode === 'combined'
+                ? 'Puntos mapeados'
+                : 'Registros territoriales'}{' '}
+            <strong data-testid="territory-header-volume" className="font-semibold text-foreground">
               {formatNumber(overallEventTotal)}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Cobertura</p>
-            <p data-testid="territory-header-coverage" className="text-lg font-semibold">
+            </strong>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Cobertura{' '}
+            <strong data-testid="territory-header-coverage" className="font-semibold text-foreground">
               {scopedCoverageLabel}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Ubicaciones pendientes</p>
-            <p data-testid="territory-header-pending" className="text-lg font-semibold">
+            </strong>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Pendientes{' '}
+            <strong data-testid="territory-header-pending" className="font-semibold text-foreground">
               {scopedPendingLabel}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Frecuencia configurada</p>
-            <p className="text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
-          </div>
-        </div>
+            </strong>
+          </span>
+        </p>
       </div>
 
       {activeFilters.length ? (
@@ -2461,7 +2451,7 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div className="order-2 flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="order-2 flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de lectura del mapa">
           {focusModes.map((mode) => {
             const Icon = mode.icon;
@@ -2555,9 +2545,9 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-filter-toolbar"
-        className="order-3 sticky top-20 z-30 rounded-xl border border-border/70 bg-background/95 p-4 shadow-md backdrop-blur"
+        className="order-3 sticky top-20 z-30 rounded-xl border border-border/70 bg-background/95 p-3 shadow-md backdrop-blur"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 shrink-0 text-primary" />
@@ -2568,7 +2558,7 @@ export function PremiumTerritoryHeatmap({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Elegí una categoría, zona o corredor. El mapa y todos los indicadores responden a la misma selección.
             </p>
           </div>
@@ -2586,13 +2576,13 @@ export function PremiumTerritoryHeatmap({
           </Button>
         </div>
 
-        <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
-          <label htmlFor={`${svgId}-category-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+        <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-2">
+          <label htmlFor={`${svgId}-category-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
             <span className="text-xs font-semibold text-foreground">Categoría de reclamo</span>
             <select
               id={`${svgId}-category-filter`}
               aria-label="Filtrar mapa por categoría"
-              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapCategoryFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -2608,7 +2598,7 @@ export function PremiumTerritoryHeatmap({
                 </option>
               ))}
             </select>
-            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {mapCategoryFacets.length ? (
                 <TerritoryFacetCounts facet={selectedCategoryFacet ?? territorialRecordCounts} />
               ) : categoryBreakdownProtected ? (
@@ -2619,12 +2609,12 @@ export function PremiumTerritoryHeatmap({
             </span>
           </label>
 
-          <label htmlFor={`${svgId}-zone-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+          <label htmlFor={`${svgId}-zone-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
             <span className="text-xs font-semibold text-foreground">Zona o barrio</span>
             <select
               id={`${svgId}-zone-filter`}
               aria-label="Filtrar mapa por zona o barrio"
-              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapZoneFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -2640,7 +2630,7 @@ export function PremiumTerritoryHeatmap({
                 </option>
               ))}
             </select>
-            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {selectedZoneFacet ? (
                 <TerritoryFacetCounts facet={selectedZoneFacet} />
               ) : zoneBreakdownProtected ? (
@@ -2653,7 +2643,7 @@ export function PremiumTerritoryHeatmap({
             </span>
           </label>
 
-          <label htmlFor={`${svgId}-location-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-3">
+          <label htmlFor={`${svgId}-location-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
             <span className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
               Corredor o celda
               <span className="font-normal text-muted-foreground">Sin domicilio exacto</span>
@@ -2661,7 +2651,7 @@ export function PremiumTerritoryHeatmap({
             <select
               id={`${svgId}-location-filter`}
               aria-label="Filtrar mapa por corredor o celda"
-              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapAddressCellFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -2677,7 +2667,7 @@ export function PremiumTerritoryHeatmap({
                 </option>
               ))}
             </select>
-            <span className="mt-2 block min-h-5 text-[11px] leading-5 text-muted-foreground">
+            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {selectedAddressCellFacet ? (
                 <TerritoryFacetCounts facet={selectedAddressCellFacet} />
               ) : addressCellBreakdownProtected ? (
@@ -3444,6 +3434,18 @@ export function PremiumTerritoryHeatmap({
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {scopedTerritoryView.globalInsightsCompatible ? executiveReadinessDetail : scopedMetricsDetail}
             </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="gap-1">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                mínimo {effectiveMinSampleSize}
+              </Badge>
+              {heatmap?.privacy?.mode ? (
+                <Badge variant="outline" className="gap-1 capitalize">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {privacyModeLabel(heatmap.privacy.mode)}
+                </Badge>
+              ) : null}
+            </div>
             {realtimeSources.length || realtimeEvents.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...realtimeSources, ...realtimeEvents].slice(0, 4).map((item) => (
