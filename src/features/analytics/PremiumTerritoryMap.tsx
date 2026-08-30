@@ -8,6 +8,7 @@ import {
   Compass,
   DatabaseZap,
   Eye,
+  Filter,
   Gauge,
   Globe2,
   Layers,
@@ -135,7 +136,47 @@ type TerritoryMapFacet = {
   volume?: number;
 };
 
+type ScopedTerritoryView = {
+  mode: 'global' | 'single' | 'combined';
+  label: string;
+  visiblePointCount: number;
+  total?: number;
+  mappedCount: number;
+  pendingGeocodeCount?: number;
+  outsideJurisdictionCount?: number;
+  coveragePercent?: number;
+  selectedFacet?: TerritoryMapFacet;
+  globalInsightsCompatible: boolean;
+};
+
 const compactWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const withoutDiacritics = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const MAX_ADDRESS_CORRIDOR_FACETS = 6;
+
+const NARRATIVE_LOCATION_PATTERN =
+  /^(?:justamente|luminaria|la\s+luminaria|hay\s+(?:un|una)|se\s+encuentra|quiero|necesito|solicito|reclamo|bache|el\s+bache|arbol\s+caido|basura|por\s+favor|frente\s+a|al\s+lado)\b|\b(?:apagada|apagado|no\s+funciona|sin\s+luz|roto|rota|caido|caida|desbordado|desbordada)\b/i;
+
+const normalizedStreetKeyPart = (value: string) =>
+  withoutDiacritics(value)
+    .toLocaleLowerCase('es-AR')
+    .replace(/^(?:avenida|av(?:da)?)\s*[.:]?\s+/, 'av ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const streetCorridorFacetKey = (value: string) => {
+  const normalizedParts = value
+    .split(/\s*\/\s*/)
+    .map(normalizedStreetKeyPart)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, 'es'));
+  return normalizedFacetValue(`street:${normalizedParts.join(':intersection:')}`);
+};
+
+const streetCorridorLabel = (corridor: string) =>
+  corridor.includes(' / ') ? `Intersección ${corridor}` : `Corredor ${corridor}`;
 
 const stableLocationCode = (value: string) => {
   const hash = Array.from(value).reduce((total, character) => (total * 33 + character.charCodeAt(0)) >>> 0, 5381);
@@ -150,26 +191,71 @@ const stableLocationCode = (value: string) => {
  */
 const safeStreetCorridor = (value: string | undefined) => {
   if (!value) return undefined;
-  const withoutCoordinates = value.replace(/-?\d{1,3}\.\d{3,}\s*[,;/]\s*-?\d{1,3}\.\d{3,}/g, '');
+  const compactValue = compactWhitespace(value)
+    .replace(/^(?:ubicaci[oó]n|direcci[oó]n|domicilio)\s*[:\-]\s*/i, '')
+    .split(/[\n\r|;]/, 1)[0]
+    .trim();
+  const narrativeCandidate = withoutDiacritics(compactValue).toLocaleLowerCase('es-AR');
+  if (!compactValue || compactValue.length > 96 || /[!?]/.test(compactValue) || NARRATIVE_LOCATION_PATTERN.test(narrativeCandidate)) {
+    return undefined;
+  }
+
+  const withoutCoordinates = compactValue.replace(/-?\d{1,3}[.,]\d{3,}\s*[,;/]\s*-?\d{1,3}[.,]\d{3,}/g, '');
   const withoutUnit = withoutCoordinates.replace(
     /\b(?:piso|depto\.?|departamento|unidad|lote|casa|oficina)\b.*$/i,
     '',
   );
-  const withoutHouseNumber = withoutUnit
-    .replace(/\b(?:altura|nro\.?|n[°º]|numero|número)\s*\d+[a-z]?\b/gi, '')
-    .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?=$|[\s,])/gi, ' ')
-    .replace(/\s*[,;]\s*(?:jun[ií]n|mendoza|argentina)\b.*$/i, '');
-  const normalized = compactWhitespace(withoutHouseNumber.replace(/^[,;\s]+|[,;\s]+$/g, ''));
-  if (!isNamedFacetValue(normalized) || normalized.length < 3) return undefined;
+  const withoutGeographicSuffix = withoutUnit
+    .replace(/\b(?:c\.?p\.?|c[oó]digo\s+postal)\s*:?\s*[a-z]?\d{4,8}[a-z]{0,3}\b.*$/i, '')
+    .replace(/\s*,\s*[a-z]\d{4}[a-z]{0,3}\s*,\s*(?:mz|mza|mendoza)\s*,\s*(?:ar|argentina)\b.*$/i, '')
+    .replace(/\s*,\s*[a-z]\d{4}[a-z]{0,3}\b.*$/i, '')
+    .replace(/\s*[,\-]\s*[a-z]?\d{4}\s*[,\-]\s*(?:jun[ií]n|mendoza|argentina)\b.*$/i, '')
+    .replace(/\s*[,\-]\s*(?:jun[ií]n|mendoza|buenos\s+aires|argentina)\b.*$/i, '')
+    .replace(/\s+(?:en\s+)?jun[ií]n(?:\s+centro)?(?:\s*,?\s*(?:mendoza|buenos\s+aires|argentina))?\s*$/i, '')
+    .replace(/\s+(?:jun[ií]n(?:\s*,?\s*mendoza)?|mendoza|argentina)\s*$/i, '');
+  const normalizeStreetSegment = (segment: string) =>
+    compactWhitespace(
+      segment
+        .replace(/\b(?:altura|nro\.?|n[°º]|numero|número)\s*\d+[a-z]?\b/gi, '')
+        .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?:\s+bis)?(?=$|[\s,])/gi, ' ')
+        .replace(/^(?:avenida|av(?:da)?)\s*[.:]?\s+/i, 'Av. ')
+        .replace(/\s*[,;:\-]+\s*$/g, '')
+        .replace(/^[,;:\s]+|[,;:\s]+$/g, ''),
+    );
+  const intersectionParts = withoutGeographicSuffix
+    .split(/\s+(?:esquina(?:\s+con)?|y)\s+|\s*\/\s*/i)
+    .map(normalizeStreetSegment)
+    .filter(Boolean);
+  const normalized =
+    intersectionParts.length === 2 && normalizedStreetKeyPart(intersectionParts[0]) !== normalizedStreetKeyPart(intersectionParts[1])
+      ? intersectionParts
+          .slice()
+          .sort((left, right) => normalizedStreetKeyPart(left).localeCompare(normalizedStreetKeyPart(right), 'es'))
+          .join(' / ')
+      : normalizeStreetSegment(withoutGeographicSuffix);
+  const normalizedForValidation = withoutDiacritics(normalized).toLocaleLowerCase('es-AR');
+  if (
+    !isNamedFacetValue(normalized) ||
+    normalized.length < 3 ||
+    normalized.length > 64 ||
+    normalized.split(/\s+/).length > 9 ||
+    NARRATIVE_LOCATION_PATTERN.test(normalizedForValidation) ||
+    !/[a-záéíóúüñ]/i.test(normalized)
+  ) {
+    return undefined;
+  }
   return normalized;
 };
 
 const safeAggregateCellLabel = (value: string | undefined) => {
   if (!value) return undefined;
   const normalized = compactWhitespace(value);
-  if (!isNamedFacetValue(normalized)) return undefined;
-  if (/\b(?:celda|sector|zona|barrio|distrito|cuadr[ií]cula|tramo|corredor)\b/i.test(normalized)) {
-    return normalized;
+  const normalizedForValidation = withoutDiacritics(normalized).toLocaleLowerCase('es-AR');
+  if (!isNamedFacetValue(normalized) || normalized.length > 64 || NARRATIVE_LOCATION_PATTERN.test(normalizedForValidation)) {
+    return undefined;
+  }
+  if (/^(?:celda|sector|zona|barrio|distrito|cuadr[ií]cula|tramo|corredor)\b/i.test(normalized)) {
+    return compactWhitespace(normalized.replace(/\b([a-záéíóúüñ]{3,})\s+#?\d{2,6}[a-z]?(?:\s+bis)?\b/gi, '$1'));
   }
   return safeStreetCorridor(normalized);
 };
@@ -203,8 +289,8 @@ const safeLocationFacetForPoint = (point: OperationsHeatmapPoint): SafeLocationF
   );
   if (corridor) {
     return {
-      key: normalizedFacetValue(`street:${corridor}`),
-      label: `Corredor ${corridor}`,
+      key: streetCorridorFacetKey(corridor),
+      label: streetCorridorLabel(corridor),
       kind: 'street',
     };
   }
@@ -384,7 +470,7 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     addressCellLabel: locationFacet?.label,
     addressCellKey: locationFacet?.key,
     addressCorridorKey: addressCorridor
-      ? normalizedFacetValue(`street:${addressCorridor}`)
+      ? streetCorridorFacetKey(addressCorridor)
       : undefined,
     cellId: readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id),
     locationQuality: readString(point.location_quality, point.locationQuality, point.geocode_quality),
@@ -1114,8 +1200,9 @@ export function PremiumTerritoryHeatmap({
     declaredOutsideJurisdictionCount,
     outsidePointsRejectedByFrontend,
   );
+  const jurisdictionCityLabel = readString(heatmap?.jurisdiction?.city);
   const jurisdictionLabel = [
-    readString(heatmap?.jurisdiction?.city),
+    jurisdictionCityLabel,
     readString(heatmap?.jurisdiction?.state_name),
   ]
     .filter((value): value is string => Boolean(value))
@@ -1193,6 +1280,13 @@ export function PremiumTerritoryHeatmap({
         if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
         const key = normalizedFacetValue(rawKey);
         const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+        const rawCategoryMatchKeys = Array.isArray(facet.raw_categories)
+          ? facet.raw_categories.flatMap((item) => {
+              const rawCategory = asRecord(item);
+              const value = readString(rawCategory?.key, rawCategory?.label);
+              return value ? [normalizedFacetValue(value)] : [];
+            })
+          : [];
         return {
           key,
           label: humanizeCategoryValue(rawLabel),
@@ -1200,7 +1294,7 @@ export function PremiumTerritoryHeatmap({
           mappedCount: Math.max(0, readNumber(facet.mapped_count) ?? 0),
           pendingGeocodeCount: Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
           outsideJurisdictionCount: Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
-          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel)])),
+          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel), ...rawCategoryMatchKeys])),
           color: categoryColorFor(rawKey),
         };
       })
@@ -1278,13 +1372,13 @@ export function PremiumTerritoryHeatmap({
     canonicalAddressFacets.forEach((facet) => {
       const corridor = safeStreetCorridor(readString(facet.label, facet.key));
       if (!corridor) return;
-      const key = normalizedFacetValue(`street:${corridor}`);
+      const key = streetCorridorFacetKey(corridor);
       const current = canonical.get(key);
       const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
       const mappedCount = Math.max(0, readNumber(facet.mapped_count) ?? 0);
       canonical.set(key, {
         key,
-        label: current?.label ?? `Corredor ${corridor}`,
+        label: current?.label ?? streetCorridorLabel(corridor),
         total: (current?.total ?? 0) + total,
         mappedCount: (current?.mappedCount ?? 0) + mappedCount,
         pendingGeocodeCount:
@@ -1318,7 +1412,8 @@ export function PremiumTerritoryHeatmap({
 
     return (canonicalAddressFacets.length > 0 ? Array.from(canonical.values()) : Array.from(fallback.values()))
       .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
-      .sort((left, right) => (right.volume ?? right.total) - (left.volume ?? left.total) || left.label.localeCompare(right.label, 'es'));
+      .sort((left, right) => (right.volume ?? right.total) - (left.volume ?? left.total) || left.label.localeCompare(right.label, 'es'))
+      .slice(0, MAX_ADDRESS_CORRIDOR_FACETS);
   }, [addressCellFacetsSuppressed, canonicalAddressFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
   const territorialRecordCounts = useMemo(() => {
     const summary = heatmap?.territorial_facets?.summary;
@@ -1525,6 +1620,11 @@ export function PremiumTerritoryHeatmap({
   const hasBackendMapContract = Boolean(
     mapLayers?.contract_version || backendTopCategory || backendTotalCases !== undefined || backendVisibleLayers !== undefined,
   );
+  const territoryScopeBadgeLabel = hasTerritoryBoundaries
+    ? confidenceLabel(aggregate.confidence)
+    : jurisdictionEnforced
+      ? `Alcance configurado${jurisdictionCityLabel ? ` · ${jurisdictionCityLabel}` : ''}`
+      : 'Sin límites oficiales';
   const hotspotActionSummaries = uniqueActionSummaries([
     ...(heatmap?.hotspot_actions?.actions ?? []),
     ...(heatmap?.hotspot_actions?.playbook ?? []),
@@ -1534,7 +1634,7 @@ export function PremiumTerritoryHeatmap({
   const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
     const safeCandidateCorridor = safeStreetCorridor(candidate.address);
     const contextLabel = readString(
-      safeCandidateCorridor ? `Corredor ${safeCandidateCorridor}` : undefined,
+      safeCandidateCorridor ? streetCorridorLabel(safeCandidateCorridor) : undefined,
       candidate.label,
       candidate.category,
     );
@@ -1632,6 +1732,61 @@ export function PremiumTerritoryHeatmap({
       showCommerceLayer,
     ],
   );
+  const selectedTerritorialFacets = useMemo(
+    () =>
+      [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].filter(
+        (facet): facet is TerritoryMapFacet => Boolean(facet),
+      ),
+    [selectedAddressCellFacet, selectedCategoryFacet, selectedZoneFacet],
+  );
+  const hasCanonicalTerritorialSummary = Boolean(heatmap?.territorial_facets?.summary || heatmap?.location_quality);
+  const scopedTerritoryView = useMemo<ScopedTerritoryView>(() => {
+    if (selectedTerritorialFacets.length === 1) {
+      const facet = selectedTerritorialFacets[0];
+      return {
+        mode: 'single',
+        label: facet.label,
+        visiblePointCount: visibleLiveMapPoints.length,
+        total: facet.total,
+        mappedCount: facet.mappedCount,
+        pendingGeocodeCount: facet.pendingGeocodeCount,
+        outsideJurisdictionCount: facet.outsideJurisdictionCount,
+        coveragePercent: facet.total > 0 ? (facet.mappedCount / facet.total) * 100 : undefined,
+        selectedFacet: facet,
+        globalInsightsCompatible: false,
+      };
+    }
+    if (selectedTerritorialFacets.length > 1) {
+      return {
+        mode: 'combined',
+        label: 'Combinación de filtros',
+        visiblePointCount: visibleLiveMapPoints.length,
+        mappedCount: visibleLiveMapPoints.length,
+        globalInsightsCompatible: false,
+      };
+    }
+    const total = territorialRecordCounts.total;
+    const mappedCount = territorialRecordCounts.mappedCount;
+    return {
+      mode: 'global',
+      label: 'Vista general',
+      visiblePointCount: visibleLiveMapPoints.length,
+      total,
+      mappedCount,
+      pendingGeocodeCount: hasCanonicalTerritorialSummary ? territorialRecordCounts.pendingGeocodeCount : readiness.pendingGeocode,
+      outsideJurisdictionCount: territorialRecordCounts.outsideJurisdictionCount,
+      coveragePercent:
+        hasCanonicalTerritorialSummary && total > 0 ? (mappedCount / total) * 100 : readiness.coveragePercent,
+      globalInsightsCompatible: true,
+    };
+  }, [
+    hasCanonicalTerritorialSummary,
+    readiness.coveragePercent,
+    readiness.pendingGeocode,
+    selectedTerritorialFacets,
+    territorialRecordCounts,
+    visibleLiveMapPoints.length,
+  ]);
   const activeZeroMappedFacet = [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].find(
     (facet): facet is TerritoryMapFacet => Boolean(facet && facet.mappedCount === 0),
   );
@@ -1676,26 +1831,52 @@ export function PremiumTerritoryHeatmap({
       showCommerceLayer,
     ],
   );
-  const visiblePointCount = readiness.visiblePoints ?? sourcePoints.length;
-  const overallEventTotal = hasTerritoryBoundaries
-    ? aggregate.totalEvents
-    : sourcePoints.reduce((total, point) => total + Math.max(0, readNumber(point.weight, point.count, point.total, point.value) ?? 1), 0);
+  const visiblePointCount = scopedTerritoryView.visiblePointCount;
+  const overallEventTotal = scopedTerritoryView.total ?? scopedTerritoryView.mappedCount;
+  const scopedCoverageLabel = scopedTerritoryView.coveragePercent === undefined ? '—' : formatPercent(scopedTerritoryView.coveragePercent);
+  const scopedPendingLabel =
+    scopedTerritoryView.pendingGeocodeCount === undefined ? '—' : formatNumber(scopedTerritoryView.pendingGeocodeCount, '0');
+  const scopedOutsideJurisdictionCount = scopedTerritoryView.outsideJurisdictionCount;
+  const scopedVisiblePointLabel = visiblePointCountProtected ? '—' : formatNumber(visiblePointCount, '0');
+  const scopedMetricsUnavailable = scopedTerritoryView.mode === 'combined';
+  const scopedMetricsDetail = scopedMetricsUnavailable
+    ? 'La intersección no tiene denominador canónico; sólo se muestran puntos mapeados.'
+    : `${scopedCoverageLabel} de cobertura del alcance`;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
-  const decisionAction = narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction;
+  const decisionAction = scopedTerritoryView.globalInsightsCompatible
+    ? narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction
+    : undefined;
   const decisionActionLabel =
     decisionAction?.label ??
-    (readiness.pendingGeocode > 0
+    (scopedTerritoryView.mode === 'single'
+      ? (scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+        ? `Revisar pendientes de ${scopedTerritoryView.label}`
+        : `Revisar ${scopedTerritoryView.label}`
+      : scopedTerritoryView.mode === 'combined'
+        ? 'Revisar combinación filtrada'
+      : readiness.pendingGeocode > 0
       ? 'Resolver ubicaciones pendientes'
       : readiness.state === 'ready'
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
   const decisionActionDetail =
     decisionAction?.detail ??
-    (hasTerritoryBoundaries
+    (scopedTerritoryView.mode === 'single'
+      ? `${formatCountLabel(scopedTerritoryView.mappedCount, 'registro mapeado', 'registros mapeados')} de ${formatNumber(scopedTerritoryView.total, '0')} en el segmento.`
+      : scopedTerritoryView.mode === 'combined'
+        ? scopedMetricsDetail
+      : hasTerritoryBoundaries
       ? decisionZone.recommendation
       : 'La actividad puntual sigue disponible; las comparaciones por zona requieren límites oficiales.');
-  const commandLoopHref = decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href;
-  const commandPrimaryCategory = backendTopCategory
+  const commandLoopHref =
+    scopedTerritoryView.mode === 'single' && (scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+      ? `/perfil?tab=tickets&focus=open_geocoding_queue&facet=${encodeURIComponent(scopedTerritoryView.selectedFacet?.key ?? '')}`
+      : scopedTerritoryView.globalInsightsCompatible
+        ? decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href
+        : undefined;
+  const commandPrimaryCategory = !scopedTerritoryView.globalInsightsCompatible
+    ? scopedTerritoryView.label
+    : backendTopCategory
     ? humanizeCategoryValue(backendTopCategory)
     : decisionZone.topCategories[0]?.label ??
       aggregate.topCategories[0]?.label ??
@@ -1727,95 +1908,129 @@ export function PremiumTerritoryHeatmap({
   });
   const hudBars = [
     { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
-    { id: 'hotspots', label: 'zonas', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' },
-    { id: 'pend', label: 'pend.', value: readiness.pendingGeocode ?? 0, tone: 'rgba(245,158,11,0.86)' },
+    ...(scopedTerritoryView.globalInsightsCompatible
+      ? [{ id: 'hotspots', label: 'zonas', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' }]
+      : []),
+    ...(scopedTerritoryView.pendingGeocodeCount === undefined
+      ? []
+      : [{ id: 'pend', label: 'pend.', value: scopedTerritoryView.pendingGeocodeCount, tone: 'rgba(245,158,11,0.86)' }]),
   ];
   const hudMax = Math.max(1, ...hudBars.map((bar) => bar.value));
-  const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+  const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2; testId: string }> = [
     {
       label: 'Puntos visibles',
-      value: formatNumber(visiblePointCount, '0'),
-      detail: `${formatPercent(readiness.coveragePercent)} de cobertura territorial`,
+      value: scopedVisiblePointLabel,
+      detail: visiblePointCountProtected ? `Muestra protegida · mínimo ${effectiveMinSampleSize}` : scopedMetricsDetail,
       icon: Eye,
+      testId: 'territory-summary-visible',
     },
     {
       label: 'Pendientes',
-      value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, 'Estado no confirmado') : 'sin ubicaciones pendientes',
+      value: scopedPendingLabel,
+      detail: scopedMetricsUnavailable
+        ? 'No disponible para filtros combinados'
+        : geocodingStatus
+          ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
+          : 'sin ubicaciones pendientes',
       icon: DatabaseZap,
+      testId: 'territory-summary-pending',
     },
     {
-      label: 'Foco territorial',
+      label: scopedTerritoryView.globalInsightsCompatible ? 'Foco territorial' : 'Segmento activo',
       value: commandPrimaryCategory,
       detail:
-        backendFocusCount !== undefined
+        scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? 'Sin ranking global para esta intersección'
+        : backendFocusCount !== undefined
           ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
             ? 'sin ranking zonal'
             : decisionZone.suppressed
             ? 'muestra insuficiente'
-            : decisionZone.zone.label,
+             : decisionZone.zone.label,
       icon: Compass,
+      testId: 'territory-summary-focus',
     },
     {
       label: 'Próxima acción',
       value: decisionActionLabel,
       detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
+      testId: 'territory-summary-action',
     },
   ];
-  const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+  const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2; testId: string }> = [
     {
-      label: 'Foco crítico',
+      label: scopedTerritoryView.globalInsightsCompatible ? 'Foco crítico' : 'Alcance filtrado',
       value:
-        backendCriticalHotspots !== undefined
+        scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? formatCountLabel(visiblePointCount, 'punto mapeado', 'puntos mapeados')
+        : backendCriticalHotspots !== undefined
           ? formatCountLabel(backendCriticalHotspots, 'zona crítica', 'zonas críticas')
           : formatCountLabel(aggregate.alerts, 'alerta', 'alertas'),
       detail: commandPrimaryCategory,
       icon: ShieldAlert,
+      testId: 'territory-command-scope',
     },
     {
       label: 'Acción siguiente',
       value: decisionActionLabel,
       detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
+      testId: 'territory-command-action',
     },
     {
       label: 'Cobertura territorial',
-      value: formatPercent(readiness.coveragePercent),
-      detail: formatCountLabel(visiblePointCount, 'punto visible', 'puntos visibles'),
+      value: scopedCoverageLabel,
+      detail: visiblePointCountProtected
+        ? `Muestra protegida · mínimo ${effectiveMinSampleSize}`
+        : formatCountLabel(visiblePointCount, 'punto visible', 'puntos visibles'),
       icon: Gauge,
+      testId: 'territory-command-coverage',
     },
     {
       label: 'Actualización',
       value: realtimeFreshness.label,
       detail: commandRealtimeDetail,
       icon: Activity,
+      testId: 'territory-command-freshness',
     },
   ];
   const commandSignals = [
     {
-      label: backendTopCategory ? 'Motivo prioritario' : 'Zona foco',
-      value: backendTopCategory
+      label: scopedTerritoryView.globalInsightsCompatible ? (backendTopCategory ? 'Motivo prioritario' : 'Zona foco') : 'Segmento activo',
+      value: !scopedTerritoryView.globalInsightsCompatible
+        ? scopedTerritoryView.label
+        : backendTopCategory
         ? humanizeCategoryValue(backendTopCategory)
         : hasTerritoryBoundaries
           ? decisionZone.zone.label
           : 'Sin delimitación oficial',
       detail:
-        backendFocusCount !== undefined
+        scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? 'Sin ranking global para filtros combinados'
+        : backendFocusCount !== undefined
           ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
             ? `${formatCountLabel(visiblePointCount, 'punto', 'puntos')} · ${dataProvenance.shortLabel} · sin agregación zonal`
             : decisionZone.suppressed
             ? 'muestra insuficiente'
-            : formatCountLabel(decisionZone.total, 'evento', 'eventos'),
+          : formatCountLabel(decisionZone.total, 'evento', 'eventos'),
       icon: MapPin,
+      testId: 'territory-radar-scope',
     },
     {
       label: 'Cobertura',
-      value: formatPercent(readiness.coveragePercent),
-      detail: executiveReadinessLabel,
+      value: scopedCoverageLabel,
+      detail: scopedMetricsUnavailable ? 'No disponible para filtros combinados' : executiveReadinessLabel,
       icon: Gauge,
+      testId: 'territory-radar-coverage',
     },
     {
       label: 'Capas activas',
@@ -1825,12 +2040,18 @@ export function PremiumTerritoryHeatmap({
           : `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
       detail: hasBackendMapContract ? backendRenderer : aiModeLabel,
       icon: Layers,
+      testId: 'territory-radar-layers',
     },
     {
       label: 'Datos pendientes',
-      value: formatNumber(readiness.pendingGeocode, '0'),
-       detail: geocodingStatus ? humanizeContractValue(geocodingStatus, 'Estado no confirmado') : 'sin cola visible',
+      value: scopedPendingLabel,
+      detail: scopedMetricsUnavailable
+        ? 'No disponible para filtros combinados'
+        : geocodingStatus
+          ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
+          : 'sin cola visible',
       icon: DatabaseZap,
+      testId: 'territory-radar-pending',
     },
   ];
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
@@ -1872,15 +2093,15 @@ export function PremiumTerritoryHeatmap({
                 Alcance · {jurisdictionLabel}
               </Badge>
             ) : null}
-            {outsideJurisdictionCount > 0 ? (
+            {scopedOutsideJurisdictionCount !== undefined && scopedOutsideJurisdictionCount > 0 ? (
               <Badge
                 data-testid="territory-outside-jurisdiction"
                 variant="outline"
                 className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
-                aria-label={`${formatCountLabel(outsideJurisdictionCount, 'coordenada', 'coordenadas')} fuera de jurisdicción, excluidas del mapa y pendientes de revisión`}
+                aria-label={`${formatCountLabel(scopedOutsideJurisdictionCount, 'coordenada', 'coordenadas')} fuera de jurisdicción, excluidas del mapa y pendientes de revisión`}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Fuera de jurisdicción / revisar · {formatNumber(outsideJurisdictionCount)}
+                Fuera de jurisdicción / revisar · {formatNumber(scopedOutsideJurisdictionCount)}
               </Badge>
             ) : null}
             {hasWarning ? (
@@ -1897,16 +2118,28 @@ export function PremiumTerritoryHeatmap({
         </div>
         <div className="grid grid-cols-2 gap-2 text-right sm:min-w-[430px] sm:grid-cols-4">
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Volumen ponderado</p>
-            <p className="text-lg font-semibold">{formatNumber(overallEventTotal)}</p>
+            <p className="text-xs text-muted-foreground">
+              {scopedTerritoryView.mode === 'single'
+                ? 'Registros del segmento'
+                : scopedTerritoryView.mode === 'combined'
+                  ? 'Puntos mapeados'
+                  : 'Registros territoriales'}
+            </p>
+            <p data-testid="territory-header-volume" className="text-lg font-semibold">
+              {formatNumber(overallEventTotal)}
+            </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">Cobertura</p>
-            <p className="text-lg font-semibold">{formatPercent(readiness.coveragePercent)}</p>
+            <p data-testid="territory-header-coverage" className="text-lg font-semibold">
+              {scopedCoverageLabel}
+            </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">Ubicaciones pendientes</p>
-            <p className="text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
+            <p data-testid="territory-header-pending" className="text-lg font-semibold">
+              {scopedPendingLabel}
+            </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">Frecuencia configurada</p>
@@ -1955,18 +2188,14 @@ export function PremiumTerritoryHeatmap({
           </div>
           <Badge variant="outline" className="w-fit gap-1">
             <Activity className="h-3.5 w-3.5" />
-            {hasBackendMapContract
-              ? 'contrato operativo disponible'
-              : hasTerritoryBoundaries
-                ? 'límites oficiales activos'
-                : 'sin límites oficiales'}
+            {territoryScopeBadgeLabel}
           </Badge>
         </div>
         <div className="grid divide-y divide-border/70 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
           {executiveSummaryCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="min-w-0 p-4">
+              <div key={card.label} data-testid={card.testId} className="min-w-0 p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
@@ -2018,7 +2247,12 @@ export function PremiumTerritoryHeatmap({
           {commandLoopCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} data-testid="territory-command-card" className="min-w-0 p-4">
+              <div
+                key={card.label}
+                data-testid="territory-command-card"
+                data-metric={card.testId}
+                className="min-w-0 p-4"
+              >
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
@@ -2053,7 +2287,7 @@ export function PremiumTerritoryHeatmap({
             {commandSignals.map((signal) => {
               const Icon = signal.icon;
               return (
-                <div key={signal.label} className="min-w-0 p-4">
+                <div key={signal.label} data-testid={signal.testId} className="min-w-0 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">{signal.label}</span>
@@ -2253,7 +2487,7 @@ export function PremiumTerritoryHeatmap({
                 {preferredVisualization.slice(0, 27)}
               </text>
               <text x="8" y="17" className="fill-slate-200 text-[1.75px]">
-                foco: {decisionZone.zone.label.slice(0, 20)}
+                foco: {(scopedTerritoryView.globalInsightsCompatible ? decisionZone.zone.label : scopedTerritoryView.label).slice(0, 20)}
               </text>
               {hudBars.map((bar, index) => {
                 const y = 22.8 + index * 2.9;
@@ -2273,20 +2507,22 @@ export function PremiumTerritoryHeatmap({
                 );
               })}
             </g>
-            <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
-              <circle r={decisionRadarRadius} fill="none" stroke="rgba(34,211,238,0.28)" strokeWidth="0.24" strokeDasharray="1.4 1.6" />
-              <circle r={decisionRadarRadius * 0.58} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
-              <path
-                d={`M 0 0 L ${decisionRadarRadius} 0 A ${decisionRadarRadius} ${decisionRadarRadius} 0 0 1 ${decisionRadarRadius * 0.42} ${decisionRadarRadius * 0.91} Z`}
-                fill={`url(#${svgId}-radar-wedge)`}
-              >
-                {!shouldReduceMotion ? (
-                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
-                ) : null}
-              </path>
-              <line x1={-decisionRadarRadius} x2={decisionRadarRadius} y1="0" y2="0" stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
-              <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
-            </g>
+            {scopedTerritoryView.globalInsightsCompatible ? (
+              <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
+                <circle r={decisionRadarRadius} fill="none" stroke="rgba(34,211,238,0.28)" strokeWidth="0.24" strokeDasharray="1.4 1.6" />
+                <circle r={decisionRadarRadius * 0.58} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
+                <path
+                  d={`M 0 0 L ${decisionRadarRadius} 0 A ${decisionRadarRadius} ${decisionRadarRadius} 0 0 1 ${decisionRadarRadius * 0.42} ${decisionRadarRadius * 0.91} Z`}
+                  fill={`url(#${svgId}-radar-wedge)`}
+                >
+                  {!shouldReduceMotion ? (
+                    <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
+                  ) : null}
+                </path>
+                <line x1={-decisionRadarRadius} x2={decisionRadarRadius} y1="0" y2="0" stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+                <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+              </g>
+            ) : null}
             <g data-testid="territory-comet-network" aria-hidden="true" opacity={showRealtimeLayer || focusMode === 'telemetry' ? 0.82 : 0.5}>
               {telemetryRoutes.map((route, index) => (
                 <g key={route.id} data-testid="territory-comet-route">
@@ -2503,11 +2739,13 @@ export function PremiumTerritoryHeatmap({
                   strokeWidth="1"
                   strokeLinecap="round"
                   pathLength="100"
-                  strokeDasharray={coverageArc(readiness.coveragePercent)}
+                  strokeDasharray={coverageArc(scopedTerritoryView.coveragePercent)}
                   transform="rotate(-90 84 12)"
                 />
                 <text x="84" y="12.8" textAnchor="middle" className="fill-slate-950 text-[2.8px] font-semibold dark:fill-white">
-                  {readiness.coveragePercent !== undefined ? Math.round(readiness.coveragePercent) : 0}%
+                  {scopedTerritoryView.coveragePercent !== undefined
+                    ? `${Math.round(scopedTerritoryView.coveragePercent)}%`
+                    : '—'}
                 </text>
                 {geocodingCandidates.map((candidate, index) => {
                   const x = 12 + index * 4.2;
@@ -2653,7 +2891,7 @@ export function PremiumTerritoryHeatmap({
                       </div>
                     ) : null}
                   </div>
-                  {(activeZeroMappedFacet?.pendingGeocodeCount ?? territorialRecordCounts.pendingGeocodeCount) > 0 ? (
+                  {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0 ? (
                     <a
                       href={`/perfil?tab=tickets&focus=open_geocoding_queue${
                         activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
@@ -2835,8 +3073,8 @@ export function PremiumTerritoryHeatmap({
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
                 <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
-              <Badge variant={badgeVariantForReadiness(readiness.state)}>
-                {hasTerritoryBoundaries ? confidenceLabel(aggregate.confidence) : 'sin límites'}
+              <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
+                {territoryScopeBadgeLabel}
               </Badge>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2845,14 +3083,18 @@ export function PremiumTerritoryHeatmap({
                   <Gauge className="h-3.5 w-3.5" />
                   Cobertura
                 </div>
-                <p className="mt-1 text-lg font-semibold">{formatPercent(readiness.coveragePercent)}</p>
+                <p data-testid="territory-rail-coverage" className="mt-1 text-lg font-semibold">
+                  {scopedCoverageLabel}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <DatabaseZap className="h-3.5 w-3.5" />
                   Ubicaciones pendientes
                 </div>
-                <p className="mt-1 text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
+                <p data-testid="territory-rail-pending" className="mt-1 text-lg font-semibold">
+                  {scopedPendingLabel}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -2860,7 +3102,9 @@ export function PremiumTerritoryHeatmap({
                   Alertas
                 </div>
                 <p className="mt-1 text-lg font-semibold">
-                  {hasTerritoryBoundaries ? formatNumber(aggregate.alerts) : '--'}
+                  {scopedTerritoryView.globalInsightsCompatible && hasTerritoryBoundaries
+                    ? formatNumber(aggregate.alerts)
+                    : '--'}
                 </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
@@ -2871,7 +3115,9 @@ export function PremiumTerritoryHeatmap({
                 <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{executiveReadinessDetail}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              {scopedTerritoryView.globalInsightsCompatible ? executiveReadinessDetail : scopedMetricsDetail}
+            </p>
             {realtimeSources.length || realtimeEvents.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...realtimeSources, ...realtimeEvents].slice(0, 4).map((item) => (
@@ -2903,7 +3149,24 @@ export function PremiumTerritoryHeatmap({
           </p>
         </div>
 
-          {hasBackendMapContract ? (
+          {!scopedTerritoryView.globalInsightsCompatible ? (
+            <div
+              data-testid="territory-scoped-insights-note"
+              className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-4 lg:col-span-2"
+            >
+              <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <p className="text-sm font-semibold">Lectura acotada · {scopedTerritoryView.label}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {scopedTerritoryView.mode === 'single'
+                    ? 'Totales, cobertura y pendientes provienen de la faceta territorial canónica. Los rankings globales quedan ocultos mientras este segmento está activo.'
+                    : 'Se muestran sólo los puntos que cumplen todos los filtros. Cobertura y pendientes no están disponibles porque el contrato no informa el denominador de esta intersección.'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {hasBackendMapContract && scopedTerritoryView.globalInsightsCompatible ? (
             <div data-testid="backend-map-contract-card" className="rounded-xl border border-cyan-500/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.08),hsl(var(--background)),rgba(124,58,237,0.07))] p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2946,7 +3209,7 @@ export function PremiumTerritoryHeatmap({
             </div>
           ) : null}
 
-          {operationalHotspots.length ? (
+          {operationalHotspots.length && scopedTerritoryView.globalInsightsCompatible ? (
             <div
               data-testid="operational-hotspots-panel"
               className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2"
@@ -3051,7 +3314,7 @@ export function PremiumTerritoryHeatmap({
             </div>
           </details>
 
-          {hasOperationalBrief ? (
+          {hasOperationalBrief && scopedTerritoryView.globalInsightsCompatible ? (
             <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

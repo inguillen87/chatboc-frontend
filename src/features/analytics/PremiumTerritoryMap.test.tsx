@@ -165,6 +165,107 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
   });
 
+  it('scopes executive metrics to Luminarias and avoids invented metrics for combined filters', () => {
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'luz-centro', lat: -33.081, lng: -68.469, categoria: 'Luminarias', barrio: 'Centro', weight: 1 },
+      {
+        id: 'luz-centro-2',
+        lat: -33.0805,
+        lng: -68.4685,
+        categoria: 'Alumbrado publico',
+        raw_category: 'Alumbrado publico',
+        barrio: 'Centro',
+        weight: 1,
+      },
+      { id: 'luz-norte', lat: -33.071, lng: -68.459, categoria: 'Luminarias', barrio: 'Norte', weight: 1 },
+      { id: 'bache-centro', lat: -33.082, lng: -68.47, categoria: 'Baches', barrio: 'Centro', weight: 1 },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'partial', coverage_percent: 19.1, visible_points: 12, pending_geocode: 34, can_render_heatmap: true },
+      location_quality: {
+        total_ticket_records: 63,
+        ticket_records_with_coordinates: 12,
+        ticket_records_pending_geocode: 34,
+        ticket_records_outside_jurisdiction: 9,
+        coordinate_coverage_pct: 19.1,
+      },
+      jurisdiction: { state: 'configured', enforced: true, city: 'Junín', state_name: 'Mendoza' },
+      territorial_facets: {
+        summary: { ticket_records: 63, mapped_records: 12, pending_geocode_records: 34, records_outside_jurisdiction: 9 },
+        categories: [
+          {
+            key: 'luminarias',
+            label: 'Luminarias',
+            count: 38,
+            mapped_count: 3,
+            pending_geocode_count: 23,
+            outside_jurisdiction_count: 9,
+            raw_categories: [
+              { key: 'Luminarias', label: 'Luminarias', count: 34 },
+              { key: 'Alumbrado publico', label: 'Alumbrado publico', count: 4 },
+            ],
+          },
+          { key: 'baches', label: 'Baches', count: 25, mapped_count: 9, pending_geocode_count: 11 },
+        ],
+        addresses: [],
+        explicit_zones: [],
+      },
+      map_narrative: {
+        headline: 'Narrativa territorial global',
+        operator_summary: 'Este texto sólo corresponde al universo sin filtros.',
+      },
+      operational_hotspots: [
+        { id: 'global-hotspot', key: 'global-hotspot', label: 'Global', operational_score: 99, signals: { tickets: 63 } },
+      ],
+      map_layers: {
+        contract_version: 'analytics.geo_layers.v1',
+        operator_metrics: { total_cases: 63, visible_layers: 4, top_category: 'baches', critical_hotspots: 1 },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por Luminarias' }));
+
+    expect(map).toHaveAttribute('data-points', '3');
+    expect(screen.getByTestId('territory-header-volume')).toHaveTextContent('38');
+    expect(screen.getByTestId('territory-header-coverage')).toHaveTextContent('7,9%');
+    expect(screen.getByTestId('territory-header-pending')).toHaveTextContent('23');
+    expect(screen.getByTestId('territory-summary-visible')).toHaveTextContent('Puntos visibles3');
+    expect(screen.getByTestId('territory-summary-pending')).toHaveTextContent('23');
+    expect(screen.getByTestId('territory-radar-coverage')).toHaveTextContent('7,9%');
+    expect(screen.getByTestId('territory-radar-pending')).toHaveTextContent('23');
+    expect(screen.getByTestId('territory-rail-coverage')).toHaveTextContent('7,9%');
+    expect(screen.getByTestId('territory-rail-pending')).toHaveTextContent('23');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent('Fuera de jurisdicción / revisar · 9');
+    expect(screen.getByTestId('territory-boundary-status')).toHaveTextContent('Alcance configurado · Junín');
+    expect(screen.getByTestId('territory-scoped-insights-note')).toHaveTextContent('faceta territorial canónica');
+    expect(screen.queryByTestId('backend-map-contract-card')).toBeNull();
+    expect(screen.queryByTestId('operational-hotspots-panel')).toBeNull();
+    expect(screen.queryByText('Narrativa territorial global')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por zona Centro' }));
+
+    expect(map).toHaveAttribute('data-points', '2');
+    expect(screen.getByTestId('territory-header-volume')).toHaveTextContent('2');
+    expect(screen.getByTestId('territory-header-coverage')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-header-pending')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-radar-coverage')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-radar-pending')).toHaveTextContent('—');
+    expect(screen.queryByTestId('territory-outside-jurisdiction')).toBeNull();
+    expect(screen.queryByTestId('territory-radar-sweep')).toBeNull();
+    expect(screen.getByTestId('territory-scoped-insights-note')).toHaveTextContent('no informa el denominador de esta intersección');
+  });
+
   it('filters by backend address cells while keeping household numbers out of the executive map', () => {
     const points: OperationsHeatmapPoint[] = [
       {
@@ -223,6 +324,78 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Sector Centro A' }));
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
+  });
+
+  it('unifies intersection order, removes geographic suffixes and bounds safe corridor facets', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'intersection-a',
+        lat: -33.081,
+        lng: -68.469,
+        categoria: 'Luminarias',
+        direccion: 'Don Bosco esquina Sarmiento, M5570, MZ, AR',
+      },
+      {
+        id: 'intersection-b',
+        lat: -33.082,
+        lng: -68.47,
+        categoria: 'Luminarias',
+        direccion: 'Sarmiento y Don Bosco en Junín centro',
+      },
+      {
+        id: 'narrative',
+        lat: -33.083,
+        lng: -68.471,
+        categoria: 'Luminarias',
+        direccion: 'Justamente al lado hay una luminaria apagada',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 3, can_render_heatmap: true },
+      territorial_facets: {
+        summary: { ticket_records: 20, mapped_records: 3 },
+        categories: [{ key: 'luminarias', label: 'Luminarias', count: 20, mapped_count: 3 }],
+        addresses: [
+          { key: 'don-bosco-sarmiento-a', label: 'Don Bosco esquina Sarmiento, M5570, MZ, AR', count: 5, mapped_count: 1 },
+          { key: 'don-bosco-sarmiento-b', label: 'Sarmiento y Don Bosco en Junín centro', count: 4, mapped_count: 1 },
+          { key: 'mitre-a', label: 'Av. Mitre 10, Junín', count: 3, mapped_count: 0 },
+          { key: 'mitre-b', label: 'Avenida Mitre 20, Mendoza', count: 2, mapped_count: 0 },
+          { key: 'belgrano', label: 'Belgrano 30, Junín', count: 2, mapped_count: 0 },
+          { key: 'rivadavia', label: 'Rivadavia 40, Junín', count: 1, mapped_count: 0 },
+          { key: 'san-martin', label: 'San Martín 50, Junín', count: 1, mapped_count: 0 },
+          { key: 'alem', label: 'Alem 60, Junín', count: 1, mapped_count: 0 },
+          { key: 'espejo', label: 'Espejo 70, Junín', count: 1, mapped_count: 0 },
+          { key: 'narrative', label: 'Luminaria apagada frente a la plaza', count: 99, mapped_count: 1 },
+        ],
+        explicit_zones: [],
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map.getAttribute('data-addresses')).toBe(
+      'Intersección Don Bosco / Sarmiento|Intersección Don Bosco / Sarmiento',
+    );
+    expect(document.body.textContent).not.toMatch(/M5570|\bMZ\b|\bAR\b|Junín centro|luminaria apagada frente/i);
+
+    const intersectionFilter = screen.getByRole('button', {
+      name: 'Filtrar mapa por ubicación Intersección Don Bosco / Sarmiento',
+    });
+    expect(intersectionFilter).toHaveTextContent('Total 9');
+    expect(intersectionFilter).toHaveTextContent('Mapeados 2');
+    expect(screen.getAllByRole('button', { name: /^Filtrar mapa por ubicación/ })).toHaveLength(6);
+
+    fireEvent.click(intersectionFilter);
+    expect(map).toHaveAttribute('data-points', '2');
   });
 
   it('separates outside-jurisdiction review from pending geocoding and never plots rejected coordinates', () => {
@@ -302,6 +475,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(document.body.textContent).not.toContain('Belgrano 999');
 
     expect(screen.getByTestId('territory-jurisdiction')).toHaveTextContent('Alcance · Junín, Mendoza');
+    expect(screen.getByTestId('territory-boundary-status')).toHaveTextContent('Alcance configurado · Junín');
+    expect(screen.queryByText(/^sin límites$/i)).toBeNull();
     expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
       'Fuera de jurisdicción / revisar · 1',
     );
