@@ -114,6 +114,55 @@ const sanitizeFilterValue = (value?: string | null): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const TERRITORY_PLACEHOLDER_VALUES = new Set([
+  '-',
+  'desconocida',
+  'desconocido',
+  'n a',
+  'na',
+  'no asignada',
+  'no asignado',
+  'no disponible',
+  'no informada',
+  'no informado',
+  'none',
+  'null',
+  'pendiente',
+  'pending',
+  'por definir',
+  's d',
+  'sd',
+  'sin barrio',
+  'sin dato',
+  'sin datos',
+  'sin distrito',
+  'sin localidad',
+  'sin zona',
+  'unassigned',
+  'undefined',
+  'unknown',
+  'unspecified',
+]);
+
+const normalizeTerritoryValue = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const isPublishedTerritoryValue = (value: unknown): value is string => {
+  if (typeof value !== 'string' || value.trim().length === 0) return false;
+  return !TERRITORY_PLACEHOLDER_VALUES.has(normalizeTerritoryValue(value));
+};
+
+const sanitizeTerritoryFilterValue = (value?: string | null): string | undefined => {
+  const sanitized = sanitizeFilterValue(value);
+  return sanitized && isPublishedTerritoryValue(sanitized) ? sanitized : undefined;
+};
+
 const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
   value.toLocaleString('es-AR', options);
 
@@ -309,7 +358,7 @@ const ageBucketsForRange = (minimum?: string, maximum?: string): string | undefi
 
 const getExplicitTerritoryLabel = (point: HeatPoint): string | null => {
   const value = [point.barrio, point.distrito, point.ciudad].find(
-    (candidate) => typeof candidate === 'string' && candidate.trim().length > 0,
+    isPublishedTerritoryValue,
   );
   return typeof value === 'string' ? value.trim() : null;
 };
@@ -633,8 +682,30 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
   const [appliedFilters, setAppliedFilters] = useState<IncidentMapFilters>(() =>
     defaultIncidentMapFilters(),
   );
-  const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
-  const [availableDistritos, setAvailableDistritos] = useState<string[]>([]);
+  const availableBarrios = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          heatmapData
+            .map((point) => point.barrio)
+            .filter(isPublishedTerritoryValue)
+            .map((value) => value.trim()),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [heatmapData],
+  );
+  const availableDistritos = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          heatmapData
+            .map((point) => point.distrito)
+            .filter(isPublishedTerritoryValue)
+            .map((value) => value.trim()),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [heatmapData],
+  );
   const [disableClustering, setDisableClustering] = useState(false);
   const [timeRange, setTimeRange] = useState<IncidentTimeRange>('30d');
   const { provider, setProvider } = useMapProvider();
@@ -702,16 +773,6 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       const points = dataset.points ?? [];
       setHeatmapData(points);
       setDisableClustering(computeDisableClustering(dataset));
-
-      const barrios = Array.from(
-        new Set(points.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
-      ).sort((a, b) => a.localeCompare(b));
-      setAvailableBarrios(barrios);
-
-      const distritos = Array.from(
-        new Set(points.map((d) => d.distrito).filter((d): d is string => Boolean(d))),
-      ).sort((a, b) => a.localeCompare(b));
-      setAvailableDistritos(distritos);
 
       if (options?.mergeFilters) {
         const categoriesFromPoints = Array.from(
@@ -839,8 +900,8 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       fecha_fin: sanitizeFilterValue(endDate),
       categoria: selectedCategories,
       estado: selectedStates,
-      distrito: sanitizeFilterValue(selectedDistrict),
-      barrio: sanitizeFilterValue(selectedBarrio),
+      distrito: sanitizeTerritoryFilterValue(selectedDistrict),
+      barrio: sanitizeTerritoryFilterValue(selectedBarrio),
       genero: sanitizeFilterValue(selectedGender),
       edad_min: sanitizeFilterValue(ageMin),
       edad_max: sanitizeFilterValue(ageMax),
@@ -1506,15 +1567,24 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                   id="barrio"
                   value={selectedBarrio}
                   onChange={(event) => setSelectedBarrio(event.target.value)}
+                  disabled={availableBarrios.length === 0}
+                  aria-describedby={availableBarrios.length === 0 ? 'barrio-availability' : undefined}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 >
-                  <option value="">Todos</option>
+                  <option value="">
+                    {availableBarrios.length > 0 ? 'Todos' : 'Sin barrios publicados'}
+                  </option>
                   {availableBarrios.map((b) => (
                     <option key={b} value={b}>
                       {b}
                     </option>
                   ))}
                 </select>
+                {availableBarrios.length === 0 ? (
+                  <p id="barrio-availability" className="mt-1 text-xs leading-5 text-muted-foreground">
+                    La fuente todavía no publicó barrios verificables para esta vista.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1524,15 +1594,24 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
                   id="district"
                   value={selectedDistrict}
                   onChange={(event) => setSelectedDistrict(event.target.value)}
+                  disabled={availableDistritos.length === 0}
+                  aria-describedby={availableDistritos.length === 0 ? 'district-availability' : undefined}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 >
-                  <option value="">Todos</option>
+                  <option value="">
+                    {availableDistritos.length > 0 ? 'Todos' : 'Sin distritos publicados'}
+                  </option>
                   {availableDistritos.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
                   ))}
                 </select>
+                {availableDistritos.length === 0 ? (
+                  <p id="district-availability" className="mt-1 text-xs leading-5 text-muted-foreground">
+                    La fuente todavía no publicó distritos verificables para esta vista.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label htmlFor="gender" className="block text-sm font-medium text-muted-foreground mb-1">

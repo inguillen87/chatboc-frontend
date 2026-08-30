@@ -18,6 +18,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     showPointLabels?: boolean;
     pointLabelMode?: string;
     heatmapRadiusScale?: number;
+    heatmapPalette?: string;
     popupContext?: string;
     boundsPadding?: { top?: number; right?: number; bottom?: number; left?: number };
     evidence?: unknown;
@@ -49,6 +50,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-show-point-labels={String(Boolean(props.showPointLabels))}
       data-point-label-mode={props.pointLabelMode ?? ''}
       data-heatmap-radius={String(props.heatmapRadiusScale ?? '')}
+      data-heatmap-palette={props.heatmapPalette ?? ''}
       data-popup-context={props.popupContext ?? ''}
       data-bounds-padding={JSON.stringify(props.boundsPadding ?? {})}
       data-evidence-present={String(Boolean(props.evidence))}
@@ -135,6 +137,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('true');
+    expect(map.getAttribute('data-heatmap-palette')).toBe('faro');
+    expect(map.getAttribute('data-heatmap-radius')).toBe('2.35');
     expect(legend).not.toHaveClass('absolute');
     expect(screen.queryByTestId('territory-boundary-empty-state')).toBeNull();
     expect(screen.queryByRole('button', { name: /sin_zona/i })).toBeNull();
@@ -149,10 +153,12 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por Baches' }));
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
+    expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
 
     fireEvent.click(screen.getByRole('button', { name: 'Filtrar mapa por zona Centro' }));
     expect(map.getAttribute('data-points')).toBe('1');
     expect(map.getAttribute('data-geo-features')).toBe('1');
+    expect(map.getAttribute('data-heatmap-radius')).toBe('2.8');
   });
 
   it('protects exact markers and small category or zone segments under aggregated privacy', () => {
@@ -463,7 +469,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-show-points')).toBe('true');
     expect(liveMap.getAttribute('data-show-point-labels')).toBe('true');
     expect(liveMap.getAttribute('data-point-label-mode')).toBe('categoria');
-    expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.45');
+    expect(liveMap.getAttribute('data-heatmap-radius')).toBe('1.9');
+    expect(liveMap.getAttribute('data-heatmap-palette')).toBe('faro');
     expect(liveMap.getAttribute('data-popup-context')).toBe('territory');
     expect(liveMap.getAttribute('data-bounds-padding')).toBe('{"top":40,"right":40,"bottom":40,"left":40}');
     expect(screen.getAllByText('Cobertura parcial').length).toBeGreaterThan(0);

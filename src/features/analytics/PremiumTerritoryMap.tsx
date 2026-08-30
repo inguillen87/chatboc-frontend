@@ -1229,6 +1229,14 @@ export function PremiumTerritoryHeatmap({
   );
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
+  const liveHeatmapRadiusScale =
+    visibleLiveMapPoints.length <= 2
+      ? 2.8
+      : visibleLiveMapPoints.length <= 5
+        ? 2.35
+        : visibleLiveMapPoints.length <= 12
+          ? 1.9
+          : 1.55;
   const liveMapBounds = useMemo(
     () => visibleLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
     [visibleLiveMapPoints],
@@ -1702,7 +1710,8 @@ export function PremiumTerritoryHeatmap({
                 pointLabelMode="categoria"
                 pointMinZoom={7}
                 pointLabelMinZoom={10}
-                heatmapRadiusScale={1.45}
+                heatmapRadiusScale={liveHeatmapRadiusScale}
+                heatmapPalette="faro"
                 popupContext="territory"
                 provider={liveMapProvider}
                 mapStyleUrl={mapConfig?.style_url}

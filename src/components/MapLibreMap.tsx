@@ -373,6 +373,32 @@ const appendPopupBreakdown = (
   parent.appendChild(section);
 };
 
+const TERRITORY_PLACEHOLDER_LABELS = new Set([
+  "sin zona",
+  "sin barrio",
+  "sin distrito",
+  "sin localidad",
+  "no informado",
+  "no informada",
+  "desconocido",
+  "desconocida",
+  "unknown",
+  "none",
+  "null",
+  "n/a",
+]);
+
+const presentTerritoryLabel = (value: unknown) => {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const label = String(value).trim();
+  if (!label) return undefined;
+  const normalized = label
+    .toLocaleLowerCase("es-AR")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  return TERRITORY_PLACEHOLDER_LABELS.has(normalized) ? undefined : label;
+};
+
 const appendPopupTicketLink = (
   parent: HTMLElement,
   ticketId: unknown,
@@ -415,12 +441,12 @@ export const buildMapClusterPopupContent = ({
       : Number(cluster.weight ?? 0);
 
     if (popupContext === "territory") {
-      const zone = cluster.barrio ?? cluster.distrito ?? "Ubicación representativa";
-      const locality = [zone, cluster.ciudad].filter(Boolean).join(" · ");
+      const zone = presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito);
+      const locality = [zone, presentTerritoryLabel(cluster.ciudad)].filter(Boolean).join(" · ");
       appendPopupText(
         root,
         "p",
-        locality || "Ubicación representativa",
+        locality || "Ubicación pendiente de verificar",
         "text-sm font-semibold text-slate-800",
       );
       if (cluster.categoria) {
@@ -455,7 +481,7 @@ export const buildMapClusterPopupContent = ({
         "text-sm font-semibold text-slate-800",
       );
 
-      const zone = cluster.barrio ?? cluster.distrito;
+      const zone = presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito);
       if (zone) {
         appendPopupText(root, "p", `Zona: ${zone}`, "text-xs text-slate-600");
       }
@@ -490,19 +516,19 @@ export const buildMapClusterPopupContent = ({
       );
     }
 
-    const topBarrio = cluster.aggregatedBarrios?.[0];
+    const topBarrio = cluster.aggregatedBarrios?.find((item) => presentTerritoryLabel(item.label));
     if (topBarrio) {
       appendPopupText(
         root,
         "p",
-        `Zona destacada: ${topBarrio.label} (${Number(topBarrio.percentage ?? 0).toFixed(1)}%)`,
+        `Zona destacada: ${presentTerritoryLabel(topBarrio.label)} (${Number(topBarrio.percentage ?? 0).toFixed(1)}%)`,
         "text-xs text-slate-600",
       );
-    } else if (cluster.barrio || cluster.distrito) {
+    } else if (presentTerritoryLabel(cluster.barrio) || presentTerritoryLabel(cluster.distrito)) {
       appendPopupText(
         root,
         "p",
-        `Zona: ${cluster.barrio ?? cluster.distrito}`,
+        `Zona: ${presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito)}`,
         "text-xs text-slate-600",
       );
     }
@@ -549,16 +575,16 @@ export const buildMapClusterPopupContent = ({
   const ticket = safeProperties.ticket;
   const categoria = safeProperties.categoria;
   const direccion = safeProperties.direccion;
-  const distrito = safeProperties.distrito;
+  const distrito = presentTerritoryLabel(safeProperties.distrito);
 
   if (popupContext === "territory") {
-    const barrio = safeProperties.barrio ?? distrito;
-    const ciudad = safeProperties.ciudad;
+    const barrio = presentTerritoryLabel(safeProperties.barrio) ?? distrito;
+    const ciudad = presentTerritoryLabel(safeProperties.ciudad);
     const locality = [barrio, ciudad].filter(Boolean).map(String).join(" · ");
     appendPopupText(
       root,
       "p",
-      locality || "Ubicación representativa",
+      locality || "Ubicación pendiente de verificar",
       "text-sm font-semibold text-slate-800",
     );
     if (categoria) {
@@ -603,7 +629,7 @@ export const buildMapClusterPopupContent = ({
         : "Participación territorial",
       "text-sm font-semibold text-slate-800",
     );
-    const zone = safeProperties.barrio ?? distrito;
+    const zone = presentTerritoryLabel(safeProperties.barrio) ?? distrito;
     if (zone) {
       appendPopupText(root, "p", `Zona: ${String(zone)}`, "text-xs text-slate-600");
     }

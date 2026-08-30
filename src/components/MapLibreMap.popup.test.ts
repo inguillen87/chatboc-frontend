@@ -101,4 +101,21 @@ describe('MapLibreMap popup content', () => {
     expect(node).not.toHaveTextContent('Ticket');
     expect(node.querySelector('a')).toBeNull();
   });
+
+  it('replaces technical territory placeholders with an honest pending-location message', () => {
+    const node = buildMapClusterPopupContent({
+      popupContext: 'territory',
+      properties: {
+        barrio: 'sin_zona',
+        distrito: 'unknown',
+        categoria: 'Alumbrado público',
+        totalWeight: 2,
+      },
+    });
+
+    expect(node).toHaveTextContent('Ubicación pendiente de verificar');
+    expect(node).toHaveTextContent('Categoría: Alumbrado público');
+    expect(node).not.toHaveTextContent('sin_zona');
+    expect(node).not.toHaveTextContent('unknown');
+  });
 });

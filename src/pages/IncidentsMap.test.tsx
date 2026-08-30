@@ -389,6 +389,101 @@ describe('IncidentsMap', () => {
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
   });
 
+  it('publishes only real barrio and distrito values in the territorial selectors', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(
+      operationsHeatmap({
+        points: [
+          {
+            id: 'ticket:1',
+            lat: -34.58,
+            lng: -60.94,
+            weight: 6,
+            barrio: 'sin_zona',
+            distrito: 'UNKNOWN',
+          },
+          {
+            id: 'ticket:2',
+            lat: -34.59,
+            lng: -60.95,
+            weight: 3,
+            barrio: 'Centro',
+            distrito: 'Distrito 1',
+          },
+          {
+            id: 'ticket:3',
+            lat: -34.6,
+            lng: -60.96,
+            weight: 2,
+            barrio: 'Sin barrio',
+            distrito: 'null',
+          },
+        ],
+      }),
+    );
+
+    render(<IncidentsMap />);
+    await screen.findByTestId('mock-premium-territory-map');
+
+    const barrio = screen.getByLabelText('Barrio') as HTMLSelectElement;
+    const distrito = screen.getByLabelText('Distrito') as HTMLSelectElement;
+
+    expect(barrio).toBeEnabled();
+    expect(Array.from(barrio.options).map((option) => option.text)).toEqual(['Todos', 'Centro']);
+    expect(distrito).toBeEnabled();
+    expect(Array.from(distrito.options).map((option) => option.text)).toEqual([
+      'Todos',
+      'Distrito 1',
+    ]);
+  });
+
+  it('disables unavailable territorial filters with an accessible, truthful explanation', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(
+      operationsHeatmap({
+        points: [
+          {
+            id: 'ticket:1',
+            lat: -34.58,
+            lng: -60.94,
+            weight: 6,
+            barrio: 'sin_zona',
+            distrito: 'sin_distrito',
+          },
+          {
+            id: 'ticket:2',
+            lat: -34.59,
+            lng: -60.95,
+            weight: 3,
+            barrio: 'No informado',
+            distrito: 'undefined',
+          },
+        ],
+      }),
+    );
+
+    render(<IncidentsMap />);
+    await screen.findByTestId('mock-premium-territory-map');
+
+    const barrio = screen.getByLabelText('Barrio');
+    const distrito = screen.getByLabelText('Distrito');
+
+    expect(barrio).toBeDisabled();
+    expect(barrio).toHaveAccessibleDescription(
+      'La fuente todavía no publicó barrios verificables para esta vista.',
+    );
+    expect(distrito).toBeDisabled();
+    expect(distrito).toHaveAccessibleDescription(
+      'La fuente todavía no publicó distritos verificables para esta vista.',
+    );
+    expect(screen.getByLabelText('Luminaria')).toBeEnabled();
+    expect(screen.getByLabelText('Nuevo')).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(2));
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(
+      expect.objectContaining({ zone: undefined }),
+    );
+  });
+
   it.each([404, 405, 501])(
     'falls back to visibly partial legacy evidence only for compatibility status %s',
     async (status) => {
