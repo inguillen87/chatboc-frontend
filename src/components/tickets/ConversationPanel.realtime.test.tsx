@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ResponseTemplate } from '@/features/tickets/responseTemplatesApi';
 import type { Ticket } from '@/types/tickets';
+import {
+  buildConversationDraftStorageKey,
+  readConversationDraft,
+} from './conversationDraftStorage';
 
 Object.defineProperty(URL, 'createObjectURL', {
   configurable: true,
@@ -211,6 +215,9 @@ describe('ConversationPanel tenant invalidation', () => {
 
   beforeEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
+    vi.mocked(URL.createObjectURL).mockClear();
+    vi.mocked(URL.revokeObjectURL).mockClear();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     harness.handlers.clear();
     harness.selectedTicket = selectedTicket;
@@ -1332,5 +1339,174 @@ describe('ConversationPanel tenant invalidation', () => {
     expect((composer as HTMLTextAreaElement).selectionStart).toBe(25);
     expect((composer as HTMLTextAreaElement).selectionEnd).toBe(25);
     expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('isolates versioned drafts by tenant, source model, ticket and authenticated operator', async () => {
+    const originTicket: Ticket = { ...selectedTicket, source_model: 'CustomTicket' };
+    const otherSourceTicket: Ticket = { ...originTicket, source_model: 'OtherTicket' };
+    const otherTenantTicket: Ticket = { ...otherSourceTicket, tenant_slug: 'ushuaia' };
+    harness.selectedTicket = originTicket;
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'Borrador Junín del operador 10' } });
+    const originKey = buildConversationDraftStorageKey({
+      tenant: 'junin',
+      sourceModel: 'CustomTicket',
+      ticketId: 77,
+      operator: 'id-10',
+    });
+    expect(readConversationDraft(originKey)).toBe('Borrador Junín del operador 10');
+
+    act(() => {
+      harness.selectedTicket = otherSourceTicket;
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Borrador del otro source model' },
+    });
+
+    act(() => {
+      harness.selectedTicket = otherTenantTicket;
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+
+    act(() => {
+      harness.user = { id: 20, name: 'Otra operadora', rol: 'admin', tenant_slug: 'ushuaia' };
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+
+    act(() => {
+      harness.user = { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' };
+      harness.selectedTicket = originTicket;
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' }))
+      .toHaveValue('Borrador Junín del operador 10'));
+  });
+
+  it('clears a non-persistable attachment and revokes its object URL when the expediente changes', async () => {
+    harness.selectedTicket = { ...selectedTicket, source_model: 'CustomTicket' };
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar archivo' }));
+    expect(await screen.findByAltText('Preview')).toBeInTheDocument();
+
+    act(() => {
+      harness.selectedTicket = { ...selectedTicket, id: 78, nro_ticket: 'CRM-78', source_model: 'CustomTicket' };
+      view.rerender(renderConversation());
+    });
+
+    await waitFor(() => expect(screen.queryByAltText('Preview')).not.toBeInTheDocument());
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:ticket-evidence-preview');
+  });
+
+  it('revokes the local attachment URL immediately after a successful send', async () => {
+    harness.selectedTicket = { ...selectedTicket, source_model: 'CustomTicket' };
+    harness.sendMessage.mockResolvedValue({ messages: [] });
+    render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar archivo' }));
+    expect(await screen.findByAltText('Preview')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+
+    await waitFor(() => expect(harness.sendMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.revokeObjectURL)
+      .toHaveBeenCalledWith('blob:ticket-evidence-preview'));
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not apply a late send success to another expediente and clears only the origin draft', async () => {
+    let resolveSend: ((value: Record<string, unknown>) => void) | null = null;
+    harness.sendMessage.mockReturnValue(new Promise((resolve) => {
+      resolveSend = resolve;
+    }));
+    const originTicket: Ticket = { ...selectedTicket, source_model: 'CustomTicket' };
+    const nextTicket: Ticket = { ...originTicket, id: 78, nro_ticket: 'CRM-78' };
+    harness.selectedTicket = originTicket;
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Respuesta exclusiva del expediente 77' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+    await waitFor(() => expect(harness.sendMessage).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      harness.selectedTicket = nextTicket;
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Borrador nuevo del expediente 78' },
+    });
+
+    await act(async () => {
+      resolveSend?.({
+        messages: [{
+          id: 'late-origin-success',
+          author: 'agent',
+          content: 'Resultado tardío del expediente 77',
+          timestamp: '2026-08-30T12:00:00Z',
+        }],
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Borrador nuevo del expediente 78');
+    expect(screen.queryByText('Resultado tardío del expediente 77')).not.toBeInTheDocument();
+    expect(readConversationDraft(buildConversationDraftStorageKey({
+      tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 77, operator: 'id-10',
+    }))).toBe('');
+    expect(readConversationDraft(buildConversationDraftStorageKey({
+      tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 78, operator: 'id-10',
+    }))).toBe('Borrador nuevo del expediente 78');
+  });
+
+  it('restores a late failed send only in the origin draft without changing the open expediente', async () => {
+    let rejectSend: ((reason?: unknown) => void) | null = null;
+    harness.sendMessage.mockReturnValue(new Promise((_resolve, reject) => {
+      rejectSend = reject;
+    }));
+    const originTicket: Ticket = { ...selectedTicket, source_model: 'CustomTicket' };
+    const nextTicket: Ticket = { ...originTicket, id: 78, nro_ticket: 'CRM-78' };
+    harness.selectedTicket = originTicket;
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Borrador que debe volver al expediente 77' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+    await waitFor(() => expect(harness.sendMessage).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      harness.selectedTicket = nextTicket;
+      view.rerender(renderConversation());
+    });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Trabajo actual del expediente 78' },
+    });
+
+    await act(async () => {
+      rejectSend?.(new Error('fallo tardío'));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Trabajo actual del expediente 78');
+    expect(readConversationDraft(buildConversationDraftStorageKey({
+      tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 77, operator: 'id-10',
+    }))).toBe('Borrador que debe volver al expediente 77');
+    expect(readConversationDraft(buildConversationDraftStorageKey({
+      tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 78, operator: 'id-10',
+    }))).toBe('Trabajo actual del expediente 78');
   });
 });

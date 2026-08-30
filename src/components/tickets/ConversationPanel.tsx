@@ -54,7 +54,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatTicketStatusLabel, getPublishedTicketTransitions } from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
-import { restoreComposerDraftAfterSendFailure } from './conversationDraftRecovery';
+import {
+  buildConversationDraftStorageKey,
+  persistConversationDraft,
+  readConversationDraft,
+  removeConversationDraft,
+} from './conversationDraftStorage';
 import { isTicketAiDraftEvent, TICKET_AI_DRAFT_EVENT_NAME } from './aiDraftEvents';
 import {
   deriveAttachmentInfoFromPayload,
@@ -943,12 +948,59 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const composerActionAttemptRef = useRef<ComposerActionAttempt | null>(null);
   const replyActionAttemptRef = useRef<ComposerActionAttempt | null>(null);
   const selectedTicketRef = useRef<Ticket | null>(selectedTicket);
-  const selectedConversationKey = selectedTicket
-    ? `${
-        selectedTicket.tenant_slug?.trim().toLowerCase() ||
-        (selectedTicket.tenant_id != null ? `tenant-id-${selectedTicket.tenant_id}` : 'tenant-unknown')
-      }:${selectedTicket.source_model || selectedTicket.tipo}:${selectedTicket.id}`
+  const operatorDraftScope = user?.id != null
+    ? `id-${user.id}`
+    : user?.email?.trim().toLowerCase() || null;
+  const tenantDraftScope = selectedTicket
+    ? selectedTicket.tenant_slug?.trim().toLowerCase() ||
+      (selectedTicket.tenant_id != null ? `tenant-id-${selectedTicket.tenant_id}` : null) ||
+      user?.tenant_slug?.trim().toLowerCase() ||
+      user?.tenantSlug?.trim().toLowerCase() ||
+      null
     : null;
+  const selectedConversationKey = selectedTicket
+    ? `${tenantDraftScope || 'tenant-ephemeral'}:${selectedTicket.source_model || selectedTicket.tipo}:${selectedTicket.id}`
+    : null;
+  const activeConversationScopeKey = selectedConversationKey
+    ? `${selectedConversationKey}:operator:${operatorDraftScope || 'operator-ephemeral'}`
+    : null;
+  const conversationDraftStorageKey = selectedTicket && tenantDraftScope && operatorDraftScope
+    ? buildConversationDraftStorageKey({
+      tenant: tenantDraftScope,
+      sourceModel: selectedTicket.source_model || selectedTicket.tipo,
+      ticketId: selectedTicket.id,
+      operator: operatorDraftScope,
+    })
+    : null;
+  const activeConversationScopeRef = useRef<string | null>(activeConversationScopeKey);
+  activeConversationScopeRef.current = activeConversationScopeKey;
+  const draftStorageKeyRef = useRef<string | null>(conversationDraftStorageKey);
+  const previousConversationScopeRef = useRef<string | null>(null);
+  const attachmentPreviewRef = useRef<{ file: File; previewUrl: string } | null>(null);
+  const attachmentUrlsByScopeRef = useRef(new Map<string, Set<string>>());
+  const pendingDraftsByScopeRef = useRef(new Map<string, string>());
+  const conversationScopeEpochRef = useRef(0);
+  const messageRef = useRef(message);
+  const updateActiveDraft = useCallback((next: string) => {
+    messageRef.current = next;
+    setMessage(next);
+    persistConversationDraft(draftStorageKeyRef.current, next);
+  }, []);
+  const revokeAttachmentUrlsForScope = useCallback((scopeKey: string | null) => {
+    if (!scopeKey) return;
+    const urls = attachmentUrlsByScopeRef.current.get(scopeKey);
+    urls?.forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+    attachmentUrlsByScopeRef.current.delete(scopeKey);
+  }, []);
+  const revokeAttachmentUrlForScope = useCallback((scopeKey: string | null, previewUrl: string) => {
+    if (!scopeKey || !previewUrl) return;
+    const urls = attachmentUrlsByScopeRef.current.get(scopeKey);
+    if (!urls?.delete(previewUrl)) return;
+    URL.revokeObjectURL(previewUrl);
+    if (urls.size === 0) attachmentUrlsByScopeRef.current.delete(scopeKey);
+  }, []);
   const statusOptions = getPublishedTicketTransitions(selectedTicket);
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
   const latestReadableMessageId = useMemo(
@@ -1050,8 +1102,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const canApplyReplyDraft = Boolean(replyDraft && !message.trim() && !listening && !isSending);
   const applyReplyDraft = useCallback(() => {
     if (!replyDraft || isSending || listening) return;
-    setMessage((prev) => (prev.trim() ? prev : replyDraft));
-  }, [isSending, listening, replyDraft]);
+    if (!messageRef.current.trim()) updateActiveDraft(replyDraft);
+  }, [isSending, listening, replyDraft, updateActiveDraft]);
   const activeChannel = selectedTicket?.channel || 'other';
   const responseTemplateTenantSlug =
     normalizeIdentityTenantSlug(selectedTicket?.tenant_slug) ||
@@ -1307,9 +1359,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   useEffect(() => {
     if (transcript) {
-      setMessage(prev => prev ? `${prev} ${transcript}` : transcript);
+      updateActiveDraft(messageRef.current ? `${messageRef.current} ${transcript}` : transcript);
     }
-  }, [transcript]);
+  }, [transcript, updateActiveDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1540,13 +1592,44 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const pollingFailureCountRef = useRef(0);
   const pollingPausedUntilRef = useRef(0);
   const lastReadStateSyncRef = useRef<string | null>(null);
-  const messageRef = useRef(message);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const composerSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     messageRef.current = message;
   }, [message]);
+
+  useEffect(() => {
+    conversationScopeEpochRef.current += 1;
+    const previousScope = previousConversationScopeRef.current;
+    if (previousScope && previousScope !== activeConversationScopeKey) {
+      revokeAttachmentUrlsForScope(previousScope);
+    }
+
+    previousConversationScopeRef.current = activeConversationScopeKey;
+    draftStorageKeyRef.current = conversationDraftStorageKey;
+    attachmentPreviewRef.current = null;
+    setAttachmentPreview(null);
+
+    const storedDraft = readConversationDraft(conversationDraftStorageKey);
+    const pendingDraft = activeConversationScopeKey
+      ? pendingDraftsByScopeRef.current.get(activeConversationScopeKey)
+      : null;
+    const nextDraft = pendingDraft === storedDraft ? '' : storedDraft;
+    messageRef.current = nextDraft;
+    setMessage(nextDraft);
+    setIsSending(false);
+    setIsUpdatingStatus(false);
+  }, [activeConversationScopeKey, conversationDraftStorageKey, revokeAttachmentUrlsForScope]);
+
+  useEffect(() => () => {
+    attachmentUrlsByScopeRef.current.forEach((urls) => {
+      urls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    });
+    attachmentUrlsByScopeRef.current.clear();
+  }, []);
 
   useEffect(() => {
     if (!selectedTicket) return;
@@ -1561,15 +1644,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
 
       const draft = event.detail.draft.trim();
-      setMessage(draft);
-      messageRef.current = draft;
+      updateActiveDraft(draft);
       window.requestAnimationFrame(() => composerRef.current?.focus());
       toast.success('Borrador IA cargado en la conversacion.');
     };
 
     window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
     return () => window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
-  }, [selectedConversationKey]);
+  }, [activeConversationScopeKey, selectedTicket, updateActiveDraft]);
 
   useEffect(() => {
     pollingFailureCountRef.current = 0;
@@ -1582,6 +1664,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     setShareActionDialogKind(null);
     setLastComposerActionResult(null);
     setRecipientPresenceActive(hasPublicRecipientPresence(selectedTicket?.realtime_state));
+    composerActionMutation.reset();
   }, [composerActionScopeKey]);
 
   useEffect(() => {
@@ -1839,20 +1922,44 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       toast.error(tenantAttachmentBlockReason);
       return;
     }
+    const previousPreview = attachmentPreviewRef.current;
+    if (previousPreview?.previewUrl) {
+      revokeAttachmentUrlForScope(activeConversationScopeKey, previousPreview.previewUrl);
+    }
     const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
-    setAttachmentPreview({ file, previewUrl });
-    // Revoke the object URL when the component unmounts or the preview changes
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
+    const nextPreview = { file, previewUrl };
+    attachmentPreviewRef.current = nextPreview;
+    setAttachmentPreview(nextPreview);
+    if (previewUrl && activeConversationScopeKey) {
+      const urls = attachmentUrlsByScopeRef.current.get(activeConversationScopeKey) ?? new Set<string>();
+      urls.add(previewUrl);
+      attachmentUrlsByScopeRef.current.set(activeConversationScopeKey, urls);
+    }
+  };
+
+  const handleDiscardAttachment = () => {
+    const current = attachmentPreviewRef.current;
+    if (current?.previewUrl) {
+      revokeAttachmentUrlForScope(activeConversationScopeKey, current.previewUrl);
+    }
+    attachmentPreviewRef.current = null;
+    setAttachmentPreview(null);
   };
 
   const handleSendMessage = async (payload?: Partial<SendPayload>) => {
-    const text = payload?.text || message;
+    const text = payload?.text ?? messageRef.current;
     if (!text.trim() && !payload?.attachmentInfo && !attachmentPreview) return;
     if (!selectedTicket || !user) return;
+    const sendScopeKey = activeConversationScopeKey;
+    const sendDraftStorageKey = conversationDraftStorageKey;
+    if (!sendScopeKey || !sendDraftStorageKey) return;
+    const sendScopeEpoch = conversationScopeEpochRef.current;
+    const ticketSnapshot = selectedTicket;
+    const usesComposerDraft = payload?.text == null;
+    const isSendScopeCurrent = () => (
+      activeConversationScopeRef.current === sendScopeKey &&
+      conversationScopeEpochRef.current === sendScopeEpoch
+    );
 
     const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
     if (tenantAttachmentMustFailClosed && hasAttachment) {
@@ -1908,7 +2015,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     setIsSending(true);
     setLastReplyDelivery(null);
 
-    const draftMessage = message;
+    const draftMessage = messageRef.current;
     const draftAttachmentPreview = attachmentPreview;
     let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
 
@@ -1933,8 +2040,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         attachmentInfo: attachmentData,
     };
     setMessages(prev => [...prev, optimisticMessage]);
-    setMessage('');
-    setAttachmentPreview(null); // Clear input immediately
+    if (usesComposerDraft) {
+      pendingDraftsByScopeRef.current.set(sendScopeKey, draftMessage);
+      messageRef.current = '';
+      setMessage('');
+    }
+    attachmentPreviewRef.current = null;
+    setAttachmentPreview(null); // Clear input immediately without persisting a File/blob URL.
 
     try {
       const response = authoritativeReplyRequired && replyAction && replyActionPayload
@@ -1954,18 +2066,26 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           });
         })()
         : await sendMessage(
-          selectedTicket.id,
-          selectedTicket.tipo,
+          ticketSnapshot.id,
+          ticketSnapshot.tipo,
           text,
           draftAttachmentPreview ? [draftAttachmentPreview.file] : undefined,
           payload?.action
             ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
             : undefined,
           {
-            ticket: selectedTicket,
-            tenantSlug: selectedTicket.tenant_slug,
+            ticket: ticketSnapshot,
+            tenantSlug: ticketSnapshot.tenant_slug,
           },
         );
+      if (usesComposerDraft) {
+        pendingDraftsByScopeRef.current.delete(sendScopeKey);
+        removeConversationDraft(sendDraftStorageKey, draftMessage);
+      }
+      if (draftAttachmentPreview?.previewUrl) {
+        revokeAttachmentUrlForScope(sendScopeKey, draftAttachmentPreview.previewUrl);
+      }
+      if (!isSendScopeCurrent()) return;
       if (!authoritativeReplyRequired) {
         const replyDelivery = normalizeTicketReplyDelivery((response as any)?.delivery);
         setLastReplyDelivery(replyDelivery);
@@ -1974,7 +2094,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
       }
       const responseMessages = extractResponseTicketMessages(response)
-        .map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket));
+        .map((msg) => adaptTicketMessageToChatMessage(msg, ticketSnapshot));
       setMessages((prev) => {
         const withoutOptimistic = prev.filter((item) => item.id !== optimisticMessage.id);
         if (responseMessages.length > 0) {
@@ -1984,7 +2104,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           ...withoutOptimistic,
           {
             ...optimisticMessage,
-            id: `sent-${selectedTicket.tipo}-${selectedTicket.id}-${Date.now()}`,
+            id: `sent-${ticketSnapshot.tipo}-${ticketSnapshot.id}-${Date.now()}`,
             attachmentInfo: optimisticMessage.attachmentInfo
               ? { ...optimisticMessage.attachmentInfo, isUploading: false }
               : undefined,
@@ -1992,17 +2112,24 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ]);
       });
     } catch (error) {
+      pendingDraftsByScopeRef.current.delete(sendScopeKey);
+      if (usesComposerDraft && !readConversationDraft(sendDraftStorageKey)) {
+        persistConversationDraft(sendDraftStorageKey, draftMessage);
+      }
+      if (!isSendScopeCurrent()) return;
       toast.error(getErrorMessage(error, 'No se pudo enviar el mensaje.'));
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
-      restoreComposerDraftAfterSendFailure({
-        payload,
-        draftMessage,
-        draftAttachmentPreview,
-        setMessage,
-        setAttachmentPreview,
-      });
+      if (usesComposerDraft && !messageRef.current) {
+        const restoredDraft = readConversationDraft(sendDraftStorageKey);
+        messageRef.current = restoredDraft;
+        setMessage(restoredDraft);
+      }
+      if (!payload?.attachmentInfo && draftAttachmentPreview) {
+        attachmentPreviewRef.current = draftAttachmentPreview;
+        setAttachmentPreview(draftAttachmentPreview);
+      }
     } finally {
-      setIsSending(false);
+      if (isSendScopeCurrent()) setIsSending(false);
     }
   };
 
@@ -2060,8 +2187,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const nextDraft = `${before}${insertedText}${after}`;
     const nextCaret = before.length + insertedText.length;
 
-    setMessage(nextDraft);
-    messageRef.current = nextDraft;
+    updateActiveDraft(nextDraft);
     composerSelectionRef.current = { start: nextCaret, end: nextCaret };
     window.requestAnimationFrame(() => {
       composerRef.current?.focus();
@@ -2100,6 +2226,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const handleStatusChange = async (newStatus: TicketStatus) => {
     if (!selectedTicket || isUpdatingStatus) return;
     const ticketSnapshot = selectedTicket;
+    const statusScopeKey = activeConversationScopeKey;
+    const statusScopeEpoch = conversationScopeEpochRef.current;
+    const isStatusScopeCurrent = () => (
+      activeConversationScopeRef.current === statusScopeKey &&
+      conversationScopeEpochRef.current === statusScopeEpoch
+    );
     setIsUpdatingStatus(true);
     try {
       const updatedTicket = await updateTicketStatus(
@@ -2111,6 +2243,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           expectedStatus: ticketSnapshot.estado,
         },
       );
+      if (!isStatusScopeCurrent()) return;
       const confirmedStatus = (updatedTicket.estado || newStatus) as TicketStatus;
       updateTicket(ticketSnapshot.id, {
         estado: confirmedStatus,
@@ -2119,6 +2252,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       });
       toast.success(`Estado actualizado a ${formatTicketStatusLabel(confirmedStatus)}`);
     } catch (error) {
+      if (!isStatusScopeCurrent()) return;
       console.error('Error updating ticket status:', error);
       const status = error instanceof ApiError ? error.status : (error as { status?: number })?.status;
       if (status === 409) {
@@ -2134,7 +2268,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         toast.error('No se pudo actualizar el estado.');
       }
     } finally {
-      setIsUpdatingStatus(false);
+      if (isStatusScopeCurrent()) setIsUpdatingStatus(false);
     }
   };
   const conversationTitle = selectedTicket.categoria || selectedTicket.asunto || selectedTicket.name || 'Conversacion';
@@ -2658,7 +2792,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 <p className="truncate text-sm font-medium text-foreground">{attachmentPreview.file.name}</p>
                 <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
               </div>
-              <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6" onClick={() => setAttachmentPreview(null)}>
+              <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6" onClick={handleDiscardAttachment}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -2755,7 +2889,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             )}
             rows={1}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => updateActiveDraft(e.target.value)}
             disabled={listening || isSending}
             onKeyDown={handleComposerKeyDown}
             maxLength={1000}
