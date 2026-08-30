@@ -1656,9 +1656,10 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div data-testid="territory-map-layout" className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div
-          className="relative min-h-[500px] overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+          data-testid="territory-map-shell"
+          className="relative min-h-[500px] self-start overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
           style={{ perspective: '1200px' }}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
@@ -2220,7 +2221,7 @@ export function PremiumTerritoryHeatmap({
           </div>
         </div>
 
-        <aside className="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
+        <aside data-testid="territory-executive-rail" className="space-y-4 self-start xl:sticky xl:top-24">
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -2275,6 +2276,26 @@ export function PremiumTerritoryHeatmap({
             ) : null}
           </div>
 
+        </aside>
+      </div>
+
+      <section
+        data-testid="territory-intelligence-workspace"
+        aria-labelledby={`${svgId}-territory-intelligence-title`}
+        className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+      >
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between 2xl:col-span-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inteligencia territorial</p>
+            <h4 id={`${svgId}-territory-intelligence-title`} className="mt-1 text-lg font-semibold">
+              Prioridades, capas y acciones en un solo espacio
+            </h4>
+          </div>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground lg:text-right">
+            El mapa conserva el foco visual; la evidencia secundaria se organiza debajo para comparar y actuar sin una columna interminable.
+          </p>
+        </div>
+
           {hasBackendMapContract ? (
             <div data-testid="backend-map-contract-card" className="rounded-xl border border-cyan-500/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.08),hsl(var(--background)),rgba(124,58,237,0.07))] p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
@@ -2321,7 +2342,7 @@ export function PremiumTerritoryHeatmap({
           {operationalHotspots.length ? (
             <div
               data-testid="operational-hotspots-panel"
-              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm"
+              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2 2xl:col-span-2"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2349,7 +2370,7 @@ export function PremiumTerritoryHeatmap({
                   <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.recent_24h), '0')}</p>
                 </div>
               </div>
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {operationalHotspots.slice(0, 3).map((hotspot, index) => {
                   const signals = asRecord(hotspot.signals);
                   const category = humanizeCategoryValue(readString(hotspot.top_category, hotspot.key, hotspot.label));
@@ -2400,12 +2421,17 @@ export function PremiumTerritoryHeatmap({
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+          <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
               Capas de análisis
             </div>
-            <div className="mt-3 space-y-2">
+              <Badge variant="outline" className="shrink-0">
+                {displayLayers.slice(0, 5).length} configuradas
+              </Badge>
+            </summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {displayLayers.slice(0, 5).map((layer) => (
                 <div key={`${layer.id}-summary`} className="rounded-lg border bg-muted/20 px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
@@ -2416,10 +2442,10 @@ export function PremiumTerritoryHeatmap({
                 </div>
               ))}
             </div>
-          </div>
+          </details>
 
           {hasOperationalBrief ? (
-            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm">
+            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2 2xl:col-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold">
@@ -2480,9 +2506,9 @@ export function PremiumTerritoryHeatmap({
                       <ListChecks className="h-3.5 w-3.5" />
                        Próximas acciones
                     </div>
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       {operationalActionSummaries
-                        .slice(0, 8)
+                        .slice(0, 6)
                         .map((action) => (
                           <div
                             key={`${action.label}-${action.detail ?? action.uiHint ?? ''}`}
@@ -2621,7 +2647,7 @@ export function PremiumTerritoryHeatmap({
           ) : (
             <div
               data-testid="territory-zone-analytics-unavailable"
-              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm"
+              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm lg:col-span-2 2xl:col-span-3"
             >
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4 text-primary" />
@@ -2633,8 +2659,7 @@ export function PremiumTerritoryHeatmap({
               </p>
             </div>
           )}
-        </aside>
-      </div>
+      </section>
     </section>
   );
 }

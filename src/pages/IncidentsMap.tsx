@@ -261,17 +261,25 @@ const heatPointsFromOperations = (heatmap: OperationsHeatmapV1): HeatPoint[] => 
 
 const chartsFromOperations = (heatmap: OperationsHeatmapV1): TicketStatsResponse['charts'] => {
   const chartSpecs = [
-    ['Por estado', heatmap.segments?.status],
-    ['Por categoría', heatmap.segments?.category],
-    ['Por zona', heatmap.segments?.zone],
+    ['Por estado', heatmap.segments?.status, false],
+    ['Por categoría', heatmap.segments?.category, false],
+    ['Por zona', heatmap.segments?.zone, true],
   ] as const;
 
-  return chartSpecs.flatMap(([title, items]) => {
-    const data = Object.fromEntries(
-      (items ?? [])
-        .map((item) => [readString(item.label, item.key) ?? 'Sin dato', bucketCount(item)] as const)
-        .filter(([, count]) => count > 0),
-    );
+  return chartSpecs.flatMap(([title, items, requiresPublishedZone]) => {
+    const data = (items ?? []).reduce<Record<string, number>>((accumulator, item) => {
+      const label = readString(item.label, item.key) ?? 'Sin dato';
+      const normalizedLabel = label.trim().toLowerCase().replace(/_/g, ' ');
+      const count = bucketCount(item);
+      if (
+        count <= 0 ||
+        (requiresPublishedZone && ['sin zona', 'unknown', 'sin dato'].includes(normalizedLabel))
+      ) {
+        return accumulator;
+      }
+      accumulator[label] = (accumulator[label] ?? 0) + count;
+      return accumulator;
+    }, {});
     return Object.keys(data).length > 0 ? [{ title, data }] : [];
   });
 };
@@ -1939,7 +1947,13 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
       </section>
       </>
       )}
-      <TicketStatsCharts charts={charts} />
+      <TicketStatsCharts
+        charts={charts}
+        sampleSize={Math.round(mapInsights.totalWeight)}
+        contextLabel={mapInsights.totalWeight === 1 ? 'caso agregado' : 'casos agregados'}
+        privacyFloor={heatmapContractSource === 'operations_v2' ? operationsKMin : undefined}
+        privacySuppressed={operationsHeatmap?.privacy?.suppressed === true}
+      />
     </div>
   );
 }

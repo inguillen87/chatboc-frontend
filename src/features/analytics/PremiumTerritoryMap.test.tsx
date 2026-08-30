@@ -61,6 +61,33 @@ const buildPoints = (count: number): OperationsHeatmapPoint[] =>
   }));
 
 describe('PremiumTerritoryHeatmap', () => {
+  it('separates the bounded map workspace from secondary territorial intelligence', () => {
+    const points = buildPoints(6);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'ready', visible_points: 6, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const layout = screen.getByTestId('territory-map-layout');
+    const mapShell = screen.getByTestId('territory-map-shell');
+    const executiveRail = screen.getByTestId('territory-executive-rail');
+    const intelligenceWorkspace = screen.getByTestId('territory-intelligence-workspace');
+
+    expect(layout).toHaveClass('items-start');
+    expect(mapShell).toHaveClass('self-start');
+    expect(layout).toContainElement(mapShell);
+    expect(layout).toContainElement(executiveRail);
+    expect(executiveRail).not.toContainElement(intelligenceWorkspace);
+  });
+
   it('toggles commerce geo features without exposing customer fields', () => {
     const points: OperationsHeatmapPoint[] = [
       { id: 'ticket:1', lat: -34.61, lng: -60.91, source: 'ticket', label: 'Reclamo' },
