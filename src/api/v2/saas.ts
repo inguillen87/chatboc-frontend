@@ -578,6 +578,7 @@ export interface EmployeeRoutingV2 {
   dimensions: Record<string, string[]>;
   employees: EmployeeRoutingEmployee[];
   queues: {
+    open: UnknownRecord[];
     unassigned: UnknownRecord[];
     unassigned_count: number;
     raw: UnknownRecord;
@@ -596,7 +597,10 @@ export interface EmployeeRoutingScopePayload {
 
 export interface EmployeeRoutingAutoAssignPayload {
   dry_run?: boolean;
-  ticket_ids?: Array<string | number>;
+  tickets?: Array<{
+    source_model: string;
+    id: string | number;
+  }>;
   limit?: number;
 }
 
@@ -1990,6 +1994,7 @@ export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2
       .map(normalizeRoutingEmployee)
       .filter((item): item is EmployeeRoutingEmployee => Boolean(item)),
     queues: {
+      open: asArray(queues.open).map(asRecord),
       unassigned: asArray(queues.unassigned).map(asRecord),
       unassigned_count: asNumber(getFirst(queues, ['unassigned_count', 'count'])) ?? asArray(queues.unassigned).length,
       raw: queues,

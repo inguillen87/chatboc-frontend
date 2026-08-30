@@ -123,6 +123,7 @@ describe("tenant admin v2 contracts", () => {
         },
       ],
       queues: {
+        open: [{ source_model: "MunicipioTicket", id: 123, category: "alumbrado" }],
         unassigned: [{ id: 123, channel: "whatsapp" }],
         unassigned_count: 1,
       },
@@ -142,6 +143,11 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.contract_version).toBe("employee.routing.v1");
     expect(normalized.dimensions.channels).toEqual(["whatsapp", "widget"]);
     expect(normalized.employees[0].scope.permisos).toEqual(["tickets_assign"]);
+    expect(normalized.queues.open[0]).toMatchObject({
+      source_model: "MunicipioTicket",
+      id: 123,
+      category: "alumbrado",
+    });
     expect(normalized.queues.unassigned_count).toBe(1);
     expect(normalized.recommendations[0].score).toBe(96);
     expect(normalized.recommendations[0].reasons).toContain("zone_match");
