@@ -2718,7 +2718,7 @@ function OperationsHeatmapPanel({
     return layerFiltered.filter((point) =>
       activeFilters.every(({ config, value }) => {
         const pointValue = readPointField(point, config);
-        if (!pointValue) return true;
+        if (!pointValue) return false;
         return pointValue === value;
       }),
     );

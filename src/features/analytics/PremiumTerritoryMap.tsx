@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import {
   Activity,
@@ -67,7 +67,7 @@ type ActiveFilterSummary = {
 };
 
 type MapFocusMode = 'territory' | 'quality' | 'telemetry';
-type MapDisplayMode = 'auto' | 'heat' | 'points' | 'both';
+type MapDisplayMode = 'points' | 'clusters' | 'heat';
 
 type BackendActionSummary = {
   label: string;
@@ -1190,7 +1190,6 @@ export function PremiumTerritoryHeatmap({
   const [mapCategoryFilter, setMapCategoryFilter] = useState<string | null>(null);
   const [mapZoneFilter, setMapZoneFilter] = useState<string | null>(null);
   const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
-  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('auto');
   const [selectedMapPoint, setSelectedMapPoint] = useState<HeatPoint | null>(null);
   const selectedTicketHref = exactTicketHrefForPoint(selectedMapPoint, tenantSlug);
 
@@ -1760,6 +1759,45 @@ export function PremiumTerritoryHeatmap({
   const showCategoryLayer = hasCategoryLayerControl
     ? canShowExactPointMarkers && layerIsEnabled(enabledLayerIds, ['category', 'categoria'])
     : canShowExactPointMarkers && mapCategoryFacets.length > 0;
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(() =>
+    showCategoryLayer ? 'points' : 'heat',
+  );
+  const temporarilyHiddenPointModeRef = useRef<Exclude<MapDisplayMode, 'heat'> | null>(null);
+
+  useEffect(() => {
+    if (!canShowExactPointMarkers) {
+      temporarilyHiddenPointModeRef.current = null;
+      if (mapDisplayMode !== 'heat') {
+        setSelectedMapPoint(null);
+        setMapDisplayMode('heat');
+      }
+      return;
+    }
+
+    if (mapDisplayMode === 'heat' && !showHeatLayer && showCategoryLayer) {
+      const restoredMode = temporarilyHiddenPointModeRef.current ?? 'points';
+      temporarilyHiddenPointModeRef.current = null;
+      setSelectedMapPoint(null);
+      setMapDisplayMode(restoredMode);
+      return;
+    }
+
+    if (!showCategoryLayer) {
+      if (mapDisplayMode !== 'heat' && showHeatLayer) {
+        temporarilyHiddenPointModeRef.current = mapDisplayMode;
+        setSelectedMapPoint(null);
+        setMapDisplayMode('heat');
+      }
+      return;
+    }
+
+    if (temporarilyHiddenPointModeRef.current) {
+      const restoredMode = temporarilyHiddenPointModeRef.current;
+      temporarilyHiddenPointModeRef.current = null;
+      setMapDisplayMode(restoredMode);
+    }
+  }, [canShowExactPointMarkers, mapDisplayMode, showCategoryLayer, showHeatLayer]);
+
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
   const showQualityLayer = layerIsEnabled(enabledLayerIds, ['quality', 'coverage', 'geo']);
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
@@ -1870,9 +1908,24 @@ export function PremiumTerritoryHeatmap({
   );
   const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
-  const renderHeatLayer = mapDisplayMode !== 'points' && showHeatLayer;
-  const renderPointLayer = showCategoryLayer;
-  const automaticMapMode = mapDisplayMode === 'auto';
+  const renderHeatLayer = mapDisplayMode === 'heat' && showHeatLayer;
+  const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
+  const clusterDisplayMode = mapDisplayMode === 'clusters';
+  const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
+  const selectedDisplayModeUnavailable = mapDisplayMode === 'heat' ? !showHeatLayer : !showCategoryLayer;
+  const mapDisplayStatus = noBaseMapLayerAvailable
+    ? 'No hay una capa territorial activa. Activá Calor territorial o Capas por categoría para visualizar los registros.'
+    : selectedDisplayModeUnavailable
+      ? 'La visualización seleccionada está desactivada. Elegí uno de los modos disponibles.'
+      : filteredMapEmpty
+    ? 'La selección no tiene coordenadas mapeadas. No se agregan puntos estimados.'
+    : mapDisplayMode === 'points'
+      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. Cada marcador usa coordenadas persistidas válidas y conserva su categoría.`
+      : mapDisplayMode === 'clusters'
+        ? visibleLiveMapPoints.length > 1
+          ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada agrupada', 'ubicaciones mapeadas agrupadas')} por proximidad, sin alterar los filtros.`
+          : 'Sólo hay una ubicación mapeada en esta selección; no se genera una agrupación artificial.'
+        : `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada', 'ubicaciones mapeadas')} alimentan la densidad territorial.`;
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
   const liveHeatmapRadiusScale =
@@ -2421,39 +2474,75 @@ export function PremiumTerritoryHeatmap({
             );
           })}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1" role="group" aria-label="Visualización del mapa">
-            {([
-              { id: 'auto', label: 'Automático' },
-              { id: 'heat', label: 'Calor' },
-              { id: 'points', label: 'Puntos' },
-              { id: 'both', label: 'Ambos' },
-            ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
-              <Button
-                key={mode.id}
-                type="button"
-                size="sm"
-                variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
-                className="h-8 px-3"
-                onClick={() => setMapDisplayMode(mode.id)}
-                aria-pressed={mapDisplayMode === mode.id}
-                disabled={mode.id === 'points' && !canShowExactPointMarkers}
-              >
-                {mode.label}
-              </Button>
-            ))}
+        <div className="flex min-w-0 flex-col items-start gap-1 lg:items-end">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <div
+              data-testid="territory-display-mode-control"
+              className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1"
+              role="radiogroup"
+              aria-label="Visualización del mapa"
+            >
+              {([
+                { id: 'points', label: 'Puntos' },
+                { id: 'clusters', label: 'Clústeres' },
+                { id: 'heat', label: 'Calor' },
+              ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
+                <Button
+                  key={mode.id}
+                  type="button"
+                  role="radio"
+                  size="sm"
+                  variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
+                  className="h-8 px-3"
+                  onClick={() => {
+                    temporarilyHiddenPointModeRef.current = null;
+                    setSelectedMapPoint(null);
+                    setMapDisplayMode(mode.id);
+                  }}
+                  aria-checked={mapDisplayMode === mode.id}
+                  aria-pressed={mapDisplayMode === mode.id}
+                  disabled={
+                    mode.id === 'heat'
+                      ? !showHeatLayer
+                      : !canShowExactPointMarkers || !showCategoryLayer
+                  }
+                  title={
+                    mode.id === 'heat' && !showHeatLayer
+                      ? 'La capa Calor territorial está desactivada'
+                      : mode.id !== 'heat' && !canShowExactPointMarkers
+                      ? 'La política territorial protege el detalle puntual'
+                      : mode.id !== 'heat' && !showCategoryLayer
+                        ? 'La capa por categoría está desactivada'
+                        : undefined
+                  }
+                >
+                  {mode.label}
+                </Button>
+              ))}
+            </div>
+            <TerritorialMapAccessibleSheet
+              points={visibleLiveMapPoints}
+              canShowExactPointMarkers={canShowExactPointMarkers}
+              tenantSlug={tenantSlug}
+              summaries={[
+                { id: 'coverage', label: 'Cobertura', value: scopedCoverageLabel },
+                { id: 'mapped', label: 'Puntos mapeados', value: scopedVisiblePointLabel },
+                { id: 'pending', label: 'Pendientes de geocodificar', value: scopedPendingLabel },
+                { id: 'scope', label: 'Alcance', value: scopedTerritoryView.label },
+              ]}
+            />
           </div>
-          <TerritorialMapAccessibleSheet
-            points={visibleLiveMapPoints}
-            canShowExactPointMarkers={canShowExactPointMarkers}
-            tenantSlug={tenantSlug}
-            summaries={[
-              { id: 'coverage', label: 'Cobertura', value: scopedCoverageLabel },
-              { id: 'mapped', label: 'Puntos mapeados', value: scopedVisiblePointLabel },
-              { id: 'pending', label: 'Pendientes de geocodificar', value: scopedPendingLabel },
-              { id: 'scope', label: 'Alcance', value: scopedTerritoryView.label },
-            ]}
-          />
+          <p
+            data-testid="territory-display-mode-status"
+            className="max-w-2xl text-xs leading-5 text-muted-foreground lg:text-right"
+            role="status"
+            aria-live="polite"
+          >
+            {mapDisplayStatus}
+            {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+              ? ` ${formatCountLabel(scopedTerritoryView.pendingGeocodeCount ?? 0, 'registro permanece pendiente de geocodificar', 'registros permanecen pendientes de geocodificar')}.`
+              : ''}
+          </p>
         </div>
       </div>
 
@@ -2653,13 +2742,15 @@ export function PremiumTerritoryHeatmap({
                 heatmapData={visibleLiveMapPoints}
                 showHeatmap={renderHeatLayer}
                 showPoints={renderPointLayer}
-                showPointLabels={false}
+                showPointLabels={clusterDisplayMode}
                 pointLabelMode="count"
                 pointMinZoom={7}
-                pointLabelMinZoom={automaticMapMode ? 7 : 10}
+                pointLabelMinZoom={clusterDisplayMode ? 7 : 10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
-                heatmapPalette="faro"
-                adaptiveZoomMode={automaticMapMode}
+                // En privacidad agregada conservamos la densidad, pero evitamos que la
+                // paleta Faro agregue un halo/ancla sobre cada coordenada persistida.
+                heatmapPalette={canShowExactPointMarkers ? 'faro' : 'default'}
+                adaptiveZoomMode={false}
                 onFeatureSelect={setSelectedMapPoint}
                 popupContext="territory"
                 provider={liveMapProvider}
@@ -2670,7 +2761,7 @@ export function PremiumTerritoryHeatmap({
                 fitToBounds={liveMapBounds}
                 fitBoundsRequestKey={`${mapCategoryFilter ?? 'all'}:${mapZoneFilter ?? 'all'}:${mapAddressCellFilter ?? 'all'}`}
                 boundsPadding={{ top: 40, right: 40, bottom: 40, left: 40 }}
-                disableClientClustering={!automaticMapMode}
+                disableClientClustering={!clusterDisplayMode}
                 showEvidenceBadge={false}
               />
             </div>

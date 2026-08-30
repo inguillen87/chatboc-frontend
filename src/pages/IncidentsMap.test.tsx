@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getHeatmapDataset: vi.fn(),
   getTicketStats: vi.fn(),
   setProvider: vi.fn(),
+  useUser: vi.fn(),
 }));
 
 vi.mock('@/features/analytics/analyticsApi', () => ({
@@ -89,13 +90,7 @@ vi.mock('@/hooks/useRequireRole', () => ({
 }));
 
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({
-    user: {
-      tipo_chat: 'municipio',
-      latitud: '-33.086',
-      longitud: '-68.471',
-    },
-  }),
+  useUser: mocks.useUser,
 }));
 
 vi.mock('@/hooks/useMapProvider', () => ({
@@ -224,6 +219,14 @@ describe('IncidentsMap', () => {
     mocks.getHeatmapDataset.mockReset();
     mocks.getTicketStats.mockReset();
     mocks.setProvider.mockReset();
+    mocks.useUser.mockReset();
+    mocks.useUser.mockReturnValue({
+      user: {
+        tipo_chat: 'municipio',
+        latitud: '-33.086',
+        longitud: '-68.471',
+      },
+    });
 
     mocks.apiFetch.mockImplementation((endpoint: string) => {
       if (endpoint.includes('categorias')) {
@@ -296,6 +299,7 @@ describe('IncidentsMap', () => {
       expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantSlug: 'junin',
+          source: 'tickets',
           range: 'all',
           scope: 'historical',
           from: undefined,
@@ -319,6 +323,7 @@ describe('IncidentsMap', () => {
       expect.objectContaining({
         range: undefined,
         scope: undefined,
+        source: 'tickets',
         from: expect.any(String),
         to: expect.any(String),
       }),
@@ -344,7 +349,7 @@ describe('IncidentsMap', () => {
 
     await waitFor(() => {
       expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
-        expect.objectContaining({ tenantSlug: 'junin', include_ai: 0 }),
+        expect.objectContaining({ tenantSlug: 'junin', source: 'tickets', include_ai: 0 }),
       );
     });
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
@@ -356,6 +361,32 @@ describe('IncidentsMap', () => {
     expect(mocks.apiFetch).toHaveBeenCalledWith(
       '/municipal/estados',
       expect.objectContaining({ tenantSlug: 'junin' }),
+    );
+  });
+
+  it('keeps non-municipal maps on their existing multi-source contract', async () => {
+    mocks.useUser.mockReturnValue({
+      user: {
+        tipo_chat: 'pyme',
+        latitud: '-33.086',
+        longitud: '-68.471',
+      },
+    });
+
+    render(<IncidentsMap tenantSlugOverride="comercio-demo" />);
+
+    await waitFor(() => {
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantSlug: 'comercio-demo',
+          source: undefined,
+          scope: 'historical',
+        }),
+      );
+    });
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/pyme/categorias',
+      expect.objectContaining({ tenantSlug: 'comercio-demo' }),
     );
   });
 

@@ -689,6 +689,24 @@ describe('OperationsDashboardPanel territory UX', () => {
     });
   });
 
+  it('excludes points that do not declare the active filter field', async () => {
+    const fixture = heatmapFixture();
+    fixture.points = [
+      { ...fixture.points[0], categoria: 'alumbrado' },
+      { ...fixture.points[1], categoria: undefined, category: undefined },
+    ];
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+
+    renderPanel();
+
+    expect(await screen.findByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 1 puntos');
+    });
+  });
+
   it('keeps the declared-zone selector honest and disabled when backend only publishes placeholders', async () => {
     const fixture = heatmapFixture({
       segments: {

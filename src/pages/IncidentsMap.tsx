@@ -987,6 +987,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
           ? operationsCache.get(heatmapKey)!
           : await getOperationsHeatmapV2({
               tenantSlug: canonicalTenantSlug || undefined,
+              source: ticketType === 'municipio' ? 'tickets' : undefined,
               range: historicalTerritoryView ? 'all' : undefined,
               scope: historicalTerritoryView ? 'historical' : undefined,
               from: filters.fecha_inicio,
