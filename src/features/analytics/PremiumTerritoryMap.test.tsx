@@ -225,6 +225,199 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-geo-features')).toBe('2');
   });
 
+  it('separates outside-jurisdiction review from pending geocoding and never plots rejected coordinates', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'inside-1',
+        lat: -33.0812,
+        lng: -68.4691,
+        categoria: 'Baches',
+        direccion: 'Belgrano 10, Junín',
+        coordinate_jurisdiction_status: 'within',
+        weight: 2,
+      },
+      {
+        id: 'inside-2',
+        lat: -33.082,
+        lng: -68.47,
+        categoria: 'Baches',
+        direccion: 'Belgrano 20, Junín',
+        coordinate_jurisdiction_status: 'within',
+        weight: 2,
+      },
+      {
+        id: 'outside-1',
+        lat: -34.5889,
+        lng: -60.9462,
+        categoria: 'Baches',
+        direccion: 'Belgrano 999, Junín, Buenos Aires',
+        coordinate_jurisdiction_status: 'outside',
+        weight: 100,
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', coverage_percent: 99, visible_points: 2, pending_geocode: 4, can_render_heatmap: true },
+      location_quality: {
+        total_ticket_records: 6,
+        ticket_records_with_coordinates: 2,
+        ticket_records_outside_jurisdiction: 1,
+        ticket_records_pending_geocode: 3,
+        coordinate_coverage_pct: 33.33,
+      },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        city: 'Junín',
+        state_name: 'Mendoza',
+        excluded_coordinate_records: 1,
+        review_candidate_count: 1,
+      },
+      jurisdiction_review: { candidate_count: 1, status: 'pending' },
+      territorial_facets: {
+        summary: { ticket_records: 6, mapped_records: 2, records_outside_jurisdiction: 1, pending_geocode_records: 3 },
+        categories: [
+          { key: 'baches', label: 'Baches', count: 3, mapped_count: 2, outside_jurisdiction_count: 1 },
+        ],
+        addresses: [
+          { key: 'belgrano', label: 'Belgrano 999, Junín', count: 3, mapped_count: 2, outside_jurisdiction_count: 1 },
+        ],
+        explicit_zones: [],
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map.getAttribute('data-points')).toBe('2');
+    expect(map.getAttribute('data-geo-features')).toBe('2');
+    expect(map.getAttribute('data-addresses')).toBe('Corredor Belgrano|Corredor Belgrano');
+    expect(document.body.textContent).not.toContain('Belgrano 999');
+
+    expect(screen.getByTestId('territory-jurisdiction')).toHaveTextContent('Alcance · Junín, Mendoza');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
+      'Fuera de jurisdicción / revisar · 1',
+    );
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveAccessibleName(
+      '1 coordenada fuera de jurisdicción, excluidas del mapa y pendientes de revisión',
+    );
+    expect(screen.getAllByText('33,3%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('3').length).toBeGreaterThan(0);
+
+    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Total 3');
+    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Mapeados 2');
+    expect(screen.getByRole('button', { name: 'Filtrar mapa por Baches' })).toHaveTextContent('Revisar 1');
+    expect(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Corredor Belgrano' })).toHaveTextContent(
+      'Revisar 1',
+    );
+  });
+
+  it('keeps canonical complaint categories visible when every record is pending or outside jurisdiction', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'inside-bache',
+        lat: -33.0812,
+        lng: -68.4691,
+        categoria: 'Baches',
+        direccion: 'Belgrano 10, Junín',
+        coordinate_jurisdiction_status: 'within',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      geo_layers: {
+        contract_version: 'operations.heatmap.geo_layers.v1',
+        points: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              id: 'inside-bache',
+              geometry: { type: 'Point', coordinates: [-68.4691, -33.0812] },
+              properties: { categoria: 'Baches', direccion: 'Belgrano 10, Junín' },
+            },
+          ],
+        },
+      },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 1, can_render_heatmap: true },
+      location_quality: {
+        total_ticket_records: 7,
+        ticket_records_with_coordinates: 1,
+        ticket_records_outside_jurisdiction: 1,
+        ticket_records_pending_geocode: 5,
+        coordinate_coverage_pct: 14.29,
+      },
+      jurisdiction: { state: 'configured', enforced: true, city: 'Junín', state_name: 'Mendoza' },
+      territorial_facets: {
+        summary: {
+          ticket_records: 7,
+          mapped_records: 1,
+          records_outside_jurisdiction: 1,
+          pending_geocode_records: 5,
+        },
+        categories: [
+          { key: 'baches', label: 'Baches', count: 2, mapped_count: 1, pending_geocode_count: 1 },
+          {
+            key: 'luminarias',
+            label: 'Luminarias',
+            count: 5,
+            mapped_count: 0,
+            pending_geocode_count: 4,
+            outside_jurisdiction_count: 1,
+          },
+        ],
+        addresses: [
+          {
+            key: 'rivadavia-144',
+            label: 'Rivadavia 144, Junín',
+            count: 5,
+            mapped_count: 0,
+            pending_geocode_count: 4,
+            outside_jurisdiction_count: 1,
+          },
+        ],
+        explicit_zones: [],
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const categoryFilter = screen.getByRole('button', { name: 'Filtrar mapa por Luminarias' });
+    expect(categoryFilter).toHaveTextContent('Total 5');
+    expect(categoryFilter).toHaveTextContent('Mapeados 0');
+    expect(categoryFilter).toHaveTextContent('Pendientes 4');
+    expect(categoryFilter).toHaveTextContent('Revisar 1');
+    expect(screen.getByRole('button', { name: 'Filtrar mapa por ubicación Corredor Rivadavia' })).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Rivadavia 144');
+
+    fireEvent.click(categoryFilter);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map.getAttribute('data-points')).toBe('0');
+    expect(map.getAttribute('data-geo-features')).toBe('0');
+    expect(screen.getByTestId('territory-filter-empty')).toHaveTextContent('Sin puntos mapeados para Luminarias');
+    expect(screen.getByTestId('territory-filter-empty')).toHaveTextContent('Pendientes de geocodificar · 4');
+    expect(screen.getByTestId('territory-filter-empty')).toHaveTextContent('Fuera de jurisdicción / revisar · 1');
+    expect(screen.getByRole('link', { name: 'Abrir cola pendiente' })).toHaveAttribute(
+      'href',
+      '/perfil?tab=tickets&focus=open_geocoding_queue&facet=luminarias',
+    );
+  });
+
   it('protects exact markers and small category or zone segments under aggregated privacy', () => {
     const points: OperationsHeatmapPoint[] = [
       { id: 'bache-1', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 1 },

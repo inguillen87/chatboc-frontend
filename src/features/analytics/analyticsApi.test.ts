@@ -228,6 +228,62 @@ describe('operations heatmap v2 contract', () => {
         pending_geocode: '2',
         can_render_heatmap: 'true',
       },
+      location_quality: {
+        contract_version: 'operations.location_quality.v1',
+        total_ticket_records: '63',
+        ticket_records_with_coordinates: '21',
+        ticket_records_outside_jurisdiction: '2',
+        ticket_records_pending_geocode: '34',
+        coordinate_coverage_pct: '33.33',
+        status: 'ready',
+      },
+      jurisdiction: {
+        contract_version: 'operations.tenant_jurisdiction.v1',
+        state: 'configured',
+        enforced: 'true',
+        city: 'Junín',
+        state_name: 'Mendoza',
+        excluded_coordinate_records: '2',
+        review_candidate_count: '2',
+        bounds: { west: '-68.6', south: '-33.3', east: '-68.3', north: '-32.9' },
+        source: { kind: 'tenant_geo_config', ref: 'municipios/junin/geo.json' },
+      },
+      territorial_facets: {
+        contract_version: 'operations.heatmap.territorial_facets.v1',
+        summary: {
+          ticket_records: '63',
+          mapped_records: '21',
+          records_outside_jurisdiction: '2',
+          pending_geocode_records: '34',
+        },
+        categories: [
+          {
+            key: 'alumbrado',
+            label: 'Alumbrado',
+            count: '6',
+            mapped_count: '4',
+            pending_geocode_count: '1',
+            outside_jurisdiction_count: '1',
+          },
+        ],
+        addresses: [
+          {
+            key: 'don bosco 55',
+            label: 'Don Bosco 55, Junín',
+            count: '2',
+            mapped_count: '1',
+            outside_jurisdiction_count: '1',
+          },
+        ],
+        explicit_zones: [],
+      },
+      jurisdiction_review: {
+        contract_version: 'operations.heatmap.jurisdiction_review.v1',
+        status: 'pending',
+        candidate_count: '2',
+        reason_code: 'coordinates_outside_configured_jurisdiction',
+        writes_performed: 'false',
+      },
       realtime: {
         contract_version: 'operations.heatmap_realtime.v1',
         poll_seconds: '20',
@@ -580,6 +636,37 @@ describe('operations heatmap v2 contract', () => {
       visible_points: 1,
       pending_geocode: 2,
       can_render_heatmap: true,
+    });
+    expect(response.location_quality).toMatchObject({
+      total_ticket_records: 63,
+      ticket_records_with_coordinates: 21,
+      ticket_records_outside_jurisdiction: 2,
+      ticket_records_pending_geocode: 34,
+      coordinate_coverage_pct: 33.33,
+    });
+    expect(response.jurisdiction).toMatchObject({
+      enforced: true,
+      city: 'Junín',
+      state_name: 'Mendoza',
+      excluded_coordinate_records: 2,
+      review_candidate_count: 2,
+    });
+    expect(response.territorial_facets?.summary).toMatchObject({
+      ticket_records: 63,
+      mapped_records: 21,
+      records_outside_jurisdiction: 2,
+      pending_geocode_records: 34,
+    });
+    expect(response.territorial_facets?.categories?.[0]).toMatchObject({
+      key: 'alumbrado',
+      mapped_count: 4,
+      pending_geocode_count: 1,
+      outside_jurisdiction_count: 1,
+    });
+    expect(response.jurisdiction_review).toMatchObject({
+      status: 'pending',
+      candidate_count: 2,
+      writes_performed: false,
     });
     expect(response.realtime).toMatchObject({
       poll_seconds: 20,

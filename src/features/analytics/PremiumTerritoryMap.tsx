@@ -123,6 +123,18 @@ type SafeLocationFacet = {
   kind: 'cell' | 'street';
 };
 
+type TerritoryMapFacet = {
+  key: string;
+  label: string;
+  total: number;
+  mappedCount: number;
+  pendingGeocodeCount: number;
+  outsideJurisdictionCount: number;
+  matchKeys: string[];
+  color?: string;
+  volume?: number;
+};
+
 const compactWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
 
 const stableLocationCode = (value: string) => {
@@ -278,6 +290,24 @@ const formatNumber = (value: number | undefined, fallback = '--') =>
 const formatCountLabel = (value: number, singular: string, plural: string, fallback = '0') =>
   `${formatNumber(value, fallback)} ${Math.abs(value) === 1 ? singular : plural}`;
 
+const TerritoryFacetCounts = ({
+  facet: { total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount },
+}: {
+  facet: Pick<
+    TerritoryMapFacet,
+    'total' | 'mappedCount' | 'pendingGeocodeCount' | 'outsideJurisdictionCount'
+  >;
+}) => (
+  <span aria-hidden="true" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-normal leading-4 text-current/70">
+    <span>Total {formatNumber(total)}</span>
+    <span>Mapeados {formatNumber(mappedCount)}</span>
+    <span>Pendientes {formatNumber(pendingGeocodeCount)}</span>
+    <span className={outsideJurisdictionCount > 0 ? 'text-amber-700 dark:text-amber-200' : undefined}>
+      Revisar {formatNumber(outsideJurisdictionCount)}
+    </span>
+  </span>
+);
+
 const formatVariation = (value: number | undefined) => {
   if (value === undefined) return 'sin comparación';
   const prefix = value > 0 ? '+' : '';
@@ -310,6 +340,21 @@ const readNumber = (...values: unknown[]) => {
   return undefined;
 };
 
+const isOutsideJurisdictionRecord = (value: unknown) => {
+  const record = asRecord(value);
+  if (!record) return false;
+  if (record.outside_jurisdiction === true || record.is_outside_jurisdiction === true) return true;
+  const status = normalizedFacetValue(
+    readString(
+      record.coordinate_jurisdiction_status,
+      record.jurisdiction_status,
+      record.location_jurisdiction_status,
+    ),
+  );
+  const reasonCode = normalizedFacetValue(readString(record.reason_code, record.location_reason_code));
+  return status === 'outside' || reasonCode === 'coordinates_outside_configured_jurisdiction';
+};
+
 const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
   const location = asRecord(point.location);
   const lat = readNumber(point.lat, location?.lat, point.latitude);
@@ -318,6 +363,9 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
 
   const id = readNumber(point.id, point.ticket_id, point.record_id);
   const locationFacet = safeLocationFacetForPoint(point);
+  const addressCorridor = safeStreetCorridor(
+    readString(point.direccion, point.address, location?.direccion, location?.address),
+  );
   return {
     lat,
     lng,
@@ -335,6 +383,9 @@ const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
     direccion: locationFacet?.label,
     addressCellLabel: locationFacet?.label,
     addressCellKey: locationFacet?.key,
+    addressCorridorKey: addressCorridor
+      ? normalizedFacetValue(`street:${addressCorridor}`)
+      : undefined,
     cellId: readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id),
     locationQuality: readString(point.location_quality, point.locationQuality, point.geocode_quality),
     locationProvenance: readString(
@@ -844,9 +895,12 @@ const buildOperationsGeoLayerConfig = ({
       };
     });
 
-  const sourceFeatures = localFeatures.length > 0 ? localFeatures : (geoLayerSource?.features ?? []);
-  const features = sourceFeatures.filter((feature) => {
+  // Always rebuild the rendered source from privacy-sanitized points. Falling
+  // back to the raw backend FeatureCollection here would bypass active facets
+  // when their mapped result is empty and could reintroduce exact addresses.
+  const features = localFeatures.filter((feature) => {
     const properties = asRecord(feature.properties);
+    if (isOutsideJurisdictionRecord(properties)) return false;
     const source = readString(properties?.source, properties?.fuente);
     return source !== 'commerce' || showCommerceLayer;
   });
@@ -1010,6 +1064,10 @@ export function PremiumTerritoryHeatmap({
             address_cell_label: readString(record.address_cell_label, record.cell_label, record.location_bucket_label),
             location_quality: readString(record.location_quality, record.quality_state),
             location_provenance: readString(record.location_provenance, record.source),
+            coordinate_jurisdiction_status: readString(
+              record.coordinate_jurisdiction_status,
+              record.jurisdiction_status,
+            ),
           };
         })
         .filter((point): point is OperationsHeatmapPoint => Boolean(point)),
@@ -1023,7 +1081,7 @@ export function PremiumTerritoryHeatmap({
     points.length === 0 &&
     !usesBackendGeoLayerPoints &&
     !usesBackendCellPoints;
-  const sourcePoints = useMemo(
+  const rawSourcePoints = useMemo(
     () =>
       usesDemoData
         ? getDemoTerritoryHeatmapPoints(demoProfile)
@@ -1034,6 +1092,36 @@ export function PremiumTerritoryHeatmap({
             : points,
     [backendCellPoints, backendGeoLayerPoints, demoProfile, points, usesBackendCellPoints, usesBackendGeoLayerPoints, usesDemoData],
   );
+  const outsidePointsRejectedByFrontend = useMemo(
+    () => rawSourcePoints.filter((point) => isOutsideJurisdictionRecord(point)).length,
+    [rawSourcePoints],
+  );
+  const sourcePoints = useMemo(
+    () => rawSourcePoints.filter((point) => !isOutsideJurisdictionRecord(point)),
+    [rawSourcePoints],
+  );
+  const declaredOutsideJurisdictionCount = Math.max(
+    0,
+    readNumber(
+      heatmap?.location_quality?.ticket_records_outside_jurisdiction,
+      heatmap?.territorial_facets?.summary?.records_outside_jurisdiction,
+      heatmap?.jurisdiction?.excluded_coordinate_records,
+      heatmap?.jurisdiction_review?.candidate_count,
+      heatmap?.summary?.outside_jurisdiction,
+    ) ?? 0,
+  );
+  const outsideJurisdictionCount = Math.max(
+    declaredOutsideJurisdictionCount,
+    outsidePointsRejectedByFrontend,
+  );
+  const jurisdictionLabel = [
+    readString(heatmap?.jurisdiction?.city),
+    readString(heatmap?.jurisdiction?.state_name),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(', ');
+  const jurisdictionEnforced = heatmap?.jurisdiction?.enforced === true;
   const effectiveMinSampleSize = Math.max(
     minSampleSize,
     heatmap?.privacy?.minimum_sample_size ?? 0,
@@ -1083,66 +1171,176 @@ export function PremiumTerritoryHeatmap({
         })),
     [sourcePoints],
   );
-  const hasNamedMapCategories = liveMapPoints.some((point) => isNamedFacetValue(point.categoria));
-  const hasNamedMapZones = liveMapPoints.some((point) =>
-    isNamedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
-  );
-  const hasNamedMapAddressCells = liveMapPoints.some((point) => isNamedFacetValue(point.addressCellLabel));
-  const mapCategoryFacets = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; color: string }>();
+  const canonicalCategoryFacets = heatmap?.territorial_facets?.categories ?? [];
+  const canonicalZoneFacets = heatmap?.territorial_facets?.explicit_zones ?? [];
+  const canonicalAddressFacets = heatmap?.territorial_facets?.addresses ?? [];
+  const hasNamedMapCategories =
+    canonicalCategoryFacets.some((facet) => isNamedFacetValue(readString(facet.label, facet.key))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.categoria));
+  const hasNamedMapZones =
+    canonicalZoneFacets.some((facet) => isNamedFacetValue(readString(facet.label, facet.key))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.barrio?.trim() || point.distrito?.trim()));
+  const hasNamedMapAddressCells =
+    canonicalAddressFacets.some((facet) => Boolean(safeStreetCorridor(readString(facet.label, facet.key)))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.addressCellLabel));
+  const mapCategoryFacets = useMemo<TerritoryMapFacet[]>(() => {
+    if (categoryFacetsSuppressed) return [];
+
+    const canonical = canonicalCategoryFacets
+      .map((facet): TerritoryMapFacet | null => {
+        const rawLabel = readString(facet.label, facet.key);
+        const rawKey = readString(facet.key, facet.label);
+        if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
+        const key = normalizedFacetValue(rawKey);
+        const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+        return {
+          key,
+          label: humanizeCategoryValue(rawLabel),
+          total,
+          mappedCount: Math.max(0, readNumber(facet.mapped_count) ?? 0),
+          pendingGeocodeCount: Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
+          outsideJurisdictionCount: Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel)])),
+          color: categoryColorFor(rawKey),
+        };
+      })
+      .filter((facet): facet is TerritoryMapFacet => Boolean(facet));
+
+    const fallback = new Map<string, TerritoryMapFacet>();
     liveMapPoints.forEach((point) => {
-      const label = point.categoria?.trim();
-      if (!isNamedFacetValue(label)) return;
-      const key = normalizedFacetValue(label);
-      const current = counts.get(key);
-      counts.set(key, {
-        label: current?.label ?? label,
-        count: (current?.count ?? 0) + 1,
-        color: point.categoryColor ?? categoryColorFor(label),
+      const rawLabel = point.categoria?.trim();
+      if (!isNamedFacetValue(rawLabel)) return;
+      const key = normalizedFacetValue(rawLabel);
+      const current = fallback.get(key);
+      fallback.set(key, {
+        key,
+        label: current?.label ?? humanizeCategoryValue(rawLabel),
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
+        color: current?.color ?? point.categoryColor ?? categoryColorFor(rawLabel),
       });
     });
-    if (categoryFacetsSuppressed) return [];
-    return Array.from(counts.entries())
-      .map(([key, value]) => ({ key, ...value }))
-      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.count >= effectiveMinSampleSize)
-      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'es'));
-  }, [categoryFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
-  const mapZoneFacets = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number }>();
-    liveMapPoints.forEach((point) => {
-      const label = point.barrio?.trim() || point.distrito?.trim();
-      if (!isNamedFacetValue(label)) return;
-      const key = normalizedFacetValue(label);
-      const current = counts.get(key);
-      counts.set(key, { label: current?.label ?? label, count: (current?.count ?? 0) + 1 });
-    });
+
+    return (canonicalCategoryFacets.length > 0 ? canonical : Array.from(fallback.values()))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label, 'es'));
+  }, [canonicalCategoryFacets, categoryFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const mapZoneFacets = useMemo<TerritoryMapFacet[]>(() => {
     if (zoneFacetsSuppressed) return [];
-    return Array.from(counts.entries())
-      .map(([key, value]) => ({ key, ...value }))
-      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.count >= effectiveMinSampleSize)
-      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'es'));
-  }, [effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints, zoneFacetsSuppressed]);
-  const mapAddressCellFacets = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; volume: number }>();
+
+    const canonical = canonicalZoneFacets
+      .map((facet): TerritoryMapFacet | null => {
+        const rawLabel = readString(facet.label, facet.key);
+        const rawKey = readString(facet.key, facet.label);
+        if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
+        const key = normalizedFacetValue(rawKey);
+        const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+        return {
+          key,
+          label: compactWhitespace(rawLabel),
+          total,
+          mappedCount: Math.max(0, readNumber(facet.mapped_count) ?? 0),
+          pendingGeocodeCount: Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
+          outsideJurisdictionCount: Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel)])),
+        };
+      })
+      .filter((facet): facet is TerritoryMapFacet => Boolean(facet));
+
+    const fallback = new Map<string, TerritoryMapFacet>();
+    liveMapPoints.forEach((point) => {
+      const rawLabel = point.barrio?.trim() || point.distrito?.trim();
+      if (!isNamedFacetValue(rawLabel)) return;
+      const key = normalizedFacetValue(rawLabel);
+      const current = fallback.get(key);
+      fallback.set(key, {
+        key,
+        label: current?.label ?? rawLabel,
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
+      });
+    });
+
+    return (canonicalZoneFacets.length > 0 ? canonical : Array.from(fallback.values()))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label, 'es'));
+  }, [canonicalZoneFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints, zoneFacetsSuppressed]);
+  const mapAddressCellFacets = useMemo<TerritoryMapFacet[]>(() => {
+    if (addressCellFacetsSuppressed) return [];
+
+    const canonical = new Map<string, TerritoryMapFacet>();
+    canonicalAddressFacets.forEach((facet) => {
+      const corridor = safeStreetCorridor(readString(facet.label, facet.key));
+      if (!corridor) return;
+      const key = normalizedFacetValue(`street:${corridor}`);
+      const current = canonical.get(key);
+      const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+      const mappedCount = Math.max(0, readNumber(facet.mapped_count) ?? 0);
+      canonical.set(key, {
+        key,
+        label: current?.label ?? `Corredor ${corridor}`,
+        total: (current?.total ?? 0) + total,
+        mappedCount: (current?.mappedCount ?? 0) + mappedCount,
+        pendingGeocodeCount:
+          (current?.pendingGeocodeCount ?? 0) + Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
+        outsideJurisdictionCount:
+          (current?.outsideJurisdictionCount ?? 0) +
+          Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+        matchKeys: [key],
+        volume: (current?.volume ?? 0) + total,
+      });
+    });
+
+    const fallback = new Map<string, TerritoryMapFacet>();
     liveMapPoints.forEach((point) => {
       const key = point.addressCellKey;
       const label = point.addressCellLabel?.trim();
       if (!key || !isNamedFacetValue(label)) return;
-      const current = counts.get(key);
+      const current = fallback.get(key);
       const pointVolume = Math.max(1, readNumber(point.totalWeight, point.total, point.weight) ?? 1);
-      counts.set(key, {
+      fallback.set(key, {
+        key,
         label: current?.label ?? label,
-        count: (current?.count ?? 0) + 1,
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
         volume: (current?.volume ?? 0) + pointVolume,
       });
     });
-    if (addressCellFacetsSuppressed) return [];
-    return Array.from(counts.entries())
-      .map(([key, value]) => ({ key, ...value }))
-      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.count >= effectiveMinSampleSize)
-      .sort((left, right) => right.volume - left.volume || left.label.localeCompare(right.label, 'es'))
-      .slice(0, 8);
-  }, [addressCellFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+
+    return (canonicalAddressFacets.length > 0 ? Array.from(canonical.values()) : Array.from(fallback.values()))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => (right.volume ?? right.total) - (left.volume ?? left.total) || left.label.localeCompare(right.label, 'es'));
+  }, [addressCellFacetsSuppressed, canonicalAddressFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const territorialRecordCounts = useMemo(() => {
+    const summary = heatmap?.territorial_facets?.summary;
+    const categoryTotal = mapCategoryFacets.reduce((total, facet) => total + facet.total, 0);
+    return {
+      total: Math.max(
+        0,
+        readNumber(summary?.ticket_records, heatmap?.location_quality?.total_ticket_records) ??
+          (categoryTotal || liveMapPoints.length),
+      ),
+      mappedCount: Math.max(
+        0,
+        readNumber(summary?.mapped_records, heatmap?.location_quality?.ticket_records_with_coordinates) ??
+          liveMapPoints.length,
+      ),
+      pendingGeocodeCount: Math.max(
+        0,
+        readNumber(summary?.pending_geocode_records, heatmap?.location_quality?.ticket_records_pending_geocode) ?? 0,
+      ),
+      outsideJurisdictionCount,
+    };
+  }, [heatmap?.location_quality, heatmap?.territorial_facets?.summary, liveMapPoints.length, mapCategoryFacets, outsideJurisdictionCount]);
   const categoryBreakdownProtected =
     categoryFacetsSuppressed ||
     (hasPrivacyContract && !exactPrivacyMode && hasNamedMapCategories && mapCategoryFacets.length === 0);
@@ -1389,22 +1587,56 @@ export function PremiumTerritoryHeatmap({
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
   const hasCommerceLayer = displayLayers.some((layer) => layer.tone === 'commerce');
   const showCommerceLayer = hasCommerceLayer && layerIsEnabled(enabledLayerIds, ['commerce', 'order', 'pedido', 'venta']);
+  const selectedCategoryFacet = mapCategoryFacets.find((facet) => facet.key === mapCategoryFilter);
+  const selectedZoneFacet = mapZoneFacets.find((facet) => facet.key === mapZoneFilter);
+  const selectedAddressCellFacet = mapAddressCellFacets.find((facet) => facet.key === mapAddressCellFilter);
   const visibleLiveMapPoints = useMemo(
     () =>
       liveMapPoints.filter((point) => {
         if (!showCommerceLayer && readString(point.fuente) === 'commerce') return false;
-        if (mapCategoryFilter && normalizedFacetValue(point.categoria) !== mapCategoryFilter) return false;
         if (
-          mapZoneFilter &&
-          normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()) !== mapZoneFilter
+          mapCategoryFilter &&
+          !(
+            selectedCategoryFacet?.matchKeys.includes(normalizedFacetValue(point.categoria)) ??
+            normalizedFacetValue(point.categoria) === mapCategoryFilter
+          )
         ) {
           return false;
         }
-        if (mapAddressCellFilter && point.addressCellKey !== mapAddressCellFilter) return false;
+        if (
+          mapZoneFilter &&
+          !(
+            selectedZoneFacet?.matchKeys.includes(
+              normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
+            ) ?? normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()) === mapZoneFilter
+          )
+        ) {
+          return false;
+        }
+        if (
+          mapAddressCellFilter &&
+          point.addressCellKey !== mapAddressCellFilter &&
+          point.addressCorridorKey !== mapAddressCellFilter
+        ) {
+          return false;
+        }
         return true;
       }),
-    [liveMapPoints, mapAddressCellFilter, mapCategoryFilter, mapZoneFilter, showCommerceLayer],
+    [
+      liveMapPoints,
+      mapAddressCellFilter,
+      mapCategoryFilter,
+      mapZoneFilter,
+      selectedCategoryFacet,
+      selectedZoneFacet,
+      showCommerceLayer,
+    ],
   );
+  const activeZeroMappedFacet = [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].find(
+    (facet): facet is TerritoryMapFacet => Boolean(facet && facet.mappedCount === 0),
+  );
+  const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
+  const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
   const liveHeatmapRadiusScale =
@@ -1632,6 +1864,23 @@ export function PremiumTerritoryHeatmap({
               <Badge variant="outline" className="gap-1 capitalize">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {privacyModeLabel(heatmap.privacy.mode)}
+              </Badge>
+            ) : null}
+            {jurisdictionEnforced && jurisdictionLabel ? (
+              <Badge data-testid="territory-jurisdiction" variant="outline" className="gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                Alcance · {jurisdictionLabel}
+              </Badge>
+            ) : null}
+            {outsideJurisdictionCount > 0 ? (
+              <Badge
+                data-testid="territory-outside-jurisdiction"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                aria-label={`${formatCountLabel(outsideJurisdictionCount, 'coordenada', 'coordenadas')} fuera de jurisdicción, excluidas del mapa y pendientes de revisión`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Fuera de jurisdicción / revisar · {formatNumber(outsideJurisdictionCount)}
               </Badge>
             ) : null}
             {hasWarning ? (
@@ -2374,20 +2623,65 @@ export function PremiumTerritoryHeatmap({
                 </Button>
               </div>
 
+              {filteredMapEmpty ? (
+                <div
+                  data-testid="territory-filter-empty"
+                  role="status"
+                  className="mt-3 flex flex-col gap-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">
+                      {activeZeroMappedFacet
+                        ? `Sin puntos mapeados para ${activeZeroMappedFacet.label}`
+                        : 'La combinación seleccionada no tiene puntos mapeados'}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {activeZeroMappedFacet
+                        ? 'La categoría sigue disponible porque existen reclamos en la cola territorial; el mapa no inventa coordenadas.'
+                        : 'Quitá un filtro para ampliar la lectura. Los reclamos sin coordenadas permanecen en su cola operativa.'}
+                    </p>
+                    {activeZeroMappedFacet ? (
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                        <Badge variant="outline">Total · {formatNumber(activeZeroMappedFacet.total)}</Badge>
+                        <Badge variant="outline">Mapeados · {formatNumber(activeZeroMappedFacet.mappedCount)}</Badge>
+                        <Badge variant="outline">
+                          Pendientes de geocodificar · {formatNumber(activeZeroMappedFacet.pendingGeocodeCount)}
+                        </Badge>
+                        <Badge variant="outline" className="border-amber-400/70 text-amber-800 dark:text-amber-200">
+                          Fuera de jurisdicción / revisar · {formatNumber(activeZeroMappedFacet.outsideJurisdictionCount)}
+                        </Badge>
+                      </div>
+                    ) : null}
+                  </div>
+                  {(activeZeroMappedFacet?.pendingGeocodeCount ?? territorialRecordCounts.pendingGeocodeCount) > 0 ? (
+                    <a
+                      href={`/perfil?tab=tickets&focus=open_geocoding_queue${
+                        activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
+                      }`}
+                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Abrir cola pendiente
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 <div role="group" aria-label="Filtrar mapa por categoría" className="rounded-lg border bg-muted/20 p-3">
                   <p className="text-xs font-semibold text-foreground">Categoría de reclamo</p>
                   {mapCategoryFacets.length ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
                       <Button
                         type="button"
                         size="sm"
                         variant={mapCategoryFilter === null ? 'default' : 'outline'}
-                        className="h-8 rounded-full px-3"
+                        className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
                         aria-pressed={mapCategoryFilter === null}
+                        aria-label="Mostrar todas las categorías"
                         onClick={() => setMapCategoryFilter(null)}
                       >
-                        Todas · {liveMapPoints.length}
+                        <span>Todas las categorías</span>
+                        <TerritoryFacetCounts facet={territorialRecordCounts} />
                       </Button>
                       {mapCategoryFacets.map((facet) => (
                         <Button
@@ -2395,14 +2689,20 @@ export function PremiumTerritoryHeatmap({
                           type="button"
                           size="sm"
                           variant={mapCategoryFilter === facet.key ? 'default' : 'outline'}
-                          className="h-8 max-w-full gap-2 rounded-full px-3"
+                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
                           aria-pressed={mapCategoryFilter === facet.key}
                           aria-label={`Filtrar mapa por ${facet.label}`}
                           onClick={() => setMapCategoryFilter((current) => (current === facet.key ? null : facet.key))}
                         >
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: facet.color }} aria-hidden="true" />
-                          <span className="truncate">{facet.label}</span>
-                          <span className="text-current/65">{facet.count}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: facet.color }}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{facet.label}</span>
+                          </span>
+                          <TerritoryFacetCounts facet={facet} />
                         </Button>
                       ))}
                     </div>
@@ -2421,12 +2721,12 @@ export function PremiumTerritoryHeatmap({
                 <div role="group" aria-label="Filtrar mapa por zona o barrio" className="rounded-lg border bg-muted/20 p-3">
                   <p className="text-xs font-semibold text-foreground">Zona o barrio</p>
                   {mapZoneFacets.length ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
                       <Button
                         type="button"
                         size="sm"
                         variant={mapZoneFilter === null ? 'default' : 'outline'}
-                        className="h-8 rounded-full px-3"
+                        className="h-auto min-h-11 w-full items-center justify-start rounded-lg px-3 py-2 text-left"
                         aria-pressed={mapZoneFilter === null}
                         onClick={() => setMapZoneFilter(null)}
                       >
@@ -2438,13 +2738,13 @@ export function PremiumTerritoryHeatmap({
                           type="button"
                           size="sm"
                           variant={mapZoneFilter === facet.key ? 'default' : 'outline'}
-                          className="h-8 max-w-full rounded-full px-3"
+                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
                           aria-pressed={mapZoneFilter === facet.key}
                           aria-label={`Filtrar mapa por zona ${facet.label}`}
                           onClick={() => setMapZoneFilter((current) => (current === facet.key ? null : facet.key))}
                         >
                           <span className="truncate">{facet.label}</span>
-                          <span className="ml-2 text-current/65">{facet.count}</span>
+                          <TerritoryFacetCounts facet={facet} />
                         </Button>
                       ))}
                     </div>
@@ -2476,12 +2776,12 @@ export function PremiumTerritoryHeatmap({
                     </Badge>
                   </div>
                   {mapAddressCellFacets.length ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
                       <Button
                         type="button"
                         size="sm"
                         variant={mapAddressCellFilter === null ? 'default' : 'outline'}
-                        className="h-8 rounded-full px-3"
+                        className="h-auto min-h-11 w-full items-center justify-start rounded-lg px-3 py-2 text-left"
                         aria-pressed={mapAddressCellFilter === null}
                         onClick={() => setMapAddressCellFilter(null)}
                       >
@@ -2493,7 +2793,7 @@ export function PremiumTerritoryHeatmap({
                           type="button"
                           size="sm"
                           variant={mapAddressCellFilter === facet.key ? 'default' : 'outline'}
-                          className="h-8 max-w-full rounded-full px-3"
+                          className="h-auto min-h-11 w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left"
                           aria-pressed={mapAddressCellFilter === facet.key}
                           aria-label={`Filtrar mapa por ubicación ${facet.label}`}
                           onClick={() =>
@@ -2501,7 +2801,7 @@ export function PremiumTerritoryHeatmap({
                           }
                         >
                           <span className="truncate">{facet.label}</span>
-                          <span className="ml-2 text-current/65">{formatNumber(facet.volume)}</span>
+                          <TerritoryFacetCounts facet={facet} />
                         </Button>
                       ))}
                     </div>

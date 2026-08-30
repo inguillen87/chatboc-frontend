@@ -307,6 +307,31 @@ describe('premium territory heatmap aggregation', () => {
     });
   });
 
+  it('prefers jurisdiction-safe location quality over generic coverage and keeps pending geocoding separate', () => {
+    const readiness = resolveTerritoryMapReadiness(
+      {
+        points: buildPoints(2),
+        quality: { state: 'ready', coverage_percent: 90, pending_geocode: 7, can_render_heatmap: true },
+        summary: { points: 2, coordinate_coverage_pct: 90, outside_jurisdiction: 1 },
+        location_quality: {
+          total_ticket_records: 6,
+          ticket_records_with_coordinates: 2,
+          ticket_records_outside_jurisdiction: 1,
+          ticket_records_pending_geocode: 3,
+          coordinate_coverage_pct: 33.33,
+        },
+      },
+      2,
+    );
+
+    expect(readiness).toMatchObject({
+      state: 'low',
+      coveragePercent: 33.3,
+      visiblePoints: 2,
+      pendingGeocode: 3,
+    });
+  });
+
   it('honors render contract blocking even when point data exists', () => {
     const readiness = resolveTerritoryMapReadiness(
       {

@@ -1313,6 +1313,117 @@ const normalizeHeatmapSpatialFilter = (value: unknown): OperationsHeatmapV1['spa
   };
 };
 
+const normalizeHeatmapLocationQuality = (value: unknown): OperationsHeatmapV1['location_quality'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    total_ticket_records: asNumber(value.total_ticket_records),
+    ticket_records_with_persisted_coordinates: asNumber(value.ticket_records_with_persisted_coordinates),
+    ticket_records_with_coordinates: asNumber(value.ticket_records_with_coordinates),
+    ticket_records_with_validated_coordinates: asNumber(value.ticket_records_with_validated_coordinates),
+    ticket_records_outside_jurisdiction: asNumber(value.ticket_records_outside_jurisdiction),
+    ticket_records_with_address: asNumber(value.ticket_records_with_address),
+    ticket_records_with_address_and_coordinates: asNumber(value.ticket_records_with_address_and_coordinates),
+    ticket_records_with_explicit_zone: asNumber(value.ticket_records_with_explicit_zone),
+    ticket_records_pending_geocode: asNumber(value.ticket_records_pending_geocode),
+    ticket_records_without_location: asNumber(value.ticket_records_without_location),
+    coordinate_coverage_pct: asNumber(value.coordinate_coverage_pct),
+    status: asString(value.status),
+    reason_code: asString(value.reason_code),
+    provenance: pickRecord(value.provenance),
+  };
+};
+
+const normalizeHeatmapJurisdiction = (value: unknown): OperationsHeatmapV1['jurisdiction'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    state: asString(value.state),
+    enforced: asBoolean(value.enforced),
+    city: asString(value.city),
+    state_name: asString(value.state_name ?? value.stateName),
+    country: asString(value.country),
+    locale: asString(value.locale),
+    region_hint: asString(value.region_hint ?? value.regionHint),
+    bounds: pickRecord(value.bounds) ?? null,
+    source: pickRecord(value.source) ?? null,
+    truth_boundary: asString(value.truth_boundary),
+    excluded_coordinate_records: asNumber(value.excluded_coordinate_records),
+    review_candidate_count: asNumber(value.review_candidate_count),
+  };
+};
+
+const normalizeTerritorialFacetItems = (
+  value: unknown,
+): NonNullable<OperationsHeatmapV1['territorial_facets']>['categories'] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<NonNullable<NonNullable<OperationsHeatmapV1['territorial_facets']>['categories']>>(
+    (items, rawItem) => {
+      if (!isRecord(rawItem)) return items;
+      const key = asString(rawItem.key ?? rawItem.id ?? rawItem.label);
+      if (!key) return items;
+      items.push({
+        ...rawItem,
+        key,
+        label: asString(rawItem.label ?? rawItem.title ?? key) ?? key,
+        count: asNumber(rawItem.count ?? rawItem.total),
+        mapped_count: asNumber(rawItem.mapped_count),
+        pending_geocode_count: asNumber(rawItem.pending_geocode_count),
+        outside_jurisdiction_count: asNumber(rawItem.outside_jurisdiction_count),
+        top_addresses: normalizeBucketItems(rawItem.top_addresses),
+        explicit_zones: normalizeBucketItems(rawItem.explicit_zones),
+        categories: normalizeBucketItems(rawItem.categories),
+      });
+      return items;
+    },
+    [],
+  );
+};
+
+const normalizeHeatmapTerritorialFacets = (
+  value: unknown,
+): OperationsHeatmapV1['territorial_facets'] => {
+  if (!isRecord(value)) return undefined;
+  const summary = pickRecord(value.summary);
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    summary: summary
+      ? {
+          ...summary,
+          ticket_records: asNumber(summary.ticket_records),
+          mapped_records: asNumber(summary.mapped_records),
+          records_with_address: asNumber(summary.records_with_address),
+          records_with_explicit_zone: asNumber(summary.records_with_explicit_zone),
+          records_outside_jurisdiction: asNumber(summary.records_outside_jurisdiction),
+          pending_geocode_records: asNumber(summary.pending_geocode_records),
+          records_without_location: asNumber(summary.records_without_location),
+        }
+      : undefined,
+    categories: normalizeTerritorialFacetItems(value.categories),
+    addresses: normalizeTerritorialFacetItems(value.addresses),
+    explicit_zones: normalizeTerritorialFacetItems(value.explicit_zones ?? value.zones),
+    provenance: pickRecord(value.provenance),
+  };
+};
+
+const normalizeHeatmapJurisdictionReview = (
+  value: unknown,
+): OperationsHeatmapV1['jurisdiction_review'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    status: asString(value.status),
+    reason_code: asString(value.reason_code),
+    candidate_count: asNumber(value.candidate_count),
+    candidates: normalizeBucketItemsWithActions(value.candidates),
+    writes_performed: asBoolean(value.writes_performed),
+  };
+};
+
 const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
@@ -1357,6 +1468,10 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     hotspots: normalizeBucketItemsWithActions(record.hotspots),
     category_layers: normalizeBucketItemsWithActions(record.category_layers),
     demographics: normalizeHeatmapDemographics(record.demographics),
+    location_quality: normalizeHeatmapLocationQuality(record.location_quality),
+    jurisdiction: normalizeHeatmapJurisdiction(record.jurisdiction),
+    territorial_facets: normalizeHeatmapTerritorialFacets(record.territorial_facets),
+    jurisdiction_review: normalizeHeatmapJurisdictionReview(record.jurisdiction_review),
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),

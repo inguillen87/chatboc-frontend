@@ -465,6 +465,70 @@ export interface OperationsHeatmapPrivacyMetadata {
   [key: string]: unknown;
 }
 
+export interface OperationsHeatmapLocationQuality {
+  contract_version?: string;
+  total_ticket_records?: number;
+  ticket_records_with_persisted_coordinates?: number;
+  ticket_records_with_coordinates?: number;
+  ticket_records_with_validated_coordinates?: number;
+  ticket_records_outside_jurisdiction?: number;
+  ticket_records_with_address?: number;
+  ticket_records_with_address_and_coordinates?: number;
+  ticket_records_with_explicit_zone?: number;
+  ticket_records_pending_geocode?: number;
+  ticket_records_without_location?: number;
+  coordinate_coverage_pct?: number;
+  status?: string;
+  reason_code?: string;
+  provenance?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapJurisdiction {
+  contract_version?: string;
+  state?: string;
+  enforced?: boolean;
+  city?: string;
+  state_name?: string;
+  country?: string;
+  locale?: string;
+  region_hint?: string;
+  bounds?: Record<string, unknown> | null;
+  source?: Record<string, unknown> | null;
+  truth_boundary?: string;
+  excluded_coordinate_records?: number;
+  review_candidate_count?: number;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapTerritorialFacetItem extends OperationsBucketItem {
+  mapped_count?: number;
+  pending_geocode_count?: number;
+  outside_jurisdiction_count?: number;
+  top_addresses?: OperationsBucketItem[];
+  explicit_zones?: OperationsBucketItem[];
+  categories?: OperationsBucketItem[];
+}
+
+export interface OperationsHeatmapTerritorialFacets {
+  contract_version?: string;
+  summary?: {
+    ticket_records?: number;
+    mapped_records?: number;
+    records_with_address?: number;
+    records_with_explicit_zone?: number;
+    records_outside_jurisdiction?: number;
+    pending_geocode_records?: number;
+    records_without_location?: number;
+    [key: string]: unknown;
+  };
+  categories?: OperationsHeatmapTerritorialFacetItem[];
+  addresses?: OperationsHeatmapTerritorialFacetItem[];
+  explicit_zones?: OperationsHeatmapTerritorialFacetItem[];
+  provenance?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface OperationsHeatmapSourceQuality {
   contract_version?: string;
   sources?: Record<string, Record<string, unknown>>;
@@ -587,6 +651,18 @@ export interface OperationsHeatmapV1 {
   facets: OperationsHeatmapFacet[];
   category_layers: OperationsBucketItem[];
   demographics?: OperationsHeatmapDemographics;
+  location_quality?: OperationsHeatmapLocationQuality;
+  jurisdiction?: OperationsHeatmapJurisdiction;
+  territorial_facets?: OperationsHeatmapTerritorialFacets;
+  jurisdiction_review?: {
+    contract_version?: string;
+    status?: string;
+    reason_code?: string;
+    candidate_count?: number;
+    candidates?: OperationsBucketItem[];
+    writes_performed?: boolean;
+    [key: string]: unknown;
+  };
   quality?: {
     contract_version?: string;
     state?: string;

@@ -143,7 +143,7 @@ const readPercent = (...values: unknown[]) => {
 };
 
 export const resolveTerritoryMapReadiness = (
-  heatmap?: Pick<OperationsHeatmapV1, 'quality' | 'summary' | 'points' | 'render_contract'>,
+  heatmap?: Pick<OperationsHeatmapV1, 'quality' | 'summary' | 'points' | 'render_contract' | 'location_quality'>,
   fallbackPointCount = 0,
 ): TerritoryMapReadiness => {
   const quality = heatmap?.quality;
@@ -151,6 +151,7 @@ export const resolveTerritoryMapReadiness = (
   const rawState = normalizeToken(readFirstString(quality?.state, summary.quality_state, summary.state, heatmap?.render_contract?.state));
   const renderState = normalizeToken(readFirstString(heatmap?.render_contract?.state));
   const coveragePercent = readPercent(
+    heatmap?.location_quality?.coordinate_coverage_pct,
     quality?.coverage_percent,
     summary.coverage_percent,
     summary.coordinate_coverage_pct,
@@ -158,6 +159,10 @@ export const resolveTerritoryMapReadiness = (
   );
   const visiblePoints = readFirstNumber(quality?.visible_points, summary.points, fallbackPointCount, heatmap?.points?.length);
   const pendingGeocode = readFirstNumber(quality?.pending_geocode, summary.pending_geocode);
+  const contractPendingGeocode = readFirstNumber(
+    heatmap?.location_quality?.ticket_records_pending_geocode,
+    pendingGeocode,
+  );
   const withoutCoordinates = readFirstNumber(
     quality?.ticket_records_without_coordinates,
     summary.ticket_records_without_coordinates,
@@ -180,7 +185,7 @@ export const resolveTerritoryMapReadiness = (
             rawState === 'partial' ||
             rawState === 'stale' ||
             (coveragePercent !== undefined && coveragePercent < 75) ||
-            Boolean(pendingGeocode && pendingGeocode > 0)
+            Boolean(contractPendingGeocode && contractPendingGeocode > 0)
           ? 'degraded'
           : 'ready';
 
@@ -202,7 +207,7 @@ export const resolveTerritoryMapReadiness = (
     reasonCode,
     coveragePercent,
     visiblePoints,
-    pendingGeocode,
+    pendingGeocode: contractPendingGeocode,
     withoutCoordinates,
     canRenderHeatmap,
   };

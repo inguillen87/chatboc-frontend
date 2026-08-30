@@ -22,6 +22,7 @@ export interface HeatPoint {
   /** Aggregated address/cell label; unlike direccion it must not identify a household. */
   addressCellLabel?: string;
   addressCellKey?: string;
+  addressCorridorKey?: string;
   distrito?: string;
   barrio?: string;
   tipo_ticket?: string;
