@@ -1103,9 +1103,9 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Segmentos operativos</p>
                 <h2 className="mt-1 text-xl font-bold">Audiencias accionables</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Grupos calculados sobre los datos publicados por el backend.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Grupos calculados {loadedDirectoryScopeLabel}; no representan el total hasta completar la carga.</p>
               </div>
-              <Badge variant="outline">{usuarios.length} personas analizadas</Badge>
+              <Badge variant="outline">{usuarios.length} personas cargadas</Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
@@ -1118,14 +1118,14 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{label}</p><Icon className="h-4 w-4 text-primary" /></div>
                     <p className="mt-3 text-3xl font-bold">{value}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{helper} · {loadedDirectoryScopeLabel}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
             <div className="grid gap-3 lg:grid-cols-2">
               <Card className="border-border/70">
-                <CardHeader className="pb-2"><CardTitle className="text-base">Distribución por canal</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-base">Distribución por canal</CardTitle><p className="text-xs text-muted-foreground">{loadedDirectoryScopeLabel}</p></CardHeader>
                 <CardContent className="space-y-2">
                   {channelStats.length ? channelStats.map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm"><span>{item.label}</span><Badge variant="secondary">{item.total}</Badge></div>
@@ -1133,7 +1133,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
                 </CardContent>
               </Card>
               <Card className="border-border/70">
-                <CardHeader className="pb-2"><CardTitle className="text-base">Cola de próxima acción</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-base">Cola de próxima acción</CardTitle><p className="text-xs text-muted-foreground">{loadedDirectoryScopeLabel}</p></CardHeader>
                 <CardContent className="space-y-2">
                   {nextActionStats.length ? nextActionStats.map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm"><span>{item.label}</span><Badge variant="outline">{item.total}</Badge></div>

@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from "@/utils/api";
 
 export const CRM_PEOPLE_DIRECTORY_CONTRACT_VERSION = "crm.people.directory.v2";
 export const CRM_PEOPLE_DIRECTORY_LIMIT = 50;
+export const CRM_PEOPLE_PII_PERMISSION = "crm_contacts_pii_read";
 
 export const CRM_PEOPLE_CHANNEL_FILTERS = [
   "all",
@@ -171,12 +172,26 @@ export const parseCrmPeopleDirectoryPage = (value: unknown): CrmPeopleDirectoryP
   const pageGranted = rawPii.granted;
   const permission = cleanString(rawPii.permission) || null;
   const reasonCode = cleanString(rawPii.reason_code) || null;
+  if (permission !== CRM_PEOPLE_PII_PERMISSION) {
+    throw new CrmPeopleDirectoryContractError("El directorio no publicó el permiso PII esperado.");
+  }
   if (pageMasked === pageGranted) {
     throw new CrmPeopleDirectoryContractError("El directorio publicó una política de datos personales contradictoria.");
   }
   const fullPiiGranted = pageGranted === true && pageMasked === false;
-  if (fullPiiGranted && (!piiRequested || !permission || reasonCode)) {
-    throw new CrmPeopleDirectoryContractError("El directorio declaró PII completa sin solicitud, permiso o política coherentes.");
+  const maskedByDefault = piiRequested === false
+    && pageMasked === true
+    && pageGranted === false
+    && reasonCode === "pii_masked_by_default";
+  const permissionDenied = piiRequested === true
+    && pageMasked === true
+    && pageGranted === false
+    && reasonCode === "pii_permission_required";
+  const permissionGranted = piiRequested === true
+    && fullPiiGranted
+    && reasonCode === null;
+  if (!maskedByDefault && !permissionDenied && !permissionGranted) {
+    throw new CrmPeopleDirectoryContractError("El directorio publicó una matriz PII incoherente.");
   }
   if (fullPiiGranted && parsedItems.some((item) => item.pii_masked)) {
     throw new CrmPeopleDirectoryContractError("El directorio declaró PII completa con registros todavía enmascarados.");

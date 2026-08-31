@@ -127,7 +127,45 @@ describe("crm.people.directory.v2", () => {
     expect(() => parseCrmPeopleDirectoryPage({
       ...fullPayload,
       pii: { ...fullPayload.pii, requested: false },
-    })).toThrow(/sin solicitud/i);
+    })).toThrow(/matriz PII incoherente/i);
+  });
+
+  it("validates every masked PII policy field against the backend contract", () => {
+    const maskedByDefault = response({ hasMore: false, nextCursor: null });
+    expect(parseCrmPeopleDirectoryPage(maskedByDefault).pii).toEqual({
+      requested: false,
+      masked: true,
+      granted: false,
+      permission: "crm_contacts_pii_read",
+      reason_code: "pii_masked_by_default",
+    });
+
+    const denied = {
+      ...maskedByDefault,
+      pii: {
+        ...maskedByDefault.pii,
+        requested: true,
+        reason_code: "pii_permission_required",
+      },
+    };
+    expect(parseCrmPeopleDirectoryPage(denied).pii.reason_code).toBe("pii_permission_required");
+
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...maskedByDefault,
+      pii: { ...maskedByDefault.pii, permission: null },
+    })).toThrow(/permiso PII esperado/i);
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...maskedByDefault,
+      pii: { ...maskedByDefault.pii, permission: "otro_permiso" },
+    })).toThrow(/permiso PII esperado/i);
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...maskedByDefault,
+      pii: { ...maskedByDefault.pii, reason_code: null },
+    })).toThrow(/matriz PII incoherente/i);
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...denied,
+      pii: { ...denied.pii, reason_code: "pii_masked_by_default" },
+    })).toThrow(/matriz PII incoherente/i);
   });
 
   it("fails closed for an unknown contract or a broken cursor page", () => {
