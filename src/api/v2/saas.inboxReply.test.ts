@@ -135,7 +135,8 @@ describe('omnichannel inbox reply v2 transport', () => {
           source_model: 'MunicipioTicket',
           legacy_id: 419,
           ticket_id: 419,
-          location: { address: 'Plaza departamental, Junín' },
+          lat: -34.593,
+          lng: -60.946,
           client_message_id: clientMessageId,
         },
       },
@@ -150,7 +151,8 @@ describe('omnichannel inbox reply v2 transport', () => {
         source_model: 'MunicipioTicket',
         legacy_id: 419,
         ticket_id: 419,
-        location: { address: 'Plaza departamental, Junín' },
+        lat: -34.593,
+        lng: -60.946,
         client_message_id: clientMessageId,
       }),
       {
@@ -242,6 +244,26 @@ describe('omnichannel inbox reply v2 transport', () => {
       requested_channels: ['email', 'sms', 'whatsapp', 'realtime'],
       delivery_skipped: { email: 'recipient_missing' },
     });
+  });
+
+  it('preserves truthful CRM-only artifact evidence and replay state', () => {
+    const normalized = normalizeOmnichannelInboxActionV2(responseWithDelivery({
+      mode: 'crm_only', status: 'already_recorded', saved_in_crm: true,
+      external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
+      delivered: false, failed: false, receipt_persisted: true, idempotent_replay: true,
+    }));
+    expect(normalized.delivery).toMatchObject({
+      saved_in_crm: true, external_dispatch: false, dispatch_attempted: false,
+      provider_accepted: false, delivered: false, failed: false,
+      receipt_persisted: true, idempotent_replay: true,
+    });
+  });
+
+  it('requires exact source_model and stable identity for attachment actions', async () => {
+    await expect(postOmnichannelInboxActionV2('419', {
+      action: 'attach_file', attachment_id: 17, client_message_id: 'crm-attach_file:attempt-0001',
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    expect(panelPostMock).not.toHaveBeenCalled();
   });
 
   it('normalizes authoritative reply evidence without treating provider acceptance as delivery', () => {

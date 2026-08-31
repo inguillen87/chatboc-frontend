@@ -34,6 +34,7 @@ export interface SaasAction {
   may_queue_external_delivery?: boolean;
   action_response_delivery_authoritative?: boolean;
   final_delivery_authority?: string;
+  delivery_contract_version?: string;
   input_schema?: UnknownRecord;
   idempotency?: UnknownRecord;
   enabled?: boolean;
@@ -378,6 +379,13 @@ export interface OmnichannelActionDelivery {
   reason?: string;
   fallback?: string;
   external_dispatch?: boolean;
+  saved_in_crm?: boolean;
+  dispatch_attempted?: boolean;
+  provider_accepted?: boolean;
+  delivered?: boolean;
+  failed?: boolean;
+  receipt_persisted?: boolean;
+  idempotent_replay?: boolean;
   timeline_updated?: boolean;
   reply_status?: string;
   evidence_stage?: string;
@@ -841,6 +849,9 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     ),
     final_delivery_authority: asString(
       getFirst(value, ['final_delivery_authority', 'finalDeliveryAuthority']),
+    ),
+    delivery_contract_version: asString(
+      getFirst(value, ['delivery_contract_version', 'deliveryContractVersion']),
     ),
     input_schema: inputSchema,
     idempotency,
@@ -1589,6 +1600,13 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
     reason: asString(value.reason),
     fallback: asString(value.fallback),
     external_dispatch: asBoolean(value.external_dispatch),
+    saved_in_crm: asBoolean(value.saved_in_crm),
+    dispatch_attempted: asBoolean(value.dispatch_attempted),
+    provider_accepted: asBoolean(value.provider_accepted),
+    delivered: asBoolean(value.delivered),
+    failed: asBoolean(value.failed),
+    receipt_persisted: asBoolean(value.receipt_persisted),
+    idempotent_replay: asBoolean(value.idempotent_replay),
     timeline_updated: asBoolean(value.timeline_updated),
     reply_status: asString(value.reply_status),
     evidence_stage: asString(value.evidence_stage),
@@ -2227,6 +2245,7 @@ export const getOmnichannelInboxDetailV2 = async (
 
 const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
   'reply',
+  'attach_file',
   'share_location',
   'send_location',
   'share_form',
@@ -2276,7 +2295,7 @@ const resolveOmnichannelActionClientMessageId = (
   if (
     !clientMessageId ||
     clientMessageId.length < 8 ||
-    clientMessageId.length > 256 ||
+    clientMessageId.length > 128 ||
     /[\u0000-\u001f]/.test(clientMessageId)
   ) {
     throw new ApiError(
@@ -2302,12 +2321,20 @@ export const postOmnichannelInboxActionV2 = async (
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
   const normalizedAction = payload.action.trim().toLowerCase();
-  if (normalizedAction === 'claim' || normalizedAction === 'assign') {
+  if (
+    normalizedAction === 'claim' ||
+    normalizedAction === 'assign' ||
+    normalizedAction === 'attach_file' ||
+    normalizedAction === 'share_location' ||
+    normalizedAction === 'send_location' ||
+    normalizedAction === 'share_form' ||
+    normalizedAction === 'send_form'
+  ) {
     const sourceModel = asString(payload.source_model) ||
       asString(nestedPayload.source_model);
     if (sourceModel !== 'TenantTicket' && sourceModel !== 'MunicipioTicket') {
       throw new ApiError(
-        'La toma o asignación requiere la identidad exacta source_model + ticket_id.',
+        'La acción requiere la identidad exacta source_model + ticket_id.',
         400,
         { code: 'source_model_required' },
       );

@@ -1,204 +1,59 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-
 import type { SaasAction } from '@/api/v2/saas';
-
 import TicketShareActionDialog, { getTicketShareActionBlockReason } from './TicketShareActionDialog';
 
-const idempotency = {
-  contract_version: 'inbox.reply_idempotency.v1',
-  preferred_header: 'Idempotency-Key',
-  body_field: 'client_message_id',
-  retry_rule: 'reuse_same_value',
-};
+const action = (id: string, requires: string[], extra: Partial<SaasAction> = {}): SaasAction => ({
+  id, label: id, enabled: true, disabled: false, method: 'POST', endpoint: '/api/v2/inbox/omnichannel/actions',
+  delivery_mode: 'crm_only', external_dispatch: false, delivery_contract_version: 'inbox.action_delivery.v2', requires, ...extra,
+});
 
-const locationAction: SaasAction = {
-  id: 'share_location',
-  label: 'Registrar ubicación',
-  endpoint: '/api/v2/inbox/omnichannel/actions',
-  method: 'POST',
-  delivery_mode: 'internal_event',
-  external_dispatch: false,
-  idempotency,
-  input_schema: {
-    type: 'object',
-    required: ['location'],
-    properties: {
-      location: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          address: { type: 'string', maxLength: 300 },
-          label: { type: 'string', maxLength: 100 },
-          lat: { type: 'number', minimum: -90, maximum: 90 },
-          lng: { type: 'number', minimum: -180, maximum: 180 },
-        },
-        anyOf: [{ required: ['address'] }, { required: ['lat', 'lng'] }],
-      },
-    },
-  },
-};
-
-const runtimeLocationAction: SaasAction = {
-  ...locationAction,
-  delivery_mode: 'runtime_preflight',
-  delivery_modes: ['durable_queue', 'internal_event'],
-  external_dispatch: false,
-  direct_external_dispatch: false,
-  may_queue_external_delivery: true,
-  action_response_delivery_authoritative: true,
-  final_delivery_authority: 'provider_status_callback',
-};
-
-const replyContract = {
-  form_selection: {
-    options: [{
-      id: 'form-1',
-      form_slug: 'reclamo-alumbrado',
-      label: 'Reclamo de alumbrado',
-      href: '/e/reclamo-alumbrado',
-      kind: 'survey',
-    }],
-  },
-};
-
-const formAction: SaasAction = {
-  id: 'share_form',
-  label: 'Registrar formulario',
-  endpoint: '/api/v2/inbox/omnichannel/actions',
-  method: 'POST',
-  delivery_mode: 'internal_event',
-  external_dispatch: false,
-  idempotency,
-  input_schema: {
-    type: 'object',
-    required: ['form_slug'],
-    properties: {
-      form_slug: {
-        type: 'string',
-        enum: ['reclamo-alumbrado'],
-        'x-options-source': 'reply_contract.form_selection.options',
-      },
-    },
-  },
-};
-
-describe('TicketShareActionDialog', () => {
-  it('does not pre-block a location action because the operator still has to complete its required value', () => {
-    expect(getTicketShareActionBlockReason('location', locationAction)).toBeNull();
+describe('TicketShareActionDialog crm-only v2', () => {
+  it('accepts only the exact enabled location contract', () => {
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key']))).toBeNull();
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng']))).toMatch(/idempotente/i);
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], { external_dispatch: true }))).toMatch(/CRM-only/i);
   });
 
-  it('accepts the exact runtime preflight contract without promising external delivery', () => {
-    expect(getTicketShareActionBlockReason('location', runtimeLocationAction)).toBeNull();
-  });
-
-  it('explains backend-disabled location and form actions with operator-facing copy', () => {
-    expect(getTicketShareActionBlockReason('location', {
-      id: 'share_location',
-      label: 'Compartir ubicación',
-      enabled: false,
-      reason_code: 'location_reply_not_supported',
-    })).toMatch(/no habilitó compartir ubicaciones/i);
-    expect(getTicketShareActionBlockReason('form', {
-      id: 'send_form',
-      label: 'Enviar formulario',
-      disabled: true,
-      reason_code: 'form_reply_not_supported',
-    })).toMatch(/no habilitó enviar formularios/i);
-  });
-
-  it.each([
-    ['external dispatch', { external_dispatch: true }],
-    ['missing external dispatch flag', { external_dispatch: undefined }],
-    ['provider dispatch mode', { delivery_mode: 'provider_dispatch' }],
-  ])('blocks location when the contract permits %s', (_label, overrides) => {
-    expect(getTicketShareActionBlockReason('location', {
-      ...locationAction,
-      ...overrides,
-    })).toBe('El contrato de ubicación no publica una decisión de entrega segura y auditable.');
-  });
-
-  it('blocks location when the idempotency contract version is not exact', () => {
-    expect(getTicketShareActionBlockReason('location', {
-      ...locationAction,
-      idempotency: {
-        ...idempotency,
-        contract_version: 'inbox.reply_idempotency.v0',
-      },
-    })).toBe('El contrato de ubicación no publicó una identidad idempotente compatible.');
-  });
-
-  it('collects a valid address and labels the operation as internal', () => {
+  it('submits root WGS84 fields and states that no external message is sent', () => {
     const onConfirm = vi.fn();
-    render(
-      <TicketShareActionDialog
-        action={locationAction}
-        kind="location"
-        open
-        onOpenChange={vi.fn()}
-        onConfirm={onConfirm}
-      />,
-    );
-
-    expect(screen.getByText('Esta acción se registra dentro del CRM. No envía un mensaje por WhatsApp.')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Dirección'), {
-      target: { value: 'Plaza departamental, Junín' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar acción interna' }));
-
-    expect(onConfirm).toHaveBeenCalledWith({
-      location: { address: 'Plaza departamental, Junín' },
-    });
+    render(<TicketShareActionDialog action={action('share_location', ['lat', 'lng', 'Idempotency-Key'])} kind="location" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
+    expect(screen.getByText(/guardará en CRM, no se enviará externamente/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
+    fireEvent.change(screen.getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    expect(onConfirm).toHaveBeenCalledWith({ lat: -34.593, lng: -60.946 });
   });
 
-  it('explains runtime channel validation and submits without claiming the message was sent', () => {
+  it('never requests browser location before explicit opt-in', () => {
+    const getCurrentPosition = vi.fn();
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition } });
+    render(<TicketShareActionDialog action={action('share_location', ['lat', 'lng', 'Idempotency-Key'])} kind="location" open onOpenChange={vi.fn()} onConfirm={vi.fn()} />);
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Usar mi ubicación' }));
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables attachment only for an existing numeric ticket attachment id', () => {
+    const attachmentAction = action('attach_file', ['attachment_id', 'Idempotency-Key']);
+    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [])).toMatch(/No hay adjuntos existentes/i);
+    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ id: 17, filename: 'acta.pdf' }])).toBeNull();
+    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ url: 'https://example.test/file' }])).toMatch(/ID verificable/i);
+  });
+
+  it('keeps forms blocked without a real approved tenant option', () => {
+    const formAction = action('send_form', ['form_id', 'Idempotency-Key']);
+    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/no publicó formularios reales/i);
+  });
+
+  it('submits only an approved numeric form id published by the action', () => {
     const onConfirm = vi.fn();
-    render(
-      <TicketShareActionDialog
-        action={runtimeLocationAction}
-        kind="location"
-        open
-        onOpenChange={vi.fn()}
-        onConfirm={onConfirm}
-      />,
-    );
-
-    expect(screen.getByText(/puede encolarla para WhatsApp o guardarla sólo en el CRM/i)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Dirección'), {
-      target: { value: 'Plaza departamental, Junín' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar y validar canal' }));
-
-    expect(onConfirm).toHaveBeenCalledWith({
-      location: { address: 'Plaza departamental, Junín' },
-    });
-  });
-
-  it('only submits a form slug published by the item reply contract', () => {
-    const onConfirm = vi.fn();
-    render(
-      <TicketShareActionDialog
-        action={formAction}
-        kind="form"
-        open
-        replyContract={replyContract}
-        onOpenChange={vi.fn()}
-        onConfirm={onConfirm}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText('Formulario publicado'), {
-      target: { value: 'reclamo-alumbrado' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar acción interna' }));
-
-    expect(onConfirm).toHaveBeenCalledWith({ form_slug: 'reclamo-alumbrado' });
-  });
-
-  it('blocks a form action when the tenant-scoped reply contract has no matching options', () => {
-    expect(getTicketShareActionBlockReason('form', formAction, {
-      form_selection: { options: [] },
-    })).toBe('El contrato de formulario no publicó opciones válidas para este tenant.');
+    const formAction = action('send_form', ['form_id', 'Idempotency-Key'], { raw: { options: [{ form_id: 9, label: 'CUD', status: 'approved' }] } });
+    expect(getTicketShareActionBlockReason('form', formAction)).toBeNull();
+    render(<TicketShareActionDialog action={formAction} kind="form" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
+    fireEvent.change(screen.getByLabelText('Formulario aprobado'), { target: { value: '9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    expect(onConfirm).toHaveBeenCalledWith({ form_id: 9 });
   });
 });

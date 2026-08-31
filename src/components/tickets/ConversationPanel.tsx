@@ -595,6 +595,29 @@ export const getComposerActionDeliveryView = (
     ? delivery.evidence
     : undefined;
 
+  if (delivery?.saved_in_crm === true && delivery.receipt_persisted === true && delivery.external_dispatch === false) {
+    const inconsistentExternalState = delivery.dispatch_attempted === true || delivery.provider_accepted === true || delivery.delivered === true;
+    if (inconsistentExternalState || delivery.failed === true) {
+      return {
+        tone: 'warning' as const,
+        title: 'Evidencia CRM-only inconsistente',
+        detail: 'El backend publicó estados externos incompatibles con una acción CRM-only. No se confirma envío ni entrega.',
+      };
+    }
+    if (delivery.idempotent_replay === true || status === 'already_recorded') {
+      return {
+        tone: 'replay' as const,
+        title: 'Reintento reconocido',
+        detail: 'Guardado en CRM, no enviado externamente. El backend reconoció la misma operación y no duplicó el artefacto.',
+      };
+    }
+    return {
+      tone: 'internal' as const,
+      title: 'Guardado sólo en CRM',
+      detail: 'Guardado en CRM, no enviado externamente.',
+    };
+  }
+
   if (evidence) {
     if (evidence.delivered === true && evidence.failed === true) {
       return {
@@ -1383,7 +1406,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     composerActionContractQuery.isError,
     composerActionContractQuery.isSuccess,
   ]);
-  const composerActionTicketId = composerActionContractQuery.data?.item.id || String(selectedTicket?.id ?? '');
+  const composerActionItem = composerActionContractQuery.data?.item;
+  const composerActionTicketId = composerActionItem?.id || String(selectedTicket?.id ?? '');
+  const composerActionSourceModel = composerActionItem?.source_model === 'TenantTicket' || composerActionItem?.source_model === 'MunicipioTicket'
+    ? composerActionItem.source_model
+    : undefined;
+  const composerActionAttachments = composerActionItem?.attachments || [];
   const composerSlaSource =
     composerActionContractQuery.data?.item?.sla ||
     resolveTicketSlaSource(selectedTicket || {});
@@ -1428,12 +1456,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     : null;
   const tenantAttachmentBlockReason = authoritativeAttachmentMustFailClosed
     ? actionContractBlockReason ||
-      getReplyCapabilityBlockReason('attachment', composerReplyContract) ||
       (attachmentAction
-        ? getActionDisabledReason(
-            attachmentAction,
-            'El backend publicó el adjunto como no disponible.',
-          ) || 'El backend publicó la capacidad, pero todavía no existe un contrato de carga binaria auditable para ejecutarla desde esta consola.'
+        ? getTicketShareActionBlockReason('attachment', attachmentAction, composerReplyContract, composerActionAttachments)
         : 'El backend no publicó un contrato seguro de adjuntos para este ticket; permanece bloqueado para evitar aparentar un envío.')
     : null;
   const handoffBlockReason = actionContractBlockReason ||
@@ -1467,6 +1491,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         payload: {
           ...buildSaasActionPayload(variables.action),
           ...variables.actionPayload,
+          source_model: composerActionSourceModel,
+          ...(variables.actionKind === 'reply' || variables.actionKind === 'handoff'
+            ? {}
+            : { ticket_id: composerActionItem?.ticket_id || composerActionItem?.legacy_id }),
         },
       },
       variables.tenantSlug,
@@ -1482,6 +1510,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }),
       );
       setLastComposerActionResult({ scopeKey: variables.scopeKey, result });
+      setConversationInvalidationVersion((version) => version + 1);
       if (variables.actionKind !== 'handoff') setShareActionDialogKind(null);
       if (variables.attemptKey) {
         const attemptRef = variables.actionKind === 'reply'
@@ -1526,7 +1555,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       ticket_id: composerActionTicketId,
     };
     const missingRequiredFields = (action.requires || []).filter(
-      (field) => isMissingComposerActionValue(completePayload[field]),
+      (field) => field !== 'Idempotency-Key' && isMissingComposerActionValue(completePayload[field]),
     );
     if (missingRequiredFields.length) {
       toast.error(`Falta completar: ${missingRequiredFields.join(', ')}.`);
@@ -3147,7 +3176,23 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                       </span>
                     </span>
                   </DropdownMenuItem>
-                ) : null}
+                ) : (
+                  <DropdownMenuItem
+                    className="items-start gap-2 py-2"
+                    disabled={composerActionMutation.isPending}
+                    onSelect={() => {
+                      composerActionMutation.reset();
+                      setLastComposerActionResult(null);
+                      setShareActionDialogKind('attachment');
+                    }}
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Vincular adjunto existente</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">Guardado en CRM, no enviado externamente. No carga archivos nuevos.</span>
+                    </span>
+                  </DropdownMenuItem>
+                )}
                 {replyBlockReason ? (
                   <DropdownMenuItem
                     aria-disabled="true"
@@ -3276,10 +3321,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
         <TicketShareActionDialog
           key={composerActionScopeKey}
-          action={shareActionDialogKind === 'location' ? locationAction : formAction}
+          action={shareActionDialogKind === 'location' ? locationAction : shareActionDialogKind === 'attachment' ? attachmentAction : formAction}
           kind={shareActionDialogKind || 'location'}
           open={Boolean(shareActionDialogKind)}
           replyContract={composerReplyContract}
+          attachments={composerActionAttachments}
           submitting={Boolean(
             composerActionMutation.isPending &&
             composerActionMutation.variables?.actionKind === shareActionDialogKind
@@ -3296,6 +3342,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             }
             if (shareActionDialogKind === 'form' && formAction) {
               executeComposerAction(formAction, formBlockReason, 'form', { ...payload });
+            }
+            if (shareActionDialogKind === 'attachment' && attachmentAction) {
+              executeComposerAction(attachmentAction, tenantAttachmentBlockReason, 'attachment', { ...payload });
             }
           }}
         />

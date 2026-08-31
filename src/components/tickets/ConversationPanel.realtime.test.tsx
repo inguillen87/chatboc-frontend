@@ -585,7 +585,7 @@ describe('ConversationPanel tenant invalidation', () => {
 
     const { menu } = await openComposerTools();
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no habilitó el envío durable de archivos',
+      'marcó el adjunto como no disponible',
     );
     fireEvent.keyDown(menu, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
@@ -712,14 +712,17 @@ describe('ConversationPanel tenant invalidation', () => {
       label: 'Ubicación',
       endpoint: '/api/v2/inbox/omnichannel/actions',
       method: 'POST',
-      requires: ['location'],
+      enabled: true,
+      disabled: false,
+      requires: ['lat', 'lng', 'Idempotency-Key'],
       payload_defaults: {
         source_model: 'MunicipioTicket',
         legacy_id: 419,
         ticket_id: 419,
       },
-      delivery_mode: 'internal_event',
+      delivery_mode: 'crm_only',
       external_dispatch: false,
+      delivery_contract_version: 'inbox.action_delivery.v2',
       idempotency: {
         contract_version: 'inbox.reply_idempotency.v1',
         preferred_header: 'Idempotency-Key',
@@ -778,18 +781,20 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(locationButton).toHaveAttribute('aria-disabled', 'false');
     fireEvent.click(locationButton);
     const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('Dirección'), {
-      target: { value: 'Plaza departamental, Junín' },
-    });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar acción interna' }));
+    fireEvent.change(within(dialog).getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
+    fireEvent.change(within(dialog).getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
     await within(dialog).findByText('network outcome unknown');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar acción interna' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(2));
     const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
     const secondIdentity = harness.postOmnichannelInboxActionV2.mock.calls[1][1].payload.client_message_id;
+    expect(harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload).toMatchObject({
+      source_model: 'MunicipioTicket', ticket_id: 419, lat: -34.593, lng: -60.946,
+    });
     expect(firstIdentity).toMatch(/^crm-share_location:/);
     expect(secondIdentity).toBe(firstIdentity);
     expect(harness.sendMessage).not.toHaveBeenCalled();
@@ -804,14 +809,17 @@ describe('ConversationPanel tenant invalidation', () => {
       label: 'Ubicación',
       endpoint: '/api/v2/inbox/omnichannel/actions',
       method: 'POST',
-      requires: ['location'],
+      enabled: true,
+      disabled: false,
+      requires: ['lat', 'lng', 'Idempotency-Key'],
       payload_defaults: {
         source_model: 'MunicipioTicket',
         legacy_id: legacyId,
         ticket_id: legacyId,
       },
-      delivery_mode: 'internal_event',
+      delivery_mode: 'crm_only',
       external_dispatch: false,
+      delivery_contract_version: 'inbox.action_delivery.v2',
       idempotency: {
         contract_version: 'inbox.reply_idempotency.v1',
         preferred_header: 'Idempotency-Key',
@@ -862,9 +870,8 @@ describe('ConversationPanel tenant invalidation', () => {
     const locationButton = within(menu).getByRole('menuitem', { name: 'Ubicación' });
     fireEvent.click(locationButton);
     const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('Dirección'), {
-      target: { value: 'Ubicación que pertenece únicamente a M-419' },
-    });
+    fireEvent.change(within(dialog).getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
+    fireEvent.change(within(dialog).getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
 
     harness.selectedTicket = ticketFor(420);
     view.rerender(renderConversation(true));
@@ -936,6 +943,7 @@ describe('ConversationPanel tenant invalidation', () => {
           message: 'La cuadrilla ya tomó el caso.',
           visibility: 'public',
           client_message_id: expect.stringMatching(/^crm-reply:/),
+          source_model: 'TenantTicket',
         },
       },
       'junin',
@@ -1182,7 +1190,7 @@ describe('ConversationPanel tenant invalidation', () => {
       'true',
     );
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'contrato backend no confirmó soporte para archivos',
+      'no publicó un contrato seguro de adjuntos',
     );
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByAltText('Preview')).not.toBeInTheDocument();

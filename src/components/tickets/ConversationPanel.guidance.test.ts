@@ -349,6 +349,30 @@ describe('reply delivery evidence', () => {
     expect(failed).toMatchObject({ tone: 'warning', title: 'Entrega no realizada' });
   });
 
+  it('labels CRM-only artifacts truthfully and recognizes idempotent replay', () => {
+    const saved = getComposerActionDeliveryView({
+      mode: 'crm_only', status: 'saved_to_crm', saved_in_crm: true,
+      external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
+      delivered: false, failed: false, receipt_persisted: true,
+    });
+    const replay = getComposerActionDeliveryView({
+      mode: 'crm_only', status: 'already_recorded', saved_in_crm: true,
+      external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
+      delivered: false, failed: false, receipt_persisted: true, idempotent_replay: true,
+    });
+    expect(saved).toMatchObject({ tone: 'internal', title: 'Guardado sólo en CRM' });
+    expect(saved.detail).toBe('Guardado en CRM, no enviado externamente.');
+    expect(replay).toMatchObject({ tone: 'replay', title: 'Reintento reconocido' });
+  });
+
+  it('fails closed when CRM-only evidence claims an external dispatch', () => {
+    expect(getComposerActionDeliveryView({
+      mode: 'crm_only', saved_in_crm: true, receipt_persisted: true,
+      external_dispatch: false, dispatch_attempted: true, provider_accepted: false,
+      delivered: false, failed: false,
+    })).toMatchObject({ tone: 'warning', title: 'Evidencia CRM-only inconsistente' });
+  });
+
   it('distinguishes socket emission, recipient presence and recipient read', () => {
     const emittedView = getReplyDeliveryView(deliveryStatus({
       socket_emitted: true,

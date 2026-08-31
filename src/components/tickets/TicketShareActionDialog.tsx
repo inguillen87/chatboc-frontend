@@ -1,372 +1,116 @@
 import React, { useEffect, useMemo, useState } from 'react';
-
 import type { SaasAction } from '@/api/v2/saas';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-export type TicketShareActionKind = 'location' | 'form';
-
-export type TicketShareActionPayload = {
-  location?: {
-    address?: string;
-    label?: string;
-    lat?: number;
-    lng?: number;
-  };
-  form_slug?: string;
-};
-
+export type TicketShareActionKind = 'location' | 'form' | 'attachment';
+export type TicketShareActionPayload = { lat?: number; lng?: number; label?: string; address?: string; form_id?: number; attachment_id?: number };
 type PlainRecord = Record<string, unknown>;
-
-type FormSelectionOption = {
-  id: string;
-  formSlug: string;
-  label: string;
-  href?: string;
-  kind?: string;
-};
+type VerifiedOption = { id: number; label: string };
 
 interface TicketShareActionDialogProps {
   action: SaasAction | null;
   kind: TicketShareActionKind;
   open: boolean;
   replyContract?: PlainRecord;
+  attachments?: unknown[];
   submitting?: boolean;
   errorMessage?: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: (payload: TicketShareActionPayload) => void;
 }
 
-const asRecord = (value: unknown): PlainRecord =>
-  value && typeof value === 'object' && !Array.isArray(value) ? value as PlainRecord : {};
-
-const asText = (value: unknown): string | null =>
-  typeof value === 'string' && value.trim() ? value.trim() : null;
-
-const asFiniteNumber = (value: unknown): number | null =>
-  typeof value === 'number' && Number.isFinite(value) ? value : null;
-
-const asStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];
-
-const getFormSelectionOptions = (replyContract?: PlainRecord): FormSelectionOption[] => {
-  const formSelection = asRecord(asRecord(replyContract).form_selection);
-  const options = Array.isArray(formSelection.options) ? formSelection.options : [];
-
+const asRecord = (value: unknown): PlainRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as PlainRecord : {};
+const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
+const positiveId = (value: unknown) => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+};
+const getAttachmentOptions = (attachments: unknown[] = []): VerifiedOption[] => attachments.flatMap((candidate) => {
+  const item = asRecord(candidate);
+  const id = positiveId(item.id ?? item.attachment_id);
+  const label = text(item.filename ?? item.file_name ?? item.name ?? item.nombre);
+  return id && label ? [{ id, label }] : [];
+});
+const getFormOptions = (action: SaasAction | null): VerifiedOption[] => {
+  const raw = asRecord(action?.raw);
+  const options = Array.isArray(raw.options) ? raw.options : [];
   return options.flatMap((candidate) => {
-    const option = asRecord(candidate);
-    const id = asText(option.id);
-    const formSlug = asText(option.form_slug);
-    const label = asText(option.label);
-    const href = asText(option.href);
-    const kind = asText(option.kind);
-    if (!id || !formSlug || !label || !href || !kind) return [];
-    return [{
-      id,
-      formSlug,
-      label,
-      href,
-      kind,
-    }];
+    const item = asRecord(candidate);
+    const id = positiveId(item.form_id ?? item.id);
+    const label = text(item.label ?? item.name ?? item.title);
+    const approved = item.approved === true || ['approved', 'active', 'ready', 'published'].includes(String(item.status || '').toLowerCase());
+    return id && label && approved ? [{ id, label }] : [];
   });
 };
+const disabledReason = (kind: TicketShareActionKind, action: SaasAction) => action.disabled_reason?.trim() || `El backend marcó ${kind === 'location' ? 'la ubicación' : kind === 'form' ? 'el formulario' : 'el adjunto'} como no disponible.`;
 
-const hasRequiredSet = (value: unknown, expected: string[]): boolean => {
-  const present = new Set(asStringArray(value));
-  return expected.every((field) => present.has(field));
-};
-
-const hasCompatibleIdempotency = (action: SaasAction): boolean => {
-  const idempotency = asRecord(action.idempotency);
-  return (
-    asText(idempotency.contract_version) === 'inbox.reply_idempotency.v1' &&
-    asText(idempotency.preferred_header) === 'Idempotency-Key' &&
-    asText(idempotency.body_field) === 'client_message_id' &&
-    asText(idempotency.retry_rule) === 'reuse_same_value'
-  );
-};
-
-const hasSafeDeliveryContract = (action: SaasAction): boolean => {
-  const legacyInternalOnly = (
-    action.delivery_mode === 'internal_event' &&
-    action.external_dispatch === false
-  );
-  const modes = new Set(action.delivery_modes || []);
-  const runtimePreflight = (
-    action.delivery_mode === 'runtime_preflight' &&
-    action.external_dispatch === false &&
-    action.direct_external_dispatch === false &&
-    action.may_queue_external_delivery === true &&
-    action.action_response_delivery_authoritative === true &&
-    action.final_delivery_authority === 'provider_status_callback' &&
-    modes.has('durable_queue') &&
-    modes.has('internal_event')
-  );
-  return legacyInternalOnly || runtimePreflight;
-};
-
-const getDisabledActionReason = (kind: TicketShareActionKind, action: SaasAction): string => {
-  if (action.disabled_reason?.trim()) return action.disabled_reason.trim();
-  const reasonCode = action.reason_code?.trim().toLowerCase();
-  if (reasonCode === 'location_reply_not_supported') {
-    return 'El backend todavía no habilitó compartir ubicaciones de forma auditable para este ticket.';
+export const getTicketShareActionBlockReason = (kind: TicketShareActionKind, action: SaasAction | null, _replyContract?: PlainRecord, attachments: unknown[] = []): string | null => {
+  if (!action) return 'Este ticket no publicó una acción backend compatible.';
+  if (action.enabled !== true || action.disabled === true) return disabledReason(kind, action);
+  if ((action.method || '').toUpperCase() !== 'POST' || !action.endpoint?.startsWith('/')) return 'La acción no publicó un endpoint POST seguro.';
+  if (action.delivery_mode !== 'crm_only' || action.external_dispatch !== false || action.delivery_contract_version !== 'inbox.action_delivery.v2') return 'La acción no publicó el contrato CRM-only auditable esperado.';
+  const required = new Set(action.requires || []);
+  if (!required.has('Idempotency-Key')) return 'La acción no exige una identidad idempotente.';
+  if (kind === 'location' && (!required.has('lat') || !required.has('lng'))) return 'La acción no exige coordenadas WGS84 completas.';
+  if (kind === 'attachment') {
+    if (!required.has('attachment_id')) return 'La acción no exige un attachment_id verificable.';
+    if (!getAttachmentOptions(attachments).length) return 'No hay adjuntos existentes con ID verificable en este ticket. Esta acción no carga archivos nuevos.';
   }
-  if (reasonCode === 'form_reply_not_supported') {
-    return 'El backend todavía no habilitó enviar formularios desde este ticket.';
-  }
-  return `El backend marcó ${kind === 'location' ? 'ubicación' : 'formulario'} como no disponible.`;
-};
-
-export const getTicketShareActionBlockReason = (
-  kind: TicketShareActionKind,
-  action: SaasAction | null,
-  replyContract?: PlainRecord,
-): string | null => {
-  const label = kind === 'location' ? 'ubicación' : 'formulario';
-  if (!action) return `Este ticket no publicó una acción backend compatible para compartir ${label}.`;
-  if (action.disabled === true || action.enabled === false) return getDisabledActionReason(kind, action);
-  if ((action.method || 'POST').trim().toUpperCase() !== 'POST') {
-    return `El contrato de ${label} no publicó un método POST compatible.`;
-  }
-  if (!action.endpoint?.startsWith('/')) {
-    return `El contrato de ${label} no publicó un endpoint seguro.`;
-  }
-  if (!hasSafeDeliveryContract(action)) {
-    return `El contrato de ${label} no publica una decisión de entrega segura y auditable.`;
-  }
-  if (!hasCompatibleIdempotency(action)) {
-    return `El contrato de ${label} no publicó una identidad idempotente compatible.`;
-  }
-
-  const schema = asRecord(action.input_schema);
-  const properties = asRecord(schema.properties);
-  if (asText(schema.type) !== 'object') {
-    return `La acción backend de ${label} no publicó un input_schema compatible.`;
-  }
-
-  if (kind === 'location') {
-    const locationSchema = asRecord(properties.location);
-    const locationProperties = asRecord(locationSchema.properties);
-    const addressSchema = asRecord(locationProperties.address);
-    const labelSchema = asRecord(locationProperties.label);
-    const latitudeSchema = asRecord(locationProperties.lat);
-    const longitudeSchema = asRecord(locationProperties.lng);
-    const anyOf = Array.isArray(locationSchema.anyOf) ? locationSchema.anyOf.map(asRecord) : [];
-    const acceptsAddress = anyOf.some((candidate) => hasRequiredSet(candidate.required, ['address']));
-    const acceptsCoordinates = anyOf.some((candidate) => hasRequiredSet(candidate.required, ['lat', 'lng']));
-    if (
-      !hasRequiredSet(schema.required, ['location']) ||
-      asText(locationSchema.type) !== 'object' ||
-      locationSchema.additionalProperties !== false ||
-      asText(addressSchema.type) !== 'string' ||
-      asFiniteNumber(addressSchema.maxLength) !== 300 ||
-      asText(labelSchema.type) !== 'string' ||
-      asFiniteNumber(labelSchema.maxLength) !== 100 ||
-      asText(latitudeSchema.type) !== 'number' ||
-      asFiniteNumber(latitudeSchema.minimum) !== -90 ||
-      asFiniteNumber(latitudeSchema.maximum) !== 90 ||
-      asText(longitudeSchema.type) !== 'number' ||
-      asFiniteNumber(longitudeSchema.minimum) !== -180 ||
-      asFiniteNumber(longitudeSchema.maximum) !== 180 ||
-      !acceptsAddress ||
-      !acceptsCoordinates
-    ) {
-      return 'El esquema de ubicación no permite completar dirección o coordenadas de forma segura.';
-    }
-    return null;
-  }
-
-  const formSchema = asRecord(properties.form_slug);
-  const schemaOptions = new Set(asStringArray(formSchema.enum));
-  const options = getFormSelectionOptions(replyContract);
-  const optionSlugs = new Set(options.map((option) => option.formSlug));
-  if (
-    !hasRequiredSet(schema.required, ['form_slug']) ||
-    asText(formSchema.type) !== 'string' ||
-    asText(formSchema['x-options-source']) !== 'reply_contract.form_selection.options' ||
-    !schemaOptions.size ||
-    !options.length ||
-    schemaOptions.size !== optionSlugs.size ||
-    options.some((option) => !schemaOptions.has(option.formSlug))
-  ) {
-    return 'El contrato de formulario no publicó opciones válidas para este tenant.';
+  if (kind === 'form') {
+    if (!required.has('form_id')) return 'La acción no exige un form_id verificable.';
+    if (!getFormOptions(action).length) return 'El backend no publicó formularios reales, aprobados y pertenecientes al tenant para este ticket.';
   }
   return null;
 };
 
-const parseCoordinate = (value: string): number | null => {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
-  action,
-  kind,
-  open,
-  replyContract,
-  submitting = false,
-  errorMessage,
-  onOpenChange,
-  onConfirm,
-}) => {
-  const [address, setAddress] = useState('');
-  const [label, setLabel] = useState('');
+const parseCoordinate = (value: string) => value.trim() && Number.isFinite(Number(value)) ? Number(value) : null;
+const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({ action, kind, open, attachments = [], submitting = false, errorMessage, onOpenChange, onConfirm }) => {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
-  const [formSlug, setFormSlug] = useState('');
+  const [label, setLabel] = useState('');
+  const [address, setAddress] = useState('');
+  const [selectedId, setSelectedId] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
-  const formOptions = useMemo(() => getFormSelectionOptions(replyContract), [replyContract]);
-  const usesRuntimePreflight = action?.delivery_mode === 'runtime_preflight';
-
+  const [geoStatus, setGeoStatus] = useState<string | null>(null);
+  const options = useMemo(() => kind === 'attachment' ? getAttachmentOptions(attachments) : getFormOptions(action), [action, attachments, kind]);
   useEffect(() => {
     if (!open) return;
-    setAddress('');
-    setLabel('');
-    setLatitude('');
-    setLongitude('');
-    setFormSlug('');
-    setValidationError(null);
+    setLatitude(''); setLongitude(''); setLabel(''); setAddress(''); setSelectedId(''); setValidationError(null); setGeoStatus(null);
   }, [action?.id, kind, open]);
-
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) { setGeoStatus('Este navegador no ofrece geolocalización. Podés ingresar las coordenadas manualmente.'); return; }
+    setGeoStatus('Solicitando permiso de ubicación…');
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => { setLatitude(coords.latitude.toFixed(6)); setLongitude(coords.longitude.toFixed(6)); setGeoStatus('Coordenadas cargadas. Revisalas antes de guardar.'); },
+      () => setGeoStatus('No se pudo obtener la ubicación. Podés ingresarla manualmente.'),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  };
   const handleConfirm = () => {
     setValidationError(null);
-    if (kind === 'form') {
-      if (!formSlug || !formOptions.some((option) => option.formSlug === formSlug)) {
-        setValidationError('Seleccioná uno de los formularios publicados para este caso.');
-        return;
-      }
-      onConfirm({ form_slug: formSlug });
-      return;
+    if (kind !== 'location') {
+      const id = positiveId(selectedId);
+      if (!id || !options.some((option) => option.id === id)) { setValidationError(kind === 'form' ? 'Seleccioná un formulario aprobado.' : 'Seleccioná un adjunto existente del ticket.'); return; }
+      onConfirm(kind === 'form' ? { form_id: id } : { attachment_id: id }); return;
     }
-
-    const normalizedAddress = address.trim();
-    const normalizedLabel = label.trim();
-    const lat = parseCoordinate(latitude);
-    const lng = parseCoordinate(longitude);
-    const hasCoordinateInput = Boolean(latitude.trim() || longitude.trim());
-    const hasValidCoordinates = lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-    if (!normalizedAddress && !hasValidCoordinates) {
-      setValidationError('Ingresá una dirección o un par válido de latitud y longitud.');
-      return;
-    }
-    if (hasCoordinateInput && !hasValidCoordinates) {
-      setValidationError('Las coordenadas deben incluir latitud y longitud dentro de rangos válidos.');
-      return;
-    }
-
-    onConfirm({
-      location: {
-        ...(normalizedAddress ? { address: normalizedAddress.slice(0, 300) } : {}),
-        ...(normalizedLabel ? { label: normalizedLabel.slice(0, 100) } : {}),
-        ...(hasValidCoordinates ? { lat: lat as number, lng: lng as number } : {}),
-      },
-    });
+    const lat = parseCoordinate(latitude); const lng = parseCoordinate(longitude);
+    if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) { setValidationError('Ingresá latitud y longitud WGS84 dentro de rangos válidos.'); return; }
+    onConfirm({ lat, lng, ...(label.trim() ? { label: label.trim().slice(0, 100) } : {}), ...(address.trim() ? { address: address.trim().slice(0, 300) } : {}) });
   };
-
-  const title = action?.label || (kind === 'location' ? 'Compartir ubicación' : 'Compartir formulario');
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {usesRuntimePreflight
-              ? 'El backend valida el canal al confirmar: puede encolarla para WhatsApp o guardarla sólo en el CRM. La respuesta mostrará la evidencia real.'
-              : 'Esta acción se registra dentro del CRM. No envía un mensaje por WhatsApp.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {kind === 'location' ? (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="ticket-share-location-address" className="text-sm font-medium">Dirección</label>
-              <Input
-                id="ticket-share-location-address"
-                value={address}
-                maxLength={300}
-                placeholder="Calle, altura o referencia"
-                onChange={(event) => setAddress(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="ticket-share-location-label" className="text-sm font-medium">Etiqueta opcional</label>
-              <Input
-                id="ticket-share-location-label"
-                value={label}
-                maxLength={100}
-                placeholder="Ej.: punto de encuentro"
-                onChange={(event) => setLabel(event.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label htmlFor="ticket-share-location-lat" className="text-sm font-medium">Latitud</label>
-                <Input
-                  id="ticket-share-location-lat"
-                  inputMode="decimal"
-                  value={latitude}
-                  placeholder="-34.593"
-                  onChange={(event) => setLatitude(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="ticket-share-location-lng" className="text-sm font-medium">Longitud</label>
-                <Input
-                  id="ticket-share-location-lng"
-                  inputMode="decimal"
-                  value={longitude}
-                  placeholder="-60.946"
-                  onChange={(event) => setLongitude(event.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <label htmlFor="ticket-share-form-select" className="text-sm font-medium">Formulario publicado</label>
-            <select
-              id="ticket-share-form-select"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
-              value={formSlug}
-              onChange={(event) => setFormSlug(event.target.value)}
-            >
-              <option value="">Seleccionar formulario</option>
-              {formOptions.map((option) => (
-                <option key={option.id} value={option.formSlug}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {validationError || errorMessage ? (
-          <p className="text-sm text-destructive" role="alert">{validationError || errorMessage}</p>
-        ) : null}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="button" disabled={submitting} onClick={handleConfirm}>
-            {submitting
-              ? 'Registrando…'
-              : usesRuntimePreflight
-                ? 'Confirmar y validar canal'
-                : 'Confirmar acción interna'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+  const noun = kind === 'location' ? 'ubicación' : kind === 'form' ? 'formulario' : 'adjunto';
+  return <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}><DialogContent className="max-w-lg">
+    <DialogHeader><DialogTitle>{action?.label || `Guardar ${noun}`}</DialogTitle><DialogDescription>Se guardará en CRM, no se enviará externamente. Esta acción no confirma WhatsApp ni entrega al ciudadano.</DialogDescription></DialogHeader>
+    {kind === 'location' ? <div className="space-y-4">
+      <Button type="button" variant="outline" onClick={useCurrentLocation}>Usar mi ubicación</Button>
+      <p className="text-xs text-muted-foreground" aria-live="polite">{geoStatus || 'La geolocalización sólo se solicita al presionar el botón.'}</p>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Latitud<Input aria-label="Latitud WGS84" inputMode="decimal" value={latitude} onChange={(e) => setLatitude(e.target.value)} /></label><label className="space-y-1 text-sm">Longitud<Input aria-label="Longitud WGS84" inputMode="decimal" value={longitude} onChange={(e) => setLongitude(e.target.value)} /></label></div>
+      <label className="space-y-1 text-sm">Etiqueta opcional<Input value={label} maxLength={100} onChange={(e) => setLabel(e.target.value)} /></label>
+      <label className="space-y-1 text-sm">Referencia opcional<Input value={address} maxLength={300} onChange={(e) => setAddress(e.target.value)} /></label>
+    </div> : <label className="space-y-1.5 text-sm">{kind === 'form' ? 'Formulario aprobado' : 'Adjunto existente'}<select aria-label={kind === 'form' ? 'Formulario aprobado' : 'Adjunto existente'} className="h-10 w-full rounded-md border border-input bg-background px-3" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seleccionar</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
+    {(validationError || errorMessage) ? <p role="alert" className="text-sm text-destructive">{validationError || errorMessage}</p> : null}
+    <DialogFooter><Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="button" disabled={submitting} onClick={handleConfirm}>{submitting ? 'Guardando…' : 'Guardar en CRM'}</Button></DialogFooter>
+  </DialogContent></Dialog>;
 };
-
 export default TicketShareActionDialog;
