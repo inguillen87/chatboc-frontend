@@ -45,8 +45,10 @@ export interface CrmPeopleDirectoryPage {
     next_cursor: string | null;
   };
   pii: {
+    requested: boolean;
     masked: boolean;
     granted: boolean;
+    permission: string | null;
     reason_code: string | null;
   };
 }
@@ -71,6 +73,33 @@ export class CrmPeopleDirectoryContractError extends Error {
 }
 
 const cleanString = (value: unknown): string => typeof value === "string" ? value.trim() : "";
+
+const protectDirectoryItem = (item: CrmPeopleDirectoryItem): CrmPeopleDirectoryItem => {
+  const contradictedMask = item.pii_masked !== true;
+  return {
+    ...item,
+    user_id: null,
+    contact_id: null,
+    name: contradictedMask ? "Contacto protegido" : item.name,
+    email: contradictedMask ? "Dato protegido" : item.email,
+    phone: contradictedMask ? "" : item.phone,
+    tags: [],
+    pii_masked: true,
+  };
+};
+
+const sanitizeLegacyDirectoryItem = (_value: Record<string, unknown>, index: number): Record<string, unknown> => ({
+  id: `legacy-protected:${index + 1}`,
+  name: "Contacto protegido",
+  email: "Dato protegido",
+  phone: "",
+  channel: "unknown",
+  marketing: false,
+  tags: [],
+  source: "legacy_directory",
+  pii_masked: true,
+  possible_duplicate: false,
+});
 
 const parseDirectoryItem = (value: unknown): CrmPeopleDirectoryItem => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -128,19 +157,42 @@ export const parseCrmPeopleDirectoryPage = (value: unknown): CrmPeopleDirectoryP
     throw new CrmPeopleDirectoryContractError("El directorio omitió la política de datos personales.");
   }
   const rawPii = payload.pii as Record<string, unknown>;
-  if (typeof rawPii.masked !== "boolean" || typeof rawPii.granted !== "boolean") {
+  if (
+    typeof rawPii.requested !== "boolean"
+    || typeof rawPii.masked !== "boolean"
+    || typeof rawPii.granted !== "boolean"
+  ) {
     throw new CrmPeopleDirectoryContractError("El directorio publicó una política de datos personales inválida.");
+  }
+
+  const parsedItems = payload.items.map(parseDirectoryItem);
+  const piiRequested = rawPii.requested;
+  const pageMasked = rawPii.masked;
+  const pageGranted = rawPii.granted;
+  const permission = cleanString(rawPii.permission) || null;
+  const reasonCode = cleanString(rawPii.reason_code) || null;
+  if (pageMasked === pageGranted) {
+    throw new CrmPeopleDirectoryContractError("El directorio publicó una política de datos personales contradictoria.");
+  }
+  const fullPiiGranted = pageGranted === true && pageMasked === false;
+  if (fullPiiGranted && (!piiRequested || !permission || reasonCode)) {
+    throw new CrmPeopleDirectoryContractError("El directorio declaró PII completa sin solicitud, permiso o política coherentes.");
+  }
+  if (fullPiiGranted && parsedItems.some((item) => item.pii_masked)) {
+    throw new CrmPeopleDirectoryContractError("El directorio declaró PII completa con registros todavía enmascarados.");
   }
 
   return {
     contractVersion: CRM_PEOPLE_DIRECTORY_CONTRACT_VERSION,
-    items: payload.items.map(parseDirectoryItem),
+    items: fullPiiGranted ? parsedItems : parsedItems.map(protectDirectoryItem),
     legacyItems: [],
     page: { limit, total, has_more: hasMore, next_cursor: nextCursor },
     pii: {
-      masked: rawPii.masked,
-      granted: rawPii.granted,
-      reason_code: cleanString(rawPii.reason_code) || null,
+      requested: piiRequested,
+      masked: pageMasked,
+      granted: pageGranted,
+      permission,
+      reason_code: reasonCode,
     },
   };
 };
@@ -188,14 +240,20 @@ export const fetchCrmPeopleDirectoryPage = async ({
     return {
       contractVersion: "legacy.crm.clientes",
       items: [],
-      legacyItems,
+      legacyItems: legacyItems.map(sanitizeLegacyDirectoryItem),
       page: {
         limit: legacyItems.length || limit,
         total: legacyItems.length,
         has_more: false,
         next_cursor: null,
       },
-      pii: { masked: false, granted: false, reason_code: "legacy_directory_fallback" },
+      pii: {
+        requested: false,
+        masked: true,
+        granted: false,
+        permission: null,
+        reason_code: "legacy_directory_fallback",
+      },
     };
   }
 };

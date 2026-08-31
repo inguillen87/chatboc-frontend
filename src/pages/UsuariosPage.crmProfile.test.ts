@@ -4,9 +4,11 @@ import {
   buildCrmDirectoryPath,
   canDeepLinkCrmPerson,
   crmProfileTone,
+  getCrmLoadedDirectoryScopeLabel,
   getCrmTransportPresentation,
   getCrmOperationalDataQualityScore,
   normalizeDirectoryPerson,
+  normalizeLegacyDirectoryPerson,
   normalizeUsuario,
   resolveCrmNextAction,
   upsertCrmContactByIdentity,
@@ -180,6 +182,34 @@ describe('UsuariosPage CRM profile intelligence', () => {
     expect(canDeepLinkCrmPerson(contact)).toBe(false);
     expect(getCrmOperationalDataQualityScore(contact)).toBe(0);
     expect(resolveCrmNextAction(contact)).toBe('Datos protegidos — requiere permiso');
+  });
+
+  it('keeps an uncontracted legacy fallback protected and non-actionable', () => {
+    const contact = normalizeLegacyDirectoryPerson({
+      id: 'contact:42',
+      contact_id: '42',
+      name: 'Marcelo Visible',
+      email: 'marcelo@example.com',
+      phone: '+5492613168608',
+      channel: 'whatsapp',
+      marketing: true,
+    }, 0);
+
+    expect(contact).toMatchObject({
+      id: 'legacy-protected:1',
+      contactId: null,
+      nombre: 'Contacto protegido',
+      email: 'Dato protegido',
+      telefono: null,
+      whatsappExplicit: false,
+      marketing: false,
+      piiMasked: true,
+    });
+    expect(canDeepLinkCrmPerson(contact)).toBe(false);
+  });
+
+  it('labels loaded-only KPI denominators explicitly', () => {
+    expect(getCrmLoadedDirectoryScopeLabel(37)).toBe('sobre 37 cargadas');
   });
 
   it('labels socket state as transport evidence, never as user presence or delivery', () => {

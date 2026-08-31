@@ -482,6 +482,7 @@ export default function CrmPeopleWorkspace({
     () => people.map((person) => ({ person, score: dataQualityScore(person) })),
     [dataQualityScore, people],
   );
+  const effectivePeopleSort: CrmPeopleSort = hasMore ? "recent" : peopleSort;
   const queueViewCounts = React.useMemo(
     () => ({
       all: scoredPeople.length,
@@ -498,17 +499,19 @@ export default function CrmPeopleWorkspace({
       if (queueView === "complete") return !person.piiMasked && score >= 75;
       return true;
     });
-    filtered.sort((a, b) => {
-      if (peopleSort === "name") return a.person.nombre.localeCompare(b.person.nombre, "es");
-      if (peopleSort === "score-desc") return b.score - a.score;
-      if (peopleSort === "score-asc") return a.score - b.score;
-      const aTime = a.person.lastSeen ? Date.parse(a.person.lastSeen) : 0;
-      const bTime = b.person.lastSeen ? Date.parse(b.person.lastSeen) : 0;
-      if (aTime !== bTime) return bTime - aTime;
-      return a.person.nombre.localeCompare(b.person.nombre, "es");
-    });
+    if (!hasMore) {
+      filtered.sort((a, b) => {
+        if (effectivePeopleSort === "name") return a.person.nombre.localeCompare(b.person.nombre, "es");
+        if (effectivePeopleSort === "score-desc") return b.score - a.score;
+        if (effectivePeopleSort === "score-asc") return a.score - b.score;
+        const aTime = a.person.lastSeen ? Date.parse(a.person.lastSeen) : 0;
+        const bTime = b.person.lastSeen ? Date.parse(b.person.lastSeen) : 0;
+        if (aTime !== bTime) return bTime - aTime;
+        return a.person.nombre.localeCompare(b.person.nombre, "es");
+      });
+    }
     return filtered.map(({ person }) => person);
-  }, [hasExplicitWhatsApp, peopleSort, queueView, scoredPeople]);
+  }, [effectivePeopleSort, hasExplicitWhatsApp, hasMore, queueView, scoredPeople]);
 
   const selectedPerson = React.useMemo(
     () => people.find((person) => getPersonKey(person) === selectedContactId) || null,
@@ -679,6 +682,10 @@ export default function CrmPeopleWorkspace({
   React.useEffect(() => {
     if (activeView !== "personas") setDetailFocusMode(false);
   }, [activeView]);
+
+  React.useEffect(() => {
+    if (hasMore && peopleSort !== "recent") onPeopleSortChange("recent");
+  }, [hasMore, onPeopleSortChange, peopleSort]);
 
   React.useEffect(() => {
     if (!detailFocusMode) return undefined;
@@ -962,7 +969,7 @@ export default function CrmPeopleWorkspace({
                 ))}
               </select>
             ) : null}
-            <div className={cn("min-w-0 items-center gap-1 overflow-x-auto", embedded ? "hidden sm:flex" : "flex")} role="group" aria-label="Vistas operativas de personas">
+            <div className={cn("min-w-0 items-center gap-1 overflow-x-auto", embedded ? "hidden sm:flex" : "flex")} role="group" aria-label={hasMore ? `Vistas operativas sobre ${people.length} personas cargadas` : "Vistas operativas de personas"}>
               <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
               {queueViewItems.map((item) => (
                 <Button
@@ -984,6 +991,7 @@ export default function CrmPeopleWorkspace({
                 </Button>
               ))}
             </div>
+            {hasMore ? <Badge variant="outline" className="shrink-0">Vistas sobre {people.length} cargadas</Badge> : null}
             <div className={cn("items-center gap-2", embedded ? "grid grid-cols-2 sm:flex" : "flex flex-wrap")}>
               <label className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs">
                 <Checkbox
@@ -994,8 +1002,12 @@ export default function CrmPeopleWorkspace({
                 />
                 Seleccionar vista
               </label>
-              <Select value={peopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)}>
-                <SelectTrigger className={cn("h-8 bg-background text-xs", embedded ? "w-full sm:w-[178px]" : "w-[178px]")} aria-label="Ordenar personas">
+              <Select value={effectivePeopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)} disabled={hasMore}>
+                <SelectTrigger
+                  className={cn("h-8 bg-background text-xs", embedded ? "w-full sm:w-[178px]" : "w-[178px]")}
+                  aria-label={hasMore ? `Orden backend por actividad reciente sobre ${people.length} personas cargadas` : "Ordenar personas"}
+                  title={hasMore ? "Nombre y calidad se habilitan al completar la carga del directorio." : undefined}
+                >
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
                 <SelectContent>

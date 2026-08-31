@@ -614,6 +614,8 @@ describe("CrmPeopleWorkspace", () => {
     );
 
     expect(screen.getByText("1 de 84")).toBeInTheDocument();
+    expect(screen.getByText("Vistas sobre 1 cargadas")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Orden backend por actividad reciente sobre 1 personas cargadas/i })).toBeDisabled();
     expect(screen.getAllByText("Datos protegidos").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Revisar identidad").length).toBeGreaterThan(0);
     expect(screen.getByText("Calidad no evaluable")).toBeInTheDocument();

@@ -70,6 +70,66 @@ describe("crm.people.directory.v2", () => {
     expect(page.page).toEqual({ limit: 50, total: 51, has_more: true, next_cursor: "cursor-2" });
   });
 
+  it("lets page PII policy dominate a contradictory unmasked item", () => {
+    const payload = response();
+    payload.items[0] = {
+      ...payload.items[0],
+      name: "Marcelo Visible",
+      email: "marcelo@example.com",
+      phone: "+5492613168608",
+      pii_masked: false,
+      contact_id: "42",
+      user_id: 7,
+      tags: ["sensible"],
+    };
+
+    const page = parseCrmPeopleDirectoryPage(payload);
+
+    expect(page.items[0]).toMatchObject({
+      name: "Contacto protegido",
+      email: "Dato protegido",
+      phone: "",
+      pii_masked: true,
+      contact_id: null,
+      user_id: null,
+      tags: [],
+    });
+  });
+
+  it("accepts fully granted PII only when page and item policy are coherent", () => {
+    const maskedPayload = response({ hasMore: false, nextCursor: null });
+    const fullPayload = {
+      ...maskedPayload,
+      items: [{
+        ...maskedPayload.items[0],
+        name: "Marcelo Visible",
+        email: "marcelo@example.com",
+        phone: "+5492613168608",
+        pii_masked: false,
+        contact_id: "42",
+      }],
+      pii: { ...maskedPayload.pii, requested: true, masked: false, granted: true, reason_code: null },
+    };
+
+    expect(parseCrmPeopleDirectoryPage(fullPayload).items[0]).toMatchObject({
+      pii_masked: false,
+      contact_id: "42",
+      phone: "+5492613168608",
+    });
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...fullPayload,
+      items: [{ ...fullPayload.items[0], pii_masked: true }],
+    })).toThrow(/todavía enmascarados/i);
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...fullPayload,
+      pii: { ...fullPayload.pii, masked: true, granted: true },
+    })).toThrow(/contradictoria/i);
+    expect(() => parseCrmPeopleDirectoryPage({
+      ...fullPayload,
+      pii: { ...fullPayload.pii, requested: false },
+    })).toThrow(/sin solicitud/i);
+  });
+
   it("fails closed for an unknown contract or a broken cursor page", () => {
     expect(() => parseCrmPeopleDirectoryPage({ ...response(), contract_version: "crm.people.directory.v1" }))
       .toThrow(CrmPeopleDirectoryContractError);
@@ -123,6 +183,13 @@ describe("crm.people.directory.v2", () => {
 
     expect(page.contractVersion).toBe("legacy.crm.clientes");
     expect(page.legacyItems).toHaveLength(1);
+    expect(page.pii).toMatchObject({ masked: true, granted: false });
+    expect(page.legacyItems[0]).toMatchObject({
+      name: "Contacto protegido",
+      email: "Dato protegido",
+      pii_masked: true,
+    });
+    expect(page.legacyItems[0]).not.toHaveProperty("name", "Persona heredada");
     expect(mocks.apiFetch).toHaveBeenCalledTimes(2);
   });
 

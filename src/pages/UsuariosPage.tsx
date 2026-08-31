@@ -470,6 +470,29 @@ export const normalizeDirectoryPerson = (item: CrmPeopleDirectoryItem, index: nu
   };
 };
 
+export const normalizeLegacyDirectoryPerson = (raw: RawUsuario, index: number): Usuario => {
+  const normalized = normalizeUsuario(raw, index);
+  return {
+    ...normalized,
+    id: `legacy-protected:${index + 1}`,
+    contactId: null,
+    nombre: "Contacto protegido",
+    email: "Dato protegido",
+    emailRaw: null,
+    emailIsPlaceholder: true,
+    telefono: null,
+    whatsappNumber: null,
+    whatsappExplicit: false,
+    etiquetas: [],
+    marketing: false,
+    piiMasked: true,
+    possibleDuplicate: false,
+    directorySource: "legacy_directory",
+    resumen: "Directorio heredado sin contrato explícito de PII. El detalle y las acciones permanecen protegidos.",
+    interactionCount: null,
+  };
+};
+
 export const hasExplicitWhatsApp = (
   usuario: Pick<Usuario, "canal" | "whatsappExplicit" | "whatsappNumber" | "telefono" | "piiMasked">,
 ): boolean => {
@@ -498,6 +521,9 @@ export const getCrmTransportPresentation = (connected: boolean, signalCount: num
   statusLabel: connected ? "Transporte conectado" : "Actualización manual",
   signalLabel: `${Math.max(0, signalCount)} señales recibidas`,
 });
+
+export const getCrmLoadedDirectoryScopeLabel = (loaded: number): string =>
+  `sobre ${Math.max(0, loaded)} cargadas`;
 
 const normalizeTenantIdentity = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -632,7 +658,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   const usuarios = React.useMemo(
     () => directoryPages.flatMap((page) => page.contractVersion === "crm.people.directory.v2"
       ? page.items.map(normalizeDirectoryPerson)
-      : page.legacyItems.map((item, index) => normalizeUsuario(item, index))),
+      : page.legacyItems.map(normalizeLegacyDirectoryPerson)),
     [directoryPages],
   );
   const directoryTotal = directoryPages[0]?.page.total ?? usuarios.length;
@@ -925,6 +951,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   }, [usuarios]);
 
   const whatsappCount = usuarios.filter(hasExplicitWhatsApp).length;
+  const loadedDirectoryScopeLabel = getCrmLoadedDirectoryScopeLabel(usuarios.length);
   const evaluableUsuarios = React.useMemo(
     () => usuarios.filter((usuario) => !usuario.piiMasked),
     [usuarios],
@@ -1059,9 +1086,9 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         isConnected={isConnected}
         metrics={[
           { label: "Personas", value: directoryTotal, helper: `${usuarios.length} cargadas` },
-          { label: "Canal WhatsApp", value: whatsappCount, helper: "solo evidencia explícita" },
-          { label: "Consentimiento declarado", value: marketingCount, helper: "sin historial versionado" },
-          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${evaluableUsuarios.length} evaluables · ${crmCompleteProfiles} con calidad alta` },
+          { label: "Canal WhatsApp", value: whatsappCount, helper: `${loadedDirectoryScopeLabel} · solo evidencia explícita` },
+          { label: "Consentimiento declarado", value: marketingCount, helper: `${loadedDirectoryScopeLabel} · sin historial versionado` },
+          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${loadedDirectoryScopeLabel} · ${evaluableUsuarios.length} evaluables · ${crmCompleteProfiles} con calidad alta` },
         ]}
         getPersonKey={getPersonKey}
         hasRealEmail={hasRealEmail}
