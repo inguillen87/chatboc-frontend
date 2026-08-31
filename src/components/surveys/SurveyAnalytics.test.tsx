@@ -126,11 +126,25 @@ const eligibleMultipleSummaryFixture = (): SurveySummary =>
 
 const OFFICIAL_SOURCE = 'https://ide.mendoza.gov.ar/junin/survey-boundary';
 const OFFICIAL_SHA = 'a'.repeat(64);
+const JURISDICTION_CONTRACT_VERSION = 'surveys.heatmap.jurisdiction.v1';
+const PROVENANCE_CONTRACT_VERSION = 'surveys.heatmap.territorial_provenance.v1';
+const MAP_CONTRACT_VERSION = 'surveys.heatmap.map_render.v1';
+const POINT_EVIDENCE_CONTRACT_VERSION = 'surveys.heatmap.point_jurisdiction_evidence.v1';
+const containedJurisdictionEvidence = {
+  contract_version: POINT_EVIDENCE_CONTRACT_VERSION,
+  containment_verified: true,
+  coordinate_jurisdiction_status: 'within',
+  containment_method: 'point_in_polygon',
+  authority_kind: 'official',
+  source_ref: OFFICIAL_SOURCE,
+  snapshot_sha256: OFFICIAL_SHA,
+};
 const containedPoint = {
   containment_verified: true,
   coordinate_jurisdiction_status: 'within',
   source_ref: OFFICIAL_SOURCE,
   snapshot_sha256: OFFICIAL_SHA,
+  jurisdiction_evidence: containedJurisdictionEvidence,
 };
 const heatmapFixture = () => [
   { lat: -33.086, lng: -68.471, respuestas: 12, categoria: 'Centro', canal: 'whatsapp', ...containedPoint },
@@ -139,6 +153,7 @@ const heatmapFixture = () => [
 
 const metadataFixture = (): NonNullable<SurveyAnalyticsHeatmap['metadata']> => ({
   jurisdiction: {
+    contract_version: JURISDICTION_CONTRACT_VERSION,
     enforced: true,
     containment_verified: true,
     containment_method: 'point_in_polygon',
@@ -149,10 +164,12 @@ const metadataFixture = (): NonNullable<SurveyAnalyticsHeatmap['metadata']> => (
     },
   },
   provenance: {
+    contract_version: PROVENANCE_CONTRACT_VERSION,
     source_ref: OFFICIAL_SOURCE,
     snapshot_sha256: OFFICIAL_SHA,
   },
   map: {
+    contract_version: MAP_CONTRACT_VERSION,
     render_ready: true,
     provider_hint: 'maplibre',
     fallback_provider: 'maplibre',
@@ -285,8 +302,12 @@ describe('SurveyAnalytics territory command center', () => {
     }));
     const metadata = {
       ...metadataFixture(),
-      jurisdiction: { required: false, state: 'not_required' },
-      provenance: undefined,
+      jurisdiction: {
+        contract_version: JURISDICTION_CONTRACT_VERSION,
+        required: false,
+        state: 'not_required',
+      },
+      provenance: { contract_version: PROVENANCE_CONTRACT_VERSION },
     };
 
     render(
@@ -305,7 +326,44 @@ describe('SurveyAnalytics territory command center', () => {
   it.each([
     ['missing authority contract', null],
     ['missing provenance', { ...metadataFixture(), provenance: undefined }],
-    ['mismatched snapshot', { ...metadataFixture(), provenance: { source_ref: OFFICIAL_SOURCE, snapshot_sha256: 'b'.repeat(64) } }],
+    ['missing jurisdiction contract version', {
+      ...metadataFixture(),
+      jurisdiction: { ...metadataFixture().jurisdiction, contract_version: undefined },
+    }],
+    ['unknown jurisdiction contract version', {
+      ...metadataFixture(),
+      jurisdiction: { ...metadataFixture().jurisdiction, contract_version: 'surveys.heatmap.jurisdiction.v2' },
+    }],
+    ['missing provenance contract version', {
+      ...metadataFixture(),
+      provenance: { ...metadataFixture().provenance, contract_version: undefined },
+    }],
+    ['unknown provenance contract version', {
+      ...metadataFixture(),
+      provenance: { ...metadataFixture().provenance, contract_version: 'surveys.heatmap.territorial_provenance.v2' },
+    }],
+    ['missing map contract version', {
+      ...metadataFixture(),
+      map: { ...(metadataFixture().map as Record<string, unknown>), contract_version: undefined },
+    }],
+    ['unknown map contract version', {
+      ...metadataFixture(),
+      map: { ...(metadataFixture().map as Record<string, unknown>), contract_version: 'surveys.heatmap.map_render.v2' },
+    }],
+    ['case-sensitive provenance source mismatch', {
+      ...metadataFixture(),
+      provenance: {
+        ...metadataFixture().provenance,
+        source_ref: OFFICIAL_SOURCE.replace('/junin/', '/Junin/'),
+      },
+    }],
+    ['mismatched snapshot', {
+      ...metadataFixture(),
+      provenance: {
+        ...metadataFixture().provenance,
+        snapshot_sha256: 'b'.repeat(64),
+      },
+    }],
     ['invalid authority snapshot', {
       ...metadataFixture(),
       jurisdiction: {
@@ -353,8 +411,18 @@ describe('SurveyAnalytics territory command center', () => {
   it.each([
     ['status', { coordinate_jurisdiction_status: 'outside' }],
     ['source', { source_ref: 'https://untrusted.example/boundary' }],
+    ['case-sensitive source', { source_ref: OFFICIAL_SOURCE.replace('/junin/', '/Junin/') }],
     ['snapshot', { snapshot_sha256: 'b'.repeat(64) }],
     ['valid snapshot', { snapshot_sha256: 'not-a-sha' }],
+    ['missing point contract version', {
+      jurisdiction_evidence: { ...containedJurisdictionEvidence, contract_version: undefined },
+    }],
+    ['unknown point contract version', {
+      jurisdiction_evidence: {
+        ...containedJurisdictionEvidence,
+        contract_version: 'surveys.heatmap.point_jurisdiction_evidence.v2',
+      },
+    }],
   ])('blocks territorial output when a point has mismatched %s evidence', (_field, override) => {
     const points = heatmapFixture();
     points[1] = { ...points[1], ...override };
@@ -500,6 +568,7 @@ describe('SurveyAnalytics territory command center', () => {
             { lat: -33.086, lng: -68.471, value: 14, respuestas: 14, categoria: 'Centro', canal: 'whatsapp', ...containedPoint },
           ],
           map: {
+            contract_version: MAP_CONTRACT_VERSION,
             render_ready: true,
             provider_hint: 'maplibre',
             fallback_provider: 'maplibre',

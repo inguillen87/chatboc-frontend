@@ -109,8 +109,19 @@ type SurveyTerritoryEvidenceGate = {
   nextAction: string;
 };
 
+const SURVEY_HEATMAP_JURISDICTION_CONTRACT_VERSION = 'surveys.heatmap.jurisdiction.v1';
+const SURVEY_HEATMAP_PROVENANCE_CONTRACT_VERSION = 'surveys.heatmap.territorial_provenance.v1';
+const SURVEY_HEATMAP_MAP_CONTRACT_VERSION = 'surveys.heatmap.map_render.v1';
+const SURVEY_HEATMAP_POINT_EVIDENCE_CONTRACT_VERSION = 'surveys.heatmap.point_jurisdiction_evidence.v1';
+
 const normalizedEvidenceText = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim().replace(/\/+$/, '').toLowerCase() : null;
+
+const normalizedEvidenceSource = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim().replace(/\/+$/, '') : null;
+
+const normalizedEvidenceContractVersion = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
 
 const normalizedEvidenceSha = (value: unknown) => {
   const normalized = normalizedEvidenceText(value);
@@ -123,6 +134,23 @@ export const resolveSurveyTerritoryEvidenceGate = (
 ): SurveyTerritoryEvidenceGate => {
   const metadata = isRecord(metadataValue) ? metadataValue : null;
   const jurisdiction = isRecord(metadata?.jurisdiction) ? metadata.jurisdiction : null;
+  const provenance = isRecord(metadata?.provenance) ? metadata.provenance : null;
+  const mapContract = isRecord(metadata?.map) ? metadata.map : null;
+  const contractVersionsCompatible =
+    normalizedEvidenceContractVersion(jurisdiction?.contract_version) === SURVEY_HEATMAP_JURISDICTION_CONTRACT_VERSION &&
+    normalizedEvidenceContractVersion(provenance?.contract_version) === SURVEY_HEATMAP_PROVENANCE_CONTRACT_VERSION &&
+    normalizedEvidenceContractVersion(mapContract?.contract_version) === SURVEY_HEATMAP_MAP_CONTRACT_VERSION;
+
+  if (!contractVersionsCompatible) {
+    return {
+      ready: false,
+      reasonCode: 'survey_territory_contract_version_unsupported',
+      title: 'Lectura territorial bloqueada',
+      detail: 'El servidor no publicó las versiones compatibles de los contratos territoriales requeridos.',
+      nextAction: 'Actualizá la analítica con los contratos v1 de jurisdicción, procedencia y render del mapa.',
+    };
+  }
+
   const jurisdictionState = normalizedEvidenceText(jurisdiction?.state)?.replace(/[_-]+/g, ' ');
   if (jurisdiction?.required === false && jurisdictionState === 'not required') {
     return {
@@ -134,9 +162,8 @@ export const resolveSurveyTerritoryEvidenceGate = (
     };
   }
   const authority = isRecord(jurisdiction?.boundary_authority) ? jurisdiction.boundary_authority : null;
-  const provenance = isRecord(metadata?.provenance) ? metadata.provenance : null;
-  const authoritySource = normalizedEvidenceText(authority?.source_ref ?? authority?.source_url);
-  const evidenceSource = normalizedEvidenceText(provenance?.source_ref ?? provenance?.source_url);
+  const authoritySource = normalizedEvidenceSource(authority?.source_ref ?? authority?.source_url);
+  const evidenceSource = normalizedEvidenceSource(provenance?.source_ref ?? provenance?.source_url);
   const authoritySha = normalizedEvidenceSha(authority?.snapshot_sha256 ?? authority?.sha256);
   const evidenceSha = normalizedEvidenceSha(provenance?.snapshot_sha256 ?? provenance?.sha256);
   const method = normalizedEvidenceText(jurisdiction?.containment_method)?.replace(/[_-]+/g, ' ');
@@ -165,15 +192,39 @@ export const resolveSurveyTerritoryEvidenceGate = (
   const everyPointContained = rawPoints.length > 0 && rawPoints.every((value) => {
     if (!isRecord(value)) return false;
     const containment = isRecord(value.containment) ? value.containment : value;
+    const pointEvidence = isRecord(value.jurisdiction_evidence)
+      ? value.jurisdiction_evidence
+      : isRecord(containment.jurisdiction_evidence)
+        ? containment.jurisdiction_evidence
+        : null;
     const status = normalizedEvidenceText(
       containment.coordinate_jurisdiction_status ?? containment.jurisdiction_status ?? containment.status,
     )?.replace(/[_-]+/g, ' ');
-    const pointSource = normalizedEvidenceText(containment.source_ref ?? containment.boundary_source_ref);
+    const evidenceStatus = normalizedEvidenceText(
+      pointEvidence?.coordinate_jurisdiction_status ?? pointEvidence?.jurisdiction_status ?? pointEvidence?.status,
+    )?.replace(/[_-]+/g, ' ');
+    const pointSource = normalizedEvidenceSource(containment.source_ref ?? containment.boundary_source_ref);
+    const pointEvidenceSource = normalizedEvidenceSource(
+      pointEvidence?.source_ref ?? pointEvidence?.boundary_source_ref,
+    );
     const pointSha = normalizedEvidenceSha(containment.snapshot_sha256 ?? containment.boundary_snapshot_sha256);
-    return containment.containment_verified === true &&
+    const pointEvidenceSha = normalizedEvidenceSha(
+      pointEvidence?.snapshot_sha256 ?? pointEvidence?.boundary_snapshot_sha256,
+    );
+    const pointMethod = normalizedEvidenceText(pointEvidence?.containment_method)?.replace(/[_-]+/g, ' ');
+    const pointAuthorityKind = normalizedEvidenceText(pointEvidence?.authority_kind);
+    return normalizedEvidenceContractVersion(pointEvidence?.contract_version) ===
+      SURVEY_HEATMAP_POINT_EVIDENCE_CONTRACT_VERSION &&
+      containment.containment_verified === true &&
+      pointEvidence?.containment_verified === true &&
       status === 'within' &&
+      evidenceStatus === 'within' &&
+      pointMethod === 'point in polygon' &&
+      pointAuthorityKind === 'official' &&
       pointSource === authoritySource &&
-      pointSha === authoritySha;
+      pointEvidenceSource === authoritySource &&
+      pointSha === authoritySha &&
+      pointEvidenceSha === authoritySha;
   });
 
   if (!everyPointContained) {
