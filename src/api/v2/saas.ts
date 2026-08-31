@@ -8,6 +8,8 @@ import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
+import type { TicketSlaContract } from '@/types/tickets';
+import { normalizeTicketSla } from '@/utils/ticketSla';
 
 type UnknownRecord = Record<string, unknown>;
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
@@ -244,7 +246,7 @@ export interface OmnichannelInboxItem {
   foto_url_directa?: string;
   archivos_count?: number;
   attachments: UnknownRecord[];
-  sla?: UnknownRecord;
+  sla?: TicketSlaContract;
   school_case?: EducationCaseAlias | null;
   presence: OmnichannelPresenceUser[];
   timeline: OmnichannelTimelineEvent[];
@@ -1381,7 +1383,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     foto_url_directa: asString(getFirst(value, ['foto_url_directa', 'foto_url', 'image_url', 'photo_url'])),
     archivos_count: archivosCount,
     attachments,
-    sla: value.sla ? asRecord(value.sla) : undefined,
+    sla: normalizeTicketSla(getFirst(value, ['sla', 'sla_evaluation'])),
     school_case: schoolCase,
     presence: normalizePresence(getFirst(value, ['presence', 'viewers', 'active_viewers'])),
     timeline: normalizeTimeline(timelineSource, id),

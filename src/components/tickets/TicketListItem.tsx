@@ -9,6 +9,8 @@ import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { motion } from 'framer-motion';
+import { TicketSlaClocks } from './TicketSlaClocks';
+import { resolveTicketSlaSource } from '@/utils/ticketSla';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -57,7 +59,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
   };
 
   const priorityLabel = normalizeText(ticket.priority);
-  const slaLabel = normalizeText(ticket.sla_status);
+  const slaSource = resolveTicketSlaSource(ticket);
   const assignedLabel = normalizeText(
     ticket.assignedAgent?.nombre_usuario ||
       ticket.user?.nombre_usuario ||
@@ -66,7 +68,6 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
   );
   const nextAction = normalizeText(ticket.recommended_next_action);
   const priorityTone = priorityLabel.toLowerCase();
-  const slaTone = slaLabel.toLowerCase();
   const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
   const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
   const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
@@ -293,18 +294,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
           </Badge>
         ) : null}
 
-        {slaLabel ? (
-          <Badge
-            variant="outline"
-            className={cn(
-              'text-[10px] font-bold rounded-lg px-2 py-0.5',
-              (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
-                'border-rose-400/70 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse',
-            )}
-          >
-            SLA: {slaLabel}
-          </Badge>
-        ) : null}
+        {slaSource ? <TicketSlaClocks sla={slaSource} compact className="h-5 px-1.5" /> : null}
 
         {assignedLabel ? (
           <Badge variant="secondary" className="gap-1 text-[10px] font-semibold rounded-lg px-2 py-0.5">

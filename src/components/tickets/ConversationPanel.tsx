@@ -92,6 +92,8 @@ import TicketShareActionDialog, {
   type TicketShareActionKind,
   type TicketShareActionPayload,
 } from './TicketShareActionDialog';
+import { TicketSlaClocks } from './TicketSlaClocks';
+import { resolveTicketSlaSource } from '@/utils/ticketSla';
 
 type UploadResponse = UploadResponseLike;
 
@@ -1165,6 +1167,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     composerActionContractQuery.isSuccess,
   ]);
   const composerActionTicketId = composerActionContractQuery.data?.item.id || String(selectedTicket?.id ?? '');
+  const composerSlaSource =
+    composerActionContractQuery.data?.item?.sla ||
+    resolveTicketSlaSource(selectedTicket || {});
   const handoffAction = useMemo(
     () => publishedComposerActions.find(isAiHandoffAction) ?? null,
     [publishedComposerActions],
@@ -2342,6 +2347,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   {formatTicketStatusLabel(selectedTicket.estado)}
                 </Badge>
                 <Badge variant="secondary" className="max-w-[12rem] truncate capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
+                <TicketSlaClocks sla={composerSlaSource} compact className="h-6" />
               </div>
             </div>
           </div>

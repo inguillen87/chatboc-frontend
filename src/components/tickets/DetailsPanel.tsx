@@ -63,6 +63,8 @@ import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { normalizeSaasActions } from '@/api/v2/saas';
 import TicketAiHandoffControl, { isAiHandoffAction } from './TicketAiHandoffControl';
+import { TicketSlaClocks } from './TicketSlaClocks';
+import { resolveTicketSlaSource } from '@/utils/ticketSla';
 import './DetailsPanel.css';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
@@ -828,7 +830,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
   );
   const operationalGuidance = React.useMemo(() => deriveTicketOperationalGuidance(ticket), [ticket]);
   const priorityLabel = normalizeTextValue(ticket.priority);
-  const slaLabel = normalizeTextValue(ticket.sla_status);
+  const slaSource = resolveTicketSlaSource(ticket);
   const assignedAgentLabel = normalizeTextValue(
     ticket.assignedAgent?.nombre_usuario ||
       ticket.user?.nombre_usuario ||
@@ -1040,7 +1042,6 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                       Prioridad {formatCompactLabel(priorityLabel)}
                     </Badge>
                   ) : null}
-                  {slaLabel ? <Badge variant="outline" className="ticket-inspector__badge">SLA: {slaLabel}</Badge> : null}
                   {assignedAgentLabel ? (
                     <Badge variant="secondary" className="ticket-inspector__badge gap-1">
                       <UserRound className="h-3 w-3" aria-hidden="true" />
@@ -1048,6 +1049,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                     </Badge>
                   ) : null}
                 </div>
+                {slaSource ? <TicketSlaClocks sla={slaSource} /> : null}
                 <p className="text-sm leading-relaxed text-foreground">{caseSummary}</p>
                 {assistedContext.visible ? (
                   <div className="flex flex-wrap gap-2" data-testid="ticket-assisted-context-card">

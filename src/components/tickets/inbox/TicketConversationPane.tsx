@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock3, ExternalLink, Image as ImageIcon, MapPin, MessageCircle, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, MapPin, MessageCircle, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
 import {
   createOmnichannelReplyClientMessageId,
@@ -31,6 +31,7 @@ import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
 import TicketAiHandoffControl, { isAiHandoffAction } from '../TicketAiHandoffControl';
+import { TicketSlaClocks } from '../TicketSlaClocks';
 import { PresenceAvatars } from './PresenceAvatars';
 import { TimelineMergeView } from './TimelineMergeView';
 
@@ -530,13 +531,11 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   });
   const sourceMetadata = detailTicket.source_metadata ?? {};
   const assignee = detailTicket.assignee ?? {};
-  const sla = detailTicket.sla ?? {};
   const locationPoint = readInboxLocationPoint(detailTicket.location);
   const canRenderMap = detailTicket.map?.can_render === false ? false : Boolean(locationPoint);
   const attachments = detailTicket.attachments ?? [];
   const channelLabel = normalizeChannelLabel(detailTicket.canal_ingreso ?? detailTicket.channel);
   const assigneeLabel = asText(assignee.name) || asText(assignee.email);
-  const slaLabel = asText(sla.status) || (sla.overdue === true ? 'Vencido' : null);
   const attachmentCount = detailTicket.archivos_count ?? attachments.length;
   const directPhotoUrl =
     asText(detailTicket.foto_url_directa) ||
@@ -579,7 +578,6 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
     liveChatStateLabel ? { icon: MessageCircle, label: 'Live chat', value: liveChatStateLabel } : null,
     assigneeLabel ? { icon: UserRound, label: 'Responsable', value: assigneeLabel } : null,
-    slaLabel ? { icon: Clock3, label: 'SLA', value: slaLabel } : null,
     locationPoint ? { icon: MapPin, label: 'Ubicacion', value: 'Con coordenadas' } : null,
     attachmentCount ? { icon: Paperclip, label: 'Adjuntos', value: String(attachmentCount) } : null,
   ].filter((tile): tile is { icon: React.ElementType; label: string; value: string } => Boolean(tile));
@@ -615,6 +613,10 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           ))}
         </div>
       ) : null}
+
+      <div className="border-b bg-background px-4 py-3">
+        <TicketSlaClocks sla={detailTicket.sla} />
+      </div>
 
       {liveChatStateLabel ? (
         <div

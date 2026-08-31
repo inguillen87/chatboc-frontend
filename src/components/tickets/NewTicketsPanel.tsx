@@ -44,6 +44,7 @@ import {
   type TicketInboxSourceModel,
 } from '@/services/ticketService';
 import TerritorialPendingLocationsInbox from '@/features/analytics/TerritorialPendingLocationsInbox';
+import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -229,14 +230,14 @@ const isResolvedTicket = (ticket: Ticket) => {
   return status === 'resuelto' || String(ticket.estado).toLowerCase() === 'cerrado';
 };
 
-const isRiskTicket = (ticket: Ticket) => {
-  const sla = String(ticket.sla_status || '').toLowerCase();
+const isRiskTicket = (ticket: Ticket) =>
+  isTicketSlaOverdue(resolveTicketSlaSource(ticket));
+
+const isHighPriorityTicket = (ticket: Ticket) => {
   const priority = String(ticket.priority || '').toLowerCase();
   return (
-    sla.includes('breach') ||
-    sla.includes('venc') ||
-    sla.includes('overdue') ||
     priority.includes('alta') ||
+    priority.includes('high') ||
     priority.includes('urgent') ||
     priority.includes('urgente')
   );
@@ -266,23 +267,51 @@ const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
 
   const unread = hasUnreadTicket(ticket);
   const risk = isRiskTicket(ticket);
+  const highPriority = isHighPriorityTicket(ticket);
   const unassigned = isUnassignedQueueTicket(ticket);
-  const state = unread ? 'customer_waiting' : risk ? 'sla_attention' : unassigned ? 'unassigned' : 'ready';
+  const state = unread
+    ? 'customer_waiting'
+    : risk
+      ? 'sla_attention'
+      : highPriority
+        ? 'priority_attention'
+        : unassigned
+          ? 'unassigned'
+          : 'ready';
   return {
     state,
-    score: (unread ? 100 : 0) + (risk ? 50 : 0) + (unassigned ? 25 : 0),
-    label: unread ? 'Responder ahora' : risk ? 'Revisar SLA' : unassigned ? 'Asignar responsable' : 'Mesa al dia',
+    score: (unread ? 100 : 0) + (risk ? 50 : 0) + (highPriority ? 35 : 0) + (unassigned ? 25 : 0),
+    label: unread
+      ? 'Responder ahora'
+      : risk
+        ? 'Revisar SLA vencido'
+        : highPriority
+          ? 'Atender prioridad alta'
+          : unassigned
+            ? 'Asignar responsable'
+            : 'Mesa al dia',
     reason: unread
       ? 'Hay actividad ciudadana o de cliente sin lectura completa del equipo.'
       : risk
-        ? 'El caso esta vencido, por vencer o marcado como prioridad alta.'
-        : unassigned
-          ? 'El caso esta abierto y necesita un operador responsable.'
-          : 'No hay senales criticas activas para este caso.',
-    next_team_action: unread ? 'reply_from_crm' : risk ? 'review_sla_and_update' : unassigned ? 'assign_owner' : 'monitor_ticket',
+        ? 'Al menos un compromiso de atención está vencido según el contrato SLA.'
+        : highPriority
+          ? 'El caso tiene prioridad alta, sin asumir por eso un incumplimiento SLA.'
+          : unassigned
+            ? 'El caso esta abierto y necesita un operador responsable.'
+            : 'No hay senales criticas activas para este caso.',
+    next_team_action: unread
+      ? 'reply_from_crm'
+      : risk
+        ? 'review_sla_and_update'
+        : highPriority
+          ? 'prioritize_case'
+          : unassigned
+            ? 'assign_owner'
+            : 'monitor_ticket',
     badges: [
       unread ? { id: 'unread', label: 'Sin leer', tone: 'live' } : null,
-      risk ? { id: 'sla_risk', label: 'SLA riesgo', tone: 'warning' } : null,
+      risk ? { id: 'sla_risk', label: 'SLA vencido', tone: 'warning' } : null,
+      highPriority ? { id: 'priority_high', label: 'Prioridad alta', tone: 'warning' } : null,
       unassigned ? { id: 'unassigned', label: 'Sin responsable', tone: 'warning' } : null,
     ].filter(Boolean) as Array<{ id?: string; label?: string; tone?: string }>,
   };
@@ -1594,7 +1623,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                     <TicketOpsStat
                       label="Riesgo"
                       value={riskTickets}
-                      helper="SLA o prioridad alta"
+                      helper="SLA vencido"
                       tone="amber"
                       icon={AlertTriangle}
                       onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}

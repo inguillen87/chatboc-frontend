@@ -299,6 +299,32 @@ describe('ConversationPanel tenant invalidation', () => {
     if (harness.socket) harness.socket.connected = true;
   });
 
+  it('shows the authoritative SLA summary in the visible conversation header', async () => {
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+      item: {
+        ...tenantAuthoritativeItem,
+        sla: {
+          contract_version: 'ticket.sla.v1',
+          clocks: {
+            first_response: {
+              state: 'breached',
+              status: 'overdue',
+              due_at: '2026-08-30T10:00:00Z',
+              known: true,
+            },
+          },
+        },
+      },
+      raw: {},
+    });
+
+    render(renderConversation(true));
+
+    const slaSummary = await screen.findByTestId('ticket-sla-clocks-compact');
+    expect(slaSummary).toHaveTextContent('SLA vencido');
+    expect(slaSummary).toHaveAttribute('data-sla-state', 'overdue');
+  });
+
   it('changes the idempotent attempt identity when the authoritative action semantics change', () => {
     const baseAction = {
       id: 'share_location',

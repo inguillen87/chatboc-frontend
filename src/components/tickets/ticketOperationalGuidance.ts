@@ -1,6 +1,7 @@
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
+import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 export type OperationalGuidance = {
   label: string;
@@ -63,9 +64,9 @@ const hasAttachmentSignal = (ticket: Ticket): boolean =>
       ticket.messages?.some((message) => message.attachments?.length || message.archivos_adjuntos?.length),
   );
 
-const isRiskSignal = (value: unknown): boolean => {
+const isHighPrioritySignal = (value: unknown): boolean => {
   const normalized = normalizeTextValue(value).toLowerCase();
-  return ['risk', 'riesgo', 'alto', 'alta', 'high', 'urgente', 'critical', 'critico', 'vencido', 'breached'].some((token) =>
+  return ['alto', 'alta', 'high', 'urgente', 'critical', 'critico'].some((token) =>
     normalized.includes(token),
   );
 };
@@ -85,7 +86,8 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
   const hasLocation = hasTicketLocationSignal(ticket);
   const hasAttachments = hasAttachmentSignal(ticket);
   const isMunicipalTicket = ticket.tipo === 'municipio';
-  const priorityRisk = isRiskSignal(ticket.priority) || isRiskSignal(ticket.sla_status);
+  const slaOverdue = isTicketSlaOverdue(resolveTicketSlaSource(ticket));
+  const highPriority = isHighPrioritySignal(ticket.priority);
 
   if (status === 'resuelto') {
     return {
@@ -103,11 +105,19 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
     };
   }
 
-  if (priorityRisk) {
+  if (slaOverdue) {
     return {
-      label: 'Priorizar este caso, revisar SLA y dejar una respuesta operativa antes de derivarlo.',
+      label: 'Revisar el compromiso SLA vencido y dejar una respuesta operativa antes de derivarlo.',
       source: 'ui',
       tags: ['riesgo', 'SLA'],
+    };
+  }
+
+  if (highPriority) {
+    return {
+      label: 'Priorizar este caso por su criticidad y confirmar el próximo paso operativo.',
+      source: 'ui',
+      tags: ['prioridad alta'],
     };
   }
 

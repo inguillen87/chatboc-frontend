@@ -18,6 +18,7 @@ import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
 import { normalizeTicketLocation } from '@/utils/location';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
+import { normalizeTicketSla, resolveTicketSlaSource } from '@/utils/ticketSla';
 import {
     TERRITORIAL_TICKET_SOURCE_MODELS,
     type TerritorialTicketSourceModel,
@@ -297,10 +298,12 @@ const normalizeTicketAssignment = <T extends Ticket>(ticket: T): Partial<Ticket>
 const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     const location = normalizeTicketLocation(ticket);
     const assignment = normalizeTicketAssignment(ticket);
+    const slaSource = resolveTicketSlaSource(ticket);
     return {
         ...ticket,
         ...location,
         ...assignment,
+        ...(slaSource ? { sla: normalizeTicketSla(slaSource) } : {}),
     };
 };
 

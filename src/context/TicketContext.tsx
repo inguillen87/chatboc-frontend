@@ -19,6 +19,11 @@ import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 import { hasRequiredRole } from '@/utils/roles';
+import {
+  isTicketSlaOverdue,
+  normalizeTicketSla,
+  resolveTicketSlaSource,
+} from '@/utils/ticketSla';
 
 
 interface TicketInboxFilters {
@@ -589,7 +594,11 @@ const resolveAgentFilterId = (ticket: Ticket): string => {
   return candidate === null || candidate === undefined ? '' : String(candidate);
 };
 
-const resolveSlaFilterValue = (ticket: Ticket): string => normalizeFilterValue(ticket.sla_status || 'sin_sla');
+const resolveSlaFilterValue = (ticket: Ticket): string => {
+  const slaSource = resolveTicketSlaSource(ticket);
+  if (slaSource) return normalizeTicketSla(slaSource).state;
+  return normalizeFilterValue(ticket.sla_status || 'sin_sla');
+};
 const hasUnreadState = (ticket: Ticket): boolean =>
   Boolean(
     ticket.hasUnreadMessages ||
@@ -1522,14 +1531,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (filters.sla !== 'all') {
         const slaValue = resolveSlaFilterValue(ticket);
         if (filters.sla === 'risk') {
-          const priority = normalizeFilterValue(ticket.priority);
-          const isRisk =
-            slaValue.includes('breach') ||
-            slaValue.includes('venc') ||
-            slaValue.includes('overdue') ||
-            priority.includes('alta') ||
-            priority.includes('urgent') ||
-            priority.includes('urgente');
+          const isRisk = isTicketSlaOverdue(resolveTicketSlaSource(ticket));
           if (!isRisk) return false;
         } else if (slaValue !== filters.sla) {
           return false;

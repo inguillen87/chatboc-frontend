@@ -89,7 +89,7 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
   const channel = getTicketChannel(ticket);
   const assignedLabel = resolveAssignedLabel(ticket);
   const locationLabel = resolveLocationLabel(ticket);
-  const priority = readText(ticket.priority, ticket.sla_status);
+  const priority = readText(ticket.priority);
   const ticketRef = ticket.nro_ticket || `#${ticket.id}`;
 
   return (

@@ -11,6 +11,38 @@ export type TicketStatus =
   | "en_vivo";
 export type TicketPriority = "baja" | "media" | "alta" | "urgente";
 
+export type TicketSlaClockState =
+  | "due"
+  | "overdue"
+  | "healthy"
+  | "satisfied"
+  | "paused"
+  | "inactive"
+  | "unknown";
+
+export interface TicketSlaClock {
+  state: TicketSlaClockState;
+  due_at: string | null;
+  fulfilled_at: string | null;
+  remaining_seconds: number | null;
+  known: boolean;
+  overdue: boolean;
+}
+
+export interface TicketSlaContract {
+  contract_version: string | null;
+  evaluated_at: string | null;
+  state: TicketSlaClockState;
+  known: boolean;
+  overdue: boolean;
+  paused: boolean;
+  clocks: {
+    first_response: TicketSlaClock;
+    next_update: TicketSlaClock;
+    resolution: TicketSlaClock;
+  };
+}
+
 export interface Horario {
   start_hour: number;
   end_hour: number;
@@ -347,6 +379,8 @@ export interface Ticket {
 
   // Operational context
   sla_status?: string | null;
+  sla?: TicketSlaContract | Record<string, unknown> | null;
+  sla_evaluation?: TicketSlaContract | Record<string, unknown> | null;
   operational_badges?:
     | string[]
     | Array<{ label?: string; text?: string; value?: string }>;

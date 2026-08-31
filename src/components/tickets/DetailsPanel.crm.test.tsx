@@ -173,6 +173,37 @@ describe('DetailsPanel resolution guide', () => {
     expect(screen.getAllByTestId('ticket-assignment')).toHaveLength(1);
   });
 
+  it('shows structured SLA clocks when the selected ticket already exposes the contract', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      sla: {
+        contract_version: 'ticket.sla.v1',
+        clocks: {
+          first_response: {
+            state: 'ok',
+            due_at: '2026-08-30T14:00:00Z',
+            known: true,
+          },
+          next_update: {
+            state: 'warning',
+            due_at: '2026-08-30T13:00:00Z',
+            known: true,
+          },
+          resolution: {
+            state: 'inactive',
+            known: true,
+          },
+        },
+      },
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveAttribute('data-sla-state', 'healthy');
+    expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveAttribute('data-sla-state', 'due');
+    expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveAttribute('data-sla-state', 'inactive');
+  });
+
   it('keeps long municipal content readable inside the responsive inspector', () => {
     const longSubject = 'Reclamo integral por interrupción prolongada del servicio de alumbrado público en corredor escolar y accesos barriales';
     const longCategory = 'Infraestructura urbana, alumbrado público, seguridad peatonal y coordinación interáreas';

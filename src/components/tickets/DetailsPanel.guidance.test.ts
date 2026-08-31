@@ -45,18 +45,40 @@ describe('deriveTicketOperationalGuidance', () => {
     expect(guidance.tags).toContain('respuesta pendiente');
   });
 
-  it('surfaces SLA and priority risk when no backend action exists', () => {
+  it('surfaces authoritative SLA breach when no backend action exists', () => {
     const guidance = deriveTicketOperationalGuidance(
       ticketWith({
-        priority: 'alta',
-        sla_status: 'breached',
+        sla: {
+          clocks: {
+            resolution: {
+              status: 'overdue',
+              due_at: '2026-08-30T10:00:00Z',
+              known: true,
+            },
+          },
+        },
         assignedAgentId: 7,
         direccion: 'Don Bosco 55',
       }),
     );
 
-    expect(guidance.label).toMatch(/Priorizar este caso/i);
+    expect(guidance.label).toMatch(/Revisar el compromiso SLA vencido/i);
     expect(guidance.tags).toEqual(expect.arrayContaining(['riesgo', 'SLA']));
+  });
+
+  it('keeps high priority separate from SLA evidence', () => {
+    const guidance = deriveTicketOperationalGuidance(
+      ticketWith({
+        priority: 'alta',
+        sla_status: 'active',
+        assignedAgentId: 7,
+        direccion: 'Don Bosco 55',
+      }),
+    );
+
+    expect(guidance.label).toMatch(/criticidad/i);
+    expect(guidance.tags).toEqual(['prioridad alta']);
+    expect(guidance.tags).not.toContain('SLA');
   });
 
   it('asks the operator to assign an owner before regular follow-up', () => {

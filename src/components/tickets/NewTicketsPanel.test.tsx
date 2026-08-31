@@ -1225,4 +1225,44 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(setFilters).not.toHaveBeenCalled();
     expect(resolveTicketTarget).not.toHaveBeenCalled();
   });
+
+  it('does not count high priority without SLA evidence as SLA risk', () => {
+    const highPriorityTicket = {
+      id: 91,
+      nro_ticket: 'M-91',
+      asunto: 'Árbol caído',
+      estado: 'nuevo',
+      fecha: '2026-08-30T09:00:00.000Z',
+      tipo: 'municipio',
+      priority: 'alta',
+      sla_status: 'active',
+    };
+    useTicketsMock.mockReturnValue({
+      loading: false,
+      error: null,
+      tickets: [highPriorityTicket],
+      filteredTickets: [highPriorityTicket],
+      selectedTicket: highPriorityTicket,
+      selectTicket: vi.fn(),
+      filters: {
+        channel: 'all',
+        status: 'all',
+        area: 'all',
+        agent: 'all',
+        priority: 'all',
+        sla: 'all',
+        unread: 'all',
+      },
+      setFilters: vi.fn(),
+      refreshTickets: vi.fn(),
+      realtimeActivity: { pending: 0, lastLabel: null },
+      clearRealtimeActivity: vi.fn(),
+    });
+
+    render(<NewTicketsPanel embedded />);
+    fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
+
+    expect(screen.getByRole('button', { name: /0 riesgo sla vencido/i })).toBeInTheDocument();
+    expect(screen.queryByText('SLA o prioridad alta')).not.toBeInTheDocument();
+  });
 });
