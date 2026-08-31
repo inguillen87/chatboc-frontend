@@ -511,7 +511,7 @@ const isOutsideJurisdictionRecord = (value: unknown) => {
 };
 
 type JurisdictionBounds = { west: number; south: number; east: number; north: number };
-type PointTerritorialDisposition = 'mapped' | 'missing_coordinates' | 'review';
+type PointTerritorialDisposition = 'mapped' | 'missing_coordinates' | 'review' | 'unverified_scope';
 
 const resolveJurisdictionBounds = (value: unknown): JurisdictionBounds | null => {
   const bounds = asRecord(value);
@@ -544,7 +544,68 @@ const isExplicitlyInsideJurisdiction = (value: unknown) => {
       record?.location_jurisdiction_status,
     ),
   );
-  return ['within', 'inside', 'in scope', 'verified', 'validated'].includes(status.replace(/[_-]+/g, ' '));
+  return ['within', 'inside', 'in scope'].includes(status.replace(/[_-]+/g, ' '));
+};
+
+const normalizedBoundaryReference = (value: unknown) =>
+  readString(value)?.trim().replace(/\/+$/, '').toLowerCase();
+
+const normalizedBoundarySnapshot = (value: unknown) => {
+  const snapshot = readString(value)?.trim().toLowerCase();
+  return snapshot && /^[a-f0-9]{64}$/.test(snapshot) ? snapshot : undefined;
+};
+
+const boundaryEvidenceMatchesJurisdiction = (heatmap: OperationsHeatmapV1 | undefined) => {
+  const collection = heatmap?.geo_layers?.boundaries;
+  if (!collection) return true;
+
+  const jurisdiction = asRecord(heatmap?.jurisdiction);
+  const authority = asRecord(jurisdiction?.boundary_authority);
+  // Public/non-government boundary layers may exist without an enforced
+  // containment contract. The identity binding becomes mandatory only when the
+  // backend claims an authority for that same collection.
+  if (!authority) return true;
+  const metadata = asRecord(collection.metadata);
+  const provenance = asRecord(metadata?.provenance);
+  const authoritySource = normalizedBoundaryReference(authority?.source_ref ?? authority?.source_url ?? authority?.url);
+  const boundarySource = normalizedBoundaryReference(
+    provenance?.source_ref ?? provenance?.source_url ?? metadata?.source_ref ?? metadata?.source_url,
+  );
+  const authoritySnapshot = normalizedBoundarySnapshot(authority?.snapshot_sha256 ?? authority?.sha256);
+  const boundarySnapshot = normalizedBoundarySnapshot(
+    provenance?.snapshot_sha256 ?? provenance?.sha256 ?? metadata?.snapshot_sha256 ?? metadata?.sha256,
+  );
+
+  return Boolean(
+    authoritySource &&
+      boundarySource &&
+      authoritySource === boundarySource &&
+      authoritySnapshot &&
+      boundarySnapshot &&
+      authoritySnapshot === boundarySnapshot,
+  );
+};
+
+const hasAuthoritativePointContainmentContract = (value: unknown) => {
+  const jurisdiction = asRecord(value);
+  if (
+    !jurisdiction ||
+    jurisdiction.enforced !== true ||
+    jurisdiction.containment_verified !== true
+  ) return false;
+  const authority = asRecord(jurisdiction.boundary_authority);
+  const authorityKind = normalizedFacetValue(readString(authority?.kind, authority?.type));
+  const sourceReference = readString(authority?.source_ref, authority?.ref, authority?.url);
+  const snapshot = normalizedBoundarySnapshot(authority?.snapshot_sha256 ?? authority?.sha256);
+  const containmentMethod = normalizedFacetValue(
+    readString(jurisdiction.containment_method, jurisdiction.membership_method),
+  ).replace(/[_-]+/g, ' ');
+  return (
+    ['official', 'authoritative'].includes(authorityKind) &&
+    Boolean(sourceReference) &&
+    Boolean(snapshot) &&
+    ['point in polygon', 'official polygon'].includes(containmentMethod)
+  );
 };
 
 const territorialDispositionForPoint = ({
@@ -552,17 +613,29 @@ const territorialDispositionForPoint = ({
   officialZones,
   jurisdictionBounds,
   jurisdictionEnforced,
+  requiresVerifiedScope,
+  authoritativePointContainment,
 }: {
   point: OperationsHeatmapPoint;
   officialZones: TerritoryZone[];
   jurisdictionBounds: JurisdictionBounds | null;
   jurisdictionEnforced: boolean;
+  requiresVerifiedScope: boolean;
+  authoritativePointContainment: boolean;
 }): PointTerritorialDisposition => {
   const location = asRecord(point.location);
   const lat = readNumber(point.lat, location?.lat, point.latitude);
   const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
   if (lat === undefined || lng === undefined) return 'missing_coordinates';
   if (!isValidWgs84Position(lat, lng) || isOutsideJurisdictionRecord(point)) return 'review';
+  if (requiresVerifiedScope) {
+    if (!authoritativePointContainment) return 'unverified_scope';
+    if (officialZones.length > 0) return resolvePointZone(point, officialZones) ? 'mapped' : 'review';
+    // A rectangular operational envelope is never a substitute for an official
+    // government boundary. Without the polygon, trust only the backend's
+    // explicit per-point result from the verified point-in-polygon contract.
+    return isExplicitlyInsideJurisdiction(point) ? 'mapped' : 'review';
+  }
   if (officialZones.length > 0) return resolvePointZone(point, officialZones) ? 'mapped' : 'review';
   if (jurisdictionBounds) {
     return lng >= jurisdictionBounds.west &&
@@ -1344,7 +1417,20 @@ export function PremiumTerritoryHeatmap({
     () => resolveJurisdictionBounds(heatmap?.jurisdiction?.bounds),
     [heatmap?.jurisdiction?.bounds],
   );
-  const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
+  const boundaryAuthorityLinked = useMemo(() => boundaryEvidenceMatchesJurisdiction(heatmap), [heatmap]);
+  const officialTerritoryZones = useMemo(
+    () => boundaryAuthorityLinked ? resolveOfficialTerritoryZones(heatmap) : [],
+    [boundaryAuthorityLinked, heatmap],
+  );
+  const tenantType = normalizedFacetValue(readString(heatmap?.tenant?.tipo, heatmap?.tenant?.type));
+  const requiresVerifiedTerritorialScope =
+    jurisdictionEnforced ||
+    demoProfile === 'gobierno' ||
+    ['municipio', 'municipalidad', 'gobierno', 'government', 'provincia', 'province', 'ente publico', 'public sector'].includes(
+      tenantType.replace(/[_-]+/g, ' '),
+    );
+  const authoritativePointContainment =
+    hasAuthoritativePointContainmentContract(heatmap?.jurisdiction) && boundaryAuthorityLinked;
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -1417,14 +1503,30 @@ export function PremiumTerritoryHeatmap({
           officialZones: officialTerritoryZones,
           jurisdictionBounds,
           jurisdictionEnforced,
+          requiresVerifiedScope: requiresVerifiedTerritorialScope,
+          authoritativePointContainment,
         }),
       })),
-    [jurisdictionBounds, jurisdictionEnforced, officialTerritoryZones, rawSourcePoints],
+    [
+      authoritativePointContainment,
+      jurisdictionBounds,
+      jurisdictionEnforced,
+      officialTerritoryZones,
+      rawSourcePoints,
+      requiresVerifiedTerritorialScope,
+    ],
   );
   const outsidePointsRejectedByFrontend = useMemo(
     () => pointTerritorialDispositions.filter(({ disposition }) => disposition === 'review').length,
     [pointTerritorialDispositions],
   );
+  const unverifiedScopePointsRejectedByFrontend = useMemo(
+    () => pointTerritorialDispositions.filter(({ disposition }) => disposition === 'unverified_scope').length,
+    [pointTerritorialDispositions],
+  );
+  const territorialScopeBlocked =
+    requiresVerifiedTerritorialScope &&
+    !authoritativePointContainment;
   const sourcePoints = useMemo(
     () =>
       pointTerritorialDispositions
@@ -1495,9 +1597,9 @@ export function PremiumTerritoryHeatmap({
         })),
     [sourcePoints, tenantSlug],
   );
-  const canonicalCategoryFacets = heatmap?.territorial_facets?.categories ?? [];
-  const canonicalZoneFacets = heatmap?.territorial_facets?.explicit_zones ?? [];
-  const canonicalAddressFacets = heatmap?.territorial_facets?.addresses ?? [];
+  const canonicalCategoryFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.categories ?? []);
+  const canonicalZoneFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.explicit_zones ?? []);
+  const canonicalAddressFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.addresses ?? []);
   const hasNamedMapCategories =
     canonicalCategoryFacets.some((facet) => isNamedFacetValue(readString(facet.label, facet.key))) ||
     liveMapPoints.some((point) => isNamedFacetValue(point.categoria));
@@ -1699,6 +1801,16 @@ export function PremiumTerritoryHeatmap({
     );
   }, [canonicalCategoryFacets]);
   const territorialRecordCounts = useMemo(() => {
+    if (territorialScopeBlocked) {
+      return {
+        total: undefined,
+        mappedCount: 0,
+        pendingGeocodeCount: undefined,
+        outsideJurisdictionCount: 0,
+        coherent: false,
+        invalidContract: false,
+      };
+    }
     const summary = heatmap?.territorial_facets?.summary;
     const summaryHasCounts = Boolean(
       summary &&
@@ -1778,6 +1890,7 @@ export function PremiumTerritoryHeatmap({
     heatmap?.territorial_facets?.summary,
     liveMapPoints.length,
     outsideJurisdictionCount,
+    territorialScopeBlocked,
   ]);
   const categoryBreakdownProtected =
     categoryFacetsSuppressed ||
@@ -1820,16 +1933,31 @@ export function PremiumTerritoryHeatmap({
   );
   const hasTerritoryBoundaries = aggregate.hasBoundaries;
 
-  const readiness = useMemo(
-    () => resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
-    [heatmap, sourcePoints.length],
+  const readiness = useMemo<ReturnType<typeof resolveTerritoryMapReadiness>>(
+    () => territorialScopeBlocked
+      ? {
+          state: 'empty' as const,
+          label: 'Alcance territorial no validado',
+          reasonCode: 'territorial_scope_unverified',
+          visiblePoints: 0,
+          canRenderHeatmap: false,
+        }
+      : resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
+    [heatmap, sourcePoints.length, territorialScopeBlocked],
   );
   const territorialContractInvalid =
     territorialRecordCounts.invalidContract ||
     (readiness.coveragePercent !== undefined && validCoveragePercent(readiness.coveragePercent) === undefined);
   const dataProvenance = useMemo(
-    () => resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
-    [heatmap, sourcePoints, usesDemoData],
+    () => territorialScopeBlocked
+      ? {
+          state: 'unvalidated' as const,
+          label: 'Alcance territorial no validado',
+          shortLabel: 'sin validar',
+          detail: 'La procedencia puede existir, pero la jurisdicción todavía no permite una lectura territorial confiable.',
+        }
+      : resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
+    [heatmap, sourcePoints, territorialScopeBlocked, usesDemoData],
   );
   const executiveReadinessLabel =
     dataProvenance.state === 'real' || readiness.state !== 'ready'
@@ -1839,7 +1967,10 @@ export function PremiumTerritoryHeatmap({
     dataProvenance.state === 'real' || readiness.state !== 'ready'
       ? readinessCopy(readiness.state, labels)
       : 'La cobertura permite visualizar patrones, pero la procedencia debe validarse antes de tomar decisiones.';
-  const displayLayers = useMemo(() => resolveTerritoryLayerDescriptors(heatmap), [heatmap]);
+  const displayLayers = useMemo(
+    () => territorialScopeBlocked ? [] : resolveTerritoryLayerDescriptors(heatmap),
+    [heatmap, territorialScopeBlocked],
+  );
   const displayLayerKey = displayLayers.map((layer) => layer.id).join('|');
   const defaultEnabledLayerIds = useMemo(
     () =>
@@ -1878,8 +2009,10 @@ export function PremiumTerritoryHeatmap({
   const preferredVisualization = preferredVisualizationValue
     ? humanizeContractValue(preferredVisualizationValue, 'Mapa territorial')
     : undefined;
-  const geocodingStatus = readString(heatmap?.geocoding?.status, heatmap?.geocoding?.reason_code);
-  const geocodingCandidates = heatmap?.geocoding?.candidates?.slice(0, 3) ?? [];
+  const geocodingStatus = territorialScopeBlocked
+    ? undefined
+    : readString(heatmap?.geocoding?.status, heatmap?.geocoding?.reason_code);
+  const geocodingCandidates = territorialScopeBlocked ? [] : (heatmap?.geocoding?.candidates?.slice(0, 3) ?? []);
   const geocodingQueueItems = geocodingCandidates.map((candidate, index) => {
     const safeCorridor = safeStreetCorridor(candidate.address);
     const category = readString(candidate.category);
@@ -1889,13 +2022,20 @@ export function PremiumTerritoryHeatmap({
       area: safeCorridor ? streetCorridorLabel(safeCorridor) : 'Zona todavía no validada',
     };
   });
-  const qualityAction = summarizeBackendAction(heatmap?.quality?.empty_state_action);
-  const geocodingAction = summarizeBackendAction(heatmap?.geocoding?.recommended_action);
+  const qualityAction = territorialScopeBlocked
+    ? undefined
+    : summarizeBackendAction(heatmap?.quality?.empty_state_action);
+  const geocodingAction = territorialScopeBlocked
+    ? undefined
+    : summarizeBackendAction(heatmap?.geocoding?.recommended_action);
   const activeAction = readiness.state === 'empty' || readiness.state === 'low' ? qualityAction ?? geocodingAction : geocodingAction;
-  const realtimeSources = heatmap?.realtime?.sources ?? [];
-  const realtimeEvents = heatmap?.realtime?.socket_events ?? [];
-  const latestRealtime = readString(heatmap?.realtime?.latest_event_at);
-  const realtimeFreshness = resolveRealtimeFreshness(latestRealtime, heatmap?.realtime?.poll_seconds);
+  const realtimeSources = territorialScopeBlocked ? [] : (heatmap?.realtime?.sources ?? []);
+  const realtimeEvents = territorialScopeBlocked ? [] : (heatmap?.realtime?.socket_events ?? []);
+  const latestRealtime = territorialScopeBlocked ? undefined : readString(heatmap?.realtime?.latest_event_at);
+  const realtimeFreshness = resolveRealtimeFreshness(
+    latestRealtime,
+    territorialScopeBlocked ? undefined : heatmap?.realtime?.poll_seconds,
+  );
   const executiveProvenanceLabel =
     dataProvenance.state === 'real' ? 'Datos territoriales verificados' : dataProvenance.label;
   const narrativeTitle = presentExecutiveText(
@@ -1946,7 +2086,7 @@ export function PremiumTerritoryHeatmap({
   const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : [])
     .map((hint) => humanizeContractValue(hint, 'Capa operativa'))
     .slice(0, 3);
-  const mapLayers = asRecord(heatmap?.map_layers);
+  const mapLayers = territorialScopeBlocked ? undefined : asRecord(heatmap?.map_layers);
   const mapLayerHotspots = asRecord(mapLayers?.hotspots);
   const mapLayerFocus = asRecord(mapLayerHotspots?.focus);
   const mapLayerFocusRisk = asRecord(mapLayerFocus?.risk);
@@ -1954,8 +2094,12 @@ export function PremiumTerritoryHeatmap({
   const mapLayerVisualSystem = asRecord(mapLayers?.visual_system);
   const mapLayerAnimations = asRecord(mapLayerVisualSystem?.animations);
   const mapLayerOperatorMetrics = asRecord(mapLayers?.operator_metrics);
-  const heatmapSummary = asRecord(heatmap?.summary);
-  const operationalHotspots = heatmap?.operational_hotspots?.slice(0, 4) ?? [];
+  const heatmapSummary = territorialScopeBlocked ? undefined : asRecord(heatmap?.summary);
+  // Government maps fail closed as a whole: an unverified jurisdiction must not
+  // leak derived hotspot priorities or suggested actions after raw points were hidden.
+  const operationalHotspots = territorialScopeBlocked
+    ? []
+    : (heatmap?.operational_hotspots?.slice(0, 4) ?? []);
   const topOperationalHotspot = operationalHotspots[0];
   const topOperationalSignals = asRecord(topOperationalHotspot?.signals);
   const operationalHotspotCount = readNumber(heatmapSummary?.operational_hotspots) ?? operationalHotspots.length;
@@ -1973,17 +2117,21 @@ export function PremiumTerritoryHeatmap({
   const hasBackendMapContract = Boolean(
     mapLayers?.contract_version || backendTopCategory || backendTotalCases !== undefined || backendVisibleLayers !== undefined,
   );
-  const territoryScopeBadgeLabel = hasTerritoryBoundaries
-    ? confidenceLabel(aggregate.confidence)
-    : jurisdictionEnforced
-      ? `Alcance configurado${jurisdictionCityLabel ? ` · ${jurisdictionCityLabel}` : ''}`
-      : 'Sin límites oficiales';
-  const hotspotActionSummaries = uniqueActionSummaries([
-    ...(heatmap?.hotspot_actions?.actions ?? []),
-    ...(heatmap?.hotspot_actions?.playbook ?? []),
-    ...(heatmap?.hotspot_playbook ?? []),
-    ...(heatmap?.operator_playbook ?? []),
-  ]).slice(0, 4);
+  const territoryScopeBadgeLabel = territorialScopeBlocked
+    ? 'Alcance territorial no validado'
+    : hasTerritoryBoundaries
+      ? confidenceLabel(aggregate.confidence)
+      : jurisdictionEnforced
+        ? `Alcance configurado${jurisdictionCityLabel ? ` · ${jurisdictionCityLabel}` : ''}`
+        : 'Sin límites oficiales';
+  const hotspotActionSummaries = territorialScopeBlocked
+    ? []
+    : uniqueActionSummaries([
+        ...(heatmap?.hotspot_actions?.actions ?? []),
+        ...(heatmap?.hotspot_actions?.playbook ?? []),
+        ...(heatmap?.hotspot_playbook ?? []),
+        ...(heatmap?.operator_playbook ?? []),
+      ]).slice(0, 4);
   const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
     const safeCandidateCorridor = safeStreetCorridor(candidate.address);
     const contextLabel = readString(
@@ -1997,27 +2145,29 @@ export function PremiumTerritoryHeatmap({
     const contextLabel = readString(point.label, point.categoria, point.category, point.barrio, point.distrito);
     return (Array.isArray(point.actions) ? point.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
-  const cellActions = (heatmap?.cells ?? []).flatMap((cell) => {
+  const cellActions = (territorialScopeBlocked ? [] : (heatmap?.cells ?? [])).flatMap((cell) => {
     const contextLabel = readString(cell.label, cell.title, cell.key, cell.id);
     return (Array.isArray(cell.actions) ? cell.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const operationalHotspotActions = operationalHotspots
     .map((hotspot) => actionWithContext(hotspot.recommended_action, readString(hotspot.top_category, hotspot.id)))
     .filter(Boolean);
-  const operationalActionSummaries = uniqueActionSummaries([
-    heatmap?.map_narrative?.primary_cta,
-    ...operationalHotspotActions,
-    ...(heatmap?.hotspot_actions?.actions ?? []),
-    ...(heatmap?.hotspot_actions?.playbook ?? []),
-    ...(heatmap?.hotspot_playbook ?? []),
-    ...(heatmap?.operator_playbook ?? []),
-    ...(heatmap?.geocoding?.guidance?.recommended_actions ?? []),
-    heatmap?.geocoding?.recommended_action,
-    ...(heatmap?.ai_layers?.recommendations ?? []),
-    ...geocodingCandidateActions,
-    ...pointActions,
-    ...cellActions,
-  ]).slice(0, 8);
+  const operationalActionSummaries = territorialScopeBlocked
+    ? []
+    : uniqueActionSummaries([
+        heatmap?.map_narrative?.primary_cta,
+        ...operationalHotspotActions,
+        ...(heatmap?.hotspot_actions?.actions ?? []),
+        ...(heatmap?.hotspot_actions?.playbook ?? []),
+        ...(heatmap?.hotspot_playbook ?? []),
+        ...(heatmap?.operator_playbook ?? []),
+        ...(heatmap?.geocoding?.guidance?.recommended_actions ?? []),
+        heatmap?.geocoding?.recommended_action,
+        ...(heatmap?.ai_layers?.recommendations ?? []),
+        ...geocodingCandidateActions,
+        ...pointActions,
+        ...cellActions,
+      ]).slice(0, 8);
   const hasOperationalBrief = Boolean(
     narrativeTitle ||
       narrativeBody ||
@@ -2261,7 +2411,7 @@ export function PremiumTerritoryHeatmap({
           : hasCanonicalTerritorialSummary && total !== undefined && total > 0
             ? validCoveragePercent((mappedCount / total) * 100)
             : validCoveragePercent(readiness.coveragePercent),
-      globalInsightsCompatible: true,
+      globalInsightsCompatible: !territorialScopeBlocked,
     };
   }, [
     hasCanonicalTerritorialSummary,
@@ -2270,6 +2420,7 @@ export function PremiumTerritoryHeatmap({
     selectedTerritorialFacets,
     territorialContractInvalid,
     territorialRecordCounts,
+    territorialScopeBlocked,
     visibleLiveMapPoints.length,
   ]);
   const activeZeroMappedFacet = [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].find(
@@ -2282,7 +2433,9 @@ export function PremiumTerritoryHeatmap({
   const clusteredPointDisplayMode = mapDisplayMode !== 'heat';
   const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
   const selectedDisplayModeUnavailable = mapDisplayMode === 'heat' ? !showHeatLayer : !showCategoryLayer;
-  const mapDisplayStatus = privacyDensitySuppressed
+  const mapDisplayStatus = territorialScopeBlocked
+    ? 'Alcance territorial no validado. No se muestran puntos, densidad, facetas ni métricas hasta verificar la contención oficial.'
+    : privacyDensitySuppressed
     ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos ni densidad territorial.`
     : noBaseMapLayerAvailable
     ? 'No hay una capa territorial activa. Activá Calor territorial o Capas por categoría para visualizar los registros.'
@@ -2344,9 +2497,11 @@ export function PremiumTerritoryHeatmap({
   const scopedOutsideJurisdictionCount = scopedTerritoryView.outsideJurisdictionCount;
   const scopedVisiblePointLabel = visiblePointCountProtected ? '—' : formatNumber(visiblePointCount, '0');
   const scopedMetricsUnavailable = scopedTerritoryView.mode === 'combined';
-  const scopedMetricsDetail = scopedMetricsUnavailable
-    ? 'La intersección no tiene denominador canónico; sólo se muestran puntos mapeados.'
-    : `${scopedCoverageLabel} de cobertura del alcance`;
+  const scopedMetricsDetail = territorialScopeBlocked
+    ? 'Alcance territorial no validado; las métricas permanecen ocultas.'
+    : scopedMetricsUnavailable
+      ? 'La intersección no tiene denominador canónico; sólo se muestran puntos mapeados.'
+      : `${scopedCoverageLabel} de cobertura del alcance`;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
   const decisionAction = scopedTerritoryView.globalInsightsCompatible
     ? narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction
@@ -2364,8 +2519,9 @@ export function PremiumTerritoryHeatmap({
       : readiness.state === 'ready'
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
-  const decisionActionDetail =
-    decisionAction?.detail ??
+  const decisionActionDetail = territorialScopeBlocked
+    ? 'No se calculan prioridades ni acciones territoriales hasta validar el límite oficial y la contención de las coordenadas.'
+    : decisionAction?.detail ??
     (scopedTerritoryView.mode === 'single'
       ? `${formatCountLabel(scopedTerritoryView.mappedCount, 'registro mapeado', 'registros mapeados')} de ${formatNumber(scopedTerritoryView.total, '0')} en el segmento.`
       : scopedTerritoryView.mode === 'combined'
@@ -2379,7 +2535,9 @@ export function PremiumTerritoryHeatmap({
       : scopedTerritoryView.globalInsightsCompatible
         ? decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href
         : undefined;
-  const commandPrimaryCategory = !scopedTerritoryView.globalInsightsCompatible
+  const commandPrimaryCategory = territorialScopeBlocked
+    ? 'Sin alcance validado'
+    : !scopedTerritoryView.globalInsightsCompatible
     ? scopedTerritoryView.label
     : backendTopCategory
     ? humanizeCategoryValue(backendTopCategory)
@@ -2411,7 +2569,9 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Pendientes',
       value: scopedPendingLabel,
-      detail: scopedMetricsUnavailable
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : scopedMetricsUnavailable
         ? 'No disponible para filtros combinados'
         : geocodingStatus
           ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
@@ -2449,14 +2609,16 @@ export function PremiumTerritoryHeatmap({
     {
       label: scopedTerritoryView.globalInsightsCompatible ? 'Foco crítico' : 'Alcance filtrado',
       value:
-        scopedTerritoryView.mode === 'single'
+        territorialScopeBlocked
+          ? '—'
+          : scopedTerritoryView.mode === 'single'
           ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
           : scopedTerritoryView.mode === 'combined'
             ? formatCountLabel(visiblePointCount, 'punto mapeado', 'puntos mapeados')
         : backendCriticalHotspots !== undefined
           ? formatCountLabel(backendCriticalHotspots, 'zona crítica', 'zonas críticas')
           : formatCountLabel(aggregate.alerts, 'alerta', 'alertas'),
-      detail: commandPrimaryCategory,
+      detail: territorialScopeBlocked ? 'Alcance territorial no validado' : commandPrimaryCategory,
       icon: ShieldAlert,
       testId: 'territory-command-scope',
     },
@@ -2519,17 +2681,25 @@ export function PremiumTerritoryHeatmap({
     {
       label: 'Capas activas',
       value:
-        backendVisibleLayers !== undefined
+        territorialScopeBlocked
+          ? '—'
+          : backendVisibleLayers !== undefined
           ? formatNumber(backendVisibleLayers)
           : `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
-      detail: hasBackendMapContract ? backendRenderer : aiModeLabel,
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : hasBackendMapContract
+          ? backendRenderer
+          : aiModeLabel,
       icon: Layers,
       testId: 'territory-radar-layers',
     },
     {
       label: 'Datos pendientes',
       value: scopedPendingLabel,
-      detail: scopedMetricsUnavailable
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : scopedMetricsUnavailable
         ? 'No disponible para filtros combinados'
         : geocodingStatus
           ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
@@ -2611,6 +2781,17 @@ export function PremiumTerritoryHeatmap({
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Fuera de jurisdicción / revisar · {formatNumber(scopedOutsideJurisdictionCount)}
+              </Badge>
+            ) : null}
+            {territorialScopeBlocked ? (
+              <Badge
+                data-testid="territory-unverified-scope"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                aria-label={`${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'coordenada ocultada', 'coordenadas ocultadas')} hasta validar el alcance territorial`}
+              >
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Alcance sin validar · {formatNumber(unverifiedScopePointsRejectedByFrontend)} ocultas
               </Badge>
             ) : null}
             {hasWarning ? (
@@ -3547,7 +3728,13 @@ export function PremiumTerritoryHeatmap({
           </svg>
           ) : (
             <div
-              data-testid={hasTerritoryBoundaries ? 'territory-activity-empty-state' : 'territory-boundary-empty-state'}
+              data-testid={
+                territorialScopeBlocked
+                  ? 'territory-scope-unverified-state'
+                  : hasTerritoryBoundaries
+                    ? 'territory-activity-empty-state'
+                    : 'territory-boundary-empty-state'
+              }
               role="status"
               className="relative z-10 flex h-[450px] items-center justify-center px-6 pb-28 pt-24 text-center sm:h-[540px]"
             >
@@ -3556,14 +3743,18 @@ export function PremiumTerritoryHeatmap({
                   <MapPin className="h-5 w-5" />
                 </div>
                 <h4 className="mt-3 text-lg font-semibold">
-                  {hasTerritoryBoundaries
+                  {territorialScopeBlocked
+                    ? 'Alcance territorial no validado'
+                    : hasTerritoryBoundaries
                     ? privacyDensitySuppressed
                       ? 'Muestra territorial protegida'
                       : 'Sin actividad territorial mapeada'
                     : 'Sin delimitación territorial oficial'}
                 </h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {hasTerritoryBoundaries
+                  {territorialScopeBlocked
+                    ? `El contrato municipal no acredita pertenencia mediante un polígono o método de contención autoritativo. Se ocultaron ${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'coordenada', 'coordenadas')}; no se dibujan puntos, calor, celdas ni focos hasta validar el alcance.`
+                    : hasTerritoryBoundaries
                     ? privacyDensitySuppressed
                       ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos, densidad ni focos territoriales.`
                       : 'Los límites oficiales están disponibles, pero no hay coordenadas verificadas para esta selección. No se dibujan actividad, focos ni recorridos estimados.'
@@ -3819,7 +4010,11 @@ export function PremiumTerritoryHeatmap({
                   <Activity className="h-3.5 w-3.5" />
                   Frecuencia configurada
                 </div>
-                <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {!territorialScopeBlocked && heatmap?.realtime?.poll_seconds
+                    ? `${formatNumber(heatmap.realtime.poll_seconds)}s`
+                    : '--'}
+                </p>
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -4279,11 +4474,13 @@ export function PremiumTerritoryHeatmap({
             >
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4 text-primary" />
-                Sin delimitación territorial oficial
+                {territorialScopeBlocked ? 'Alcance territorial no validado' : 'Sin delimitación territorial oficial'}
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                El mapa conserva los puntos y celdas disponibles. {dataProvenance.detail} No calcula rankings,
-                tasas por población ni comparaciones entre zonas hasta recibir límites oficiales.
+                {territorialScopeBlocked
+                  ? 'No se exponen puntos, celdas, facetas, cobertura ni prioridades hasta validar el límite oficial y la contención de cada coordenada.'
+                  : <>El mapa conserva los puntos y celdas disponibles. {dataProvenance.detail} No calcula rankings,
+                      tasas por población ni comparaciones entre zonas hasta recibir límites oficiales.</>}
               </p>
             </div>
           )}

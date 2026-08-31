@@ -1743,6 +1743,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             mapConfig={premiumMapConfig}
             minSampleSize={operationsHeatmap.privacy?.minimum_sample_size}
             allowDemoFallback={false}
+            demoProfile={ticketType === 'municipio' ? 'gobierno' : 'general'}
             tenantSlug={canonicalTenantSlug}
             className="min-h-[560px]"
           />

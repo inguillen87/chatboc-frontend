@@ -24,6 +24,7 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
     activeFilters,
     minSampleSize,
     allowDemoFallback,
+    demoProfile,
   }: {
     points?: unknown[];
     heatmap?: {
@@ -39,6 +40,7 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
     activeFilters?: unknown[];
     minSampleSize?: number;
     allowDemoFallback?: boolean;
+    demoProfile?: string;
   }) => (
     <div
       data-testid="mock-premium-territory-map"
@@ -54,6 +56,7 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
       data-active-filters={JSON.stringify(activeFilters ?? [])}
       data-min-sample-size={String(minSampleSize ?? '')}
       data-demo-fallback={String(allowDemoFallback)}
+      data-demo-profile={demoProfile ?? ''}
     >
       mapa territorial v2
     </div>
@@ -270,6 +273,7 @@ describe('IncidentsMap', () => {
     expect(map).toHaveAttribute('data-privacy-mode', 'employee_aggregated');
     expect(map).toHaveAttribute('data-min-sample-size', '5');
     expect(map).toHaveAttribute('data-demo-fallback', 'false');
+    expect(map).toHaveAttribute('data-demo-profile', 'gobierno');
     expect(map.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(evidence).toHaveTextContent(
       'Calidad y privacidad de los datos',

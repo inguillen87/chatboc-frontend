@@ -124,6 +124,8 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
   ),
 }));
 
+const TEST_OFFICIAL_BOUNDARY_SHA = 'a'.repeat(64);
+
 const buildPoints = (count: number): OperationsHeatmapPoint[] =>
   Array.from({ length: count }, (_, index) => ({
     id: `point-${index}`,
@@ -214,7 +216,10 @@ describe('PremiumTerritoryHeatmap', () => {
   });
 
   it('keeps the Junín territorial truth visible in the compact filter disclosure', () => {
-    const points = buildPoints(12);
+    const points = buildPoints(12).map((point) => ({
+      ...point,
+      coordinate_jurisdiction_status: 'within' as const,
+    }));
     const heatmap = {
       contract_version: 'operations.heatmap.v1',
       points,
@@ -228,6 +233,13 @@ describe('PremiumTerritoryHeatmap', () => {
       jurisdiction: {
         state: 'configured',
         enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-junin',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
         city: 'Junín',
         state_name: 'Mendoza',
         bounds: { west: -61, south: -35, east: -60, north: -34 },
@@ -415,7 +427,15 @@ describe('PremiumTerritoryHeatmap', () => {
 
   it('scopes executive metrics to Luminarias and avoids invented metrics for combined filters', () => {
     const points: OperationsHeatmapPoint[] = [
-      { id: 'luz-centro', lat: -33.081, lng: -68.469, categoria: 'Luminarias', barrio: 'Centro', weight: 1 },
+      {
+        id: 'luz-centro',
+        lat: -33.081,
+        lng: -68.469,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+        coordinate_jurisdiction_status: 'within',
+        weight: 1,
+      },
       {
         id: 'luz-centro-2',
         lat: -33.0805,
@@ -423,10 +443,27 @@ describe('PremiumTerritoryHeatmap', () => {
         categoria: 'Alumbrado publico',
         raw_category: 'Alumbrado publico',
         barrio: 'Centro',
+        coordinate_jurisdiction_status: 'within',
         weight: 1,
       },
-      { id: 'luz-norte', lat: -33.071, lng: -68.459, categoria: 'Luminarias', barrio: 'Norte', weight: 1 },
-      { id: 'bache-centro', lat: -33.082, lng: -68.47, categoria: 'Baches', barrio: 'Centro', weight: 1 },
+      {
+        id: 'luz-norte',
+        lat: -33.071,
+        lng: -68.459,
+        categoria: 'Luminarias',
+        barrio: 'Norte',
+        coordinate_jurisdiction_status: 'within',
+        weight: 1,
+      },
+      {
+        id: 'bache-centro',
+        lat: -33.082,
+        lng: -68.47,
+        categoria: 'Baches',
+        barrio: 'Centro',
+        coordinate_jurisdiction_status: 'within',
+        weight: 1,
+      },
     ];
     const heatmap = {
       contract_version: 'operations.heatmap.v1',
@@ -448,6 +485,13 @@ describe('PremiumTerritoryHeatmap', () => {
       jurisdiction: {
         state: 'configured',
         enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-junin',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
         city: 'Junín',
         state_name: 'Mendoza',
         bounds: { west: -68.6, south: -33.3, east: -68.3, north: -32.9 },
@@ -710,6 +754,13 @@ describe('PremiumTerritoryHeatmap', () => {
       jurisdiction: {
         state: 'configured',
         enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-junin',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
         city: 'Junín',
         state_name: 'Mendoza',
         excluded_coordinate_records: 1,
@@ -804,7 +855,19 @@ describe('PremiumTerritoryHeatmap', () => {
         ticket_records_pending_geocode: 5,
         coordinate_coverage_pct: 14.29,
       },
-      jurisdiction: { state: 'configured', enforced: true, city: 'Junín', state_name: 'Mendoza' },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-junin',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
+        city: 'Junín',
+        state_name: 'Mendoza',
+      },
       territorial_facets: {
         summary: {
           ticket_records: 7,
@@ -1509,7 +1572,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(document.body.textContent).not.toContain('Registros territoriales 6');
   });
 
-  it('rejects invalid WGS84 coordinates and coordinates outside enforced bounds even when they claim to be inside', () => {
+  it('fails closed when an enforced jurisdiction has only bounds and no authoritative containment contract', () => {
     const points: OperationsHeatmapPoint[] = [
       {
         id: 'outside-bounds',
@@ -1551,11 +1614,443 @@ describe('PremiumTerritoryHeatmap', () => {
 
     expect(screen.queryByTestId('mock-live-map')).toBeNull();
     expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Puntos mapeados 0');
-    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
-      'Fuera de jurisdicción / revisar · 2',
+    expect(screen.getByTestId('territory-unverified-scope')).toHaveTextContent(
+      'Alcance sin validar · 1 oculta',
     );
+    expect(screen.queryByTestId('territory-outside-jurisdiction')).toBeNull();
     expect(document.body.textContent).not.toContain('-34.61');
     expect(document.body.textContent).not.toContain('-60.91');
+  });
+
+  it('fails closed for a municipal map when point containment is not authoritatively verified', () => {
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'legacy-junin', lat: -33.136, lng: -68.49, categoria: 'Baches', weight: 2 },
+      { id: 'legacy-san-martin', lat: -33.0808, lng: -68.4895, categoria: 'Baches', weight: 3 },
+      { id: 'legacy-palmira', lat: -33.0567, lng: -68.4954, categoria: 'Luminarias', weight: 4 },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+      points,
+      cells: [],
+      hotspots: [],
+      operational_hotspots: [
+        {
+          id: 'unverified-hotspot',
+          top_category: 'Luminarias',
+          operational_score: 99,
+          recommended_action: 'Despachar una cuadrilla',
+        },
+      ],
+      map_layers: {
+        contract_version: 'operations.map-layers.v1',
+        layers: ['private_priority_layer'],
+        operator_metrics: { total_cases: 3, critical_hotspots: 1, top_category: 'Luminarias' },
+        visual_system: { renderer: 'Renderer territorial confidencial' },
+      },
+      summary: { operational_hotspots: 7 },
+      hotspot_actions: {
+        actions: [{ label: 'Despachar cuadrilla confidencial' }],
+      },
+      map_narrative: {
+        headline: 'Prioridad territorial confidencial',
+        primary_cta: { label: 'Abrir prioridad confidencial' },
+      },
+      realtime: {
+        latest_event_at: new Date().toISOString(),
+        poll_seconds: 20,
+        sources: ['canal_confidencial'],
+      },
+      response_provenance: {
+        mode: 'real',
+        server_trusted_classification: true,
+        real_responses_included: 3,
+        synthetic_responses_included: 0,
+        unverified_responses_included: 0,
+      },
+      territorial_facets: {
+        summary: {
+          ticket_records: 63,
+          mapped_records: 12,
+          pending_geocode_records: 34,
+          records_outside_jurisdiction: 9,
+        },
+        categories: [
+          { key: 'luminarias', label: 'Luminarias', count: 38, mapped_count: 3, pending_geocode_count: 23, outside_jurisdiction_count: 12 },
+        ],
+        explicit_zones: [
+          { key: 'centro', label: 'Centro', count: 20, mapped_count: 4, pending_geocode_count: 10, outside_jurisdiction_count: 6 },
+        ],
+        addresses: [
+          { key: 'san-martin', label: 'Corredor San Martín', count: 10, mapped_count: 4, pending_geocode_count: 4, outside_jurisdiction_count: 2 },
+        ],
+      },
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'partial', visible_points: 3, can_render_heatmap: true },
+      geocoding: {
+        status: 'pending',
+        recommended_action: { label: 'Abrir cola en CRM', href: '/perfil?tab=tickets&focus=open_geocoding_queue' },
+        candidates: [
+          {
+            record_id: 999,
+            category: 'Categoría confidencial',
+            address: 'Calle confidencial 1234, Junín',
+            actions: [{ label: 'Geocodificar candidato confidencial' }],
+          },
+        ],
+      },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'operational_envelope',
+        containment_verified: false,
+        truth_boundary: 'operational_envelope_not_official_boundary',
+        bounds: { west: -68.6, south: -33.2, east: -68.3, north: -32.9 },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.getByTestId('territory-scope-unverified-state')).toHaveTextContent(
+      'Alcance territorial no validado',
+    );
+    expect(screen.getByTestId('territory-scope-unverified-state')).toHaveTextContent(
+      'no se dibujan puntos, calor, celdas ni focos',
+    );
+    expect(screen.getByTestId('territory-unverified-scope')).toHaveTextContent(
+      'Alcance sin validar · 3 ocultas',
+    );
+    expect(screen.getByTestId('territory-unverified-scope')).toHaveAccessibleName(
+      '3 coordenadas ocultadas hasta validar el alcance territorial',
+    );
+    expect(screen.queryByTestId('territory-outside-jurisdiction')).toBeNull();
+    expect(screen.queryByTestId('backend-map-contract-card')).toBeNull();
+    expect(screen.queryByTestId('operational-hotspots-panel')).toBeNull();
+    expect(screen.queryByTestId('territory-geocoding-queue')).toBeNull();
+    expect(document.body.textContent).not.toContain('Abrir cola en CRM');
+    expect(document.body.textContent).not.toContain('Categoría confidencial');
+    expect(document.body.textContent).not.toContain('Calle confidencial');
+    expect(document.body.textContent).not.toContain('Geocodificar candidato confidencial');
+    expect(document.body.textContent).not.toContain('Despachar una cuadrilla');
+    expect(document.body.textContent).not.toContain('Despachar cuadrilla confidencial');
+    expect(document.body.textContent).not.toContain('Prioridad territorial confidencial');
+    expect(document.body.textContent).not.toContain('Renderer territorial confidencial');
+    expect(document.body.textContent).not.toContain('canal confidencial');
+    expect(document.body.textContent).not.toContain('Actualizado recientemente');
+    expect(document.body.textContent).not.toContain('20s');
+    expect(document.body.textContent).not.toContain('Datos territoriales verificados');
+    expect(document.body.textContent).not.toContain('El mapa conserva los puntos y celdas disponibles');
+    expect(screen.getByTestId('territory-header-coverage')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-header-pending')).toHaveTextContent('—');
+    const commandScope = screen
+      .getAllByTestId('territory-command-card')
+      .find((card) => card.getAttribute('data-metric') === 'territory-command-scope');
+    expect(commandScope).toBeDefined();
+    expect(commandScope).toHaveTextContent('—');
+    expect(commandScope).toHaveTextContent('Alcance territorial no validado');
+    expect(screen.getByTestId('territory-radar-layers')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-radar-layers')).toHaveTextContent('Alcance territorial no validado');
+    expect(screen.getByTestId('territory-summary-pending')).toHaveTextContent('Alcance territorial no validado');
+    expect(screen.getByText('Frecuencia configurada').parentElement).toHaveTextContent('--');
+    expect(screen.getByTestId('territory-display-mode-status')).toHaveTextContent(
+      'Alcance territorial no validado',
+    );
+    expect(screen.getByTestId('territory-filter-disclosure-summary')).toHaveTextContent(
+      '0 mapeados · — pendientes · 0 para revisar',
+    );
+    openTerritoryFilters();
+    expect(screen.queryByRole('option', { name: 'Luminarias' })).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Centro' })).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Corredor San Martín' })).toBeNull();
+    expect(document.body.textContent).not.toContain('-33.0567');
+    expect(document.body.textContent).not.toContain('-33.0808');
+  });
+
+  it('requires containment_verified even when an official-looking authority is present', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'authority-with-invalid-snapshot',
+        lat: -33.136,
+        lng: -68.49,
+        categoria: 'Luminarias',
+        coordinate_jurisdiction_status: 'within',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'partial', visible_points: 1, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: false,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://example.invalid/official-looking-boundary',
+        },
+      },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { official: true, synthetic: false, source: 'Fuente con snapshot no validado' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'official-looking',
+              properties: { name: 'JUNIN' },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                  [-68.52, -33.16],
+                  [-68.46, -33.16],
+                  [-68.46, -33.11],
+                  [-68.52, -33.11],
+                  [-68.52, -33.16],
+                ]],
+              },
+            },
+          ],
+        },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.getByTestId('territory-unverified-scope')).toHaveTextContent('1 oculta');
+    expect(screen.getByTestId('territory-scope-unverified-state')).toBeInTheDocument();
+  });
+
+  it('never substitutes bounds for a missing official polygon and requires explicit per-point containment evidence', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'backend-verified-within',
+        lat: -33.136,
+        lng: -68.49,
+        categoria: 'Luminarias',
+        coordinate_jurisdiction_status: 'within',
+      },
+      {
+        id: 'bounds-only',
+        lat: -33.12,
+        lng: -68.47,
+        categoria: 'Baches',
+      },
+      {
+        id: 'generic-verified-is-not-containment',
+        lat: -33.13,
+        lng: -68.48,
+        categoria: 'Baches',
+        coordinate_jurisdiction_status: 'verified',
+      },
+      {
+        id: 'generic-validated-is-not-containment',
+        lat: -33.14,
+        lng: -68.5,
+        categoria: 'Luminarias',
+        coordinate_jurisdiction_status: 'validated',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/verified-server-contract',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
+        bounds: { west: -68.6, south: -33.2, east: -68.3, north: -32.9 },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(map).toHaveAttribute('data-point-ids', 'backend-verified-within');
+    expect(map.getAttribute('data-point-ids')).not.toContain('bounds-only');
+    expect(map.getAttribute('data-point-ids')).not.toContain('generic-verified-is-not-containment');
+    expect(map.getAttribute('data-point-ids')).not.toContain('generic-validated-is-not-containment');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
+      'Fuera de jurisdicción / revisar · 3',
+    );
+  });
+
+  it('uses the official polygon before labels and maps only points contained by Junín', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'junin-contained',
+        lat: -33.136,
+        lng: -68.49,
+        categoria: 'Luminarias',
+        barrio: 'Palmira',
+        coordinate_jurisdiction_status: 'within',
+      },
+      {
+        id: 'palmira-outside',
+        lat: -33.0567,
+        lng: -68.4954,
+        categoria: 'Luminarias',
+        barrio: 'Junín',
+        coordinate_jurisdiction_status: 'within',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'ready', visible_points: 1, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-controlada',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
+      },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: {
+            official: true,
+            synthetic: false,
+            source: 'IDE Mendoza · fixture controlada',
+            provenance: {
+              source_ref: 'https://ide.mendoza.gov.ar/fixture-controlada',
+              snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+            },
+          },
+          features: [
+            {
+              type: 'Feature',
+              id: '09',
+              properties: { name: 'JUNIN' },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                  [-68.52, -33.16],
+                  [-68.46, -33.16],
+                  [-68.46, -33.11],
+                  [-68.52, -33.11],
+                  [-68.52, -33.16],
+                ]],
+              },
+            },
+          ],
+        },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} demoProfile="gobierno" />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(map).toHaveAttribute('data-point-ids', 'junin-contained');
+    expect(map.getAttribute('data-bounds-coordinates')).not.toContain('-33.0567');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
+      'Fuera de jurisdicción / revisar · 1',
+    );
+  });
+
+  it('fails closed when the official polygon metadata belongs to a different source snapshot', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'point-with-mismatched-boundary',
+        lat: -33.136,
+        lng: -68.49,
+        categoria: 'Luminarias',
+        coordinate_jurisdiction_status: 'within',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      tenant: { slug: 'junin', tipo: 'municipio' },
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'ready', visible_points: 1, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        containment_method: 'point_in_polygon',
+        containment_verified: true,
+        boundary_authority: {
+          kind: 'official',
+          source_ref: 'https://ide.mendoza.gov.ar/junin-snapshot',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
+      },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: {
+            official: true,
+            synthetic: false,
+            source: 'IDE Mendoza',
+            provenance: {
+              source_ref: 'https://ide.mendoza.gov.ar/another-department',
+              snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+            },
+          },
+          features: [
+            {
+              type: 'Feature',
+              id: '09',
+              properties: { name: 'JUNIN' },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                  [-68.52, -33.16],
+                  [-68.46, -33.16],
+                  [-68.46, -33.11],
+                  [-68.52, -33.11],
+                  [-68.52, -33.16],
+                ]],
+              },
+            },
+          ],
+        },
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.getByTestId('territory-scope-unverified-state')).toBeInTheDocument();
+    expect(screen.getByTestId('territory-unverified-scope')).toHaveTextContent('1 oculta');
   });
 
   it('shows the backend-derived provenance legend instead of claiming every point is real', () => {
