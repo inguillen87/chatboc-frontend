@@ -268,6 +268,9 @@ export interface Ticket {
   estado: TicketStatus;
   fecha: string; // ISO format
   categoria?: string;
+  categoria_reclamo?: string;
+  authoritative_category?: string;
+  authoritativeCategory?: string;
   categories?: string[];
   categoria_principal?: string;
   categoria_secundaria?: string;

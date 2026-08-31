@@ -77,6 +77,7 @@ import { isTenantTicketCollectionInvalidation } from '@/utils/tenantTicketInvali
 import { buildTenantPath } from '@/utils/tenantPaths';
 import type { ResponseTemplateTicketSourceModel } from '@/features/tickets/responseTemplatesApi';
 import TicketClaimButton from './TicketClaimButton';
+import useTicketPresentationCategory from '@/hooks/useTicketPresentationCategory';
 import {
   buildSaasActionPayload,
   createOmnichannelActionClientMessageId,
@@ -950,6 +951,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   operationalWorkspace = false,
 }) => {
   const { selectedTicket, updateTicket, refreshTickets } = useTickets();
+  const presentationCategory = useTicketPresentationCategory(selectedTicket);
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -2319,7 +2321,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       if (isStatusScopeCurrent()) setIsUpdatingStatus(false);
     }
   };
-  const conversationTitle = selectedTicket.categoria || selectedTicket.asunto || selectedTicket.name || 'Conversacion';
+  const conversationTitle = presentationCategory?.label || 'Categoría no informada';
   const conversationSubtitle = operationalWorkspace
     ? selectedTicket.display_name || selectedTicket.name || 'Conversación ciudadana'
     : [
@@ -2380,7 +2382,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 <Badge variant="outline" className="capitalize text-xs">
                   {formatTicketStatusLabel(selectedTicket.estado)}
                 </Badge>
-                <Badge variant="secondary" className="max-w-[12rem] truncate capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
+                <Badge
+                  variant={presentationCategory?.state === 'conflict' ? 'destructive' : 'secondary'}
+                  className="max-w-[14rem] truncate text-xs"
+                  title={presentationCategory?.detail}
+                  aria-label={`${presentationCategory?.label || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+                  data-category-state={presentationCategory?.state}
+                >
+                  {presentationCategory?.label || 'Categoría no informada'}
+                </Badge>
                 <TicketSlaClocks sla={composerSlaSource} compact className="h-6" />
               </div>
             </div>
@@ -2470,6 +2480,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       {!operationalWorkspace ? (
         <CaseStrip
           ticket={selectedTicket}
+          presentationCategory={presentationCategory}
           isDetailsVisible={isDetailsVisible}
           onOpenDetails={showDetailsToggle ? onToggleDetails : undefined}
         />

@@ -681,11 +681,22 @@ const normalizeAssignedAgent = (ticket: any): User | undefined => {
   return undefined;
 };
 
-const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
+const readTicketCategory = (ticket: Partial<Ticket>): string | undefined => {
+  const candidate =
+    ticket.categoria ||
+    ticket.categoria_reclamo ||
+    ticket.categoria_principal ||
+    ticket.categoria_simple ||
+    ticket.categoria_secundaria;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : undefined;
+};
+
+export const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
   const assignedAgent = normalizeAssignedAgent(ticket);
+  const category = readTicketCategory(ticket);
   return {
     ...ticket,
-    categoria: mapToKnownCategory(ticket.categoria, ticket.categories),
+    categoria: category ? mapToKnownCategory(category, ticket.categories) : undefined,
     assignedAgent,
     assignedAgentId:
       ticket.assignedAgentId ||
@@ -693,6 +704,17 @@ const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
       ticket.assigned_user_id ||
       (assignedAgent ? assignedAgent.id : undefined),
   } as Ticket;
+};
+
+export const mergeTicketInboxRecord = (current: Ticket, updates: Partial<Ticket>): Ticket => {
+  const publishedCategory = readTicketCategory(updates);
+  const merged = { ...current, ...updates } as Ticket;
+  return {
+    ...merged,
+    categoria: publishedCategory
+      ? mapToKnownCategory(publishedCategory, updates.categories ?? current.categories)
+      : current.categoria,
+  };
 };
 
 const normalizeTicketTargetId = (
@@ -1350,11 +1372,11 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     };
     setTickets(prevTickets =>
       prevTickets.map(ticket =>
-        matchesIdentity(ticket) ? { ...ticket, ...updates } : ticket
+        matchesIdentity(ticket) ? mergeTicketInboxRecord(ticket, updates) : ticket
       )
     );
     setSelectedTicket(prev =>
-      prev && matchesIdentity(prev) ? { ...prev, ...updates } : prev,
+      prev && matchesIdentity(prev) ? mergeTicketInboxRecord(prev, updates) : prev,
     );
   }, []);
 
@@ -1370,19 +1392,13 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         return [nextTicket, ...prevTickets];
       }
       const nextTickets = [...prevTickets];
-      nextTickets[existingIndex] = {
-        ...nextTickets[existingIndex],
-        ...nextTicket,
-      };
+      nextTickets[existingIndex] = mergeTicketInboxRecord(nextTickets[existingIndex], nextTicket);
       return nextTickets;
     });
 
     setSelectedTicket((prev) => {
       if (!prev || prev.id !== normalizedTicket.id) return prev;
-      return {
-        ...prev,
-        ...normalizedTicket,
-      };
+      return mergeTicketInboxRecord(prev, normalizedTicket);
     });
 
     return true;

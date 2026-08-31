@@ -66,6 +66,7 @@ import TicketAiHandoffControl, { isAiHandoffAction } from './TicketAiHandoffCont
 import { TicketSlaClocks } from './TicketSlaClocks';
 import { resolveTicketSlaSource } from '@/utils/ticketSla';
 import './DetailsPanel.css';
+import useTicketPresentationCategory from '@/hooks/useTicketPresentationCategory';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   return sanitizeAttachmentUrl(value) || undefined;
@@ -601,6 +602,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
     ? `https://wa.me/${phoneDigits}`
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
+  const presentationCategory = useTicketPresentationCategory(ticket);
   const ticketSubject = String(
     ticket?.asunto || ticket?.title || ticket?.categoria || 'Detalle del ticket',
   ).trim();
@@ -1035,7 +1037,15 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary" className="ticket-inspector__badge capitalize">{currentStatusLabel}</Badge>
-                  {ticket.categoria ? <Badge variant="outline" className="ticket-inspector__badge">{ticket.categoria}</Badge> : null}
+                  <Badge
+                    variant={presentationCategory?.state === 'conflict' ? 'destructive' : 'outline'}
+                    className="ticket-inspector__badge"
+                    title={presentationCategory?.detail}
+                    aria-label={`${presentationCategory?.label || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+                    data-category-state={presentationCategory?.state}
+                  >
+                    {presentationCategory?.label || 'Categoría no informada'}
+                  </Badge>
                   {priorityLabel ? (
                     <Badge variant="outline" className="ticket-inspector__badge gap-1">
                       <AlertTriangle className="h-3 w-3" aria-hidden="true" />
