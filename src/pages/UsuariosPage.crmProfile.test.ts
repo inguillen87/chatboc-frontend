@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCrmDirectoryPath,
   crmProfileTone,
-  getCrmProfileScore,
+  getCrmOperationalDataQualityScore,
   normalizeUsuario,
   resolveCrmNextAction,
+  upsertCrmContactByIdentity,
 } from './UsuariosPage';
 import { CRM_SENSITIVE_CONTENT_PLACEHOLDER } from '@/features/crm/people/sensitiveContent';
 
@@ -12,6 +14,7 @@ const baseContact = {
   nombre: 'Marcelo Guill',
   email: 'marcelo@example.com',
   telefono: '+5492610000000',
+  contactId: 'contact-42',
   marketing: true,
   resumen: 'Quiere recibir seguimiento comercial.',
   motivo: 'pedido_catalogo',
@@ -25,15 +28,27 @@ const baseContact = {
 };
 
 describe('UsuariosPage CRM profile intelligence', () => {
-  it('scores complete consented profiles as ready for CRM follow-up', () => {
-    expect(getCrmProfileScore(baseContact)).toBe(100);
-    expect(crmProfileTone(100).label).toBe('Perfil completo');
-    expect(resolveCrmNextAction(baseContact)).toBe('Listo para seguimiento');
+  it('scores operational data quality without rewarding marketing or avatars', () => {
+    expect(getCrmOperationalDataQualityScore(baseContact)).toBe(100);
+    expect(crmProfileTone(100).label).toBe('Calidad alta');
+    expect(resolveCrmNextAction(baseContact)).toBe('Registro operativo disponible');
+
+    const withoutCommercialProfile = {
+      ...baseContact,
+      marketing: false,
+      avatarUrl: null,
+      avatarSource: null,
+      avatarConsent: false,
+    };
+
+    expect(getCrmOperationalDataQualityScore(withoutCommercialProfile)).toBe(100);
+    expect(resolveCrmNextAction(withoutCommercialProfile)).toBe('Registro operativo disponible');
   });
 
-  it('prioritizes missing contact data before campaigns or profile polish', () => {
+  it('prioritizes an exact CRM identity before contact data polish', () => {
     const contact = {
       ...baseContact,
+      contactId: null,
       email: 'sin-email@whatsapp.chatboc.com',
       telefono: null,
       marketing: false,
@@ -42,33 +57,84 @@ describe('UsuariosPage CRM profile intelligence', () => {
       avatarConsent: false,
     };
 
-    expect(getCrmProfileScore(contact)).toBeLessThan(50);
-    expect(resolveCrmNextAction(contact)).toBe('Pedir dato de contacto');
+    expect(getCrmOperationalDataQualityScore(contact)).toBeLessThan(50);
+    expect(resolveCrmNextAction(contact)).toBe('Vincular identidad CRM');
   });
 
-  it('keeps hot commercial leads ahead of avatar or opt-in suggestions', () => {
-    const contact = {
-      ...baseContact,
-      marketing: false,
-      avatarUrl: null,
-      avatarSource: null,
-      avatarConsent: false,
-      leadTemperature: 'hot',
-    };
+  it('builds only explicitly tenant-scoped CRM directory requests', () => {
+    expect(buildCrmDirectoryPath({ tenantSlug: null })).toBeNull();
+    const path = buildCrmDirectoryPath({
+      tenantSlug: ' JUNIN ',
+      search: ' luminaria ',
+      marketingOnly: true,
+    });
+    const url = new URL(path || '', 'https://chatboc.ar');
 
-    expect(resolveCrmNextAction(contact)).toBe('Priorizar respuesta comercial');
+    expect(url.pathname).toBe('/api/crm/clientes');
+    expect(url.searchParams.get('tenant_slug')).toBe('junin');
+    expect(url.searchParams.get('tenant')).toBe('junin');
+    expect(url.searchParams.get('q')).toBe('luminaria');
+    expect(url.searchParams.get('marketing')).toBe('true');
   });
 
-  it('does not treat untrusted profile images as real identity coverage', () => {
-    const contact = {
-      ...baseContact,
-      avatarUrl: 'https://cdn.example.com/profile/scraped.webp',
-      avatarSource: 'whatsapp_scraped',
-      avatarConsent: true,
-    };
+  it('never merges two persistent identities that share a phone number', () => {
+    const current = [normalizeUsuario({
+      id: 'contact:a',
+      contact_id: 'a',
+      name: 'Persona A',
+      phone: '+5492611111111',
+    }, 0)];
+    const incoming = normalizeUsuario({
+      id: 'contact:b',
+      contact_id: 'b',
+      name: 'Persona B',
+      phone: '+5492611111111',
+    }, 1);
 
-    expect(getCrmProfileScore(contact)).toBe(90);
-    expect(resolveCrmNextAction(contact)).toBe('Invitar a completar perfil');
+    const result = upsertCrmContactByIdentity(current, incoming);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((person) => person.contactId)).toEqual(['b', 'a']);
+    expect(result[1].nombre).toBe('Persona A');
+  });
+
+  it('normalizes numeric persistent ids before exact identity matching', () => {
+    const current = [normalizeUsuario({
+      id: 'contact:42',
+      contact_id: 42,
+      name: 'Nombre anterior',
+      phone: '+5492611111111',
+    }, 0)];
+    const incoming = normalizeUsuario({
+      id: 'contact:42',
+      contact_id: '42',
+      name: 'Nombre vigente',
+      phone: '+5492619999999',
+    }, 1);
+
+    const result = upsertCrmContactByIdentity(current, incoming);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contactId).toBe('42');
+    expect(result[0].nombre).toBe('Nombre vigente');
+  });
+
+  it('keeps phone fallback only for two legacy records without contact ids', () => {
+    const current = [normalizeUsuario({
+      id: 'legacy-a',
+      name: 'Sin actualizar',
+      phone: '+5492612222222',
+    }, 0)];
+    const incoming = normalizeUsuario({
+      id: 'legacy-b',
+      name: 'Nombre vigente',
+      phone: '+5492612222222',
+    }, 1);
+
+    const result = upsertCrmContactByIdentity(current, incoming);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].nombre).toBe('Nombre vigente');
   });
 
   it('redacts verification credentials that arrived in legacy CRM text fields', () => {

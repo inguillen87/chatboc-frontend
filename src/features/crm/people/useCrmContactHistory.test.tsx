@@ -86,6 +86,9 @@ describe("useCrmContactHistory", () => {
           title: "Luminaria apagada",
           category: "luminarias",
           status: "nuevo",
+          assignee_name: "Equipo de Alumbrado",
+          sla_status: "en_riesgo",
+          sla_due_at: "2026-08-30T22:00:00Z",
           detail_href: "https://evil.example/perfil?tab=tickets&q=telefono",
         },
         {
@@ -124,6 +127,9 @@ describe("useCrmContactHistory", () => {
         ticketId: "419",
         tenantSlug: "junin",
         title: "Luminaria apagada",
+        assigneeName: "Equipo de Alumbrado",
+        slaStatus: "en_riesgo",
+        slaDueAt: "2026-08-30T22:00:00Z",
         href: "/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419&tenant_slug=junin&tenant=junin",
       }),
     ]);

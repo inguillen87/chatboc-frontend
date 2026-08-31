@@ -15,7 +15,6 @@ import { useSocket } from "@/context/SocketContext";
 import { AlertTriangle, Bell, Clock3, Flame, History, MessageSquare, Phone, RefreshCw, Target } from "lucide-react";
 import CampaignPreparationPanel from "@/components/admin/CampaignPreparationPanel";
 import type { CampaignChannel } from "@/features/campaigns/campaignPreparationTypes";
-import { shouldRenderProfileImage } from "@/utils/avatarConsent";
 import CrmPeopleWorkspace from "@/features/crm/people/CrmPeopleWorkspace";
 import {
   hasSensitiveCrmContent,
@@ -137,6 +136,12 @@ const normalizeString = (value: unknown): string | null => {
   return null;
 };
 
+const normalizePersistentIdentity = (value: unknown): string | null => {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
+  return null;
+};
+
 const pickFirstString = (keys: string[], source: RawUsuario): string | null => {
   for (const key of keys) {
     const candidate = normalizeString(source[key]);
@@ -215,63 +220,59 @@ const humanizeIntent = (value?: string | null): string => {
   return labels[raw] || raw.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
-export const getCrmProfileScore = (usuario: Pick<
+export const getCrmOperationalDataQualityScore = (usuario: Pick<
   Usuario,
   | "nombre"
   | "email"
   | "telefono"
-  | "marketing"
+  | "contactId"
   | "resumen"
   | "motivo"
   | "lastIntent"
   | "interactionCount"
   | "lastSeen"
-  | "avatarUrl"
-  | "avatarSource"
-  | "avatarConsent"
 >): number => {
   const realName = Boolean(usuario.nombre && !["Sin nombre", "Contacto WhatsApp", "Contacto sin identificar"].includes(usuario.nombre));
   const realEmail = Boolean(normalizeEmail(usuario.email));
   const hasPhone = Boolean(usuario.telefono);
+  const hasExactIdentity = Boolean(usuario.contactId?.trim());
   const hasContext = Boolean(usuario.resumen || usuario.motivo || usuario.lastIntent);
   const hasHistory = Number(usuario.interactionCount ?? 0) > 0;
   const hasRecentContact = Boolean(usuario.lastSeen);
-  const hasConsentedAvatar = shouldRenderProfileImage({
-    avatarUrl: usuario.avatarUrl,
-    source: usuario.avatarSource,
-    consented: usuario.avatarConsent,
-  });
 
   const score =
     (realName ? 15 : 0) +
-    (hasPhone ? 22 : 0) +
-    (realEmail ? 16 : 0) +
-    (hasConsentedAvatar ? 10 : 0) +
-    (usuario.marketing ? 10 : 0) +
-    (hasContext ? 17 : 0) +
-    (hasHistory ? 6 : 0) +
-    (hasRecentContact ? 4 : 0);
+    (hasExactIdentity ? 30 : 0) +
+    (hasPhone ? 15 : 0) +
+    (realEmail ? 10 : 0) +
+    (hasContext ? 15 : 0) +
+    (hasHistory ? 10 : 0) +
+    (hasRecentContact ? 5 : 0);
 
   return Math.max(0, Math.min(100, score));
 };
 
+// Compatibility export for callers outside the Persona workspace. The score is
+// now operational data quality; it does not reward avatars or marketing opt-in.
+export const getCrmProfileScore = getCrmOperationalDataQualityScore;
+
 export const crmProfileTone = (score: number) => {
   if (score >= 75) {
     return {
-      label: "Perfil completo",
+      label: "Calidad alta",
       className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
       barClassName: "bg-emerald-500",
     };
   }
   if (score >= 50) {
     return {
-      label: "Perfil accionable",
+      label: "Calidad media",
       className: "border-sky-500/40 bg-sky-500/10 text-sky-100",
       barClassName: "bg-sky-500",
     };
   }
   return {
-    label: "Perfil incompleto",
+    label: "Requiere revisión",
     className: "border-amber-500/40 bg-amber-500/10 text-amber-100",
     barClassName: "bg-amber-500",
   };
@@ -279,31 +280,22 @@ export const crmProfileTone = (score: number) => {
 
 export const resolveCrmNextAction = (usuario: Pick<
   Usuario,
+  | "contactId"
   | "telefono"
   | "email"
-  | "marketing"
-  | "leadTemperature"
   | "resumen"
   | "motivo"
   | "lastIntent"
-  | "avatarUrl"
-  | "avatarSource"
-  | "avatarConsent"
+  | "interactionCount"
 >): string => {
   const hasPhone = Boolean(usuario.telefono);
   const realEmail = Boolean(normalizeEmail(usuario.email));
-  const hasConsentedAvatar = shouldRenderProfileImage({
-    avatarUrl: usuario.avatarUrl,
-    source: usuario.avatarSource,
-    consented: usuario.avatarConsent,
-  });
 
-  if (!hasPhone && !realEmail) return "Pedir dato de contacto";
-  if ((usuario.leadTemperature || "").toLowerCase() === "hot") return "Priorizar respuesta comercial";
-  if (!usuario.resumen && !usuario.motivo && !usuario.lastIntent) return "Completar contexto con IA";
-  if (!hasConsentedAvatar) return "Invitar a completar perfil";
-  if (!usuario.marketing) return "Solicitar opt-in";
-  return "Listo para seguimiento";
+  if (!usuario.contactId?.trim()) return "Vincular identidad CRM";
+  if (!hasPhone && !realEmail) return "Completar canal de contacto";
+  if (!usuario.resumen && !usuario.motivo && !usuario.lastIntent) return "Completar contexto operativo";
+  if (Number(usuario.interactionCount || 0) === 0) return "Revisar primera interacción";
+  return "Registro operativo disponible";
 };
 
 export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
@@ -360,7 +352,7 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   )
     .map(redactSensitiveCrmText)
     .filter(Boolean) as string[];
-  const contactId = normalizeString(raw.contact_id || raw.contactId);
+  const contactId = normalizePersistentIdentity(raw.contact_id ?? raw.contactId);
   const profile = raw.profile || raw.customer_profile || raw.contact_profile || raw.identity || {};
   const avatarUrl =
     normalizeString(raw.avatar_url || raw.profile_picture_url || raw.picture) ||
@@ -460,6 +452,60 @@ export const eventBelongsToTenant = (payload: RawUsuario, tenantSlug?: string | 
   return Boolean(received && received === expected);
 };
 
+export const upsertCrmContactByIdentity = (
+  current: Usuario[],
+  incoming: Usuario,
+): Usuario[] => {
+  const incomingContactId = normalizeString(incoming.contactId);
+  const incomingLegacyKey = String(incoming.id);
+  const index = current.findIndex((existing) => {
+    const existingContactId = normalizeString(existing.contactId);
+
+    // Once either record carries a persistent identity, personal attributes
+    // must never be used to merge it. Shared family/office phones are valid.
+    if (incomingContactId || existingContactId) {
+      return Boolean(
+        incomingContactId &&
+        existingContactId &&
+        incomingContactId === existingContactId,
+      );
+    }
+
+    if (String(existing.id) === incomingLegacyKey) return true;
+    return Boolean(
+      incoming.telefono &&
+      existing.telefono &&
+      incoming.telefono === existing.telefono,
+    );
+  });
+
+  if (index === -1) return [incoming, ...current];
+  const next = [...current];
+  next[index] = { ...next[index], ...incoming };
+  return next;
+};
+
+export const buildCrmDirectoryPath = ({
+  tenantSlug,
+  search,
+  marketingOnly,
+}: {
+  tenantSlug?: string | null;
+  search?: string;
+  marketingOnly?: boolean;
+}): string | null => {
+  const normalizedTenant = normalizeTenantIdentity(tenantSlug);
+  if (!normalizedTenant) return null;
+
+  const params = new URLSearchParams({
+    tenant_slug: normalizedTenant,
+    tenant: normalizedTenant,
+  });
+  if (search?.trim()) params.set("q", search.trim());
+  if (marketingOnly) params.set("marketing", "true");
+  return `/api/crm/clientes?${params.toString()}`;
+};
+
 export interface UsuariosPageProps {
   tenantSlugOverride?: string | null;
   embedded?: boolean;
@@ -505,6 +551,21 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       }),
     [tenantSlugOverride, user],
   );
+  const previousTenantSlugRef = React.useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const normalizedTenant = normalizeTenantIdentity(tenantSlug);
+    const previousTenant = previousTenantSlugRef.current;
+    previousTenantSlugRef.current = normalizedTenant;
+    if (previousTenant === undefined || previousTenant === normalizedTenant) return;
+
+    // Contact ids and list selections are tenant-bound. Clear the previous
+    // workspace before a new scoped request can populate it.
+    fetchSequenceRef.current += 1;
+    setUsuarios([]);
+    setSelectedIds(new Set());
+    setSelectedContactId(null);
+  }, [setSelectedContactId, tenantSlug]);
 
   const getPersonKey = React.useCallback(
     (usuario: Usuario) => usuario.contactId || String(usuario.id),
@@ -553,13 +614,17 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       navigate("/login");
       return;
     }
+    const url = buildCrmDirectoryPath({ tenantSlug, search, marketingOnly });
+    if (!url || !tenantSlug) {
+      if (requestSequence !== fetchSequenceRef.current) return;
+      setUsuarios([]);
+      setError("Falta una organización activa para cargar Personas de forma segura.");
+      setLoading(false);
+      return;
+    }
     if (!options.silent) setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set('q', search.trim());
-      if (marketingOnly) params.set('marketing', 'true');
-      const url = `/api/crm/clientes${params.toString() ? `?${params.toString()}` : ''}`;
-      const data = await apiFetch<RawUsuario[]>(url);
+      const data = await apiFetch<RawUsuario[]>(url, { tenantSlug });
       if (requestSequence !== fetchSequenceRef.current) return;
       if (Array.isArray(data)) {
         setUsuarios(data.map((item, index) => normalizeUsuario(item, index)));
@@ -571,7 +636,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
     } finally {
       if (requestSequence === fetchSequenceRef.current && !options.silent) setLoading(false);
     }
-  }, [navigate, search, marketingOnly]);
+  }, [marketingOnly, navigate, search, tenantSlug]);
 
   const fetchCampaignActivity = React.useCallback(async () => {
     if (!tenantSlug) return;
@@ -579,9 +644,9 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
     try {
       const encoded = encodeURIComponent(tenantSlug);
       const [historyResponse, ledgerResponse, notificationResponse] = await Promise.all([
-        apiFetch<{ items?: CampaignHistoryItem[] }>(`/api/admin/tenants/${encoded}/campaigns/history?limit=6&days=30`),
-        apiFetch<{ items?: CampaignLedgerItem[] }>(`/api/admin/tenants/${encoded}/campaigns/ledger?limit=10&days=30`),
-        apiFetch<{ items?: NotificationCenterItem[]; counts?: Record<string, number> }>(`/api/admin/tenants/${encoded}/notifications/center?limit=8`),
+        apiFetch<{ items?: CampaignHistoryItem[] }>(`/api/admin/tenants/${encoded}/campaigns/history?limit=6&days=30`, { tenantSlug }),
+        apiFetch<{ items?: CampaignLedgerItem[] }>(`/api/admin/tenants/${encoded}/campaigns/ledger?limit=10&days=30`, { tenantSlug }),
+        apiFetch<{ items?: NotificationCenterItem[]; counts?: Record<string, number> }>(`/api/admin/tenants/${encoded}/notifications/center?limit=8`, { tenantSlug }),
       ]);
       setCampaignHistory(Array.isArray(historyResponse?.items) ? historyResponse.items : []);
       setCampaignLedger(Array.isArray(ledgerResponse?.items) ? ledgerResponse.items : []);
@@ -625,17 +690,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       const raw = payload?.contact || payload?.cliente || payload;
       if (!raw || typeof raw !== "object") return;
       const incoming = normalizeUsuario(raw, usuarios.length);
-      setUsuarios((prev) => {
-        const incomingKey = incoming.contactId || String(incoming.id);
-        const idx = prev.findIndex((u) => {
-          const key = u.contactId || String(u.id);
-          return key === incomingKey || (incoming.telefono && u.telefono === incoming.telefono);
-        });
-        if (idx === -1) return [incoming, ...prev];
-        const next = [...prev];
-        next[idx] = { ...next[idx], ...incoming };
-        return next;
-      });
+      setUsuarios((prev) => upsertCrmContactByIdentity(prev, incoming));
     };
 
     const refreshActivityFromRealtime = (payload: any) => {
@@ -919,15 +974,14 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         metrics={[
           { label: "Personas", value: usuarios.length, helper: "registros disponibles" },
           { label: "Canal WhatsApp", value: whatsappCount, helper: "solo evidencia explícita" },
-          { label: "Opt-in", value: marketingCount, helper: "consentimientos registrados" },
-          { label: "Calidad CRM", value: `${crmScoreAverage}%`, helper: `${crmCompleteProfiles} perfiles completos` },
+          { label: "Consentimiento declarado", value: marketingCount, helper: "sin historial versionado" },
+          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${crmCompleteProfiles} registros con calidad alta` },
         ]}
         getPersonKey={getPersonKey}
         hasRealEmail={hasRealEmail}
         hasExplicitWhatsApp={hasExplicitWhatsApp}
         whatsappUrl={(usuario) => whatsappUrl(usuario as Usuario)}
-        profileScore={getCrmProfileScore}
-        nextAction={resolveCrmNextAction}
+        dataQualityScore={getCrmOperationalDataQualityScore}
         formatDate={formatDate}
         copyToClipboard={copyToClipboard}
         segmentsPanel={(

@@ -100,8 +100,7 @@ const Harness = ({
         hasRealEmail={(person) => person.email !== "Sin email real"}
         hasExplicitWhatsApp={(person) => Boolean(person.whatsappExplicit && person.whatsappNumber)}
         whatsappUrl={(person) => person.whatsappNumber ? `https://wa.me/${person.whatsappNumber.replace(/\D/g, "")}` : null}
-        profileScore={() => 65}
-        nextAction={() => "Revisar contacto"}
+        dataQualityScore={() => 65}
         formatDate={() => "Sin fecha"}
         copyToClipboard={vi.fn()}
         segmentsPanel={<div>Segmentos</div>}
@@ -115,6 +114,7 @@ const Harness = ({
 describe("CrmPeopleWorkspace", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValue({ interactions: [] });
   });
 
   it("keeps the document main landmark owned by the application layout", () => {
@@ -191,12 +191,12 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Más acciones" })).toHaveAttribute("aria-haspopup", "menu");
-    fireEvent.click(screen.getByRole("button", { name: "Ver casos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir caso" }));
     await waitFor(() => expect(onOpenTicketDesk).toHaveBeenCalledWith(
       "/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419&tenant_slug=junin&tenant=junin",
     ));
     expect(onOpenTicketDesk.mock.calls[0][0]).not.toContain("q=");
-    expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
+    expect(screen.getByRole("region", { name: "Estado operacional de la persona" })).toHaveTextContent("Calidad de datos65%");
   });
 
   it("routes multiple exact cases to a compact chooser and opens each exact identity", async () => {
@@ -235,7 +235,7 @@ describe("CrmPeopleWorkspace", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver casos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver 2 casos" }));
 
     expect(await screen.findByRole("region", { name: "Casos exactos del contacto" })).toBeInTheDocument();
     expect(screen.getByText("Luminaria apagada")).toBeInTheDocument();
@@ -271,7 +271,7 @@ describe("CrmPeopleWorkspace", () => {
     });
     render(<Harness initialSelectedContactId="42" onOpenTicketDesk={onOpenTicketDesk} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver casos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver 1+ casos" }));
 
     expect(await screen.findByRole("region", { name: "Casos exactos del contacto" })).toBeInTheDocument();
     expect(screen.getByText("Luminaria apagada")).toBeInTheDocument();
@@ -291,9 +291,7 @@ describe("CrmPeopleWorkspace", () => {
     });
     render(<Harness initialSelectedContactId="42" onOpenTicketDesk={onOpenTicketDesk} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver casos" }));
-
-    expect(await screen.findByText("Sin caso exacto asociado")).toBeInTheDocument();
+    expect(await screen.findByText(/Sin caso exacto asociado/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sin caso exacto" })).toBeDisabled();
     expect(onOpenTicketDesk).not.toHaveBeenCalled();
   });
@@ -335,7 +333,7 @@ describe("CrmPeopleWorkspace", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver casos" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
       target: { value: "84" },
     });
@@ -415,21 +413,44 @@ describe("CrmPeopleWorkspace", () => {
     expect(navigator).toHaveTextContent("1 de 2");
   });
 
-  it("keeps the executive context compact and discloses the full detail on demand", () => {
+  it("keeps an authoritative Persona 360 ribbon and discloses full detail on demand", async () => {
+    apiFetchMock.mockResolvedValue({
+      cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
+      cases_total: 1,
+      cases_total_is_exact: true,
+      cases_truncated: false,
+      cases: [{
+        source_model: "MunicipioTicket",
+        ticket_id: "419",
+        tenant_slug: "junin",
+        title: "Luminaria apagada",
+        assignee_name: "Equipo de Alumbrado",
+        sla_status: "en_riesgo",
+        sla_due_at: "2026-08-30T22:00:00Z",
+      }],
+      interactions: [{
+        channel: "whatsapp",
+        direction: "inbound",
+        content: "La luminaria continúa apagada.",
+        ts: "2026-08-30T18:00:00Z",
+      }],
+    });
     render(<Harness embedded initialSelectedContactId="42" />);
 
-    const summary = screen.getByRole("region", { name: "Resumen ejecutivo del contacto" });
-    expect(summary).toHaveTextContent("Siguiente acción");
-    expect(summary).toHaveTextContent("Revisar contacto");
-    expect(summary).toHaveTextContent("WhatsApp");
+    const summary = screen.getByRole("region", { name: "Estado operacional de la persona" });
+    await waitFor(() => expect(summary).toHaveTextContent("1 exacto"));
+    expect(summary).toHaveTextContent("Equipo de Alumbrado");
+    expect(summary).toHaveTextContent("En Riesgo");
+    expect(summary).toHaveTextContent("Declarado sin trazabilidad");
+    expect(screen.getByRole("region", { name: "Actividad y casos exactos de la persona" })).toHaveTextContent("La luminaria continúa apagada.");
     expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "Completitud del perfil CRM" })).toHaveAttribute("aria-valuenow", "65");
 
-    fireEvent.click(screen.getByRole("button", { name: "Detalle operativo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Detalle 360" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Contexto operativo" })).toBeInTheDocument();
-    expect(screen.getByText("Opt-in registrado")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Calidad de datos operativa de la persona" })).toHaveAttribute("aria-valuenow", "65");
+    expect(screen.getAllByText("Declarado sin trazabilidad").length).toBeGreaterThan(0);
   });
 
   it("virtualizes a large directory instead of mounting every desktop row", () => {
@@ -463,7 +484,7 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.queryByRole("region", { name: "Acciones sobre personas seleccionadas" })).not.toBeInTheDocument();
   });
 
-  it("loads the real tenant-scoped history only when Interacciones opens", async () => {
+  it("loads real tenant-scoped history immediately for the selected Persona 360 summary", async () => {
     apiFetchMock.mockResolvedValue({
       interactions: [
         {
@@ -477,14 +498,7 @@ describe("CrmPeopleWorkspace", () => {
 
     render(<Harness initialSelectedContactId="42" />);
 
-    expect(apiFetchMock).not.toHaveBeenCalled();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-
     expect(await screen.findByText("Necesito reparar una luminaria.")).toBeInTheDocument();
-    expect(screen.getByText("Entrante")).toBeInTheDocument();
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(
       "/api/admin/tenants/junin/contacts/42/history",

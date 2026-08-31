@@ -29,6 +29,9 @@ export interface CrmContactCase {
   channel: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  assigneeName: string | null;
+  slaStatus: string | null;
+  slaDueAt: string | null;
   href: string;
 }
 
@@ -67,6 +70,12 @@ const normalizeCase = (raw: unknown, tenantSlug: string): CrmContactCase | null 
     ? raw as Record<string, unknown>
     : null;
   if (!record || !isAllowedSourceModel(record.source_model)) return null;
+  const assignee = record.assignee && typeof record.assignee === "object" && !Array.isArray(record.assignee)
+    ? record.assignee as Record<string, unknown>
+    : null;
+  const sla = record.sla && typeof record.sla === "object" && !Array.isArray(record.sla)
+    ? record.sla as Record<string, unknown>
+    : null;
   if (
     typeof record.ticket_id !== "string"
     || !/^[1-9]\d*$/.test(record.ticket_id)
@@ -109,6 +118,18 @@ const normalizeCase = (raw: unknown, tenantSlug: string): CrmContactCase | null 
     channel: redactSensitiveCrmText(normalizeString(record.channel)),
     createdAt: normalizeString(record.created_at),
     updatedAt: normalizeString(record.updated_at),
+    assigneeName:
+      normalizeString(record.assignee_name) ||
+      normalizeString(record.responsible_name) ||
+      normalizeString(record.owner_name) ||
+      normalizeString(assignee?.name),
+    slaStatus:
+      normalizeString(record.sla_status) ||
+      normalizeString(sla?.status),
+    slaDueAt:
+      normalizeString(record.sla_due_at) ||
+      normalizeString(record.sla_deadline) ||
+      normalizeString(sla?.due_at),
     href,
   };
 };
