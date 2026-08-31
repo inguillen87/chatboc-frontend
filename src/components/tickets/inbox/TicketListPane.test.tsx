@@ -81,7 +81,7 @@ describe('TicketListPane', () => {
       />,
     );
 
-    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA vencido');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('Resolución vencida');
     expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'overdue');
   });
 });

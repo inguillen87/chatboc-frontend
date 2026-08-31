@@ -321,7 +321,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation(true));
 
     const slaSummary = await screen.findByTestId('ticket-sla-clocks-compact');
-    expect(slaSummary).toHaveTextContent('SLA vencido');
+    expect(slaSummary).toHaveTextContent('Respuesta vencida');
     expect(slaSummary).toHaveAttribute('data-sla-state', 'overdue');
   });
 

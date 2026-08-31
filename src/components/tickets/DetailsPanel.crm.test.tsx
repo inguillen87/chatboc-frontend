@@ -146,6 +146,8 @@ describe('DetailsPanel resolution guide', () => {
     expect(screen.queryByTestId('ticket-technical-details')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-assist-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ticket-logistics-summary')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA sin evidencia');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'unknown');
 
     fireEvent.click(screen.getByRole('button', { name: /datos del vecino/i }));
 

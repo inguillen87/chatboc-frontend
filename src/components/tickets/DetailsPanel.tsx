@@ -1049,7 +1049,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                     </Badge>
                   ) : null}
                 </div>
-                {slaSource ? <TicketSlaClocks sla={slaSource} /> : null}
+                <TicketSlaClocks sla={slaSource} compact={!slaSource} />
                 <p className="text-sm leading-relaxed text-foreground">{caseSummary}</p>
                 {assistedContext.visible ? (
                   <div className="flex flex-wrap gap-2" data-testid="ticket-assisted-context-card">
