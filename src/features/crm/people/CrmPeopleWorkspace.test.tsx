@@ -1,6 +1,6 @@
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CrmPeopleWorkspace, { type CrmPeopleRecord } from "./CrmPeopleWorkspace";
@@ -46,11 +46,17 @@ const Harness = ({
   onOpenTicketDesk = vi.fn(),
   embedded = false,
   initialSelectedContactId = "generic-phone",
+  peopleTotal,
+  hasMore = false,
+  onLoadMore = vi.fn(),
 }: {
   records?: CrmPeopleRecord[];
   onOpenTicketDesk?: (exactHref: string) => void;
   embedded?: boolean;
   initialSelectedContactId?: string;
+  peopleTotal?: number;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }) => {
   const [selectedContactId, setSelectedContactId] = React.useState(initialSelectedContactId);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -91,6 +97,9 @@ const Harness = ({
         onSearchChange={vi.fn()}
         marketingOnly={false}
         onMarketingOnlyChange={vi.fn()}
+        peopleTotal={peopleTotal}
+        hasMore={hasMore}
+        onLoadMore={onLoadMore}
         onRefresh={vi.fn()}
         onBack={vi.fn()}
         onOpenTicketDesk={onOpenTicketDesk}
@@ -121,6 +130,9 @@ describe("CrmPeopleWorkspace", () => {
     const { container } = render(<Harness />);
 
     expect(screen.getByTestId("crm-person-detail")).toBeInTheDocument();
+    expect(screen.getByText("Transporte conectado")).toBeInTheDocument();
+    expect(screen.queryByText("Socket conectado")).not.toBeInTheDocument();
+    expect(screen.queryByText("En vivo")).not.toBeInTheDocument();
     expect(container.querySelectorAll("main")).toHaveLength(0);
   });
 
@@ -573,6 +585,55 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByText("Historial detallado no disponible")).toBeInTheDocument();
     expect(screen.getByText(/No se inventan eventos/i)).toBeInTheDocument();
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps masked directory people visible but non-actionable and loads the next cursor page explicitly", async () => {
+    const onLoadMore = vi.fn();
+    const protectedPerson: CrmPeopleRecord = {
+      id: "person_opaque_42",
+      contactId: null,
+      nombre: "M*** A***",
+      email: "m***@example.com",
+      telefono: "***8608",
+      etiquetas: [],
+      canal: "whatsapp",
+      marketing: true,
+      piiMasked: true,
+      possibleDuplicate: true,
+      resumen: "Datos protegidos.",
+    };
+
+    render(
+      <Harness
+        records={[protectedPerson]}
+        initialSelectedContactId="person_opaque_42"
+        peopleTotal={84}
+        hasMore
+        onLoadMore={onLoadMore}
+      />,
+    );
+
+    expect(screen.getByText("1 de 84")).toBeInTheDocument();
+    expect(screen.getAllByText("Datos protegidos").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Revisar identidad").length).toBeGreaterThan(0);
+    expect(screen.getByText("Calidad no evaluable")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Seleccionar personas visibles" })).toBeDisabled();
+    expect(screen.queryByRole("progressbar", { name: "Calidad de datos operativa de la persona" })).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    const actionsTrigger = screen.getByRole("button", { name: "Más acciones" });
+    act(() => {
+      actionsTrigger.focus();
+      fireEvent.keyDown(actionsTrigger, { key: "ArrowDown" });
+    });
+    const actionsMenu = await screen.findByRole("menu");
+    expect(within(actionsMenu).getByRole("menuitem", { name: "Sin caso exacto" })).toHaveAttribute("data-disabled");
+    expect(within(actionsMenu).queryByRole("menuitem", { name: "Copiar teléfono" })).not.toBeInTheDocument();
+    expect(within(actionsMenu).queryByRole("menuitem", { name: "Copiar email" })).not.toBeInTheDocument();
+    expect(within(actionsMenu).queryByRole("menuitem", { name: "WhatsApp externo" })).not.toBeInTheDocument();
   });
 
   it("offers a retry without replacing the error with invented activity", async () => {

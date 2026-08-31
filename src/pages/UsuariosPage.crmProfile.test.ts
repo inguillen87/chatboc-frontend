@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCrmDirectoryPath,
+  canDeepLinkCrmPerson,
   crmProfileTone,
+  getCrmTransportPresentation,
   getCrmOperationalDataQualityScore,
+  normalizeDirectoryPerson,
   normalizeUsuario,
   resolveCrmNextAction,
   upsertCrmContactByIdentity,
@@ -30,6 +33,7 @@ const baseContact = {
 describe('UsuariosPage CRM profile intelligence', () => {
   it('scores operational data quality without rewarding marketing or avatars', () => {
     expect(getCrmOperationalDataQualityScore(baseContact)).toBe(100);
+    expect(canDeepLinkCrmPerson(baseContact)).toBe(true);
     expect(crmProfileTone(100).label).toBe('Calidad alta');
     expect(resolveCrmNextAction(baseContact)).toBe('Registro operativo disponible');
 
@@ -150,5 +154,42 @@ describe('UsuariosPage CRM profile intelligence', () => {
     expect(contact.profileExcerpt).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
     expect(contact.resumen).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
     expect(contact.lastMessageExcerpt).toBe(CRM_SENSITIVE_CONTENT_PLACEHOLDER);
+  });
+
+  it('preserves masked display values without turning them into actionable identity data', () => {
+    const contact = normalizeDirectoryPerson({
+      id: 'person_opaque_42',
+      contact_id: null,
+      user_id: null,
+      name: 'M*** A***',
+      email: 'm***@example.com',
+      phone: '***8608',
+      channel: 'whatsapp',
+      marketing: true,
+      tags: [],
+      last_seen: '2026-08-31T12:00:00Z',
+      source: 'contact',
+      pii_masked: true,
+      possible_duplicate: true,
+    }, 0);
+
+    expect(contact.telefono).toBe('***8608');
+    expect(contact.contactId).toBeNull();
+    expect(contact.whatsappExplicit).toBe(false);
+    expect(contact.possibleDuplicate).toBe(true);
+    expect(canDeepLinkCrmPerson(contact)).toBe(false);
+    expect(getCrmOperationalDataQualityScore(contact)).toBe(0);
+    expect(resolveCrmNextAction(contact)).toBe('Datos protegidos — requiere permiso');
+  });
+
+  it('labels socket state as transport evidence, never as user presence or delivery', () => {
+    expect(getCrmTransportPresentation(true, 3)).toEqual({
+      statusLabel: 'Transporte conectado',
+      signalLabel: '3 señales recibidas',
+    });
+    expect(getCrmTransportPresentation(false, -1)).toEqual({
+      statusLabel: 'Actualización manual',
+      signalLabel: '0 señales recibidas',
+    });
   });
 });

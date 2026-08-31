@@ -12,10 +12,16 @@ const Harness = () => {
     selectedContactId,
     peopleQueueView,
     peopleSort,
+    peopleSearch,
+    peopleMarketingOnly,
+    peopleChannel,
     setActiveView,
     setSelectedContactId,
     setPeopleQueueView,
     setPeopleSort,
+    setPeopleSearch,
+    setPeopleMarketingOnly,
+    setPeopleChannel,
   } = useCrmWorkspaceState();
   return (
     <div>
@@ -23,11 +29,17 @@ const Harness = () => {
       <output data-testid="contact">{selectedContactId || "none"}</output>
       <output data-testid="queue">{peopleQueueView}</output>
       <output data-testid="sort">{peopleSort}</output>
+      <output data-testid="query">{peopleSearch}</output>
+      <output data-testid="marketing">{String(peopleMarketingOnly)}</output>
+      <output data-testid="channel">{peopleChannel}</output>
       <output data-testid="search">{location.search}</output>
       <button type="button" onClick={() => setActiveView("segmentos")}>Abrir segmentos</button>
       <button type="button" onClick={() => setSelectedContactId("contact:77")}>Elegir 77</button>
       <button type="button" onClick={() => setPeopleQueueView("review")}>Ver revisión</button>
       <button type="button" onClick={() => setPeopleSort("score-asc")}>Ordenar incompletos</button>
+      <button type="button" onClick={() => setPeopleSearch("marcelo")}>Buscar Marcelo</button>
+      <button type="button" onClick={() => setPeopleMarketingOnly(true)}>Filtrar opt-in</button>
+      <button type="button" onClick={() => setPeopleChannel("whatsapp")}>Filtrar WhatsApp</button>
     </div>
   );
 };
@@ -37,7 +49,7 @@ describe("useCrmWorkspaceState", () => {
 
   it("restores the workspace and selected person from a deep link", () => {
     render(
-      <MemoryRouter initialEntries={["/perfil?tab=usuarios&view=actividad&contact=contact%3A42&queue=whatsapp&sort=name"]}>
+      <MemoryRouter initialEntries={["/perfil?tab=usuarios&view=actividad&contact=contact%3A42&queue=whatsapp&sort=name&q=ana&marketing=true&channel=email"]}>
         <Harness />
       </MemoryRouter>,
     );
@@ -46,6 +58,9 @@ describe("useCrmWorkspaceState", () => {
     expect(screen.getByTestId("contact")).toHaveTextContent("contact:42");
     expect(screen.getByTestId("queue")).toHaveTextContent("whatsapp");
     expect(screen.getByTestId("sort")).toHaveTextContent("name");
+    expect(screen.getByTestId("query")).toHaveTextContent("ana");
+    expect(screen.getByTestId("marketing")).toHaveTextContent("true");
+    expect(screen.getByTestId("channel")).toHaveTextContent("email");
   });
 
   it("updates local CRM state without dropping the parent profile tab", () => {
@@ -59,14 +74,20 @@ describe("useCrmWorkspaceState", () => {
     fireEvent.click(screen.getByRole("button", { name: "Elegir 77" }));
     fireEvent.click(screen.getByRole("button", { name: "Ver revisión" }));
     fireEvent.click(screen.getByRole("button", { name: "Ordenar incompletos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar Marcelo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar opt-in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar WhatsApp" }));
 
     expect(screen.getByTestId("view")).toHaveTextContent("segmentos");
-    expect(screen.getByTestId("contact")).toHaveTextContent("contact:77");
+    expect(screen.getByTestId("contact")).toHaveTextContent("none");
     expect(screen.getByTestId("search").textContent).toContain("tab=usuarios");
     expect(screen.getByTestId("search").textContent).toContain("view=segmentos");
-    expect(screen.getByTestId("search").textContent).toContain("contact=contact%3A77");
     expect(screen.getByTestId("search").textContent).toContain("queue=review");
     expect(screen.getByTestId("search").textContent).toContain("sort=score-asc");
+    expect(screen.getByTestId("search").textContent).toContain("q=marcelo");
+    expect(screen.getByTestId("search").textContent).toContain("marketing=true");
+    expect(screen.getByTestId("search").textContent).toContain("channel=whatsapp");
+    expect(screen.getByTestId("search").textContent).not.toContain("contact=");
   });
 
   it("debounces server-facing search changes", () => {

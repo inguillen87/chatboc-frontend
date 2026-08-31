@@ -69,6 +69,7 @@ import type {
   CrmPeopleSort,
   CrmWorkspaceView,
 } from "./useCrmWorkspaceState";
+import type { CrmPeopleChannelFilter } from "./useCrmPeopleDirectory";
 import {
   useCrmContactHistory,
   type CrmContactCase,
@@ -109,6 +110,9 @@ export interface CrmPeopleRecord {
   avatarConsent?: boolean | string | number | null;
   totalOrders?: number;
   ltv?: number;
+  piiMasked?: boolean;
+  possibleDuplicate?: boolean;
+  directorySource?: string | null;
 }
 
 interface WorkspaceMetric {
@@ -191,6 +195,13 @@ interface CrmPeopleWorkspaceProps {
   onSearchChange: (value: string) => void;
   marketingOnly: boolean;
   onMarketingOnlyChange: (value: boolean) => void;
+  channelFilter?: CrmPeopleChannelFilter;
+  onChannelFilterChange?: (value: CrmPeopleChannelFilter) => void;
+  peopleTotal?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  directoryIsLegacy?: boolean;
   onRefresh: () => void;
   onBack: () => void;
   onOpenTicketDesk: (exactHref: string) => void;
@@ -303,20 +314,29 @@ const ContextPanel = ({ person, qualityScore, operationalSummary, formatDate }: 
       </p>
     </div>
     <div className="rounded-xl border border-border/70 bg-background/50 p-3">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="font-semibold text-muted-foreground">Calidad de datos operativa</span>
-        <span className="font-mono font-bold">{qualityScore}%</span>
-      </div>
-      <div
-        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-label="Calidad de datos operativa de la persona"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={qualityScore}
-      >
-        <div className="h-full rounded-full bg-primary" style={{ width: `${qualityScore}%` }} />
-      </div>
+      {person.piiMasked ? (
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-muted-foreground">Calidad de datos operativa</span>
+          <Badge variant="outline">No evaluable · protegida</Badge>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-semibold text-muted-foreground">Calidad de datos operativa</span>
+            <span className="font-mono font-bold">{qualityScore}%</span>
+          </div>
+          <div
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label="Calidad de datos operativa de la persona"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={qualityScore}
+          >
+            <div className="h-full rounded-full bg-primary" style={{ width: `${qualityScore}%` }} />
+          </div>
+        </>
+      )}
     </div>
     <dl className="grid gap-2 text-sm">
       <div className="rounded-xl border border-border/70 p-3">
@@ -429,6 +449,13 @@ export default function CrmPeopleWorkspace({
   onSearchChange,
   marketingOnly,
   onMarketingOnlyChange,
+  channelFilter = "all",
+  onChannelFilterChange,
+  peopleTotal = people.length,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  directoryIsLegacy = false,
   onRefresh,
   onBack,
   onOpenTicketDesk,
@@ -458,17 +485,17 @@ export default function CrmPeopleWorkspace({
   const queueViewCounts = React.useMemo(
     () => ({
       all: scoredPeople.length,
-      review: scoredPeople.filter(({ score }) => score < 75).length,
+      review: scoredPeople.filter(({ person, score }) => person.piiMasked || score < 75).length,
       whatsapp: scoredPeople.filter(({ person }) => hasExplicitWhatsApp(person)).length,
-      complete: scoredPeople.filter(({ score }) => score >= 75).length,
+      complete: scoredPeople.filter(({ person, score }) => !person.piiMasked && score >= 75).length,
     }),
     [hasExplicitWhatsApp, scoredPeople],
   );
   const visiblePeople = React.useMemo(() => {
     const filtered = scoredPeople.filter(({ person, score }) => {
-      if (queueView === "review") return score < 75;
+      if (queueView === "review") return person.piiMasked || score < 75;
       if (queueView === "whatsapp") return hasExplicitWhatsApp(person);
-      if (queueView === "complete") return score >= 75;
+      if (queueView === "complete") return !person.piiMasked && score >= 75;
       return true;
     });
     filtered.sort((a, b) => {
@@ -610,7 +637,7 @@ export default function CrmPeopleWorkspace({
   const desktopList = useVirtualizer({
     count: visiblePeople.length,
     getScrollElement: () => listViewportRef.current,
-    estimateSize: () => 82,
+    estimateSize: () => 98,
     overscan: 8,
     initialRect: { width: 320, height: 760 },
   });
@@ -644,8 +671,10 @@ export default function CrmPeopleWorkspace({
     const selectionIsVisible = visiblePeople.some(
       (person) => getPersonKey(person) === selectedContactId,
     );
-    if (!selectionIsVisible) onSelectContact(getPersonKey(visiblePeople[0]));
-  }, [activeView, getPersonKey, onSelectContact, selectedContactId, visiblePeople]);
+    // Preserve an explicit deep link while more cursor pages may still contain
+    // the resolvable contact. Automatic selection only applies to an empty URL.
+    if (!selectionIsVisible && (!selectedContactId || !hasMore)) onSelectContact(getPersonKey(visiblePeople[0]));
+  }, [activeView, getPersonKey, hasMore, onSelectContact, selectedContactId, visiblePeople]);
 
   React.useEffect(() => {
     if (activeView !== "personas") setDetailFocusMode(false);
@@ -661,14 +690,14 @@ export default function CrmPeopleWorkspace({
   }, [detailFocusMode]);
 
   const visibleIds = React.useMemo(
-    () => visiblePeople.map((person) => person.id),
+    () => visiblePeople.filter((person) => !person.piiMasked).map((person) => person.id),
     [visiblePeople],
   );
   const selectedVisibleCount = React.useMemo(
-    () => visiblePeople.filter((person) => selectedIds.has(String(person.id))).length,
+    () => visiblePeople.filter((person) => !person.piiMasked && selectedIds.has(String(person.id))).length,
     [selectedIds, visiblePeople],
   );
-  const allVisibleSelected = visiblePeople.length > 0 && selectedVisibleCount === visiblePeople.length;
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
 
   const auxiliaryPanel =
     activeView === "segmentos"
@@ -704,11 +733,11 @@ export default function CrmPeopleWorkspace({
               <Badge
                 variant={isConnected ? "default" : "outline"}
                 className={cn("gap-1.5", embedded && "px-1.5 sm:px-2.5")}
-                aria-label={isConnected ? "CRM conectado en vivo" : "CRM con sincronización cada 30 segundos"}
+                aria-label={isConnected ? "Transporte de eventos conectado" : "Actualización manual disponible"}
               >
                 <Activity className="h-3 w-3" />
                 <span className={cn(embedded && "sr-only sm:not-sr-only")}>
-                  {isConnected ? "En vivo" : "Sincronización 30 s"}
+                  {isConnected ? "Transporte conectado" : "Actualización manual"}
                 </span>
               </Badge>
             </div>
@@ -859,11 +888,47 @@ export default function CrmPeopleWorkspace({
                 <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
                 Con opt-in
               </label>
+              <Select
+                value={channelFilter}
+                onValueChange={(value) => onChannelFilterChange?.(value as CrmPeopleChannelFilter)}
+                disabled={!onChannelFilterChange}
+              >
+                <SelectTrigger className={cn("bg-background", embedded ? "h-8 w-[132px] text-xs sm:h-9" : "h-9 w-[160px]")} aria-label="Filtrar personas por canal">
+                  <SelectValue placeholder="Todos los canales" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los canales</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="web">Web</SelectItem>
+                  <SelectItem value="widget">Widget</SelectItem>
+                  <SelectItem value="voice">Voz</SelectItem>
+                  <SelectItem value="unknown">Sin canal</SelectItem>
+                </SelectContent>
+              </Select>
               <Badge variant="outline">
                 {visiblePeople.length === people.length
-                  ? `${people.length} resultados`
-                  : `${visiblePeople.length} de ${people.length}`}
+                  ? !hasMore && peopleTotal === people.length
+                    ? `${people.length} resultados`
+                    : `${people.length} de ${peopleTotal}`
+                  : !hasMore && peopleTotal === people.length
+                    ? `${visiblePeople.length} de ${people.length}`
+                    : `${visiblePeople.length} visibles · ${people.length} cargadas`}
               </Badge>
+              {directoryIsLegacy ? <Badge variant="outline">Compatibilidad heredada</Badge> : null}
+              {hasMore && onLoadMore ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn("gap-2", embedded && "h-8")}
+                  onClick={onLoadMore}
+                  disabled={isLoadingMore}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isLoadingMore && "animate-spin")} />
+                  {isLoadingMore ? "Cargando" : "Cargar más"}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -925,7 +990,7 @@ export default function CrmPeopleWorkspace({
                   checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
                   onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
                   aria-label="Seleccionar personas visibles"
-                  disabled={visiblePeople.length === 0}
+                  disabled={visibleIds.length === 0}
                 />
                 Seleccionar vista
               </label>
@@ -1008,7 +1073,8 @@ export default function CrmPeopleWorkspace({
                               <Checkbox
                                 checked={selectedIds.has(String(person.id))}
                                 onCheckedChange={() => onToggleSelected(person.id)}
-                                aria-label={`Seleccionar ${person.nombre}`}
+                                aria-label={person.piiMasked ? `Datos protegidos: ${person.nombre} no es seleccionable` : `Seleccionar ${person.nombre}`}
+                                disabled={person.piiMasked}
                               />
                             </span>
                             <button
@@ -1027,13 +1093,25 @@ export default function CrmPeopleWorkspace({
                               <span className="min-w-0">
                                 <span className="flex items-center justify-between gap-2">
                                   <span className="truncate text-sm font-semibold">{person.nombre}</span>
-                                  <span
-                                    className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-bold", selectedTone(personScore))}
-                                    aria-label={`Calidad de datos ${personScore}%`}
-                                  >
-                                    {personScore}%
-                                  </span>
+                                  {person.piiMasked ? (
+                                    <span className="rounded-full border border-blue-500/30 bg-blue-500/5 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300" aria-label="Calidad de datos no evaluable por protección">
+                                      Protegida
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-bold", selectedTone(personScore))}
+                                      aria-label={`Calidad de datos ${personScore}%`}
+                                    >
+                                      {personScore}%
+                                    </span>
+                                  )}
                                 </span>
+                                {person.piiMasked || person.possibleDuplicate ? (
+                                  <span className="mt-1 flex flex-wrap gap-1">
+                                    {person.piiMasked ? <Badge variant="outline" className="h-5 px-1.5 text-[9px]">Datos protegidos</Badge> : null}
+                                    {person.possibleDuplicate ? <Badge variant="outline" className="h-5 border-amber-500/40 px-1.5 text-[9px] text-amber-700 dark:text-amber-300">Revisar identidad</Badge> : null}
+                                  </span>
+                                ) : null}
                                 <span className="mt-1 block truncate text-xs text-muted-foreground">{person.motivo || intentLabel(person.lastIntent)}</span>
                                 <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                                   <MessageCircle className="h-3 w-3" />
@@ -1077,13 +1155,19 @@ export default function CrmPeopleWorkspace({
                           <div className="flex min-w-0 items-center gap-2">
                             <h2 className={cn("min-w-0 flex-1 truncate font-bold", embedded ? "text-base sm:text-lg" : "text-lg")}>{selectedPerson.nombre}</h2>
                             <Badge variant="outline" className={cn(embedded && "hidden sm:inline-flex")}>{channelLabel(selectedPerson.canal)}</Badge>
-                            <Badge
-                              variant="outline"
-                              className={cn("shrink-0", selectedTone(qualityScore), embedded && "px-1.5 text-[10px] sm:px-2.5 sm:text-xs")}
-                              aria-label={`Calidad de datos ${qualityScore}%`}
-                            >
-                              Calidad {qualityScore}%
-                            </Badge>
+                            {selectedPerson.piiMasked ? <Badge variant="outline">Datos protegidos</Badge> : null}
+                            {selectedPerson.possibleDuplicate ? <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300">Revisar identidad</Badge> : null}
+                            {selectedPerson.piiMasked ? (
+                              <Badge variant="outline" className="shrink-0 border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-300">Calidad no evaluable</Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className={cn("shrink-0", selectedTone(qualityScore), embedded && "px-1.5 text-[10px] sm:px-2.5 sm:text-xs")}
+                                aria-label={`Calidad de datos ${qualityScore}%`}
+                              >
+                                Calidad {qualityScore}%
+                              </Badge>
+                            )}
                           </div>
                           <p className="mt-1 truncate text-sm text-muted-foreground">{selectedPerson.motivo || intentLabel(selectedPerson.lastIntent)}</p>
                         </div>
@@ -1125,13 +1209,13 @@ export default function CrmPeopleWorkspace({
                               <FileText className="mr-2 h-4 w-4" />
                               {caseActionLabel}
                             </DropdownMenuItem>
-                            {selectedPerson.telefono ? (
+                            {!selectedPerson.piiMasked && selectedPerson.telefono ? (
                               <DropdownMenuItem onSelect={() => copyToClipboard(selectedPerson.telefono, "Teléfono")}>
                                 <Copy className="mr-2 h-4 w-4" />
                                 Copiar teléfono
                               </DropdownMenuItem>
                             ) : null}
-                            {hasRealEmail(selectedPerson) ? (
+                            {!selectedPerson.piiMasked && hasRealEmail(selectedPerson) ? (
                               <DropdownMenuItem onSelect={() => copyToClipboard(selectedPerson.email, "Email")}>
                                 <Copy className="mr-2 h-4 w-4" />
                                 Copiar email
@@ -1160,7 +1244,7 @@ export default function CrmPeopleWorkspace({
                     </div>
                   </header>
 
-                  {operationalSummary ? (
+                  {operationalSummary && !selectedPerson.piiMasked ? (
                     <CrmPersonRecordRibbon
                       qualityScore={qualityScore}
                       summary={operationalSummary}
@@ -1200,6 +1284,14 @@ export default function CrmPeopleWorkspace({
                     <ScrollArea className="min-h-0 flex-1" data-testid="crm-person-scroll">
                       <TabsContent value="resumen" className={cn("m-0", embedded ? "p-2 sm:p-4" : "p-4")}>
                         <div className="grid gap-3 md:grid-cols-2">
+                          {selectedPerson.piiMasked ? (
+                            <section className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 md:col-span-2" role="status">
+                              <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" />Datos protegidos · detalle requiere permiso</div>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                El directorio muestra campos enmascarados. No se consulta historial, no se abren casos y no se habilitan acciones usando nombre, teléfono o email aproximados.
+                              </p>
+                            </section>
+                          ) : null}
                           <section className={cn("rounded-xl border border-border/70 bg-card", embedded ? "p-3 sm:p-4" : "p-4")}>
                             <div className="flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />Resumen operativo</div>
                             <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -1210,8 +1302,8 @@ export default function CrmPeopleWorkspace({
                             <div className="flex items-center gap-2 text-sm font-semibold"><Phone className="h-4 w-4 text-primary" />Datos de contacto</div>
                             <dl className="mt-3 space-y-3 text-sm">
                               <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Teléfono</dt><dd className="font-medium">{selectedPerson.telefono || "Sin teléfono"}</dd></div>
-                              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Email</dt><dd className="max-w-[65%] truncate font-medium">{hasRealEmail(selectedPerson) ? selectedPerson.email : "Sin email real"}</dd></div>
-                              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">WhatsApp</dt><dd className="font-medium">{hasExplicitWhatsApp(selectedPerson) ? "Canal explícito" : "No verificado"}</dd></div>
+                              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Email</dt><dd className="max-w-[65%] truncate font-medium">{selectedPerson.piiMasked ? selectedPerson.email : hasRealEmail(selectedPerson) ? selectedPerson.email : "Sin email real"}</dd></div>
+                              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">WhatsApp</dt><dd className="font-medium">{selectedPerson.piiMasked ? "Dato protegido" : hasExplicitWhatsApp(selectedPerson) ? "Canal explícito" : "No verificado"}</dd></div>
                             </dl>
                           </section>
                           <section
@@ -1235,7 +1327,9 @@ export default function CrmPeopleWorkspace({
 
                             {!selectedPerson.contactId ? (
                               <p className="mt-3 text-sm text-muted-foreground" role="status">
-                                El registro no tiene una identidad persistida. No se buscan casos por nombre, teléfono ni email.
+                                {selectedPerson.piiMasked
+                                  ? "Datos protegidos: el directorio no publicó una identidad resoluble. El detalle requiere permiso."
+                                  : "El registro no tiene una identidad persistida. No se buscan casos por nombre, teléfono ni email."}
                               </p>
                             ) : contactHistory.isLoading ? (
                               <div className="mt-3 grid gap-3 md:grid-cols-2" aria-label="Cargando Persona 360">
@@ -1337,9 +1431,11 @@ export default function CrmPeopleWorkspace({
 
                           {!selectedPerson.contactId ? (
                             <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4" role="status">
-                              <p className="text-sm font-semibold">Historial detallado no disponible</p>
+                              <p className="text-sm font-semibold">{selectedPerson.piiMasked ? "Datos protegidos" : "Historial detallado no disponible"}</p>
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                Este registro heredado todavía no tiene una identidad de contacto vinculada. No se inventan eventos para completar la vista.
+                                {selectedPerson.piiMasked
+                                  ? "El detalle requiere permiso y una identidad resoluble publicada por el backend. No se inventan eventos para completar la vista."
+                                  : "Este registro heredado todavía no tiene una identidad de contacto vinculada. No se inventan eventos para completar la vista."}
                               </p>
                             </div>
                           ) : contactHistory.isLoading ? (
@@ -1429,9 +1525,11 @@ export default function CrmPeopleWorkspace({
 
                           {!selectedPerson.contactId ? (
                             <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4">
-                              <p className="text-sm font-semibold">Sin identidad CRM verificable</p>
+                              <p className="text-sm font-semibold">{selectedPerson.piiMasked ? "Datos protegidos" : "Sin identidad CRM verificable"}</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                No se buscan casos por nombre, teléfono ni email. Este registro necesita una identidad de contacto persistida.
+                                {selectedPerson.piiMasked
+                                  ? "El detalle requiere permiso. No se buscan casos por nombre, teléfono ni email enmascarados."
+                                  : "No se buscan casos por nombre, teléfono ni email. Este registro necesita una identidad de contacto persistida."}
                               </p>
                             </div>
                           ) : contactHistory.isLoading ? (
@@ -1528,6 +1626,12 @@ export default function CrmPeopleWorkspace({
                       <TabsContent value="consentimiento" className="m-0 p-4">
                         <section className="rounded-xl border border-border/70 bg-card p-4">
                           <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-primary" />Privacidad y permisos</div>
+                          {selectedPerson.piiMasked ? (
+                            <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
+                              <div><p className="text-sm font-semibold">Datos personales</p><p className="text-xs text-muted-foreground">El directorio aplicó enmascaramiento por defecto; esta vista no solicitó PII completa.</p></div>
+                              <Badge variant="outline">Protegidos</Badge>
+                            </div>
+                          ) : null}
                           <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border/70 p-3">
                             <div>
                               <p className="text-sm font-semibold">Marketing</p>

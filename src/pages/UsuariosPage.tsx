@@ -24,6 +24,10 @@ import {
   useCrmWorkspaceState,
   useDebouncedValue,
 } from "@/features/crm/people/useCrmWorkspaceState";
+import {
+  type CrmPeopleDirectoryItem,
+  useCrmPeopleDirectory,
+} from "@/features/crm/people/useCrmPeopleDirectory";
 import { cn } from "@/lib/utils";
 
 type RawUsuario = Record<string, any>;
@@ -60,6 +64,9 @@ export interface Usuario {
   avatarUrl?: string | null;
   avatarSource?: string | null;
   avatarConsent?: boolean | string | number | null;
+  piiMasked?: boolean;
+  possibleDuplicate?: boolean;
+  directorySource?: string | null;
 }
 
 interface CampaignHistoryItem {
@@ -231,7 +238,9 @@ export const getCrmOperationalDataQualityScore = (usuario: Pick<
   | "lastIntent"
   | "interactionCount"
   | "lastSeen"
+  | "piiMasked"
 >): number => {
+  if (usuario.piiMasked) return 0;
   const realName = Boolean(usuario.nombre && !["Sin nombre", "Contacto WhatsApp", "Contacto sin identificar"].includes(usuario.nombre));
   const realEmail = Boolean(normalizeEmail(usuario.email));
   const hasPhone = Boolean(usuario.telefono);
@@ -287,7 +296,9 @@ export const resolveCrmNextAction = (usuario: Pick<
   | "motivo"
   | "lastIntent"
   | "interactionCount"
+  | "piiMasked"
 >): string => {
+  if (usuario.piiMasked) return "Datos protegidos — requiere permiso";
   const hasPhone = Boolean(usuario.telefono);
   const realEmail = Boolean(normalizeEmail(usuario.email));
 
@@ -411,16 +422,65 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   };
 };
 
+export const normalizeDirectoryPerson = (item: CrmPeopleDirectoryItem, index: number): Usuario => {
+  if (!item.pii_masked) {
+    return {
+      ...normalizeUsuario({
+        id: item.id,
+        user_id: item.user_id,
+        contact_id: item.contact_id,
+        name: item.name,
+        email: item.email,
+        phone: item.phone,
+        channel: item.channel,
+        marketing: item.marketing,
+        tags: item.tags,
+        last_seen: item.last_seen,
+        source: item.source,
+      }, index),
+      piiMasked: false,
+      possibleDuplicate: item.possible_duplicate,
+      directorySource: item.source,
+    };
+  }
+
+  // Masked fields are presentation-safe values from the backend. Keep them
+  // verbatim: normalizing ***1234 into 1234 would turn a protected suffix into
+  // a fake actionable phone number.
+  return {
+    id: item.id,
+    contactId: null,
+    nombre: item.name || "Contacto protegido",
+    email: item.email || "Dato protegido",
+    emailRaw: item.email || null,
+    emailIsPlaceholder: false,
+    telefono: item.phone || null,
+    whatsappNumber: null,
+    whatsappExplicit: false,
+    etiquetas: item.tags,
+    canal: item.channel,
+    origen: item.source,
+    lastSeen: item.last_seen,
+    marketing: item.marketing,
+    piiMasked: true,
+    possibleDuplicate: item.possible_duplicate,
+    directorySource: item.source,
+    resumen: "Datos protegidos. El detalle requiere un permiso explícito y una identidad resoluble publicada por el backend.",
+    interactionCount: null,
+  };
+};
+
 export const hasExplicitWhatsApp = (
-  usuario: Pick<Usuario, "canal" | "whatsappExplicit" | "whatsappNumber" | "telefono">,
+  usuario: Pick<Usuario, "canal" | "whatsappExplicit" | "whatsappNumber" | "telefono" | "piiMasked">,
 ): boolean => {
+  if (usuario.piiMasked) return false;
   const explicitChannel = humanizeChannel(usuario.canal) === "WhatsApp";
   const number = usuario.whatsappNumber || (explicitChannel ? usuario.telefono : null);
   return Boolean(number && (usuario.whatsappExplicit || explicitChannel));
 };
 
 export const getExplicitWhatsAppUrl = (
-  usuario: Pick<Usuario, "canal" | "whatsappExplicit" | "whatsappNumber" | "telefono">,
+  usuario: Pick<Usuario, "canal" | "whatsappExplicit" | "whatsappNumber" | "telefono" | "piiMasked">,
 ): string | null => {
   if (!hasExplicitWhatsApp(usuario)) return null;
   const explicitChannel = humanizeChannel(usuario.canal) === "WhatsApp";
@@ -429,6 +489,15 @@ export const getExplicitWhatsAppUrl = (
   const digits = number.replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : null;
 };
+
+export const canDeepLinkCrmPerson = (
+  usuario: Pick<Usuario, "contactId" | "piiMasked">,
+): boolean => Boolean(!usuario.piiMasked && usuario.contactId?.trim());
+
+export const getCrmTransportPresentation = (connected: boolean, signalCount: number) => ({
+  statusLabel: connected ? "Transporte conectado" : "Actualización manual",
+  signalLabel: `${Math.max(0, signalCount)} señales recibidas`,
+});
 
 const normalizeTenantIdentity = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -516,29 +585,31 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   const navigate = useNavigate();
   const { user } = useUser();
   const { socket, isConnected } = useSocket();
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState('');
-  const search = useDebouncedValue(searchInput, 350);
-  const [marketingOnly, setMarketingOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [protectedSelectionId, setProtectedSelectionId] = useState<string | null>(null);
   const [campaignHistory, setCampaignHistory] = useState<CampaignHistoryItem[]>([]);
   const [campaignLedger, setCampaignLedger] = useState<CampaignLedgerItem[]>([]);
   const [notificationCenter, setNotificationCenter] = useState<NotificationCenterItem[]>([]);
   const [campaignActivityLoading, setCampaignActivityLoading] = useState(false);
   const [realtimeEvents, setRealtimeEvents] = useState(0);
-  const fetchSequenceRef = React.useRef(0);
+  const transportPresentation = getCrmTransportPresentation(isConnected, realtimeEvents);
   const {
     activeView,
     selectedContactId,
     peopleQueueView,
     peopleSort,
+    peopleSearch,
+    peopleMarketingOnly,
+    peopleChannel,
     setActiveView,
     setSelectedContactId,
     setPeopleQueueView,
     setPeopleSort,
+    setPeopleSearch,
+    setPeopleMarketingOnly,
+    setPeopleChannel,
   } = useCrmWorkspaceState();
+  const search = useDebouncedValue(peopleSearch, 350);
 
   const tenantSlug = React.useMemo(
     () =>
@@ -551,6 +622,28 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       }),
     [tenantSlugOverride, user],
   );
+  const directoryQuery = useCrmPeopleDirectory({
+    tenantSlug,
+    q: search,
+    marketing: peopleMarketingOnly ? "true" : "all",
+    channel: peopleChannel,
+  });
+  const directoryPages = directoryQuery.data?.pages || [];
+  const usuarios = React.useMemo(
+    () => directoryPages.flatMap((page) => page.contractVersion === "crm.people.directory.v2"
+      ? page.items.map(normalizeDirectoryPerson)
+      : page.legacyItems.map((item, index) => normalizeUsuario(item, index))),
+    [directoryPages],
+  );
+  const directoryTotal = directoryPages[0]?.page.total ?? usuarios.length;
+  const directoryIsLegacy = directoryPages[0]?.contractVersion === "legacy.crm.clientes";
+  const loading = directoryQuery.isPending;
+  const error = !tenantSlug
+    ? "Falta una organización activa para cargar Personas de forma segura."
+    : directoryQuery.error
+      ? getErrorMessage(directoryQuery.error, "No se pudieron cargar las personas")
+      : null;
+  const effectiveSelectedContactId = selectedContactId || protectedSelectionId;
   const previousTenantSlugRef = React.useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -561,9 +654,8 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
 
     // Contact ids and list selections are tenant-bound. Clear the previous
     // workspace before a new scoped request can populate it.
-    fetchSequenceRef.current += 1;
-    setUsuarios([]);
     setSelectedIds(new Set());
+    setProtectedSelectionId(null);
     setSelectedContactId(null);
   }, [setSelectedContactId, tenantSlug]);
 
@@ -583,8 +675,19 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
     [usuarios],
   );
 
+  const actionablePersonIds = React.useMemo(
+    () => new Set(
+      usuarios
+        .filter((usuario) => !usuario.piiMasked)
+        .map((usuario) => String(usuario.id)),
+    ),
+    [usuarios],
+  );
+
   const selectedUsuarios = React.useMemo(
-    () => usuarios.filter((usuario) => selectedIds.has(String(usuario.id))),
+    () => usuarios.filter(
+      (usuario) => !usuario.piiMasked && selectedIds.has(String(usuario.id)),
+    ),
     [selectedIds, usuarios],
   );
 
@@ -603,40 +706,9 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   );
 
   const hasRealEmail = React.useCallback(
-    (usuario: Usuario) => Boolean(usuario.email && usuario.email !== "Sin email real"),
+    (usuario: Usuario) => Boolean(!usuario.piiMasked && usuario.email && usuario.email !== "Sin email real"),
     [],
   );
-
-  const fetchData = React.useCallback(async (options: { silent?: boolean } = {}) => {
-    const requestSequence = ++fetchSequenceRef.current;
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-    const url = buildCrmDirectoryPath({ tenantSlug, search, marketingOnly });
-    if (!url || !tenantSlug) {
-      if (requestSequence !== fetchSequenceRef.current) return;
-      setUsuarios([]);
-      setError("Falta una organización activa para cargar Personas de forma segura.");
-      setLoading(false);
-      return;
-    }
-    if (!options.silent) setLoading(true);
-    try {
-      const data = await apiFetch<RawUsuario[]>(url, { tenantSlug });
-      if (requestSequence !== fetchSequenceRef.current) return;
-      if (Array.isArray(data)) {
-        setUsuarios(data.map((item, index) => normalizeUsuario(item, index)));
-      }
-      setError(null);
-    } catch (e) {
-      if (requestSequence !== fetchSequenceRef.current) return;
-      setError(getErrorMessage(e, 'No se pudieron cargar los usuarios'));
-    } finally {
-      if (requestSequence === fetchSequenceRef.current && !options.silent) setLoading(false);
-    }
-  }, [marketingOnly, navigate, search, tenantSlug]);
 
   const fetchCampaignActivity = React.useCallback(async () => {
     if (!tenantSlug) return;
@@ -659,38 +731,19 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   }, [tenantSlug]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
     if (activeView === "campanas" || activeView === "actividad") {
       void fetchCampaignActivity();
     }
   }, [activeView, fetchCampaignActivity]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      fetchData({ silent: true });
-    }, 30000);
-    return () => window.clearInterval(interval);
-  }, [fetchData]);
-
-  useEffect(() => {
     if (!socket) return;
 
     const upsertFromRealtime = (payload: any) => {
-      // Realtime is fail-closed: a contact event must prove the same tenant as
-      // the active workspace. Polling remains the fallback for legacy events
-      // without tenant identity.
+      // Realtime is only a tenant-scoped invalidation signal. The v2 directory
+      // remains the authority for masking, duplicate flags and cursor order.
       if (!eventBelongsToTenant(payload, tenantSlug)) return;
-      if (search.trim() || marketingOnly) {
-        void fetchData({ silent: true });
-        return;
-      }
-      const raw = payload?.contact || payload?.cliente || payload;
-      if (!raw || typeof raw !== "object") return;
-      const incoming = normalizeUsuario(raw, usuarios.length);
-      setUsuarios((prev) => upsertCrmContactByIdentity(prev, incoming));
+      void directoryQuery.refetch();
     };
 
     const refreshActivityFromRealtime = (payload: any) => {
@@ -722,24 +775,46 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       socket.off("notification.sent", refreshActivityFromRealtime);
       socket.off("notification.failed", refreshActivityFromRealtime);
     };
-  }, [activeView, fetchCampaignActivity, fetchData, marketingOnly, search, socket, tenantSlug, usuarios.length]);
+  }, [activeView, directoryQuery.refetch, fetchCampaignActivity, socket, tenantSlug]);
 
   useEffect(() => {
     setSelectedIds((prev) => {
-      const validIds = new Set(usuarios.map((usuario) => String(usuario.id)));
+      const validIds = new Set(
+        usuarios.filter((usuario) => !usuario.piiMasked).map((usuario) => String(usuario.id)),
+      );
       const next = new Set([...prev].filter((id) => validIds.has(id)));
       return next.size === prev.size ? prev : next;
     });
   }, [usuarios]);
 
   useEffect(() => {
-    if (activeView !== "personas" || usuarios.length === 0) return;
-    const selectionExists = usuarios.some((usuario) => getPersonKey(usuario) === selectedContactId);
-    if (!selectionExists) setSelectedContactId(getPersonKey(usuarios[0]));
-  }, [activeView, getPersonKey, selectedContactId, setSelectedContactId, usuarios]);
+    setProtectedSelectionId(null);
+  }, [peopleChannel, peopleMarketingOnly, search]);
+
+  const handleSelectPerson = React.useCallback((personKey: string | null) => {
+    if (!personKey) {
+      setProtectedSelectionId(null);
+      setSelectedContactId(null);
+      return;
+    }
+    const person = usuarios.find((candidate) => getPersonKey(candidate) === personKey);
+    if (person && canDeepLinkCrmPerson(person)) {
+      setProtectedSelectionId(null);
+      setSelectedContactId(personKey);
+      return;
+    }
+    setSelectedContactId(null);
+    setProtectedSelectionId(personKey);
+  }, [getPersonKey, setSelectedContactId, usuarios]);
+
+  useEffect(() => {
+    if (activeView !== "personas" || usuarios.length === 0 || effectiveSelectedContactId) return;
+    handleSelectPerson(getPersonKey(usuarios[0]));
+  }, [activeView, effectiveSelectedContactId, getPersonKey, handleSelectPerson, usuarios]);
 
   const toggleSelected = (id: number | string) => {
     const key = String(id);
+    if (!actionablePersonIds.has(key)) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
@@ -756,12 +831,12 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       const next = new Set(prev);
       ids.forEach((id) => {
         const key = String(id);
-        if (selected) next.add(key);
+        if (selected && actionablePersonIds.has(key)) next.add(key);
         else next.delete(key);
       });
       return next;
     });
-  }, []);
+  }, [actionablePersonIds]);
 
   const clearSelected = React.useCallback(() => setSelectedIds(new Set()), []);
 
@@ -828,12 +903,12 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   );
 
   const summaryCount = React.useMemo(
-    () => usuarios.filter((u) => Boolean(u.resumen || u.motivo || u.lastMessageExcerpt)).length,
+    () => usuarios.filter((u) => !u.piiMasked && Boolean(u.resumen || u.motivo || u.lastMessageExcerpt)).length,
     [usuarios],
   );
 
   const phoneCount = React.useMemo(
-    () => usuarios.filter((u) => Boolean(u.telefono)).length,
+    () => usuarios.filter((u) => !u.piiMasked && Boolean(u.telefono)).length,
     [usuarios],
   );
 
@@ -850,16 +925,20 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   }, [usuarios]);
 
   const whatsappCount = usuarios.filter(hasExplicitWhatsApp).length;
-  const crmScoreAverage = React.useMemo(
-    () =>
-      usuarios.length
-        ? Math.round(usuarios.reduce((total, usuario) => total + getCrmProfileScore(usuario), 0) / usuarios.length)
-        : 0,
+  const evaluableUsuarios = React.useMemo(
+    () => usuarios.filter((usuario) => !usuario.piiMasked),
     [usuarios],
   );
+  const crmScoreAverage = React.useMemo(
+    () =>
+      evaluableUsuarios.length
+        ? Math.round(evaluableUsuarios.reduce((total, usuario) => total + getCrmProfileScore(usuario), 0) / evaluableUsuarios.length)
+        : 0,
+    [evaluableUsuarios],
+  );
   const crmCompleteProfiles = React.useMemo(
-    () => usuarios.filter((usuario) => getCrmProfileScore(usuario) >= 75).length,
-    [usuarios],
+    () => evaluableUsuarios.filter((usuario) => getCrmProfileScore(usuario) >= 75).length,
+    [evaluableUsuarios],
   );
   const nextActionStats = React.useMemo(() => {
     const counts = new Map<string, number>();
@@ -931,7 +1010,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
             <div className="rounded-2xl bg-destructive/10 p-3 text-destructive"><AlertTriangle className="h-6 w-6" /></div>
             <h1 className="mt-4 text-xl font-bold">No pudimos cargar Personas</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p>
-            <Button className="mt-5 gap-2" onClick={() => void fetchData()}>
+            <Button className="mt-5 gap-2" onClick={() => void directoryQuery.refetch()}>
               <RefreshCw className="h-4 w-4" />
               Reintentar
             </Button>
@@ -948,8 +1027,8 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         activeView={activeView}
         onViewChange={setActiveView}
         people={sortedUsuarios}
-        selectedContactId={selectedContactId}
-        onSelectContact={setSelectedContactId}
+        selectedContactId={effectiveSelectedContactId}
+        onSelectContact={handleSelectPerson}
         selectedIds={selectedIds}
         onToggleSelected={toggleSelected}
         onSetSelected={setSelectedForIds}
@@ -958,12 +1037,19 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         onQueueViewChange={setPeopleQueueView}
         peopleSort={peopleSort}
         onPeopleSortChange={setPeopleSort}
-        search={searchInput}
-        onSearchChange={setSearchInput}
-        marketingOnly={marketingOnly}
-        onMarketingOnlyChange={setMarketingOnly}
+        search={peopleSearch}
+        onSearchChange={setPeopleSearch}
+        marketingOnly={peopleMarketingOnly}
+        onMarketingOnlyChange={setPeopleMarketingOnly}
+        channelFilter={peopleChannel}
+        onChannelFilterChange={setPeopleChannel}
+        peopleTotal={directoryTotal}
+        hasMore={Boolean(directoryQuery.hasNextPage)}
+        isLoadingMore={directoryQuery.isFetchingNextPage}
+        onLoadMore={() => void directoryQuery.fetchNextPage()}
+        directoryIsLegacy={directoryIsLegacy}
         onRefresh={() => {
-          void fetchData({ silent: true });
+          void directoryQuery.refetch();
           if (activeView === "campanas" || activeView === "actividad") {
             void fetchCampaignActivity();
           }
@@ -972,10 +1058,10 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         onOpenTicketDesk={openTicketDesk}
         isConnected={isConnected}
         metrics={[
-          { label: "Personas", value: usuarios.length, helper: "registros disponibles" },
+          { label: "Personas", value: directoryTotal, helper: `${usuarios.length} cargadas` },
           { label: "Canal WhatsApp", value: whatsappCount, helper: "solo evidencia explícita" },
           { label: "Consentimiento declarado", value: marketingCount, helper: "sin historial versionado" },
-          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${crmCompleteProfiles} registros con calidad alta` },
+          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${evaluableUsuarios.length} evaluables · ${crmCompleteProfiles} con calidad alta` },
         ]}
         getPersonKey={getPersonKey}
         hasRealEmail={hasRealEmail}
@@ -1056,7 +1142,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
                 <h2 className="mt-1 text-xl font-bold">Eventos, campañas y entrega</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Un registro interno no se presenta como entrega si no existe recibo del proveedor.</p>
               </div>
-              <div className="flex flex-wrap gap-2"><Badge variant={isConnected ? "default" : "outline"}>{isConnected ? "Socket conectado" : "Polling activo"}</Badge><Badge variant="secondary">{realtimeEvents} eventos live</Badge></div>
+              <div className="flex flex-wrap gap-2"><Badge variant={isConnected ? "default" : "outline"}>{transportPresentation.statusLabel}</Badge><Badge variant="secondary">{transportPresentation.signalLabel}</Badge></div>
             </div>
             {campaignActivityLoading ? (
               <Card><CardContent className="p-5 text-sm text-muted-foreground">Cargando actividad operativa...</CardContent></Card>
