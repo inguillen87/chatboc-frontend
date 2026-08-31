@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/hooks/useSurveyAdmin', () => ({ useSurveyAdmin: mocks.useSurveyAdmin }));
 vi.mock('@/components/ui/use-toast', () => ({ toast: mocks.toast }));
 
-import AdminSurveysIndex, { buildOperationalSurveyOverview } from '@/pages/admin/encuestas/index';
+import AdminSurveysIndex, {
+  buildOperationalSurveyOverview,
+  resolveSurveyPublicationEvidenceGate,
+} from '@/pages/admin/encuestas/index';
 import type { SurveyAdmin, SurveyAdminInstrumentKind, SurveyAdminLifecyclePhase } from '@/types/encuestas';
 import { ApiError } from '@/utils/api';
 
@@ -74,6 +77,13 @@ const lifecycleFor = (
     reason_code: 'survey_jurisdiction_compatible',
     content_review_included: false as const,
   },
+  government_survey_evidence_gate: {
+    contract_version: 'surveys.government_evidence_gate.v1' as const,
+    required: true,
+    ready: true,
+    reason_code: 'survey_government_evidence_ready',
+    next_action: null,
+  },
   schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-31T00:00:00Z' },
   participation: {
     responses: 0,
@@ -129,6 +139,104 @@ const renderPage = () =>
   );
 
 describe('AdminSurveysIndex states', () => {
+  it.each([
+    ['survey_jurisdiction_unbound', 'Vinculá y verificá'],
+    ['survey_tenant_jurisdiction_unverified', 'Vinculá y verificá'],
+    ['survey_content_review_required', 'Completá la revisión institucional'],
+    ['survey_content_review_blocked', 'Completá la revisión institucional'],
+    ['survey_jurisdiction_binding_conflict', 'Separá el instrumento'],
+  ])('fails publication closed for %s with an actionable recovery', (reasonCode, expectedAction) => {
+    const survey = workspaceInstrument(900, 'Gate adversarial', 'draft');
+    const classification = reasonCode.includes('conflict') ? 'conflict' : 'unverified';
+    survey.admin_scope = adminScope(classification);
+    if (survey.admin_lifecycle) {
+      survey.admin_lifecycle.jurisdiction.status = classification;
+      survey.admin_lifecycle.jurisdiction.reason_code = reasonCode;
+      survey.admin_lifecycle.government_survey_evidence_gate = {
+        contract_version: 'surveys.government_evidence_gate.v1',
+        required: true,
+        ready: false,
+        reason_code: reasonCode,
+        next_action: null,
+      };
+    }
+
+    const gate = resolveSurveyPublicationEvidenceGate(survey);
+    expect(gate.ready).toBe(false);
+    expect(gate.nextAction).toContain(expectedAction);
+  });
+
+  it('uses the government evidence gate as the authoritative publication decision', () => {
+    const survey = workspaceInstrument(901, 'Revisión pendiente', 'draft');
+    if (!survey.admin_lifecycle) throw new Error('fixture lifecycle required');
+    survey.admin_lifecycle.government_survey_evidence_gate = {
+      contract_version: 'surveys.government_evidence_gate.v1',
+      required: true,
+      ready: false,
+      reason_code: 'survey_content_review_required',
+      next_action: 'Registrar dictamen institucional firmado.',
+    };
+
+    expect(resolveSurveyPublicationEvidenceGate(survey)).toEqual({
+      ready: false,
+      reasonCode: 'survey_content_review_required',
+      nextAction: 'Registrar dictamen institucional firmado.',
+    });
+  });
+
+  it('explains a compatible government draft blocked by institutional review', () => {
+    const survey = workspaceInstrument(904, 'Consulta con dictamen pendiente', 'draft');
+    if (!survey.admin_lifecycle) throw new Error('fixture lifecycle required');
+    survey.admin_lifecycle.capabilities.can_publish = false;
+    survey.admin_lifecycle.government_survey_evidence_gate = {
+      contract_version: 'surveys.government_evidence_gate.v1',
+      required: true,
+      ready: false,
+      reason_code: 'survey_content_review_required',
+      next_action: 'Registrar dictamen institucional firmado.',
+    };
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: { data: [survey] },
+      surveyListProgress: { loaded: 1, total: 1 },
+    }));
+
+    renderPage();
+
+    expect(screen.getByRole('status', {
+      name: 'Publicación institucional bloqueada para Consulta con dictamen pendiente',
+    })).toHaveTextContent('Registrar dictamen institucional firmado.');
+    expect(screen.queryByRole('button', { name: 'Publicar' })).not.toBeInTheDocument();
+  });
+
+  it('fails closed when the government evidence gate is absent even if legacy scope says compatible', () => {
+    const survey = workspaceInstrument(902, 'Contrato ausente', 'draft');
+    if (!survey.admin_lifecycle) throw new Error('fixture lifecycle required');
+    delete survey.admin_lifecycle.government_survey_evidence_gate;
+
+    const gate = resolveSurveyPublicationEvidenceGate(survey);
+    expect(gate.ready).toBe(false);
+    expect(gate.reasonCode).toBe('survey_government_evidence_gate_missing');
+    expect(gate.nextAction).toContain('Vinculá y verificá');
+  });
+
+  it('does not impose the government-only gate on a compatible non-government survey', () => {
+    const survey = workspaceInstrument(903, 'Encuesta de servicio', 'draft');
+    if (!survey.admin_lifecycle) throw new Error('fixture lifecycle required');
+    survey.admin_lifecycle.capabilities.can_publish = true;
+    survey.admin_lifecycle.government_survey_evidence_gate = {
+      contract_version: 'surveys.government_evidence_gate.v1',
+      required: false,
+      ready: false,
+      reason_code: 'survey_government_evidence_not_required',
+      next_action: null,
+    };
+
+    expect(resolveSurveyPublicationEvidenceGate(survey)).toEqual({
+      ready: true,
+      reasonCode: 'survey_government_evidence_not_required',
+      nextAction: null,
+    });
+  });
   beforeEach(() => {
     mocks.useSurveyAdmin.mockReset();
     mocks.toast.mockReset();
@@ -401,6 +509,13 @@ describe('AdminSurveysIndex states', () => {
           reason_code: 'survey_jurisdiction_compatible',
           content_review_included: false,
         },
+        government_survey_evidence_gate: {
+          contract_version: 'surveys.government_evidence_gate.v1',
+          required: true,
+          ready: true,
+          reason_code: 'survey_government_evidence_ready',
+          next_action: null,
+        },
         schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
         participation: {
           responses: 0,
@@ -444,7 +559,7 @@ describe('AdminSurveysIndex states', () => {
     await waitFor(() => expect(refetchList).toHaveBeenCalledTimes(1));
   });
 
-  it('keeps unverified instruments operational, warns visibly, and preserves lifecycle actions', async () => {
+  it('keeps unverified instruments visible but blocks publication even when a legacy contract enables it', async () => {
     const publishSurvey = vi.fn().mockResolvedValue(undefined);
     const deleteSurvey = vi.fn().mockResolvedValue(undefined);
     const survey = {
@@ -470,6 +585,13 @@ describe('AdminSurveysIndex states', () => {
           status: 'unverified',
           reason_code: 'survey_jurisdiction_unbound',
           content_review_included: false,
+        },
+        government_survey_evidence_gate: {
+          contract_version: 'surveys.government_evidence_gate.v1',
+          required: true,
+          ready: false,
+          reason_code: 'survey_jurisdiction_unbound',
+          next_action: 'Vincular y verificar la jurisdicción.',
         },
         schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
         participation: {
@@ -506,11 +628,14 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByRole('status', {
       name: 'Alcance pendiente de verificación para Consulta pendiente de verificación',
-    })).toHaveTextContent(/conserva únicamente las acciones habilitadas por el backend/i);
+    })).toHaveTextContent(/La publicación permanece bloqueada/i);
+    expect(screen.getByRole('status', {
+      name: 'Alcance pendiente de verificación para Consulta pendiente de verificación',
+    })).toHaveTextContent(/Vincular y verificar la jurisdicción/i);
     expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }));
-    await waitFor(() => expect(publishSurvey).toHaveBeenCalledWith(640));
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    expect(publishSurvey).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Borrar borrador' }));
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
     await waitFor(() => expect(deleteSurvey).toHaveBeenCalledWith(640));
@@ -547,6 +672,15 @@ describe('AdminSurveysIndex states', () => {
             ? 'survey_jurisdiction_binding_conflict'
             : 'survey_jurisdiction_compatible',
           content_review_included: false,
+        },
+        government_survey_evidence_gate: {
+          contract_version: 'surveys.government_evidence_gate.v1',
+          required: true,
+          ready: scope === 'compatible',
+          reason_code: scope === 'compatible'
+            ? 'survey_government_evidence_ready'
+            : 'survey_jurisdiction_binding_conflict',
+          next_action: scope === 'compatible' ? null : 'Separar y revisar el instrumento.',
         },
         schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
         participation: {

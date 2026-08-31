@@ -660,6 +660,13 @@ export interface SurveyAdminLifecycle {
     reason_code: string;
     content_review_included: false;
   };
+  government_survey_evidence_gate?: {
+    contract_version: 'surveys.government_evidence_gate.v1' | string;
+    required: boolean;
+    ready: boolean;
+    reason_code: string;
+    next_action: string | null;
+  };
   schedule: {
     opens_at: string | null;
     closes_at: string | null;
