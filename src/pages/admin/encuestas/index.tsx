@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BarChart3, Loader2, MessageSquareText, Plus, Radio } from 'lucide-react';
+import { BarChart3, Loader2, MessageSquareText, Plus, Radio, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { SurveyCard } from '@/components/surveys/SurveyCard';
 import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsOverview';
 import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
-import type { SurveyAdmin } from '@/types/encuestas';
+import type {
+  SurveyAdmin,
+  SurveyAdminOperationalScope,
+  SurveyAdminOverview,
+} from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
@@ -19,6 +23,7 @@ import {
   isSurveyResponseDuplicateError,
 } from '@/utils/surveySubmissionErrors';
 import { resolveSurveyPublicationFailure, type SurveyPublicationFailure } from '@/utils/surveyPublicationError';
+import { resolveSurveyJurisdictionScope } from '@/utils/surveyJurisdictionScope';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
 
@@ -42,7 +47,69 @@ const matchesFocus = (survey: SurveyAdmin, focusMode: SurveyFocusMode) => {
 };
 
 export const isSurveyJurisdictionConflict = (survey: SurveyAdmin) =>
-  survey.admin_lifecycle?.actions.publish.disabled_reason_code === 'survey_jurisdiction_binding_conflict';
+  resolveSurveyJurisdictionScope(survey).classification === 'conflict';
+
+export const isSurveyJurisdictionCompatible = (survey: SurveyAdmin) =>
+  resolveSurveyJurisdictionScope(survey).classification === 'compatible';
+
+const responseCount = (survey: SurveyAdmin) =>
+  survey.admin_lifecycle?.participation.responses ?? survey.metricas?.total_respuestas ?? 0;
+
+export const buildOperationalSurveyOverview = (
+  items: SurveyAdmin[],
+  authoritativeScope?: SurveyAdminOperationalScope,
+): SurveyAdminOverview => {
+  const porEstado = items.reduce<Record<string, number>>((accumulator, survey) => {
+    accumulator[survey.estado] = (accumulator[survey.estado] ?? 0) + 1;
+    return accumulator;
+  }, {});
+  const totalResponses = items.reduce((sum, survey) => sum + responseCount(survey), 0);
+  const responsesWithCoordinates = items.reduce(
+    (sum, survey) => sum + (survey.metricas?.respuestas_con_coordenadas ?? 0),
+    0,
+  );
+  const responsesLast24h = items.reduce(
+    (sum, survey) =>
+      sum + (survey.admin_lifecycle?.participation.responses_last_24h ?? survey.metricas?.respuestas_ultimas_24h ?? 0),
+    0,
+  );
+  const denominatorAvailable =
+    items.length > 0 &&
+    items.every((survey) => survey.admin_lifecycle?.participation.denominator_status.available === true);
+
+  const authoritative = authoritativeScope?.instruments.included === items.length
+    ? authoritativeScope
+    : undefined;
+
+  return {
+    total: authoritative?.instruments.included ?? items.length,
+    por_estado: porEstado,
+    activas: authoritative?.instruments.active ?? items.filter(
+      (survey) => survey.admin_lifecycle?.accepts_responses ?? survey.estado === 'publicada',
+    ).length,
+    con_respuestas: authoritative?.instruments.with_responses ?? items.filter(
+      (survey) => responseCount(survey) > 0,
+    ).length,
+    total_respuestas: authoritative?.participation.real_responses ?? totalResponses,
+    respuestas_con_coordenadas: authoritative?.territorial.responses_with_coordinates ?? responsesWithCoordinates,
+    respuestas_ultimas_24h: authoritative?.participation.responses_last_24h ?? responsesLast24h,
+    accepting_responses: authoritative?.instruments.accepting_responses ?? items.filter(
+      (survey) => survey.admin_lifecycle?.accepts_responses ?? survey.estado === 'publicada',
+    ).length,
+    por_tipo_instrumento: {
+      survey: authoritative?.instruments.surveys ?? items.filter(
+        (survey) => (survey.admin_lifecycle?.instrument_kind ?? (survey.tipo === 'votacion' ? 'voting' : 'survey')) === 'survey',
+      ).length,
+      voting: authoritative?.instruments.votings ?? items.filter(
+        (survey) => (survey.admin_lifecycle?.instrument_kind ?? (survey.tipo === 'votacion' ? 'voting' : 'survey')) === 'voting',
+      ).length,
+    },
+    participation_denominator: {
+      available: denominatorAvailable,
+      reason_code: denominatorAvailable ? null : 'survey_eligible_population_not_configured',
+    },
+  };
+};
 
 const focusCopy = {
   live: {
@@ -200,18 +267,49 @@ const AdminSurveysIndex = () => {
     }
   };
 
-  const items = useMemo(() => {
+  const classifiedItems = useMemo(() => {
     const prioritized = prioritizeMendozaDemoSurveys(surveys?.data ?? []);
-    return [...prioritized].sort((a, b) => {
-      const jurisdictionOrder = Number(isSurveyJurisdictionConflict(a)) - Number(isSurveyJurisdictionConflict(b));
+    const order = { compatible: 0, conflict: 1, unverified: 2 } as const;
+    return prioritized.map((survey) => ({
+      survey,
+      scope: resolveSurveyJurisdictionScope(survey),
+    })).sort((a, b) => {
+      const jurisdictionOrder = order[a.scope.classification] - order[b.scope.classification];
       if (jurisdictionOrder !== 0) return jurisdictionOrder;
       if (!focusMode) return 0;
-      return Number(matchesFocus(b, focusMode)) - Number(matchesFocus(a, focusMode));
+      return Number(matchesFocus(b.survey, focusMode)) - Number(matchesFocus(a.survey, focusMode));
     });
   }, [focusMode, surveys?.data]);
+  const compatibleItems = useMemo(
+    () => classifiedItems.filter(({ scope }) => scope.classification === 'compatible').map(({ survey }) => survey),
+    [classifiedItems],
+  );
+  const conflictItems = useMemo(
+    () => classifiedItems.filter(({ scope }) => scope.classification === 'conflict'),
+    [classifiedItems],
+  );
+  const unverifiedItems = useMemo(
+    () => classifiedItems.filter(({ scope }) => scope.classification === 'unverified'),
+    [classifiedItems],
+  );
+  const operationalClassifiedItems = useMemo(
+    () => classifiedItems.filter(({ scope }) => scope.classification !== 'conflict'),
+    [classifiedItems],
+  );
+  const operationalItems = useMemo(
+    () => operationalClassifiedItems.map(({ survey }) => survey),
+    [operationalClassifiedItems],
+  );
   const focusedItems = useMemo(
-    () => (focusMode ? items.filter((survey) => matchesFocus(survey, focusMode)) : []),
-    [focusMode, items],
+    () => (focusMode ? operationalItems.filter((survey) => matchesFocus(survey, focusMode)) : []),
+    [focusMode, operationalItems],
+  );
+  const operationalOverview = useMemo(
+    () => buildOperationalSurveyOverview(
+      operationalItems,
+      surveys?.executive_summary?.operational_scope,
+    ),
+    [operationalItems, surveys?.executive_summary?.operational_scope],
   );
   const focusMeta = focusMode ? focusCopy[focusMode] : null;
   const FocusIcon = focusMeta?.icon;
@@ -224,10 +322,16 @@ const AdminSurveysIndex = () => {
       onRetry={() => refetchList()}
     >
       <div className="space-y-6">
+      <a
+        href="#survey-instrument-list"
+        className="sr-only rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+      >
+        Ir al listado de instrumentos
+      </a>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Encuestas y votaciones</h1>
-          <p className="text-sm text-muted-foreground">Diseñá, gestioná y difundí la participación de tu organización desde un solo lugar.</p>
+          <h1 className="text-2xl font-semibold">Centro de participación ciudadana</h1>
+          <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados en un solo lugar.</p>
         </div>
         <Button onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nueva encuesta
@@ -273,11 +377,19 @@ const AdminSurveysIndex = () => {
 
       {surveys?.overview && tenantSlug && !listError ? (
         <SurveyOperationsOverview
-          overview={surveys.overview}
+          overview={operationalOverview}
           freshness={surveys.freshness}
           tenantSlug={tenantSlug}
-          loadedCount={surveyListProgress.loaded}
+          instruments={operationalItems}
+          loadedCount={operationalItems.length}
           totalCount={surveyListProgress.total}
+          isPartial={hasMoreSurveys}
+          excludedScopeCount={conflictItems.length}
+          confirmedConflictCount={conflictItems.length}
+          unverifiedScopeCount={unverifiedItems.length}
+          sourceTotalCount={surveyListProgress.total}
+          executiveSummary={surveys.executive_summary}
+          dataQuality={surveys.data_quality}
         />
       ) : null}
 
@@ -299,20 +411,17 @@ const AdminSurveysIndex = () => {
           <span className="sr-only">Cargando encuestas y votaciones</span>
         </div>
       ) : !listError ? (
-        <div className="grid gap-4">
-          {items.map((survey) => (
+        <section
+          id="survey-instrument-list"
+          aria-labelledby="survey-instrument-list-title"
+          className="grid scroll-mt-6 gap-4"
+        >
+          <h2 id="survey-instrument-list-title" className="sr-only">Instrumentos de participación</h2>
+          {operationalClassifiedItems.map(({ survey, scope }) => (
             <div key={survey.id} className={focusMode && matchesFocus(survey, focusMode) ? 'rounded-2xl border border-primary/25 bg-primary/[0.03] p-2' : undefined}>
               {focusMode && matchesFocus(survey, focusMode) ? (
                 <div className="mb-2 inline-flex rounded-full border border-primary/25 bg-background px-2 py-0.5 text-xs font-medium text-primary">
                   {focusMeta?.badge}
-                </div>
-              ) : null}
-              {isSurveyJurisdictionConflict(survey) ? (
-                <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3" role="status">
-                  <p className="text-sm font-semibold text-foreground">Legado incompatible con la jurisdicción actual</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Se conserva para auditoría, pero queda al final del listado y no se puede publicar dentro de esta organización.
-                  </p>
                 </div>
               ) : null}
               {publishFailure?.surveyId === survey.id ? (
@@ -334,6 +443,19 @@ const AdminSurveysIndex = () => {
                       Revisar configuración
                     </Button>
                   ) : null}
+                </div>
+              ) : null}
+              {scope.classification === 'unverified' ? (
+                <div
+                  role="status"
+                  aria-label={`Alcance pendiente de verificación para ${survey.titulo}`}
+                  className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-100"
+                >
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <p>
+                    <span className="font-semibold">Alcance pendiente de verificación.</span>{' '}
+                    Permanece en la operación provisoria y conserva únicamente las acciones habilitadas por el backend.
+                  </p>
                 </div>
               ) : null}
               <SurveyCard
@@ -360,17 +482,62 @@ const AdminSurveysIndex = () => {
               />
             </div>
           ))}
-          {!items.length && (
+          {!operationalItems.length && (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Todavía no cargaste encuestas. Creá una nueva para comenzar la fase de participación.
+              No hay instrumentos operativos cargados para esta organización. Creá uno nuevo o revisá los conflictos separados.
             </div>
           )}
-          {items.length ? (
+          {conflictItems.length ? (
+            <details className="group rounded-xl border border-amber-400/40 bg-amber-500/5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+                <span>Conflictos de alcance · {conflictItems.length.toLocaleString('es-AR')} instrumentos</span>
+                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Ver auditoría</span>
+                <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Ocultar</span>
+              </summary>
+              <div className="space-y-3 border-t border-amber-400/30 p-3">
+                <p className="text-sm text-muted-foreground">
+                  {conflictItems.length.toLocaleString('es-AR')} con conflicto jurisdiccional confirmado. Se conservan
+                  para auditoría y no integran el alcance operativo. Las acciones seguras que el backend mantenga
+                  habilitadas continúan disponibles.
+                </p>
+                {conflictItems.map(({ survey, scope }) => (
+                  <div key={survey.id} className="space-y-2">
+                    <div
+                      role="status"
+                      className="inline-flex rounded-full border border-amber-400/40 bg-background px-2.5 py-1 text-xs font-medium text-amber-800 dark:text-amber-200"
+                      title={`Fuente: ${scope.source}. Razón: ${scope.reasonCode}`}
+                    >
+                      {scope.classification === 'conflict'
+                        ? 'Conflicto jurisdiccional confirmado'
+                        : 'Alcance pendiente de verificación'}
+                    </div>
+                    <SurveyCard
+                      survey={survey}
+                      tenantSlug={tenantSlug}
+                      onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
+                      onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics`)}
+                      onPublish={
+                        survey.admin_lifecycle?.capabilities.can_publish && !isSurveyJurisdictionConflict(survey)
+                          ? () => handlePublish(survey)
+                          : undefined
+                      }
+                      publishing={isPublishing && publishingId === survey.id}
+                      onClose={survey.admin_lifecycle?.capabilities.can_close ? () => handleClose(survey) : undefined}
+                      closing={isClosing && closingId === survey.id}
+                      onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
+                      onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
+                    />
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          {classifiedItems.length ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-center">
               <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
                 {surveyListProgress.total === null
-                  ? `${surveyListProgress.loaded.toLocaleString('es-AR')} instrumentos cargados`
-                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${surveyListProgress.total.toLocaleString('es-AR')} instrumentos`}
+                  ? `${surveyListProgress.loaded.toLocaleString('es-AR')} instrumentos recibidos · ${operationalItems.length.toLocaleString('es-AR')} operativos · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar`
+                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${surveyListProgress.total.toLocaleString('es-AR')} registros · ${operationalItems.length.toLocaleString('es-AR')} operativos (${compatibleItems.length.toLocaleString('es-AR')} compatibles · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar) · ${conflictItems.length.toLocaleString('es-AR')} conflictos separados`}
               </p>
               {loadMoreError ? (
                 <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
@@ -400,7 +567,7 @@ const AdminSurveysIndex = () => {
               </span>
             </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
       </div>
     </SectionErrorBoundary>

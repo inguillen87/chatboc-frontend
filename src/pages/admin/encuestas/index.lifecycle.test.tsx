@@ -10,8 +10,31 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/hooks/useSurveyAdmin', () => ({ useSurveyAdmin: mocks.useSurveyAdmin }));
 vi.mock('@/components/ui/use-toast', () => ({ toast: mocks.toast }));
 
-import AdminSurveysIndex from '@/pages/admin/encuestas/index';
+import AdminSurveysIndex, { buildOperationalSurveyOverview } from '@/pages/admin/encuestas/index';
 import { ApiError } from '@/utils/api';
+
+const adminScope = (status: 'compatible' | 'conflict' | 'unverified' = 'compatible') => ({
+  contract_version: 'surveys.admin_scope.v1',
+  jurisdiction: {
+    contract_version: 'surveys.admin_jurisdiction_scope.v1',
+    status,
+    compatible: status === 'compatible' ? true : status === 'conflict' ? false : null,
+    reason_code: status === 'compatible'
+      ? 'survey_jurisdiction_compatible'
+      : status === 'conflict'
+      ? 'survey_jurisdiction_binding_conflict'
+      : 'survey_jurisdiction_unbound',
+    action_hint: status === 'compatible' ? null : 'review_scope',
+    tenant_verified_ref: 'ar:ba:junin',
+    survey_ref: status === 'conflict' ? 'ar:tf:ushuaia' : status === 'compatible' ? 'ar:ba:junin' : null,
+    authoritative_source: 'server_owned_persisted_refs',
+    content_review_included: false,
+  },
+  separation: {
+    required: status === 'conflict',
+    reason_code: status === 'conflict' ? 'survey_jurisdiction_binding_conflict' : null,
+  },
+});
 
 const adminState = (overrides: Record<string, unknown> = {}) => ({
   surveys: { data: [] },
@@ -53,9 +76,9 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Encuestas y votaciones' })).toBeTruthy();
-    expect(screen.getByText(/participación de tu organización/i)).toBeTruthy();
-    expect(screen.getByText(/Todavía no cargaste encuestas/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Centro de participación ciudadana' })).toBeTruthy();
+    expect(screen.getByText(/encuestas, sondeos y votaciones/i)).toBeTruthy();
+    expect(screen.getByText(/No hay instrumentos operativos/i)).toBeTruthy();
   });
 
   it('renders an accessible loading state without showing a false empty state', () => {
@@ -64,7 +87,7 @@ describe('AdminSurveysIndex states', () => {
     renderPage();
 
     expect(screen.getByRole('status')).toBeTruthy();
-    expect(screen.queryByText(/Todavía no cargaste encuestas/i)).toBeNull();
+    expect(screen.queryByText(/No hay instrumentos operativos/i)).toBeNull();
   });
 
   it('renders a retryable scoped error instead of an empty list', () => {
@@ -77,7 +100,7 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo validar el tenant seleccionado.');
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
-    expect(screen.queryByText(/Todavía no cargaste encuestas/i)).toBeNull();
+    expect(screen.queryByText(/No hay instrumentos operativos/i)).toBeNull();
   });
 
   it('does not offer retry when the tenant scope is missing', () => {
@@ -107,6 +130,7 @@ describe('AdminSurveysIndex states', () => {
           fin_at: '2026-08-20T12:00:00Z',
           politica_unicidad: 'libre',
           preguntas: [],
+          admin_scope: adminScope(),
         }],
         overview: {
           total: 1,
@@ -131,8 +155,9 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    expect(screen.getByText('Mostrando 1 de 2 instrumentos')).toBeTruthy();
-    expect(screen.getByText(/Métricas persistidas de los 1 instrumentos cargados de 2/i)).toBeTruthy();
+    expect(screen.getByText('Mostrando 1 de 2 registros · 1 operativos (1 compatibles · 0 por verificar) · 0 conflictos separados')).toBeTruthy();
+    expect(screen.getByText('Instrumentos cargados')).toBeTruthy();
+    expect(screen.getByText(/Indicadores de alcance operativo para 1 instrumentos cargados, dentro de 2/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más encuestas' }));
     expect(loadMoreSurveys).toHaveBeenCalledTimes(1);
   });
@@ -150,6 +175,7 @@ describe('AdminSurveysIndex states', () => {
           fin_at: '2026-08-20T12:00:00Z',
           politica_unicidad: 'libre',
           preguntas: [],
+          admin_scope: adminScope(),
         }],
       },
       surveyListProgress: { loaded: 1, total: 2 },
@@ -181,12 +207,19 @@ describe('AdminSurveysIndex states', () => {
       fin_at: null,
       politica_unicidad: 'libre',
       preguntas: [{ id: 1, orden: 1, tipo: 'opcion_unica', texto: 'Prioridad', opciones: [] }],
+      admin_scope: adminScope(),
       admin_lifecycle: {
         contract_version: 'surveys.admin_lifecycle.v1',
         instrument_kind: 'voting',
         phase: 'draft',
         persisted_state: 'borrador',
         accepts_responses: false,
+        operational_block: null,
+        jurisdiction: {
+          status: 'compatible',
+          reason_code: 'survey_jurisdiction_compatible',
+          content_review_included: false,
+        },
         schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
         participation: {
           responses: 0,
@@ -230,24 +263,33 @@ describe('AdminSurveysIndex states', () => {
     await waitFor(() => expect(refetchList).toHaveBeenCalledTimes(1));
   });
 
-  it('places contract-declared jurisdiction conflicts last and never offers their publish action', () => {
-    const makeSurvey = (id: number, title: string, disabledReasonCode?: string) => ({
-      id,
+  it('keeps unverified instruments operational, warns visibly, and preserves lifecycle actions', async () => {
+    const publishSurvey = vi.fn().mockResolvedValue(undefined);
+    const deleteSurvey = vi.fn().mockResolvedValue(undefined);
+    const survey = {
+      id: 640,
       tenant_id: 22,
-      slug: `instrumento-${id}`,
-      titulo: title,
-      tipo: 'votacion',
+      slug: 'consulta-pendiente-verificacion',
+      titulo: 'Consulta pendiente de verificación',
+      tipo: 'opinion',
       estado: 'borrador',
-      inicio_at: '2026-08-01T12:00:00Z',
+      inicio_at: null,
       fin_at: null,
       politica_unicidad: 'libre',
-      preguntas: [{ id: id * 10, orden: 1, tipo: 'opcion_unica', texto: 'Prioridad', opciones: [] }],
+      preguntas: [{ id: 6401, orden: 1, tipo: 'opcion_unica', texto: 'Prioridad', opciones: [] }],
+      admin_scope: adminScope('unverified'),
       admin_lifecycle: {
         contract_version: 'surveys.admin_lifecycle.v1',
-        instrument_kind: 'voting',
+        instrument_kind: 'survey',
         phase: 'draft',
         persisted_state: 'borrador',
         accepts_responses: false,
+        operational_block: null,
+        jurisdiction: {
+          status: 'unverified',
+          reason_code: 'survey_jurisdiction_unbound',
+          content_review_included: false,
+        },
         schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
         participation: {
           responses: 0,
@@ -267,11 +309,88 @@ describe('AdminSurveysIndex states', () => {
           can_view_results: true,
         },
         actions: {
+          publish: { method: 'POST', endpoint: '/api/v2/surveys/640/publish', enabled: true },
+          close: { method: 'POST', endpoint: '/api/v2/surveys/640/close', enabled: false },
+        },
+      },
+    };
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: { data: [survey] },
+      surveyListProgress: { loaded: 1, total: 1 },
+      publishSurvey,
+      deleteSurvey,
+    }));
+
+    renderPage();
+
+    expect(screen.getByRole('status', {
+      name: 'Alcance pendiente de verificación para Consulta pendiente de verificación',
+    })).toHaveTextContent(/conserva únicamente las acciones habilitadas por el backend/i);
+    expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    await waitFor(() => expect(publishSurvey).toHaveBeenCalledWith(640));
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    await waitFor(() => expect(deleteSurvey).toHaveBeenCalledWith(640));
+  });
+
+  it('places contract-declared jurisdiction conflicts last and never offers their publish action', () => {
+    const makeSurvey = (id: number, title: string, scope: 'compatible' | 'conflict') => ({
+      id,
+      tenant_id: 22,
+      slug: `instrumento-${id}`,
+      titulo: title,
+      tipo: 'votacion',
+      estado: 'borrador',
+      inicio_at: '2026-08-01T12:00:00Z',
+      fin_at: null,
+      politica_unicidad: 'libre',
+      preguntas: [{ id: id * 10, orden: 1, tipo: 'opcion_unica', texto: 'Prioridad', opciones: [] }],
+      admin_scope: adminScope(scope),
+      admin_lifecycle: {
+        contract_version: 'surveys.admin_lifecycle.v1',
+        instrument_kind: 'voting',
+        phase: 'draft',
+        persisted_state: 'borrador',
+        accepts_responses: false,
+        operational_block: scope === 'conflict'
+          ? {
+              reason_code: 'survey_jurisdiction_binding_conflict',
+              action_hint: 'separate_and_review_foreign_jurisdiction_instrument',
+            }
+          : null,
+        jurisdiction: {
+          status: scope,
+          reason_code: scope === 'conflict'
+            ? 'survey_jurisdiction_binding_conflict'
+            : 'survey_jurisdiction_compatible',
+          content_review_included: false,
+        },
+        schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
+        participation: {
+          responses: 0,
+          unique_participants: 0,
+          responses_last_24h: 0,
+          last_response_at: null,
+          eligible_population: null,
+          participation_rate: null,
+          abstentions: null,
+          denominator_status: { available: false, reason_code: 'not_configured' },
+        },
+        capabilities: {
+          can_publish: scope === 'compatible',
+          can_close: false,
+          can_delete: true,
+          can_share: false,
+          can_view_results: true,
+        },
+        actions: {
           publish: {
             method: 'POST',
             endpoint: `/api/admin/encuestas/${id}/publicar`,
-            enabled: true,
-            ...(disabledReasonCode ? { disabled_reason_code: disabledReasonCode } : {}),
+            enabled: scope === 'compatible',
+            ...(scope === 'conflict' ? { disabled_reason_code: 'survey_jurisdiction_binding_conflict' } : {}),
           },
           close: { method: 'POST', endpoint: `/api/v2/surveys/${id}/close`, enabled: false },
         },
@@ -281,9 +400,9 @@ describe('AdminSurveysIndex states', () => {
     const conflictingSurvey = makeSurvey(
       632,
       'Instrumento legado incompatible',
-      'survey_jurisdiction_binding_conflict',
+      'conflict',
     );
-    const validSurvey = makeSurvey(700, 'Instrumento válido de Junín');
+    const validSurvey = makeSurvey(700, 'Instrumento válido de Junín', 'compatible');
     mocks.useSurveyAdmin.mockReturnValue(adminState({
       // The conflict intentionally arrives first: the UI must use the lifecycle
       // contract, rather than names or slugs, to move it behind valid records.
@@ -296,7 +415,130 @@ describe('AdminSurveysIndex states', () => {
     const validTitle = screen.getByText('Instrumento válido de Junín');
     const conflictTitle = screen.getByText('Instrumento legado incompatible');
     expect(validTitle.compareDocumentPosition(conflictTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText('Legado incompatible con la jurisdicción actual')).toBeInTheDocument();
+    const legacySection = screen.getByText('Conflictos de alcance · 1 instrumentos').closest('details');
+    expect(legacySection).not.toHaveAttribute('open');
     expect(screen.getAllByRole('button', { name: 'Publicar' })).toHaveLength(1);
+  });
+
+  it('derives the executive scope from compatible records and keeps incompatible legacy collapsed', () => {
+    const makeSurvey = (id: number, title: string, conflict = false) => ({
+      id,
+      tenant_id: 22,
+      slug: `instrumento-${id}`,
+      titulo: title,
+      tipo: conflict ? 'votacion' : 'opinion',
+      estado: conflict ? 'borrador' : 'publicada',
+      inicio_at: '2026-08-01T12:00:00Z',
+      fin_at: null,
+      politica_unicidad: 'libre',
+      preguntas: [],
+      admin_scope: adminScope(conflict ? 'conflict' : 'compatible'),
+      metricas: {
+        total_respuestas: conflict ? 90 : 10,
+        participantes_unicos: conflict ? 90 : 8,
+        respuestas_ultimas_24h: conflict ? 20 : 2,
+        respuestas_con_coordenadas: conflict ? 80 : 5,
+        ultima_respuesta_at: null,
+      },
+      admin_lifecycle: {
+        contract_version: 'surveys.admin_lifecycle.v1',
+        instrument_kind: conflict ? 'voting' : 'survey',
+        phase: conflict ? 'draft' : 'collecting',
+        persisted_state: conflict ? 'borrador' : 'publicada',
+        accepts_responses: !conflict,
+        schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-26T00:00:00Z' },
+        participation: {
+          responses: conflict ? 90 : 10,
+          unique_participants: conflict ? 90 : 8,
+          responses_last_24h: conflict ? 20 : 2,
+          last_response_at: null,
+          eligible_population: null,
+          participation_rate: null,
+          abstentions: null,
+          denominator_status: { available: false, reason_code: 'not_configured' },
+        },
+        capabilities: {
+          can_publish: conflict,
+          can_close: !conflict,
+          can_delete: conflict,
+          can_share: !conflict,
+          can_view_results: true,
+        },
+        actions: {
+          publish: {
+            method: 'POST',
+            endpoint: `/api/admin/encuestas/${id}/publicar`,
+            enabled: conflict,
+            ...(conflict ? { disabled_reason_code: 'survey_jurisdiction_binding_conflict' } : {}),
+          },
+          close: { method: 'POST', endpoint: `/api/v2/surveys/${id}/close`, enabled: !conflict },
+        },
+      },
+    });
+    const validSurvey = makeSurvey(700, 'Consulta operativa de Junín');
+    const legacySurvey = makeSurvey(632, 'Votación legado TDF', true);
+    const scopedOverview = buildOperationalSurveyOverview([validSurvey] as never[]);
+
+    expect(scopedOverview.total).toBe(1);
+    expect(scopedOverview.total_respuestas).toBe(10);
+    expect(scopedOverview.respuestas_con_coordenadas).toBe(5);
+
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: {
+        data: [legacySurvey, validSurvey],
+        overview: {
+          total: 2,
+          por_estado: { publicada: 1, borrador: 1 },
+          activas: 1,
+          con_respuestas: 2,
+          total_respuestas: 100,
+          respuestas_con_coordenadas: 85,
+          respuestas_ultimas_24h: 22,
+          accepting_responses: 1,
+          por_tipo_instrumento: { survey: 1, voting: 1 },
+          participation_denominator: { available: false, reason_code: 'not_configured' },
+        },
+        freshness: {
+          generated_at: '2026-08-26T12:00:00Z',
+          source: 'enc_encuesta_and_enc_respuesta',
+          synthetic: false,
+        },
+      },
+      surveyListProgress: { loaded: 2, total: 2 },
+    }));
+
+    renderPage();
+
+    expect(screen.getAllByText('10').length).toBeGreaterThan(0);
+    expect(screen.queryByText('100')).toBeNull();
+    const legacy = screen.getByText('Conflictos de alcance · 1 instrumentos').closest('details');
+    expect(legacy).not.toHaveAttribute('open');
+    expect(screen.getByText(/Se excluyen 1 conflictos confirmados\. 0 instrumentos sin verificar/i)).toBeTruthy();
+  });
+
+  it('fails closed when a Junín-looking title has no authoritative scope', () => {
+    const survey = {
+      id: 801,
+      slug: 'junin-prioridades',
+      titulo: 'Consulta oficial Municipalidad de Junín',
+      tipo: 'opinion',
+      estado: 'borrador',
+      inicio_at: '2026-08-01T12:00:00Z',
+      fin_at: null,
+      politica_unicidad: 'libre',
+      preguntas: [],
+    };
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: { data: [survey] },
+      surveyListProgress: { loaded: 1, total: 1 },
+    }));
+
+    renderPage();
+
+    expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
+    expect(screen.getByRole('status', {
+      name: 'Alcance pendiente de verificación para Consulta oficial Municipalidad de Junín',
+    })).toHaveTextContent(/Alcance pendiente de verificación/i);
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
   });
 });

@@ -85,6 +85,7 @@ describe("ProfileWorkspaceNavigation", () => {
     expect(screen.getByRole("navigation", { name: "Módulos del centro de control" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Atención" })).toHaveAttribute("data-active", "true");
     expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir menú Participación" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Inteligencia" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Administración" })).toBeInTheDocument();
     expect(screen.queryByText(/Plan Full|Plan Pro/)).not.toBeInTheDocument();
@@ -93,8 +94,8 @@ describe("ProfileWorkspaceNavigation", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Tareas y gestión/i }));
     expect(onTabChange).toHaveBeenCalledWith("pedidos");
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Encuestas y votaciones/i }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Participación" }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Encuestas, sondeos y votaciones/i }));
     expect(onOpenSurveys).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
@@ -126,7 +127,7 @@ describe("ProfileWorkspaceNavigation", () => {
 
     expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toHaveAttribute("data-active", "true");
 
-    expect(screen.queryByRole("menuitem", { name: /Encuestas y votaciones/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abrir menú Participación" })).not.toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     expect(screen.queryByRole("menuitem", { name: /Equipo y permisos/i })).not.toBeInTheDocument();

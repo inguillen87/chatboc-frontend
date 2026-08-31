@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyPublicRecipientReadConfirmation,
   formatReplyDeliveryChannel,
+  getConversationScrollBehavior,
   getComposerActionDeliveryView,
   getComposerChannelView,
   getReplyDeliveryView,
@@ -113,6 +114,14 @@ describe('shouldShowOperationalTimelineInChat', () => {
         isDetailsVisible: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('conversation motion accessibility', () => {
+  it('uses instant scrolling when reduced motion is requested', () => {
+    expect(getConversationScrollBehavior(true)).toBe('auto');
+    expect(getConversationScrollBehavior(false)).toBe('smooth');
+    expect(getConversationScrollBehavior(null)).toBe('smooth');
   });
 });
 

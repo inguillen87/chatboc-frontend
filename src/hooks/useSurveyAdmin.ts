@@ -131,6 +131,12 @@ const mergeSurveyListPages = (pages?: SurveyListResponse[]): SurveyListResponse 
   return {
     ...firstPage,
     freshness: lastPage.freshness ?? firstPage.freshness,
+    // These contracts are explicitly scoped to one returned page. Once pages
+    // are merged, retaining the first page summary would mislabel a partial
+    // aggregate as the loaded collection; the view derives and labels it.
+    executive_summary: pages.length === 1 ? firstPage.executive_summary : undefined,
+    data_quality: pages.length === 1 ? firstPage.data_quality : undefined,
+    data_provenance: pages.length === 1 ? firstPage.data_provenance : undefined,
     overview: allVersioned
       ? aggregateLoadedOverview(data, firstPage.overview)
       : firstPage.overview,

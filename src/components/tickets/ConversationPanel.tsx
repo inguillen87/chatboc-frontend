@@ -134,6 +134,9 @@ const findComposerAction = (actions: SaasAction[], ids: Set<string>): SaasAction
 const isTenantTicketSourceModel = (value: unknown): boolean =>
   ['tenantticket', 'tenant_ticket'].includes(normalizeComposerActionToken(value));
 
+const isMunicipioTicketSourceModel = (value: unknown): boolean =>
+  ['municipioticket', 'municipio_ticket'].includes(normalizeComposerActionToken(value));
+
 const isAuthoritativeReplySourceModel = (value: unknown): boolean =>
   [
     'tenantticket',
@@ -147,10 +150,11 @@ const isAuthoritativeReplySourceModel = (value: unknown): boolean =>
 const getReplyActionBlockReason = (
   action: SaasAction | null,
   contractBlockReason: string | null,
+  publishedBlockReason: string | null = null,
 ): string | null => {
   if (contractBlockReason) return contractBlockReason;
   if (!action) {
-    return 'Tomá o asigná el ticket para que el backend publique la acción segura de respuesta.';
+    return publishedBlockReason || 'El backend no publicó una acción segura de respuesta para este ticket. Revisá su asignación, estado y canal.';
   }
   if (action.disabled) {
     return action.disabled_reason || 'El backend publicó la respuesta como no disponible.';
@@ -173,6 +177,23 @@ const getReplyActionBlockReason = (
     return 'El backend no publicó el contrato idempotente requerido para responder sin duplicados.';
   }
   return null;
+};
+
+const getPublishedReplyBlockReason = (replyContract: unknown): string | null => {
+  if (!replyContract || typeof replyContract !== 'object' || Array.isArray(replyContract)) return null;
+  const contract = replyContract as Record<string, unknown>;
+  const disabledReason = [contract.disabled_reason, contract.reason]
+    .find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
+  if (disabledReason) return disabledReason.trim();
+
+  const reasonCode = [contract.disabled_reason_code, contract.reason_code]
+    .find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
+  if (!reasonCode) return null;
+  const normalizedCode = reasonCode.trim().toLowerCase();
+  if (['ticket_assignment_required', 'ticket_ownership_required', 'reply_requires_assignment'].includes(normalizedCode)) {
+    return 'Tomá o asigná el ticket para responder.';
+  }
+  return `El backend bloqueó la respuesta por su política operativa (${reasonCode.trim()}).`;
 };
 
 const resolveComposerOmnichannelDetailEndpoint = (ticket: Ticket): string | null => {
@@ -745,6 +766,10 @@ export const shouldShowOperationalTimelineInChat = ({
   isDetailsVisible: boolean;
 }) => eventCount > 0 && (isMobile || !isDetailsVisible);
 
+export const getConversationScrollBehavior = (
+  shouldReduceMotion: boolean | null,
+): ScrollBehavior => (shouldReduceMotion ? 'auto' : 'smooth');
+
 type TicketAttachment = NonNullable<TicketMessage['attachments']>[number];
 
 const normalizeAttachmentFromPayload = (raw: any): TicketAttachment | null => {
@@ -1188,7 +1213,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   );
   const composerReplyContract = composerActionContractQuery.data?.item.reply_contract;
   const authoritativeReplyRequired = isAuthoritativeReplySourceModel(selectedTicket?.source_model);
-  const tenantAttachmentMustFailClosed = isTenantTicketSourceModel(selectedTicket?.source_model);
+  const authoritativeAttachmentMustFailClosed =
+    isTenantTicketSourceModel(selectedTicket?.source_model) ||
+    isMunicipioTicketSourceModel(selectedTicket?.source_model);
   const actionContractBlockReason = !composerActionDetailEndpoint
     ? 'No se pudo identificar de forma segura el detalle omnicanal de este ticket.'
     : composerActionContractQuery.isPending
@@ -1197,13 +1224,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
         : null;
   const replyBlockReason = authoritativeReplyRequired
-    ? getReplyActionBlockReason(replyAction, actionContractBlockReason)
+    ? getReplyActionBlockReason(
+        replyAction,
+        actionContractBlockReason,
+        getPublishedReplyBlockReason(composerReplyContract),
+      )
     : null;
-  const tenantAttachmentBlockReason = tenantAttachmentMustFailClosed
+  const tenantAttachmentBlockReason = authoritativeAttachmentMustFailClosed
     ? actionContractBlockReason || (
       composerReplyContract && typeof composerReplyContract === 'object'
-        ? 'El adjunto TenantTicket no tiene todavía un transporte seguro integrado; permanece bloqueado para evitar el endpoint legacy.'
-        : 'El backend no publicó un contrato seguro de adjuntos para TenantTicket; permanece bloqueado para evitar el endpoint legacy.'
+        ? 'El contrato autoritativo no declara soporte para adjuntos o archivos; permanece bloqueado para evitar aparentar un envío.'
+        : 'El backend no publicó un contrato seguro de adjuntos para este ticket; permanece bloqueado para evitar aparentar un envío.'
     )
     : null;
   const handoffBlockReason = actionContractBlockReason || (
@@ -1907,12 +1938,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const node = scrollAreaRef.current;
     if (node) {
       if (typeof node.scrollTo === 'function') {
-        node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+        node.scrollTo({
+          top: node.scrollHeight,
+          behavior: getConversationScrollBehavior(shouldReduceMotion),
+        });
       } else {
         node.scrollTop = node.scrollHeight;
       }
     }
-  }, []);
+  }, [shouldReduceMotion]);
 
   useLayoutEffect(() => {
     const node = scrollAreaRef.current;
@@ -1976,8 +2010,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     );
 
     const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
-    if (tenantAttachmentMustFailClosed && hasAttachment) {
-      toast.error(tenantAttachmentBlockReason || 'El adjunto TenantTicket permanece bloqueado por seguridad.');
+    if (authoritativeAttachmentMustFailClosed && hasAttachment) {
+      toast.error(tenantAttachmentBlockReason || 'El adjunto permanece bloqueado hasta que el backend publique soporte seguro.');
       return;
     }
 
@@ -2574,14 +2608,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   }
                 />
               ) : (
-                <AnimatePresence>
+                <AnimatePresence initial={!shouldReduceMotion}>
                     <motion.div className="space-y-4 pb-4">
                     {messages.map((msg, index) => (
                       <motion.div
                         key={msg.id || index}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.05 }}
+                        transition={{
+                          duration: shouldReduceMotion ? 0 : 0.2,
+                          delay: shouldReduceMotion ? 0 : 0.05,
+                        }}
                       >
                         <ChatMessage
                           message={msg}
@@ -2676,6 +2713,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             role="alert"
           >
             {getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.')}
+          </div>
+        ) : null}
+
+        {replyBlockReason ? (
+          <div
+            id="ticket-reply-block-reason"
+            data-testid="ticket-reply-block-reason"
+            role="status"
+            aria-live="polite"
+            className="mb-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-900 dark:text-amber-100"
+          >
+            <span className="font-semibold">Respuesta bloqueada. </span>
+            {replyBlockReason}
           </div>
         ) : null}
 
@@ -2802,9 +2852,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             aria-label="Responder ticket"
             aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : undefined}
           />
-          {replyBlockReason ? (
-            <span id="ticket-reply-block-reason" className="sr-only">{replyBlockReason}</span>
-          ) : null}
           <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-9 [&_button]:!rounded-[7px]">
             {!tenantAttachmentBlockReason ? (
               <div className="[&_button]:!w-9 [&_button]:!border-0 [&_button]:!bg-transparent" data-testid="ticket-composer-attachment-action">

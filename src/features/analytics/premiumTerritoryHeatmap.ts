@@ -538,8 +538,9 @@ const parseGeoPosition = (value: unknown): TerritoryPolygonPoint | undefined => 
 
 const parseGeoRing = (value: unknown): TerritoryPolygonPoint[] => {
   if (!Array.isArray(value)) return [];
-  const ring = value.map(parseGeoPosition).filter((point): point is TerritoryPolygonPoint => Boolean(point));
-  return ring.length >= 3 ? ring : [];
+  const positions = value.map(parseGeoPosition);
+  if (positions.length < 3 || positions.some((point) => !point)) return [];
+  return positions as TerritoryPolygonPoint[];
 };
 
 const parseBoundaryPolygons = (geometry: unknown): TerritoryPolygonPoint[][] => {
@@ -593,6 +594,12 @@ const pointInPolygon = ([x, y]: TerritoryPolygonPoint, polygon: TerritoryPolygon
   return inside;
 };
 
+export const isValidWgs84Position = (latValue: unknown, lngValue: unknown) => {
+  const lat = asNumber(latValue);
+  const lng = asNumber(lngValue);
+  return lat !== undefined && lng !== undefined && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+};
+
 const categoryLabel = (value: string) =>
   value
     .replace(/[_-]+/g, ' ')
@@ -621,20 +628,26 @@ const passesFilters = (point: OperationsHeatmapPoint, filters?: TerritoryFilterS
   });
 };
 
-const resolvePointZone = (
+export const resolvePointZone = (
   point: OperationsHeatmapPoint,
   zones: TerritoryZone[],
 ) : TerritoryZone | undefined => {
+  const lat = asNumber(point.lat ?? point.latitude);
+  const lng = asNumber(point.lng ?? point.lon ?? point.longitude);
+
+  // Coordinates are stronger evidence than a mutable barrio/zona label. When
+  // a mapped point is present, never move it into a polygon only because its
+  // text label says so: a mismatch must remain unassigned for review.
+  if (lat !== undefined || lng !== undefined) {
+    if (!isValidWgs84Position(lat, lng)) return undefined;
+    return zones.find((zone) => zone.geoPolygons?.some((polygon) => pointInPolygon([lng!, lat!], polygon)));
+  }
+
   const zoneToken = normalizeToken(
     readField(point, ['barrio', 'neighborhood', 'distrito', 'district', 'zone', 'zona']),
   );
   const direct = zones.find((zone) => normalizeToken(zone.id) === zoneToken || normalizeToken(zone.label) === zoneToken);
-  if (direct) return direct;
-
-  const lat = asNumber(point.lat ?? point.latitude);
-  const lng = asNumber(point.lng ?? point.lon ?? point.longitude);
-  if (lat === undefined || lng === undefined) return undefined;
-  return zones.find((zone) => zone.geoPolygons?.some((polygon) => pointInPolygon([lng, lat], polygon)));
+  return direct;
 };
 
 export const DEVELOPMENT_TERRITORY_ZONES: TerritoryZone[] = [

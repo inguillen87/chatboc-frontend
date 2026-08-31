@@ -38,6 +38,16 @@ interface SurveyCardProps {
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString('es-AR') : 'Sin fecha');
 
+const getResultAssurance = (survey: SurveyAdmin) => {
+  if (survey.governance?.result_certified === true) {
+    return 'Resultado certificado por contrato';
+  }
+  if (survey.governance?.result_certified === false) {
+    return 'Resultado no certificado';
+  }
+  return 'Certificación no informada';
+};
+
 const statusVariants: Record<SurveyAdmin['estado'], 'default' | 'secondary' | 'outline' | 'destructive'> = {
   borrador: 'secondary',
   publicada: 'default',
@@ -125,6 +135,14 @@ export const SurveyCard = ({
   const responses = participation?.responses ?? survey.metricas?.total_respuestas ?? 0;
   const uniqueParticipants = participation?.unique_participants ?? survey.metricas?.participantes_unicos ?? 0;
   const responsesLast24h = participation?.responses_last_24h ?? survey.metricas?.respuestas_ultimas_24h ?? 0;
+  const responsesWithCoordinates = survey.metricas?.respuestas_con_coordenadas;
+  const territorialCoverage =
+    typeof responsesWithCoordinates === 'number' && responses > 0
+      ? Math.min(100, Math.max(0, Math.round((responsesWithCoordinates / responses) * 100)))
+      : null;
+  const opensAt = lifecycle?.schedule.opens_at ?? survey.inicio_at;
+  const closesAt = lifecycle?.schedule.closes_at ?? survey.fin_at;
+  const assurance = getResultAssurance(survey);
   const publishDisabledMessage = lifecycle && !canPublish
     ? getPublishDisabledMessage(lifecycle.actions.publish.disabled_reason_code, survey.estado)
     : null;
@@ -165,14 +183,19 @@ export const SurveyCard = ({
   };
 
   return (
-    <Card className="overflow-hidden border border-border/70 shadow-sm transition-[border-color,box-shadow] hover:border-border hover:shadow-md">
+    <Card
+      aria-labelledby={`survey-title-${survey.id}`}
+      className="overflow-hidden border border-border/70 shadow-sm transition-[border-color,box-shadow] motion-reduce:transition-none hover:border-border hover:shadow-md"
+    >
       <CardHeader className="space-y-0 px-5 pb-3 pt-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
               {instrumentLabel}
             </p>
-            <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">{survey.titulo}</CardTitle>
+            <CardTitle id={`survey-title-${survey.id}`} className="line-clamp-2 text-lg font-semibold leading-snug">
+              {survey.titulo}
+            </CardTitle>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <Badge variant={statusVariants[survey.estado] ?? 'outline'}>
@@ -210,6 +233,31 @@ export const SurveyCard = ({
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
               {responsesLast24h.toLocaleString('es-AR')}
             </dd>
+          </div>
+        </dl>
+
+        <dl
+          aria-label="Vigencia, territorio y certificación"
+          className="grid gap-2 rounded-lg border border-border/70 bg-background p-3 text-xs sm:grid-cols-3"
+        >
+          <div className="min-w-0">
+            <dt className="font-medium text-muted-foreground">Vigencia</dt>
+            <dd className="mt-1 inline-flex items-center gap-1 font-medium text-foreground">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{formatDate(opensAt)} – {formatDate(closesAt)}</span>
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-medium text-muted-foreground">Cobertura territorial</dt>
+            <dd className="mt-1 font-medium text-foreground">
+              {territorialCoverage === null || typeof responsesWithCoordinates !== 'number'
+                ? 'No informada'
+                : `${territorialCoverage}% · ${responsesWithCoordinates.toLocaleString('es-AR')} con coordenadas`}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-medium text-muted-foreground">Alcance de resultados</dt>
+            <dd className="mt-1 font-medium text-foreground">{assurance}</dd>
           </div>
         </dl>
 

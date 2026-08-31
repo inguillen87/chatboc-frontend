@@ -5,6 +5,14 @@ import {
   PublicResponsePayload,
   PublicSurveySubmitOptions,
   SurveyAdmin,
+  SurveyAdminAggregatePolicy,
+  SurveyAdminAggregationScope,
+  SurveyAdminDataQuality,
+  SurveyAdminExecutiveOverview,
+  SurveyAdminGeolocationCoverage,
+  SurveyAdminJurisdictionAggregate,
+  SurveyAdminOperationalScope,
+  SurveyAdminOverview,
   SurveyAnalyticsFilters,
   SurveyComment,
   SurveyDraftPayload,
@@ -39,6 +47,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
 import { assertSurveySubmissionId } from '@/utils/surveySubmissionIdentity';
 import { SURVEY_ELIGIBILITY_CREDENTIAL_HEADER } from '@/utils/surveyEligibility';
+import { resolveSurveyJurisdictionScope } from '@/utils/surveyJurisdictionScope';
 
 type PrimitiveParam = string | number | boolean | undefined | null;
 type QueryParamValue = PrimitiveParam | PrimitiveParam[] | readonly PrimitiveParam[];
@@ -1459,6 +1468,368 @@ const normalizeAdminSurveyPagination = (
   };
 };
 
+const sameAdminAggregationScope = (
+  left: SurveyAdminAggregationScope,
+  right: SurveyAdminAggregationScope,
+) =>
+  left.mode === right.mode &&
+  left.returned_items === right.returned_items &&
+  left.query_total_items === right.query_total_items &&
+  left.complete_for_query === right.complete_for_query;
+
+const matchesAdminAggregationScope = (
+  value: unknown,
+  expected: SurveyAdminAggregationScope,
+) =>
+  isRecord(value) &&
+  value.mode === expected.mode &&
+  value.returned_items === expected.returned_items &&
+  value.query_total_items === expected.query_total_items &&
+  value.complete_for_query === expected.complete_for_query;
+
+const normalizeAdminAggregationScope = (
+  value: unknown,
+  pagination: SurveyListPagination,
+  itemCount: number,
+): SurveyAdminAggregationScope | null => {
+  if (!isRecord(value) || value.mode !== 'returned_page') return null;
+  const expectedComplete = Boolean(
+    pagination.cursor === null &&
+    pagination.page === 1 &&
+    !pagination.has_more &&
+    pagination.returned === pagination.total_items,
+  );
+  if (
+    !isNonNegativeSafeInteger(value.returned_items) ||
+    !isNonNegativeSafeInteger(value.query_total_items) ||
+    typeof value.complete_for_query !== 'boolean' ||
+    value.returned_items !== itemCount ||
+    value.returned_items !== pagination.returned ||
+    value.query_total_items !== pagination.total_items ||
+    value.complete_for_query !== expectedComplete
+  ) {
+    return null;
+  }
+  return {
+    mode: 'returned_page',
+    returned_items: value.returned_items,
+    query_total_items: value.query_total_items,
+    complete_for_query: value.complete_for_query,
+  };
+};
+
+const normalizeAdminGeolocationCoverage = (
+  value: unknown,
+  expectedNumerator: number,
+  expectedDenominator: number,
+): SurveyAdminGeolocationCoverage | null => {
+  if (!isRecord(value)) return null;
+  const available = expectedDenominator > 0;
+  const rawPercentage = available
+    ? (expectedNumerator / expectedDenominator) * 100
+    : null;
+  const reportedPercentage = typeof value.percentage === 'number' && Number.isFinite(value.percentage)
+    ? value.percentage
+    : null;
+  if (
+    typeof value.available !== 'boolean' ||
+    value.available !== available ||
+    value.numerator !== expectedNumerator ||
+    (available ? value.denominator !== expectedDenominator : value.denominator !== null) ||
+    (available
+      ? reportedPercentage === null ||
+        reportedPercentage < 0 ||
+        reportedPercentage > 100 ||
+        Math.abs(reportedPercentage - (rawPercentage ?? 0)) > 0.005000001 ||
+        value.reason_code !== null
+      : value.percentage !== null || value.reason_code !== 'survey_response_denominator_empty')
+  ) {
+    return null;
+  }
+  return {
+    available,
+    numerator: expectedNumerator,
+    denominator: available ? expectedDenominator : null,
+    percentage: available ? reportedPercentage : null,
+    reason_code: available ? null : 'survey_response_denominator_empty',
+  };
+};
+
+const normalizeAdminLimitations = (value: unknown) => {
+  if (!Array.isArray(value)) return null;
+  const limitations = value.filter(
+    (item): item is { reason_code: string; impact: string } =>
+      isRecord(item) &&
+      typeof item.reason_code === 'string' &&
+      Boolean(item.reason_code.trim()) &&
+      typeof item.impact === 'string' &&
+      Boolean(item.impact.trim()),
+  );
+  return limitations.length === value.length ? limitations : null;
+};
+
+const normalizeAdminJurisdictionAggregate = (
+  value: unknown,
+  scope: SurveyAdminAggregationScope,
+  surveys: SurveyAdmin[],
+): SurveyAdminJurisdictionAggregate | null => {
+  if (!isRecord(value) || value.contract_version !== 'surveys.admin_jurisdiction_aggregate.v1') {
+    return null;
+  }
+  if (!matchesAdminAggregationScope(value.aggregation_scope, scope)) return null;
+
+  const classifications = surveys.map(resolveSurveyJurisdictionScope);
+  if (
+    classifications.some(
+      (item) =>
+        item.source !== 'admin_scope' ||
+        item.reasonCode === 'survey_admin_scope_contract_invalid' ||
+        item.reasonCode === 'survey_jurisdiction_contract_inconsistent' ||
+        item.reasonCode === 'survey_jurisdiction_contract_contradiction',
+    )
+  ) {
+    return null;
+  }
+  const count = (status: 'compatible' | 'conflict' | 'unverified') =>
+    classifications.filter((item) => item.classification === status).length;
+  const compatible = count('compatible');
+  const conflict = count('conflict');
+  const unverified = count('unverified');
+  if (
+    value.compatible !== compatible ||
+    value.conflict !== conflict ||
+    value.unverified !== unverified ||
+    value.separation_required !== conflict ||
+    value.review_required !== conflict + unverified ||
+    value.authoritative_source !== 'server_owned_persisted_refs' ||
+    value.title_inference_used !== false ||
+    value.content_review_included !== false
+  ) {
+    return null;
+  }
+  return value as unknown as SurveyAdminJurisdictionAggregate;
+};
+
+const normalizeAdminAggregatePolicy = (
+  value: unknown,
+  jurisdiction: SurveyAdminJurisdictionAggregate,
+): SurveyAdminAggregatePolicy | null => {
+  if (
+    !isRecord(value) ||
+    value.contract_version !== 'surveys.admin_aggregate_policy.v1' ||
+    !isRecord(value.general_scope) ||
+    !isRecord(value.operational_scope)
+  ) {
+    return null;
+  }
+  const generalStatuses = value.general_scope.included_jurisdiction_statuses;
+  const operationalStatuses = value.operational_scope.included_jurisdiction_statuses;
+  const excludedStatuses = value.operational_scope.excluded_jurisdiction_statuses;
+  if (
+    !Array.isArray(generalStatuses) ||
+    generalStatuses.join('|') !== 'compatible|conflict|unverified' ||
+    value.general_scope.conflict_instruments_included !== jurisdiction.conflict ||
+    !Array.isArray(operationalStatuses) ||
+    operationalStatuses.join('|') !== 'compatible|unverified' ||
+    !Array.isArray(excludedStatuses) ||
+    excludedStatuses.join('|') !== 'conflict' ||
+    value.operational_scope.unverified_is_compatible !== false
+  ) {
+    return null;
+  }
+  return value as unknown as SurveyAdminAggregatePolicy;
+};
+
+const adminSurveyMetrics = (surveys: SurveyAdmin[]) => {
+  const sum = (select: (survey: SurveyAdmin) => number) =>
+    surveys.reduce((total, survey) => total + select(survey), 0);
+  return {
+    returned: surveys.length,
+    active: surveys.filter((survey) => survey.esta_activa === true).length,
+    accepting: surveys.filter((survey) => survey.admin_lifecycle?.accepts_responses === true).length,
+    withResponses: surveys.filter(
+      (survey) => (survey.admin_lifecycle?.participation.responses ?? 0) > 0,
+    ).length,
+    surveys: surveys.filter((survey) => survey.admin_lifecycle?.instrument_kind === 'survey').length,
+    votings: surveys.filter((survey) => survey.admin_lifecycle?.instrument_kind === 'voting').length,
+    governed: surveys.filter((survey) => survey.governance?.release_required === true).length,
+    responses: sum((survey) => survey.admin_lifecycle?.participation.responses ?? 0),
+    responsesLast24h: sum(
+      (survey) => survey.admin_lifecycle?.participation.responses_last_24h ?? 0,
+    ),
+    responsesWithCoordinates: sum((survey) => survey.metricas?.respuestas_con_coordenadas ?? 0),
+  };
+};
+
+const normalizeAdminOperationalScope = (
+  value: unknown,
+  scope: SurveyAdminAggregationScope,
+  policy: SurveyAdminAggregatePolicy,
+  jurisdiction: SurveyAdminJurisdictionAggregate,
+  surveys: SurveyAdmin[],
+): SurveyAdminOperationalScope | null => {
+  if (
+    !isRecord(value) ||
+    value.contract_version !== 'surveys.admin_operational_scope.v1' ||
+    !isRecord(value.instruments) ||
+    !isRecord(value.participation) ||
+    !isRecord(value.territorial) ||
+    !isRecord(value.selection) ||
+    JSON.stringify(value.selection) !== JSON.stringify(policy.operational_scope)
+  ) {
+    return null;
+  }
+  if (!matchesAdminAggregationScope(value.aggregation_scope, scope)) {
+    return null;
+  }
+  const included = surveys.filter(
+    (survey) => resolveSurveyJurisdictionScope(survey).classification !== 'conflict',
+  );
+  const metrics = adminSurveyMetrics(included);
+  const coverage = normalizeAdminGeolocationCoverage(
+    value.territorial.geolocation_coverage,
+    metrics.responsesWithCoordinates,
+    metrics.responses,
+  );
+  if (
+    !coverage ||
+    value.instruments.included !== metrics.returned ||
+    value.instruments.excluded_conflict !== jurisdiction.conflict ||
+    value.instruments.active !== metrics.active ||
+    value.instruments.accepting_responses !== metrics.accepting ||
+    value.instruments.with_responses !== metrics.withResponses ||
+    value.instruments.surveys !== metrics.surveys ||
+    value.instruments.votings !== metrics.votings ||
+    value.instruments.governed !== metrics.governed ||
+    value.participation.real_responses !== metrics.responses ||
+    value.participation.responses_last_24h !== metrics.responsesLast24h ||
+    value.participation.eligible_population !== null ||
+    value.participation.participation_rate !== null ||
+    value.territorial.responses_with_coordinates !== metrics.responsesWithCoordinates
+  ) {
+    return null;
+  }
+  return value as unknown as SurveyAdminOperationalScope;
+};
+
+const normalizeAdminExecutiveContracts = ({
+  executiveValue,
+  dataQualityValue,
+  pagination,
+  overview,
+  surveys,
+}: {
+  executiveValue: unknown;
+  dataQualityValue: unknown;
+  pagination: SurveyListPagination;
+  overview: SurveyAdminOverview;
+  surveys: SurveyAdmin[];
+}): { executiveSummary: SurveyAdminExecutiveOverview; dataQuality: SurveyAdminDataQuality } | null => {
+  if (
+    !isRecord(executiveValue) ||
+    executiveValue.contract_version !== 'surveys.admin_executive_overview.v1' ||
+    !isRecord(executiveValue.instruments) ||
+    !isRecord(executiveValue.participation) ||
+    !isRecord(executiveValue.territorial) ||
+    !isRecord(executiveValue.assurance)
+  ) {
+    return null;
+  }
+  const scope = normalizeAdminAggregationScope(
+    executiveValue.aggregation_scope,
+    pagination,
+    surveys.length,
+  );
+  if (!scope) return null;
+  const jurisdiction = normalizeAdminJurisdictionAggregate(
+    executiveValue.jurisdiction,
+    scope,
+    surveys,
+  );
+  if (!jurisdiction) return null;
+  const policy = normalizeAdminAggregatePolicy(executiveValue.aggregate_policy, jurisdiction);
+  if (!policy) return null;
+  const operationalScope = normalizeAdminOperationalScope(
+    executiveValue.operational_scope,
+    scope,
+    policy,
+    jurisdiction,
+    surveys,
+  );
+  if (!operationalScope) return null;
+  const metrics = adminSurveyMetrics(surveys);
+  const coverage = normalizeAdminGeolocationCoverage(
+    executiveValue.territorial.geolocation_coverage,
+    metrics.responsesWithCoordinates,
+    metrics.responses,
+  );
+  const limitations = normalizeAdminLimitations(executiveValue.limitations);
+  if (
+    !coverage ||
+    !limitations ||
+    executiveValue.instruments.returned !== metrics.returned ||
+    executiveValue.instruments.active !== metrics.active ||
+    executiveValue.instruments.accepting_responses !== metrics.accepting ||
+    executiveValue.instruments.with_responses !== metrics.withResponses ||
+    executiveValue.instruments.surveys !== metrics.surveys ||
+    executiveValue.instruments.votings !== metrics.votings ||
+    executiveValue.instruments.governed !== metrics.governed ||
+    executiveValue.participation.real_responses !== overview.total_respuestas ||
+    executiveValue.participation.responses_last_24h !== overview.respuestas_ultimas_24h ||
+    executiveValue.participation.eligible_population !== null ||
+    executiveValue.participation.participation_rate !== null ||
+    executiveValue.territorial.responses_with_coordinates !== overview.respuestas_con_coordenadas ||
+    executiveValue.assurance.regulated_election_certified !== false ||
+    executiveValue.assurance.result_certified !== false ||
+    executiveValue.assurance.external_verification !== 'not_performed'
+  ) {
+    return null;
+  }
+
+  if (
+    !isRecord(dataQualityValue) ||
+    dataQualityValue.contract_version !== 'surveys.admin_data_quality.v1'
+  ) {
+    return null;
+  }
+  const qualityScope = normalizeAdminAggregationScope(
+    dataQualityValue.aggregation_scope,
+    pagination,
+    surveys.length,
+  );
+  const qualityCoverage = normalizeAdminGeolocationCoverage(
+    dataQualityValue.geolocation_coverage,
+    metrics.responsesWithCoordinates,
+    metrics.responses,
+  );
+  const qualityJurisdiction = normalizeAdminJurisdictionAggregate(
+    dataQualityValue.jurisdiction,
+    scope,
+    surveys,
+  );
+  const qualityLimitations = normalizeAdminLimitations(dataQualityValue.limitations);
+  const responseProvenance = dataQualityValue.response_provenance;
+  if (
+    !qualityScope ||
+    !sameAdminAggregationScope(qualityScope, scope) ||
+    !qualityCoverage ||
+    !qualityJurisdiction ||
+    JSON.stringify(qualityJurisdiction) !== JSON.stringify(jurisdiction) ||
+    !qualityLimitations ||
+    !isRecord(responseProvenance) ||
+    responseProvenance.contract_version !== 'surveys.response_provenance.v1' ||
+    responseProvenance.mode !== 'real' ||
+    responseProvenance.server_trusted_classification !== true
+  ) {
+    return null;
+  }
+
+  return {
+    executiveSummary: executiveValue as unknown as SurveyAdminExecutiveOverview,
+    dataQuality: dataQualityValue as unknown as SurveyAdminDataQuality,
+  };
+};
+
 const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
   if (isRecord(payload) && Object.prototype.hasOwnProperty.call(payload, 'contract_version')) {
     if (payload.contract_version !== 'surveys.admin_list.v2') {
@@ -1492,12 +1863,35 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       if (!ADMIN_LIFECYCLE_PHASES.has(String(value.phase))) return false;
       if (!ADMIN_PERSISTED_STATES.has(String(value.persisted_state))) return false;
       if (typeof value.accepts_responses !== 'boolean') return false;
-      if (value.accepts_responses !== ['collecting', 'live_voting'].includes(String(value.phase))) return false;
+      const scope = resolveSurveyJurisdictionScope(item as unknown as SurveyAdmin);
+      if (scope.source !== 'admin_scope') return false;
+      const jurisdictionConflict = scope.classification === 'conflict';
+      const phaseAcceptsResponses = ['collecting', 'live_voting'].includes(String(value.phase));
+      if (value.accepts_responses !== (phaseAcceptsResponses && !jurisdictionConflict)) return false;
+      if (!isRecord(value.jurisdiction)) return false;
+      if (
+        value.jurisdiction.status !== scope.classification ||
+        value.jurisdiction.reason_code !== scope.reasonCode ||
+        value.jurisdiction.content_review_included !== false
+      ) return false;
+      if (jurisdictionConflict) {
+        if (
+          !isRecord(value.operational_block) ||
+          value.operational_block.reason_code !== 'survey_jurisdiction_binding_conflict' ||
+          value.operational_block.action_hint !== 'separate_and_review_foreign_jurisdiction_instrument'
+        ) return false;
+      } else if (value.operational_block !== null) {
+        return false;
+      }
       if (!isRecord(value.schedule) || !isIsoDateOrNull(value.schedule.opens_at) || !isIsoDateOrNull(value.schedule.closes_at)) return false;
       if (typeof value.schedule.evaluated_at !== 'string' || !Number.isFinite(Date.parse(value.schedule.evaluated_at))) return false;
       if (!isRecord(value.capabilities) || !isRecord(value.participation) || !isRecord(value.actions)) return false;
       const capabilityKeys = ['can_publish', 'can_close', 'can_delete', 'can_share', 'can_view_results'];
       if (!capabilityKeys.every((key) => typeof value.capabilities[key] === 'boolean')) return false;
+      if (
+        jurisdictionConflict &&
+        (value.capabilities.can_publish !== false || value.capabilities.can_share !== false)
+      ) return false;
       if (!['responses', 'unique_participants', 'responses_last_24h'].every((key) => isNonNegativeSafeInteger(value.participation[key]))) return false;
       if (!isIsoDateOrNull(value.participation.last_response_at)) return false;
       if (
@@ -1522,10 +1916,17 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
         close.endpoint !== `/api/v2/surveys/${surveyId}/close` ||
         close.enabled !== value.capabilities.can_close ||
         close.confirmation_required !== true ||
-        close.irreversible !== true
+        close.irreversible !== true ||
+        !Array.isArray(close.required_capabilities) ||
+        close.required_capabilities.length !== 1 ||
+        close.required_capabilities[0] !== 'survey.close'
       ) return false;
       if (publish.enabled === false && typeof publish.disabled_reason_code !== 'string') return false;
       if (close.enabled === false && typeof close.disabled_reason_code !== 'string') return false;
+      if (
+        jurisdictionConflict &&
+        publish.disabled_reason_code !== 'survey_jurisdiction_binding_conflict'
+      ) return false;
 
       const metrics = item.metricas;
       if (!isRecord(metrics)) return false;
@@ -1581,6 +1982,45 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       throw new Error('survey_admin_list_contract_invalid');
     }
 
+    const typedItems = items as SurveyAdmin[];
+    const hasExecutiveSummary = Object.prototype.hasOwnProperty.call(payload, 'executive_summary');
+    const hasDataQuality = Object.prototype.hasOwnProperty.call(payload, 'data_quality');
+    if (hasExecutiveSummary !== hasDataQuality) {
+      throw new Error('survey_admin_list_contract_invalid');
+    }
+    const executiveContracts = hasExecutiveSummary
+      ? normalizeAdminExecutiveContracts({
+          executiveValue: payload.executive_summary,
+          dataQualityValue: payload.data_quality,
+          pagination,
+          overview: overview as unknown as SurveyAdminOverview,
+          surveys: typedItems,
+        })
+      : null;
+    if (hasExecutiveSummary && !executiveContracts) {
+      throw new Error('survey_admin_list_contract_invalid');
+    }
+    if (executiveContracts && isRecord(overview)) {
+      if (
+        JSON.stringify(overview.jurisdiccion) !== JSON.stringify(executiveContracts.executiveSummary.jurisdiction) ||
+        JSON.stringify(overview.politica_agregacion) !== JSON.stringify(executiveContracts.executiveSummary.aggregate_policy) ||
+        JSON.stringify(overview.alcance_operativo) !== JSON.stringify(executiveContracts.executiveSummary.operational_scope)
+      ) {
+        throw new Error('survey_admin_list_contract_invalid');
+      }
+    }
+
+    const dataProvenance = payload.data_provenance;
+    if (
+      dataProvenance !== undefined &&
+      (!isRecord(dataProvenance) ||
+        dataProvenance.contract_version !== 'surveys.response_provenance.v1' ||
+        dataProvenance.mode !== 'real' ||
+        dataProvenance.server_trusted_classification !== true)
+    ) {
+      throw new Error('survey_admin_list_contract_invalid');
+    }
+
     return {
       contract_version: 'surveys.admin_list.v2',
       tenant: { id: tenant.id as number, slug: (tenant.slug as string).trim() },
@@ -1589,9 +2029,12 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
         source: freshness.source as string,
         synthetic: false,
       },
+      data_provenance: dataProvenance as SurveyListResponse['data_provenance'],
+      data_quality: executiveContracts?.dataQuality,
+      executive_summary: executiveContracts?.executiveSummary,
       overview: overview as unknown as NonNullable<SurveyListResponse['overview']>,
       pagination,
-      data: items as SurveyAdmin[],
+      data: typedItems,
     };
   }
 

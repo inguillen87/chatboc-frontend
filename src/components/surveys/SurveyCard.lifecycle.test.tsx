@@ -171,6 +171,27 @@ describe('SurveyCard lifecycle actions', () => {
     expect(details).toHaveAttribute('open');
   });
 
+  it('surfaces dates, territorial coverage and certification scope before expanding details', () => {
+    const item = survey(lifecycle('collecting', { can_close: true, can_view_results: true }));
+    item.metricas = {
+      total_respuestas: 12,
+      participantes_unicos: 10,
+      respuestas_ultimas_24h: 3,
+      respuestas_con_coordenadas: 9,
+      ultima_respuesta_at: '2026-08-02T09:30:00Z',
+    };
+    item.governance = { result_certified: false };
+
+    render(<SurveyCard {...baseProps} survey={item} />);
+
+    const evidence = screen.getByLabelText('Vigencia, territorio y certificación');
+    expect(evidence).toBeTruthy();
+    expect(screen.getByText('Cobertura territorial')).toBeTruthy();
+    expect(screen.getByText('75% · 9 con coordenadas')).toBeTruthy();
+    expect(screen.getByText('Resultado no certificado')).toBeTruthy();
+    expect(screen.getAllByText(/1\/8\/2026/).length).toBeGreaterThan(0);
+  });
+
   it('does not expose analytics when the lifecycle capability denies it', () => {
     render(
       <SurveyCard

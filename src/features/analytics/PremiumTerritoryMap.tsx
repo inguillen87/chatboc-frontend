@@ -35,7 +35,10 @@ import type {
 } from './analyticsTypes';
 import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
-import { TerritorialMapAccessibleSheet } from './TerritorialMapAccessibleSheet';
+import {
+  TerritorialMapAccessibleSheet,
+  type TerritorialCoverageDimension,
+} from './TerritorialMapAccessibleSheet';
 import {
   buildTerritorialTicketHref,
   isTerritorialTenantScopeCompatible,
@@ -45,15 +48,18 @@ import {
   aggregateTerritoryHeatmap,
   DEVELOPMENT_TERRITORY_ZONES,
   getDemoTerritoryHeatmapPoints,
+  isValidWgs84Position,
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   resolveOfficialTerritoryZones,
+  resolvePointZone,
   resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
   territoryCentroid,
   territoryZoneToPath,
   type TerritoryLayerDescriptor,
+  type TerritoryZone,
   type TerritoryZoneMetric,
 } from './premiumTerritoryHeatmap';
 
@@ -143,6 +149,13 @@ type TerritoryMapFacet = {
   matchKeys: string[];
   color?: string;
   volume?: number;
+};
+
+type ReconciledTerritorialCounts = {
+  total: number;
+  mappedCount: number;
+  pendingGeocodeCount: number;
+  outsideJurisdictionCount: number;
 };
 
 type ScopedTerritoryView = {
@@ -392,16 +405,18 @@ const formatCountLabel = (value: number, singular: string, plural: string, fallb
 const TerritoryFacetCounts = ({
   facet: { total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount },
 }: {
-  facet: Pick<
-    TerritoryMapFacet,
-    'total' | 'mappedCount' | 'pendingGeocodeCount' | 'outsideJurisdictionCount'
-  >;
+  facet: {
+    total?: number;
+    mappedCount?: number;
+    pendingGeocodeCount?: number;
+    outsideJurisdictionCount?: number;
+  };
 }) => (
-  <span aria-hidden="true" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-normal leading-4 text-current/70">
+  <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-normal leading-4 text-current/70">
     <span>Total {formatNumber(total)}</span>
     <span>Mapeados {formatNumber(mappedCount)}</span>
     <span>Pendientes {formatNumber(pendingGeocodeCount)}</span>
-    <span className={outsideJurisdictionCount > 0 ? 'text-amber-700 dark:text-amber-200' : undefined}>
+    <span className={(outsideJurisdictionCount ?? 0) > 0 ? 'text-amber-700 dark:text-amber-200' : undefined}>
       Revisar {formatNumber(outsideJurisdictionCount)}
     </span>
   </span>
@@ -439,6 +454,47 @@ const readNumber = (...values: unknown[]) => {
   return undefined;
 };
 
+/**
+ * Territorial totals are decision-support data, so an internally impossible
+ * contract is rejected rather than normalized into a plausible-looking KPI.
+ */
+const reconcileTerritorialCounts = (
+  totalValue: unknown,
+  mappedValue: unknown,
+  pendingValue: unknown,
+  outsideValue: unknown,
+): ReconciledTerritorialCounts | null => {
+  const total = readNumber(totalValue);
+  const mappedCount = readNumber(mappedValue) ?? 0;
+  const pendingGeocodeCount = readNumber(pendingValue) ?? 0;
+  const outsideJurisdictionCount = readNumber(outsideValue) ?? 0;
+  const values = [total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount];
+
+  if (total === undefined || values.some((value) => value === undefined || value < 0)) return null;
+  if (
+    mappedCount > total ||
+    pendingGeocodeCount > total ||
+    outsideJurisdictionCount > total ||
+    mappedCount + pendingGeocodeCount + outsideJurisdictionCount > total
+  ) {
+    return null;
+  }
+
+  return { total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount };
+};
+
+const territorialCountsAgree = (
+  left: ReconciledTerritorialCounts,
+  right: ReconciledTerritorialCounts,
+) =>
+  left.total === right.total &&
+  left.mappedCount === right.mappedCount &&
+  left.pendingGeocodeCount === right.pendingGeocodeCount &&
+  left.outsideJurisdictionCount === right.outsideJurisdictionCount;
+
+const validCoveragePercent = (value: number | undefined) =>
+  value !== undefined && Number.isFinite(value) && value >= 0 && value <= 100 ? value : undefined;
+
 const isOutsideJurisdictionRecord = (value: unknown) => {
   const record = asRecord(value);
   if (!record) return false;
@@ -452,6 +508,89 @@ const isOutsideJurisdictionRecord = (value: unknown) => {
   );
   const reasonCode = normalizedFacetValue(readString(record.reason_code, record.location_reason_code));
   return status === 'outside' || reasonCode === 'coordinates_outside_configured_jurisdiction';
+};
+
+type JurisdictionBounds = { west: number; south: number; east: number; north: number };
+type PointTerritorialDisposition = 'mapped' | 'missing_coordinates' | 'review';
+
+const resolveJurisdictionBounds = (value: unknown): JurisdictionBounds | null => {
+  const bounds = asRecord(value);
+  if (!bounds) return null;
+  const west = readNumber(bounds.west, bounds.min_lng, bounds.min_lon);
+  const south = readNumber(bounds.south, bounds.min_lat);
+  const east = readNumber(bounds.east, bounds.max_lng, bounds.max_lon);
+  const north = readNumber(bounds.north, bounds.max_lat);
+  if (
+    west === undefined ||
+    south === undefined ||
+    east === undefined ||
+    north === undefined ||
+    !isValidWgs84Position(south, west) ||
+    !isValidWgs84Position(north, east) ||
+    west > east ||
+    south > north
+  ) {
+    return null;
+  }
+  return { west, south, east, north };
+};
+
+const isExplicitlyInsideJurisdiction = (value: unknown) => {
+  const record = asRecord(value);
+  const status = normalizedFacetValue(
+    readString(
+      record?.coordinate_jurisdiction_status,
+      record?.jurisdiction_status,
+      record?.location_jurisdiction_status,
+    ),
+  );
+  return ['within', 'inside', 'in scope', 'verified', 'validated'].includes(status.replace(/[_-]+/g, ' '));
+};
+
+const territorialDispositionForPoint = ({
+  point,
+  officialZones,
+  jurisdictionBounds,
+  jurisdictionEnforced,
+}: {
+  point: OperationsHeatmapPoint;
+  officialZones: TerritoryZone[];
+  jurisdictionBounds: JurisdictionBounds | null;
+  jurisdictionEnforced: boolean;
+}): PointTerritorialDisposition => {
+  const location = asRecord(point.location);
+  const lat = readNumber(point.lat, location?.lat, point.latitude);
+  const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
+  if (lat === undefined || lng === undefined) return 'missing_coordinates';
+  if (!isValidWgs84Position(lat, lng) || isOutsideJurisdictionRecord(point)) return 'review';
+  if (officialZones.length > 0) return resolvePointZone(point, officialZones) ? 'mapped' : 'review';
+  if (jurisdictionBounds) {
+    return lng >= jurisdictionBounds.west &&
+      lng <= jurisdictionBounds.east &&
+      lat >= jurisdictionBounds.south &&
+      lat <= jurisdictionBounds.north
+      ? 'mapped'
+      : 'review';
+  }
+  if (jurisdictionEnforced && !isExplicitlyInsideJurisdiction(point)) return 'review';
+  return 'mapped';
+};
+
+const privacySafeDensityPoints = ({
+  points,
+  canShowExactPointMarkers,
+  minimumSampleSize,
+}: {
+  points: HeatPoint[];
+  canShowExactPointMarkers: boolean;
+  minimumSampleSize: number;
+}) => {
+  if (canShowExactPointMarkers) return points;
+  return points.filter(
+    (point) =>
+      normalizedFacetValue(point.fuente) === 'heatmap_cell' &&
+      (readNumber(point.weight, point.total) ?? 0) >= minimumSampleSize,
+  );
 };
 
 const toLiveHeatPoint = (
@@ -1192,6 +1331,20 @@ export function PremiumTerritoryHeatmap({
   const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
   const [selectedMapPoint, setSelectedMapPoint] = useState<HeatPoint | null>(null);
   const selectedTicketHref = exactTicketHrefForPoint(selectedMapPoint, tenantSlug);
+  const jurisdictionCityLabel = readString(heatmap?.jurisdiction?.city);
+  const jurisdictionLabel = [
+    jurisdictionCityLabel,
+    readString(heatmap?.jurisdiction?.state_name),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(', ');
+  const jurisdictionEnforced = heatmap?.jurisdiction?.enforced === true;
+  const jurisdictionBounds = useMemo(
+    () => resolveJurisdictionBounds(heatmap?.jurisdiction?.bounds),
+    [heatmap?.jurisdiction?.bounds],
+  );
+  const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -1255,13 +1408,29 @@ export function PremiumTerritoryHeatmap({
             : points,
     [backendCellPoints, backendGeoLayerPoints, demoProfile, points, usesBackendCellPoints, usesBackendGeoLayerPoints, usesDemoData],
   );
+  const pointTerritorialDispositions = useMemo(
+    () =>
+      rawSourcePoints.map((point) => ({
+        point,
+        disposition: territorialDispositionForPoint({
+          point,
+          officialZones: officialTerritoryZones,
+          jurisdictionBounds,
+          jurisdictionEnforced,
+        }),
+      })),
+    [jurisdictionBounds, jurisdictionEnforced, officialTerritoryZones, rawSourcePoints],
+  );
   const outsidePointsRejectedByFrontend = useMemo(
-    () => rawSourcePoints.filter((point) => isOutsideJurisdictionRecord(point)).length,
-    [rawSourcePoints],
+    () => pointTerritorialDispositions.filter(({ disposition }) => disposition === 'review').length,
+    [pointTerritorialDispositions],
   );
   const sourcePoints = useMemo(
-    () => rawSourcePoints.filter((point) => !isOutsideJurisdictionRecord(point)),
-    [rawSourcePoints],
+    () =>
+      pointTerritorialDispositions
+        .filter(({ disposition }) => disposition === 'mapped')
+        .map(({ point }) => point),
+    [pointTerritorialDispositions],
   );
   const declaredOutsideJurisdictionCount = Math.max(
     0,
@@ -1277,15 +1446,6 @@ export function PremiumTerritoryHeatmap({
     declaredOutsideJurisdictionCount,
     outsidePointsRejectedByFrontend,
   );
-  const jurisdictionCityLabel = readString(heatmap?.jurisdiction?.city);
-  const jurisdictionLabel = [
-    jurisdictionCityLabel,
-    readString(heatmap?.jurisdiction?.state_name),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .filter((value, index, values) => values.indexOf(value) === index)
-    .join(', ');
-  const jurisdictionEnforced = heatmap?.jurisdiction?.enforced === true;
   const effectiveMinSampleSize = Math.max(
     minSampleSize,
     heatmap?.privacy?.minimum_sample_size ?? 0,
@@ -1356,7 +1516,13 @@ export function PremiumTerritoryHeatmap({
         const rawKey = readString(facet.key, facet.label);
         if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
         const key = normalizedFacetValue(rawKey);
-        const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+        const counts = reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        );
+        if (!counts) return null;
         const rawCategoryMatchKeys = Array.isArray(facet.raw_categories)
           ? facet.raw_categories.flatMap((item) => {
               const rawCategory = asRecord(item);
@@ -1367,10 +1533,7 @@ export function PremiumTerritoryHeatmap({
         return {
           key,
           label: humanizeCategoryValue(rawLabel),
-          total,
-          mappedCount: Math.max(0, readNumber(facet.mapped_count) ?? 0),
-          pendingGeocodeCount: Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
-          outsideJurisdictionCount: Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+          ...counts,
           matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel), ...rawCategoryMatchKeys])),
           color: categoryColorFor(rawKey),
         };
@@ -1408,14 +1571,17 @@ export function PremiumTerritoryHeatmap({
         const rawKey = readString(facet.key, facet.label);
         if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
         const key = normalizedFacetValue(rawKey);
-        const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
+        const counts = reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        );
+        if (!counts) return null;
         return {
           key,
           label: compactWhitespace(rawLabel),
-          total,
-          mappedCount: Math.max(0, readNumber(facet.mapped_count) ?? 0),
-          pendingGeocodeCount: Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
-          outsideJurisdictionCount: Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+          ...counts,
           matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel)])),
         };
       })
@@ -1449,22 +1615,24 @@ export function PremiumTerritoryHeatmap({
     canonicalAddressFacets.forEach((facet) => {
       const corridor = safeStreetCorridor(readString(facet.label, facet.key));
       if (!corridor) return;
+      const counts = reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      );
+      if (!counts) return;
       const key = streetCorridorFacetKey(corridor);
       const current = canonical.get(key);
-      const total = Math.max(0, readNumber(facet.count, facet.total, facet.value) ?? 0);
-      const mappedCount = Math.max(0, readNumber(facet.mapped_count) ?? 0);
       canonical.set(key, {
         key,
         label: current?.label ?? streetCorridorLabel(corridor),
-        total: (current?.total ?? 0) + total,
-        mappedCount: (current?.mappedCount ?? 0) + mappedCount,
-        pendingGeocodeCount:
-          (current?.pendingGeocodeCount ?? 0) + Math.max(0, readNumber(facet.pending_geocode_count) ?? 0),
-        outsideJurisdictionCount:
-          (current?.outsideJurisdictionCount ?? 0) +
-          Math.max(0, readNumber(facet.outside_jurisdiction_count) ?? 0),
+        total: (current?.total ?? 0) + counts.total,
+        mappedCount: (current?.mappedCount ?? 0) + counts.mappedCount,
+        pendingGeocodeCount: (current?.pendingGeocodeCount ?? 0) + counts.pendingGeocodeCount,
+        outsideJurisdictionCount: (current?.outsideJurisdictionCount ?? 0) + counts.outsideJurisdictionCount,
         matchKeys: [key],
-        volume: (current?.volume ?? 0) + total,
+        volume: (current?.volume ?? 0) + counts.total,
       });
     });
 
@@ -1492,27 +1660,125 @@ export function PremiumTerritoryHeatmap({
       .sort((left, right) => (right.volume ?? right.total) - (left.volume ?? left.total) || left.label.localeCompare(right.label, 'es'))
       .slice(0, MAX_ADDRESS_CORRIDOR_FACETS);
   }, [addressCellFacetsSuppressed, canonicalAddressFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const canonicalFacetContractInvalid = useMemo(() => {
+    const namedFacets = [
+      ...canonicalCategoryFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key))),
+      ...canonicalZoneFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key))),
+      ...canonicalAddressFacets.filter((facet) => Boolean(safeStreetCorridor(readString(facet.label, facet.key)))),
+    ];
+    return namedFacets.some(
+      (facet) =>
+        !reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        ),
+    );
+  }, [canonicalAddressFacets, canonicalCategoryFacets, canonicalZoneFacets]);
+  const canonicalCategoryCounts = useMemo(() => {
+    const facets = canonicalCategoryFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key)));
+    if (!facets.length) return null;
+    const countSets = facets.map((facet) =>
+      reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      ),
+    );
+    if (countSets.some((counts) => !counts)) return null;
+    return countSets.reduce<ReconciledTerritorialCounts>(
+      (summary, counts) => ({
+        total: summary.total + (counts?.total ?? 0),
+        mappedCount: summary.mappedCount + (counts?.mappedCount ?? 0),
+        pendingGeocodeCount: summary.pendingGeocodeCount + (counts?.pendingGeocodeCount ?? 0),
+        outsideJurisdictionCount: summary.outsideJurisdictionCount + (counts?.outsideJurisdictionCount ?? 0),
+      }),
+      { total: 0, mappedCount: 0, pendingGeocodeCount: 0, outsideJurisdictionCount: 0 },
+    );
+  }, [canonicalCategoryFacets]);
   const territorialRecordCounts = useMemo(() => {
     const summary = heatmap?.territorial_facets?.summary;
-    const categoryTotal = mapCategoryFacets.reduce((total, facet) => total + facet.total, 0);
+    const summaryHasCounts = Boolean(
+      summary &&
+        [summary.ticket_records, summary.mapped_records, summary.pending_geocode_records, summary.records_outside_jurisdiction]
+          .some((value) => readNumber(value) !== undefined),
+    );
+    const locationQuality = heatmap?.location_quality;
+    const locationQualityHasCounts = Boolean(
+      locationQuality &&
+        [
+          locationQuality.total_ticket_records,
+          locationQuality.ticket_records_with_coordinates,
+          locationQuality.ticket_records_pending_geocode,
+          locationQuality.ticket_records_outside_jurisdiction,
+        ].some((value) => readNumber(value) !== undefined),
+    );
+    const summaryCounts = summaryHasCounts
+      ? reconcileTerritorialCounts(
+          summary?.ticket_records,
+          summary?.mapped_records,
+          summary?.pending_geocode_records,
+          Math.max(readNumber(summary?.records_outside_jurisdiction) ?? 0, outsideJurisdictionCount),
+        )
+      : null;
+    const locationQualityCounts = locationQualityHasCounts
+      ? reconcileTerritorialCounts(
+          locationQuality?.total_ticket_records,
+          locationQuality?.ticket_records_with_coordinates,
+          locationQuality?.ticket_records_pending_geocode,
+          Math.max(readNumber(locationQuality?.ticket_records_outside_jurisdiction) ?? 0, outsideJurisdictionCount),
+        )
+      : null;
+    const categoryCounts = canonicalCategoryCounts
+      ? reconcileTerritorialCounts(
+          canonicalCategoryCounts.total,
+          canonicalCategoryCounts.mappedCount,
+          canonicalCategoryCounts.pendingGeocodeCount,
+          Math.max(canonicalCategoryCounts.outsideJurisdictionCount, outsideJurisdictionCount),
+        )
+      : null;
+    const globalCanonicalContracts = [summaryCounts, locationQualityCounts].filter(
+      (counts): counts is ReconciledTerritorialCounts => Boolean(counts),
+    );
+    const globalCanonicalContractsAgree =
+      globalCanonicalContracts.length < 2 ||
+      globalCanonicalContracts.slice(1).every((counts) =>
+        territorialCountsAgree(globalCanonicalContracts[0], counts),
+      );
+    const globalCounts = globalCanonicalContractsAgree ? globalCanonicalContracts[0] ?? null : null;
+    // Category facets may be a bounded/top-N list. Compare them with the global
+    // universe only when their declared total proves that the list is exhaustive.
+    const categoryContractIsComparable = Boolean(
+      categoryCounts && globalCounts && categoryCounts.total === globalCounts.total,
+    );
+    const categoryContractAgrees =
+      !categoryContractIsComparable || territorialCountsAgree(globalCounts!, categoryCounts!);
+    const canonicalContractsAgree = globalCanonicalContractsAgree && categoryContractAgrees;
+    const coherentCounts = canonicalContractsAgree ? globalCounts ?? categoryCounts : null;
     return {
-      total: Math.max(
-        0,
-        readNumber(summary?.ticket_records, heatmap?.location_quality?.total_ticket_records) ??
-          (categoryTotal || liveMapPoints.length),
-      ),
-      mappedCount: Math.max(
-        0,
-        readNumber(summary?.mapped_records, heatmap?.location_quality?.ticket_records_with_coordinates) ??
-          liveMapPoints.length,
-      ),
-      pendingGeocodeCount: Math.max(
-        0,
-        readNumber(summary?.pending_geocode_records, heatmap?.location_quality?.ticket_records_pending_geocode) ?? 0,
-      ),
+      total: coherentCounts?.total,
+      mappedCount: coherentCounts?.mappedCount ?? liveMapPoints.length,
+      pendingGeocodeCount: coherentCounts?.pendingGeocodeCount,
       outsideJurisdictionCount,
+      coherent: Boolean(coherentCounts),
+      invalidContract:
+        canonicalFacetContractInvalid ||
+        (summaryHasCounts && !summaryCounts) ||
+        (locationQualityHasCounts && !locationQualityCounts) ||
+        Boolean(canonicalCategoryFacets.length && !canonicalCategoryCounts) ||
+        !canonicalContractsAgree,
     };
-  }, [heatmap?.location_quality, heatmap?.territorial_facets?.summary, liveMapPoints.length, mapCategoryFacets, outsideJurisdictionCount]);
+  }, [
+    canonicalCategoryCounts,
+    canonicalCategoryFacets.length,
+    canonicalFacetContractInvalid,
+    heatmap?.location_quality,
+    heatmap?.territorial_facets?.summary,
+    liveMapPoints.length,
+    outsideJurisdictionCount,
+  ]);
   const categoryBreakdownProtected =
     categoryFacetsSuppressed ||
     (hasPrivacyContract && !exactPrivacyMode && hasNamedMapCategories && mapCategoryFacets.length === 0);
@@ -1541,8 +1807,6 @@ export function PremiumTerritoryHeatmap({
     }
   }, [mapAddressCellFacets, mapAddressCellFilter]);
   const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
-  const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
-  const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
   const territoryZones = usesDemoData ? DEVELOPMENT_TERRITORY_ZONES : officialTerritoryZones;
 
   const aggregate = useMemo(
@@ -1560,6 +1824,9 @@ export function PremiumTerritoryHeatmap({
     () => resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
     [heatmap, sourcePoints.length],
   );
+  const territorialContractInvalid =
+    territorialRecordCounts.invalidContract ||
+    (readiness.coveragePercent !== undefined && validCoveragePercent(readiness.coveragePercent) === undefined);
   const dataProvenance = useMemo(
     () => resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
     [heatmap, sourcePoints, usesDemoData],
@@ -1607,12 +1874,21 @@ export function PremiumTerritoryHeatmap({
     'Volumen, demanda y riesgo por zona con privacidad por muestra minima.',
   );
   const hasWarning = Boolean(mapConfig?.style_url_warning);
-  const preferredVisualization = humanizeContractValue(
-    readString(heatmap?.map_experience?.preferred_visualization),
-    'Globo territorial interactivo',
-  );
+  const preferredVisualizationValue = readString(heatmap?.map_experience?.preferred_visualization);
+  const preferredVisualization = preferredVisualizationValue
+    ? humanizeContractValue(preferredVisualizationValue, 'Mapa territorial')
+    : undefined;
   const geocodingStatus = readString(heatmap?.geocoding?.status, heatmap?.geocoding?.reason_code);
   const geocodingCandidates = heatmap?.geocoding?.candidates?.slice(0, 3) ?? [];
+  const geocodingQueueItems = geocodingCandidates.map((candidate, index) => {
+    const safeCorridor = safeStreetCorridor(candidate.address);
+    const category = readString(candidate.category);
+    return {
+      key: String(candidate.record_id ?? candidate.ticket_id ?? `pending-${index}`),
+      label: category ? humanizeCategoryValue(category) : 'Ubicación pendiente',
+      area: safeCorridor ? streetCorridorLabel(safeCorridor) : 'Zona todavía no validada',
+    };
+  });
   const qualityAction = summarizeBackendAction(heatmap?.quality?.empty_state_action);
   const geocodingAction = summarizeBackendAction(heatmap?.geocoding?.recommended_action);
   const activeAction = readiness.state === 'empty' || readiness.state === 'low' ? qualityAction ?? geocodingAction : geocodingAction;
@@ -1813,6 +2089,53 @@ export function PremiumTerritoryHeatmap({
   const selectedCategoryFacet = mapCategoryFacets.find((facet) => facet.key === mapCategoryFilter);
   const selectedZoneFacet = mapZoneFacets.find((facet) => facet.key === mapZoneFilter);
   const selectedAddressCellFacet = mapAddressCellFacets.find((facet) => facet.key === mapAddressCellFilter);
+  const activeTerritorialFilterCount = [mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length;
+  const accessibleCoverageDimensions = useMemo<TerritorialCoverageDimension[]>(
+    () => {
+      const toRows = (facets: TerritoryMapFacet[], selectedKey: string | null) =>
+        facets.map((facet) => ({
+          key: facet.key,
+          label: facet.label,
+          total: facet.total,
+          mappedCount: facet.mappedCount,
+          pendingGeocodeCount: facet.pendingGeocodeCount,
+          outsideJurisdictionCount: facet.outsideJurisdictionCount,
+          selected: selectedKey === facet.key,
+        }));
+
+      return [
+        {
+          id: 'categories',
+          label: 'Categorías',
+          rows: toRows(mapCategoryFacets, mapCategoryFilter),
+          protected: categoryBreakdownProtected,
+        },
+        {
+          id: 'zones',
+          label: 'Zonas/barrios',
+          rows: toRows(mapZoneFacets, mapZoneFilter),
+          protected: zoneBreakdownProtected,
+        },
+        {
+          id: 'locations',
+          label: 'Corredores/celdas',
+          rows: toRows(mapAddressCellFacets, mapAddressCellFilter),
+          protected: addressCellBreakdownProtected,
+        },
+      ];
+    },
+    [
+      addressCellBreakdownProtected,
+      categoryBreakdownProtected,
+      mapAddressCellFacets,
+      mapAddressCellFilter,
+      mapCategoryFacets,
+      mapCategoryFilter,
+      mapZoneFacets,
+      mapZoneFilter,
+      zoneBreakdownProtected,
+    ],
+  );
   const visibleLiveMapPoints = useMemo(
     () =>
       liveMapPoints.filter((point) => {
@@ -1855,6 +2178,36 @@ export function PremiumTerritoryHeatmap({
       showCommerceLayer,
     ],
   );
+  const globalPrivacySafeLiveMapPoints = useMemo(
+    () =>
+      privacySafeDensityPoints({
+        points: liveMapPoints,
+        canShowExactPointMarkers,
+        minimumSampleSize: effectiveMinSampleSize,
+      }),
+    [
+      canShowExactPointMarkers,
+      effectiveMinSampleSize,
+      liveMapPoints,
+    ],
+  );
+  const privacySafeLiveMapPoints = useMemo(
+    () =>
+      privacySafeDensityPoints({
+        points: visibleLiveMapPoints,
+        canShowExactPointMarkers,
+        minimumSampleSize: effectiveMinSampleSize,
+      }),
+    [
+      canShowExactPointMarkers,
+      effectiveMinSampleSize,
+      visibleLiveMapPoints,
+    ],
+  );
+  const privacyDensitySuppressed =
+    visibleLiveMapPoints.length > 0 && privacySafeLiveMapPoints.length === 0 && !canShowExactPointMarkers;
+  const showLiveMap = globalPrivacySafeLiveMapPoints.length > 0 && !usesDemoData;
+  const hasMappedTerritorialActivity = aggregate.totalRecords > 0 && !privacyDensitySuppressed;
   const selectedTerritorialFacets = useMemo(
     () =>
       [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].filter(
@@ -1862,7 +2215,7 @@ export function PremiumTerritoryHeatmap({
       ),
     [selectedAddressCellFacet, selectedCategoryFacet, selectedZoneFacet],
   );
-  const hasCanonicalTerritorialSummary = Boolean(heatmap?.territorial_facets?.summary || heatmap?.location_quality);
+  const hasCanonicalTerritorialSummary = territorialRecordCounts.coherent;
   const scopedTerritoryView = useMemo<ScopedTerritoryView>(() => {
     if (selectedTerritorialFacets.length === 1) {
       const facet = selectedTerritorialFacets[0];
@@ -1874,7 +2227,7 @@ export function PremiumTerritoryHeatmap({
         mappedCount: facet.mappedCount,
         pendingGeocodeCount: facet.pendingGeocodeCount,
         outsideJurisdictionCount: facet.outsideJurisdictionCount,
-        coveragePercent: facet.total > 0 ? (facet.mappedCount / facet.total) * 100 : undefined,
+        coveragePercent: facet.total > 0 ? validCoveragePercent((facet.mappedCount / facet.total) * 100) : undefined,
         selectedFacet: facet,
         globalInsightsCompatible: false,
       };
@@ -1896,10 +2249,18 @@ export function PremiumTerritoryHeatmap({
       visiblePointCount: visibleLiveMapPoints.length,
       total,
       mappedCount,
-      pendingGeocodeCount: hasCanonicalTerritorialSummary ? territorialRecordCounts.pendingGeocodeCount : readiness.pendingGeocode,
+      pendingGeocodeCount: territorialContractInvalid
+        ? undefined
+        : hasCanonicalTerritorialSummary
+          ? territorialRecordCounts.pendingGeocodeCount
+          : readiness.pendingGeocode,
       outsideJurisdictionCount: territorialRecordCounts.outsideJurisdictionCount,
       coveragePercent:
-        hasCanonicalTerritorialSummary && total > 0 ? (mappedCount / total) * 100 : readiness.coveragePercent,
+        territorialContractInvalid
+          ? undefined
+          : hasCanonicalTerritorialSummary && total !== undefined && total > 0
+            ? validCoveragePercent((mappedCount / total) * 100)
+            : validCoveragePercent(readiness.coveragePercent),
       globalInsightsCompatible: true,
     };
   }, [
@@ -1907,6 +2268,7 @@ export function PremiumTerritoryHeatmap({
     readiness.coveragePercent,
     readiness.pendingGeocode,
     selectedTerritorialFacets,
+    territorialContractInvalid,
     territorialRecordCounts,
     visibleLiveMapPoints.length,
   ]);
@@ -1915,12 +2277,14 @@ export function PremiumTerritoryHeatmap({
   );
   const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
   const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
-  const renderHeatLayer = mapDisplayMode !== 'clusters' && showHeatLayer;
+  const renderHeatLayer = mapDisplayMode !== 'clusters' && showHeatLayer && !privacyDensitySuppressed;
   const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
   const clusteredPointDisplayMode = mapDisplayMode !== 'heat';
   const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
   const selectedDisplayModeUnavailable = mapDisplayMode === 'heat' ? !showHeatLayer : !showCategoryLayer;
-  const mapDisplayStatus = noBaseMapLayerAvailable
+  const mapDisplayStatus = privacyDensitySuppressed
+    ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos ni densidad territorial.`
+    : noBaseMapLayerAvailable
     ? 'No hay una capa territorial activa. Activá Calor territorial o Capas por categoría para visualizar los registros.'
     : selectedDisplayModeUnavailable
       ? 'La visualización seleccionada está desactivada. Elegí uno de los modos disponibles.'
@@ -1936,25 +2300,25 @@ export function PremiumTerritoryHeatmap({
   const visiblePointCountProtected =
     hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
   const liveHeatmapRadiusScale =
-    visibleLiveMapPoints.length <= 2
+    privacySafeLiveMapPoints.length <= 2
       ? 2.8
-      : visibleLiveMapPoints.length <= 5
+      : privacySafeLiveMapPoints.length <= 5
         ? 2.35
-        : visibleLiveMapPoints.length <= 12
+        : privacySafeLiveMapPoints.length <= 12
           ? 1.9
           : 1.55;
   const liveMapBounds = useMemo(
-    () => visibleLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
-    [visibleLiveMapPoints],
+    () => privacySafeLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
+    [privacySafeLiveMapPoints],
   );
   const geoLayerConfig = useMemo(
     () =>
       buildOperationsGeoLayerConfig({
         heatmap,
-        points: visibleLiveMapPoints,
+        points: privacySafeLiveMapPoints,
         enabledLayerIds,
         mapStyleUrl: mapConfig?.style_url,
-        showHeatLayer,
+        showHeatLayer: renderHeatLayer,
         showAiLayer,
         showQualityLayer,
         showRealtimeLayer,
@@ -1962,11 +2326,11 @@ export function PremiumTerritoryHeatmap({
       }),
     [
       heatmap,
-      visibleLiveMapPoints,
+      privacySafeLiveMapPoints,
       enabledLayerIds,
       mapConfig?.style_url,
       showAiLayer,
-      showHeatLayer,
+      renderHeatLayer,
       showQualityLayer,
       showRealtimeLayer,
       showCommerceLayer,
@@ -2026,27 +2390,6 @@ export function PremiumTerritoryHeatmap({
   const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
   const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
   const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
-  const telemetryRouteZones = topZones.length >= 2 ? topZones : aggregate.zones.slice(0, 4);
-  const telemetryRoutes = telemetryRouteZones.slice(0, -1).map((metric, index) => {
-    const nextMetric = telemetryRouteZones[index + 1];
-    const [startX, startY] = territoryCentroid(metric.zone.polygon);
-    const [endX, endY] = territoryCentroid(nextMetric.zone.polygon);
-    const controlX = (startX + endX) / 2;
-    const controlY = (startY + endY) / 2 + (index % 2 === 0 ? -5.5 : 4.5);
-    const routeId = `${svgId}-telemetry-route-${metric.zone.id}-${nextMetric.zone.id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
-    return {
-      id: routeId,
-      d: `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`,
-      delay: `${index * 0.9}s`,
-      duration: `${5.4 + index * 0.8}s`,
-      tone:
-        index === 0
-          ? 'rgba(34,211,238,0.9)'
-          : index === 1
-            ? 'rgba(168,85,247,0.82)'
-            : 'rgba(245,158,11,0.86)',
-    };
-  });
   const hudBars = [
     { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
     ...(scopedTerritoryView.globalInsightsCompatible
@@ -2233,14 +2576,26 @@ export function PremiumTerritoryHeatmap({
               <Layers className="h-3.5 w-3.5" />
               {executiveProvenanceLabel}
             </Badge>
-            <Badge variant="outline" className="gap-1 capitalize">
-              <Globe2 className="h-3.5 w-3.5" />
-              {preferredVisualization}
-            </Badge>
+            {preferredVisualization ? (
+              <Badge variant="outline" className="gap-1 capitalize">
+                <Globe2 className="h-3.5 w-3.5" />
+                {preferredVisualization}
+              </Badge>
+            ) : null}
             <Badge variant={badgeVariantForReadiness(readiness.state)} className="gap-1">
               {readiness.state === 'ready' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
               {executiveReadinessLabel}
             </Badge>
+            {territorialContractInvalid ? (
+              <Badge
+                data-testid="territory-contract-integrity-warning"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Métricas territoriales en revisión
+              </Badge>
+            ) : null}
             {jurisdictionEnforced && jurisdictionLabel ? (
               <Badge data-testid="territory-jurisdiction" variant="outline" className="gap-1">
                 <MapPin className="h-3.5 w-3.5" />
@@ -2276,7 +2631,9 @@ export function PremiumTerritoryHeatmap({
               ? 'Registros del segmento'
               : scopedTerritoryView.mode === 'combined'
                 ? 'Puntos mapeados'
-                : 'Registros territoriales'}{' '}
+                : scopedTerritoryView.total === undefined
+                  ? 'Puntos mapeados'
+                  : 'Registros territoriales'}{' '}
             <strong data-testid="territory-header-volume" className="font-semibold text-foreground">
               {formatNumber(overallEventTotal)}
             </strong>
@@ -2521,6 +2878,18 @@ export function PremiumTerritoryHeatmap({
               points={visibleLiveMapPoints}
               canShowExactPointMarkers={canShowExactPointMarkers}
               tenantSlug={tenantSlug}
+              coverageDimensions={accessibleCoverageDimensions}
+              coverageScope={{
+                label: scopedTerritoryView.label,
+                mode: scopedTerritoryView.mode,
+                total: scopedTerritoryView.total,
+                mappedCount: scopedTerritoryView.mappedCount,
+                pendingGeocodeCount: scopedTerritoryView.pendingGeocodeCount,
+                outsideJurisdictionCount: scopedTerritoryView.outsideJurisdictionCount,
+              }}
+              activeFilterCount={activeTerritorialFilterCount}
+              provenance={{ label: dataProvenance.label, detail: dataProvenance.detail }}
+              freshness={{ label: realtimeFreshness.label, detail: realtimeFreshness.detail }}
               summaries={[
                 { id: 'coverage', label: 'Cobertura', value: scopedCoverageLabel },
                 { id: 'mapped', label: 'Puntos mapeados', value: scopedVisiblePointLabel },
@@ -2603,6 +2972,7 @@ export function PremiumTerritoryHeatmap({
             <select
               id={`${svgId}-category-filter`}
               aria-label="Filtrar mapa por categoría"
+              aria-describedby={`${svgId}-category-filter-counts`}
               className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapCategoryFilter ?? ''}
               onChange={(event) => {
@@ -2614,12 +2984,11 @@ export function PremiumTerritoryHeatmap({
               <option value="">Todas las categorías</option>
               {mapCategoryFacets.map((facet) => (
                 <option key={facet.key} value={facet.key}>
-                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
-                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                  {facet.label}
                 </option>
               ))}
             </select>
-            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+            <span id={`${svgId}-category-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {mapCategoryFacets.length ? (
                 <TerritoryFacetCounts facet={selectedCategoryFacet ?? territorialRecordCounts} />
               ) : categoryBreakdownProtected ? (
@@ -2635,6 +3004,7 @@ export function PremiumTerritoryHeatmap({
             <select
               id={`${svgId}-zone-filter`}
               aria-label="Filtrar mapa por zona o barrio"
+              aria-describedby={`${svgId}-zone-filter-counts`}
               className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapZoneFilter ?? ''}
               onChange={(event) => {
@@ -2646,12 +3016,11 @@ export function PremiumTerritoryHeatmap({
               <option value="">{mapZoneFacets.length ? 'Todas las zonas' : 'Sin zonas verificadas'}</option>
               {mapZoneFacets.map((facet) => (
                 <option key={facet.key} value={facet.key}>
-                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
-                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                  {facet.label}
                 </option>
               ))}
             </select>
-            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+            <span id={`${svgId}-zone-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {selectedZoneFacet ? (
                 <TerritoryFacetCounts facet={selectedZoneFacet} />
               ) : zoneBreakdownProtected ? (
@@ -2672,6 +3041,7 @@ export function PremiumTerritoryHeatmap({
             <select
               id={`${svgId}-location-filter`}
               aria-label="Filtrar mapa por corredor o celda"
+              aria-describedby={`${svgId}-location-filter-counts`}
               className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapAddressCellFilter ?? ''}
               onChange={(event) => {
@@ -2683,12 +3053,11 @@ export function PremiumTerritoryHeatmap({
               <option value="">Todas las ubicaciones</option>
               {mapAddressCellFacets.map((facet) => (
                 <option key={facet.key} value={facet.key}>
-                  {facet.label} · Total {formatNumber(facet.total)} · Mapeados {formatNumber(facet.mappedCount)} · Pendientes{' '}
-                  {formatNumber(facet.pendingGeocodeCount)} · Revisar {formatNumber(facet.outsideJurisdictionCount)}
+                  {facet.label}
                 </option>
               ))}
             </select>
-            <span className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+            <span id={`${svgId}-location-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
               {selectedAddressCellFacet ? (
                 <TerritoryFacetCounts facet={selectedAddressCellFacet} />
               ) : addressCellBreakdownProtected ? (
@@ -2706,7 +3075,7 @@ export function PremiumTerritoryHeatmap({
           <div data-testid="territory-active-filter-chips" className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Aplicados</span>
             {selectedCategoryFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de categoría ${selectedCategoryFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapCategoryFilter(null);
               }}>
@@ -2714,7 +3083,7 @@ export function PremiumTerritoryHeatmap({
               </Button>
             ) : null}
             {selectedZoneFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de zona ${selectedZoneFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapZoneFilter(null);
               }}>
@@ -2722,7 +3091,7 @@ export function PremiumTerritoryHeatmap({
               </Button>
             ) : null}
             {selectedAddressCellFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de corredor ${selectedAddressCellFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapAddressCellFilter(null);
               }}>
@@ -2733,6 +3102,47 @@ export function PremiumTerritoryHeatmap({
         ) : null}
         </div>
       </details>
+
+      {geocodingQueueItems.length ? (
+        <details
+          data-testid="territory-geocoding-queue"
+          className="group order-3 rounded-xl border border-amber-300/70 bg-amber-50/50 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/10"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
+              <DatabaseZap className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+              Cola de ubicaciones pendientes
+              <Badge variant="outline" className="shrink-0 border-amber-400/70">
+                {geocodingQueueItems.length}
+              </Badge>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Ver cola</span>
+            <span className="hidden shrink-0 text-xs font-semibold text-primary group-open:inline">Ocultar</span>
+          </summary>
+          <div className="border-t border-amber-300/60 p-3 dark:border-amber-900/60">
+            <p className="text-xs leading-5 text-muted-foreground">
+              Estos registros todavía no tienen coordenadas verificadas y por eso no se dibujan en el mapa.
+            </p>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Ubicaciones pendientes de geocodificar">
+              {geocodingQueueItems.map((item) => (
+                <li key={item.key} className="rounded-lg border bg-background p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">Sin coordenadas</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.area}</p>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="/perfil?tab=tickets&focus=open_geocoding_queue"
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Abrir cola en CRM
+            </a>
+          </div>
+        </details>
+      ) : null}
 
       <div
         data-testid="territory-map-layout"
@@ -2748,8 +3158,8 @@ export function PremiumTerritoryHeatmap({
           <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
           <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
           <p id={mapInstructionsId} className="sr-only">
-            El mapa es una visualización. Para recorrer los puntos con teclado o lector de pantalla,
-            usá el botón Ver puntos en lista.
+            El mapa es una visualización. Para consultar cobertura y puntos con teclado o lector de pantalla,
+            usá el botón Ver datos accesibles.
           </p>
           {showLiveMap ? (
             <div data-testid="live-territory-map" className="relative z-10 h-[520px] w-full overflow-hidden sm:h-[620px] 2xl:h-[680px]">
@@ -2758,16 +3168,16 @@ export function PremiumTerritoryHeatmap({
                 ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
                 ariaDescribedBy={mapInstructionsId}
                 tenantSlug={tenantSlug}
-                heatmapData={visibleLiveMapPoints}
+                heatmapData={privacySafeLiveMapPoints}
                 showHeatmap={renderHeatLayer}
                 showPoints={renderPointLayer}
-                showPointLabels={clusteredPointDisplayMode}
+                showPointLabels={renderPointLayer && clusteredPointDisplayMode}
                 pointLabelMode="count"
                 pointMinZoom={7}
                 pointLabelMinZoom={clusteredPointDisplayMode ? 7 : 10}
                 heatmapRadiusScale={liveHeatmapRadiusScale}
-                // En privacidad agregada conservamos la densidad, pero evitamos que la
-                // paleta Faro agregue un halo/ancla sobre cada coordenada persistida.
+                // In aggregate privacy, only k-anonymous density or validated
+                // aggregate cells reach the renderer.
                 heatmapPalette={canShowExactPointMarkers ? 'faro' : 'default'}
                 adaptiveZoomMode={false}
                 onFeatureSelect={setSelectedMapPoint}
@@ -2784,7 +3194,7 @@ export function PremiumTerritoryHeatmap({
                 showEvidenceBadge={false}
               />
             </div>
-          ) : hasTerritoryBoundaries ? (
+          ) : hasTerritoryBoundaries && hasMappedTerritorialActivity ? (
           <svg
             role="img"
             aria-label={title}
@@ -2813,11 +3223,6 @@ export function PremiumTerritoryHeatmap({
                 <stop offset="46%" stopColor="rgba(59,130,246,0.2)" />
                 <stop offset="100%" stopColor="rgba(34,211,238,0)" />
               </radialGradient>
-              <linearGradient id={`${svgId}-telemetry-line`} x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stopColor="rgba(34,211,238,0.06)" />
-                <stop offset="52%" stopColor="rgba(255,255,255,0.62)" />
-                <stop offset="100%" stopColor="rgba(168,85,247,0.12)" />
-              </linearGradient>
               <filter id={`${svgId}-zone-shadow`} x="-20%" y="-20%" width="140%" height="150%">
                 <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="rgba(15,23,42,0.32)" />
               </filter>
@@ -2863,27 +3268,13 @@ export function PremiumTerritoryHeatmap({
                 />
               ))}
             </g>
-            <path
-              d="M8 59 C24 52 34 58 50 51 C66 44 72 50 94 41"
-              fill="none"
-              stroke="rgba(255,255,255,0.38)"
-              strokeWidth="0.28"
-              strokeDasharray="1.4 2.2"
-            />
-            <path
-              d="M6 15 C23 22 38 13 51 21 C65 30 77 20 95 28"
-              fill="none"
-              stroke="rgba(20,184,166,0.22)"
-              strokeWidth="0.24"
-              strokeDasharray="1 2"
-            />
             <g data-testid="territory-hud-overlay" aria-hidden="true" opacity="0.94">
               <rect x="5.5" y="6" width="27.5" height="13.6" rx="2.2" fill="rgba(15,23,42,0.58)" stroke="rgba(148,163,184,0.36)" strokeWidth="0.18" />
               <text x="8" y="10.2" className="fill-white text-[2.05px] font-semibold tracking-[0.18em]">
                 MAPA OPERATIVO
               </text>
               <text x="8" y="13.7" className="fill-cyan-100 text-[1.85px] font-medium">
-                {preferredVisualization.slice(0, 27)}
+                {(preferredVisualization ?? 'Mapa territorial').slice(0, 27)}
               </text>
               <text x="8" y="17" className="fill-slate-200 text-[1.75px]">
                 foco: {(scopedTerritoryView.globalInsightsCompatible ? decisionZone.zone.label : scopedTerritoryView.label).slice(0, 20)}
@@ -2922,21 +3313,6 @@ export function PremiumTerritoryHeatmap({
                 <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
               </g>
             ) : null}
-            <g data-testid="territory-comet-network" aria-hidden="true" opacity={showRealtimeLayer || focusMode === 'telemetry' ? 0.82 : 0.5}>
-              {telemetryRoutes.map((route, index) => (
-                <g key={route.id} data-testid="territory-comet-route">
-                  <path id={route.id} d={route.d} fill="none" stroke={`url(#${svgId}-telemetry-line)`} strokeWidth="0.34" strokeLinecap="round" strokeDasharray="0.8 1.4" />
-                  {!shouldReduceMotion ? (
-                    <circle r={index === 0 ? 0.74 : 0.58} fill={route.tone} stroke="rgba(255,255,255,0.76)" strokeWidth="0.12">
-                      <animateMotion dur={route.duration} begin={route.delay} repeatCount="indefinite" rotate="auto">
-                        <mpath href={`#${route.id}`} />
-                      </animateMotion>
-                      <animate attributeName="opacity" values="0;1;0" dur={route.duration} begin={route.delay} repeatCount="indefinite" />
-                    </circle>
-                  ) : null}
-                </g>
-              ))}
-            </g>
             {aggregate.zones.map((metric) => {
               const [cx, cy] = territoryCentroid(metric.zone.polygon);
               if (!showHeatLayer || !metric.records || metric.suppressed) return null;
@@ -2990,14 +3366,16 @@ export function PremiumTerritoryHeatmap({
                     const radius = 3.2 + metric.intensity * 4.8;
                     return (
                       <g key={`${metric.zone.id}-ai-layer`}>
-                        <path
-                          d={`M ${cx - radius} ${cy - radius * 0.18} C ${cx - radius * 0.2} ${cy - radius} ${cx + radius * 0.78} ${cy - radius * 0.34} ${cx + radius} ${cy + radius * 0.5}`}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={radius}
                           fill="none"
                           stroke={index === 0 ? 'rgba(168,85,247,0.78)' : 'rgba(99,102,241,0.52)'}
                           strokeWidth={index === 0 ? 0.52 : 0.34}
                           strokeDasharray="1.2 1.3"
                         />
-                        <circle cx={cx + radius * 0.9} cy={cy + radius * 0.48} r="0.72" fill="rgba(168,85,247,0.92)" />
+                        <circle cx={cx} cy={cy} r="0.72" fill="rgba(168,85,247,0.92)" />
                       </g>
                     );
                   })}
@@ -3146,17 +3524,6 @@ export function PremiumTerritoryHeatmap({
                     ? `${Math.round(scopedTerritoryView.coveragePercent)}%`
                     : '—'}
                 </text>
-                {geocodingCandidates.map((candidate, index) => {
-                  const x = 12 + index * 4.2;
-                  const y = 58 - index * 1.6;
-                  const key = String(candidate.record_id ?? candidate.ticket_id ?? candidate.address ?? index);
-                  return (
-                    <g key={`${key}-geocode-dot`}>
-                      <circle cx={x} cy={y} r="1.15" fill="rgba(245,158,11,0.92)" stroke="rgba(255,255,255,0.8)" strokeWidth="0.32" />
-                      <path d={`M ${x} ${y + 1.2} L ${x - 0.9} ${y + 3.2} L ${x + 0.9} ${y + 3.2} Z`} fill="rgba(245,158,11,0.4)" />
-                    </g>
-                  );
-                })}
               </g>
             ) : null}
             {showRealtimeLayer || focusMode === 'telemetry' ? (
@@ -3175,19 +3542,12 @@ export function PremiumTerritoryHeatmap({
                     <animate attributeName="stroke-dashoffset" values="0;-18" dur="4.6s" repeatCount="indefinite" />
                   ) : null}
                 </ellipse>
-                <path
-                  d="M11 38 C28 26 41 48 57 33 C70 20 82 30 90 21"
-                  fill="none"
-                  stroke="rgba(34,211,238,0.46)"
-                  strokeWidth="0.42"
-                  strokeLinecap="round"
-                />
               </g>
             ) : null}
           </svg>
           ) : (
             <div
-              data-testid="territory-boundary-empty-state"
+              data-testid={hasTerritoryBoundaries ? 'territory-activity-empty-state' : 'territory-boundary-empty-state'}
               role="status"
               className="relative z-10 flex h-[450px] items-center justify-center px-6 pb-28 pt-24 text-center sm:h-[540px]"
             >
@@ -3195,10 +3555,19 @@ export function PremiumTerritoryHeatmap({
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <MapPin className="h-5 w-5" />
                 </div>
-                <h4 className="mt-3 text-lg font-semibold">Sin delimitación territorial oficial</h4>
+                <h4 className="mt-3 text-lg font-semibold">
+                  {hasTerritoryBoundaries
+                    ? privacyDensitySuppressed
+                      ? 'Muestra territorial protegida'
+                      : 'Sin actividad territorial mapeada'
+                    : 'Sin delimitación territorial oficial'}
+                </h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un archivo oficial de límites territoriales para habilitar
-                  agregaciones, rankings y tasas por zona.
+                  {hasTerritoryBoundaries
+                    ? privacyDensitySuppressed
+                      ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos, densidad ni focos territoriales.`
+                      : 'Los límites oficiales están disponibles, pero no hay coordenadas verificadas para esta selección. No se dibujan actividad, focos ni recorridos estimados.'
+                    : 'No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un archivo oficial de límites territoriales para habilitar agregaciones, rankings y tasas por zona.'}
                 </p>
               </div>
             </div>

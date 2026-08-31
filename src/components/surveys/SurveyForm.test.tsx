@@ -345,6 +345,100 @@ describe('SurveyForm security contract', () => {
     expect(screen.getByRole('radio', { name: /^Arbolado/ })).toBeInTheDocument();
   });
 
+  it('groups every question semantically, announces validation errors, and focuses the first invalid answer', async () => {
+    const accessibleSurvey: SurveyPublic = {
+      ...baseSurvey,
+      preguntas: [
+        ...baseSurvey.preguntas,
+        {
+          id: 102,
+          orden: 2,
+          tipo: 'multiple',
+          texto: 'Que zonas necesitan atención?',
+          obligatoria: true,
+          min_selecciones: 1,
+          max_selecciones: 2,
+          opciones: [
+            { id: 3, orden: 1, texto: 'Centro' },
+            { id: 4, orden: 2, texto: 'Barrio Norte' },
+          ],
+        },
+        {
+          id: 103,
+          orden: 3,
+          tipo: 'abierta',
+          texto: 'Contanos el motivo principal',
+          obligatoria: true,
+        },
+      ],
+    };
+
+    render(<SurveyForm survey={accessibleSurvey} onSubmit={vi.fn().mockResolvedValue(undefined)} />);
+
+    const singleChoice = screen.getByRole('radiogroup', { name: /que prioridad elegis/i });
+    const multipleChoice = screen.getByRole('group', { name: /que zonas necesitan atención/i });
+    const openAnswer = screen.getByRole('textbox', { name: /contanos el motivo principal/i });
+    expect(multipleChoice.tagName).toBe('FIELDSET');
+    expect(singleChoice).toHaveAttribute('aria-describedby', 'survey-question-101-metadata');
+    expect(openAnswer).toHaveAttribute('aria-describedby', 'survey-question-103-metadata');
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    const firstRadio = screen.getByRole('radio', { name: 'Luminaria' });
+    await waitFor(() => expect(firstRadio).toHaveFocus());
+    expect(singleChoice).toHaveAttribute('aria-invalid', 'true');
+    expect(singleChoice).toHaveAttribute(
+      'aria-describedby',
+      'survey-question-101-metadata survey-question-101-error',
+    );
+    expect(screen.getByText('Seleccioná una opción.')).toHaveAttribute('role', 'alert');
+
+    fireEvent.click(firstRadio);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    const firstCheckbox = screen.getByRole('checkbox', { name: 'Centro' });
+    await waitFor(() => expect(firstCheckbox).toHaveFocus());
+    expect(multipleChoice).toHaveAttribute('aria-invalid', 'true');
+    expect(firstCheckbox).toHaveAttribute(
+      'aria-describedby',
+      'survey-question-102-metadata survey-question-102-error',
+    );
+
+    fireEvent.click(firstCheckbox);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(openAnswer).toHaveFocus());
+    expect(openAnswer).toHaveAttribute('aria-invalid', 'true');
+    expect(openAnswer).toHaveAttribute(
+      'aria-describedby',
+      'survey-question-103-metadata survey-question-103-error',
+    );
+    expect(screen.getByText('Este campo es obligatorio.')).toHaveAttribute('aria-live', 'assertive');
+  });
+
+  it('marks participant identity errors and focuses the first required identity field', async () => {
+    render(
+      <SurveyForm
+        survey={{ ...baseSurvey, politica_unicidad: 'por_dni' }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    const documentInput = screen.getByLabelText('Documento');
+    await waitFor(() => expect(documentInput).toHaveFocus());
+    expect(documentInput).toHaveAttribute('aria-invalid', 'true');
+    expect(documentInput).toHaveAttribute(
+      'aria-describedby',
+      'survey-identity-help survey-identity-error',
+    );
+    expect(screen.getByText(/ingresá tu dni para validar tu participación/i)).toHaveAttribute(
+      'role',
+      'alert',
+    );
+  });
+
   it('describes an open-ended survey without rendering the Unix epoch as its closing date', () => {
     render(<SurveyForm survey={{ ...baseSurvey, fin_at: null }} onSubmit={vi.fn()} />);
 

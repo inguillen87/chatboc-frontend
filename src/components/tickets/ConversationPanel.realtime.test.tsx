@@ -495,7 +495,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const { trigger, menu } = await openComposerTools();
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato seguro de adjuntos para TenantTicket',
+      'no publicó un contrato seguro de adjuntos para este ticket',
     );
     expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
@@ -1017,8 +1017,100 @@ describe('ConversationPanel tenant invalidation', () => {
     const { menu } = await openComposerTools();
     expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato seguro de adjuntos para TenantTicket',
+      'no publicó un contrato seguro de adjuntos para este ticket',
     );
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps reply fail-closed and uses the backend ownership reason when it is published', async () => {
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+      item: {
+        ...tenantAuthoritativeItem,
+        reply_contract: {
+          contract_version: 'inbox.reply_contract.v1',
+          reason_code: 'ticket_assignment_required',
+        },
+        allowed_actions: [],
+        actions: [],
+      },
+      raw: {},
+    });
+    render(renderConversation(true));
+
+    const reason = await screen.findByTestId('ticket-reply-block-reason');
+    await waitFor(() => expect(reason).toBeVisible());
+    expect(reason).toHaveTextContent('Tomá o asigná el ticket');
+
+    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    fireEvent.change(composer, { target: { value: 'Intento sin ownership.' } });
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute('aria-describedby', 'ticket-reply-block-reason');
+    fireEvent.click(send);
+
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    expect(screen.queryByText('Intento sin ownership.', { selector: 'div' })).not.toBeInTheDocument();
+  });
+
+  it('does not invent ownership when the backend omits reply without a reason', async () => {
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+      item: {
+        ...tenantAuthoritativeItem,
+        allowed_actions: [],
+        actions: [],
+      },
+      raw: {},
+    });
+    render(renderConversation(true));
+
+    const reason = await screen.findByTestId('ticket-reply-block-reason');
+    expect(reason).toHaveTextContent('no publicó una acción segura de respuesta');
+    expect(reason).toHaveTextContent('asignación, estado y canal');
+    expect(reason).not.toHaveTextContent('Tomá o asigná');
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+  });
+
+  it('blocks MunicipioTicket attachments when the authoritative contract is body-only', async () => {
+    harness.selectedTicket = {
+      ...selectedTicket,
+      nro_ticket: 'M-77',
+      source_model: 'MunicipioTicket',
+    };
+    const municipioReplyAction = {
+      ...tenantReplyAction,
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      payload_defaults: {
+        source_model: 'MunicipioTicket',
+        legacy_id: 77,
+        ticket_id: 77,
+      },
+    };
+    const municipioItem = {
+      ...tenantAuthoritativeItem,
+      id: 'municipio:77',
+      source_model: 'MunicipioTicket',
+      reply_contract: { contract_version: 'inbox.reply_contract.v1' },
+      allowed_actions: [municipioReplyAction],
+      actions: [municipioReplyAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item: municipioItem, raw: {} });
+    render(renderConversation());
+
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+      'contrato autoritativo no declara soporte para adjuntos o archivos',
+    );
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(screen.queryByAltText('Preview')).not.toBeInTheDocument();
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });

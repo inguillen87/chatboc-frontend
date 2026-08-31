@@ -22,6 +22,7 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       estado?: string;
       canal?: string;
       categoryColor?: string;
+      fuente?: string;
     }>;
     fitToBounds?: Array<[number, number]>;
     fitBoundsRequestKey?: string;
@@ -73,6 +74,8 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     <div
       data-testid="mock-live-map"
       data-points={String(props.heatmapData?.length ?? 0)}
+      data-point-ids={(props.heatmapData ?? []).map((point) => String(point.id ?? '')).join('|')}
+      data-point-sources={(props.heatmapData ?? []).map((point) => point.fuente ?? '').join('|')}
       data-addresses={(props.heatmapData ?? [])
         .map((point) => point.addressCellLabel ?? point.direccion ?? '')
         .filter(Boolean)
@@ -186,7 +189,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(filterDisclosure).not.toHaveClass('sticky');
-    expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Registros territoriales 6');
+    expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Puntos mapeados 6');
+    expect(screen.queryByText('Globo territorial interactivo')).toBeNull();
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getAllByRole('radio').map((control) => control.textContent)).toEqual([
       'Mapa operativo',
@@ -203,8 +207,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap).toHaveAttribute('data-disable-client-clustering', 'false');
     const describedBy = liveMap.getAttribute('data-aria-describedby');
     expect(describedBy).toBeTruthy();
-    expect(document.getElementById(describedBy!)).toHaveTextContent('Ver puntos en lista');
-    expect(screen.getByRole('button', { name: 'Ver puntos en lista (6)' })).toBeInTheDocument();
+    expect(document.getElementById(describedBy!)).toHaveTextContent('Ver datos accesibles');
+    expect(screen.getByRole('button', { name: 'Ver datos accesibles (6)' })).toBeInTheDocument();
     openTerritoryFilters();
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
   });
@@ -226,6 +230,7 @@ describe('PremiumTerritoryHeatmap', () => {
         enforced: true,
         city: 'Junín',
         state_name: 'Mendoza',
+        bounds: { west: -61, south: -35, east: -60, north: -34 },
         excluded_coordinate_records: 9,
         review_candidate_count: 9,
       },
@@ -327,6 +332,7 @@ describe('PremiumTerritoryHeatmap', () => {
         [-60.92, -34.62],
       ]),
     );
+    expect(screen.getByRole('button', { name: 'Quitar filtro de categoría Baches' })).toBeInTheDocument();
 
     chooseTerritoryFacet('Filtrar mapa por zona o barrio', 'centro');
     expect(map.getAttribute('data-points')).toBe('1');
@@ -439,7 +445,13 @@ describe('PremiumTerritoryHeatmap', () => {
         ticket_records_outside_jurisdiction: 9,
         coordinate_coverage_pct: 19.1,
       },
-      jurisdiction: { state: 'configured', enforced: true, city: 'Junín', state_name: 'Mendoza' },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        city: 'Junín',
+        state_name: 'Mendoza',
+        bounds: { west: -68.6, south: -33.3, east: -68.3, north: -32.9 },
+      },
       territorial_facets: {
         summary: { ticket_records: 63, mapped_records: 12, pending_geocode_records: 34, records_outside_jurisdiction: 9 },
         categories: [
@@ -564,7 +576,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByText('Sin domicilio exacto')).toBeTruthy();
 
     openTerritoryFilters();
-    const sectorOption = screen.getByRole('option', { name: /^Sector Centro A ·/ }) as HTMLOptionElement;
+    const sectorOption = screen.getByRole('option', { name: 'Sector Centro A' }) as HTMLOptionElement;
     chooseTerritoryFacet('Filtrar mapa por corredor o celda', sectorOption.value);
     expect(map.getAttribute('data-points')).toBe('2');
     expect(map.getAttribute('data-geo-features')).toBe('2');
@@ -633,16 +645,18 @@ describe('PremiumTerritoryHeatmap', () => {
 
     openTerritoryFilters();
     const intersectionFilter = screen.getByRole('option', {
-      name: /^Intersección Don Bosco \/ Sarmiento ·/,
+      name: 'Intersección Don Bosco / Sarmiento',
     }) as HTMLOptionElement;
-    expect(intersectionFilter).toHaveTextContent('Total 9');
-    expect(intersectionFilter).toHaveTextContent('Mapeados 2');
     expect(document.body.textContent).toContain('Corredor 25 de Mayo');
     expect(document.body.textContent).not.toContain('Corredor de Mayo');
     const locationFilter = screen.getByRole('combobox', { name: 'Filtrar mapa por corredor o celda' }) as HTMLSelectElement;
     expect(locationFilter.options).toHaveLength(7);
 
     chooseTerritoryFacet('Filtrar mapa por corredor o celda', intersectionFilter.value);
+    const locationSelect = screen.getByRole('combobox', { name: 'Filtrar mapa por corredor o celda' });
+    const locationCounts = document.getElementById(locationSelect.getAttribute('aria-describedby') ?? '');
+    expect(locationCounts).toHaveTextContent('Total 9');
+    expect(locationCounts).toHaveTextContent('Mapeados 2');
     expect(map).toHaveAttribute('data-points', '2');
   });
 
@@ -735,13 +749,17 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('3').length).toBeGreaterThan(0);
 
     openTerritoryFilters();
-    const bachesOption = screen.getByRole('option', { name: /^Baches ·/ });
-    expect(bachesOption).toHaveTextContent('Total 3');
-    expect(bachesOption).toHaveTextContent('Mapeados 2');
-    expect(bachesOption).toHaveTextContent('Revisar 1');
-    expect(screen.getByRole('option', { name: /^Corredor Belgrano ·/ })).toHaveTextContent(
-      'Revisar 1',
-    );
+    const bachesOption = screen.getByRole('option', { name: 'Baches' }) as HTMLOptionElement;
+    const corridorOption = screen.getByRole('option', { name: 'Corredor Belgrano' }) as HTMLOptionElement;
+    chooseTerritoryFacet('Filtrar mapa por corredor o celda', corridorOption.value);
+    const locationSelect = screen.getByRole('combobox', { name: 'Filtrar mapa por corredor o celda' });
+    expect(document.getElementById(locationSelect.getAttribute('aria-describedby') ?? '')).toHaveTextContent('Revisar 1');
+    chooseTerritoryFacet('Filtrar mapa por categoría', bachesOption.value);
+    const categorySelect = screen.getByRole('combobox', { name: 'Filtrar mapa por categoría' });
+    const categoryCounts = document.getElementById(categorySelect.getAttribute('aria-describedby') ?? '');
+    expect(categoryCounts).toHaveTextContent('Total 3');
+    expect(categoryCounts).toHaveTextContent('Mapeados 2');
+    expect(categoryCounts).toHaveTextContent('Revisar 1');
   });
 
   it('keeps canonical complaint categories visible when every record is pending or outside jurisdiction', () => {
@@ -822,15 +840,18 @@ describe('PremiumTerritoryHeatmap', () => {
     render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
     openTerritoryFilters();
-    const categoryFilter = screen.getByRole('option', { name: /^Luminarias ·/ }) as HTMLOptionElement;
-    expect(categoryFilter).toHaveTextContent('Total 5');
-    expect(categoryFilter).toHaveTextContent('Mapeados 0');
-    expect(categoryFilter).toHaveTextContent('Pendientes 4');
-    expect(categoryFilter).toHaveTextContent('Revisar 1');
-    expect(screen.getByRole('option', { name: /^Corredor Rivadavia ·/ })).toBeTruthy();
+    const categoryFilter = screen.getByRole('option', { name: 'Luminarias' }) as HTMLOptionElement;
+    expect(screen.getByRole('option', { name: 'Corredor Rivadavia' })).toBeTruthy();
     expect(document.body.textContent).not.toContain('Rivadavia 144');
 
     chooseTerritoryFacet('Filtrar mapa por categoría', categoryFilter.value);
+
+    const categorySelect = screen.getByRole('combobox', { name: 'Filtrar mapa por categoría' });
+    const categoryCounts = document.getElementById(categorySelect.getAttribute('aria-describedby') ?? '');
+    expect(categoryCounts).toHaveTextContent('Total 5');
+    expect(categoryCounts).toHaveTextContent('Mapeados 0');
+    expect(categoryCounts).toHaveTextContent('Pendientes 4');
+    expect(categoryCounts).toHaveTextContent('Revisar 1');
 
     const map = screen.getByTestId('mock-live-map');
     expect(map.getAttribute('data-points')).toBe('0');
@@ -852,12 +873,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByTestId('territory-filter-empty')).toBeNull();
   });
 
-  it('protects exact markers and small category or zone segments under aggregated privacy', () => {
-    const points: OperationsHeatmapPoint[] = [
-      { id: 'bache-1', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 1 },
-      { id: 'bache-2', lat: -34.62, lng: -60.92, categoria: 'Baches', barrio: 'Centro', weight: 1 },
-      { id: 'luz-1', lat: -34.63, lng: -60.93, categoria: 'Luminarias', barrio: 'Norte', weight: 1 },
-    ];
+  it('blocks raw coordinate density for samples from one through nine under aggregated privacy', () => {
+    const points = buildPoints(9);
     const heatmap = {
       contract_version: 'operations.heatmap.v1',
       points,
@@ -868,22 +885,17 @@ describe('PremiumTerritoryHeatmap', () => {
       render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
       privacy: {
         mode: 'aggregated',
-        minimum_sample_size: 3,
+        minimum_sample_size: 10,
         raw_points_redacted: true,
         suppressed: { exact_points: true },
       },
-      quality: { state: 'ready', visible_points: 3, can_render_heatmap: true },
+      quality: { state: 'ready', visible_points: 9, can_render_heatmap: true },
     } as OperationsHeatmapV1;
 
-    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} minSampleSize={3} />);
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} minSampleSize={10} />);
 
-    const map = screen.getByTestId('mock-live-map');
-    expect(map.getAttribute('data-show-heatmap')).toBe('true');
-    expect(map.getAttribute('data-show-points')).toBe('false');
-    expect(map.getAttribute('data-show-point-labels')).toBe('false');
-    expect(map.getAttribute('data-evidence-present')).toBe('false');
-    expect(map.getAttribute('data-show-evidence-badge')).toBe('false');
-    expect(map.getAttribute('data-heatmap-palette')).toBe('default');
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.queryByTestId('live-territory-map')).toBeNull();
     expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toBeDisabled();
@@ -891,7 +903,75 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByRole('option', { name: /^Baches ·/ })).toBeNull();
     expect(screen.queryByRole('option', { name: /^Centro ·/ })).toBeNull();
     expect(screen.getAllByText(/Segmentación protegida · mínimo 10 registros/)).toHaveLength(2);
-    expect(screen.getByText('detalle puntual protegido')).toBeTruthy();
+    expect(screen.getByTestId('territory-boundary-empty-state')).toBeInTheDocument();
+    expect(screen.getByTestId('territory-display-mode-status')).toHaveTextContent(
+      'No se dibujan puntos ni densidad territorial',
+    );
+  });
+
+  it('does not turn ten raw coordinates into a k-anonymous heat cell', () => {
+    const points = buildPoints(10);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap'] },
+      privacy: {
+        mode: 'aggregated',
+        k_min: 10,
+        raw_points_redacted: true,
+        suppressed: { exact_points: true },
+      },
+      quality: { state: 'ready', visible_points: 10, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.queryByTestId('live-territory-map')).toBeNull();
+    expect(screen.getByTestId('territory-display-mode-status')).toHaveTextContent(
+      'No se dibujan puntos ni densidad territorial',
+    );
+  });
+
+  it('renders only backend k-anonymous aggregate cells when exact coordinates are protected', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [{
+        cell_id: 'cell-centro',
+        centroid_lat: -34.61,
+        centroid_lon: -60.91,
+        count: 10,
+        dominant_category: 'Luminarias',
+      }],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap'] },
+      privacy: {
+        mode: 'aggregated',
+        k_min: 10,
+        raw_points_redacted: true,
+        suppressed: { exact_points: true },
+      },
+      quality: { state: 'ready', visible_points: 1, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(map).toHaveAttribute('data-point-ids', 'cell-centro');
+    expect(map).toHaveAttribute('data-point-sources', 'heatmap_cell');
+    expect(map).toHaveAttribute('data-show-heatmap', 'true');
+    expect(map).toHaveAttribute('data-show-points', 'false');
+    expect(map).toHaveAttribute('data-show-point-labels', 'false');
+    expect(map).toHaveAttribute('data-evidence-present', 'false');
+    expect(map).toHaveAttribute('data-show-evidence-badge', 'false');
   });
 
   it('never claims an active heat view when both territorial layers are disabled', () => {
@@ -1298,6 +1378,184 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-zone-analytics-unavailable')).toBeTruthy();
     expect(screen.queryByText('Zona seleccionada')).toBeNull();
     expect(screen.queryByText('Tasa cada 1.000')).toBeNull();
+  });
+
+  it('keeps ungeocoded records in a safe queue and never fabricates territorial routes', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      quality: { state: 'partial', visible_points: 0, can_render_heatmap: false },
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { source: 'Catastro municipal', official: true },
+          features: [{
+            type: 'Feature',
+            id: 'centro',
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[[-61, -34.7], [-60.8, -34.7], [-60.8, -34.5], [-61, -34.5], [-61, -34.7]]],
+            },
+            properties: { nombre: 'Centro oficial' },
+          }],
+        },
+      },
+      geocoding: {
+        status: 'pending',
+        candidate_count: 1,
+        candidates: [{
+          record_id: 'opaque-1',
+          category: 'Luminarias',
+          address: 'Belgrano 1234, Junín, domicilio particular',
+        }],
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} />);
+
+    const mapShell = screen.getByTestId('territory-map-shell');
+    expect(screen.queryByRole('img', { name: 'Inteligencia territorial' })).toBeNull();
+    expect(screen.queryByTestId('live-territory-map')).toBeNull();
+    expect(screen.getByTestId('territory-activity-empty-state')).toHaveTextContent(
+      'Sin actividad territorial mapeada',
+    );
+    expect(screen.queryByTestId('territory-hud-overlay')).toBeNull();
+    expect(screen.queryByTestId('territory-radar-sweep')).toBeNull();
+    expect(screen.queryByTestId('territory-selected-crosshair')).toBeNull();
+    expect(mapShell.querySelectorAll('svg[role="img"], animate, animateTransform, animateMotion')).toHaveLength(0);
+    expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('Cola de ubicaciones pendientes');
+    expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('Sin coordenadas');
+    expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('no se dibujan en el mapa');
+    expect(document.body.textContent).not.toContain('Belgrano 1234');
+  });
+
+  it('rejects impossible territorial totals and coverage instead of publishing contradictory metrics', () => {
+    const points = buildPoints(3);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      quality: { state: 'ready', visible_points: 3, can_render_heatmap: true, coverage_percent: 150 },
+      territorial_facets: {
+        summary: { ticket_records: 2, mapped_records: 3 },
+        categories: [{ key: 'luminarias', label: 'Luminarias', count: 2, mapped_count: 3 }],
+        explicit_zones: [],
+        addresses: [],
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByTestId('territory-contract-integrity-warning')).toHaveTextContent(
+      'Métricas territoriales en revisión',
+    );
+    expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Puntos mapeados 3');
+    expect(screen.getByTestId('territory-header-coverage')).toHaveTextContent('—');
+    expect(document.body.textContent).not.toContain('150%');
+    openTerritoryFilters();
+    expect(screen.queryByRole('option', { name: 'Luminarias' })).toBeNull();
+  });
+
+  it('fails closed when canonical summary and location quality disagree', () => {
+    const points = buildPoints(3);
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'partial', visible_points: 3, can_render_heatmap: true },
+      territorial_facets: {
+        summary: {
+          ticket_records: 6,
+          mapped_records: 3,
+          pending_geocode_records: 2,
+          records_outside_jurisdiction: 1,
+        },
+        categories: [],
+        explicit_zones: [],
+        addresses: [],
+      },
+      location_quality: {
+        total_ticket_records: 6,
+        ticket_records_with_coordinates: 2,
+        ticket_records_pending_geocode: 3,
+        ticket_records_outside_jurisdiction: 1,
+        coordinate_coverage_pct: 33.3,
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.getByTestId('territory-contract-integrity-warning')).toHaveTextContent(
+      'Métricas territoriales en revisión',
+    );
+    expect(screen.getByTestId('territory-header-coverage')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-header-pending')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-radar-coverage')).toHaveTextContent('—');
+    expect(screen.getByTestId('territory-radar-pending')).toHaveTextContent('—');
+    expect(document.body.textContent).not.toContain('33,3%');
+    expect(document.body.textContent).not.toContain('Registros territoriales 6');
+  });
+
+  it('rejects invalid WGS84 coordinates and coordinates outside enforced bounds even when they claim to be inside', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'outside-bounds',
+        lat: -34.61,
+        lng: -60.91,
+        categoria: 'Luminarias',
+        barrio: 'Centro',
+        coordinate_jurisdiction_status: 'within',
+      },
+      {
+        id: 'invalid-wgs84',
+        lat: 91,
+        lng: -68.45,
+        categoria: 'Baches',
+        barrio: 'Centro',
+        coordinate_jurisdiction_status: 'within',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['points'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'partial', visible_points: 2, can_render_heatmap: true },
+      jurisdiction: {
+        state: 'configured',
+        enforced: true,
+        city: 'Junín',
+        state_name: 'Mendoza',
+        bounds: { west: -68.6, south: -33.3, east: -68.3, north: -32.9 },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    expect(screen.queryByTestId('mock-live-map')).toBeNull();
+    expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Puntos mapeados 0');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent(
+      'Fuera de jurisdicción / revisar · 2',
+    );
+    expect(document.body.textContent).not.toContain('-34.61');
+    expect(document.body.textContent).not.toContain('-60.91');
   });
 
   it('shows the backend-derived provenance legend instead of claiming every point is real', () => {

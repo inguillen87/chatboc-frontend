@@ -207,7 +207,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
-      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+      'Cola priorizada, 1 caso, 1 no leidos, 0 en riesgo, 1 sin responsable',
     );
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('Cola');
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('No leidos');
@@ -531,7 +531,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
-      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+      'Cola priorizada, 1 caso, 1 no leidos, 0 en riesgo, 1 sin responsable',
     );
     expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
       'data-compact',

@@ -124,6 +124,41 @@ describe('premium territory heatmap aggregation', () => {
     expect(centro?.variationPercent).toBeGreaterThan(0);
   });
 
+  it('resolves a coordinate through verified polygons before trusting a mutable zone label', () => {
+    const zones = [
+      OFFICIAL_TEST_ZONES[0],
+      {
+        id: 'norte',
+        label: 'Norte',
+        polygon: [[20, 20], [80, 20], [80, 55], [20, 55]] as [number, number][],
+        geoPolygons: [[[-60.75, -34.7], [-60.55, -34.7], [-60.55, -34.5], [-60.75, -34.5]]] as [number, number][][],
+        source: 'official' as const,
+      },
+    ];
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'label-mismatch',
+        lat: -34.6,
+        lng: -60.7,
+        barrio: 'Centro',
+        categoria: 'reclamos',
+      },
+      {
+        id: 'outside-polygons',
+        lat: -34.6,
+        lng: -60.4,
+        barrio: 'Centro',
+        categoria: 'reclamos',
+      },
+    ];
+
+    const result = aggregateTerritoryHeatmap({ points, zones });
+
+    expect(result.zones.find((metric) => metric.zone.id === 'centro')?.records).toBe(0);
+    expect(result.zones.find((metric) => metric.zone.id === 'norte')?.records).toBe(1);
+    expect(result.unassignedRecords).toBe(1);
+  });
+
   it('provides a local demo seed with eight zones and multiple category families', () => {
     const demoPoints = getDemoTerritoryHeatmapPoints('gobierno');
     const zoneNames = new Set(demoPoints.map((point) => point.barrio));
@@ -190,6 +225,36 @@ describe('premium territory heatmap aggregation', () => {
         source: 'official',
       }),
     ]);
+  });
+
+  it('rejects an entire official boundary ring when any coordinate is outside WGS84', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { official: true, source: 'Catastro municipal' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [181, -34.62], [-60.9, -34.57], [-60.95, -34.57]]],
+              },
+              properties: { nombre: 'Centro' },
+            },
+          ],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)).toEqual([]);
   });
 
   it('rejects boundary collections explicitly marked as synthetic', () => {

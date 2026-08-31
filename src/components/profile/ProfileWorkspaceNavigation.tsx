@@ -238,19 +238,26 @@ export default function ProfileWorkspaceNavigation({
                 },
               ]
             : []),
-          ...(capabilities.participation
-            ? [
+        ],
+      },
+      ...(capabilities.participation
+        ? [
+            {
+              id: "participation",
+              label: "Participación",
+              icon: Vote,
+              modules: [
                 {
                   id: "surveys",
-                  label: "Encuestas y votaciones",
-                  description: "Campañas, participación y resultados trazables.",
+                  label: "Encuestas, sondeos y votaciones",
+                  description: "Diseño, publicación, participación y resultados trazables.",
                   icon: Vote,
                   action: onOpenSurveys,
                 },
-              ]
-            : []),
-        ],
-      },
+              ],
+            } satisfies WorkspaceModuleGroup,
+          ]
+        : []),
       {
         id: "intelligence",
         label: "Inteligencia",

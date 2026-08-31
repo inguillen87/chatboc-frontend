@@ -114,6 +114,24 @@ const page = ({
     source: 'enc_encuesta_and_enc_respuesta',
     synthetic: false,
   },
+  executive_summary: {
+    contract_version: 'surveys.admin_executive_overview.v1',
+    aggregation_scope: {
+      mode: 'returned_page',
+      returned_items: 1,
+      query_total_items: total,
+      complete_for_query: !hasMore && cursor === null,
+    },
+  } as SurveyListResponse['executive_summary'],
+  data_quality: {
+    contract_version: 'surveys.admin_data_quality.v1',
+    aggregation_scope: {
+      mode: 'returned_page',
+      returned_items: 1,
+      query_total_items: total,
+      complete_for_query: !hasMore && cursor === null,
+    },
+  } as SurveyListResponse['data_quality'],
   data: [survey],
   overview: {
     total: 1,
@@ -179,6 +197,7 @@ describe('useSurveyAdmin paginated listing', () => {
 
     await waitFor(() => expect(result.current.surveys?.data).toHaveLength(1));
     expect(result.current.hasMoreSurveys).toBe(true);
+    expect(result.current.surveys?.executive_summary).toBeDefined();
     expect(result.current.surveyListProgress).toEqual({ loaded: 1, total: 2 });
 
     await act(async () => {
@@ -192,6 +211,8 @@ describe('useSurveyAdmin paginated listing', () => {
       total_respuestas: 12,
       respuestas_ultimas_24h: 12,
     });
+    expect(result.current.surveys?.executive_summary).toBeUndefined();
+    expect(result.current.surveys?.data_quality).toBeUndefined();
     expect(result.current.surveyListProgress).toEqual({ loaded: 2, total: 2 });
     expect(result.current.hasMoreSurveys).toBe(false);
     expect(apiMocks.adminListSurveys).toHaveBeenNthCalledWith(
