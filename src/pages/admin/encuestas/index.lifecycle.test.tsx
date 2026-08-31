@@ -11,6 +11,7 @@ vi.mock('@/hooks/useSurveyAdmin', () => ({ useSurveyAdmin: mocks.useSurveyAdmin 
 vi.mock('@/components/ui/use-toast', () => ({ toast: mocks.toast }));
 
 import AdminSurveysIndex, { buildOperationalSurveyOverview } from '@/pages/admin/encuestas/index';
+import type { SurveyAdmin, SurveyAdminInstrumentKind, SurveyAdminLifecyclePhase } from '@/types/encuestas';
 import { ApiError } from '@/utils/api';
 
 const adminScope = (status: 'compatible' | 'conflict' | 'unverified' = 'compatible') => ({
@@ -57,6 +58,68 @@ const adminState = (overrides: Record<string, unknown> = {}) => ({
   tenantSlug: 'org-demo',
   ...overrides,
 });
+
+const lifecycleFor = (
+  phase: SurveyAdminLifecyclePhase,
+  instrumentKind: SurveyAdminInstrumentKind = 'survey',
+) => ({
+  contract_version: 'surveys.admin_lifecycle.v1' as const,
+  instrument_kind: instrumentKind,
+  phase,
+  persisted_state: phase === 'draft' ? 'borrador' : phase === 'closed' || phase === 'archived' ? 'cerrada' : 'publicada',
+  accepts_responses: phase === 'collecting' || phase === 'live_voting',
+  operational_block: null,
+  jurisdiction: {
+    status: 'compatible' as const,
+    reason_code: 'survey_jurisdiction_compatible',
+    content_review_included: false as const,
+  },
+  schedule: { opens_at: null, closes_at: null, evaluated_at: '2026-08-31T00:00:00Z' },
+  participation: {
+    responses: 0,
+    unique_participants: 0,
+    responses_last_24h: 0,
+    last_response_at: null,
+    eligible_population: null,
+    participation_rate: null,
+    abstentions: null,
+    denominator_status: { available: false, reason_code: 'not_configured' },
+  },
+  capabilities: {
+    can_publish: false,
+    can_close: false,
+    can_delete: false,
+    can_share: false,
+    can_view_results: true,
+  },
+  actions: {
+    publish: { method: 'POST' as const, endpoint: '/api/v2/surveys/0/publish', enabled: false },
+    close: { method: 'POST' as const, endpoint: '/api/v2/surveys/0/close', enabled: false },
+  },
+});
+
+const workspaceInstrument = (
+  id: number,
+  title: string,
+  phase: SurveyAdminLifecyclePhase,
+  instrumentKind: SurveyAdminInstrumentKind = 'survey',
+): SurveyAdmin => {
+  const adminLifecycle = lifecycleFor(phase, instrumentKind);
+  return {
+    id,
+    tenant_id: 22,
+    slug: `instrumento-${id}`,
+    titulo: title,
+    tipo: instrumentKind === 'voting' ? 'votacion' : 'opinion',
+    estado: adminLifecycle.persisted_state as SurveyAdmin['estado'],
+    inicio_at: null,
+    fin_at: null,
+    politica_unicidad: 'libre',
+    preguntas: [],
+    admin_scope: adminScope(),
+    admin_lifecycle: adminLifecycle,
+  };
+};
 
 const renderPage = () =>
   render(
@@ -155,7 +218,7 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    expect(screen.getByText('Mostrando 1 de 2 registros · 1 operativos (1 compatibles · 0 por verificar) · 0 conflictos separados')).toBeTruthy();
+    expect(screen.getByText('Mostrando 1 de 2 registros · 1 operativo (1 compatible · 0 por verificar) · 0 conflictos separados')).toBeTruthy();
     expect(screen.getByText('Instrumentos cargados')).toBeTruthy();
     expect(screen.getByText(/Indicadores de alcance operativo para 1 instrumentos cargados, dentro de 2/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más encuestas' }));
@@ -187,6 +250,124 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByText('Consulta de servicios')).toBeTruthy();
     expect(screen.getByRole('alert')).toHaveTextContent(/Conservamos los instrumentos ya cargados/i);
+  });
+
+  it('offers a compact searchable workspace without hiding separated jurisdiction conflicts', () => {
+    const instrument = (
+      id: number,
+      title: string,
+      kind: 'opinion' | 'votacion',
+      state: 'borrador' | 'publicada',
+      scope: 'compatible' | 'conflict' | 'unverified' = 'compatible',
+    ) => ({
+      id,
+      tenant_id: 22,
+      slug: `instrumento-${id}`,
+      titulo: title,
+      tipo: kind,
+      estado: state,
+      inicio_at: null,
+      fin_at: null,
+      politica_unicidad: 'libre',
+      preguntas: [],
+      admin_scope: adminScope(scope),
+    });
+
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: {
+        data: [
+          instrument(701, 'Consulta de alumbrado', 'opinion', 'publicada'),
+          instrument(702, 'Votación de obras', 'votacion', 'borrador', 'unverified'),
+          instrument(703, 'Auditoría de otra jurisdicción', 'votacion', 'borrador', 'conflict'),
+        ],
+      },
+      surveyListProgress: { loaded: 3, total: 3 },
+    }));
+
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Instrumentos operativos' })).toBeTruthy();
+    expect(screen.getByText(/2 visibles de 2 instrumentos operativos · 1 conflicto separado/i)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+      target: { value: '701' },
+    });
+    expect(screen.getByText('Consulta de alumbrado')).toBeTruthy();
+    expect(screen.queryByText('Votación de obras')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Votaciones: 1' }));
+    expect(screen.queryByText('Consulta de alumbrado')).toBeNull();
+    expect(screen.getByText('Votación de obras')).toBeTruthy();
+    expect(screen.getByText('Conflicto de alcance · 1 instrumento')).toBeTruthy();
+    expect(screen.getByText('Auditoría de otra jurisdicción')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+      target: { value: 'sin coincidencia' },
+    });
+    expect(screen.getByText('No hay instrumentos que coincidan con esta vista.')).toBeTruthy();
+    expect(screen.getByText(/los registros no fueron eliminados/i)).toBeTruthy();
+    expect(screen.getByText('Conflicto de alcance · 1 instrumento')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByText('Consulta de alumbrado')).toBeTruthy();
+    expect(screen.getByText('Votación de obras')).toBeTruthy();
+  });
+
+  it('filters operational states from the lifecycle phase without inferring them from persisted state', () => {
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: {
+        data: [
+          workspaceInstrument(710, 'Consulta programada', 'scheduled'),
+          workspaceInstrument(711, 'Votación recibiendo', 'live_voting', 'voting'),
+          workspaceInstrument(712, 'Consulta con ventana finalizada', 'window_ended'),
+          workspaceInstrument(713, 'Consulta sin fase verificable', 'unknown'),
+        ],
+      },
+      surveyListProgress: { loaded: 4, total: 4 },
+    }));
+
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Programadas 1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Recibiendo 1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finalizados 1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sin verificar 1' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Programadas 1' }));
+    expect(screen.getByText('Consulta programada')).toBeTruthy();
+    expect(screen.queryByText('Votación recibiendo')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizados 1' }));
+    expect(screen.getByText('Consulta con ventana finalizada')).toBeTruthy();
+    expect(screen.queryByText('Consulta programada')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sin verificar 1' }));
+    expect(screen.getByText('Consulta sin fase verificable')).toBeTruthy();
+    expect(screen.queryByText('Consulta con ventana finalizada')).toBeNull();
+  });
+
+  it('labels search as partial and loads more before claiming no global matches', () => {
+    const loadMoreSurveys = vi.fn().mockResolvedValue(undefined);
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: { data: [workspaceInstrument(720, 'Consulta programada', 'scheduled')] },
+      surveyListProgress: { loaded: 1, total: 4 },
+      hasMoreSurveys: true,
+      loadMoreSurveys,
+    }));
+
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+      target: { value: 'movilidad' },
+    });
+
+    expect(screen.getByText(/0 visibles entre 1 instrumento operativo cargado/i)).toBeTruthy();
+    expect(screen.getByText('No hay coincidencias entre 1 instrumento operativo cargado.')).toBeTruthy();
+    expect(screen.getByText(/todavía puede haber coincidencias en las páginas pendientes/i)).toBeTruthy();
+    expect(screen.queryByText('No hay instrumentos que coincidan con esta vista.')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar más resultados' }));
+    expect(loadMoreSurveys).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a publish conflict visible and refreshes the lifecycle from the backend', async () => {
@@ -415,7 +596,7 @@ describe('AdminSurveysIndex states', () => {
     const validTitle = screen.getByText('Instrumento válido de Junín');
     const conflictTitle = screen.getByText('Instrumento legado incompatible');
     expect(validTitle.compareDocumentPosition(conflictTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const legacySection = screen.getByText('Conflictos de alcance · 1 instrumentos').closest('details');
+    const legacySection = screen.getByText('Conflicto de alcance · 1 instrumento').closest('details');
     expect(legacySection).not.toHaveAttribute('open');
     expect(screen.getAllByRole('button', { name: 'Publicar' })).toHaveLength(1);
   });
@@ -511,7 +692,7 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getAllByText('10').length).toBeGreaterThan(0);
     expect(screen.queryByText('100')).toBeNull();
-    const legacy = screen.getByText('Conflictos de alcance · 1 instrumentos').closest('details');
+    const legacy = screen.getByText('Conflicto de alcance · 1 instrumento').closest('details');
     expect(legacy).not.toHaveAttribute('open');
     expect(screen.getByText(/Se excluyen 1 conflictos confirmados\. 0 instrumentos sin verificar/i)).toBeTruthy();
   });

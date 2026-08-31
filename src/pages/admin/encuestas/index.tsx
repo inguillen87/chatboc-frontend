@@ -1,11 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BarChart3, Loader2, MessageSquareText, Plus, Radio, ShieldAlert } from 'lucide-react';
+import {
+  BarChart3,
+  Loader2,
+  MessageSquareText,
+  Plus,
+  Radio,
+  Search,
+  ShieldAlert,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { SurveyCard } from '@/components/surveys/SurveyCard';
 import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsOverview';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type {
   SurveyAdmin,
@@ -26,6 +37,15 @@ import { resolveSurveyPublicationFailure, type SurveyPublicationFailure } from '
 import { resolveSurveyJurisdictionScope } from '@/utils/surveyJurisdictionScope';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
+type SurveyWorkspaceStatusFilter =
+  | 'all'
+  | 'draft'
+  | 'scheduled'
+  | 'collecting'
+  | 'finished'
+  | 'unverified';
+type SurveyWorkspaceKindFilter = 'all' | 'survey' | 'voting';
+type SurveyWorkspaceStatus = Exclude<SurveyWorkspaceStatusFilter, 'all'>;
 
 const normalizeFocusMode = (value: string | null): SurveyFocusMode => {
   const normalized = (value || '').trim().toLowerCase();
@@ -111,6 +131,45 @@ export const buildOperationalSurveyOverview = (
   };
 };
 
+const getWorkspaceStatus = (survey: SurveyAdmin): SurveyWorkspaceStatus => {
+  switch (survey.admin_lifecycle?.phase) {
+    case 'draft':
+      return 'draft';
+    case 'scheduled':
+      return 'scheduled';
+    case 'collecting':
+    case 'live_voting':
+      return 'collecting';
+    case 'window_ended':
+    case 'closed':
+    case 'archived':
+      return 'finished';
+    case 'unknown':
+    default:
+      // A persisted state without the lifecycle contract is insufficient to
+      // claim that an instrument is receiving responses.
+      return 'unverified';
+  }
+};
+
+const matchesWorkspaceStatus = (survey: SurveyAdmin, filter: SurveyWorkspaceStatusFilter) => {
+  if (filter === 'all') return true;
+  return getWorkspaceStatus(survey) === filter;
+};
+
+const getInstrumentKind = (survey: SurveyAdmin): Exclude<SurveyWorkspaceKindFilter, 'all'> =>
+  survey.admin_lifecycle?.instrument_kind ?? (survey.tipo === 'votacion' ? 'voting' : 'survey');
+
+const normalizeWorkspaceQuery = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLocaleLowerCase('es-AR');
+
+const formatCount = (count: number, singular: string, plural: string) =>
+  `${count.toLocaleString('es-AR')} ${count === 1 ? singular : plural}`;
+
 const focusCopy = {
   live: {
     title: 'Foco operativo: votaciones y resultados en vivo',
@@ -163,6 +222,9 @@ const AdminSurveysIndex = () => {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
   const [publishFailure, setPublishFailure] = useState<(SurveyPublicationFailure & { surveyId: number }) | null>(null);
+  const [workspaceQuery, setWorkspaceQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<SurveyWorkspaceStatusFilter>('all');
+  const [kindFilter, setKindFilter] = useState<SurveyWorkspaceKindFilter>('all');
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -300,6 +362,36 @@ const AdminSurveysIndex = () => {
     () => operationalClassifiedItems.map(({ survey }) => survey),
     [operationalClassifiedItems],
   );
+  const normalizedWorkspaceQuery = useMemo(
+    () => normalizeWorkspaceQuery(workspaceQuery),
+    [workspaceQuery],
+  );
+  const filteredOperationalClassifiedItems = useMemo(
+    () => operationalClassifiedItems.filter(({ survey }) => {
+      const searchableValue = normalizeWorkspaceQuery([
+        survey.id,
+        survey.titulo,
+        survey.slug,
+        survey.descripcion,
+      ].filter(Boolean).join(' '));
+      const matchesQuery = !normalizedWorkspaceQuery || searchableValue.includes(normalizedWorkspaceQuery);
+      const matchesStatus = matchesWorkspaceStatus(survey, statusFilter);
+      const matchesKind = kindFilter === 'all' || getInstrumentKind(survey) === kindFilter;
+      return matchesQuery && matchesStatus && matchesKind;
+    }),
+    [kindFilter, normalizedWorkspaceQuery, operationalClassifiedItems, statusFilter],
+  );
+  const workspaceCounts = useMemo(() => ({
+    all: operationalItems.length,
+    draft: operationalItems.filter((survey) => matchesWorkspaceStatus(survey, 'draft')).length,
+    scheduled: operationalItems.filter((survey) => matchesWorkspaceStatus(survey, 'scheduled')).length,
+    collecting: operationalItems.filter((survey) => matchesWorkspaceStatus(survey, 'collecting')).length,
+    finished: operationalItems.filter((survey) => matchesWorkspaceStatus(survey, 'finished')).length,
+    unverified: operationalItems.filter((survey) => matchesWorkspaceStatus(survey, 'unverified')).length,
+    surveys: operationalItems.filter((survey) => getInstrumentKind(survey) === 'survey').length,
+    votings: operationalItems.filter((survey) => getInstrumentKind(survey) === 'voting').length,
+  }), [operationalItems]);
+  const hasWorkspaceFilters = Boolean(normalizedWorkspaceQuery || statusFilter !== 'all' || kindFilter !== 'all');
   const focusedItems = useMemo(
     () => (focusMode ? operationalItems.filter((survey) => matchesFocus(survey, focusMode)) : []),
     [focusMode, operationalItems],
@@ -351,7 +443,7 @@ const AdminSurveysIndex = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-semibold">{focusMeta.title}</h2>
                   <span className="rounded-full border border-primary/25 bg-background px-2 py-0.5 text-xs text-primary">
-                    {focusedItems.length} priorizadas
+                    {focusedItems.length.toLocaleString('es-AR')} {focusedItems.length === 1 ? 'priorizada' : 'priorizadas'}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{focusMeta.description}</p>
@@ -414,10 +506,116 @@ const AdminSurveysIndex = () => {
         <section
           id="survey-instrument-list"
           aria-labelledby="survey-instrument-list-title"
-          className="grid scroll-mt-6 gap-4"
+          className="scroll-mt-6 space-y-4"
         >
-          <h2 id="survey-instrument-list-title" className="sr-only">Instrumentos de participación</h2>
-          {operationalClassifiedItems.map(({ survey, scope }) => (
+          <div className="rounded-2xl border border-border/70 bg-card p-3 shadow-sm sm:p-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-lg bg-primary/10 p-2 text-primary">
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h2 id="survey-instrument-list-title" className="text-base font-semibold">
+                      Instrumentos operativos
+                    </h2>
+                    <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+                      {hasMoreSurveys
+                        ? `${filteredOperationalClassifiedItems.length.toLocaleString('es-AR')} visibles entre ${formatCount(operationalItems.length, 'instrumento operativo cargado', 'instrumentos operativos cargados')}`
+                        : `${filteredOperationalClassifiedItems.length.toLocaleString('es-AR')} visibles de ${formatCount(operationalItems.length, 'instrumento operativo', 'instrumentos operativos')}`}
+                      {' · '}
+                      {formatCount(conflictItems.length, 'conflicto separado', 'conflictos separados')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-4xl xl:flex-row xl:items-center xl:justify-end">
+                <label className="relative block min-w-0 flex-1 xl:max-w-xs">
+                  <span className="sr-only">Buscar instrumentos</span>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input
+                    type="search"
+                    value={workspaceQuery}
+                    onChange={(event) => setWorkspaceQuery(event.target.value)}
+                    placeholder="Buscar por nombre o identificador"
+                    className="h-9 pl-9"
+                  />
+                </label>
+
+                <div
+                  role="group"
+                  aria-label="Filtrar por estado operativo"
+                  className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/25 p-1"
+                >
+                  {([
+                    ['all', 'Todos', workspaceCounts.all],
+                    ['draft', 'Borradores', workspaceCounts.draft],
+                    ['scheduled', 'Programadas', workspaceCounts.scheduled],
+                    ['collecting', 'Recibiendo', workspaceCounts.collecting],
+                    ['finished', 'Finalizados', workspaceCounts.finished],
+                    ['unverified', 'Sin verificar', workspaceCounts.unverified],
+                  ] as const).map(([value, label, count]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      variant={statusFilter === value ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 shrink-0 gap-1 px-2 text-xs"
+                      aria-pressed={statusFilter === value}
+                      onClick={() => setStatusFilter(value)}
+                    >
+                      {label} <span className="tabular-nums text-muted-foreground">{count.toLocaleString('es-AR')}</span>
+                    </Button>
+                  ))}
+                </div>
+
+                <div
+                  role="group"
+                  aria-label="Filtrar por tipo de instrumento"
+                  className="flex gap-1 rounded-lg border border-border/70 bg-muted/25 p-1"
+                >
+                  {([
+                    ['all', 'Ambos', workspaceCounts.all],
+                    ['survey', 'Encuestas', workspaceCounts.surveys],
+                    ['voting', 'Votaciones', workspaceCounts.votings],
+                  ] as const).map(([value, label, count]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      variant={kindFilter === value ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      aria-pressed={kindFilter === value}
+                      aria-label={`${label}: ${count.toLocaleString('es-AR')}`}
+                      onClick={() => setKindFilter(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+
+                {hasWorkspaceFilters ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0 gap-1 px-2 text-xs"
+                    onClick={() => {
+                      setWorkspaceQuery('');
+                      setStatusFilter('all');
+                      setKindFilter('all');
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" /> Limpiar
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-2">
+          {filteredOperationalClassifiedItems.map(({ survey, scope }) => (
             <div key={survey.id} className={focusMode && matchesFocus(survey, focusMode) ? 'rounded-2xl border border-primary/25 bg-primary/[0.03] p-2' : undefined}>
               {focusMode && matchesFocus(survey, focusMode) ? (
                 <div className="mb-2 inline-flex rounded-full border border-primary/25 bg-background px-2 py-0.5 text-xs font-medium text-primary">
@@ -482,21 +680,73 @@ const AdminSurveysIndex = () => {
               />
             </div>
           ))}
-          {!operationalItems.length && (
+          {!operationalItems.length ? (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No hay instrumentos operativos cargados para esta organización. Creá uno nuevo o revisá los conflictos separados.
+              {hasMoreSurveys ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    No hay instrumentos operativos entre los {formatCount(surveyListProgress.loaded, 'registro cargado', 'registros cargados')}.
+                  </p>
+                  <p className="mt-1">Todavía puede haber instrumentos en las páginas pendientes.</p>
+                </>
+              ) : (
+                'No hay instrumentos operativos cargados para esta organización. Creá uno nuevo o revisá los conflictos separados.'
+              )}
             </div>
-          )}
+          ) : !filteredOperationalClassifiedItems.length ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground xl:col-span-2">
+              <p className="font-medium text-foreground">
+                {hasMoreSurveys
+                  ? `No hay coincidencias entre ${formatCount(operationalItems.length, 'instrumento operativo cargado', 'instrumentos operativos cargados')}.`
+                  : 'No hay instrumentos que coincidan con esta vista.'}
+              </p>
+              <p className="mt-1">
+                {hasMoreSurveys
+                  ? 'Todavía puede haber coincidencias en las páginas pendientes.'
+                  : 'Ajustá la búsqueda o limpiá los filtros; los registros no fueron eliminados.'}
+              </p>
+              {hasMoreSurveys ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => void loadMoreSurveys()}
+                  disabled={isLoadingMoreSurveys}
+                >
+                  {isLoadingMoreSurveys ? 'Cargando más…' : 'Cargar más resultados'}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-2 mt-3"
+                onClick={() => {
+                  setWorkspaceQuery('');
+                  setStatusFilter('all');
+                  setKindFilter('all');
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            </div>
+          ) : null}
+          </div>
           {conflictItems.length ? (
             <details className="group rounded-xl border border-amber-400/40 bg-amber-500/5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
-                <span>Conflictos de alcance · {conflictItems.length.toLocaleString('es-AR')} instrumentos</span>
+                <span>
+                  {conflictItems.length === 1 ? 'Conflicto de alcance' : 'Conflictos de alcance'} ·{' '}
+                  {formatCount(conflictItems.length, 'instrumento', 'instrumentos')}
+                </span>
                 <span className="text-xs font-normal text-muted-foreground group-open:hidden">Ver auditoría</span>
                 <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Ocultar</span>
               </summary>
               <div className="space-y-3 border-t border-amber-400/30 p-3">
                 <p className="text-sm text-muted-foreground">
-                  {conflictItems.length.toLocaleString('es-AR')} con conflicto jurisdiccional confirmado. Se conservan
+                  {formatCount(conflictItems.length, 'instrumento', 'instrumentos')} con conflicto jurisdiccional confirmado.{' '}
+                  {conflictItems.length === 1 ? 'Se conserva' : 'Se conservan'}
                   para auditoría y no integran el alcance operativo. Las acciones seguras que el backend mantenga
                   habilitadas continúan disponibles.
                 </p>
@@ -536,8 +786,8 @@ const AdminSurveysIndex = () => {
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-center">
               <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
                 {surveyListProgress.total === null
-                  ? `${surveyListProgress.loaded.toLocaleString('es-AR')} instrumentos recibidos · ${operationalItems.length.toLocaleString('es-AR')} operativos · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar`
-                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${surveyListProgress.total.toLocaleString('es-AR')} registros · ${operationalItems.length.toLocaleString('es-AR')} operativos (${compatibleItems.length.toLocaleString('es-AR')} compatibles · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar) · ${conflictItems.length.toLocaleString('es-AR')} conflictos separados`}
+                  ? `${formatCount(surveyListProgress.loaded, 'instrumento recibido', 'instrumentos recibidos')} · ${formatCount(operationalItems.length, 'operativo', 'operativos')} · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar`
+                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${formatCount(surveyListProgress.total, 'registro', 'registros')} · ${formatCount(operationalItems.length, 'operativo', 'operativos')} (${formatCount(compatibleItems.length, 'compatible', 'compatibles')} · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar) · ${formatCount(conflictItems.length, 'conflicto separado', 'conflictos separados')}`}
               </p>
               {loadMoreError ? (
                 <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
