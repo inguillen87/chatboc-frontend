@@ -36,8 +36,10 @@ export interface SaasAction {
   final_delivery_authority?: string;
   input_schema?: UnknownRecord;
   idempotency?: UnknownRecord;
+  enabled?: boolean;
   disabled?: boolean;
   disabled_reason?: string;
+  reason_code?: string;
   destructive?: boolean;
   raw?: unknown;
 }
@@ -256,7 +258,7 @@ export interface OmnichannelInboxItem {
   next_steps: string[];
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
-  reply_contract?: UnknownRecord;
+  reply_contract?: OmnichannelReplyContract;
   source_metadata?: UnknownRecord;
   handoff?: UnknownRecord;
   live_chat?: OmnichannelLiveChatStatus;
@@ -317,6 +319,55 @@ export interface OmnichannelReplyOutboxEvidence {
   raw?: unknown;
 }
 
+export type OmnichannelReplyCapability = Record<string, unknown> & {
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+};
+
+export type OmnichannelReplyDeliveryChannel = Record<string, unknown> & {
+  id?: string;
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+  evidence?: string;
+  acceptance_semantics?: string;
+};
+
+export type OmnichannelReplyDeliveryEvidence = Record<string, unknown> & {
+  contract_version?: string;
+  saved_in_crm?: boolean;
+  dispatch_attempted?: boolean;
+  provider_accepted?: boolean;
+  delivered?: boolean;
+  failed?: boolean;
+  delivered_requires?: string;
+};
+
+export type OmnichannelReplyDeliveryStateMachine = Record<string, unknown> & {
+  contract_version?: string;
+  states?: string[];
+  delivered_requires?: string;
+  latest_evidence?: OmnichannelReplyDeliveryEvidence;
+};
+
+export type OmnichannelReplyContract = Record<string, unknown> & {
+  contract_version?: string;
+  source_model?: string;
+  ticket_id?: string;
+  channel?: string;
+  endpoint?: string;
+  method?: string;
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+  idempotency?: UnknownRecord;
+  supported_message_types?: Record<string, OmnichannelReplyCapability>;
+  delivery_channels?: OmnichannelReplyDeliveryChannel[];
+  delivery_state_machine?: OmnichannelReplyDeliveryStateMachine;
+  handoff?: OmnichannelReplyCapability & { supported_channels?: string[] };
+};
+
 export interface OmnichannelActionDelivery {
   contract_version?: string;
   legacy_contract_version?: string;
@@ -333,6 +384,7 @@ export interface OmnichannelActionDelivery {
   final_delivery?: OmnichannelFinalDeliveryEvidence;
   idempotency?: OmnichannelReplyIdempotencyEvidence;
   outbox?: OmnichannelReplyOutboxEvidence;
+  evidence?: OmnichannelReplyDeliveryEvidence;
   delivery_results?: Record<string, boolean>;
   delivery_results_semantics?: string;
   requested_channels?: string[];
@@ -792,6 +844,7 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     ),
     input_schema: inputSchema,
     idempotency,
+    enabled: asBoolean(value.enabled),
     disabled: asBoolean(value.disabled),
     disabled_reason: asString(
       getFirst(value, [
@@ -804,6 +857,7 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
         'reason',
       ]),
     ),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
     destructive: asBoolean(value.destructive),
     raw: value,
   };
@@ -1331,6 +1385,90 @@ const normalizeInboxLocation = (value: UnknownRecord): UnknownRecord => {
   };
 };
 
+const normalizeReplyCapability = (value: unknown): OmnichannelReplyCapability | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    enabled: asBoolean(value.enabled),
+    disabled_reason: asString(getFirst(value, ['disabled_reason', 'disabledReason', 'reason'])),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+  };
+};
+
+export const normalizeOmnichannelReplyContract = (
+  value: unknown,
+): OmnichannelReplyContract | undefined => {
+  if (!isRecord(value)) return undefined;
+  const supportedMessageTypes = asRecord(value.supported_message_types);
+  const deliveryChannels = asArray(value.delivery_channels).flatMap((candidate) => {
+    if (!isRecord(candidate)) return [];
+    return [{
+      ...candidate,
+      id: asString(candidate.id),
+      enabled: asBoolean(candidate.enabled),
+      disabled_reason: asString(getFirst(candidate, ['disabled_reason', 'disabledReason', 'reason'])),
+      reason_code: asString(getFirst(candidate, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+      evidence: asString(candidate.evidence),
+      acceptance_semantics: asString(candidate.acceptance_semantics),
+    } satisfies OmnichannelReplyDeliveryChannel];
+  });
+  const deliveryStateMachine = asRecord(value.delivery_state_machine);
+  const latestEvidence = asRecord(deliveryStateMachine.latest_evidence);
+  const handoff = normalizeReplyCapability(value.handoff);
+  const supportedChannels = asArray(asRecord(value.handoff).supported_channels)
+    .map(asString)
+    .filter((channel): channel is string => Boolean(channel));
+
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    source_model: asString(value.source_model),
+    ticket_id: asString(value.ticket_id),
+    channel: asString(value.channel),
+    endpoint: asString(value.endpoint),
+    method: asString(value.method),
+    enabled: asBoolean(value.enabled),
+    disabled_reason: asString(getFirst(value, ['disabled_reason', 'disabledReason', 'reason'])),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+    idempotency: isRecord(value.idempotency) ? value.idempotency : undefined,
+    supported_message_types: Object.fromEntries(
+      Object.entries(supportedMessageTypes).flatMap(([key, candidate]) => {
+        const capability = normalizeReplyCapability(candidate);
+        return capability ? [[key, capability]] : [];
+      }),
+    ),
+    delivery_channels: deliveryChannels,
+    delivery_state_machine: Object.keys(deliveryStateMachine).length
+      ? {
+          ...deliveryStateMachine,
+          contract_version: asString(deliveryStateMachine.contract_version),
+          states: asArray(deliveryStateMachine.states)
+            .map(asString)
+            .filter((state): state is string => Boolean(state)),
+          delivered_requires: asString(deliveryStateMachine.delivered_requires),
+          latest_evidence: Object.keys(latestEvidence).length
+            ? {
+                ...latestEvidence,
+                contract_version: asString(latestEvidence.contract_version),
+                saved_in_crm: asBoolean(latestEvidence.saved_in_crm),
+                dispatch_attempted: asBoolean(latestEvidence.dispatch_attempted),
+                provider_accepted: asBoolean(latestEvidence.provider_accepted),
+                delivered: asBoolean(latestEvidence.delivered),
+                failed: asBoolean(latestEvidence.failed),
+                delivered_requires: asString(latestEvidence.delivered_requires),
+              }
+            : undefined,
+        }
+      : undefined,
+    handoff: handoff
+      ? {
+          ...handoff,
+          supported_channels: supportedChannels,
+        }
+      : undefined,
+  };
+};
+
 export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): OmnichannelInboxItem | null => {
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
@@ -1351,8 +1489,9 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     asRecord(asRecord(experienceBlueprint.agent_copilot).suggestions).items ??
     asRecord(experienceBlueprint.agent_copilot).suggestions;
   const normalizedActions = normalizeActions(getFirst(value, ['allowed_actions', 'actions', 'botones']));
-  const replyContractCandidate = getFirst(value, ['reply_contract', 'replyContract']);
-  const replyContract = isRecord(replyContractCandidate) ? replyContractCandidate : undefined;
+  const replyContract = normalizeOmnichannelReplyContract(
+    getFirst(value, ['reply_contract', 'replyContract']),
+  );
   return {
     id,
     legacy_id: asString(getFirst(value, ['legacy_id', 'legacyId'])),
@@ -1438,6 +1577,7 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
   const finalDelivery = asRecord(value.final_delivery);
   const idempotency = asRecord(value.idempotency);
   const outbox = asRecord(value.outbox);
+  const evidence = asRecord(value.evidence);
   const deliveryResults = asRecord(value.delivery_results);
   return {
     contract_version: asString(value.contract_version),
@@ -1475,6 +1615,18 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
           worker_authoritative: asBoolean(outbox.worker_authoritative),
           direct_dispatch_performed: asBoolean(outbox.direct_dispatch_performed),
           raw: outbox,
+        }
+      : undefined,
+    evidence: Object.keys(evidence).length
+      ? {
+          ...evidence,
+          contract_version: asString(evidence.contract_version),
+          saved_in_crm: asBoolean(evidence.saved_in_crm),
+          dispatch_attempted: asBoolean(evidence.dispatch_attempted),
+          provider_accepted: asBoolean(evidence.provider_accepted),
+          delivered: asBoolean(evidence.delivered),
+          failed: asBoolean(evidence.failed),
+          delivered_requires: asString(evidence.delivered_requires),
         }
       : undefined,
     delivery_results: Object.keys(deliveryResults).length

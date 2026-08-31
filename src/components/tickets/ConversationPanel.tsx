@@ -85,6 +85,7 @@ import {
   postOmnichannelInboxActionV2,
   type OmnichannelInboxActionV2,
   type OmnichannelInboxDetailV2,
+  type OmnichannelReplyContract,
   type SaasAction,
 } from '@/api/v2/saas';
 import { getHandoffActionBlockReason, isAiHandoffAction } from './TicketAiHandoffControl';
@@ -121,10 +122,28 @@ type ComposerActionAttempt = {
 
 const LOCATION_COMPOSER_ACTION_IDS = new Set(['share_location', 'send_location']);
 const FORM_COMPOSER_ACTION_IDS = new Set(['share_form', 'send_form']);
+const ATTACHMENT_COMPOSER_ACTION_IDS = new Set(['attach_file', 'send_attachment', 'share_attachment']);
 const REPLY_COMPOSER_ACTION_IDS = new Set(['reply']);
+const REPLY_CONTRACT_VERSION = 'inbox.reply_contract.v1';
 
 const normalizeComposerActionToken = (value: unknown): string =>
   String(value ?? '').trim().toLowerCase();
+
+const normalizeReplySourceModel = (value: unknown): string => {
+  const normalized = normalizeComposerActionToken(value);
+  if (['municipioticket', 'municipio_ticket', 'municipio', 'legacy_claim'].includes(normalized)) {
+    return 'municipioticket';
+  }
+  if (['tenantticket', 'tenant_ticket'].includes(normalized)) return 'tenantticket';
+  return normalized;
+};
+
+const normalizeReplyChannel = (value: unknown): string => {
+  const normalized = normalizeComposerActionToken(value);
+  if (['wa', 'twilio', 'whatsapp_business'].includes(normalized)) return 'whatsapp';
+  if (['mail', 'correo'].includes(normalized)) return 'email';
+  return normalized;
+};
 
 const findComposerAction = (actions: SaasAction[], ids: Set<string>): SaasAction | null =>
   actions.find((action) => (
@@ -148,6 +167,36 @@ const isAuthoritativeReplySourceModel = (value: unknown): boolean =>
     'legacy_claim',
   ].includes(normalizeComposerActionToken(value));
 
+const REPLY_REASON_COPY: Record<string, string> = {
+  attachment_reply_not_supported: 'El backend todavía no habilitó el envío durable de archivos para este ticket.',
+  location_reply_not_supported: 'El backend todavía no habilitó compartir ubicaciones de forma auditable para este ticket.',
+  form_reply_not_supported: 'El backend todavía no habilitó enviar formularios desde este ticket.',
+  handoff_not_supported: 'El backend no habilitó la derivación humana para este canal.',
+  ticket_assignment_required: 'Tomá o asigná el ticket para responder.',
+  ticket_ownership_required: 'Tomá o asigná el ticket para responder.',
+  reply_requires_assignment: 'Tomá o asigná el ticket para responder.',
+  ticket_channel_not_whatsapp: 'Este ticket no se originó en WhatsApp; la respuesta quedará registrada en el CRM.',
+  contact_phone_missing: 'Falta un teléfono verificable para intentar el envío por WhatsApp; la respuesta quedará registrada en el CRM.',
+  tenant_whatsapp_sender_missing: 'El municipio no tiene un remitente de WhatsApp habilitado; la respuesta quedará registrada en el CRM.',
+  ticket_channel_not_email: 'Este ticket no se originó por email; la respuesta quedará registrada en el CRM.',
+  contact_email_missing: 'Falta un email verificable; la respuesta quedará registrada en el CRM.',
+};
+
+const getHumanReplyReason = (
+  reasonCode?: unknown,
+  disabledReason?: unknown,
+  fallback = 'El backend publicó esta capacidad como no disponible.',
+): string => {
+  if (typeof disabledReason === 'string' && disabledReason.trim()) return disabledReason.trim();
+  const code = typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
+  return REPLY_REASON_COPY[code] || fallback;
+};
+
+const getActionDisabledReason = (action: SaasAction, fallback: string): string | null => {
+  if (action.disabled !== true && action.enabled !== false) return null;
+  return getHumanReplyReason(action.reason_code, action.disabled_reason, fallback);
+};
+
 const getReplyActionBlockReason = (
   action: SaasAction | null,
   contractBlockReason: string | null,
@@ -157,9 +206,11 @@ const getReplyActionBlockReason = (
   if (!action) {
     return publishedBlockReason || 'El backend no publicó una acción segura de respuesta para este ticket. Revisá su asignación, estado y canal.';
   }
-  if (action.disabled) {
-    return action.disabled_reason || 'El backend publicó la respuesta como no disponible.';
-  }
+  const actionDisabledReason = getActionDisabledReason(
+    action,
+    'El backend publicó la respuesta como no disponible.',
+  );
+  if (actionDisabledReason) return actionDisabledReason;
   if (!action.endpoint?.startsWith('/')) {
     return 'El backend no publicó un endpoint seguro para responder este ticket.';
   }
@@ -180,21 +231,62 @@ const getReplyActionBlockReason = (
   return null;
 };
 
-const getPublishedReplyBlockReason = (replyContract: unknown): string | null => {
-  if (!replyContract || typeof replyContract !== 'object' || Array.isArray(replyContract)) return null;
-  const contract = replyContract as Record<string, unknown>;
-  const disabledReason = [contract.disabled_reason, contract.reason]
-    .find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
-  if (disabledReason) return disabledReason.trim();
-
-  const reasonCode = [contract.disabled_reason_code, contract.reason_code]
-    .find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
-  if (!reasonCode) return null;
-  const normalizedCode = reasonCode.trim().toLowerCase();
-  if (['ticket_assignment_required', 'ticket_ownership_required', 'reply_requires_assignment'].includes(normalizedCode)) {
-    return 'Tomá o asigná el ticket para responder.';
+export const getPublishedReplyBlockReason = (
+  replyContract?: OmnichannelReplyContract,
+  sourceModel?: unknown,
+): string | null => {
+  if (!replyContract) return null;
+  if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
+    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
   }
-  return `El backend bloqueó la respuesta por su política operativa (${reasonCode.trim()}).`;
+  const publishedSourceModel = normalizeReplySourceModel(replyContract.source_model);
+  const selectedSourceModel = normalizeReplySourceModel(sourceModel);
+  if (!publishedSourceModel || (selectedSourceModel && publishedSourceModel !== selectedSourceModel)) {
+    return 'El contrato de respuesta no coincide con el expediente seleccionado.';
+  }
+  if (replyContract.enabled !== true) {
+    return getHumanReplyReason(
+      replyContract.reason_code,
+      replyContract.disabled_reason,
+      'El backend no habilitó la respuesta para este ticket.',
+    );
+  }
+  const textCapability = replyContract.supported_message_types?.text;
+  if (textCapability?.enabled !== true) {
+    return getHumanReplyReason(
+      textCapability?.reason_code,
+      textCapability?.disabled_reason,
+      'El contrato backend no confirmó soporte para respuestas de texto.',
+    );
+  }
+  if (!replyContract.endpoint?.startsWith('/')) {
+    return 'El contrato backend no publicó un endpoint seguro para responder este ticket.';
+  }
+  if ((replyContract.method || '').trim().toUpperCase() !== 'POST') {
+    return 'El contrato backend no publicó el método POST requerido para responder.';
+  }
+  return null;
+};
+
+type ReplyCapabilityKind = 'attachment' | 'location' | 'form' | 'handoff';
+
+const getReplyCapabilityBlockReason = (
+  kind: ReplyCapabilityKind,
+  replyContract?: OmnichannelReplyContract,
+): string | null => {
+  if (!replyContract) return null;
+  if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
+    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
+  }
+  const capability = kind === 'handoff'
+    ? replyContract.handoff
+    : replyContract.supported_message_types?.[kind];
+  if (capability?.enabled === true) return null;
+  return getHumanReplyReason(
+    capability?.reason_code,
+    capability?.disabled_reason,
+    `El contrato backend no confirmó soporte para ${kind === 'attachment' ? 'archivos' : kind === 'location' ? 'ubicaciones' : kind === 'form' ? 'formularios' : 'derivación humana'}.`,
+  );
 };
 
 const resolveComposerOmnichannelDetailEndpoint = (ticket: Ticket): string | null => {
@@ -438,9 +530,9 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
 
   if (delivery.external_dispatch) {
     return {
-      tone: 'success' as const,
-      title: 'Mensaje enviado',
-      detail: `Canal confirmado: ${channel}. Tambien quedo registrado en el CRM.`,
+      tone: 'muted' as const,
+      title: 'Despacho registrado, entrega sin confirmar',
+      detail: `El canal ${channel} aceptó el despacho y el CRM lo registró; falta la confirmación autoritativa de entrega.`,
     };
   }
 
@@ -458,9 +550,9 @@ export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
     delivery.reply_status === 'sent_to_live_chat'
   ) {
     return {
-      tone: 'success' as const,
-      title: 'Entregado en chat en vivo',
-      detail: 'Habia presencia publica activa en la sala del ticket; la lectura aun no fue confirmada.',
+      tone: 'muted' as const,
+      title: 'Visible con presencia activa',
+      detail: 'La sala reportó presencia pública al emitir el evento; la entrega y la lectura aún no fueron confirmadas.',
     };
   }
 
@@ -499,6 +591,66 @@ export const getComposerActionDeliveryView = (
   const evidenceStage = delivery?.evidence_stage?.trim().toLowerCase();
   const status = delivery?.status?.trim().toLowerCase();
   const callbackAuthoritative = finalAuthority === 'provider_status_callback';
+  const evidence = delivery?.evidence?.contract_version === 'inbox.reply_delivery_evidence.v1'
+    ? delivery.evidence
+    : undefined;
+
+  if (evidence) {
+    if (evidence.delivered === true && evidence.failed === true) {
+      return {
+        tone: 'warning' as const,
+        title: 'Evidencia de entrega inconsistente',
+        detail: 'El backend publicó estados finales incompatibles. La consola no confirma entrega hasta que se corrija la evidencia.',
+      };
+    }
+    if (evidence.failed === true) {
+      return {
+        tone: 'warning' as const,
+        title: 'Entrega no realizada',
+        detail: delivery?.operator_message || 'La evidencia autoritativa indica que la entrega no se completó.',
+      };
+    }
+    if (evidence.delivered === true) {
+      if (evidence.delivered_requires !== 'provider_status_callback') {
+        return {
+          tone: 'warning' as const,
+          title: 'Entrega declarada sin autoridad compatible',
+          detail: 'El contrato no identifica el callback del proveedor como autoridad final; la consola no confirma entrega.',
+        };
+      }
+      return {
+        tone: 'success' as const,
+        title: 'Entrega confirmada',
+        detail: delivery?.operator_message || 'El callback del proveedor confirmó la entrega final.',
+      };
+    }
+    if (evidence.provider_accepted === true) {
+      return {
+        tone: 'pending' as const,
+        title: 'Aceptado por el proveedor',
+        detail: delivery?.operator_message || 'El proveedor aceptó el mensaje; esto todavía no prueba la entrega al destinatario.',
+      };
+    }
+    if (evidence.dispatch_attempted === true) {
+      return {
+        tone: 'pending' as const,
+        title: 'Despacho intentado',
+        detail: delivery?.operator_message || 'El backend intentó el despacho; todavía no existe aceptación ni entrega confirmada.',
+      };
+    }
+    if (evidence.saved_in_crm === true) {
+      return {
+        tone: 'internal' as const,
+        title: 'Guardado sólo en CRM',
+        detail: delivery?.operator_message || 'La respuesta quedó auditada sin evidencia de despacho externo.',
+      };
+    }
+    return {
+      tone: 'pending' as const,
+      title: 'Evidencia de entrega incompleta',
+      detail: 'El backend publicó el contrato de evidencia sin confirmar registro, despacho ni resultado final.',
+    };
+  }
 
   if (callbackAuthoritative && ['delivered', 'read'].includes(finalStatus || '')) {
     return {
@@ -567,12 +719,14 @@ export const getComposerChannelView = ({
   channel,
   recipientPresenceConfirmed,
   lastReplyDelivery,
+  replyContract,
 }: {
   channel?: string | null;
   recipientPresenceConfirmed: boolean;
   lastReplyDelivery?: TicketReplyDeliveryStatus | null;
+  replyContract?: OmnichannelReplyContract;
 }) => {
-  const normalized = (channel || '').trim().toLowerCase();
+  const normalized = normalizeReplyChannel(channel);
   const lastDeliveryFailed = Boolean(
     lastReplyDelivery &&
       (lastReplyDelivery.reason.includes('failed') || lastReplyDelivery.status.includes('error')),
@@ -586,11 +740,47 @@ export const getComposerChannelView = ({
     };
   }
 
+  if (replyContract?.contract_version === REPLY_CONTRACT_VERSION) {
+    const deliveryChannels = replyContract.delivery_channels || [];
+    const externalChannel = deliveryChannels.find(
+      (candidate) => normalizeReplyChannel(candidate.id) === normalized,
+    );
+    const crmChannel = deliveryChannels.find(
+      (candidate) => normalizeComposerActionToken(candidate.id) === 'crm',
+    );
+
+    if (externalChannel?.enabled === true && ['whatsapp', 'email'].includes(normalized)) {
+      return {
+        tone: 'success' as const,
+        label: normalized === 'whatsapp' ? 'Salida por WhatsApp disponible' : 'Salida por email disponible',
+        detail: 'El backend permite intentar el despacho. La entrega final sólo se confirma con evidencia del proveedor.',
+      };
+    }
+
+    if (externalChannel?.enabled === false || crmChannel?.enabled === true) {
+      return {
+        tone: externalChannel?.enabled === false ? 'warning' as const : 'muted' as const,
+        label: 'Sólo registro en CRM',
+        detail: getHumanReplyReason(
+          externalChannel?.reason_code,
+          externalChannel?.disabled_reason,
+          'El backend confirmó registro auditable, pero no publicó despacho externo para este canal.',
+        ),
+      };
+    }
+
+    return {
+      tone: 'warning' as const,
+      label: 'Capacidad de salida no verificada',
+      detail: 'El contrato no confirmó un canal de entrega para este expediente.',
+    };
+  }
+
   if (normalized === 'whatsapp') {
     return {
-      tone: 'success' as const,
-      label: 'Salida WhatsApp',
-      detail: 'La respuesta intenta salir por WhatsApp y queda auditada en el CRM.',
+      tone: 'muted' as const,
+      label: 'Canal de origen: WhatsApp',
+      detail: 'El canal de origen no prueba que exista una salida WhatsApp habilitada para responder.',
     };
   }
 
@@ -598,23 +788,23 @@ export const getComposerChannelView = ({
     if (recipientPresenceConfirmed) {
       return {
         tone: 'success' as const,
-        label: 'Ciudadano activo en el ticket',
-        detail: 'La presencia publica esta activa; la respuesta se emite y queda en el historial.',
+        label: 'Presencia ciudadana confirmada',
+        detail: 'La sala reporta presencia pública; esto no confirma por sí solo entrega ni lectura.',
       };
     }
 
     return {
       tone: 'muted' as const,
-      label: 'Entrega web por confirmar',
-      detail: 'No hay presencia publica activa confirmada; el mensaje quedara guardado aunque el socket emita.',
+      label: 'Canal web sin presencia confirmada',
+      detail: 'La conectividad técnica no prueba que el ciudadano esté viendo el ticket.',
     };
   }
 
   if (normalized === 'email') {
     return {
       tone: 'muted' as const,
-      label: 'Respuesta por email',
-      detail: 'Usa el contacto asociado y conserva la conversacion en la ficha.',
+      label: 'Canal de origen: email',
+      detail: 'El origen por email no prueba que el envío de respuestas esté habilitado.',
     };
   }
 
@@ -1209,6 +1399,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     () => findComposerAction(publishedComposerActions, FORM_COMPOSER_ACTION_IDS),
     [publishedComposerActions],
   );
+  const attachmentAction = useMemo(
+    () => findComposerAction(publishedComposerActions, ATTACHMENT_COMPOSER_ACTION_IDS),
+    [publishedComposerActions],
+  );
   const replyAction = useMemo(
     () => findComposerAction(publishedComposerActions, REPLY_COMPOSER_ACTION_IDS),
     [publishedComposerActions],
@@ -1229,27 +1423,33 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ? getReplyActionBlockReason(
         replyAction,
         actionContractBlockReason,
-        getPublishedReplyBlockReason(composerReplyContract),
+        getPublishedReplyBlockReason(composerReplyContract, selectedTicket?.source_model),
       )
     : null;
   const tenantAttachmentBlockReason = authoritativeAttachmentMustFailClosed
-    ? actionContractBlockReason || (
-      composerReplyContract && typeof composerReplyContract === 'object'
-        ? 'El contrato autoritativo no declara soporte para adjuntos o archivos; permanece bloqueado para evitar aparentar un envío.'
-        : 'El backend no publicó un contrato seguro de adjuntos para este ticket; permanece bloqueado para evitar aparentar un envío.'
-    )
+    ? actionContractBlockReason ||
+      getReplyCapabilityBlockReason('attachment', composerReplyContract) ||
+      (attachmentAction
+        ? getActionDisabledReason(
+            attachmentAction,
+            'El backend publicó el adjunto como no disponible.',
+          ) || 'El backend publicó la capacidad, pero todavía no existe un contrato de carga binaria auditable para ejecutarla desde esta consola.'
+        : 'El backend no publicó un contrato seguro de adjuntos para este ticket; permanece bloqueado para evitar aparentar un envío.')
     : null;
-  const handoffBlockReason = actionContractBlockReason || (
+  const handoffBlockReason = actionContractBlockReason ||
+    getReplyCapabilityBlockReason('handoff', composerReplyContract) || (
     handoffAction
       ? getHandoffActionBlockReason(handoffAction, composerActionTicketId)
       : 'Este ticket no publicó una transición backend para derivar la conversación a una persona.'
   );
-  const locationBlockReason = actionContractBlockReason || (
+  const locationBlockReason = actionContractBlockReason ||
+    getReplyCapabilityBlockReason('location', composerReplyContract) || (
     locationAction
       ? getTicketShareActionBlockReason('location', locationAction, composerReplyContract)
       : 'Este ticket no publicó una acción backend compatible para compartir ubicación.'
   );
-  const formBlockReason = actionContractBlockReason || (
+  const formBlockReason = actionContractBlockReason ||
+    getReplyCapabilityBlockReason('form', composerReplyContract) || (
     formAction
       ? getTicketShareActionBlockReason('form', formAction, composerReplyContract)
       : 'Este ticket no publicó una acción backend compatible para compartir formularios.'
@@ -2340,6 +2540,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     channel: activeChannel,
     recipientPresenceConfirmed: recipientPresenceActive,
     lastReplyDelivery,
+    replyContract: composerReplyContract,
   });
 
   return (
@@ -2404,7 +2605,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             {!operationalWorkspace ? (
               <>
                 <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
-                  {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
+                  {realtimeOnline ? 'Socket conectado' : 'Actualización por sondeo'}
                 </Badge>
                 <Badge variant="outline" className="hidden lg:inline-flex capitalize">
                   {activeChannel}
@@ -2692,7 +2893,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               className="h-5 rounded-full px-2 text-[10px] sm:text-[11px]"
               data-testid="ticket-composer-sync-status"
             >
-              {realtimeOnline ? 'En vivo' : 'Sondeo'}
+              {realtimeOnline ? 'Socket conectado' : 'Sondeo activo'}
             </Badge>
           </div>
         </div>
@@ -2826,7 +3027,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                       </Badge>
                     ) : lastReplyDelivery.recipient_presence_confirmed ? (
                       <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                        entregado
+                        presencia activa
                       </Badge>
                     ) : lastReplyDelivery.socket_emitted ? (
                       <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">

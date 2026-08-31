@@ -113,6 +113,18 @@ const hasSafeDeliveryContract = (action: SaasAction): boolean => {
   return legacyInternalOnly || runtimePreflight;
 };
 
+const getDisabledActionReason = (kind: TicketShareActionKind, action: SaasAction): string => {
+  if (action.disabled_reason?.trim()) return action.disabled_reason.trim();
+  const reasonCode = action.reason_code?.trim().toLowerCase();
+  if (reasonCode === 'location_reply_not_supported') {
+    return 'El backend todavía no habilitó compartir ubicaciones de forma auditable para este ticket.';
+  }
+  if (reasonCode === 'form_reply_not_supported') {
+    return 'El backend todavía no habilitó enviar formularios desde este ticket.';
+  }
+  return `El backend marcó ${kind === 'location' ? 'ubicación' : 'formulario'} como no disponible.`;
+};
+
 export const getTicketShareActionBlockReason = (
   kind: TicketShareActionKind,
   action: SaasAction | null,
@@ -120,7 +132,7 @@ export const getTicketShareActionBlockReason = (
 ): string | null => {
   const label = kind === 'location' ? 'ubicación' : 'formulario';
   if (!action) return `Este ticket no publicó una acción backend compatible para compartir ${label}.`;
-  if (action.disabled) return action.disabled_reason || `El backend marcó ${label} como no disponible.`;
+  if (action.disabled === true || action.enabled === false) return getDisabledActionReason(kind, action);
   if ((action.method || 'POST').trim().toUpperCase() !== 'POST') {
     return `El contrato de ${label} no publicó un método POST compatible.`;
   }

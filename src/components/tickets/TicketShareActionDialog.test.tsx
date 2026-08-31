@@ -93,6 +93,21 @@ describe('TicketShareActionDialog', () => {
     expect(getTicketShareActionBlockReason('location', runtimeLocationAction)).toBeNull();
   });
 
+  it('explains backend-disabled location and form actions with operator-facing copy', () => {
+    expect(getTicketShareActionBlockReason('location', {
+      id: 'share_location',
+      label: 'Compartir ubicación',
+      enabled: false,
+      reason_code: 'location_reply_not_supported',
+    })).toMatch(/no habilitó compartir ubicaciones/i);
+    expect(getTicketShareActionBlockReason('form', {
+      id: 'send_form',
+      label: 'Enviar formulario',
+      disabled: true,
+      reason_code: 'form_reply_not_supported',
+    })).toMatch(/no habilitó enviar formularios/i);
+  });
+
   it.each([
     ['external dispatch', { external_dispatch: true }],
     ['missing external dispatch flag', { external_dispatch: undefined }],

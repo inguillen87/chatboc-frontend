@@ -489,7 +489,8 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
     expect(screen.getByTestId('ticket-composer')).toHaveAccessibleName('Respuesta desde el ticket');
     expect(screen.getByTestId('ticket-composer-channel-status')).toBeInTheDocument();
-    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('En vivo');
+    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Socket conectado');
+    expect(screen.getByTestId('ticket-composer-sync-status')).not.toHaveTextContent('En vivo');
     expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
 
     const { trigger, menu } = await openComposerTools();
@@ -526,6 +527,78 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
+  });
+
+  it('consumes reply_contract.v1 while keeping CRM save distinct from provider delivery', async () => {
+    const replyContract = {
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'TenantTicket',
+      ticket_id: '77',
+      channel: 'whatsapp',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      supported_message_types: {
+        text: { enabled: true },
+        attachment: { enabled: false, reason_code: 'attachment_reply_not_supported' },
+        location: { enabled: false, reason_code: 'location_reply_not_supported' },
+        form: { enabled: false, reason_code: 'form_reply_not_supported' },
+      },
+      delivery_channels: [
+        { id: 'crm', enabled: true },
+        { id: 'whatsapp', enabled: false, reason_code: 'contact_phone_missing' },
+      ],
+      handoff: { enabled: false, reason_code: 'handoff_not_supported' },
+    };
+    const item = {
+      ...tenantAuthoritativeItem,
+      reply_contract: replyContract,
+      allowed_actions: [
+        tenantReplyAction,
+        { id: 'attach_file', label: 'Adjuntar archivo', enabled: false, disabled: true, reason_code: 'attachment_reply_not_supported' },
+        { id: 'share_location', label: 'Compartir ubicación', enabled: false, disabled: true, reason_code: 'location_reply_not_supported' },
+        { id: 'send_form', label: 'Enviar formulario', enabled: false, disabled: true, reason_code: 'form_reply_not_supported' },
+      ],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item, raw: { item } });
+    harness.postOmnichannelInboxActionV2.mockResolvedValue({
+      action: 'reply',
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        evidence: {
+          contract_version: 'inbox.reply_delivery_evidence.v1',
+          saved_in_crm: true,
+          dispatch_attempted: true,
+          provider_accepted: true,
+          delivered: false,
+          failed: false,
+          delivered_requires: 'provider_status_callback',
+        },
+      },
+      ticket: item,
+      raw: {},
+    });
+
+    render(renderConversation(true));
+    expect(await screen.findByTestId('ticket-composer-channel-status')).toHaveTextContent('Sólo registro en CRM');
+    expect(screen.getByTestId('ticket-composer-channel-status')).toHaveTextContent('teléfono verificable');
+
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+      'no habilitó el envío durable de archivos',
+    );
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+      target: { value: 'Respuesta auditada.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent('Aceptado por el proveedor');
+    expect(screen.getByTestId('ticket-composer-action-result')).toHaveTextContent('no prueba la entrega');
+    expect(screen.queryByText('Entrega confirmada')).not.toBeInTheDocument();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('loads the authoritative M-419 contract and records one internal handoff without replying or dispatching WhatsApp', async () => {
@@ -1029,6 +1102,8 @@ describe('ConversationPanel tenant invalidation', () => {
         ...tenantAuthoritativeItem,
         reply_contract: {
           contract_version: 'inbox.reply_contract.v1',
+          source_model: 'TenantTicket',
+          enabled: false,
           reason_code: 'ticket_assignment_required',
         },
         allowed_actions: [],
@@ -1107,7 +1182,7 @@ describe('ConversationPanel tenant invalidation', () => {
       'true',
     );
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'contrato autoritativo no declara soporte para adjuntos o archivos',
+      'contrato backend no confirmó soporte para archivos',
     );
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByAltText('Preview')).not.toBeInTheDocument();

@@ -244,6 +244,99 @@ describe('omnichannel inbox reply v2 transport', () => {
     });
   });
 
+  it('normalizes authoritative reply evidence without treating provider acceptance as delivery', () => {
+    const normalized = normalizeOmnichannelInboxActionV2(responseWithDelivery({
+      evidence: {
+        contract_version: 'inbox.reply_delivery_evidence.v1',
+        saved_in_crm: true,
+        dispatch_attempted: true,
+        provider_accepted: true,
+        delivered: false,
+        failed: false,
+        delivered_requires: 'provider_status_callback',
+      },
+    }));
+
+    expect(normalized.delivery?.evidence).toMatchObject({
+      contract_version: 'inbox.reply_delivery_evidence.v1',
+      saved_in_crm: true,
+      dispatch_attempted: true,
+      provider_accepted: true,
+      delivered: false,
+      failed: false,
+      delivered_requires: 'provider_status_callback',
+    });
+  });
+
+  it('normalizes reply_contract.v1 capabilities and disabled allowed actions', () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      item: {
+        id: 'municipio:419',
+        source_model: 'MunicipioTicket',
+        title: 'Alumbrado público',
+        allowed_actions: [{
+          id: 'attach_file',
+          label: 'Adjuntar archivo',
+          enabled: false,
+          disabled: true,
+          reason_code: 'attachment_reply_not_supported',
+        }],
+        reply_contract: {
+          contract_version: 'inbox.reply_contract.v1',
+          source_model: 'MunicipioTicket',
+          ticket_id: '419',
+          channel: 'web_demo_widget',
+          endpoint: '/api/v2/inbox/omnichannel/actions',
+          method: 'POST',
+          enabled: true,
+          supported_message_types: {
+            text: { enabled: true },
+            attachment: { enabled: false, reason_code: 'attachment_reply_not_supported' },
+            location: { enabled: false, reason_code: 'location_reply_not_supported' },
+            form: { enabled: false, reason_code: 'form_reply_not_supported' },
+          },
+          delivery_channels: [
+            { id: 'crm', enabled: true },
+            { id: 'whatsapp', enabled: false, reason_code: 'ticket_channel_not_whatsapp' },
+          ],
+          delivery_state_machine: {
+            contract_version: 'inbox.reply_delivery_evidence.v1',
+            states: ['saved_in_crm', 'dispatch_attempted', 'provider_accepted', 'delivered', 'failed'],
+            delivered_requires: 'provider_status_callback',
+            latest_evidence: {
+              contract_version: 'inbox.reply_delivery_evidence.v1',
+              saved_in_crm: true,
+              delivered: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(normalized.item.allowed_actions[0]).toMatchObject({
+      id: 'attach_file',
+      enabled: false,
+      disabled: true,
+      reason_code: 'attachment_reply_not_supported',
+    });
+    expect(normalized.item.reply_contract).toMatchObject({
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'MunicipioTicket',
+      supported_message_types: {
+        text: { enabled: true },
+        attachment: { enabled: false, reason_code: 'attachment_reply_not_supported' },
+      },
+      delivery_channels: [
+        { id: 'crm', enabled: true },
+        { id: 'whatsapp', enabled: false, reason_code: 'ticket_channel_not_whatsapp' },
+      ],
+      delivery_state_machine: {
+        delivered_requires: 'provider_status_callback',
+        latest_evidence: { saved_in_crm: true, delivered: false },
+      },
+    });
+  });
+
   it('normalizes backend-driven action schemas and the item-level reply contract', () => {
     const actionFixture = {
       id: 'share_form',
@@ -310,7 +403,7 @@ describe('omnichannel inbox reply v2 transport', () => {
         reply_contract: replyContract,
       },
     });
-    expect(normalized.item.reply_contract).toEqual(replyContract);
+    expect(normalized.item.reply_contract).toMatchObject(replyContract);
     expect(normalized.item.allowed_actions[0]).toMatchObject({
       id: 'share_form',
       delivery_mode: 'runtime_preflight',

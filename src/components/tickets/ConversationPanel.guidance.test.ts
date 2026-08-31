@@ -6,6 +6,7 @@ import {
   getConversationScrollBehavior,
   getComposerActionDeliveryView,
   getComposerChannelView,
+  getPublishedReplyBlockReason,
   getReplyDeliveryView,
   hasPublicRecipientPresence,
   shouldShowOperationalTimelineInChat,
@@ -134,8 +135,8 @@ describe('reply delivery evidence', () => {
       }),
     ).toEqual(
       expect.objectContaining({
-        tone: 'success',
-        label: 'Salida WhatsApp',
+        tone: 'muted',
+        label: 'Canal de origen: WhatsApp',
       }),
     );
 
@@ -147,7 +148,7 @@ describe('reply delivery evidence', () => {
     ).toEqual(
       expect.objectContaining({
         tone: 'success',
-        label: 'Ciudadano activo en el ticket',
+        label: 'Presencia ciudadana confirmada',
       }),
     );
 
@@ -159,7 +160,7 @@ describe('reply delivery evidence', () => {
     ).toEqual(
       expect.objectContaining({
         tone: 'muted',
-        label: 'Entrega web por confirmar',
+        label: 'Canal web sin presencia confirmada',
       }),
     );
   });
@@ -210,7 +211,7 @@ describe('reply delivery evidence', () => {
     expect(view.label).toBe('Entrega externa a revisar');
   });
 
-  it('labels confirmed WhatsApp delivery as an external message', () => {
+  it('does not turn external dispatch into confirmed WhatsApp delivery', () => {
     const view = getReplyDeliveryView(deliveryStatus({
       mode: 'real_message',
       channel: 'whatsapp',
@@ -228,9 +229,61 @@ describe('reply delivery evidence', () => {
     }));
 
     expect(formatReplyDeliveryChannel('whatsapp')).toBe('WhatsApp');
-    expect(view.tone).toBe('success');
-    expect(view.title).toBe('Mensaje enviado');
+    expect(view.tone).toBe('muted');
+    expect(view.title).toBe('Despacho registrado, entrega sin confirmar');
     expect(view.detail).toContain('WhatsApp');
+  });
+
+  it('uses reply_contract.v1 to explain CRM-only delivery without blocking a reply', () => {
+    const view = getComposerChannelView({
+      channel: 'whatsapp',
+      recipientPresenceConfirmed: false,
+      replyContract: {
+        contract_version: 'inbox.reply_contract.v1',
+        source_model: 'MunicipioTicket',
+        ticket_id: '419',
+        endpoint: '/api/v2/inbox/omnichannel/actions',
+        method: 'POST',
+        enabled: true,
+        supported_message_types: { text: { enabled: true } },
+        delivery_channels: [
+          { id: 'crm', enabled: true },
+          { id: 'whatsapp', enabled: false, reason_code: 'contact_phone_missing' },
+        ],
+      },
+    });
+
+    expect(view).toMatchObject({
+      tone: 'warning',
+      label: 'Sólo registro en CRM',
+    });
+    expect(view.detail).toMatch(/teléfono verificable/i);
+  });
+
+  it('fails closed on unknown reply contract versions and source mismatches', () => {
+    expect(getPublishedReplyBlockReason({
+      contract_version: 'inbox.reply_contract.v2',
+      source_model: 'MunicipioTicket',
+      enabled: true,
+    }, 'MunicipioTicket')).toMatch(/versión de contrato/i);
+
+    expect(getPublishedReplyBlockReason({
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'TenantTicket',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      enabled: true,
+      supported_message_types: { text: { enabled: true } },
+    }, 'MunicipioTicket')).toMatch(/no coincide/i);
+
+    expect(getPublishedReplyBlockReason({
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'MunicipioTicket',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      enabled: true,
+      supported_message_types: { text: { enabled: true } },
+    }, 'municipio')).toBeNull();
   });
 
   it('labels durable queue evidence without claiming provider delivery', () => {
@@ -259,6 +312,41 @@ describe('reply delivery evidence', () => {
       tone: 'queued',
       title: 'En cola para WhatsApp',
     });
+  });
+
+  it('prioritizes reply delivery evidence and never equates provider acceptance with delivery', () => {
+    const accepted = getComposerActionDeliveryView({
+      contract_version: 'inbox.action_delivery.v2',
+      evidence: {
+        contract_version: 'inbox.reply_delivery_evidence.v1',
+        saved_in_crm: true,
+        dispatch_attempted: true,
+        provider_accepted: true,
+        delivered: false,
+        failed: false,
+        delivered_requires: 'provider_status_callback',
+      },
+    });
+    const failed = getComposerActionDeliveryView({
+      contract_version: 'inbox.action_delivery.v2',
+      final_delivery: {
+        status: 'delivered',
+        authoritative_source: 'provider_status_callback',
+      },
+      evidence: {
+        contract_version: 'inbox.reply_delivery_evidence.v1',
+        saved_in_crm: true,
+        dispatch_attempted: true,
+        provider_accepted: true,
+        delivered: false,
+        failed: true,
+        delivered_requires: 'provider_status_callback',
+      },
+    });
+
+    expect(accepted).toMatchObject({ tone: 'pending', title: 'Aceptado por el proveedor' });
+    expect(accepted.detail).toMatch(/no prueba la entrega/i);
+    expect(failed).toMatchObject({ tone: 'warning', title: 'Entrega no realizada' });
   });
 
   it('distinguishes socket emission, recipient presence and recipient read', () => {
@@ -306,8 +394,8 @@ describe('reply delivery evidence', () => {
 
     expect(emittedView.title).toBe('Emitido y guardado');
     expect(emittedView.tone).toBe('muted');
-    expect(deliveredView.title).toBe('Entregado en chat en vivo');
-    expect(deliveredView.tone).toBe('success');
+    expect(deliveredView.title).toBe('Visible con presencia activa');
+    expect(deliveredView.tone).toBe('muted');
     expect(readView.title).toBe('Leido por el ciudadano');
     expect(readView.tone).toBe('success');
     expect(crmView.title).toBe('Guardado en CRM');
