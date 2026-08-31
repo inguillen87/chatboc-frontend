@@ -288,6 +288,40 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByTestId('profile-ticket-workspace')).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
   });
 
+  it('keeps a structured workspace skeleton visible while authorization is still pending', async () => {
+    let resolveNavigation: ((value: unknown) => void) | undefined;
+    const navigationPromise = new Promise((resolve) => {
+      resolveNavigation = resolve;
+    });
+    runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
+      const tenantSlug = options?.tenantSlug || 'junin';
+      if (path === '/api/me') return profileResponse(tenantSlug);
+      if (path.startsWith('/api/app/backoffice/navigation')) return navigationPromise;
+      return {};
+    });
+
+    renderProfile('/perfil?tab=usuarios&tenant_slug=junin&tenant=junin');
+
+    await waitFor(() => {
+      expect(screen.getByText('Verificando accesos del equipo')).toBeInTheDocument();
+      expect(screen.getByTestId('profile-workspace-authorization-skeleton')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mock-users')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveNavigation?.({
+        contract_version: 'backoffice.navigation.v1',
+        modules: [
+          { id: 'people', label: 'Personas y accesos', route: '/empleados', enabled: true },
+        ],
+      });
+      await navigationPromise;
+    });
+
+    await waitFor(() => expect(screen.getByTestId('mock-users')).toBeInTheDocument());
+    expect(screen.queryByTestId('profile-workspace-authorization-skeleton')).not.toBeInTheDocument();
+  });
+
   it('uses the compact full-width console shell for the territorial workspace', async () => {
     renderProfile('/perfil?tab=mapas');
 

@@ -153,6 +153,42 @@ const ProfileTabFallback = ({ label = "Cargando modulo operativo..." }: { label?
   </div>
 );
 
+const WorkspaceAuthorizationSkeleton = ({ tab }: { tab: ProfileTabValue }) => {
+  const denseWorkspace = tab === "tickets" || tab === "usuarios";
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="profile-workspace-authorization-skeleton"
+      className="mt-1 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card/70 shadow-sm"
+    >
+      <div
+        className={cn(
+          "grid min-h-[420px] w-full gap-px bg-border/50",
+          denseWorkspace
+            ? "grid-cols-[minmax(220px,0.26fr)_minmax(0,1fr)_minmax(240px,0.3fr)]"
+            : "grid-cols-[minmax(0,1fr)_minmax(260px,0.34fr)]",
+        )}
+      >
+        {Array.from({ length: denseWorkspace ? 3 : 2 }, (_, column) => (
+          <div key={column} className="space-y-3 bg-card/95 p-4">
+            <div className="h-5 w-2/5 rounded bg-muted motion-safe:animate-pulse" />
+            <div className="h-9 w-full rounded-lg bg-muted/80 motion-safe:animate-pulse" />
+            {Array.from({ length: column === 1 ? 4 : 6 }, (_, row) => (
+              <div
+                key={row}
+                className={cn(
+                  "rounded-xl bg-muted/70 motion-safe:animate-pulse",
+                  column === 1 ? "h-20" : "h-12",
+                )}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
 // Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
@@ -2703,6 +2739,9 @@ export default function Perfil() {
           >
             {workspaceNavigation}
           </div>
+        ) : null}
+        {activeProfileTab !== "perfil" && backofficeNavigationStatus === "loading" ? (
+          <WorkspaceAuthorizationSkeleton tab={activeProfileTab} />
         ) : null}
         <WorkspacePanel
           active={activeProfileTab === "perfil" && isInstitutionProfileOpen}
