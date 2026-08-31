@@ -174,13 +174,14 @@ describe('AdminSurveysIndex states', () => {
       required: true,
       ready: false,
       reason_code: 'survey_content_review_required',
-      next_action: 'Registrar dictamen institucional firmado.',
+      next_action: 'review_exact_survey_content',
     };
 
     expect(resolveSurveyPublicationEvidenceGate(survey)).toEqual({
       ready: false,
+      required: true,
       reasonCode: 'survey_content_review_required',
-      nextAction: 'Registrar dictamen institucional firmado.',
+      nextAction: 'Revisá y aprobá el contenido exacto que se va a publicar.',
     });
   });
 
@@ -193,7 +194,7 @@ describe('AdminSurveysIndex states', () => {
       required: true,
       ready: false,
       reason_code: 'survey_content_review_required',
-      next_action: 'Registrar dictamen institucional firmado.',
+      next_action: 'review_exact_survey_content',
     };
     mocks.useSurveyAdmin.mockReturnValue(adminState({
       surveys: { data: [survey] },
@@ -203,8 +204,11 @@ describe('AdminSurveysIndex states', () => {
     renderPage();
 
     expect(screen.getByRole('status', {
-      name: 'Publicación institucional bloqueada para Consulta con dictamen pendiente',
-    })).toHaveTextContent('Registrar dictamen institucional firmado.');
+      name: 'Publicación bloqueada para Consulta con dictamen pendiente',
+    })).toHaveTextContent('Revisá y aprobá el contenido exacto');
+    expect(screen.getByRole('status', {
+      name: 'Publicación bloqueada para Consulta con dictamen pendiente',
+    })).not.toHaveTextContent('review_exact_survey_content');
     expect(screen.queryByRole('button', { name: 'Publicar' })).not.toBeInTheDocument();
   });
 
@@ -233,6 +237,7 @@ describe('AdminSurveysIndex states', () => {
 
     expect(resolveSurveyPublicationEvidenceGate(survey)).toEqual({
       ready: true,
+      required: false,
       reasonCode: 'survey_government_evidence_not_required',
       nextAction: null,
     });
@@ -627,10 +632,10 @@ describe('AdminSurveysIndex states', () => {
     renderPage();
 
     expect(screen.getByRole('status', {
-      name: 'Alcance pendiente de verificación para Consulta pendiente de verificación',
-    })).toHaveTextContent(/La publicación permanece bloqueada/i);
+      name: 'Publicación bloqueada para Consulta pendiente de verificación',
+    })).toHaveTextContent(/Publicación institucional pendiente/i);
     expect(screen.getByRole('status', {
-      name: 'Alcance pendiente de verificación para Consulta pendiente de verificación',
+      name: 'Publicación bloqueada para Consulta pendiente de verificación',
     })).toHaveTextContent(/Vincular y verificar la jurisdicción/i);
     expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
 
@@ -852,8 +857,8 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
     expect(screen.getByRole('status', {
-      name: 'Alcance pendiente de verificación para Consulta oficial Municipalidad de Junín',
-    })).toHaveTextContent(/Alcance pendiente de verificación/i);
+      name: 'Publicación bloqueada para Consulta oficial Municipalidad de Junín',
+    })).toHaveTextContent(/Publicación institucional pendiente/i);
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
   });
 });

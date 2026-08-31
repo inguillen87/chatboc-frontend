@@ -13,6 +13,7 @@ import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
 import {
   SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
@@ -47,6 +48,7 @@ const SurveyDetailPage = () => {
   } = useSurveyAdmin({ id: surveyId ?? undefined });
   const [lockedEditMessage, setLockedEditMessage] = useState<string | null>(null);
   const syntheticSeedQaEnabled = isSurveySyntheticSeedQaEnabled({ tenantId: survey?.tenant_id });
+  const publicationGate = survey ? resolveSurveyPublicationEvidenceGate(survey) : null;
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
@@ -65,6 +67,14 @@ const SurveyDetailPage = () => {
   };
 
   const handlePublish = async () => {
+    if (!publicationGate?.ready) {
+      toast({
+        title: 'Publicación institucional pendiente',
+        description: publicationGate?.nextAction || 'Actualizá la evidencia institucional antes de publicar.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       await publishSurvey();
       toast({ title: 'Encuesta publicada', description: 'Compartí el enlace o descargá el QR para difundirla.' });
@@ -134,6 +144,8 @@ const SurveyDetailPage = () => {
   const lockMessage =
     lockedEditMessage ||
     'Podes corregir textos, fechas y configuracion. Para cambiar preguntas u opciones, crea una nueva version editable.';
+  const isDraft = survey.admin_lifecycle?.phase === 'draft' ||
+    (!survey.admin_lifecycle && survey.estado === 'borrador');
 
   return (
     <div className="space-y-6">
@@ -162,6 +174,19 @@ const SurveyDetailPage = () => {
           ) : null}
         </CardHeader>
         <CardContent>
+          {isDraft && publicationGate?.required && !publicationGate.ready ? (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label={`Publicación bloqueada para ${survey.titulo}`}
+              className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-950 dark:text-amber-100"
+            >
+              <p>
+                <span className="font-semibold">Publicación institucional pendiente.</span>{' '}
+                {publicationGate?.nextAction}
+              </p>
+            </div>
+          ) : null}
           {structureLocked || lockedEditMessage ? (
             <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
               <p className="font-semibold text-amber-100">Esta encuesta ya tiene respuestas y su estructura esta bloqueada.</p>
@@ -182,7 +207,7 @@ const SurveyDetailPage = () => {
             survey={survey}
             tenantSlug={tenantSlug}
             onSave={handleSave}
-            onPublish={handlePublish}
+            onPublish={survey.admin_lifecycle?.capabilities.can_publish && publicationGate?.ready ? handlePublish : undefined}
             isSaving={isSaving}
             isPublishing={isPublishing}
             structureLocked={structureLocked}

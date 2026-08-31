@@ -35,6 +35,8 @@ import {
 } from '@/utils/surveySubmissionErrors';
 import { resolveSurveyPublicationFailure, type SurveyPublicationFailure } from '@/utils/surveyPublicationError';
 import { resolveSurveyJurisdictionScope } from '@/utils/surveyJurisdictionScope';
+import { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
+export { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
 type SurveyWorkspaceStatusFilter =
@@ -71,55 +73,6 @@ export const isSurveyJurisdictionConflict = (survey: SurveyAdmin) =>
 
 export const isSurveyJurisdictionCompatible = (survey: SurveyAdmin) =>
   resolveSurveyJurisdictionScope(survey).classification === 'compatible';
-
-export const resolveSurveyPublicationEvidenceGate = (survey: SurveyAdmin) => {
-  const scope = resolveSurveyJurisdictionScope(survey);
-  const lifecycleJurisdiction = survey.admin_lifecycle?.jurisdiction;
-  const governmentGate = survey.admin_lifecycle?.government_survey_evidence_gate;
-  const hasGovernmentGate = governmentGate?.contract_version === 'surveys.government_evidence_gate.v1';
-  const reasonCode = hasGovernmentGate
-    ? governmentGate.reason_code
-    : 'survey_government_evidence_gate_missing';
-  const normalizedReason = String(reasonCode || '').toLowerCase();
-  const compatibleLifecycle =
-    scope.classification === 'compatible' &&
-    lifecycleJurisdiction?.status === 'compatible';
-  const ready =
-    hasGovernmentGate &&
-    compatibleLifecycle &&
-    (governmentGate.required === false
-      ? survey.admin_lifecycle?.capabilities.can_publish === true
-      : governmentGate.required === true && governmentGate.ready === true) &&
-    !/(unbound|unverified|conflict|review_required|review_blocked|integrity_failed|origin_invalid)/.test(normalizedReason);
-
-  if (ready) return { ready: true, reasonCode, nextAction: null } as const;
-  if (hasGovernmentGate && governmentGate.next_action?.trim()) {
-    return {
-      ready: false,
-      reasonCode,
-      nextAction: governmentGate.next_action.trim(),
-    } as const;
-  }
-  if (scope.classification === 'conflict' || normalizedReason.includes('conflict')) {
-    return {
-      ready: false,
-      reasonCode: reasonCode || 'survey_jurisdiction_binding_conflict',
-      nextAction: 'Separá el instrumento y revisalo dentro de la jurisdicción institucional correcta.',
-    } as const;
-  }
-  if (normalizedReason.includes('review')) {
-    return {
-      ready: false,
-      reasonCode: reasonCode || 'survey_content_review_required',
-      nextAction: 'Completá la revisión institucional y registrá su evidencia antes de publicar.',
-    } as const;
-  }
-  return {
-    ready: false,
-    reasonCode: reasonCode || 'survey_jurisdiction_unverified',
-    nextAction: 'Vinculá y verificá la jurisdicción de la organización y del instrumento antes de publicar.',
-  } as const;
-};
 
 const responseCount = (survey: SurveyAdmin) =>
   survey.admin_lifecycle?.participation.responses ?? survey.metricas?.total_respuestas ?? 0;
@@ -692,27 +645,12 @@ const AdminSurveysIndex = () => {
                   ) : null}
                 </div>
               ) : null}
-              {scope.classification === 'unverified' ? (
-                <div
-                  role="status"
-                  aria-label={`Alcance pendiente de verificación para ${survey.titulo}`}
-                  className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-100"
-                >
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p>
-                    <span className="font-semibold">Alcance pendiente de verificación.</span>{' '}
-                    La publicación permanece bloqueada aunque un contrato legado la anuncie como disponible.{' '}
-                    {resolveSurveyPublicationEvidenceGate(survey).nextAction}
-                  </p>
-                </div>
-              ) : null}
-              {scope.classification === 'compatible' &&
-              survey.admin_lifecycle?.phase === 'draft' &&
-              survey.admin_lifecycle?.government_survey_evidence_gate?.required === true &&
+              {(survey.admin_lifecycle?.phase === 'draft' || (!survey.admin_lifecycle && survey.estado === 'borrador')) &&
+              resolveSurveyPublicationEvidenceGate(survey).required &&
               !resolveSurveyPublicationEvidenceGate(survey).ready ? (
                 <div
                   role="status"
-                  aria-label={`Publicación institucional bloqueada para ${survey.titulo}`}
+                  aria-label={`Publicación bloqueada para ${survey.titulo}`}
                   className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-100"
                 >
                   <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -827,13 +765,25 @@ const AdminSurveysIndex = () => {
                         ? 'Conflicto jurisdiccional confirmado'
                         : 'Alcance pendiente de verificación'}
                     </div>
+                    {(survey.admin_lifecycle?.phase === 'draft' || (!survey.admin_lifecycle && survey.estado === 'borrador')) &&
+                    resolveSurveyPublicationEvidenceGate(survey).required &&
+                    !resolveSurveyPublicationEvidenceGate(survey).ready ? (
+                      <div
+                        role="status"
+                        aria-label={`Publicación bloqueada para ${survey.titulo}`}
+                        className="flex items-start gap-2 rounded-xl border border-amber-400/40 bg-background p-3 text-sm text-amber-900 dark:text-amber-100"
+                      >
+                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p>{resolveSurveyPublicationEvidenceGate(survey).nextAction}</p>
+                      </div>
+                    ) : null}
                     <SurveyCard
                       survey={survey}
                       tenantSlug={tenantSlug}
                       onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                       onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics`)}
                       onPublish={
-                        survey.admin_lifecycle?.capabilities.can_publish && !isSurveyJurisdictionConflict(survey)
+                        survey.admin_lifecycle?.capabilities.can_publish && resolveSurveyPublicationEvidenceGate(survey).ready
                           ? () => handlePublish(survey)
                           : undefined
                       }
