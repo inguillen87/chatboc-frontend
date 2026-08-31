@@ -127,7 +127,10 @@ const eligibleMultipleSummaryFixture = (): SurveySummary =>
 const OFFICIAL_SOURCE = 'https://ide.mendoza.gov.ar/junin/survey-boundary';
 const OFFICIAL_SHA = 'a'.repeat(64);
 const containedPoint = {
+  containment_verified: true,
   coordinate_jurisdiction_status: 'within',
+  source_ref: OFFICIAL_SOURCE,
+  snapshot_sha256: OFFICIAL_SHA,
 };
 const heatmapFixture = () => [
   { lat: -33.086, lng: -68.471, respuestas: 12, categoria: 'Centro', canal: 'whatsapp', ...containedPoint },
@@ -144,6 +147,10 @@ const metadataFixture = (): NonNullable<SurveyAnalyticsHeatmap['metadata']> => (
       source_ref: OFFICIAL_SOURCE,
       snapshot_sha256: OFFICIAL_SHA,
     },
+  },
+  provenance: {
+    source_ref: OFFICIAL_SOURCE,
+    snapshot_sha256: OFFICIAL_SHA,
   },
   map: {
     render_ready: true,
@@ -268,8 +275,36 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.getByTestId('survey-territory-telemetry')).toBeInTheDocument();
   });
 
+  it('keeps an explicit non-government territorial contract usable without an official polygon', () => {
+    const points = heatmapFixture().map(({ lat, lng, respuestas, categoria, canal }) => ({
+      lat,
+      lng,
+      respuestas,
+      categoria,
+      canal,
+    }));
+    const metadata = {
+      ...metadataFixture(),
+      jurisdiction: { required: false, state: 'not_required' },
+      provenance: undefined,
+    };
+
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={points}
+        heatmapMeta={metadata}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('mock-survey-map')).toBeInTheDocument();
+    expect(screen.queryByTestId('survey-territory-evidence-block')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['missing authority contract', null],
+    ['missing provenance', { ...metadataFixture(), provenance: undefined }],
     ['mismatched snapshot', { ...metadataFixture(), provenance: { source_ref: OFFICIAL_SOURCE, snapshot_sha256: 'b'.repeat(64) } }],
     ['invalid authority snapshot', {
       ...metadataFixture(),
@@ -299,7 +334,7 @@ describe('SurveyAnalytics territory command center', () => {
 
   it('blocks the entire territorial reading when one point lacks verified containment', () => {
     const points = heatmapFixture();
-    points[1] = { ...points[1], coordinate_jurisdiction_status: 'outside' };
+    points[1] = { ...points[1], containment_verified: false };
     render(
       <SurveyAnalytics
         summary={summaryFixture()}
@@ -313,6 +348,31 @@ describe('SurveyAnalytics territory command center', () => {
     expect(state).toHaveTextContent('Puntos territoriales pendientes de validación');
     expect(state).toHaveTextContent('Próxima acción');
     expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['status', { coordinate_jurisdiction_status: 'outside' }],
+    ['source', { source_ref: 'https://untrusted.example/boundary' }],
+    ['snapshot', { snapshot_sha256: 'b'.repeat(64) }],
+    ['valid snapshot', { snapshot_sha256: 'not-a-sha' }],
+  ])('blocks territorial output when a point has mismatched %s evidence', (_field, override) => {
+    const points = heatmapFixture();
+    points[1] = { ...points[1], ...override };
+
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={points}
+        heatmapMeta={metadataFixture()}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-territory-evidence-block')).toHaveTextContent(
+      'Puntos territoriales pendientes de validación',
+    );
+    expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+    expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
   });
 
   it('uses an evidence-first empty state instead of drawing synthetic territory', () => {

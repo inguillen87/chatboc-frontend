@@ -123,6 +123,16 @@ export const resolveSurveyTerritoryEvidenceGate = (
 ): SurveyTerritoryEvidenceGate => {
   const metadata = isRecord(metadataValue) ? metadataValue : null;
   const jurisdiction = isRecord(metadata?.jurisdiction) ? metadata.jurisdiction : null;
+  const jurisdictionState = normalizedEvidenceText(jurisdiction?.state)?.replace(/[_-]+/g, ' ');
+  if (jurisdiction?.required === false && jurisdictionState === 'not required') {
+    return {
+      ready: true,
+      reasonCode: 'survey_territory_evidence_not_required',
+      title: 'Contrato territorial habilitado',
+      detail: 'El backend declaró explícitamente que este instrumento no requiere jurisdicción gubernamental.',
+      nextAction: 'Mantener render_ready y la procedencia no sintética en cada actualización.',
+    };
+  }
   const authority = isRecord(jurisdiction?.boundary_authority) ? jurisdiction.boundary_authority : null;
   const provenance = isRecord(metadata?.provenance) ? metadata.provenance : null;
   const authoritySource = normalizedEvidenceText(authority?.source_ref ?? authority?.source_url);
@@ -130,7 +140,7 @@ export const resolveSurveyTerritoryEvidenceGate = (
   const authoritySha = normalizedEvidenceSha(authority?.snapshot_sha256 ?? authority?.sha256);
   const evidenceSha = normalizedEvidenceSha(provenance?.snapshot_sha256 ?? provenance?.sha256);
   const method = normalizedEvidenceText(jurisdiction?.containment_method)?.replace(/[_-]+/g, ' ');
-  const provenanceMatchesAuthority = provenance === null || (
+  const provenanceMatchesAuthority = provenance !== null && (
     evidenceSource === authoritySource && evidenceSha === authoritySha
   );
 
@@ -158,7 +168,12 @@ export const resolveSurveyTerritoryEvidenceGate = (
     const status = normalizedEvidenceText(
       containment.coordinate_jurisdiction_status ?? containment.jurisdiction_status ?? containment.status,
     )?.replace(/[_-]+/g, ' ');
-    return status === 'within';
+    const pointSource = normalizedEvidenceText(containment.source_ref ?? containment.boundary_source_ref);
+    const pointSha = normalizedEvidenceSha(containment.snapshot_sha256 ?? containment.boundary_snapshot_sha256);
+    return containment.containment_verified === true &&
+      status === 'within' &&
+      pointSource === authoritySource &&
+      pointSha === authoritySha;
   });
 
   if (!everyPointContained) {
@@ -166,8 +181,8 @@ export const resolveSurveyTerritoryEvidenceGate = (
       ready: false,
       reasonCode: 'survey_territory_point_containment_unverified',
       title: 'Puntos territoriales pendientes de validación',
-      detail: 'Uno o más puntos no fueron incluidos por el backend como contenidos dentro del polígono oficial vigente.',
-      nextAction: 'Reprocesá la contención punto-en-polígono y publicá únicamente puntos con estado within.',
+      detail: 'Uno o más puntos no acreditan contención y enlace exacto con la fuente y el snapshot oficial vigente.',
+      nextAction: 'Reprocesá la contención y publicá en cada punto estado within, fuente oficial y SHA-256 coincidentes.',
     };
   }
 
