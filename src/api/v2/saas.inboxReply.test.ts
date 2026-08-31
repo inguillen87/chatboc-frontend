@@ -124,6 +124,10 @@ describe('omnichannel inbox reply v2 transport', () => {
         },
       }),
       action: 'share_location',
+      ticket: {
+        id: 'municipio:419', ticket_id: 419, source_model: 'MunicipioTicket',
+        title: 'Luminaria apagada', status: 'en_proceso',
+      },
     });
 
     await postOmnichannelInboxActionV2(
@@ -264,6 +268,26 @@ describe('omnichannel inbox reply v2 transport', () => {
       action: 'attach_file', attachment_id: 17, client_message_id: 'crm-attach_file:attempt-0001',
     }, 'junin')).rejects.toMatchObject({ status: 400 });
     expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects crossed artifact route, body and source identities before transport', async () => {
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'MunicipioTicket', ticket_id: 420, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0001' },
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'TenantTicket', ticket_id: 419, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0002' },
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a crossed artifact response instead of accepting stale cache data', async () => {
+    panelPostMock.mockResolvedValue(responseWithDelivery());
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'MunicipioTicket', ticket_id: 419, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0003' },
+    }, 'junin')).rejects.toMatchObject({ status: 409 });
   });
 
   it('normalizes authoritative reply evidence without treating provider acceptance as delivery', () => {

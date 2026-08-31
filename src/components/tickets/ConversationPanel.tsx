@@ -126,6 +126,33 @@ const ATTACHMENT_COMPOSER_ACTION_IDS = new Set(['attach_file', 'send_attachment'
 const REPLY_COMPOSER_ACTION_IDS = new Set(['reply']);
 const REPLY_CONTRACT_VERSION = 'inbox.reply_contract.v1';
 
+const normalizeComposerTicketId = (value: unknown): string | null => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const match = raw.match(/^(?:municipio|tenant):(.+)$/i);
+  return (match?.[1] || raw).trim() || null;
+};
+
+const exactComposerSourceModel = (value: unknown): 'TenantTicket' | 'MunicipioTicket' | null =>
+  value === 'TenantTicket' || value === 'MunicipioTicket' ? value : null;
+
+const getComposerDetailIdentityBlockReason = (
+  selected: Ticket | null | undefined,
+  item: OmnichannelInboxDetailV2['item'] | null | undefined,
+): string | null => {
+  if (!selected || !item) return 'No se pudo verificar la identidad exacta del ticket.';
+  const selectedSource = exactComposerSourceModel(selected.source_model);
+  const detailSource = exactComposerSourceModel(item.source_model);
+  const selectedId = normalizeComposerTicketId(selected.id);
+  const detailIds = [item.ticket_id, item.legacy_id, item.id]
+    .map(normalizeComposerTicketId)
+    .filter((value): value is string => Boolean(value));
+  if (!selectedSource || detailSource !== selectedSource || !selectedId || !detailIds.length || detailIds.some((id) => id !== selectedId)) {
+    return 'El detalle recibido no coincide con el ticket seleccionado. Las acciones permanecen bloqueadas.';
+  }
+  return null;
+};
+
 const normalizeComposerActionToken = (value: unknown): string =>
   String(value ?? '').trim().toLowerCase();
 
@@ -1407,10 +1434,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     composerActionContractQuery.isSuccess,
   ]);
   const composerActionItem = composerActionContractQuery.data?.item;
-  const composerActionTicketId = composerActionItem?.id || String(selectedTicket?.id ?? '');
-  const composerActionSourceModel = composerActionItem?.source_model === 'TenantTicket' || composerActionItem?.source_model === 'MunicipioTicket'
-    ? composerActionItem.source_model
-    : undefined;
+  const selectedComposerSourceModel = exactComposerSourceModel(selectedTicket?.source_model);
+  const selectedComposerTicketId = normalizeComposerTicketId(selectedTicket?.id);
+  const composerActionTicketId = selectedComposerSourceModel && selectedComposerTicketId
+    ? selectedComposerSourceModel === 'MunicipioTicket' ? `municipio:${selectedComposerTicketId}` : selectedComposerTicketId
+    : '';
+  const composerActionSourceModel = selectedComposerSourceModel || undefined;
   const composerActionAttachments = composerActionItem?.attachments || [];
   const composerSlaSource =
     composerActionContractQuery.data?.item?.sla ||
@@ -1440,13 +1469,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const authoritativeAttachmentMustFailClosed =
     isTenantTicketSourceModel(selectedTicket?.source_model) ||
     isMunicipioTicketSourceModel(selectedTicket?.source_model);
+  const detailIdentityBlockReason = composerActionContractQuery.isSuccess
+    ? getComposerDetailIdentityBlockReason(selectedTicket, composerActionItem)
+    : null;
   const actionContractBlockReason = !composerActionDetailEndpoint
     ? 'No se pudo identificar de forma segura el detalle omnicanal de este ticket.'
     : composerActionContractQuery.isPending
       ? 'Verificando las acciones habilitadas por el backend.'
       : composerActionContractQuery.isError
         ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
-        : null;
+        : detailIdentityBlockReason;
   const replyBlockReason = authoritativeReplyRequired
     ? getReplyActionBlockReason(
         replyAction,
@@ -1494,7 +1526,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           source_model: composerActionSourceModel,
           ...(variables.actionKind === 'reply' || variables.actionKind === 'handoff'
             ? {}
-            : { ticket_id: composerActionItem?.ticket_id || composerActionItem?.legacy_id }),
+            : { ticket_id: selectedTicket?.id }),
         },
       },
       variables.tenantSlug,

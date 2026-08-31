@@ -298,6 +298,55 @@ export interface OmnichannelInboxActionPayload {
   payload?: UnknownRecord;
 }
 
+const ARTIFACT_ACTION_IDS = new Set([
+  'attach_file', 'send_attachment', 'share_attachment',
+  'share_location', 'send_location', 'share_form', 'send_form',
+]);
+
+const normalizeActionTicketIdentity = (value: unknown): string | null => {
+  const raw = asString(value);
+  if (!raw) return null;
+  const match = raw.match(/^(?:municipio|tenant):(.+)$/i);
+  return (match?.[1] || raw).trim() || null;
+};
+
+const routeSourceModel = (ticketId: string): 'TenantTicket' | 'MunicipioTicket' | null => {
+  if (/^municipio:/i.test(ticketId)) return 'MunicipioTicket';
+  if (/^tenant:/i.test(ticketId)) return 'TenantTicket';
+  return null;
+};
+
+const requireExactArtifactIdentity = (
+  ticketId: string,
+  payload: OmnichannelInboxActionPayload,
+  nestedPayload: UnknownRecord,
+) => {
+  const sources = [payload.source_model, nestedPayload.source_model]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()));
+  const distinctSources = new Set(sources);
+  const sourceModel = sources[0];
+  const routeSource = routeSourceModel(ticketId);
+  const payloadIds = [payload.ticket_id, nestedPayload.ticket_id, nestedPayload.legacy_id]
+    .map(normalizeActionTicketIdentity)
+    .filter((value): value is string => Boolean(value));
+  const expectedId = normalizeActionTicketIdentity(ticketId);
+  if (
+    distinctSources.size !== 1 ||
+    (sourceModel !== 'TenantTicket' && sourceModel !== 'MunicipioTicket') ||
+    (routeSource && routeSource !== sourceModel) ||
+    !expectedId ||
+    payloadIds.length === 0 ||
+    payloadIds.some((value) => value !== expectedId)
+  ) {
+    throw new ApiError(
+      'La acción no coincide exactamente con la identidad source_model + ticket_id seleccionada.',
+      400,
+      { code: 'artifact_ticket_identity_mismatch' },
+    );
+  }
+  return { sourceModel, ticketId: expectedId };
+};
+
 export interface OmnichannelFinalDeliveryEvidence {
   status?: string;
   authoritative_source?: string;
@@ -2321,6 +2370,9 @@ export const postOmnichannelInboxActionV2 = async (
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
   const normalizedAction = payload.action.trim().toLowerCase();
+  const artifactIdentity = ARTIFACT_ACTION_IDS.has(normalizedAction)
+    ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
+    : null;
   if (
     normalizedAction === 'claim' ||
     normalizedAction === 'assign' ||
@@ -2389,5 +2441,19 @@ export const postOmnichannelInboxActionV2 = async (
       requestOptions,
     );
   }
-  return normalizeOmnichannelInboxActionV2(response, ticketId);
+  const normalized = normalizeOmnichannelInboxActionV2(response, ticketId);
+  if (artifactIdentity) {
+    const responseSource = normalized.ticket.source_model;
+    const responseId = normalizeActionTicketIdentity(
+      normalized.ticket.ticket_id ?? normalized.ticket.legacy_id ?? normalized.ticket.id,
+    );
+    if (responseSource !== artifactIdentity.sourceModel || responseId !== artifactIdentity.ticketId) {
+      throw new ApiError(
+        'La respuesta backend no coincide con el ticket seleccionado; se descartó por seguridad.',
+        409,
+        { code: 'artifact_response_identity_mismatch' },
+      );
+    }
+  }
+  return normalized;
 };

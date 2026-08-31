@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 
 export type TicketShareActionKind = 'location' | 'form' | 'attachment';
-export type TicketShareActionPayload = { lat?: number; lng?: number; label?: string; address?: string; form_id?: number; attachment_id?: number };
+export type TicketShareActionPayload = { lat?: number; lng?: number; label?: string; address?: string; capture_source?: 'manual' | 'operator_browser_geolocation'; form_id?: number; attachment_id?: number };
 type PlainRecord = Record<string, unknown>;
 type VerifiedOption = { id: number; label: string };
 
@@ -40,7 +40,9 @@ const getFormOptions = (action: SaasAction | null): VerifiedOption[] => {
     const item = asRecord(candidate);
     const id = positiveId(item.form_id ?? item.id);
     const label = text(item.label ?? item.name ?? item.title);
-    const approved = item.approved === true || ['approved', 'active', 'ready', 'published'].includes(String(item.status || '').toLowerCase());
+    const evidence = asRecord(item.evidence);
+    const approved = item.approved === true && item.tenant_owned === true && item.tenant_verified === true &&
+      evidence.approved === true && evidence.tenant_owned === true && evidence.flow_contract_verified === true;
     return id && label && approved ? [{ id, label }] : [];
   });
 };
@@ -66,6 +68,11 @@ export const getTicketShareActionBlockReason = (kind: TicketShareActionKind, act
 };
 
 const parseCoordinate = (value: string) => value.trim() && Number.isFinite(Number(value)) ? Number(value) : null;
+const supportsCaptureSource = (action: SaasAction | null) => {
+  const raw = asRecord(action?.raw);
+  const acceptedFields = Array.isArray(raw.accepted_fields) ? raw.accepted_fields : [];
+  return new Set([...(action?.requires || []), ...acceptedFields]).has('capture_source');
+};
 const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({ action, kind, open, attachments = [], submitting = false, errorMessage, onOpenChange, onConfirm }) => {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -74,16 +81,17 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({ actio
   const [selectedId, setSelectedId] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [geoStatus, setGeoStatus] = useState<string | null>(null);
+  const [captureSource, setCaptureSource] = useState<'manual' | 'operator_browser_geolocation'>('manual');
   const options = useMemo(() => kind === 'attachment' ? getAttachmentOptions(attachments) : getFormOptions(action), [action, attachments, kind]);
   useEffect(() => {
     if (!open) return;
-    setLatitude(''); setLongitude(''); setLabel(''); setAddress(''); setSelectedId(''); setValidationError(null); setGeoStatus(null);
+    setLatitude(''); setLongitude(''); setLabel(''); setAddress(''); setSelectedId(''); setValidationError(null); setGeoStatus(null); setCaptureSource('manual');
   }, [action?.id, kind, open]);
   const useCurrentLocation = () => {
     if (!navigator.geolocation) { setGeoStatus('Este navegador no ofrece geolocalización. Podés ingresar las coordenadas manualmente.'); return; }
     setGeoStatus('Solicitando permiso de ubicación…');
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => { setLatitude(coords.latitude.toFixed(6)); setLongitude(coords.longitude.toFixed(6)); setGeoStatus('Coordenadas cargadas. Revisalas antes de guardar.'); },
+      ({ coords }) => { setLatitude(coords.latitude.toFixed(6)); setLongitude(coords.longitude.toFixed(6)); setCaptureSource('operator_browser_geolocation'); setGeoStatus('GPS del dispositivo del operador cargado. Revisalo antes de guardar.'); },
       () => setGeoStatus('No se pudo obtener la ubicación. Podés ingresarla manualmente.'),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
@@ -97,7 +105,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({ actio
     }
     const lat = parseCoordinate(latitude); const lng = parseCoordinate(longitude);
     if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) { setValidationError('Ingresá latitud y longitud WGS84 dentro de rangos válidos.'); return; }
-    onConfirm({ lat, lng, ...(label.trim() ? { label: label.trim().slice(0, 100) } : {}), ...(address.trim() ? { address: address.trim().slice(0, 300) } : {}) });
+    onConfirm({ lat, lng, ...(supportsCaptureSource(action) ? { capture_source: captureSource } : {}), ...(label.trim() ? { label: label.trim().slice(0, 100) } : {}), ...(address.trim() ? { address: address.trim().slice(0, 300) } : {}) });
   };
   const noun = kind === 'location' ? 'ubicación' : kind === 'form' ? 'formulario' : 'adjunto';
   return <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}><DialogContent className="max-w-lg">
@@ -105,7 +113,8 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({ actio
     {kind === 'location' ? <div className="space-y-4">
       <Button type="button" variant="outline" onClick={useCurrentLocation}>Usar mi ubicación</Button>
       <p className="text-xs text-muted-foreground" aria-live="polite">{geoStatus || 'La geolocalización sólo se solicita al presionar el botón.'}</p>
-      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Latitud<Input aria-label="Latitud WGS84" inputMode="decimal" value={latitude} onChange={(e) => setLatitude(e.target.value)} /></label><label className="space-y-1 text-sm">Longitud<Input aria-label="Longitud WGS84" inputMode="decimal" value={longitude} onChange={(e) => setLongitude(e.target.value)} /></label></div>
+      <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950">El GPS corresponde al dispositivo del operador. No modifica ni prueba la ubicación reportada del reclamo.</p>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Latitud<Input aria-label="Latitud WGS84" inputMode="decimal" value={latitude} onChange={(e) => { setLatitude(e.target.value); setCaptureSource('manual'); }} /></label><label className="space-y-1 text-sm">Longitud<Input aria-label="Longitud WGS84" inputMode="decimal" value={longitude} onChange={(e) => { setLongitude(e.target.value); setCaptureSource('manual'); }} /></label></div>
       <label className="space-y-1 text-sm">Etiqueta opcional<Input value={label} maxLength={100} onChange={(e) => setLabel(e.target.value)} /></label>
       <label className="space-y-1 text-sm">Referencia opcional<Input value={address} maxLength={300} onChange={(e) => setAddress(e.target.value)} /></label>
     </div> : <label className="space-y-1.5 text-sm">{kind === 'form' ? 'Formulario aprobado' : 'Adjunto existente'}<select aria-label={kind === 'form' ? 'Formulario aprobado' : 'Adjunto existente'} className="h-10 w-full rounded-md border border-input bg-background px-3" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seleccionar</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}

@@ -1198,6 +1198,28 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('blocks every composer write when detail cache belongs to another ticket identity', async () => {
+    const crossedItem = {
+      ...tenantAuthoritativeItem,
+      id: '78',
+      legacy_id: 78,
+      allowed_actions: [{
+        id: 'share_location', label: 'Compartir ubicación', enabled: true, disabled: false,
+        method: 'POST', endpoint: '/api/v2/inbox/omnichannel/actions',
+        requires: ['lat', 'lng', 'Idempotency-Key'], delivery_mode: 'crm_only',
+        external_dispatch: false, delivery_contract_version: 'inbox.action_delivery.v2',
+      }],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item: crossedItem, raw: {} });
+    render(renderConversation());
+
+    const send = await screen.findByRole('button', { name: 'Enviar mensaje' });
+    expect(send).toBeDisabled();
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByRole('menuitem', { name: /Compartir ubicación.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+  });
+
   it('coalesces opaque tenant invalidations without losing them when the ticket list refreshes', async () => {
     const view = render(renderConversation());
 
