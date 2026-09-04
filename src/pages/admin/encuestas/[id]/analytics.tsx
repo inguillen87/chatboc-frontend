@@ -9,6 +9,7 @@ import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyLiveResultsPanel } from '@/components/surveys/SurveyLiveResultsPanel';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { SurveyRecentResponses } from '@/components/surveys/SurveyRecentResponses';
+import { SurveyResultEvidencePanel } from '@/components/surveys/SurveyResultEvidencePanel';
 import { TransparencyTab } from '@/components/surveys/TransparencyTab';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
 } from '@/utils/publicSurveyUrl';
 import {
   adminGetSurveyComments,
+  adminListSurveyGovernanceReleases,
   adminModerateSurveyComment,
   getSurveyAlerts,
   getSurveyAnomalies,
@@ -53,6 +55,10 @@ import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import type { SnapshotCreatePayload } from '@/types/encuestas';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import {
+  buildSurveyResultEvidence,
+  validateSurveyGovernanceReleaseList,
+} from '@/utils/surveyGovernanceContract';
 
 
 function formatDateLabel(value?: string | null) {
@@ -1070,6 +1076,80 @@ export default function SurveyAnalyticsPage() {
       filters.ciudad ||
       filters.barrio,
   );
+  const hasActiveResultEvidenceFilters = Object.keys(filters).length > 0;
+
+  const resultEvidenceTenantSlug =
+    effectiveTenantSlug?.trim() || effectiveSurvey?.tenant_slug?.trim() || '';
+  const resultEvidenceTenantId =
+    typeof effectiveSurvey?.tenant_id === 'number' &&
+    Number.isSafeInteger(effectiveSurvey.tenant_id) &&
+    effectiveSurvey.tenant_id > 0
+      ? effectiveSurvey.tenant_id
+      : null;
+  const resultEvidenceSurveyId =
+    typeof effectiveSurvey?.id === 'number' && Number.isSafeInteger(effectiveSurvey.id) && effectiveSurvey.id > 0
+      ? effectiveSurvey.id
+      : typeof surveyId === 'number' && Number.isSafeInteger(surveyId) && surveyId > 0
+        ? surveyId
+        : null;
+  const resultEvidenceSurveyMismatch = Boolean(
+    resultEvidenceSurveyId !== null &&
+    typeof surveyId === 'number' &&
+    Number.isSafeInteger(surveyId) &&
+    surveyId > 0 &&
+    resultEvidenceSurveyId !== surveyId,
+  );
+  const canLoadResultEvidence = Boolean(
+    resultEvidenceSurveyId !== null &&
+    !resultEvidenceSurveyMismatch &&
+    resultEvidenceTenantSlug,
+  );
+  const resultEvidenceReleasesQuery = useQuery({
+    queryKey: [
+      'survey-result-evidence-releases',
+      resultEvidenceSurveyId ?? 'missing',
+      resultEvidenceTenantSlug || 'missing',
+      resultEvidenceTenantId ?? 'missing',
+    ],
+    enabled: canLoadResultEvidence,
+    retry: false,
+    staleTime: 15_000,
+    queryFn: async () => {
+      const response = await adminListSurveyGovernanceReleases(resultEvidenceSurveyId as number, {
+        tenantSlug: resultEvidenceTenantSlug,
+      });
+      return validateSurveyGovernanceReleaseList(response, {
+        surveyId: resultEvidenceSurveyId as number,
+        tenantSlug: resultEvidenceTenantSlug,
+        ...(resultEvidenceTenantId !== null ? { tenantId: resultEvidenceTenantId } : {}),
+      });
+    },
+  });
+  const resultEvidenceAssessment = useMemo(
+    () => buildSurveyResultEvidence({
+      surveyId: resultEvidenceSurveyId ?? 0,
+      tenantSlug: resultEvidenceTenantSlug,
+      tenantId: resultEvidenceTenantId,
+      releaseList: resultEvidenceReleasesQuery.data,
+      analytics: {
+        totalResponses: summary?.total_respuestas,
+        responseProvenance: summary?.response_provenance ?? summary?.data_provenance,
+        frontendProvenance: provenance,
+        filtered: hasActiveResultEvidenceFilters,
+      },
+    }),
+    [
+      hasActiveResultEvidenceFilters,
+      provenance,
+      resultEvidenceTenantId,
+      resultEvidenceTenantSlug,
+      resultEvidenceReleasesQuery.data,
+      resultEvidenceSurveyId,
+      summary?.data_provenance,
+      summary?.response_provenance,
+      summary?.total_respuestas,
+    ],
+  );
 
   const handleDemographicFilterChange = (
     field: 'genero' | 'rango_etario' | 'pais' | 'provincia' | 'ciudad' | 'barrio',
@@ -1104,7 +1184,7 @@ export default function SurveyAnalyticsPage() {
       link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
-      toast({ title: 'Exportación lista', description: 'Descargaste la analítica en formato CSV.' });
+      toast({ title: 'Exportación operativa lista', description: 'Descargaste analytics en CSV. Este archivo no reemplaza el recibo de cierre por conteo.' });
     } catch (error) {
       toast({ title: 'No pudimos exportar los datos', description: String((error as Error)?.message ?? error), variant: 'destructive' });
     }
@@ -1593,6 +1673,27 @@ export default function SurveyAnalyticsPage() {
         </CardContent>
       </Card>
 
+      <SurveyResultEvidencePanel
+        assessment={resultEvidenceAssessment}
+        loading={isLoading || resultEvidenceReleasesQuery.isLoading}
+        refreshing={isRefreshingAnalytics || resultEvidenceReleasesQuery.isFetching}
+        error={
+          !resultEvidenceTenantSlug
+            ? 'No se pudo verificar el tenant necesario para consultar el manifiesto.'
+            : resultEvidenceSurveyMismatch
+              ? 'La encuesta cargada no coincide con el identificador de la ruta. La conciliación quedó bloqueada.'
+            : resultEvidenceReleasesQuery.error
+              ? getErrorMessage(resultEvidenceReleasesQuery.error, 'No se pudo consultar el manifiesto de cierre.')
+              : null
+        }
+        onRefresh={() => {
+          void Promise.allSettled([
+            refreshAnalytics(),
+            resultEvidenceReleasesQuery.refetch(),
+          ]);
+        }}
+      />
+
       {executiveSummary ? (
         <Card>
           <CardHeader>
@@ -1626,8 +1727,8 @@ export default function SurveyAnalyticsPage() {
             <p className="text-sm font-semibold">Centro de acciones de analytics</p>
             <p className="text-xs text-muted-foreground">
               {syntheticSeedQaEnabled
-                ? 'Exportá, difundí y generá datos sintéticos de QA sin salir de la vista.'
-                : 'Exportá y difundí los resultados sin salir de la vista.'}
+                ? 'Exportá datos operativos y generá datos sintéticos de QA sin confundirlos con el recibo de cierre.'
+                : 'Exportá datos operativos; la conciliación por conteo se informa por separado en el recibo de cierre.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1650,7 +1751,7 @@ export default function SurveyAnalyticsPage() {
               disabled={isExporting}
               className="inline-flex items-center gap-2"
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV operativo
             </Button>
             {syntheticSeedQaEnabled ? (
               <Button

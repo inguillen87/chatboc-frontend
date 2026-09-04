@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   getSurveySegmentsSuggestions: vi.fn(),
   getSurveyAnomalies: vi.fn(),
   adminGetSurveyComments: vi.fn(),
+  adminListSurveyGovernanceReleases: vi.fn(),
   adminModerateSurveyComment: vi.fn(),
   trackEvent: vi.fn(),
   toast: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock('@/components/surveys/TransparencyTab', () => ({
 }));
 vi.mock('@/api/encuestas', () => ({
   adminGetSurveyComments: mocks.adminGetSurveyComments,
+  adminListSurveyGovernanceReleases: mocks.adminListSurveyGovernanceReleases,
   adminModerateSurveyComment: mocks.adminModerateSurveyComment,
   getSurveyForecast: mocks.getSurveyForecast,
   getSurveyAlerts: mocks.getSurveyAlerts,
@@ -174,7 +176,10 @@ describe('SurveyAnalyticsPage operational focus', () => {
       heatmapMeta: undefined,
       dashboardBundle: dashboardBundleFixture,
       executiveSummary: null,
+      provenance: { source: 'backend', synthetic: false, affected_modules: [] },
       isLoading: false,
+      refresh: vi.fn(),
+      isRefreshing: false,
       exportCsv: vi.fn(),
       isExporting: false,
       filters: {},
@@ -210,6 +215,24 @@ describe('SurveyAnalyticsPage operational focus', () => {
     mocks.getSurveySegmentsCompare.mockResolvedValue({ buckets: [] });
     mocks.getSurveySegmentsSuggestions.mockResolvedValue({ dimensions: {} });
     mocks.getSurveyAnomalies.mockResolvedValue({ signals: [], risk_score: 0 });
+    mocks.adminListSurveyGovernanceReleases.mockResolvedValue({
+      ok: true,
+      contract_version: 'surveys.governance_releases.v1',
+      tenant: { id: 10, slug: 'junin' },
+      survey_id: 3,
+      survey_state: 'publicada',
+      active_release_id: null,
+      latest_release_id: null,
+      capabilities: {
+        read: true,
+        manage: true,
+        plan_allows_write: true,
+        create_release: false,
+        required_for_mutation: 'survey.governance.manage',
+      },
+      items: [],
+      total: 0,
+    });
     mocks.adminGetSurveyComments.mockResolvedValue([
       {
         id: 11,
@@ -291,7 +314,7 @@ describe('SurveyAnalyticsPage operational focus', () => {
 
     expect(await screen.findByText('Centro de acciones de analytics')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /respuestas sintéticas|100 demo/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Exportá y difundí los resultados/i)).toBeInTheDocument();
+    expect(screen.getByText(/Exportá datos operativos/i)).toBeInTheDocument();
   });
 
   it('loads and moderates admin comments from the focused analytics view', async () => {
@@ -348,5 +371,147 @@ describe('SurveyAnalyticsPage operational focus', () => {
           decodeURIComponent(href).includes('tenant_slug=junin');
       }),
     ).toBe(true);
+  });
+
+  it('reconciles a closed release by count and exposes the closure receipt', async () => {
+    mocks.useSurveyAnalytics.mockReturnValue({
+      summary: {
+        total_respuestas: 8,
+        participantes_unicos: 8,
+        tasa_completitud: 100,
+        preguntas: [],
+        data_provenance: {
+          contract_version: 'surveys.response_provenance.v1',
+          mode: 'real',
+          server_trusted_classification: true,
+          contains_synthetic: false,
+          real_responses_included: 8,
+          synthetic_responses_included: 0,
+          synthetic_responses_excluded: 3,
+          unverified_responses_included: 0,
+          unverified_responses_excluded: 1,
+          synthetic_marker_contract: 'surveys.demo_seeding.v1',
+        },
+        demografia: {},
+      },
+      timeseries: [],
+      heatmap: [],
+      heatmapPayload: undefined,
+      heatmapMeta: undefined,
+      dashboardBundle: dashboardBundleFixture,
+      executiveSummary: undefined,
+      provenance: { source: 'backend', synthetic: false, affected_modules: [] },
+      isLoading: false,
+      isRefreshing: false,
+      refresh: vi.fn(),
+      exportCsv: vi.fn(),
+      isExporting: false,
+      filters: {},
+      setFilters: vi.fn(),
+      error: null,
+    });
+    mocks.adminListSurveyGovernanceReleases.mockResolvedValue({
+      ok: true,
+      contract_version: 'surveys.governance_releases.v1',
+      tenant: { id: 10, slug: 'junin' },
+      survey_id: 3,
+      survey_state: 'cerrada',
+      active_release_id: null,
+      latest_release_id: 5,
+      capabilities: {
+        read: true,
+        manage: true,
+        plan_allows_write: true,
+        create_release: false,
+        required_for_mutation: 'survey.governance.manage',
+      },
+      items: [
+        {
+          ok: true,
+          contract_version: 'surveys.governance_release.v1',
+          release_id: 5,
+          survey_id: 3,
+          version_number: 1,
+          status: 'closed',
+          snapshot_sha256: 'a'.repeat(64),
+          policy_sha256: 'b'.repeat(64),
+          published_at: '2026-09-04T11:00:00Z',
+          closed_at: '2026-09-04T12:00:00Z',
+          governance: {
+            eligibility: {
+              contract_version: 'surveys.eligibility_policy.v1',
+              policy_version: 'eligibility-2026.1',
+              mode: 'self_attested',
+              declarations: ['resident_attested'],
+              human_review_required: true,
+              automated_decision: false,
+              stores_roster_or_pii: false,
+              decision_state: 'not_evaluated',
+            },
+            consent: {
+              contract_version: 'surveys.consent_policy.v1',
+              policy_version: 'consent-2026.1',
+              public_text: 'Consentimiento institucional.',
+              text_sha256: 'e'.repeat(64),
+              required: true,
+              stores_public_text: true,
+              records_participant_input: false,
+            },
+            decision_rules: {
+              contract_version: 'surveys.decision_rules.v1',
+              quorum: { type: 'minimum_responses', value: 10 },
+              tie: { procedure: 'human_review' },
+              challenge: { enabled: false, window_hours: null, procedure: 'human_review' },
+              human_review_required: true,
+              declarative_only: true,
+              computed_outcome: null,
+            },
+          },
+          capabilities: { can_publish: false, can_close: false },
+          assurance: {
+            scope: 'instrument_and_policy_integrity',
+            regulated_election_certified: false,
+            result_certified: false,
+            external_verification: 'not_performed',
+          },
+          closure: {
+            manifest_sha256: 'c'.repeat(64),
+            manifest: {
+              contract_version: 'surveys.closure_manifest.v1',
+              tenant_id: 10,
+              survey_id: 3,
+              release_id: 5,
+              release_version: 1,
+              snapshot_sha256: 'a'.repeat(64),
+              policy_sha256: 'b'.repeat(64),
+              response_count: 12,
+              response_set_sha256: 'd'.repeat(64),
+              human_review_reference_sha256: 'f'.repeat(64),
+              closed_at: '2026-09-04T12:00:00Z',
+              assurance: {
+                scope: 'local_database_closure_integrity',
+                regulated_election_certified: false,
+                result_certified: false,
+                external_anchor_verified: false,
+              },
+            },
+          },
+        },
+      ],
+      total: 1,
+    });
+
+    renderPage('/admin/encuestas/3/analytics');
+
+    await waitFor(() => {
+      expect(mocks.adminListSurveyGovernanceReleases).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent('Cierre conciliado por conteo');
+    });
+    expect(screen.getByText('Sintéticas separadas').parentElement).toHaveTextContent('<5');
+    expect(screen.getByText(/no valida la distribución ni el contenido de las respuestas/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeEnabled();
+    expect(mocks.adminListSurveyGovernanceReleases).toHaveBeenCalledWith(3, { tenantSlug: 'junin' });
   });
 });

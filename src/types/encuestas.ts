@@ -96,6 +96,8 @@ export interface SurveyResponseProvenance {
   real_responses_included: number;
   synthetic_responses_included: number;
   synthetic_responses_excluded: number;
+  unverified_responses_included?: number;
+  unverified_responses_excluded?: number;
   synthetic_marker_contract: 'surveys.demo_seeding.v1';
 }
 
