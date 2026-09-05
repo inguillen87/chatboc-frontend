@@ -80,6 +80,10 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
         .map((point) => point.addressCellLabel ?? point.direccion ?? '')
         .filter(Boolean)
         .join('|')}
+      data-categories={(props.heatmapData ?? []).map((point) => point.categoria ?? '').join('|')}
+      data-zones={(props.heatmapData ?? []).map((point) => point.barrio ?? '').join('|')}
+      data-channels={(props.heatmapData ?? []).map((point) => point.canal ?? '').join('|')}
+      data-category-colors={(props.heatmapData ?? []).map((point) => point.categoryColor ?? '').join('|')}
       data-bounds={String(props.fitToBounds?.length ?? 0)}
       data-bounds-coordinates={JSON.stringify(props.fitToBounds ?? [])}
       data-fit-request-key={props.fitBoundsRequestKey ?? ''}
@@ -187,6 +191,14 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(layout).toContainElement(mapShell);
     expect(layout).toContainElement(executiveRail);
     expect(executiveRail).not.toContainElement(intelligenceWorkspace);
+    expect(layout).not.toHaveAttribute('data-territory-map-layout');
+    expect(layout.parentElement).not.toHaveAttribute('style');
+    expect(executiveRail).toHaveClass('w-full');
+    expect(executiveRail).not.toHaveClass('2xl:sticky');
+    expect(executiveRail.querySelector('details')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('territory-inspector-summary')).toHaveTextContent('6 puntos');
+    expect(screen.getByTestId('territory-inspector-summary')).toHaveTextContent('cobertura');
+    expect(screen.getByTestId('territory-inspector-summary')).toHaveTextContent('pendientes');
     expect(intelligenceDetails).not.toHaveAttribute('open');
     expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
@@ -270,6 +282,39 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-points', '12');
   });
 
+  it('promotes asynchronously loaded mapped data to the hybrid default without overriding an operator choice', () => {
+    const { rerender } = render(<PremiumTerritoryHeatmap points={[]} />);
+    const points: OperationsHeatmapPoint[] = [
+      { id: 'async-bache', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro' },
+      { id: 'async-luz', lat: -34.62, lng: -60.92, categoria: 'Luminarias', barrio: 'Norte' },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
+    } as OperationsHeatmapV1;
+
+    rerender(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toHaveAttribute('aria-checked', 'true');
+    expect(map).toHaveAttribute('data-show-heatmap', 'true');
+    expect(map).toHaveAttribute('data-show-points', 'true');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Solo calor' }));
+    rerender(<PremiumTerritoryHeatmap points={[...points]} heatmap={{ ...heatmap, points: [...points] }} />);
+
+    expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
+    expect(map).toHaveAttribute('data-show-heatmap', 'true');
+    expect(map).toHaveAttribute('data-show-points', 'false');
+  });
+
   it('keeps the live map unobstructed and filters visible heat points by category and zone', () => {
     const points: OperationsHeatmapPoint[] = [
       { id: 'bache-centro', lat: -34.61, lng: -60.91, categoria: 'Baches', barrio: 'Centro', weight: 3 },
@@ -304,6 +349,13 @@ describe('PremiumTerritoryHeatmap', () => {
     const map = screen.getByTestId('mock-live-map');
     const legend = screen.getByTestId('territory-live-legend');
     expect(map.getAttribute('data-points')).toBe('4');
+    expect(map.getAttribute('data-categories')).toBe('Baches|Baches|Luminarias|Luminarias');
+    expect(map.getAttribute('data-zones')).toBe('Centro|Norte|Centro|sin_zona');
+    expect(map.getAttribute('data-channels')).toBe('||whatsapp|');
+    const categoryColors = (map.getAttribute('data-category-colors') ?? '').split('|');
+    expect(categoryColors[0]).toBe(categoryColors[1]);
+    expect(categoryColors[2]).toBe(categoryColors[3]);
+    expect(categoryColors[0]).not.toBe(categoryColors[2]);
     expect(map.getAttribute('data-geo-features')).toBe('4');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-heatmap')).toBe('true');
@@ -383,13 +435,80 @@ describe('PremiumTerritoryHeatmap', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar punto de muestra' }));
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Luminarias');
-    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Centro');
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Estado · Nuevo');
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Canal · WhatsApp');
+    expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Zona · Centro');
     expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419',
     );
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }));
     expect(screen.queryByTestId('territory-selected-point')).toBeNull();
+  });
+
+  it('keeps mapped categories filterable when the canonical facet list is partial', () => {
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'mapped-alumbrado',
+        lat: -34.61,
+        lng: -60.91,
+        categoria: 'Alumbrado publico',
+        barrio: 'Centro',
+        canal: 'whatsapp',
+      },
+      {
+        id: 'mapped-bache',
+        lat: -34.62,
+        lng: -60.92,
+        categoria: 'Baches',
+        barrio: 'Norte',
+        canal: 'web',
+      },
+    ];
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points,
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: { can_render_heatmap: true, layers: ['base_heatmap', 'category_layers'] },
+      privacy: { mode: 'privileged_exact', minimum_sample_size: 10 },
+      quality: { state: 'ready', visible_points: 2, can_render_heatmap: true },
+      territorial_facets: {
+        categories: [
+          {
+            key: 'luminarias',
+            label: 'Luminarias',
+            count: 1,
+            mapped_count: 1,
+            raw_categories: [{ key: 'Alumbrado publico', label: 'Alumbrado publico', count: 1 }],
+          },
+        ],
+        explicit_zones: [],
+        addresses: [],
+      },
+    } as OperationsHeatmapV1;
+
+    render(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
+
+    const map = screen.getByTestId('mock-live-map');
+    openTerritoryFilters();
+    expect(screen.getByRole('option', { name: 'Luminarias' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Baches' })).toBeInTheDocument();
+    expect(map.getAttribute('data-category-colors')).not.toContain('||');
+
+    chooseTerritoryFacet('Filtrar mapa por categoría', 'baches');
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(map).toHaveAttribute('data-categories', 'Baches');
+    expect(map).toHaveAttribute('data-zones', 'Norte');
+    expect(map).toHaveAttribute('data-channels', 'web');
+
+    fireEvent.click(screen.getByRole('button', { name: /Luminarias\s+1/ }));
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(map).toHaveAttribute('data-categories', 'Alumbrado publico');
+    expect(map).toHaveAttribute('data-zones', 'Centro');
+    expect(map).toHaveAttribute('data-channels', 'whatsapp');
   });
 
   it('fails closed when a territorial point publishes conflicting ticket models', () => {

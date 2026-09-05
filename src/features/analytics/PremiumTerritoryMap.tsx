@@ -740,6 +740,8 @@ const formatPercent = (value: number | undefined) =>
   value === undefined || Number.isNaN(value) ? '--' : `${numberFormatter.format(value)}%`;
 
 const CONTRACT_VALUE_LABELS: Record<string, string> = {
+  nuevo: 'Nuevo',
+  en_proceso: 'En proceso',
   pending: 'Pendiente',
   queued: 'En revisión',
   ready: 'Disponible',
@@ -1612,6 +1614,16 @@ export function PremiumTerritoryHeatmap({
   const mapCategoryFacets = useMemo<TerritoryMapFacet[]>(() => {
     if (categoryFacetsSuppressed) return [];
 
+    const canonicalCategoryContractInvalid = canonicalCategoryFacets.some((facet) => {
+      if (!isNamedFacetValue(readString(facet.label, facet.key))) return false;
+      return !reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      );
+    });
+
     const canonical = canonicalCategoryFacets
       .map((facet): TerritoryMapFacet | null => {
         const rawLabel = readString(facet.label, facet.key);
@@ -1660,10 +1672,28 @@ export function PremiumTerritoryHeatmap({
       });
     });
 
-    return (canonicalCategoryFacets.length > 0 ? canonical : Array.from(fallback.values()))
+    const canonicalMatchKeys = new Set(canonical.flatMap((facet) => facet.matchKeys));
+    const mappedCategoriesMissingFromContract = Array.from(fallback.values()).filter(
+      (facet) => !facet.matchKeys.some((matchKey) => canonicalMatchKeys.has(matchKey)),
+    );
+    const candidates = canonicalCategoryContractInvalid
+      ? canonical
+      : canonicalCategoryFacets.length > 0
+        ? [...canonical, ...mappedCategoriesMissingFromContract]
+        : Array.from(fallback.values());
+
+    return candidates
       .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
       .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label, 'es'));
   }, [canonicalCategoryFacets, categoryFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const categoryColorByMatchKey = useMemo(() => {
+    const colors = new Map<string, string>();
+    mapCategoryFacets.forEach((facet) => {
+      if (!facet.color) return;
+      facet.matchKeys.forEach((matchKey) => colors.set(matchKey, facet.color!));
+    });
+    return colors;
+  }, [mapCategoryFacets]);
   const mapZoneFacets = useMemo<TerritoryMapFacet[]>(() => {
     if (zoneFacetsSuppressed) return [];
 
@@ -2188,6 +2218,7 @@ export function PremiumTerritoryHeatmap({
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(() =>
     showCategoryLayer && showHeatLayer ? 'hybrid' : showCategoryLayer ? 'clusters' : 'heat',
   );
+  const displayModeManuallySelectedRef = useRef(false);
   const temporarilyHiddenPointModeRef = useRef<Exclude<MapDisplayMode, 'heat'> | null>(null);
 
   useEffect(() => {
@@ -2197,6 +2228,17 @@ export function PremiumTerritoryHeatmap({
         setSelectedMapPoint(null);
         setMapDisplayMode('heat');
       }
+      return;
+    }
+
+    const recommendedMode: MapDisplayMode = showCategoryLayer && showHeatLayer
+      ? 'hybrid'
+      : showCategoryLayer
+        ? 'clusters'
+        : 'heat';
+    if (!displayModeManuallySelectedRef.current && mapDisplayMode !== recommendedMode) {
+      setSelectedMapPoint(null);
+      setMapDisplayMode(recommendedMode);
       return;
     }
 
@@ -2288,37 +2330,46 @@ export function PremiumTerritoryHeatmap({
   );
   const visibleLiveMapPoints = useMemo(
     () =>
-      liveMapPoints.filter((point) => {
-        if (!showCommerceLayer && readString(point.fuente) === 'commerce') return false;
-        if (
-          mapCategoryFilter &&
-          !(
-            selectedCategoryFacet?.matchKeys.includes(normalizedFacetValue(point.categoria)) ??
-            normalizedFacetValue(point.categoria) === mapCategoryFilter
-          )
-        ) {
-          return false;
-        }
-        if (
-          mapZoneFilter &&
-          !(
-            selectedZoneFacet?.matchKeys.includes(
-              normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
-            ) ?? normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()) === mapZoneFilter
-          )
-        ) {
-          return false;
-        }
-        if (
-          mapAddressCellFilter &&
-          point.addressCellKey !== mapAddressCellFilter &&
-          point.addressCorridorKey !== mapAddressCellFilter
-        ) {
-          return false;
-        }
-        return true;
-      }),
+      liveMapPoints
+        .filter((point) => {
+          if (!showCommerceLayer && readString(point.fuente) === 'commerce') return false;
+          if (
+            mapCategoryFilter &&
+            !(
+              selectedCategoryFacet?.matchKeys.includes(normalizedFacetValue(point.categoria)) ??
+              normalizedFacetValue(point.categoria) === mapCategoryFilter
+            )
+          ) {
+            return false;
+          }
+          if (
+            mapZoneFilter &&
+            !(
+              selectedZoneFacet?.matchKeys.includes(
+                normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
+              ) ?? normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()) === mapZoneFilter
+            )
+          ) {
+            return false;
+          }
+          if (
+            mapAddressCellFilter &&
+            point.addressCellKey !== mapAddressCellFilter &&
+            point.addressCorridorKey !== mapAddressCellFilter
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((point) => ({
+          ...point,
+          categoryColor:
+            categoryColorByMatchKey.get(normalizedFacetValue(point.categoria)) ??
+            point.categoryColor ??
+            categoryColorFor(point.categoria),
+        })),
     [
+      categoryColorByMatchKey,
       liveMapPoints,
       mapAddressCellFilter,
       mapCategoryFilter,
@@ -2548,16 +2599,6 @@ export function PremiumTerritoryHeatmap({
   const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
   const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
   const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
-  const hudBars = [
-    { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
-    ...(scopedTerritoryView.globalInsightsCompatible
-      ? [{ id: 'hotspots', label: 'zonas', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' }]
-      : []),
-    ...(scopedTerritoryView.pendingGeocodeCount === undefined
-      ? []
-      : [{ id: 'pend', label: 'pend.', value: scopedTerritoryView.pendingGeocodeCount, tone: 'rgba(245,158,11,0.86)' }]),
-  ];
-  const hudMax = Math.max(1, ...hudBars.map((bar) => bar.value));
   const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2; testId: string }> = [
     {
       label: 'Puntos visibles',
@@ -2733,8 +2774,7 @@ export function PremiumTerritoryHeatmap({
   };
 
   return (
-    <section className={cn('flex flex-col gap-2', className)} style={{ containerType: 'inline-size' }}>
-      <style>{`@container (min-width: 1080px) { [data-territory-map-layout="${svgId}"] { grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); } }`}</style>
+    <section className={cn('flex flex-col gap-2', className)}>
       <div className="order-1 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div>
@@ -3030,6 +3070,7 @@ export function PremiumTerritoryHeatmap({
                   variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
                   className="h-8 px-3"
                   onClick={() => {
+                    displayModeManuallySelectedRef.current = true;
                     temporarilyHiddenPointModeRef.current = null;
                     setSelectedMapPoint(null);
                     setMapDisplayMode(mode.id);
@@ -3327,7 +3368,6 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-map-layout"
-        data-territory-map-layout={svgId}
         className="order-4 grid min-w-0 grid-cols-1 items-start gap-4"
       >
         <div
@@ -3448,35 +3488,6 @@ export function PremiumTerritoryHeatmap({
                   strokeWidth="0.16"
                 />
               ))}
-            </g>
-            <g data-testid="territory-hud-overlay" aria-hidden="true" opacity="0.94">
-              <rect x="5.5" y="6" width="27.5" height="13.6" rx="2.2" fill="rgba(15,23,42,0.58)" stroke="rgba(148,163,184,0.36)" strokeWidth="0.18" />
-              <text x="8" y="10.2" className="fill-white text-[2.05px] font-semibold tracking-[0.18em]">
-                MAPA OPERATIVO
-              </text>
-              <text x="8" y="13.7" className="fill-cyan-100 text-[1.85px] font-medium">
-                {(preferredVisualization ?? 'Mapa territorial').slice(0, 27)}
-              </text>
-              <text x="8" y="17" className="fill-slate-200 text-[1.75px]">
-                foco: {(scopedTerritoryView.globalInsightsCompatible ? decisionZone.zone.label : scopedTerritoryView.label).slice(0, 20)}
-              </text>
-              {hudBars.map((bar, index) => {
-                const y = 22.8 + index * 2.9;
-                const width = 4 + (bar.value / hudMax) * 16;
-                return (
-                  <g key={bar.id}>
-                    <text x="7" y={y + 0.7} className="fill-slate-200 text-[1.45px] uppercase">
-                      {bar.label}
-                    </text>
-                    <rect x="15.8" y={y - 0.85} width="17.6" height="1.25" rx="0.62" fill="rgba(148,163,184,0.2)" />
-                    <rect x="15.8" y={y - 0.85} width={width} height="1.25" rx="0.62" fill={bar.tone}>
-                      {!shouldReduceMotion ? (
-                        <animate attributeName="opacity" values="0.72;1;0.72" dur={`${3.4 + index * 0.45}s`} repeatCount="indefinite" />
-                      ) : null}
-                    </rect>
-                  </g>
-                );
-              })}
             </g>
             {scopedTerritoryView.globalInsightsCompatible ? (
               <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
@@ -3928,8 +3939,21 @@ export function PremiumTerritoryHeatmap({
                       <p className="font-semibold text-foreground">
                         {humanizeCategoryValue(selectedMapPoint.categoria ?? 'Reclamo territorial')}
                       </p>
-                      {selectedMapPoint.estado ? <Badge variant="secondary">{humanizeCategoryValue(selectedMapPoint.estado)}</Badge> : null}
-                      {selectedMapPoint.canal ? <Badge variant="outline">{humanizeCategoryValue(selectedMapPoint.canal)}</Badge> : null}
+                      {selectedMapPoint.estado ? (
+                        <Badge variant="secondary">
+                          Estado · {humanizeContractValue(selectedMapPoint.estado, 'Estado registrado')}
+                        </Badge>
+                      ) : null}
+                      {selectedMapPoint.canal ? (
+                        <Badge variant="outline">
+                          Canal · {humanizeContractValue(selectedMapPoint.canal, 'Canal registrado')}
+                        </Badge>
+                      ) : null}
+                      {selectedMapPoint.barrio || selectedMapPoint.distrito ? (
+                        <Badge variant="outline">
+                          Zona · {humanizeCategoryValue(selectedMapPoint.barrio ?? selectedMapPoint.distrito ?? '')}
+                        </Badge>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {selectedMapPoint.addressCellLabel ??
@@ -3960,13 +3984,22 @@ export function PremiumTerritoryHeatmap({
           ) : null}
         </div>
 
-        <aside data-testid="territory-executive-rail" className="self-start 2xl:sticky 2xl:top-24">
-          <details open className="group rounded-xl border border-border bg-background p-4 shadow-sm">
+        <aside data-testid="territory-executive-rail" className="w-full self-start">
+          <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
-              <span className="text-sm font-semibold">Inspector territorial</span>
-              <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
-                {territoryScopeBadgeLabel}
-              </Badge>
+              <span className="min-w-0 text-sm font-semibold">
+                Inspector territorial
+                <span data-testid="territory-inspector-summary" className="ml-2 hidden font-normal text-muted-foreground sm:inline">
+                  {scopedVisiblePointLabel} puntos · {scopedCoverageLabel} cobertura · {scopedPendingLabel} pendientes
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
+                  {territoryScopeBadgeLabel}
+                </Badge>
+                <span className="text-xs font-medium text-primary group-open:hidden">Ver detalle</span>
+                <span className="hidden text-xs font-medium text-primary group-open:inline">Ocultar</span>
+              </span>
             </summary>
             <div className="mt-4 border-t border-border/60 pt-4">
             <div className="flex items-start justify-between gap-3">
@@ -3975,7 +4008,7 @@ export function PremiumTerritoryHeatmap({
                 <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Gauge className="h-3.5 w-3.5" />
