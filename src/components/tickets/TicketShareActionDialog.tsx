@@ -455,6 +455,70 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
   };
 };
 
+const resolveAttachmentOptions = (
+  action: SaasAction | null,
+  attachments: unknown[] = [],
+): ConfigResult<VerifiedOption[]> => {
+  if (!action) return { config: null, error: 'Este ticket no publicó una acción de adjunto.' };
+  const actionRequired = new Set(action.requires || []);
+  if (!actionRequired.has('attachment_id')) {
+    return { config: null, error: 'La acción no exige un attachment_id verificable.' };
+  }
+
+  let options = getAttachmentOptions(attachments);
+  const schema = asRecord(action.input_schema);
+  if (Object.keys(schema).length) {
+    if (schema.type !== 'object' || asArray(schema.anyOf).length || asArray(schema.oneOf).length || asArray(schema.allOf).length) {
+      return { config: null, error: 'El esquema de adjunto no publicó un objeto raíz inequívoco.' };
+    }
+    const properties = asRecord(schema.properties);
+    const attachmentSchema = asRecord(properties.attachment_id);
+    if (!Object.keys(attachmentSchema).length || !['integer', 'number'].includes(String(attachmentSchema.type))) {
+      return { config: null, error: 'El esquema de adjunto no publicó un attachment_id numérico compatible.' };
+    }
+    const schemaRequired = new Set(strings(schema.required));
+    if (!schemaRequired.has('attachment_id')) {
+      return { config: null, error: 'El esquema de adjunto no exige attachment_id.' };
+    }
+    const defaults = getActionDefaults(action);
+    const unsupportedRequired = [...schemaRequired, ...actionRequired].filter(
+      (field) => field !== 'attachment_id' && !META_FIELDS.has(field) && isMissing(defaults[field]),
+    );
+    if (unsupportedRequired.length) {
+      return {
+        config: null,
+        error: `La acción de adjunto exige campos que esta consola no puede completar: ${[...new Set(unsupportedRequired)].join(', ')}.`,
+      };
+    }
+    const minimum = finiteNumber(attachmentSchema.minimum);
+    const maximum = finiteNumber(attachmentSchema.maximum);
+    if (minimum !== null && maximum !== null && minimum > maximum) {
+      return { config: null, error: 'El esquema de adjunto publicó un rango inválido.' };
+    }
+    const hasPublishedEnum = Object.prototype.hasOwnProperty.call(attachmentSchema, 'enum');
+    const allowedIds = new Set(asArray(attachmentSchema.enum).flatMap((value) => {
+      const id = positiveId(value);
+      return id ? [id] : [];
+    }));
+    if (hasPublishedEnum && !allowedIds.size) {
+      return { config: null, error: 'El esquema de adjunto no publicó IDs válidos en su lista cerrada.' };
+    }
+    options = options.filter((option) => {
+      const id = positiveId(option.value);
+      return Boolean(
+        id &&
+        (!hasPublishedEnum || allowedIds.has(id)) &&
+        (minimum === null || id >= minimum) &&
+        (maximum === null || id <= maximum),
+      );
+    });
+  }
+
+  return options.length
+    ? { config: options, error: null }
+    : { config: null, error: 'No hay adjuntos existentes con ID verificable y compatible en este ticket. Esta acción no carga archivos nuevos.' };
+};
+
 const disabledReason = (kind: TicketShareActionKind, action: SaasAction): string =>
   action.disabled_reason?.trim() ||
   `El backend marcó ${kind === 'location' ? 'la ubicación' : kind === 'form' ? 'el formulario' : 'el adjunto'} como no disponible.`;
@@ -489,7 +553,11 @@ const getDeliveryContractBlockReason = (action: SaasAction): string | null => {
 
 const hasStableIdempotencyContract = (action: SaasAction): boolean => {
   const idempotency = asRecord(action.idempotency);
-  return (action.requires || []).includes(IDEMPOTENCY_HEADER) || (
+  const publishesIdempotency = Object.keys(idempotency).length > 0;
+  if (!publishesIdempotency) return (action.requires || []).includes(IDEMPOTENCY_HEADER);
+  return (
+    (!Object.prototype.hasOwnProperty.call(idempotency, 'contract_version') ||
+      idempotency.contract_version === 'inbox.reply_idempotency.v1') &&
     idempotency.preferred_header === IDEMPOTENCY_HEADER &&
     idempotency.body_field === 'client_message_id' &&
     idempotency.retry_rule === 'reuse_same_value'
@@ -517,11 +585,7 @@ export const getTicketShareActionBlockReason = (
   if (!hasStableIdempotencyContract(action)) return 'La acción no publicó una identidad idempotente reutilizable.';
   if (kind === 'location') return resolveLocationInputConfig(action).error;
   if (kind === 'form') return resolveFormInputConfig(action, replyContract).error;
-  if (!(action.requires || []).includes('attachment_id')) return 'La acción no exige un attachment_id verificable.';
-  if (!getAttachmentOptions(attachments).length) {
-    return 'No hay adjuntos existentes con ID verificable en este ticket. Esta acción no carga archivos nuevos.';
-  }
-  return null;
+  return resolveAttachmentOptions(action, attachments).error;
 };
 
 const parseCoordinate = (value: string): number | null =>
@@ -548,9 +612,10 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
   const [captureSource, setCaptureSource] = useState<'manual' | 'operator_browser_geolocation'>('manual');
   const formResult = useMemo(() => resolveFormInputConfig(action, replyContract), [action, replyContract]);
   const locationResult = useMemo(() => resolveLocationInputConfig(action), [action]);
+  const attachmentResult = useMemo(() => resolveAttachmentOptions(action, attachments), [action, attachments]);
   const options = useMemo(
-    () => kind === 'attachment' ? getAttachmentOptions(attachments) : formResult.config?.options || [],
-    [attachments, formResult.config?.options, kind],
+    () => kind === 'attachment' ? attachmentResult.config || [] : formResult.config?.options || [],
+    [attachmentResult.config, formResult.config?.options, kind],
   );
   const actionBlockReason = useMemo(
     () => getTicketShareActionBlockReason(kind, action, replyContract, attachments),

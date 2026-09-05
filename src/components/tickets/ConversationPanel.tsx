@@ -1786,8 +1786,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const templateReplyBlockReason = !isTenantTicketWhatsApp
     ? 'Las plantillas aprobadas sólo están disponibles para TenantTicket en WhatsApp.'
     : replyBlockReason || (approvedWhatsAppTemplates.length ? null : 'No hay plantillas aprobadas disponibles para este tenant.');
+  const attachmentReplyCapabilityBlockReason = attachmentAction?.delivery_mode === 'runtime_preflight'
+    ? getReplyCapabilityBlockReason(
+        'attachment',
+        composerReplyContract,
+        selectedTicket?.source_model,
+        selectedTicket?.id,
+        responseTemplateTenantSlug,
+        selectedTicket?.tenant_id,
+      )
+    : null;
   const existingAttachmentBlockReason = authoritativeAttachmentMustFailClosed
     ? actionContractBlockReason ||
+      attachmentReplyCapabilityBlockReason ||
       (attachmentAction
         ? getTicketShareActionBlockReason('attachment', attachmentAction, composerReplyContract, composerActionAttachments)
         : 'El backend no publicó una acción segura para vincular adjuntos existentes a este ticket.')

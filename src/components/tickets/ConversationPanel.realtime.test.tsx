@@ -1589,6 +1589,59 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('blocks runtime attachment delivery when reply_contract disables that capability', async () => {
+    const attachmentAction = {
+      id: 'attach_file',
+      label: 'Enviar acta existente',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      disabled: false,
+      requires: ['attachment_id'],
+      payload_defaults: { source_model: 'TenantTicket', ticket_id: 77 },
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+    };
+    const item = {
+      ...tenantAuthoritativeItem,
+      attachments: [{ id: 17, filename: 'acta.pdf' }],
+      reply_contract: {
+        ...tenantAuthoritativeItem.reply_contract,
+        supported_message_types: {
+          ...tenantAuthoritativeItem.reply_contract.supported_message_types,
+          attachment: {
+            enabled: false,
+            disabled_reason: 'El canal no admite adjuntos para este expediente.',
+          },
+        },
+      },
+      allowed_actions: [tenantReplyAction, attachmentAction],
+      actions: [tenantReplyAction, attachmentAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item, raw: { item } });
+
+    render(renderConversation(true));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const { menu } = await openComposerTools();
+    const attachmentButton = within(menu).getByRole('menuitem', { name: /Vincular adjunto existente/ });
+
+    expect(attachmentButton).toHaveAttribute('aria-disabled', 'true');
+    expect(attachmentButton).toHaveAccessibleName(/no admite adjuntos/i);
+    fireEvent.click(attachmentButton);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+  });
+
   it('keeps reply fail-closed and uses the backend ownership reason when it is published', async () => {
     harness.getOmnichannelInboxDetailV2.mockResolvedValue({
       item: {

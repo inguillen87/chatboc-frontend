@@ -16,6 +16,17 @@ describe('TicketShareActionDialog crm-only v2', () => {
     expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], { external_dispatch: true }))).toMatch(/CRM-only/i);
   });
 
+  it('rejects a contradictory published idempotency contract even when requires names the header', () => {
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], {
+      idempotency: {
+        contract_version: 'inbox.reply_idempotency.v2',
+        preferred_header: 'X-Other-Key',
+        body_field: 'request_id',
+        retry_rule: 'generate_new_value',
+      },
+    }))).toMatch(/identidad idempotente/i);
+  });
+
   it('fails closed when a CRM-only action advertises an external queue or mode', () => {
     expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], {
       may_queue_external_delivery: true,
@@ -57,6 +68,53 @@ describe('TicketShareActionDialog crm-only v2', () => {
     expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [])).toMatch(/No hay adjuntos existentes/i);
     expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ id: 17, filename: 'acta.pdf' }])).toBeNull();
     expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ url: 'https://example.test/file' }])).toMatch(/ID verificable/i);
+  });
+
+  it('fails closed when attachment input_schema contradicts the emitted numeric root payload', () => {
+    const attachmentAction = action('attach_file', ['attachment_id', 'Idempotency-Key'], {
+      input_schema: {
+        type: 'object',
+        required: ['attachment_id', 'checksum'],
+        properties: {
+          attachment_id: { type: 'string' },
+          checksum: { type: 'string' },
+        },
+      },
+    });
+
+    expect(getTicketShareActionBlockReason(
+      'attachment',
+      attachmentAction,
+      undefined,
+      [{ id: 17, filename: 'acta.pdf' }],
+    )).toMatch(/attachment_id numérico/i);
+  });
+
+  it('offers only ticket attachments allowed by the published closed schema', () => {
+    const onConfirm = vi.fn();
+    const attachmentAction = action('attach_file', ['attachment_id', 'Idempotency-Key'], {
+      input_schema: {
+        type: 'object',
+        required: ['attachment_id'],
+        properties: {
+          attachment_id: { type: 'integer', enum: [17] },
+        },
+      },
+    });
+
+    render(
+      <TicketShareActionDialog
+        action={attachmentAction}
+        attachments={[{ id: 17, filename: 'acta.pdf' }, { id: 18, filename: 'otro.pdf' }]}
+        kind="attachment"
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByRole('option', { name: 'acta.pdf' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'otro.pdf' })).not.toBeInTheDocument();
   });
 
   it('keeps forms blocked without a real approved tenant option', () => {
