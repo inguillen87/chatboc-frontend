@@ -143,11 +143,16 @@ const getPublishedFormOptions = (
     return { config: null, error: 'El esquema del formulario referencia una fuente de opciones no reconocida.' };
   }
 
-  const enumValues = asArray(propertySchema.enum).flatMap<OptionValue>((value): OptionValue[] => {
+  const hasPublishedEnum = Object.prototype.hasOwnProperty.call(propertySchema, 'enum');
+  const rawEnumValues = asArray(propertySchema.enum);
+  const enumValues = rawEnumValues.flatMap<OptionValue>((value): OptionValue[] => {
     if (field === 'form_slug' && typeof value === 'string' && value.trim()) return [value.trim()];
     const id = field === 'form_id' ? positiveId(value) : null;
     return id ? [id] : [];
   });
+  if (hasPublishedEnum && !enumValues.length) {
+    return { config: null, error: 'El esquema no publicó valores válidos en la lista cerrada de formularios.' };
+  }
   const enumKeys = new Set(enumValues.map(optionKey));
   const formSelection = asRecord(asRecord(replyContract).form_selection);
   const publishedOptions = asArray(formSelection.options).flatMap<VerifiedOption>((candidate): VerifiedOption[] => {
@@ -155,7 +160,7 @@ const getPublishedFormOptions = (
     const value = field === 'form_slug' ? text(item.form_slug) : positiveId(item.form_id ?? item.id);
     const label = text(item.label ?? item.name ?? item.title);
     if (value === null || !label) return [];
-    if (enumKeys.size && !enumKeys.has(optionKey(value))) return [];
+    if (hasPublishedEnum && !enumKeys.has(optionKey(value))) return [];
     return [{ value, label }];
   });
   if (source && !publishedOptions.length) {
@@ -235,6 +240,14 @@ const parseLocationRequirement = (
   schema: PlainRecord,
   requiredFields: Set<string>,
 ): ConfigResult<LocationRequirement> => {
+  const requiresLat = requiredFields.has('lat');
+  const requiresLng = requiredFields.has('lng');
+  if (requiresLat !== requiresLng) {
+    return { config: null, error: 'El esquema exige una coordenada incompleta; se requieren latitud y longitud juntas.' };
+  }
+  const requiresCoordinates = requiresLat && requiresLng;
+  const requiresAddress = requiredFields.has('address');
+
   const alternatives = asArray(schema.anyOf);
   if (alternatives.length) {
     const alternativeKinds = alternatives.flatMap((candidate) => {
@@ -247,17 +260,17 @@ const parseLocationRequirement = (
       return { config: null, error: 'El esquema de ubicación publicó alternativas que esta consola no reconoce.' };
     }
     const kinds = new Set(alternativeKinds);
+    if (requiresCoordinates && requiresAddress) return { config: 'both', error: null };
+    if (requiresCoordinates) {
+      return { config: kinds.has('coordinates') ? 'coordinates' : 'both', error: null };
+    }
+    if (requiresAddress) {
+      return { config: kinds.has('address') ? 'address' : 'both', error: null };
+    }
     if (kinds.has('address') && kinds.has('coordinates')) return { config: 'either', error: null };
     if (kinds.has('coordinates')) return { config: 'coordinates', error: null };
     if (kinds.has('address')) return { config: 'address', error: null };
   }
-  const requiresLat = requiredFields.has('lat');
-  const requiresLng = requiredFields.has('lng');
-  if (requiresLat !== requiresLng) {
-    return { config: null, error: 'El esquema exige una coordenada incompleta; se requieren latitud y longitud juntas.' };
-  }
-  const requiresCoordinates = requiresLat && requiresLng;
-  const requiresAddress = requiredFields.has('address');
   if (requiresCoordinates && requiresAddress) return { config: 'both', error: null };
   if (requiresCoordinates) return { config: 'coordinates', error: null };
   if (requiresAddress) return { config: 'address', error: null };
@@ -659,7 +672,13 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
     : 'El backend verificará el canal al confirmar. Puede quedar en cola; la entrega final sólo se confirma con evidencia del proveedor.';
   const confirmLabel = submitting
     ? crmOnly ? 'Guardando…' : 'Procesando…'
-    : crmOnly ? 'Guardar en CRM' : kind === 'form' ? 'Compartir formulario' : 'Confirmar ubicación';
+    : crmOnly
+      ? 'Guardar en CRM'
+      : kind === 'form'
+        ? 'Compartir formulario'
+        : kind === 'attachment'
+          ? 'Confirmar adjunto'
+          : 'Confirmar ubicación';
 
   return (
     <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>

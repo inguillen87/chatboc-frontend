@@ -933,6 +933,75 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('fails closed before exposing form options from a reply contract owned by another tenant', async () => {
+    const formAction = {
+      id: 'share_form',
+      label: 'Compartir formulario',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      disabled: false,
+      requires: ['form_slug'],
+      payload_defaults: { source_model: 'TenantTicket', ticket_id: 77 },
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+      input_schema: {
+        type: 'object',
+        required: ['form_slug'],
+        properties: {
+          form_slug: {
+            type: 'string',
+            enum: ['formulario-ajeno'],
+            'x-options-source': 'reply_contract.form_selection.options',
+          },
+        },
+      },
+    };
+    const item = {
+      ...tenantAuthoritativeItem,
+      reply_contract: {
+        ...tenantAuthoritativeItem.reply_contract,
+        tenant_slug: 'otro-municipio',
+        supported_message_types: {
+          ...tenantAuthoritativeItem.reply_contract.supported_message_types,
+          form: { enabled: true },
+        },
+        form_selection: {
+          options: [{
+            id: 'survey-foreign',
+            form_slug: 'formulario-ajeno',
+            label: 'Formulario ajeno',
+          }],
+        },
+      },
+      allowed_actions: [tenantReplyAction, formAction],
+      actions: [tenantReplyAction, formAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item, raw: { item } });
+
+    render(renderConversation(true));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const { menu } = await openComposerTools();
+    const formButton = within(menu).getByRole('menuitem', { name: /Compartir formulario/ });
+
+    expect(formButton).toHaveAttribute('aria-disabled', 'true');
+    expect(formButton).toHaveAccessibleName(/no coincide con el tenant seleccionado/i);
+    fireEvent.click(formButton);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Formulario ajeno')).not.toBeInTheDocument();
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+  });
+
   it('closes and clears a share dialog when the operator changes tickets', async () => {
     const actionFor = (legacyId: number) => ({
       id: 'share_location',

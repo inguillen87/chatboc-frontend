@@ -343,24 +343,13 @@ const getReplyActionBlockReason = (
   return null;
 };
 
-export const getPublishedReplyBlockReason = (
-  replyContract?: OmnichannelReplyContract,
+const getReplyContractIdentityBlockReason = (
+  replyContract: OmnichannelReplyContract,
   sourceModel?: unknown,
   ticketId?: unknown,
   tenantSlug?: unknown,
   tenantId?: unknown,
 ): string | null => {
-  if (!replyContract) return null;
-  if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
-    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
-  }
-  if (replyContract.enabled !== true) {
-    return getHumanReplyReason(
-      replyContract.reason_code,
-      replyContract.disabled_reason,
-      'El backend no habilitó la respuesta para este ticket.',
-    );
-  }
   const publishedSourceModel = exactComposerSourceModel(replyContract.source_model);
   const selectedSourceModel = exactComposerSourceModel(sourceModel);
   if (!publishedSourceModel || !selectedSourceModel || publishedSourceModel !== selectedSourceModel) {
@@ -381,6 +370,35 @@ export const getPublishedReplyBlockReason = (
   if (publishedTenantId && (!selectedTenantId || publishedTenantId !== selectedTenantId)) {
     return 'El contrato de respuesta no coincide con el tenant seleccionado.';
   }
+  return null;
+};
+
+export const getPublishedReplyBlockReason = (
+  replyContract?: OmnichannelReplyContract,
+  sourceModel?: unknown,
+  ticketId?: unknown,
+  tenantSlug?: unknown,
+  tenantId?: unknown,
+): string | null => {
+  if (!replyContract) return null;
+  if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
+    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
+  }
+  if (replyContract.enabled !== true) {
+    return getHumanReplyReason(
+      replyContract.reason_code,
+      replyContract.disabled_reason,
+      'El backend no habilitó la respuesta para este ticket.',
+    );
+  }
+  const identityBlockReason = getReplyContractIdentityBlockReason(
+    replyContract,
+    sourceModel,
+    ticketId,
+    tenantSlug,
+    tenantId,
+  );
+  if (identityBlockReason) return identityBlockReason;
   const textCapability = replyContract.supported_message_types?.text;
   if (textCapability?.enabled !== true) {
     return getHumanReplyReason(
@@ -403,11 +421,30 @@ type ReplyCapabilityKind = 'attachment' | 'location' | 'form' | 'handoff';
 const getReplyCapabilityBlockReason = (
   kind: ReplyCapabilityKind,
   replyContract?: OmnichannelReplyContract,
+  sourceModel?: unknown,
+  ticketId?: unknown,
+  tenantSlug?: unknown,
+  tenantId?: unknown,
 ): string | null => {
   if (!replyContract) return null;
   if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
     return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
   }
+  if (replyContract.enabled !== true) {
+    return getHumanReplyReason(
+      replyContract.reason_code,
+      replyContract.disabled_reason,
+      'El backend no habilitó acciones de respuesta para este ticket.',
+    );
+  }
+  const identityBlockReason = getReplyContractIdentityBlockReason(
+    replyContract,
+    sourceModel,
+    ticketId,
+    tenantSlug,
+    tenantId,
+  );
+  if (identityBlockReason) return identityBlockReason;
   const capability = kind === 'handoff'
     ? replyContract.handoff
     : replyContract.supported_message_types?.[kind];
@@ -1759,19 +1796,40 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ? NEW_ATTACHMENT_UPLOAD_UNAVAILABLE_REASON
     : null;
   const handoffBlockReason = actionContractBlockReason ||
-    getReplyCapabilityBlockReason('handoff', composerReplyContract) || (
+    getReplyCapabilityBlockReason(
+      'handoff',
+      composerReplyContract,
+      selectedTicket?.source_model,
+      selectedTicket?.id,
+      responseTemplateTenantSlug,
+      selectedTicket?.tenant_id,
+    ) || (
     handoffAction
       ? getHandoffActionBlockReason(handoffAction, composerActionTicketId)
       : 'Este ticket no publicó una transición backend para derivar la conversación a una persona.'
   );
   const locationBlockReason = actionContractBlockReason ||
-    getReplyCapabilityBlockReason('location', composerReplyContract) || (
+    getReplyCapabilityBlockReason(
+      'location',
+      composerReplyContract,
+      selectedTicket?.source_model,
+      selectedTicket?.id,
+      responseTemplateTenantSlug,
+      selectedTicket?.tenant_id,
+    ) || (
     locationAction
       ? getTicketShareActionBlockReason('location', locationAction, composerReplyContract)
       : 'Este ticket no publicó una acción backend compatible para compartir ubicación.'
   );
   const formBlockReason = actionContractBlockReason ||
-    getReplyCapabilityBlockReason('form', composerReplyContract) || (
+    getReplyCapabilityBlockReason(
+      'form',
+      composerReplyContract,
+      selectedTicket?.source_model,
+      selectedTicket?.id,
+      responseTemplateTenantSlug,
+      selectedTicket?.tenant_id,
+    ) || (
     formAction
       ? getTicketShareActionBlockReason('form', formAction, composerReplyContract)
       : 'Este ticket no publicó una acción backend compatible para compartir formularios.'

@@ -153,6 +153,40 @@ describe('TicketShareActionDialog crm-only v2', () => {
     expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/contradicen/i);
   });
 
+  it('does not replace an explicitly empty form enum with reply-contract options', () => {
+    const formAction = action('share_form', ['form_slug'], {
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+      input_schema: {
+        type: 'object',
+        required: ['form_slug'],
+        properties: {
+          form_slug: {
+            type: 'string',
+            enum: [],
+            'x-options-source': 'reply_contract.form_selection.options',
+          },
+        },
+      },
+    });
+    const replyContract = {
+      form_selection: {
+        options: [{ form_slug: 'no-permitido', label: 'No permitido' }],
+      },
+    };
+
+    expect(getTicketShareActionBlockReason('form', formAction, replyContract)).toMatch(/lista cerrada/i);
+  });
+
   it('submits the exact nested location shape published by input_schema', () => {
     const onConfirm = vi.fn();
     const locationAction = action('share_location', ['location', 'Idempotency-Key'], {
@@ -203,5 +237,66 @@ describe('TicketShareActionDialog crm-only v2', () => {
     });
 
     expect(getTicketShareActionBlockReason('location', locationAction)).toMatch(/contradice/i);
+  });
+
+  it('preserves base required fields when location also publishes anyOf alternatives', () => {
+    const onConfirm = vi.fn();
+    const locationAction = action('share_location', ['location', 'Idempotency-Key'], {
+      input_schema: {
+        type: 'object',
+        required: ['location'],
+        properties: {
+          location: {
+            type: 'object',
+            required: ['address'],
+            properties: {
+              address: { type: 'string' },
+              lat: { type: 'number' },
+              lng: { type: 'number' },
+            },
+            anyOf: [{ required: ['address'] }, { required: ['lat', 'lng'] }],
+          },
+        },
+      },
+    });
+
+    expect(getTicketShareActionBlockReason('location', locationAction)).toBeNull();
+    render(<TicketShareActionDialog action={locationAction} kind="location" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
+    fireEvent.change(screen.getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
+    fireEvent.change(screen.getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/dirección o referencia requerida/i);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('labels a runtime-preflight attachment confirmation as an attachment action', () => {
+    const attachmentAction = action('attach_file', ['attachment_id'], {
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+    });
+
+    render(
+      <TicketShareActionDialog
+        action={attachmentAction}
+        attachments={[{ id: 17, filename: 'acta.pdf' }]}
+        kind="attachment"
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Confirmar adjunto' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar ubicación' })).not.toBeInTheDocument();
   });
 });
