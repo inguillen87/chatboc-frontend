@@ -35,6 +35,13 @@ export type TenantImplementationJourneyStatus =
   | 'blocked'
   | 'not_published';
 
+export type TenantImplementationJourneyStageId =
+  | 'institutional_identity'
+  | 'channels'
+  | 'knowledge'
+  | 'team'
+  | 'validation_release';
+
 export interface TenantImplementationJourneyAction {
   id: string;
   label: string;
@@ -44,7 +51,7 @@ export interface TenantImplementationJourneyAction {
 }
 
 export interface TenantImplementationJourneyStage {
-  id: string;
+  id: TenantImplementationJourneyStageId;
   label: string;
   description: string;
   status: TenantImplementationJourneyStatus;
@@ -146,6 +153,44 @@ const implementationJourneyStatuses = new Set<TenantImplementationJourneyStatus>
   'not_published',
 ]);
 
+const implementationJourneyTopology = [
+  {
+    id: 'institutional_identity',
+    sourceIds: ['institutional_branding'],
+  },
+  {
+    id: 'channels',
+    sourceIds: ['whatsapp', 'widget', 'templates', 'live_chat'],
+  },
+  {
+    id: 'knowledge',
+    sourceIds: ['knowledge_content'],
+  },
+  {
+    id: 'team',
+    sourceIds: ['team_routing'],
+  },
+  {
+    id: 'validation_release',
+    sourceIds: [
+      'crm',
+      'identity_auth',
+      'accessibility',
+      'territorial_intelligence',
+      'public_intake_security',
+      'analytics_surveys',
+    ],
+  },
+] as const satisfies ReadonlyArray<{
+  id: TenantImplementationJourneyStageId;
+  sourceIds: readonly string[];
+}>;
+
+const matchesExactStrings = (value: unknown, expected: readonly string[]) =>
+  isStringArray(value, false)
+  && value.length === expected.length
+  && value.every((item, index) => item === expected[index]);
+
 const isImplementationJourneyAction = (value: unknown): value is TenantImplementationJourneyAction => {
   if (!isRecord(value)) return false;
   return isNonEmptyString(value.id)
@@ -179,17 +224,18 @@ export const parseTenantImplementationJourney = (
   if (!isRecord(value) || value.contract_version !== TENANT_IMPLEMENTATION_JOURNEY_CONTRACT_VERSION) {
     return null;
   }
-  if (!Array.isArray(value.stages) || value.stages.length !== 5 || !isRecord(value.summary)) {
+  if (!Array.isArray(value.stages)
+    || value.stages.length !== implementationJourneyTopology.length
+    || !isRecord(value.summary)) {
     return null;
   }
 
   const stages: TenantImplementationJourneyStage[] = [];
-  const stageIds = new Set<string>();
 
-  for (const candidate of value.stages) {
+  for (const [index, candidate] of value.stages.entries()) {
+    const expectedStage = implementationJourneyTopology[index];
     if (!isRecord(candidate)
-      || !isNonEmptyString(candidate.id)
-      || stageIds.has(candidate.id)
+      || candidate.id !== expectedStage.id
       || !isNonEmptyString(candidate.label)
       || !isNonEmptyString(candidate.description)
       || !isNonEmptyString(candidate.status)
@@ -198,14 +244,15 @@ export const parseTenantImplementationJourney = (
       || typeof candidate.published !== 'boolean'
       || candidate.ready !== (candidate.status === 'ready')
       || candidate.published !== (candidate.status !== 'not_published')
-      || !isStringArray(candidate.source_ids, false)
+      || !matchesExactStrings(candidate.source_ids, expectedStage.sourceIds)
       || !isStringArray(candidate.evidence)
       || !isStringArray(candidate.reason_codes)
-      || (candidate.primary_action !== null && !isImplementationJourneyAction(candidate.primary_action))) {
+      || (candidate.primary_action !== null && !isImplementationJourneyAction(candidate.primary_action))
+      || ((candidate.status === 'ready' || candidate.status === 'not_published')
+        && candidate.primary_action !== null)) {
       return null;
     }
 
-    stageIds.add(candidate.id);
     stages.push(candidate as unknown as TenantImplementationJourneyStage);
   }
 

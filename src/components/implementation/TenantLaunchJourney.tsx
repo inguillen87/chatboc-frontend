@@ -56,6 +56,8 @@ const isSafeInternalPath = (value: string) => {
   return true;
 };
 
+const tenantScopeAliases = ['tenant', 'tenant_slug', 'endpoint'] as const;
+
 export const buildTenantJourneyHref = (
   href: string,
   tenantSlug: string,
@@ -74,11 +76,17 @@ export const buildTenantJourneyHref = (
     const returnTarget = new URL(safeReturnTo, base);
     if (target.origin !== base.origin || returnTarget.origin !== base.origin) return null;
 
+    const publishedScopes = tenantScopeAliases.flatMap((key) => target.searchParams.getAll(key));
+    if (publishedScopes.some((scope) => normalizeTenantSlug(scope) !== normalizedTenant)) {
+      return null;
+    }
+
     const tenantPathMatch = target.pathname.match(/^\/t\/([^/]+)(?:\/|$)/i);
     if (tenantPathMatch && decodeURIComponent(tenantPathMatch[1]).toLowerCase() !== normalizedTenant) {
       return null;
     }
 
+    tenantScopeAliases.forEach((key) => target.searchParams.delete(key));
     target.searchParams.set('tenant_slug', normalizedTenant);
     target.searchParams.set(
       'return_to',
@@ -187,26 +195,37 @@ const TenantLaunchJourney: React.FC<TenantLaunchJourneyProps> = ({
   }, [currentStageId, tenantSlug]);
 
   if (!journey) {
+    const unavailable = Boolean(error && !loading);
     return (
       <section
         data-testid="tenant-launch-journey"
-        data-state={loading ? 'loading' : 'not-published'}
+        data-state={loading ? 'loading' : unavailable ? 'unavailable' : 'not-published'}
         className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
       >
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex min-w-0 items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-300">
-              {loading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <CircleDashed className="h-5 w-5" />}
+              {loading
+                ? <RefreshCw className="h-5 w-5 animate-spin" />
+                : unavailable
+                  ? <AlertTriangle className="h-5 w-5" />
+                  : <CircleDashed className="h-5 w-5" />}
             </span>
             <div className="min-w-0">
               <Badge variant="outline" className="bg-background/70">Ruta de salida</Badge>
               <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground">
-                {loading ? 'Sincronizando implementación' : 'Ruta de salida no publicada'}
+                {loading
+                  ? 'Sincronizando implementación'
+                  : unavailable
+                    ? 'Estado de la ruta no disponible'
+                    : 'Ruta de salida no publicada'}
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
                 {loading
                   ? 'Estamos consultando el estado autorizado de esta organización.'
-                  : 'La plataforma todavía no publicó una secuencia validada para este tenant. No se muestran avances inferidos desde canales aislados.'}
+                  : unavailable
+                    ? 'No pudimos comprobar si la ruta está publicada. No mostramos avances hasta recuperar un contrato autorizado.'
+                    : 'La plataforma todavía no publicó una secuencia validada para este tenant. No se muestran avances inferidos desde canales aislados.'}
               </p>
               {error ? <p role="alert" className="mt-2 text-sm text-amber-700 dark:text-amber-200">{error}</p> : null}
             </div>

@@ -8,7 +8,7 @@ import TenantLaunchJourney, { buildTenantJourneyHref } from './TenantLaunchJourn
 const nextAction = {
   id: 'configure_channels',
   label: 'Configurar canales',
-  href: '/integracion?tab=channels&tenant_slug=otro&return_to=https://example.com',
+  href: '/integracion?tab=channels',
   kind: 'link' as const,
   primary: true,
 };
@@ -17,7 +17,7 @@ const journey: TenantImplementationJourneyContract = {
   contract_version: 'tenant.implementation_journey.v1',
   stages: [
     {
-      id: 'identity',
+      id: 'institutional_identity',
       label: 'Identidad institucional',
       description: 'Marca y dominio institucional.',
       status: 'ready',
@@ -35,7 +35,7 @@ const journey: TenantImplementationJourneyContract = {
       status: 'action_required',
       ready: false,
       published: true,
-      source_ids: ['whatsapp', 'widget'],
+      source_ids: ['whatsapp', 'widget', 'templates', 'live_chat'],
       evidence: [],
       reason_codes: ['sender_required'],
       primary_action: nextAction,
@@ -47,7 +47,7 @@ const journey: TenantImplementationJourneyContract = {
       status: 'pending',
       ready: false,
       published: true,
-      source_ids: ['catalog_marketplace'],
+      source_ids: ['knowledge_content'],
       evidence: [],
       reason_codes: [],
       primary_action: null,
@@ -65,13 +65,20 @@ const journey: TenantImplementationJourneyContract = {
       primary_action: null,
     },
     {
-      id: 'validation',
+      id: 'validation_release',
       label: 'Validación y salida',
       description: 'Pruebas, evidencias y habilitación.',
       status: 'not_published',
       ready: false,
       published: false,
-      source_ids: ['public_intake_security'],
+      source_ids: [
+        'crm',
+        'identity_auth',
+        'accessibility',
+        'territorial_intelligence',
+        'public_intake_security',
+        'analytics_surveys',
+      ],
       evidence: [],
       reason_codes: ['not_published'],
       primary_action: null,
@@ -139,6 +146,21 @@ describe('TenantLaunchJourney', () => {
     expect(details).not.toHaveAttribute('open');
   });
 
+  it('reports an unavailable state instead of claiming unpublished when synchronization fails', () => {
+    render(
+      <TenantLaunchJourney
+        tenantSlug="junin"
+        journey={null}
+        error="No pudimos sincronizar los canales ahora."
+      />,
+    );
+
+    expect(screen.getByTestId('tenant-launch-journey')).toHaveAttribute('data-state', 'unavailable');
+    expect(screen.getByRole('heading', { name: /estado de la ruta no disponible/i })).toBeInTheDocument();
+    expect(screen.getByText(/no pudimos comprobar si la ruta está publicada/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /ruta de salida no publicada/i })).not.toBeInTheDocument();
+  });
+
   it('does not navigate when the authoritative action is not an internal tenant-safe link', () => {
     const unsafeJourney: TenantImplementationJourneyContract = {
       ...journey,
@@ -156,9 +178,21 @@ describe('TenantLaunchJourney', () => {
 });
 
 describe('buildTenantJourneyHref', () => {
-  it('rejects external, protocol-relative and cross-tenant destinations', () => {
+  it('rejects external, protocol-relative and cross-tenant destinations or aliases', () => {
     expect(buildTenantJourneyHref('https://example.com', 'junin')).toBeNull();
     expect(buildTenantJourneyHref('//example.com/path', 'junin')).toBeNull();
     expect(buildTenantJourneyHref('/t/otro/integracion', 'junin')).toBeNull();
+    expect(buildTenantJourneyHref('/perfil?tenant=otro', 'junin')).toBeNull();
+    expect(buildTenantJourneyHref('/perfil?tenant_slug=otro', 'junin')).toBeNull();
+    expect(buildTenantJourneyHref('/perfil?endpoint=otro', 'junin')).toBeNull();
+  });
+
+  it('canonicalizes matching scope aliases to the single authorized tenant_slug', () => {
+    expect(buildTenantJourneyHref(
+      '/perfil?tab=empleados&tenant=JUNIN&tenant_slug=junin&endpoint=junin',
+      'junin',
+    )).toBe(
+      '/perfil?tab=empleados&tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin',
+    );
   });
 });

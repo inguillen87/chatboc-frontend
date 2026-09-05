@@ -236,4 +236,19 @@ describe('ChannelActivationChecklist', () => {
     expect(within(details).getByText('Canal futuro no clasificado')).toBeInTheDocument();
     expect(details).not.toHaveAttribute('open');
   });
+
+  it('does not label a network failure as an unpublished launch route', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockRejectedValueOnce(new Error('Failed to fetch'));
+
+    render(
+      <ChannelActivationChecklist
+        tenantSlug="gobierno-demo"
+        presentation="launch-journey"
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /estado de la ruta no disponible/i })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-launch-journey')).toHaveAttribute('data-state', 'unavailable');
+    expect(screen.queryByRole('heading', { name: /ruta de salida no publicada/i })).not.toBeInTheDocument();
+  });
 });

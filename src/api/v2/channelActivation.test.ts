@@ -23,7 +23,7 @@ const implementationJourney = {
   contract_version: 'tenant.implementation_journey.v1' as const,
   stages: [
     {
-      id: 'identity',
+      id: 'institutional_identity',
       label: 'Identidad institucional',
       description: 'Marca y dominio.',
       status: 'ready' as const,
@@ -41,7 +41,7 @@ const implementationJourney = {
       status: 'action_required' as const,
       ready: false,
       published: true,
-      source_ids: ['whatsapp', 'widget'],
+      source_ids: ['whatsapp', 'widget', 'templates', 'live_chat'],
       evidence: [],
       reason_codes: ['sender_required'],
       primary_action: journeyAction,
@@ -53,7 +53,7 @@ const implementationJourney = {
       status: 'pending' as const,
       ready: false,
       published: true,
-      source_ids: ['catalog_marketplace'],
+      source_ids: ['knowledge_content'],
       evidence: [],
       reason_codes: [],
       primary_action: null,
@@ -71,13 +71,20 @@ const implementationJourney = {
       primary_action: null,
     },
     {
-      id: 'validation',
+      id: 'validation_release',
       label: 'Validación y salida',
       description: 'Pruebas de salida.',
       status: 'not_published' as const,
       ready: false,
       published: false,
-      source_ids: ['public_intake_security'],
+      source_ids: [
+        'crm',
+        'identity_auth',
+        'accessibility',
+        'territorial_intelligence',
+        'public_intake_security',
+        'analytics_surveys',
+      ],
       evidence: [],
       reason_codes: ['not_published'],
       primary_action: null,
@@ -199,6 +206,32 @@ describe('fetchTenantChannelActivation', () => {
     expect(parseTenantImplementationJourney({
       ...implementationJourney,
       summary: { ...implementationJourney.summary, next_action: null },
+    })).toBeNull();
+  });
+
+  it('fails closed when the versioned stage topology drifts or an unpublished stage exposes an action', () => {
+    expect(parseTenantImplementationJourney({
+      ...implementationJourney,
+      stages: [
+        implementationJourney.stages[1],
+        implementationJourney.stages[0],
+        ...implementationJourney.stages.slice(2),
+      ],
+    })).toBeNull();
+
+    expect(parseTenantImplementationJourney({
+      ...implementationJourney,
+      stages: implementationJourney.stages.map((stage) => stage.id === 'knowledge'
+        ? { ...stage, source_ids: ['catalog_marketplace'] }
+        : stage),
+    })).toBeNull();
+
+    const unpublishedAction = { ...journeyAction, id: 'unpublished_action' };
+    expect(parseTenantImplementationJourney({
+      ...implementationJourney,
+      stages: implementationJourney.stages.map((stage) => stage.id === 'validation_release'
+        ? { ...stage, primary_action: unpublishedAction }
+        : stage),
     })).toBeNull();
   });
 });
