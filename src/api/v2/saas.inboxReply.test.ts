@@ -15,6 +15,7 @@ vi.mock('@/api/v2/client', () => ({
 }));
 
 import {
+  createOmnichannelActionClientMessageId,
   normalizeOmnichannelInboxDetailV2,
   normalizeOmnichannelInboxActionV2,
   normalizeSaasActions,
@@ -403,6 +404,48 @@ describe('omnichannel inbox reply v2 transport', () => {
       action: 'attach_file', attachment_id: 17, client_message_id: 'crm-attach_file:attempt-0001',
     }, 'junin')).rejects.toMatchObject({ status: 400 });
     expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['send_attachment', 'share_attachment'])('keeps the %s alias tenant-bound and idempotent', async (action) => {
+    const clientMessageId = createOmnichannelActionClientMessageId(action);
+    panelPostMock.mockResolvedValue({
+      contract_version: 'inbox.omnichannel.action.v1',
+      action,
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        mode: 'crm_only',
+        status: 'recorded',
+        saved_in_crm: true,
+        external_dispatch: false,
+      },
+      ticket: {
+        id: 'municipio:419',
+        ticket_id: 419,
+        source_model: 'MunicipioTicket',
+        tenant_slug: 'junin',
+      },
+    });
+
+    await postOmnichannelInboxActionV2('municipio:419', {
+      action,
+      source_model: 'MunicipioTicket',
+      ticket_id: 419,
+      attachment_id: 17,
+      client_message_id: clientMessageId,
+    }, 'junin');
+
+    expect(clientMessageId).toMatch(new RegExp(`^crm-${action}:`));
+    expect(panelPostMock).toHaveBeenCalledWith(
+      '/api/v2/inbox/omnichannel/municipio%3A419/actions',
+      expect.objectContaining({
+        action,
+        source_model: 'MunicipioTicket',
+        ticket_id: 419,
+        attachment_id: 17,
+        client_message_id: clientMessageId,
+      }),
+      { tenantSlug: 'junin', headers: { 'Idempotency-Key': clientMessageId } },
+    );
   });
 
   it('rejects crossed artifact route, body and source identities before transport', async () => {

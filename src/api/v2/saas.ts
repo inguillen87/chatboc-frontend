@@ -2352,6 +2352,8 @@ export const getOmnichannelInboxDetailV2 = async (
 const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
   'reply',
   'attach_file',
+  'send_attachment',
+  'share_attachment',
   'share_location',
   'send_location',
   'share_form',
@@ -2434,11 +2436,7 @@ export const postOmnichannelInboxActionV2 = async (
   if (
     normalizedAction === 'claim' ||
     normalizedAction === 'assign' ||
-    normalizedAction === 'attach_file' ||
-    normalizedAction === 'share_location' ||
-    normalizedAction === 'send_location' ||
-    normalizedAction === 'share_form' ||
-    normalizedAction === 'send_form'
+    ARTIFACT_ACTION_IDS.has(normalizedAction)
   ) {
     const sourceModel = asString(payload.source_model) ||
       asString(nestedPayload.source_model);
