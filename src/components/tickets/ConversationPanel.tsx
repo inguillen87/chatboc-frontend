@@ -137,6 +137,8 @@ const FORM_COMPOSER_ACTION_IDS = new Set(['share_form', 'send_form']);
 const ATTACHMENT_COMPOSER_ACTION_IDS = new Set(['attach_file', 'send_attachment', 'share_attachment']);
 const REPLY_COMPOSER_ACTION_IDS = new Set(['reply']);
 const REPLY_CONTRACT_VERSION = 'inbox.reply_contract.v1';
+const NEW_ATTACHMENT_UPLOAD_UNAVAILABLE_REASON =
+  'El backend no publicó un contrato de carga CRM para archivos nuevos. Podés vincular un adjunto existente desde Herramientas si está disponible.';
 
 const normalizeComposerTicketId = (value: unknown): string | null => {
   const raw = String(value ?? '').trim();
@@ -1747,11 +1749,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const templateReplyBlockReason = !isTenantTicketWhatsApp
     ? 'Las plantillas aprobadas sólo están disponibles para TenantTicket en WhatsApp.'
     : replyBlockReason || (approvedWhatsAppTemplates.length ? null : 'No hay plantillas aprobadas disponibles para este tenant.');
-  const tenantAttachmentBlockReason = authoritativeAttachmentMustFailClosed
+  const existingAttachmentBlockReason = authoritativeAttachmentMustFailClosed
     ? actionContractBlockReason ||
       (attachmentAction
         ? getTicketShareActionBlockReason('attachment', attachmentAction, composerReplyContract, composerActionAttachments)
-        : 'El backend no publicó un contrato seguro de adjuntos para este ticket; permanece bloqueado para evitar aparentar un envío.')
+        : 'El backend no publicó una acción segura para vincular adjuntos existentes a este ticket.')
+    : null;
+  const newAttachmentUploadBlockReason = authoritativeAttachmentMustFailClosed
+    ? NEW_ATTACHMENT_UPLOAD_UNAVAILABLE_REASON
     : null;
   const handoffBlockReason = actionContractBlockReason ||
     getReplyCapabilityBlockReason('handoff', composerReplyContract) || (
@@ -2555,8 +2560,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   };
 
   const handleFileSelected = (file: File) => {
-    if (tenantAttachmentBlockReason) {
-      toast.error(tenantAttachmentBlockReason);
+    if (newAttachmentUploadBlockReason) {
+      toast.error(newAttachmentUploadBlockReason);
       return;
     }
     const previousPreview = attachmentPreviewRef.current;
@@ -2607,7 +2612,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
     if (authoritativeAttachmentMustFailClosed && hasAttachment) {
-      toast.error(tenantAttachmentBlockReason || 'El adjunto permanece bloqueado hasta que el backend publique soporte seguro.');
+      toast.error(newAttachmentUploadBlockReason || 'El adjunto permanece bloqueado hasta que el backend publique soporte seguro.');
       return;
     }
     if (approvedTemplate) {
@@ -3607,7 +3612,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : isTenantTicketWhatsApp ? 'whatsapp-service-window' : undefined}
           />
           <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-9 [&_button]:!rounded-[7px]">
-            {!tenantAttachmentBlockReason ? (
+            {!newAttachmentUploadBlockReason ? (
               <div className="[&_button]:!w-9 [&_button]:!border-0 [&_button]:!bg-transparent" data-testid="ticket-composer-attachment-action">
                 <AdjuntarArchivo
                   onFileSelected={handleFileSelected}
@@ -3674,22 +3679,38 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {tenantAttachmentBlockReason ? (
+                {newAttachmentUploadBlockReason ? (
                   <DropdownMenuItem
                     aria-disabled="true"
-                    aria-label={`Adjuntar archivo o imagen. No disponible: ${tenantAttachmentBlockReason}`}
+                    aria-label={`Cargar archivo o imagen nuevo. No disponible: ${newAttachmentUploadBlockReason}`}
                     className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
                     onSelect={(event) => event.preventDefault()}
                   >
                     <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">Adjuntar archivo o imagen</span>
+                      <span className="block text-sm font-medium">Cargar archivo o imagen nuevo</span>
                       <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="tenant-attachment-block-reason">
-                        {tenantAttachmentBlockReason}
+                        {newAttachmentUploadBlockReason}
                       </span>
                     </span>
                   </DropdownMenuItem>
-                ) : (
+                ) : null}
+                {authoritativeAttachmentMustFailClosed && existingAttachmentBlockReason ? (
+                  <DropdownMenuItem
+                    aria-disabled="true"
+                    aria-label={`Vincular adjunto existente. No disponible: ${existingAttachmentBlockReason}`}
+                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Vincular adjunto existente</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="ticket-existing-attachment-block-reason">
+                        {existingAttachmentBlockReason}
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
+                ) : authoritativeAttachmentMustFailClosed ? (
                   <DropdownMenuItem
                     className="items-start gap-2 py-2"
                     disabled={composerActionMutation.isPending}
@@ -3702,10 +3723,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                     <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">Vincular adjunto existente</span>
-                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">Guardado en CRM, no enviado externamente. No carga archivos nuevos.</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
+                        {attachmentAction?.delivery_mode === 'crm_only'
+                          ? 'Guardado en CRM, no enviado externamente. No carga archivos nuevos.'
+                          : 'El backend hará un preflight; la entrega final requiere evidencia del proveedor.'}
+                      </span>
                     </span>
                   </DropdownMenuItem>
-                )}
+                ) : null}
                 {replyBlockReason ? (
                   <DropdownMenuItem
                     aria-disabled="true"
@@ -3857,7 +3882,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               executeComposerAction(formAction, formBlockReason, 'form', { ...payload });
             }
             if (shareActionDialogKind === 'attachment' && attachmentAction) {
-              executeComposerAction(attachmentAction, tenantAttachmentBlockReason, 'attachment', { ...payload });
+              executeComposerAction(attachmentAction, existingAttachmentBlockReason, 'attachment', { ...payload });
             }
           }}
         />

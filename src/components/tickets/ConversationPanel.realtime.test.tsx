@@ -513,9 +513,9 @@ describe('ConversationPanel tenant invalidation', () => {
     const { trigger, menu } = await openComposerTools();
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato seguro de adjuntos para este ticket',
+      'no publicó un contrato de carga CRM para archivos nuevos',
     );
-    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -609,6 +609,9 @@ describe('ConversationPanel tenant invalidation', () => {
 
     const { menu } = await openComposerTools();
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
+      'no publicó un contrato de carga CRM para archivos nuevos',
+    );
+    expect(within(menu).getByTestId('ticket-existing-attachment-block-reason')).toHaveTextContent(
       'marcó el adjunto como no disponible',
     );
     fireEvent.keyDown(menu, { key: 'Escape' });
@@ -738,7 +741,7 @@ describe('ConversationPanel tenant invalidation', () => {
       method: 'POST',
       enabled: true,
       disabled: false,
-      requires: ['lat', 'lng', 'Idempotency-Key'],
+      requires: ['location', 'Idempotency-Key'],
       payload_defaults: {
         source_model: 'MunicipioTicket',
         legacy_id: 419,
@@ -817,7 +820,9 @@ describe('ConversationPanel tenant invalidation', () => {
     const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
     const secondIdentity = harness.postOmnichannelInboxActionV2.mock.calls[1][1].payload.client_message_id;
     expect(harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload).toMatchObject({
-      source_model: 'MunicipioTicket', ticket_id: 419, lat: -34.593, lng: -60.946,
+      source_model: 'MunicipioTicket',
+      ticket_id: 419,
+      location: { lat: -34.593, lng: -60.946 },
     });
     expect(firstIdentity).toMatch(/^crm-share_location:/);
     expect(secondIdentity).toBe(firstIdentity);
@@ -825,6 +830,107 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
       'Ubicación ya registrada en el CRM.',
     );
+  });
+
+  it('submits the published form_slug with a stable identity through runtime preflight', async () => {
+    const formAction = {
+      id: 'share_form',
+      label: 'Compartir formulario',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      disabled: false,
+      requires: ['form_slug'],
+      payload_defaults: {
+        source_model: 'TenantTicket',
+        ticket_id: 77,
+      },
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+      input_schema: {
+        type: 'object',
+        required: ['form_slug'],
+        properties: {
+          form_slug: {
+            type: 'string',
+            enum: ['reclamo-alumbrado'],
+            'x-options-source': 'reply_contract.form_selection.options',
+          },
+        },
+      },
+    };
+    const item = {
+      ...tenantAuthoritativeItem,
+      reply_contract: {
+        ...tenantAuthoritativeItem.reply_contract,
+        supported_message_types: {
+          ...tenantAuthoritativeItem.reply_contract.supported_message_types,
+          form: { enabled: true },
+        },
+        form_selection: {
+          options: [{
+            id: 'survey-12',
+            form_slug: 'reclamo-alumbrado',
+            label: 'Reclamo de alumbrado',
+          }],
+        },
+      },
+      allowed_actions: [tenantReplyAction, formAction],
+      actions: [tenantReplyAction, formAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item, raw: { item } });
+    harness.postOmnichannelInboxActionV2.mockResolvedValue({
+      action: 'share_form',
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        mode: 'durable_queue',
+        delivery_mode: 'durable_queue',
+        status: 'durably_staged',
+        outbox: { durably_staged: true },
+        operator_message: 'Formulario en cola; entrega final pendiente de callback.',
+      },
+      ticket: item,
+      raw: { action: 'share_form' },
+    });
+
+    render(renderConversation(true));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    const { menu } = await openComposerTools();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Compartir formulario/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Formulario publicado'), {
+      target: { value: 'string:reclamo-alumbrado' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Compartir formulario' }));
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
+      '77',
+      {
+        action: 'share_form',
+        endpoint: '/api/v2/inbox/omnichannel/77/actions',
+        payload: expect.objectContaining({
+          source_model: 'TenantTicket',
+          ticket_id: 77,
+          form_slug: 'reclamo-alumbrado',
+          client_message_id: expect.stringMatching(/^crm-share_form:/),
+        }),
+      },
+      'junin',
+    );
+    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent('En cola para WhatsApp');
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('closes and clears a share dialog when the operator changes tickets', async () => {
@@ -835,7 +941,7 @@ describe('ConversationPanel tenant invalidation', () => {
       method: 'POST',
       enabled: true,
       disabled: false,
-      requires: ['lat', 'lng', 'Idempotency-Key'],
+      requires: ['location', 'Idempotency-Key'],
       payload_defaults: {
         source_model: 'MunicipioTicket',
         legacy_id: legacyId,
@@ -1327,17 +1433,90 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('blocks TenantTicket attachments without a published secure contract and never calls the legacy sender', async () => {
+  it('blocks new TenantTicket uploads without a published CRM upload contract and never calls the legacy sender', async () => {
     render(renderConversation());
 
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
     const { menu } = await openComposerTools();
-    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato seguro de adjuntos para este ticket',
+      'no publicó un contrato de carga CRM para archivos nuevos',
     );
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a published existing-attachment action while leaving local upload unavailable', async () => {
+    const attachmentAction = {
+      id: 'attach_file',
+      label: 'Vincular acta existente',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      disabled: false,
+      requires: ['attachment_id', 'Idempotency-Key'],
+      payload_defaults: {
+        source_model: 'TenantTicket',
+        ticket_id: 77,
+      },
+      delivery_mode: 'crm_only',
+      external_dispatch: false,
+      delivery_contract_version: 'inbox.action_delivery.v2',
+    };
+    const item = {
+      ...tenantAuthoritativeItem,
+      attachments: [{ id: 17, filename: 'acta.pdf' }],
+      allowed_actions: [tenantReplyAction, attachmentAction],
+      actions: [tenantReplyAction, attachmentAction],
+    };
+    harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item, raw: { item } });
+    harness.postOmnichannelInboxActionV2.mockResolvedValue({
+      action: 'attach_file',
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        mode: 'crm_only',
+        status: 'recorded',
+        saved_in_crm: true,
+        external_dispatch: false,
+        receipt_persisted: true,
+      },
+      ticket: item,
+      raw: { action: 'attach_file' },
+    });
+
+    render(renderConversation(true));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
+
+    const { menu } = await openComposerTools();
+    expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Vincular adjunto existente/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Adjunto existente'), {
+      target: { value: 'number:17' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
+
+    await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
+    expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
+      '77',
+      {
+        action: 'attach_file',
+        endpoint: '/api/v2/inbox/omnichannel/77/actions',
+        payload: expect.objectContaining({
+          source_model: 'TenantTicket',
+          ticket_id: 77,
+          attachment_id: 17,
+          client_message_id: expect.stringMatching(/^crm-attach_file:/),
+        }),
+      },
+      'junin',
+    );
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -1422,12 +1601,12 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
     const { menu } = await openComposerTools();
-    expect(within(menu).getByRole('menuitem', { name: /Adjuntar archivo.*No disponible/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato seguro de adjuntos',
+      'no publicó un contrato de carga CRM para archivos nuevos',
     );
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByAltText('Preview')).not.toBeInTheDocument();
