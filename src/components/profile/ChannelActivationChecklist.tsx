@@ -24,9 +24,11 @@ import {
 
 import {
   fetchTenantChannelActivation,
+  parseTenantImplementationJourney,
   type ChannelActivationChannel,
   type ChannelActivationContract,
 } from '@/api/v2/channelActivation';
+import TenantLaunchJourney, { buildTenantJourneyHref } from '@/components/implementation/TenantLaunchJourney';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -85,19 +87,121 @@ const normalizeProgress = (value: unknown) => {
 const syncErrorMessage =
   'No pudimos sincronizar los canales ahora. El panel queda disponible y podes reintentar en unos segundos.';
 
+const ChannelTechnicalGrid: React.FC<{
+  channels: ChannelActivationChannel[];
+  secureTenantSlug?: string;
+  returnTo?: string;
+}> = ({ channels, secureTenantSlug, returnTo }) => {
+  const hasChannels = channels.length > 0;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {!hasChannels ? (
+        <div className="rounded-xl border border-dashed border-border/80 bg-background/60 p-5 sm:col-span-2 xl:col-span-3">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-foreground">Sincronizacion pendiente</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Cuando el backend tenga el contrato disponible, acá vas a ver identidad, accesibilidad, territorio,
+                canales, operación y analítica con sus acciones concretas.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {channels.map((channel) => {
+        const Icon = channelIcons[channel.id] || Sparkles;
+        const StateIcon = statusIcon(channel);
+        const status = String(channel.status || 'action_required');
+        const primary = (channel.actions || []).find((item) => item.primary && item.href && item.kind !== 'api')
+          || (channel.actions || []).find((item) => item.href && item.kind !== 'api');
+        const primaryHref = primary?.href && secureTenantSlug
+          ? buildTenantJourneyHref(primary.href, secureTenantSlug, returnTo)
+          : primary?.href || null;
+
+        return (
+          <article
+            key={channel.id}
+            className="min-w-0 rounded-xl border border-border/70 bg-background/70 p-4 shadow-sm"
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h3 className="min-w-0 text-sm font-bold text-foreground">{channel.label}</h3>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                      statusClasses[status] || statusClasses.action_required,
+                    )}
+                  >
+                    <StateIcon className="h-3 w-3" />
+                    {statusLabels[status] || status}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">{channel.description}</p>
+              </div>
+            </div>
+
+            {channel.evidence?.length ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {channel.evidence.slice(0, 3).map((item) => (
+                  <Badge key={item} variant="secondary" className="max-w-full truncate">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+
+            {channel.required_plan ? (
+              <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-200">
+                Requiere plan {channel.required_plan}.
+              </p>
+            ) : null}
+
+            {channel.progress_hint ? (
+              <p className="mt-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs leading-5 text-blue-800 dark:text-blue-100">
+                {channel.progress_hint}
+              </p>
+            ) : null}
+
+            {primaryHref ? (
+              <Button asChild variant="outline" size="sm" className="mt-4 w-full justify-between">
+                <a href={primaryHref}>
+                  {primary.label || 'Abrir'}
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
+  );
+};
+
 export interface ChannelActivationChecklistProps {
   tenantSlug?: string | null;
   initialData?: ChannelActivationContract | null;
   highlighted?: boolean;
+  presentation?: 'overview' | 'launch-journey';
+  returnTo?: string;
 }
 
 const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   tenantSlug,
   initialData,
   highlighted = false,
+  presentation = 'overview',
+  returnTo,
 }) => {
   const [data, setData] = React.useState<ChannelActivationContract | null>(initialData || null);
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = React.useState(Boolean(tenantSlug || initialData));
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -136,6 +240,29 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const hasChannels = channels.length > 0;
   const integrationStatus = String(data?.integration_access?.status || '').toLowerCase();
   const selfServiceActive = integrationStatus === 'partial';
+  const implementationJourney = parseTenantImplementationJourney(data?.implementation_journey);
+
+  if (presentation === 'launch-journey') {
+    return (
+      <div data-testid="channel-activation-checklist" data-presentation="launch-journey">
+        <TenantLaunchJourney
+          tenantSlug={tenantSlug || data?.tenant?.slug || ''}
+          journey={implementationJourney}
+          loading={loading}
+          error={error}
+          onRefresh={() => void load()}
+          returnTo={returnTo}
+          technicalDetails={(
+            <ChannelTechnicalGrid
+              channels={channels}
+              secureTenantSlug={tenantSlug || data?.tenant?.slug || ''}
+              returnTo={returnTo}
+            />
+          )}
+        />
+      </div>
+    );
+  }
 
   return (
     <section
@@ -218,89 +345,8 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
         </div>
       </div>
 
-      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-        {!hasChannels ? (
-          <div className="rounded-xl border border-dashed border-border/80 bg-background/60 p-5 sm:col-span-2 xl:col-span-3">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-                <AlertTriangle className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-foreground">Sincronizacion pendiente</h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Cuando el backend tenga el contrato disponible, acá vas a ver identidad, accesibilidad, territorio,
-                  canales, operación y analítica con sus acciones concretas.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {channels.map((channel) => {
-          const Icon = channelIcons[channel.id] || Sparkles;
-          const StateIcon = statusIcon(channel);
-          const status = String(channel.status || 'action_required');
-          const primary = (channel.actions || []).find((item) => item.primary && item.href && item.kind !== 'api')
-            || (channel.actions || []).find((item) => item.href && item.kind !== 'api');
-
-          return (
-            <article
-              key={channel.id}
-              className="min-w-0 rounded-xl border border-border/70 bg-background/70 p-4 shadow-sm"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h3 className="min-w-0 text-sm font-bold text-foreground">{channel.label}</h3>
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
-                        statusClasses[status] || statusClasses.action_required,
-                      )}
-                    >
-                      <StateIcon className="h-3 w-3" />
-                      {statusLabels[status] || status}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-muted-foreground">{channel.description}</p>
-                </div>
-              </div>
-
-              {channel.evidence?.length ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {channel.evidence.slice(0, 3).map((item) => (
-                    <Badge key={item} variant="secondary" className="max-w-full truncate">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-
-              {channel.required_plan ? (
-                <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-200">
-                  Requiere plan {channel.required_plan}.
-                </p>
-              ) : null}
-
-              {channel.progress_hint ? (
-                <p className="mt-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs leading-5 text-blue-800 dark:text-blue-100">
-                  {channel.progress_hint}
-                </p>
-              ) : null}
-
-              {primary?.href ? (
-                <Button asChild variant="outline" size="sm" className="mt-4 w-full justify-between">
-                  <a href={primary.href}>
-                    {primary.label || 'Abrir'}
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
-                </Button>
-              ) : null}
-            </article>
-          );
-        })}
+      <div className="p-4">
+        <ChannelTechnicalGrid channels={channels} />
       </div>
     </section>
   );

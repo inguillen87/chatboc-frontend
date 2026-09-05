@@ -73,6 +73,8 @@ const createIdempotencyKey = () => {
 interface TenantBlueprintProvisioningPanelProps {
   tenantSlug: string;
   canApply: boolean;
+  compactWhenApplied?: boolean;
+  onApplied?: () => void;
 }
 
 interface TenantBlueprintProvisioningPanelContentProps extends TenantBlueprintProvisioningPanelProps {
@@ -91,6 +93,8 @@ interface BlueprintWorkflowScope {
 const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvisioningPanelContentProps> = ({
   tenantSlug,
   canApply,
+  compactWhenApplied = false,
+  onApplied,
   applyAction,
 }) => {
   const [catalog, setCatalog] = React.useState<TenantBlueprintCatalogContract | null>(null);
@@ -326,6 +330,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
       setDetail((current) => current ? { ...current, application_receipt: response.receipt } : current);
       applyAttemptRef.current = null;
       setConfirmOpen(false);
+      onApplied?.();
       await refreshAfterApply(scope);
     } catch (error) {
       if (!workflowIsCurrent(scope)) return;
@@ -346,6 +351,72 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
 
   const workflowReady = Boolean(activeWorkflowRef.current);
   const applied = workflowReady && Boolean(detail?.application_receipt || applyResult?.receipt);
+
+  if (compactWhenApplied && detail && applied) {
+    return (
+      <section
+        aria-labelledby="tenant-blueprint-title"
+        className="rounded-2xl border border-emerald-500/25 bg-card shadow-sm"
+        data-testid="tenant-blueprint-panel"
+        data-state="applied-compact"
+      >
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-200">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="tenant-blueprint-title" className="text-base font-semibold text-foreground">
+                  {applyResult?.replayed
+                    ? 'Solicitud confirmada sin duplicar cambios'
+                    : 'Configuración base aplicada'}
+                </h2>
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200">
+                  Base validada
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {detail.blueprint.label} · Versión {detail.blueprint.version}. Los módulos y proveedores continúan sujetos a su activación y validación.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setReloadRevision((value) => value + 1)}
+            disabled={loadingCatalog || loadingDetail}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${(loadingCatalog || loadingDetail) ? 'animate-spin' : ''}`} />
+            Actualizar base
+          </Button>
+        </div>
+
+        {refreshWarning ? (
+          <p role="alert" className="mx-4 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100 sm:mx-5">
+            {refreshWarning}
+          </p>
+        ) : null}
+
+        <details className="group border-t border-border/70">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-5">
+            Ver detalle de la base
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid gap-3 border-t border-border/60 bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5">
+            {detail.blueprint.modules.map((module) => (
+              <article key={module.id} className="rounded-lg border border-border/70 bg-background/80 p-3">
+                <h3 className="text-sm font-semibold text-foreground">{module.label}</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{module.summary}</p>
+              </article>
+            ))}
+          </div>
+        </details>
+      </section>
+    );
+  }
 
   return (
     <section

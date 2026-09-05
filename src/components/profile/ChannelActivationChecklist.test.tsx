@@ -1,11 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 import { fetchTenantChannelActivation } from '@/api/v2/channelActivation';
 
-vi.mock('@/api/v2/channelActivation', () => ({
+vi.mock('@/api/v2/channelActivation', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/api/v2/channelActivation')>(),
   fetchTenantChannelActivation: vi.fn(),
 }));
 
@@ -206,5 +207,33 @@ describe('ChannelActivationChecklist', () => {
     expect(await screen.findByText('Identidad institucional')).toBeInTheDocument();
     expect(screen.getByText('Accesibilidad')).toBeInTheDocument();
     expect(screen.getByText('Inteligencia territorial')).toBeInTheDocument();
+  });
+
+  it('never invents a launch route from channels and confines unknowns to folded technical detail', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockResolvedValueOnce({
+      contract_version: 'tenant.channel_activation.v1',
+      tenant: { slug: 'gobierno-demo', nombre: 'Gobierno Demo' },
+      channels: [{
+        id: 'future_provider_channel',
+        label: 'Canal futuro no clasificado',
+        status: 'ready',
+        ready: true,
+        description: 'Dato técnico aditivo.',
+      }],
+      implementation_journey: null,
+    });
+
+    render(
+      <ChannelActivationChecklist
+        tenantSlug="gobierno-demo"
+        presentation="launch-journey"
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /ruta de salida no publicada/i })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /etapas de implementación/i })).not.toBeInTheDocument();
+    const details = screen.getByTestId('implementation-technical-details');
+    expect(within(details).getByText('Canal futuro no clasificado')).toBeInTheDocument();
+    expect(details).not.toHaveAttribute('open');
   });
 });

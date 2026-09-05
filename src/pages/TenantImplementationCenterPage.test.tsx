@@ -123,12 +123,14 @@ vi.mock('@/hooks/useUser', () => ({
 }));
 
 vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
-  default: ({ tenantSlug, initialData, highlighted }: any) => (
+  default: ({ tenantSlug, initialData, highlighted, presentation, returnTo }: any) => (
     <div
       data-testid="channel-activation-checklist"
       data-tenant-slug={tenantSlug || ''}
       data-initial-tenant={initialData?.tenant?.slug || ''}
       data-highlighted={highlighted ? 'true' : 'false'}
+      data-presentation={presentation || ''}
+      data-return-to={returnTo || ''}
     >
       Contrato de implementación
     </div>
@@ -175,6 +177,11 @@ describe('TenantImplementationCenterPage', () => {
     expect(screen.getByText(/sin estados inferidos/i)).toBeInTheDocument();
     expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-tenant-slug', 'gobierno-demo');
     expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-initial-tenant', 'gobierno-demo');
+    expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-presentation', 'launch-journey');
+    expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute(
+      'data-return-to',
+      '/implementacion?tenant_slug=gobierno-demo',
+    );
     expect(await screen.findByRole('heading', { name: /gobierno digital · núcleo operativo/i })).toBeInTheDocument();
     expect(screen.getByText(/no habilita módulos, proveedores, whatsapp ni ejecución/i)).toBeInTheDocument();
     expect(screen.getByText('Mesa única')).toBeInTheDocument();
@@ -262,6 +269,24 @@ describe('TenantImplementationCenterPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirmar aplicación/i }));
 
     expect(await screen.findByText(/solicitud confirmada sin duplicar cambios/i)).toBeInTheDocument();
+  });
+
+  it('collapses an already applied blueprint into a concise, progressively disclosed receipt', async () => {
+    blueprintApi.getTenantBlueprint.mockResolvedValueOnce({
+      ...blueprintDetail,
+      application_receipt: blueprintReceipt,
+    });
+
+    renderPage('/implementacion?tenant_slug=gobierno-demo');
+
+    const panel = await screen.findByTestId('tenant-blueprint-panel');
+    expect(panel).toHaveAttribute('data-state', 'applied-compact');
+    expect(screen.getByRole('heading', { name: /^configuración base aplicada$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /previsualizar cambios/i })).not.toBeInTheDocument();
+    const details = screen.getByText(/ver detalle de la base/i).closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByText('Mesa única')).toBeInTheDocument();
   });
 
   it('reuses the same idempotency key after an uncertain apply error', async () => {

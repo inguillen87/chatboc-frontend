@@ -77,3 +77,4 @@ data/
 *.sln
 *.sw?
 .vercel
+.env*

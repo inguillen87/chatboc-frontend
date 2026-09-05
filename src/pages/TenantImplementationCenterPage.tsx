@@ -20,6 +20,7 @@ const TenantImplementationCenterPage = () => {
   const [searchParams] = useSearchParams();
   const { currentSlug, tenant } = useTenant();
   const { user, loading } = useUser();
+  const [activationRevision, setActivationRevision] = React.useState(0);
 
   const explicitTenantRequest = React.useMemo(
     () => readExplicitTenantRequest(searchParams),
@@ -46,7 +47,13 @@ const TenantImplementationCenterPage = () => {
   const profileHref = tenantSlug
     ? `/perfil?tenant_slug=${encodeURIComponent(tenantSlug)}`
     : '/perfil';
+  const implementationReturnTo = tenantSlug
+    ? `/implementacion?tenant_slug=${encodeURIComponent(tenantSlug)}`
+    : '/implementacion';
   const canApplyBlueprint = normalizeRole(user?.rol || user?.role) === 'superadmin';
+  const handleBlueprintApplied = React.useCallback(() => {
+    setActivationRevision((value) => value + 1);
+  }, []);
 
   if (loading && !tenantSlug && !requestIsInvalid) {
     return (
@@ -119,13 +126,18 @@ const TenantImplementationCenterPage = () => {
       <TenantBlueprintProvisioningPanel
         tenantSlug={tenantSlug}
         canApply={canApplyBlueprint}
+        compactWhenApplied
+        onApplied={handleBlueprintApplied}
       />
 
       <div data-testid="implementation-tenant-scope" data-tenant-slug={tenantSlug}>
         <ChannelActivationChecklist
+          key={`${tenantSlug}:${activationRevision}`}
           tenantSlug={tenantSlug}
           initialData={initialActivation}
           highlighted
+          presentation="launch-journey"
+          returnTo={implementationReturnTo}
         />
       </div>
     </section>
