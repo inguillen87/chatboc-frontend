@@ -3,11 +3,13 @@ import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
+import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
+import { normalizeRole } from '@/utils/roles';
 import {
   activationAuthorizesTenant,
   normalizeProfileTenantSlug,
@@ -44,6 +46,7 @@ const TenantImplementationCenterPage = () => {
   const profileHref = tenantSlug
     ? `/perfil?tenant_slug=${encodeURIComponent(tenantSlug)}`
     : '/perfil';
+  const canApplyBlueprint = normalizeRole(user?.rol || user?.role) === 'superadmin';
 
   if (loading && !tenantSlug && !requestIsInvalid) {
     return (
@@ -112,6 +115,11 @@ const TenantImplementationCenterPage = () => {
           Sin estados inferidos
         </Badge>
       </div>
+
+      <TenantBlueprintProvisioningPanel
+        tenantSlug={tenantSlug}
+        canApply={canApplyBlueprint}
+      />
 
       <div data-testid="implementation-tenant-scope" data-tenant-slug={tenantSlug}>
         <ChannelActivationChecklist
