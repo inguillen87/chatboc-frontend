@@ -20,6 +20,7 @@ import {
   type TenantBlueprintDetailContract,
   type TenantBlueprintPreviewContract,
 } from '@/api/v2/tenantBlueprints';
+import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  resolveClerkStepUpErrorMessage,
+  useClerkStepUpAction,
+} from '@/hooks/useClerkStepUpAction';
 import { ApiError, NetworkError } from '@/utils/api';
 
 const activationStateLabels: Record<string, string> = {
@@ -70,6 +75,10 @@ interface TenantBlueprintProvisioningPanelProps {
   canApply: boolean;
 }
 
+interface TenantBlueprintProvisioningPanelContentProps extends TenantBlueprintProvisioningPanelProps {
+  applyAction: typeof applyTenantBlueprint;
+}
+
 interface BlueprintWorkflowScope {
   tenantSlug: string;
   blueprintId: string;
@@ -79,9 +88,10 @@ interface BlueprintWorkflowScope {
   reloadRevision: number;
 }
 
-const TenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPanelProps> = ({
+const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvisioningPanelContentProps> = ({
   tenantSlug,
   canApply,
+  applyAction,
 }) => {
   const [catalog, setCatalog] = React.useState<TenantBlueprintCatalogContract | null>(null);
   const [selectedBlueprintId, setSelectedBlueprintId] = React.useState<string | null>(null);
@@ -303,7 +313,7 @@ const TenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPane
     setActionError(null);
     setRefreshWarning(null);
     try {
-      const response = await applyTenantBlueprint({
+      const response = await applyAction({
         tenantSlug: scope.tenantSlug,
         blueprintId: scope.blueprintId,
         manifestDigest: scope.manifestDigest,
@@ -319,11 +329,13 @@ const TenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPane
       await refreshAfterApply(scope);
     } catch (error) {
       if (!workflowIsCurrent(scope)) return;
-      if (!isUncertainApplyError(error)) applyAttemptRef.current = null;
+      const stepUpMessage = resolveClerkStepUpErrorMessage(error);
+      const uncertainResult = !stepUpMessage && isUncertainApplyError(error);
+      if (stepUpMessage || !uncertainResult) applyAttemptRef.current = null;
       setConfirmOpen(false);
-      setActionError(safeErrorMessage(
+      setActionError(stepUpMessage || safeErrorMessage(
         error,
-        isUncertainApplyError(error)
+        uncertainResult
           ? 'No pudimos confirmar el resultado. Reintentá: se conservará la misma identidad para evitar duplicados.'
           : 'La plataforma rechazó la aplicación. Actualizá la previsualización antes de volver a intentar.',
       ));
@@ -576,6 +588,19 @@ const TenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPane
       </AlertDialog>
     </section>
   );
+};
+
+const ClerkTenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPanelProps> = (props) => {
+  const applyWithStepUp = useClerkStepUpAction(applyTenantBlueprint);
+  return <TenantBlueprintProvisioningPanelContent {...props} applyAction={applyWithStepUp} />;
+};
+
+const TenantBlueprintProvisioningPanel: React.FC<TenantBlueprintProvisioningPanelProps> = (props) => {
+  const clerkRuntime = useClerkRuntime();
+  if (clerkRuntime.enabled) {
+    return <ClerkTenantBlueprintProvisioningPanel {...props} />;
+  }
+  return <TenantBlueprintProvisioningPanelContent {...props} applyAction={applyTenantBlueprint} />;
 };
 
 export default TenantBlueprintProvisioningPanel;
