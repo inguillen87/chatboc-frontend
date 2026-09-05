@@ -42,6 +42,8 @@ import {
   type PendingLocationCandidate,
 } from './territorialPendingLocations';
 import {
+  applyTerritorialGeocodingJob,
+  createTerritorialExecutionIdempotencyKey,
   createTerritorialReviewIdempotencyKey,
   createTerritorialSyncIdempotencyKey,
   getTerritorialGeocodingAttempts,
@@ -51,6 +53,7 @@ import {
   isTerritorialApiStatus,
   isTerritorialQueueEndpointUnavailable,
   reviewTerritorialGeocodingJob,
+  resolveTerritorialGeocodingJob,
   syncTerritorialGeocodingQueue,
 } from './territorialGeocodingApi';
 import type {
@@ -80,6 +83,18 @@ interface ReviewDraft {
   decision: TerritorialReviewDecision;
   reasonCode: string;
   idempotencyKey: string;
+  expectedProposalDigest: string;
+  expectedAttemptId: string;
+  expectedAttemptNumber: number;
+  confirmed: boolean;
+}
+
+interface ApplyDraft {
+  jobId: string;
+  idempotencyKey: string;
+  expectedProposalDigest: string;
+  expectedAttemptId: string;
+  expectedAttemptNumber: number;
   confirmed: boolean;
 }
 
@@ -240,6 +255,13 @@ const TerritorialAdminDetail = ({
   detailError,
   attemptsError,
   onReview,
+  onResolve,
+  onNewResolve,
+  onApply,
+  canStartNewResolve,
+  resolving,
+  applying,
+  executionError,
 }: {
   candidate: PendingLocationCandidate | null;
   item: TerritorialGeocodingItem | null;
@@ -249,11 +271,19 @@ const TerritorialAdminDetail = ({
   detailError: unknown;
   attemptsError: unknown;
   onReview: (decision: TerritorialReviewDecision) => void;
+  onResolve: () => void;
+  onNewResolve: () => void;
+  onApply: () => void;
+  canStartNewResolve: boolean;
+  resolving: boolean;
+  applying: boolean;
+  executionError: unknown;
 }) => {
   if (!candidate || !item) return <PendingLocationDetail candidate={null} />;
   const proposal = detail?.proposal;
   const reviewAction = item.reviewAction;
   const accessDenied = isTerritorialApiStatus(detailError, 403);
+  const proposalVersionAvailable = Boolean(detail?.proposalDigest && detail.proposalVersion);
 
   return (
     <article aria-labelledby="territorial-admin-detail-title" className="min-w-0 rounded-xl border bg-background shadow-sm">
@@ -321,7 +351,7 @@ const TerritorialAdminDetail = ({
               <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Latitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lat ?? null)}</dd></div>
                 <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Longitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lng ?? null)}</dd></div>
-                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Precisión</dt><dd className="mt-1 font-semibold">{proposal?.locationType ?? item.quality.locationType ?? 'No publicada'}</dd></div>
+                <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Precisión</dt><dd className="mt-1 font-semibold">{proposal?.locationType ?? item.quality.locationType ?? 'No publicada'} · {proposal?.coordinateReference ?? 'referencia no publicada'}</dd></div>
                 <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Jurisdicción</dt><dd className="mt-1 font-semibold">{proposal?.validation.jurisdictionStatus ?? item.quality.jurisdictionStatus ?? 'No publicada'}</dd></div>
               </dl>
               {(proposal?.validation.issues.length ?? 0) > 0 ? (
@@ -344,7 +374,7 @@ const TerritorialAdminDetail = ({
                   type="button"
                   size="sm"
                   className="gap-2"
-                  disabled={!reviewAction.canApprove}
+                  disabled={!reviewAction.canApprove || !proposalVersionAvailable}
                   title={!reviewAction.canApprove ? 'Se requiere una propuesta y autoridad publicada por el contrato' : undefined}
                   onClick={() => onReview('approved')}
                 >
@@ -355,13 +385,57 @@ const TerritorialAdminDetail = ({
                   size="sm"
                   variant="outline"
                   className="gap-2"
-                  disabled={!reviewAction.canReject}
+                  disabled={!reviewAction.canReject || !proposalVersionAvailable}
                   title={!reviewAction.canReject ? 'El contrato no habilita el rechazo de este trabajo' : undefined}
                   onClick={() => onReview('rejected')}
                 >
                   <X className="h-4 w-4" /> Rechazar propuesta
                 </Button>
               </div>
+              <div className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!item.resolveAction.enabled || !item.resolveAction.href || resolving || applying}
+                  title={humanizeCode(item.resolveAction.reasonCode)}
+                  onClick={onResolve}
+                >
+                  {resolving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                  Consultar proveedor
+                </Button>
+                {canStartNewResolve ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={!item.resolveAction.enabled || !item.resolveAction.href || resolving || applying}
+                    title="Inicia otra consulta y genera una nueva clave idempotente"
+                    onClick={onNewResolve}
+                  >
+                    <RefreshCw className="h-4 w-4" /> Nueva búsqueda
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-2"
+                  disabled={!item.applyAction.enabled || !item.applyAction.href || !proposalVersionAvailable || resolving || applying}
+                  title={humanizeCode(item.applyAction.reasonCode)}
+                  onClick={onApply}
+                >
+                  {applying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Aplicar coordenadas
+                </Button>
+              </div>
+              {executionError ? (
+                <div role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
+                  <p className="font-semibold">La operación territorial quedó bloqueada</p>
+                  <p className="mt-1 text-muted-foreground">{getErrorMessage(executionError)}</p>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -532,6 +606,44 @@ const TerritorialSyncDialog = ({
   </Dialog>
 );
 
+const TerritorialApplyDialog = ({ draft, submitting, error, onChange, onClose, onSubmit }: {
+  draft: ApplyDraft | null;
+  submitting: boolean;
+  error: unknown;
+  onChange: (draft: ApplyDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => (
+  <Dialog open={Boolean(draft)} onOpenChange={(open) => { if (!open && !submitting) onClose(); }}>
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Aplicar coordenadas verificadas</DialogTitle>
+        <DialogDescription>
+          Esta acción modifica el reclamo. El backend volverá a comprobar propuesta, aprobación humana, polígono oficial y autoridad de escritura.
+        </DialogDescription>
+      </DialogHeader>
+      {draft ? (
+        <label className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <input type="checkbox" className="mt-0.5 h-4 w-4" checked={draft.confirmed} onChange={(event) => onChange({ ...draft, confirmed: event.target.checked })} />
+          <span>Confirmo que quiero escribir la propuesta aprobada vigente en el reclamo.</span>
+        </label>
+      ) : null}
+      {error ? (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+          <p className="font-semibold">No se aplicaron coordenadas</p>
+          <p className="mt-1 text-muted-foreground">{getErrorMessage(error)}</p>
+        </div>
+      ) : null}
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+        <Button type="button" onClick={onSubmit} disabled={!draft?.confirmed || submitting}>
+          {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null} Confirmar aplicación
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
 export function TerritorialPendingLocationsInbox({
   tenantSlug,
   initialFacet,
@@ -545,6 +657,8 @@ export function TerritorialPendingLocationsInbox({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
   const [syncIdempotencyKey, setSyncIdempotencyKey] = useState<string | null>(null);
+  const [applyDraft, setApplyDraft] = useState<ApplyDraft | null>(null);
+  const [resolveIdempotencyKeys, setResolveIdempotencyKeys] = useState<Record<string, string>>({});
   const [lastSyncResult, setLastSyncResult] = useState<TerritorialGeocodingSyncResponse | null>(null);
   const queryClient = useQueryClient();
 
@@ -654,9 +768,36 @@ export function TerritorialPendingLocationsInbox({
       await queryClient.invalidateQueries({ queryKey: ['territorial-pending-locations', tenantSlug] });
     },
   });
+  const invalidateTerritorialState = async (jobId: string, includeHeatmap: boolean) => {
+    const invalidations = [
+      queryClient.invalidateQueries({ queryKey: ['territorial-pending-locations', tenantSlug] }),
+      queryClient.invalidateQueries({ queryKey: ['territorial-geocoding-detail', tenantSlug, jobId] }),
+      queryClient.invalidateQueries({ queryKey: ['territorial-geocoding-attempts', tenantSlug, jobId] }),
+    ];
+    if (includeHeatmap) {
+      invalidations.push(
+        queryClient.invalidateQueries({ queryKey: ['v2-operations-heatmap', tenantSlug] }),
+        queryClient.invalidateQueries({ queryKey: ['v2-operations-dashboard', tenantSlug] }),
+        queryClient.invalidateQueries({ queryKey: ['v2-operations-action-center', tenantSlug] }),
+      );
+    }
+    await Promise.all(invalidations);
+  };
+  const resolveMutation = useMutation({
+    mutationFn: resolveTerritorialGeocodingJob,
+    onSuccess: async (_response, variables) => invalidateTerritorialState(variables.jobId, false),
+  });
+  const applyMutation = useMutation({
+    mutationFn: applyTerritorialGeocodingJob,
+    onSuccess: async (_response, variables) => {
+      setApplyDraft(null);
+      await invalidateTerritorialState(variables.jobId, true);
+    },
+  });
 
   const openReview = (decision: TerritorialReviewDecision) => {
-    if (!selectedAdminItem) return;
+    const proposalVersion = detailQuery.data?.proposalVersion;
+    if (!selectedAdminItem || !proposalVersion) return;
     const permitted = decision === 'approved'
       ? selectedAdminItem.reviewAction.canApprove
       : selectedAdminItem.reviewAction.canReject;
@@ -666,6 +807,9 @@ export function TerritorialPendingLocationsInbox({
       decision,
       reasonCode: '',
       idempotencyKey: createTerritorialReviewIdempotencyKey(selectedAdminItem.id),
+      expectedProposalDigest: detailQuery.data!.proposalDigest,
+      expectedAttemptId: proposalVersion.attemptId,
+      expectedAttemptNumber: proposalVersion.attemptNumber,
       confirmed: false,
     });
     reviewMutation.reset();
@@ -679,6 +823,9 @@ export function TerritorialPendingLocationsInbox({
       decision: reviewDraft.decision,
       reasonCode: reviewDraft.reasonCode,
       idempotencyKey: reviewDraft.idempotencyKey,
+      expectedProposalDigest: reviewDraft.expectedProposalDigest,
+      expectedAttemptId: reviewDraft.expectedAttemptId,
+      expectedAttemptNumber: reviewDraft.expectedAttemptNumber,
     });
   };
 
@@ -691,6 +838,50 @@ export function TerritorialPendingLocationsInbox({
   const submitSync = () => {
     if (!tenantSlug || !syncIdempotencyKey) return;
     syncMutation.mutate({ tenantSlug, idempotencyKey: syncIdempotencyKey });
+  };
+
+  const resolveSelected = (newSearch = false) => {
+    if (!tenantSlug || !selectedAdminItem?.resolveAction.enabled || !selectedAdminItem.resolveAction.href) return;
+    const operationId = `${normalizeTerritorialFilter(tenantSlug)}:${selectedAdminItem.id}`;
+    const existingKey = resolveIdempotencyKeys[operationId];
+    const idempotencyKey = newSearch || !existingKey
+      ? createTerritorialExecutionIdempotencyKey('resolve', selectedAdminItem.id)
+      : existingKey;
+    if (idempotencyKey !== existingKey) {
+      setResolveIdempotencyKeys((current) => ({ ...current, [operationId]: idempotencyKey }));
+    }
+    resolveMutation.reset();
+    resolveMutation.mutate({
+      tenantSlug,
+      jobId: selectedAdminItem.id,
+      idempotencyKey,
+    });
+  };
+
+  const openApply = () => {
+    const proposalVersion = detailQuery.data?.proposalVersion;
+    if (!selectedAdminItem?.applyAction.enabled || !selectedAdminItem.applyAction.href || !proposalVersion) return;
+    applyMutation.reset();
+    setApplyDraft({
+      jobId: selectedAdminItem.id,
+      idempotencyKey: createTerritorialExecutionIdempotencyKey('apply', selectedAdminItem.id),
+      expectedProposalDigest: detailQuery.data!.proposalDigest,
+      expectedAttemptId: proposalVersion.attemptId,
+      expectedAttemptNumber: proposalVersion.attemptNumber,
+      confirmed: false,
+    });
+  };
+
+  const submitApply = () => {
+    if (!tenantSlug || !applyDraft?.confirmed) return;
+    applyMutation.mutate({
+      tenantSlug,
+      jobId: applyDraft.jobId,
+      idempotencyKey: applyDraft.idempotencyKey,
+      expectedProposalDigest: applyDraft.expectedProposalDigest,
+      expectedAttemptId: applyDraft.expectedAttemptId,
+      expectedAttemptNumber: applyDraft.expectedAttemptNumber,
+    });
   };
 
   const normalInboxHref = tenantSlug
@@ -936,6 +1127,17 @@ export function TerritorialPendingLocationsInbox({
                   detailError={detailQuery.error}
                   attemptsError={attemptsQuery.error}
                   onReview={openReview}
+                  onResolve={() => resolveSelected(false)}
+                  onNewResolve={() => resolveSelected(true)}
+                  onApply={openApply}
+                  canStartNewResolve={Boolean(
+                    tenantSlug
+                    && selectedAdminItem
+                    && resolveIdempotencyKeys[`${normalizeTerritorialFilter(tenantSlug)}:${selectedAdminItem.id}`]
+                  )}
+                  resolving={resolveMutation.isPending}
+                  applying={applyMutation.isPending}
+                  executionError={resolveMutation.variables?.jobId === selectedAdminItem.id ? resolveMutation.error : null}
                 />
               ) : (
                 <PendingLocationDetail candidate={selectedCandidate} />
@@ -959,6 +1161,14 @@ export function TerritorialPendingLocationsInbox({
         error={syncMutation.error}
         onClose={() => { setSyncIdempotencyKey(null); syncMutation.reset(); }}
         onSubmit={submitSync}
+      />
+      <TerritorialApplyDialog
+        draft={applyDraft}
+        submitting={applyMutation.isPending}
+        error={applyMutation.error}
+        onChange={setApplyDraft}
+        onClose={() => { setApplyDraft(null); applyMutation.reset(); }}
+        onSubmit={submitApply}
       />
     </section>
   );

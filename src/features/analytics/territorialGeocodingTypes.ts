@@ -1,10 +1,22 @@
 export const TERRITORIAL_GEOCODING_CONTRACT = 'operations.territorial_geocoding_admin.v1' as const;
 export const TERRITORIAL_GEOCODING_SYNC_CONTRACT = 'operations.territorial_geocoding_sync.v1' as const;
 export const TERRITORIAL_GEOCODING_PREVIEW_CONTRACT = 'operations.territorial_geocoding_preview.v1' as const;
+export const TERRITORIAL_GEOCODING_EXECUTION_CONTRACT = 'operations.territorial_geocoding_execution.v1' as const;
 
 export type TerritorialReviewDecision = 'approved' | 'rejected';
 export type TerritorialReviewState = 'unreviewed' | 'approved' | 'rejected' | 'stale';
 export type TerritorialTicketSourceModel = 'TenantTicket' | 'MunicipioTicket' | 'PymeTicket';
+
+export interface TerritorialProposalVersion {
+  attemptId: string;
+  attemptNumber: number;
+}
+
+export interface TerritorialProposalExpectation {
+  expectedProposalDigest: string;
+  expectedAttemptId: string;
+  expectedAttemptNumber: number;
+}
 
 export interface TerritorialReviewReceipt {
   id: string;
@@ -14,6 +26,7 @@ export interface TerritorialReviewReceipt {
   reviewerUserId: string | null;
   reviewedJobStatus: string;
   proposalCurrent: boolean;
+  proposalVersion: TerritorialProposalVersion | null;
   coordinateWritePerformed: false;
   createdAt: string | null;
 }
@@ -40,6 +53,13 @@ export interface TerritorialGeocodingReviewAction {
   coordinateApplicationSupported: false;
 }
 
+export interface TerritorialGeocodingExecutionAction {
+  href: string | null;
+  enabled: boolean;
+  reasonCode: string;
+  confirmationRequired: boolean;
+}
+
 export interface TerritorialGeocodingItem {
   id: string;
   ticketId: string | null;
@@ -59,6 +79,8 @@ export interface TerritorialGeocodingItem {
   detailHref: string | null;
   attemptsHref: string | null;
   reviewAction: TerritorialGeocodingReviewAction;
+  resolveAction: TerritorialGeocodingExecutionAction;
+  applyAction: TerritorialGeocodingExecutionAction;
 }
 
 export interface TerritorialGeocodingQueue {
@@ -101,6 +123,13 @@ export interface TerritorialGeocodingProposal {
   partialMatch: boolean | null;
   provider: string | null;
   providerPlaceId: string | null;
+  coordinateReference: 'WGS84' | null;
+  provenance: {
+    source: string | null;
+    provider: string | null;
+    proposalDigest: string | null;
+    sourceAddressRetained: false;
+  } | null;
   validation: TerritorialProposalValidation;
 }
 
@@ -123,6 +152,7 @@ export interface TerritorialGeocodingDetail {
   item: TerritorialGeocodingItem;
   proposal: TerritorialGeocodingProposal;
   proposalDigest: string;
+  proposalVersion: TerritorialProposalVersion | null;
   attempts: TerritorialGeocodingAttempt[];
   reviews: TerritorialReviewReceipt[];
   privacy: {
@@ -134,8 +164,9 @@ export interface TerritorialGeocodingDetail {
   writePolicy: {
     getIsReadOnly: true;
     providerCallPerformed: false;
-    coordinateApplicationSupported: false;
+    coordinateApplicationSupported: true;
     reviewIsHumanDecisionOnly: true;
+    applyRequiresSeparateConfirmedPost: true;
   };
 }
 
@@ -173,7 +204,7 @@ export interface TerritorialGeocodingQueueParams {
   qualityState?: string;
 }
 
-export interface TerritorialGeocodingReviewRequest {
+export interface TerritorialGeocodingReviewRequest extends TerritorialProposalExpectation {
   tenantSlug: string;
   jobId: string;
   decision: TerritorialReviewDecision;
@@ -184,25 +215,38 @@ export interface TerritorialGeocodingReviewRequest {
 export interface TerritorialGeocodingSyncResponse {
   contractVersion: typeof TERRITORIAL_GEOCODING_SYNC_CONTRACT;
   tenantId: string;
-  summary: {
-    discovered: number;
-    created: number;
-    existing: number;
-    stale: number;
-    refreshed: number;
-    hidden: number;
-  };
-  execution: {
-    providerCallPerformed: false;
-    coordinateWritePerformed: false;
-  };
+  summary: { discovered: number; created: number; existing: number; stale: number; refreshed: number; hidden: number };
+  execution: { providerCallPerformed: false; coordinateWritePerformed: false };
   idempotentReplay: boolean;
 }
 
-export interface TerritorialGeocodingSyncRequest {
+export interface TerritorialGeocodingSyncRequest { tenantSlug: string; idempotencyKey: string }
+
+export interface TerritorialGeocodingExecutionResponse {
+  contractVersion: typeof TERRITORIAL_GEOCODING_EXECUTION_CONTRACT;
+  tenantId: string;
   tenantSlug: string;
-  idempotencyKey: string;
+  jobId: string;
+  action: 'resolve' | 'apply';
+  status: string;
+  reasonCode: string;
+  proposalDigest: string;
+  proposalVersion: TerritorialProposalVersion;
+  proposal: TerritorialGeocodingProposal | null;
+  validation: TerritorialProposalValidation;
+  execution: {
+    providerCallPerformed: boolean;
+    coordinateWritePerformed: boolean;
+    coordinatesApplied: boolean;
+    writePerformed: boolean;
+  };
+  transition: { action: 'resolve' | 'apply'; fromStatus: string; toStatus: string } | null;
+  idempotentReplay: boolean;
 }
+
+export interface TerritorialGeocodingExecutionRequest { tenantSlug: string; jobId: string; idempotencyKey: string }
+
+export interface TerritorialGeocodingApplyRequest extends TerritorialGeocodingExecutionRequest, TerritorialProposalExpectation {}
 
 export interface TerritorialGeocodingPreviewItem {
   id: string;
@@ -230,19 +274,8 @@ export interface TerritorialGeocodingPreviewQueue {
   };
   pagination: { page: number; perPage: number; total: number; hasNext: boolean };
   items: TerritorialGeocodingPreviewItem[];
-  execution: {
-    readOnly: true;
-    databaseWritePerformed: false;
-    providerCallPerformed: false;
-    coordinateWritePerformed: false;
-  };
-  privacy: {
-    rawAddressExposed: false;
-    addressDigestExposed: false;
-    candidateFingerprintExposed: false;
-    exactCoordinatesExposed: false;
-    tenantScoped: true;
-  };
+  execution: { readOnly: true; databaseWritePerformed: false; providerCallPerformed: false; coordinateWritePerformed: false };
+  privacy: { rawAddressExposed: false; addressDigestExposed: false; candidateFingerprintExposed: false; exactCoordinatesExposed: false; tenantScoped: true };
 }
 
 export interface TerritorialGeocodingPreviewParams {

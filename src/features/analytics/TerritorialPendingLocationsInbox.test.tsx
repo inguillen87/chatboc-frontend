@@ -22,7 +22,11 @@ const mocks = vi.hoisted(() => ({
   getAttempts: vi.fn(),
   review: vi.fn(),
   sync: vi.fn(),
+  resolve: vi.fn(),
+  apply: vi.fn(),
+  createExecutionKey: vi.fn(),
 }));
+const PROPOSAL_DIGEST = 'b'.repeat(64);
 
 vi.mock('./analyticsApi', () => ({ getOperationsHeatmapV2: mocks.getOperationsHeatmapV2 }));
 vi.mock('./territorialGeocodingApi', async (importOriginal) => {
@@ -35,8 +39,11 @@ vi.mock('./territorialGeocodingApi', async (importOriginal) => {
     getTerritorialGeocodingAttempts: mocks.getAttempts,
     reviewTerritorialGeocodingJob: mocks.review,
     syncTerritorialGeocodingQueue: mocks.sync,
+    resolveTerritorialGeocodingJob: mocks.resolve,
+    applyTerritorialGeocodingJob: mocks.apply,
     createTerritorialReviewIdempotencyKey: () => 'geo-review:geo-job-419:ui-test',
     createTerritorialSyncIdempotencyKey: () => 'geo-sync:ui-test-01234567',
+    createTerritorialExecutionIdempotencyKey: mocks.createExecutionKey,
   };
 });
 
@@ -109,6 +116,18 @@ const adminItem: TerritorialGeocodingItem = {
     rejectedReasonCodes: ['incorrect_location'],
     coordinateApplicationSupported: false,
   },
+  resolveAction: {
+    href: '/api/v2/analytics/operations/geocoding-queue/geo-job-419/resolve',
+    enabled: true,
+    reasonCode: 'provider_lookup_available',
+    confirmationRequired: false,
+  },
+  applyAction: {
+    href: '/api/v2/analytics/operations/geocoding-queue/geo-job-419/apply',
+    enabled: false,
+    reasonCode: 'proposal_or_current_approval_missing',
+    confirmationRequired: true,
+  },
 };
 
 const adminQueue = (): TerritorialGeocodingQueue => ({
@@ -141,13 +160,16 @@ const adminDetail = (): TerritorialGeocodingDetail => ({
     partialMatch: false,
     provider: 'configured_provider',
     providerPlaceId: null,
+    coordinateReference: 'WGS84',
+    provenance: { source: 'geocoding_provider', provider: 'configured_provider', proposalDigest: null, sourceAddressRetained: false },
     validation: { autoApplyEligible: false, issues: [], jurisdictionStatus: 'inside', localityMatch: true, provinceMatch: true, countryMatch: true },
   },
-  proposalDigest: 'safe-digest',
+  proposalDigest: PROPOSAL_DIGEST,
+  proposalVersion: { attemptId: 'attempt-resolve-1', attemptNumber: 1 },
   attempts: [],
   reviews: [],
   privacy: { rawAddressExposed: false, addressDigestExposed: false, exactCoordinatesExposed: true, authorizedAdminDetail: true },
-  writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: false, reviewIsHumanDecisionOnly: true },
+  writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: true, reviewIsHumanDecisionOnly: true, applyRequiresSeparateConfirmedPost: true },
 });
 
 const previewQueue = (): TerritorialGeocodingPreviewQueue => ({
@@ -192,6 +214,11 @@ const previewQueue = (): TerritorialGeocodingPreviewQueue => ({
 describe('TerritorialPendingLocationsInbox', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
+    let executionKeySequence = 0;
+    mocks.createExecutionKey.mockImplementation((action: string) => {
+      executionKeySequence += 1;
+      return `geo-${action}:ui-test-${String(executionKeySequence).padStart(8, '0')}`;
+    });
     mocks.getPreview.mockRejectedValue(new ApiError('not found', 404));
     mocks.getDetail.mockResolvedValue(adminDetail());
     mocks.getAttempts.mockResolvedValue({ attempts: [] });
@@ -223,6 +250,9 @@ describe('TerritorialPendingLocationsInbox', () => {
       decision: 'approved',
       reasonCode: 'verified_on_map',
       idempotencyKey: 'geo-review:geo-job-419:ui-test',
+      expectedProposalDigest: PROPOSAL_DIGEST,
+      expectedAttemptId: 'attempt-resolve-1',
+      expectedAttemptNumber: 1,
     });
     expect(mocks.review.mock.calls[0][0]).not.toHaveProperty('applyCoordinates');
     expect(mocks.review.mock.calls[0][0]).not.toHaveProperty('apply_coordinates');
@@ -311,6 +341,64 @@ describe('TerritorialPendingLocationsInbox', () => {
 
     expect(await screen.findByText('Conflicto de revisión')).toBeInTheDocument();
     expect(screen.getByText(/actualizá la cola/i)).toBeInTheDocument();
+  });
+
+  it('consults the provider separately and requires confirmation before applying coordinates', async () => {
+    const queue = adminQueue();
+    queue.items = [{
+      ...adminItem,
+      reviewState: 'approved',
+      applyAction: { ...adminItem.applyAction, enabled: true, reasonCode: 'current_approved_auto_apply_proposal' },
+    }];
+    mocks.getQueue.mockResolvedValue(queue);
+    mocks.resolve.mockResolvedValue({ action: 'resolve' });
+    mocks.apply.mockResolvedValue({ action: 'apply' });
+    renderInbox();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Consultar proveedor' }));
+    await waitFor(() => expect(mocks.resolve).toHaveBeenCalled());
+    expect(mocks.resolve.mock.calls[0][0]).toEqual({
+      tenantSlug: 'junin',
+      jobId: 'geo-job-419',
+      idempotencyKey: 'geo-resolve:ui-test-00000001',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar coordenadas' }));
+    const confirmButton = screen.getByRole('button', { name: 'Confirmar aplicación' });
+    expect(confirmButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(mocks.apply).toHaveBeenCalled());
+    expect(mocks.apply.mock.calls[0][0]).toEqual({
+      tenantSlug: 'junin',
+      jobId: 'geo-job-419',
+      idempotencyKey: 'geo-apply:ui-test-00000002',
+      expectedProposalDigest: PROPOSAL_DIGEST,
+      expectedAttemptId: 'attempt-resolve-1',
+      expectedAttemptNumber: 1,
+    });
+  });
+
+  it('reuses the resolve idempotency key after an uncertain result until Nueva búsqueda is explicit', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.resolve.mockRejectedValue(new NetworkError('resultado incierto'));
+    renderInbox();
+
+    const consult = await screen.findByRole('button', { name: 'Consultar proveedor' });
+    fireEvent.click(consult);
+    await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(consult).toBeEnabled());
+
+    fireEvent.click(consult);
+    await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(2));
+    expect(mocks.resolve.mock.calls[0][0].idempotencyKey).toBe(mocks.resolve.mock.calls[1][0].idempotencyKey);
+
+    const newSearch = await screen.findByRole('button', { name: 'Nueva búsqueda' });
+    await waitFor(() => expect(newSearch).toBeEnabled());
+    fireEvent.click(newSearch);
+    await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(3));
+    expect(mocks.resolve.mock.calls[2][0].idempotencyKey).not.toBe(mocks.resolve.mock.calls[1][0].idempotencyKey);
+    expect(mocks.createExecutionKey).toHaveBeenCalledTimes(2);
   });
 
   it('runs sync only after confirmation, exposes loading, and renders an idempotent replay summary', async () => {
