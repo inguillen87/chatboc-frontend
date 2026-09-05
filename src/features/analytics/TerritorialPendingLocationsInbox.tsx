@@ -110,6 +110,31 @@ const REVIEW_REASON_LABELS: Record<string, string> = {
   stale_source: 'La fuente quedó desactualizada',
 };
 
+const RESOLVE_IDEMPOTENCY_STORAGE_PREFIX = 'chatboc:territorial-resolve:v1:';
+const RESOLVE_IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+
+const resolveStorageKey = (operationId: string) =>
+  `${RESOLVE_IDEMPOTENCY_STORAGE_PREFIX}${encodeURIComponent(operationId)}`;
+
+const readPersistedResolveKey = (operationId: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = window.sessionStorage.getItem(resolveStorageKey(operationId));
+    return value && RESOLVE_IDEMPOTENCY_KEY_PATTERN.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistResolveKey = (operationId: string, idempotencyKey: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(resolveStorageKey(operationId), idempotencyKey);
+  } catch {
+    // React state remains the in-memory fallback when browser storage is denied.
+  }
+};
+
 const humanizeCode = (value: string | null | undefined) =>
   value ? REVIEW_REASON_LABELS[value] ?? value.replace(/[_-]+/g, ' ') : 'No publicado';
 
@@ -734,6 +759,12 @@ export function TerritorialPendingLocationsInbox({
   );
   const selectedCandidate = visibleCandidates.find((candidate) => candidate.id === selectedId) ?? visibleCandidates[0] ?? null;
   const selectedAdminItem = adminQueue?.items.find((item) => item.id === selectedCandidate?.id) ?? null;
+  const selectedResolveOperationId = tenantSlug && selectedAdminItem
+    ? `${normalizeTerritorialFilter(tenantSlug)}:${selectedAdminItem.id}`
+    : null;
+  const selectedResolveIdempotencyKey = selectedResolveOperationId
+    ? resolveIdempotencyKeys[selectedResolveOperationId] ?? readPersistedResolveKey(selectedResolveOperationId)
+    : null;
 
   const detailQuery = useQuery({
     queryKey: ['territorial-geocoding-detail', tenantSlug, selectedAdminItem?.id],
@@ -843,13 +874,14 @@ export function TerritorialPendingLocationsInbox({
   const resolveSelected = (newSearch = false) => {
     if (!tenantSlug || !selectedAdminItem?.resolveAction.enabled || !selectedAdminItem.resolveAction.href) return;
     const operationId = `${normalizeTerritorialFilter(tenantSlug)}:${selectedAdminItem.id}`;
-    const existingKey = resolveIdempotencyKeys[operationId];
+    const existingKey = resolveIdempotencyKeys[operationId] ?? readPersistedResolveKey(operationId);
     const idempotencyKey = newSearch || !existingKey
       ? createTerritorialExecutionIdempotencyKey('resolve', selectedAdminItem.id)
       : existingKey;
     if (idempotencyKey !== existingKey) {
       setResolveIdempotencyKeys((current) => ({ ...current, [operationId]: idempotencyKey }));
     }
+    persistResolveKey(operationId, idempotencyKey);
     resolveMutation.reset();
     resolveMutation.mutate({
       tenantSlug,
@@ -1131,9 +1163,8 @@ export function TerritorialPendingLocationsInbox({
                   onNewResolve={() => resolveSelected(true)}
                   onApply={openApply}
                   canStartNewResolve={Boolean(
-                    tenantSlug
-                    && selectedAdminItem
-                    && resolveIdempotencyKeys[`${normalizeTerritorialFilter(tenantSlug)}:${selectedAdminItem.id}`]
+                    selectedResolveOperationId
+                    && selectedResolveIdempotencyKey
                   )}
                   resolving={resolveMutation.isPending}
                   applying={applyMutation.isPending}

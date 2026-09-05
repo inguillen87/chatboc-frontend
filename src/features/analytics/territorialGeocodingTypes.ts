@@ -26,6 +26,7 @@ export interface TerritorialReviewReceipt {
   reviewerUserId: string | null;
   reviewedJobStatus: string;
   proposalCurrent: boolean;
+  proposalDigest: string;
   proposalVersion: TerritorialProposalVersion | null;
   coordinateWritePerformed: false;
   createdAt: string | null;
@@ -122,7 +123,7 @@ export interface TerritorialGeocodingProposal {
   locationType: string | null;
   partialMatch: boolean | null;
   provider: string | null;
-  providerPlaceId: string | null;
+  providerReferencePresent: boolean;
   coordinateReference: 'WGS84' | null;
   provenance: {
     source: string | null;
@@ -159,6 +160,9 @@ export interface TerritorialGeocodingDetail {
     rawAddressExposed: false;
     addressDigestExposed: false;
     exactCoordinatesExposed: boolean;
+    exactCoordinatesClassification: 'restricted_operational';
+    exactCoordinatesAccess: 'tenant_admin_only';
+    providerPlaceIdExposed: false;
     authorizedAdminDetail: true;
   };
   writePolicy: {
@@ -178,12 +182,25 @@ export interface TerritorialGeocodingAttemptsResponse {
   sourceModelRaw: string | null;
   ticketSourceModel: TerritorialTicketSourceModel | null;
   attempts: TerritorialGeocodingAttempt[];
+  privacy: {
+    rawAddressExposed: false;
+    addressDigestExposed: false;
+    exactCoordinatesExposed: boolean;
+    exactCoordinatesClassification: 'restricted_operational';
+    exactCoordinatesAccess: 'tenant_admin_only';
+    providerPlaceIdExposed: false;
+    authorizedAdminDetail: true;
+  };
 }
 
 export interface TerritorialGeocodingReviewResponse {
   contractVersion: typeof TERRITORIAL_GEOCODING_CONTRACT;
+  action: 'review';
   tenantId: string;
+  tenantSlug: string;
   jobId: string;
+  proposalDigest: string;
+  proposalVersion: TerritorialProposalVersion;
   review: TerritorialReviewReceipt;
   idempotentReplay: boolean;
   providerCallPerformed: false;

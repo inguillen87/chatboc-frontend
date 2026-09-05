@@ -159,7 +159,7 @@ const adminDetail = (): TerritorialGeocodingDetail => ({
     locationType: 'ROOFTOP',
     partialMatch: false,
     provider: 'configured_provider',
-    providerPlaceId: null,
+    providerReferencePresent: true,
     coordinateReference: 'WGS84',
     provenance: { source: 'geocoding_provider', provider: 'configured_provider', proposalDigest: null, sourceAddressRetained: false },
     validation: { autoApplyEligible: false, issues: [], jurisdictionStatus: 'inside', localityMatch: true, provinceMatch: true, countryMatch: true },
@@ -168,7 +168,15 @@ const adminDetail = (): TerritorialGeocodingDetail => ({
   proposalVersion: { attemptId: 'attempt-resolve-1', attemptNumber: 1 },
   attempts: [],
   reviews: [],
-  privacy: { rawAddressExposed: false, addressDigestExposed: false, exactCoordinatesExposed: true, authorizedAdminDetail: true },
+  privacy: {
+    rawAddressExposed: false,
+    addressDigestExposed: false,
+    exactCoordinatesExposed: true,
+    exactCoordinatesClassification: 'restricted_operational',
+    exactCoordinatesAccess: 'tenant_admin_only',
+    providerPlaceIdExposed: false,
+    authorizedAdminDetail: true,
+  },
   writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: true, reviewIsHumanDecisionOnly: true, applyRequiresSeparateConfirmedPost: true },
 });
 
@@ -213,6 +221,7 @@ const previewQueue = (): TerritorialGeocodingPreviewQueue => ({
 
 describe('TerritorialPendingLocationsInbox', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     Object.values(mocks).forEach((mock) => mock.mockReset());
     let executionKeySequence = 0;
     mocks.createExecutionKey.mockImplementation((action: string) => {
@@ -382,14 +391,17 @@ describe('TerritorialPendingLocationsInbox', () => {
   it('reuses the resolve idempotency key after an uncertain result until Nueva búsqueda is explicit', async () => {
     mocks.getQueue.mockResolvedValue(adminQueue());
     mocks.resolve.mockRejectedValue(new NetworkError('resultado incierto'));
-    renderInbox();
+    const firstRender = renderInbox();
 
     const consult = await screen.findByRole('button', { name: 'Consultar proveedor' });
     fireEvent.click(consult);
     await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(consult).toBeEnabled());
 
-    fireEvent.click(consult);
+    firstRender.unmount();
+    renderInbox();
+    const consultAfterReload = await screen.findByRole('button', { name: 'Consultar proveedor' });
+    fireEvent.click(consultAfterReload);
     await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(2));
     expect(mocks.resolve.mock.calls[0][0].idempotencyKey).toBe(mocks.resolve.mock.calls[1][0].idempotencyKey);
 

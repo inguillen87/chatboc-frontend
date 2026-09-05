@@ -31,6 +31,7 @@ const reviewReceipt = {
   reviewer_user_id: 9,
   reviewed_job_status: 'ready',
   proposal_current: true,
+  proposal_digest: PROPOSAL_DIGEST,
   proposal_attempt_id: 'attempt-resolve-1',
   proposal_attempt_number: 1,
   coordinate_write_performed: false,
@@ -156,7 +157,13 @@ const attempt = {
   provider: 'configured_provider',
   external_call_performed: true,
   coordinate_write_performed: false,
-  proposal: { lat: -33.1334, lng: -68.4861, location_type: 'ROOFTOP', partial_match: false },
+  proposal: {
+    lat: -33.1334,
+    lng: -68.4861,
+    location_type: 'ROOFTOP',
+    partial_match: false,
+    provider_reference_present: true,
+  },
   validation: {
     auto_apply_eligible: false,
     issues: [],
@@ -185,6 +192,7 @@ const executionPayload = (action: 'resolve' | 'apply') => ({
     location_type: 'ROOFTOP',
     partial_match: false,
     provider: 'google',
+    provider_reference_present: true,
     provenance: { source: 'geocoding_provider', provider: 'google', source_address_retained: false },
   },
   validation: { auto_apply_eligible: true, issues: [], jurisdiction_status: 'within' },
@@ -304,7 +312,16 @@ describe('territorialGeocodingApi', () => {
           attempts: [attempt],
           reviews: [],
         },
-        privacy: { raw_address_exposed: false, address_digest_exposed: false, exact_coordinates_exposed: true, authorized_admin_detail: true },
+        privacy: {
+          raw_address_exposed: false,
+          address_digest_exposed: false,
+          exact_coordinates_exposed: true,
+          exact_coordinates_classification: 'restricted_operational',
+          exact_coordinates_access: 'tenant_admin_only',
+          provider_place_id_exposed: false,
+          provider_place_id_retained_for_new_attempts: false,
+          authorized_admin_detail: true,
+        },
         write_policy: { get_is_read_only: true, provider_call_performed: false, coordinate_application_supported: true, review_is_human_decision_only: true, apply_requires_separate_confirmed_post: true },
       })
       .mockResolvedValueOnce({
@@ -314,7 +331,15 @@ describe('territorialGeocodingApi', () => {
         ticket_id: 419,
         source_model: 'municipio_ticket',
         attempts: [attempt],
-        privacy: { raw_address_exposed: false, address_digest_exposed: false, authorized_admin_detail: true },
+        privacy: {
+          raw_address_exposed: false,
+          address_digest_exposed: false,
+          exact_coordinates_exposed: true,
+          exact_coordinates_classification: 'restricted_operational',
+          exact_coordinates_access: 'tenant_admin_only',
+          provider_place_id_exposed: false,
+          authorized_admin_detail: true,
+        },
       });
 
     await getTerritorialGeocodingQueue({ tenantSlug: 'junin', page: 1, perPage: 100, category: 'Luminarias' });
@@ -330,14 +355,28 @@ describe('territorialGeocodingApi', () => {
     expect(mocks.get).toHaveBeenNthCalledWith(3, '/api/v2/analytics/operations/geocoding-queue/geo-job-419/attempts', { tenantSlug: 'junin' });
     expect(detail.proposal).toMatchObject({ lat: -33.1334, lng: -68.4861 });
     expect(detail.proposalVersion).toEqual({ attemptId: 'attempt-resolve-1', attemptNumber: 1 });
+    expect(detail.privacy).toMatchObject({
+      exactCoordinatesClassification: 'restricted_operational',
+      exactCoordinatesAccess: 'tenant_admin_only',
+      providerPlaceIdExposed: false,
+    });
     expect(attempts.ticketSourceModel).toBe('MunicipioTicket');
+    expect(attempts.privacy).toMatchObject({
+      exactCoordinatesClassification: 'restricted_operational',
+      exactCoordinatesAccess: 'tenant_admin_only',
+      providerPlaceIdExposed: false,
+    });
   });
 
   it('posts a controlled decision with tenant and Idempotency-Key but never applies coordinates', async () => {
     mocks.post.mockResolvedValue({
       contract_version: 'operations.territorial_geocoding_admin.v1',
+      action: 'review',
       tenant_id: 4,
+      tenant_slug: 'junin',
       job_id: 'geo-job-419',
+      proposal_digest: PROPOSAL_DIGEST,
+      proposal_version: { attempt_id: 'attempt-resolve-1', attempt_number: 1 },
       review: reviewReceipt,
       idempotent_replay: false,
       provider_call_performed: false,
@@ -367,14 +406,53 @@ describe('territorialGeocodingApi', () => {
       { tenantSlug: 'junin', headers: { 'Idempotency-Key': 'geo-review:geo-job-419:01234567' } },
     );
     expect(mocks.post.mock.calls[0][1]).not.toHaveProperty('apply_coordinates');
-    expect(result).toMatchObject({ idempotentReplay: false, providerCallPerformed: false, coordinateWritePerformed: false });
+    expect(result).toMatchObject({
+      action: 'review',
+      tenantSlug: 'junin',
+      proposalDigest: PROPOSAL_DIGEST,
+      proposalVersion: { attemptId: 'attempt-resolve-1', attemptNumber: 1 },
+      idempotentReplay: false,
+      providerCallPerformed: false,
+      coordinateWritePerformed: false,
+    });
+  });
+
+  it('rejects provider identifiers hidden inside attempt history', async () => {
+    mocks.get.mockResolvedValue({
+      contract_version: 'operations.territorial_geocoding_admin.v1',
+      tenant_id: 4,
+      job_id: 'geo-job-419',
+      ticket_id: 419,
+      source_model: 'municipio_ticket',
+      attempts: [{
+        ...attempt,
+        proposal: { ...attempt.proposal, provider_place_id: 'provider-secret-reference' },
+      }],
+      privacy: {
+        raw_address_exposed: false,
+        address_digest_exposed: false,
+        exact_coordinates_exposed: true,
+        exact_coordinates_classification: 'restricted_operational',
+        exact_coordinates_access: 'tenant_admin_only',
+        provider_place_id_exposed: false,
+        authorized_admin_detail: true,
+      },
+    });
+
+    await expect(getTerritorialGeocodingAttempts('geo-job-419', 'junin')).rejects.toMatchObject({
+      code: 'territorial_geocoding_attempt_provider_identifier_exposed',
+    });
   });
 
   it('rejects a review receipt for another proposal version and validates expectations before I/O', async () => {
     mocks.post.mockResolvedValue({
       contract_version: 'operations.territorial_geocoding_admin.v1',
+      action: 'review',
       tenant_id: 4,
+      tenant_slug: 'junin',
       job_id: 'geo-job-419',
+      proposal_digest: PROPOSAL_DIGEST,
+      proposal_version: { attempt_id: 'attempt-resolve-1', attempt_number: 1 },
       review: { ...reviewReceipt, proposal_attempt_id: 'attempt-resolve-2', proposal_attempt_number: 2 },
       idempotent_replay: false,
       provider_call_performed: false,
@@ -404,6 +482,41 @@ describe('territorialGeocodingApi', () => {
       expectedAttemptNumber: 1,
     })).rejects.toMatchObject({ code: 'territorial_geocoding_expected_proposal_invalid' });
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['action', { action: 'apply' }, 'territorial_geocoding_review_response_identity_invalid'],
+    ['tenant', { tenant_slug: 'otro-tenant' }, 'territorial_geocoding_review_response_identity_invalid'],
+    ['job', { job_id: 'geo-job-otro' }, 'territorial_geocoding_review_response_identity_invalid'],
+    ['digest', { proposal_digest: 'b'.repeat(64) }, 'territorial_geocoding_review_response_proposal_version_invalid'],
+    ['version', { proposal_version: { attempt_id: 'attempt-resolve-2', attempt_number: 2 } }, 'territorial_geocoding_review_response_proposal_version_invalid'],
+    ['review digest', { review: { ...reviewReceipt, proposal_digest: 'b'.repeat(64) } }, 'territorial_geocoding_review_response_proposal_version_invalid'],
+  ])('rejects a review receipt with mismatched %s binding', async (_field, override, code) => {
+    mocks.post.mockResolvedValue({
+      contract_version: 'operations.territorial_geocoding_admin.v1',
+      action: 'review',
+      tenant_id: 4,
+      tenant_slug: 'junin',
+      job_id: 'geo-job-419',
+      proposal_digest: PROPOSAL_DIGEST,
+      proposal_version: { attempt_id: 'attempt-resolve-1', attempt_number: 1 },
+      review: reviewReceipt,
+      idempotent_replay: false,
+      provider_call_performed: false,
+      coordinate_write_performed: false,
+      ...override,
+    });
+
+    await expect(reviewTerritorialGeocodingJob({
+      tenantSlug: 'junin',
+      jobId: 'geo-job-419',
+      decision: 'approved',
+      reasonCode: 'verified_on_map',
+      idempotencyKey: 'geo-review:geo-job-419:01234567',
+      expectedProposalDigest: PROPOSAL_DIGEST,
+      expectedAttemptId: 'attempt-resolve-1',
+      expectedAttemptNumber: 1,
+    })).rejects.toMatchObject({ code });
   });
 
   it('materializes the queue explicitly with an empty body, tenant scope, and an idempotency key', async () => {
@@ -452,6 +565,7 @@ describe('territorialGeocodingApi', () => {
         location_type: 'ROOFTOP',
         partial_match: false,
         provider: 'google',
+        provider_reference_present: true,
         provenance: { source: 'geocoding_provider', provider: 'google', source_address_retained: false },
       },
       validation: { auto_apply_eligible: true, issues: [], jurisdiction_status: 'within' },
@@ -513,6 +627,20 @@ describe('territorialGeocodingApi', () => {
       jobId: 'geo-job-419',
       idempotencyKey: 'geo-resolve:419:12345678',
     })).rejects.toMatchObject({ code });
+  });
+
+  it('rejects provider identifiers even in an otherwise valid restricted proposal', async () => {
+    const payload = executionPayload('resolve');
+    mocks.post.mockResolvedValue({
+      ...payload,
+      proposal: { ...payload.proposal, provider_place_id: 'provider-secret-reference' },
+    });
+
+    await expect(resolveTerritorialGeocodingJob({
+      tenantSlug: 'junin',
+      jobId: 'geo-job-419',
+      idempotencyKey: 'geo-resolve:419:12345678',
+    })).rejects.toMatchObject({ code: 'territorial_geocoding_execution_provider_identifier_exposed' });
   });
 
   it.each([
