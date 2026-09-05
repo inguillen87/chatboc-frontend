@@ -745,6 +745,7 @@ export default function Perfil() {
         catalogAccess: canViewCatalog,
         teamAccess: canManageTeam,
         billingAccess: canManageBilling,
+        implementationAccess: isTenantAdministrator,
       }),
     [
       backofficeNavigationStatus,
@@ -758,6 +759,7 @@ export default function Perfil() {
       canViewTerritory,
       enabledBackendModuleIds,
       isStaff,
+      isTenantAdministrator,
     ],
   );
   const allowedWorkspaceTabs = useMemo(() => {
@@ -951,6 +953,11 @@ export default function Perfil() {
     () => updateInstitutionSection("general"),
     [updateInstitutionSection],
   );
+
+  const openImplementationCenter = useCallback(() => {
+    if (!derivedTenantSlug) return;
+    navigate(`/implementacion?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`);
+  }, [derivedTenantSlug, navigate]);
 
   useEffect(() => {
     if (requestedWorkspaceTab && requestedWorkspaceTab !== activeProfileTab) {
@@ -2272,6 +2279,7 @@ export default function Perfil() {
     if (normalized.includes('people') || normalized.includes('user') || normalized.includes('team')) return Users;
     if (normalized.includes('map')) return MapPinned;
     if (normalized.includes('analytics') || normalized.includes('ai')) return Sparkles;
+    if (normalized.includes('implementation')) return Settings2;
     if (normalized.includes('order') || normalized.includes('ticket') || normalized.includes('operation')) return ClipboardList;
     return LayoutDashboard;
   };
@@ -2288,6 +2296,7 @@ export default function Perfil() {
     if (normalized === 'people') return 'Contactos, responsables, roles y permisos.';
     if (normalized === 'maps') return 'Actividad territorial, zonas y prioridades georreferenciadas.';
     if (normalized === 'advanced_analytics') return 'Análisis ejecutivo, segmentos y hallazgos asistidos.';
+    if (normalized === 'implementation') return 'Avances, bloqueos y próximos pasos para una salida productiva segura.';
     if (['catalog', 'inventory', 'marketplace'].includes(normalized)) {
       return esMunicipio
         ? 'Servicios, recursos y disponibilidad publicada.'
@@ -2329,6 +2338,7 @@ export default function Perfil() {
     }
     if (normalizedId === 'maps') return workspaceCapabilities.territory;
     if (normalizedId === 'advanced_analytics') return workspaceCapabilities.analytics;
+    if (normalizedId === 'implementation') return workspaceCapabilities.implementation;
     if (['catalog', 'inventory', 'marketplace'].includes(normalizedId)) {
       return workspaceCapabilities.catalog;
     }
@@ -2478,6 +2488,7 @@ export default function Perfil() {
       }
       capabilities={workspaceCapabilities}
       isMunicipal={esMunicipio}
+      onOpenImplementation={openImplementationCenter}
       onOpenInstitutionProfile={openInstitutionProfile}
       onOpenPlan={openPlanAndBilling}
       onOpenSurveys={() => navigate("/admin/encuestas")}

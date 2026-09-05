@@ -113,8 +113,9 @@ describe('ChannelActivationChecklist', () => {
   it('renders the activation contract with progress, statuses and CTAs', async () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
-    expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /implementación operativa/i })).toBeInTheDocument();
     expect(screen.getByText('14%')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /progreso de implementación/i })).toBeInTheDocument();
     expect(screen.getByText(/1 de 7 frentes listos/i)).toBeInTheDocument();
     expect(screen.getByText(/self-service activo/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
@@ -171,5 +172,39 @@ describe('ChannelActivationChecklist', () => {
 
     await waitFor(() => expect(screen.getByText(/^plan full$/i)).toBeInTheDocument());
     expect(screen.queryByText(/^plan free$/i)).not.toBeInTheDocument();
+  });
+
+  it('renders reusable government workstreams published by the backend', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockResolvedValueOnce({
+      contract_version: 'tenant.channel_activation.v1',
+      tenant: { slug: 'gobierno-demo', nombre: 'Gobierno Demo', plan: 'enterprise' },
+      summary: { total: 3, ready: 0, progress: 0 },
+      channels: [
+        {
+          id: 'institutional_branding',
+          label: 'Identidad institucional',
+          status: 'action_required',
+          description: 'Marca y superficies públicas.',
+        },
+        {
+          id: 'accessibility',
+          label: 'Accesibilidad',
+          status: 'pending',
+          description: 'Preferencias y validación accesible.',
+        },
+        {
+          id: 'territorial_intelligence',
+          label: 'Inteligencia territorial',
+          status: 'blocked',
+          description: 'Cobertura y fuentes geográficas.',
+        },
+      ],
+    });
+
+    render(<ChannelActivationChecklist tenantSlug="gobierno-demo" />);
+
+    expect(await screen.findByText('Identidad institucional')).toBeInTheDocument();
+    expect(screen.getByText('Accesibilidad')).toBeInTheDocument();
+    expect(screen.getByText('Inteligencia territorial')).toBeInTheDocument();
   });
 });

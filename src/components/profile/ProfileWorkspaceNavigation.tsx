@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   MapPinned,
   Package,
+  Rocket,
   Settings2,
   Sparkles,
   Users,
@@ -62,6 +63,7 @@ export type ProfileWorkspaceCapabilities = {
   catalog: boolean;
   team: boolean;
   billing: boolean;
+  implementation: boolean;
 };
 
 export const resolveProfileWorkspaceCapabilities = ({
@@ -77,6 +79,7 @@ export const resolveProfileWorkspaceCapabilities = ({
   catalogAccess,
   teamAccess,
   billingAccess,
+  implementationAccess,
 }: {
   status: "idle" | "loading" | "ready" | "denied" | "error";
   enabledModuleIds: ReadonlySet<string>;
@@ -90,6 +93,7 @@ export const resolveProfileWorkspaceCapabilities = ({
   catalogAccess: boolean;
   teamAccess: boolean;
   billingAccess: boolean;
+  implementationAccess: boolean;
 }): ProfileWorkspaceCapabilities => {
   const contractReady = status === "ready";
   const backendAllows = (moduleId: string) => contractReady && enabledModuleIds.has(moduleId);
@@ -105,6 +109,7 @@ export const resolveProfileWorkspaceCapabilities = ({
     catalog: contractReady && catalogAccess,
     team: teamAccess && backendAllows("people"),
     billing: contractReady && billingAccess,
+    implementation: implementationAccess && backendAllows("implementation"),
   };
 };
 
@@ -113,6 +118,7 @@ interface ProfileWorkspaceNavigationProps {
   activeActionId?: "billing" | "institution-profile";
   capabilities: ProfileWorkspaceCapabilities;
   isMunicipal: boolean;
+  onOpenImplementation?: () => void;
   onOpenInstitutionProfile?: () => void;
   onOpenPlan: () => void;
   onOpenSurveys: () => void;
@@ -168,6 +174,7 @@ export default function ProfileWorkspaceNavigation({
   activeActionId,
   capabilities,
   isMunicipal,
+  onOpenImplementation,
   onOpenInstitutionProfile,
   onOpenPlan,
   onOpenSurveys,
@@ -282,6 +289,17 @@ export default function ProfileWorkspaceNavigation({
         label: "Administración",
         icon: Settings2,
         modules: [
+          ...(capabilities.implementation
+            ? [
+                {
+                  id: "implementation",
+                  label: "Implementación y salida",
+                  description: "Avances, bloqueos y próximos pasos publicados por la plataforma.",
+                  icon: Rocket,
+                  action: onOpenImplementation,
+                },
+              ]
+            : []),
           ...(capabilities.billing
             ? [
                 {
@@ -336,12 +354,14 @@ export default function ProfileWorkspaceNavigation({
     capabilities.billing,
     capabilities.catalog,
     capabilities.contacts,
+    capabilities.implementation,
     capabilities.operation,
     capabilities.participation,
     capabilities.reports,
     capabilities.team,
     capabilities.territory,
     isMunicipal,
+    onOpenImplementation,
     onOpenInstitutionProfile,
     onOpenPlan,
     onOpenSurveys,

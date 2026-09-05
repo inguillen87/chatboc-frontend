@@ -458,7 +458,7 @@ describe('Perfil request lifecycle', () => {
     );
     expect(runtime.apiFetch).toHaveBeenCalledWith(
       '/api/v2/tenants/mendoza/activation/channels',
-      { tenantSlug: 'mendoza', persistTenantSlug: false },
+      { tenantSlug: 'mendoza', persistTenantSlug: false, cache: 'no-store' },
     );
     expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=mendoza')).toBe(0);

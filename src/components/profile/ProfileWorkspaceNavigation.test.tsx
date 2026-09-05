@@ -15,6 +15,7 @@ describe("ProfileWorkspaceNavigation", () => {
       "people",
       "maps",
       "advanced_analytics",
+      "implementation",
     ]);
     const baseAccess = {
       enabledModuleIds,
@@ -27,6 +28,7 @@ describe("ProfileWorkspaceNavigation", () => {
       catalogAccess: true,
       teamAccess: true,
       billingAccess: true,
+      implementationAccess: true,
     };
 
     expect(
@@ -45,6 +47,7 @@ describe("ProfileWorkspaceNavigation", () => {
       catalog: false,
       team: false,
       billing: false,
+      implementation: false,
     });
 
     expect(
@@ -54,12 +57,22 @@ describe("ProfileWorkspaceNavigation", () => {
         featureSurveys: false,
       }).participation,
     ).toBe(false);
+
+    expect(
+      resolveProfileWorkspaceCapabilities({
+        ...baseAccess,
+        enabledModuleIds: new Set([...enabledModuleIds].filter((id) => id !== "implementation")),
+        status: "ready",
+        featureSurveys: true,
+      }).implementation,
+    ).toBe(false);
   });
 
   it("groups the CRM modules by operational domain and keeps the active context visible", () => {
     const onTabChange = vi.fn();
     const onOpenSurveys = vi.fn();
     const onOpenPlan = vi.fn();
+    const onOpenImplementation = vi.fn();
 
     render(
       <ProfileWorkspaceNavigation
@@ -74,8 +87,10 @@ describe("ProfileWorkspaceNavigation", () => {
           catalog: true,
           team: true,
           billing: true,
+          implementation: true,
         }}
         isMunicipal
+        onOpenImplementation={onOpenImplementation}
         onOpenPlan={onOpenPlan}
         onOpenSurveys={onOpenSurveys}
         onTabChange={onTabChange}
@@ -99,6 +114,10 @@ describe("ProfileWorkspaceNavigation", () => {
     expect(onOpenSurveys).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Implementación y salida/i }));
+    expect(onOpenImplementation).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitem", { name: /Planes y facturación/i }));
     expect(onOpenPlan).toHaveBeenCalledTimes(1);
   });
@@ -117,6 +136,7 @@ describe("ProfileWorkspaceNavigation", () => {
           catalog: true,
           team: false,
           billing: false,
+          implementation: false,
         }}
         isMunicipal
         onOpenPlan={vi.fn()}
@@ -131,6 +151,7 @@ describe("ProfileWorkspaceNavigation", () => {
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     expect(screen.queryByRole("menuitem", { name: /Equipo y permisos/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Implementación y salida/i })).not.toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Inteligencia" }), { key: "Enter" });
@@ -152,6 +173,7 @@ describe("ProfileWorkspaceNavigation", () => {
           catalog: false,
           team: false,
           billing: false,
+          implementation: false,
         }}
         isMunicipal
         onOpenPlan={vi.fn()}
@@ -178,6 +200,7 @@ describe("ProfileWorkspaceNavigation", () => {
           catalog: false,
           team: false,
           billing: true,
+          implementation: false,
         }}
         isMunicipal
         onOpenPlan={vi.fn()}
@@ -209,6 +232,7 @@ describe("ProfileWorkspaceNavigation", () => {
           catalog: false,
           team: false,
           billing: true,
+          implementation: false,
         }}
         isMunicipal
         onOpenInstitutionProfile={onOpenInstitutionProfile}

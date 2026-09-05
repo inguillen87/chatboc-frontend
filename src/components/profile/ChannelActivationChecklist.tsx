@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Accessibility,
   AlertTriangle,
   ArrowRight,
   BarChart3,
@@ -8,13 +9,16 @@ import {
   FileCheck2,
   Headphones,
   Lock,
+  MapPinned,
   MessageCircle,
+  Palette,
   RefreshCw,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   TicketCheck,
   UserCog,
+  Vote,
   Wifi,
 } from 'lucide-react';
 
@@ -40,6 +44,12 @@ const channelIcons: Record<string, React.ComponentType<{ className?: string }>> 
   team_routing: UserCog,
   live_chat: Headphones,
   analytics_surveys: BarChart3,
+  branding: Palette,
+  institutional_branding: Palette,
+  accessibility: Accessibility,
+  territory: MapPinned,
+  territorial_intelligence: MapPinned,
+  surveys: Vote,
 };
 
 const statusLabels: Record<string, string> = {
@@ -52,12 +62,12 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusClasses: Record<string, string> = {
-  ready: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-  action_required: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
-  pending: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-  locked: 'border-slate-500/30 bg-slate-500/10 text-slate-200',
-  blocked: 'border-red-500/30 bg-red-500/10 text-red-200',
-  needs_attention: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  ready: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+  action_required: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200',
+  pending: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+  locked: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-200',
+  blocked: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200',
+  needs_attention: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200',
 };
 
 const statusIcon = (channel: ChannelActivationChannel) => {
@@ -159,10 +169,10 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               </Badge>
             ) : null}
           </div>
-          <h2 className="mt-3 text-xl font-bold tracking-tight sm:text-2xl">Activacion de canales</h2>
+          <h2 className="mt-3 text-xl font-bold tracking-tight sm:text-2xl">Implementación operativa</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            Estado real de WhatsApp, widget, plantillas, CRM, catalogo, atencion humana y analitica para que el equipo
-            sepa que falta antes de salir a produccion.
+            Estado real de identidad institucional, accesibilidad, territorio, WhatsApp, widget, plantillas, CRM,
+            atención humana y analítica para saber qué falta antes de salir a producción.
           </p>
           {error ? (
             <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
@@ -176,7 +186,11 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             <span className="text-sm font-semibold text-slate-200">{data?.summary?.health_label || 'Activacion en progreso'}</span>
             <span className="text-2xl font-black text-white">{progress}%</span>
           </div>
-          <Progress value={progress} className="mt-3 h-2 bg-slate-800" />
+          <Progress
+            value={progress}
+            className="mt-3 h-2 bg-slate-800"
+            aria-label="Progreso de implementación"
+          />
           <p className="mt-3 text-sm text-slate-300">
             {hasChannels ? `${ready} de ${total || channels.length} frentes listos.` : 'Esperando sincronizacion del backend.'}
           </p>
@@ -214,8 +228,8 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               <div className="min-w-0">
                 <h3 className="text-sm font-bold text-foreground">Sincronizacion pendiente</h3>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Cuando el backend tenga el contrato disponible, aca vas a ver WhatsApp, widget, plantillas, catalogo,
-                  atencion humana y analitica con sus acciones concretas.
+                  Cuando el backend tenga el contrato disponible, acá vas a ver identidad, accesibilidad, territorio,
+                  canales, operación y analítica con sus acciones concretas.
                 </p>
               </div>
             </div>

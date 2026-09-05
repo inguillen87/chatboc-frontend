@@ -100,6 +100,9 @@ const AdminOrderDetailPage = React.lazy(() => import('@/pages/admin/AdminOrderDe
 const ClientsPage = React.lazy(() => import('@/pages/pyme/crm/ClientsPage'));
 const ClientDetailPage = React.lazy(() => import('@/pages/pyme/crm/ClientDetailPage'));
 const EnterpriseOpsPage = React.lazy(() => import('@/pages/EnterpriseOpsPage'));
+const TenantImplementationCenterPage = React.lazy(
+  () => import('@/pages/TenantImplementationCenterPage'),
+);
 const EducationPublicPage = React.lazy(() => import('@/pages/education/EducationPublicPage'));
 const EducationFamilyHomePage = React.lazy(() => import('@/pages/education/EducationFamilyHomePage'));
 const EducationStaffInboxPage = React.lazy(() => import('@/pages/education/EducationStaffInboxPage'));
@@ -554,6 +557,12 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
   { path: '/perfil', element: <Perfil />, requiresSession: true },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  {
+    path: '/implementacion',
+    element: <TenantImplementationCenterPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
   { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace />, requiresSession: true },
   { path: '/chat', element: <ChatPage /> },
