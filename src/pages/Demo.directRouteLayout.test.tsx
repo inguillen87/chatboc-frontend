@@ -75,6 +75,47 @@ describe('Demo direct-route layout stability', () => {
     vi.clearAllMocks();
   });
 
+  it('hydrates a landing-created session without racing back to the generic selector', async () => {
+    demoApiMocks.getDemoCatalog.mockResolvedValue(catalog);
+    demoApiMocks.createDemoSession.mockResolvedValue({});
+    demoApiMocks.getDemoAdminPreview.mockResolvedValue(preview);
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/demo',
+            search: '?session=sid_landing_colegio',
+            state: {
+              demoSession: {
+                chat_session_id: 'sid_landing_colegio',
+                tenant_slug: 'colegio-demo',
+                workspace: {
+                  title: 'Demo Workspace',
+                  chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+                },
+              },
+              sector: 'educacion',
+              rubroLabel: 'Colegios',
+              rubroSlug: 'educacion',
+            },
+          },
+        ]}
+      >
+        <Demo />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'ready');
+      expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-sector', 'educacion');
+    });
+    expect(screen.queryByTestId('demo-sector-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('demo-rubro-selector')).not.toBeInTheDocument();
+    expect(demoApiMocks.getDemoCatalog).not.toHaveBeenCalled();
+    expect(demoApiMocks.createDemoSession).not.toHaveBeenCalled();
+  });
+
   it('keeps the workspace shell stable and reloads the admin preview with a persisted selection', async () => {
     let resolveSession!: (value: unknown) => void;
     let resolvePreview!: (value: unknown) => void;

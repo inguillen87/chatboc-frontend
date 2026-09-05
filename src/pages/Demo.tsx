@@ -2126,7 +2126,11 @@ const Demo = () => {
 
   // Load rubros and handle initial welcome message
   useEffect(() => {
-    if (initialDemoLoadRef.current) return;
+    // A session created on the landing already carries the selected scope and
+    // workspace in router state. The hydration effect above owns that path;
+    // starting the generic catalog restore in the same commit would race it
+    // and send the visitor back to the selector after the URL had advanced.
+    if (initialDemoLoadRef.current || hydratedSessionRef.current) return;
     initialDemoLoadRef.current = true;
 
     const hasExplicitSelection = hasExplicitDemoSelectionQuery(location.search);

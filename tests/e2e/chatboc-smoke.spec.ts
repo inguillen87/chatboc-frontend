@@ -181,6 +181,18 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
   });
 };
 
+const openExecutiveConversation = async (page: import('@playwright/test').Page) => {
+  const journey = page.getByRole('navigation', { name: 'Vistas de la demo ejecutiva' });
+  const overview = journey.getByRole('button', { name: 'Resumen', exact: true });
+  const attention = journey.getByRole('button', { name: 'Atención', exact: true });
+
+  await expect(page.getByRole('heading', { name: 'Centro de gestión ciudadana' })).toBeVisible();
+  await expect(overview).toHaveAttribute('aria-current', 'page');
+  await attention.click();
+  await expect(attention).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#demo-conversation-workspace')).toBeVisible();
+};
+
 test.describe('Chatboc smoke e2e', () => {
   test.beforeEach(async ({ page }) => {
     await mockCommonApis(page);
@@ -217,10 +229,11 @@ test.describe('Chatboc smoke e2e', () => {
     await page.getByRole('button', { name: /Colegios/i }).click();
     await page.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
+    await openExecutiveConversation(page);
     await expect(page.getByText('Demo Workspace', { exact: true })).toBeVisible();
     await expect(page.getByText('Recorrido listo para probar.', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Mensaje' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Rubro: Colegios/i })).toBeVisible();
+    await expect(page.getByText('Ámbito: Colegio demo', { exact: true })).toBeVisible();
     expect(catalogRequests).toHaveLength(1);
   });
 
@@ -237,7 +250,12 @@ test.describe('Chatboc smoke e2e', () => {
     await showcase.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
     await expect(page).toHaveURL(/\/demo\?session=/);
-    await expect(page.getByRole('heading', { name: /Elegi una operacion real para probar/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Centro de gestión ciudadana' })).toBeVisible();
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Vistas de la demo ejecutiva' })
+        .getByRole('button', { name: 'Resumen', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
     expect(catalogRequests).toHaveLength(1);
   });
 
@@ -350,8 +368,10 @@ test.describe('Chatboc smoke e2e', () => {
     await page.goto('/demo');
     await page.getByRole('button', { name: /Colegios/i }).click();
     await page.getByRole('button', { name: /Iniciar demo colegio/i }).click();
-    await page.getByPlaceholder(/Escrib/i).last().fill('Necesito justificar una inasistencia');
-    await page.getByRole('button', { name: /^Enviar$/i }).click();
+    await openExecutiveConversation(page);
+    const conversation = page.locator('#demo-conversation-workspace');
+    await conversation.getByPlaceholder(/Escrib/i).last().fill('Necesito justificar una inasistencia');
+    await conversation.getByRole('button', { name: /^Enviar$/i }).click();
 
     await expect(page.getByText(/No pudimos enviar la consulta a la demo real/i)).toBeVisible();
     await expect(page.getByText(/Error 404/i)).toHaveCount(0);
