@@ -15,6 +15,15 @@ const blueprintApi = vi.hoisted(() => ({
 
 vi.mock('@/api/v2/tenantBlueprints', () => blueprintApi);
 
+const governmentLaunchApi = vi.hoisted(() => ({
+  previewGovernmentMesaUnicaLaunch: vi.fn(),
+  applyGovernmentMesaUnicaLaunch: vi.fn(),
+}));
+
+vi.mock('@/api/v2/governmentLaunch', () => governmentLaunchApi);
+
+const channelChecklist = vi.hoisted(() => ({ render: vi.fn() }));
+
 const blueprintDigest = 'a'.repeat(64);
 const requestDigest = 'b'.repeat(64);
 const configurationDigest = 'c'.repeat(64);
@@ -123,19 +132,88 @@ vi.mock('@/hooks/useUser', () => ({
 }));
 
 vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
-  default: ({ tenantSlug, initialData, highlighted, presentation, returnTo }: any) => (
-    <div
-      data-testid="channel-activation-checklist"
-      data-tenant-slug={tenantSlug || ''}
-      data-initial-tenant={initialData?.tenant?.slug || ''}
-      data-highlighted={highlighted ? 'true' : 'false'}
-      data-presentation={presentation || ''}
-      data-return-to={returnTo || ''}
-    >
-      Contrato de implementación
-    </div>
-  ),
+  default: (props: any) => {
+    channelChecklist.render(props);
+    return (
+      <div
+        data-testid="channel-activation-checklist"
+        data-tenant-slug={props.tenantSlug || ''}
+        data-initial-tenant={props.initialData?.tenant?.slug || ''}
+        data-highlighted={props.highlighted ? 'true' : 'false'}
+        data-presentation={props.presentation || ''}
+        data-return-to={props.returnTo || ''}
+      >
+        Contrato de implementación
+      </div>
+    );
+  },
 }));
+
+const governmentLaunchDigest = 'd'.repeat(64);
+const governmentLaunchPreview = {
+  contract_version: 'tenant.blueprint.launch.preview.v1',
+  tenant: blueprintTenant,
+  blueprint: {
+    id: 'government-core',
+    version: blueprintMetadata.version,
+    manifest_digest: blueprintDigest,
+    application_receipt_id: blueprintReceipt.id,
+  },
+  launch: {
+    id: 'mesa-unica',
+    label: 'Mesa Única',
+    description: 'Prepara categorías operativas.',
+    source_path: 'configuration_defaults.ticket_categories',
+    runtime_scope: ['ticket_categories'],
+  },
+  launch_digest: governmentLaunchDigest,
+  changes: {
+    to_create: [{ name: 'Baches', canonical_name: 'baches', type: 'ticket' }],
+    already_present: [],
+    conflicts: [],
+    summary: { desired: 1, existing: 0, create: 1, preserve: 0, conflict: 0 },
+  },
+  write_performed: false,
+  runtime_activation_performed: false,
+  operational_defaults_materialized: false,
+  provider_activation_performed: false,
+  external_calls_performed: false,
+  demo_data_created: false,
+};
+const governmentLaunchApply = {
+  contract_version: 'tenant.blueprint.launch.apply.v1',
+  receipt: {
+    id: 'launch-receipt-1',
+    contract_version: 'tenant.blueprint.launch.receipt.v1',
+    tenant_id: blueprintTenant.id,
+    blueprint_application_id: blueprintReceipt.id,
+    blueprint_id: 'government-core',
+    blueprint_version: blueprintMetadata.version,
+    launch_id: 'mesa-unica',
+    manifest_digest: blueprintDigest,
+    launch_digest: governmentLaunchDigest,
+    request_digest: requestDigest,
+    status: 'applied',
+    application_snapshot: {},
+    applied_by_user_id: 7,
+    created_at: '2026-09-05T12:00:00Z',
+  },
+  launch_digest: governmentLaunchDigest,
+  changes: {
+    created: [{ id: 18, name: 'Baches', type: 'ticket' }],
+    already_present: [],
+    conflicts: [],
+    summary: { desired: 1, created: 1, preserved: 0, conflict: 0 },
+  },
+  replayed: false,
+  write_performed: true,
+  runtime_activation_performed: false,
+  runtime_activation_scope: ['ticket_categories'],
+  operational_defaults_materialized: true,
+  provider_activation_performed: false,
+  external_calls_performed: false,
+  demo_data_created: false,
+};
 
 const renderPage = (entry = '/implementacion') => render(
   <MemoryRouter initialEntries={[entry]}>
@@ -167,6 +245,9 @@ describe('TenantImplementationCenterPage', () => {
     blueprintApi.getTenantBlueprint.mockReset().mockResolvedValue(blueprintDetail);
     blueprintApi.previewTenantBlueprint.mockReset().mockResolvedValue(blueprintPreview);
     blueprintApi.applyTenantBlueprint.mockReset().mockResolvedValue(blueprintApply);
+    governmentLaunchApi.previewGovernmentMesaUnicaLaunch.mockReset().mockResolvedValue(governmentLaunchPreview);
+    governmentLaunchApi.applyGovernmentMesaUnicaLaunch.mockReset().mockResolvedValue(governmentLaunchApply);
+    channelChecklist.render.mockClear();
   });
 
   it('uses the authorized tenant contract without inventing readiness', async () => {
@@ -186,6 +267,7 @@ describe('TenantImplementationCenterPage', () => {
     expect(screen.getByText(/no habilita módulos, proveedores, whatsapp ni ejecución/i)).toBeInTheDocument();
     expect(screen.getByText('Mesa única')).toBeInTheDocument();
     expect(screen.getAllByText('Pendiente')).toHaveLength(2);
+    expect(screen.queryByTestId('government-mesa-unica-launch')).not.toBeInTheDocument();
   });
 
   it('does not reuse a session snapshot from another tenant', async () => {
@@ -287,6 +369,31 @@ describe('TenantImplementationCenterPage', () => {
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute('open');
     expect(screen.getByText('Mesa única')).toBeInTheDocument();
+    expect(screen.getByTestId('government-mesa-unica-launch')).toBeInTheDocument();
+  });
+
+  it('refreshes blueprint and channel journey after a confirmed government launch', async () => {
+    pageState.user.rol = 'superadmin';
+    blueprintApi.getTenantBlueprint.mockResolvedValue({
+      ...blueprintDetail,
+      application_receipt: blueprintReceipt,
+    });
+
+    renderPage('/implementacion?tenant_slug=gobierno-demo');
+    expect(await screen.findByTestId('government-mesa-unica-launch')).toBeInTheDocument();
+    const channelRendersBeforeApply = channelChecklist.render.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: /previsualizar preparación/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /aplicar preparación/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar y preparar/i }));
+
+    expect(await screen.findByText(/categorías operativas preparadas/i)).toBeInTheDocument();
+    await waitFor(() => expect(blueprintApi.getTenantBlueprint).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(channelChecklist.render.mock.calls.length).toBeGreaterThan(channelRendersBeforeApply));
+    expect(governmentLaunchApi.applyGovernmentMesaUnicaLaunch).toHaveBeenCalledWith(expect.objectContaining({
+      tenantSlug: 'gobierno-demo',
+      launchDigest: governmentLaunchDigest,
+      idempotencyKey: expect.stringMatching(/^government-launch:/),
+    }));
   });
 
   it('reuses the same idempotency key after an uncertain apply error', async () => {

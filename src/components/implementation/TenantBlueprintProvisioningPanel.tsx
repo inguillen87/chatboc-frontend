@@ -59,6 +59,7 @@ const isUncertainApplyError = (error: unknown) =>
   error instanceof NetworkError || !(error instanceof ApiError) || error.status >= 500;
 
 const normalizeScopeTenant = (value: string) => value.trim().toLowerCase();
+const GOVERNMENT_CORE_BLUEPRINT_ID = 'government-core';
 
 const createIdempotencyKey = () => {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -74,6 +75,8 @@ interface TenantBlueprintProvisioningPanelProps {
   tenantSlug: string;
   canApply: boolean;
   compactWhenApplied?: boolean;
+  refreshRevision?: number;
+  onApplicationStateChange?: (applied: boolean, blueprintId: string) => void;
   onApplied?: () => void;
 }
 
@@ -88,12 +91,15 @@ interface BlueprintWorkflowScope {
   blueprintVersion: string;
   manifestDigest: string;
   reloadRevision: number;
+  refreshRevision: number;
 }
 
 const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvisioningPanelContentProps> = ({
   tenantSlug,
   canApply,
   compactWhenApplied = false,
+  refreshRevision = 0,
+  onApplicationStateChange,
   onApplied,
   applyAction,
 }) => {
@@ -124,6 +130,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     && loadedScope.tenantId === String(detail.tenant.id)
     && loadedScope.blueprintVersion === detail.blueprint.version
     && loadedScope.manifestDigest === detail.blueprint.manifest_digest
+    && loadedScope.refreshRevision === refreshRevision
       ? loadedScope
       : null;
 
@@ -136,7 +143,8 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
       && active.tenantId === scope.tenantId
       && active.blueprintVersion === scope.blueprintVersion
       && active.manifestDigest === scope.manifestDigest
-      && active.reloadRevision === scope.reloadRevision,
+      && active.reloadRevision === scope.reloadRevision
+      && active.refreshRevision === scope.refreshRevision,
     );
   };
 
@@ -161,10 +169,15 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
       .then((response) => {
         if (cancelled) return;
         setCatalog(response);
-        setSelectedBlueprintId(response.blueprints[0]?.id || null);
+        const governmentCore = response.blueprints.find(
+          (blueprint) => blueprint.id === GOVERNMENT_CORE_BLUEPRINT_ID,
+        );
+        setSelectedBlueprintId(governmentCore?.id || response.blueprints[0]?.id || null);
+        if (!governmentCore) onApplicationStateChange?.(false, GOVERNMENT_CORE_BLUEPRINT_ID);
       })
       .catch((error) => {
         if (cancelled) return;
+        onApplicationStateChange?.(false, GOVERNMENT_CORE_BLUEPRINT_ID);
         setLoadError(safeErrorMessage(
           error,
           'No pudimos cargar las configuraciones base. Reintentá cuando el servicio esté disponible.',
@@ -177,7 +190,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     return () => {
       cancelled = true;
     };
-  }, [reloadRevision, tenantSlug]);
+  }, [onApplicationStateChange, refreshRevision, reloadRevision, tenantSlug]);
 
   React.useEffect(() => {
     if (!selectedBlueprintId) return;
@@ -205,11 +218,14 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
           blueprintVersion: response.blueprint.version,
           manifestDigest: response.blueprint.manifest_digest,
           reloadRevision,
+          refreshRevision,
         };
         setDetail(response);
+        onApplicationStateChange?.(Boolean(response.application_receipt), response.blueprint.id);
       })
       .catch((error) => {
         if (cancelled) return;
+        onApplicationStateChange?.(false, selectedBlueprintId);
         setLoadError(safeErrorMessage(
           error,
           'No pudimos validar esta configuración para la organización seleccionada.',
@@ -222,7 +238,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     return () => {
       cancelled = true;
     };
-  }, [reloadRevision, selectedBlueprintId, tenantSlug]);
+  }, [onApplicationStateChange, refreshRevision, reloadRevision, selectedBlueprintId, tenantSlug]);
 
   const runPreview = async () => {
     const scope = activeWorkflowRef.current;
@@ -328,10 +344,11 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
       if (!workflowIsCurrent(scope)) return;
       setApplyResult(response);
       setDetail((current) => current ? { ...current, application_receipt: response.receipt } : current);
+      onApplicationStateChange?.(true, scope.blueprintId);
       applyAttemptRef.current = null;
       setConfirmOpen(false);
-      onApplied?.();
       await refreshAfterApply(scope);
+      onApplied?.();
     } catch (error) {
       if (!workflowIsCurrent(scope)) return;
       const stepUpMessage = resolveClerkStepUpErrorMessage(error);

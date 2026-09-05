@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
+import GovernmentMesaUnicaLaunchPanel from '@/components/implementation/GovernmentMesaUnicaLaunchPanel';
 import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,8 @@ const TenantImplementationCenterPage = () => {
   const { currentSlug, tenant } = useTenant();
   const { user, loading } = useUser();
   const [activationRevision, setActivationRevision] = React.useState(0);
+  const [blueprintRefreshRevision, setBlueprintRefreshRevision] = React.useState(0);
+  const [blueprintApplied, setBlueprintApplied] = React.useState(false);
 
   const explicitTenantRequest = React.useMemo(
     () => readExplicitTenantRequest(searchParams),
@@ -54,6 +57,17 @@ const TenantImplementationCenterPage = () => {
   const handleBlueprintApplied = React.useCallback(() => {
     setActivationRevision((value) => value + 1);
   }, []);
+  const handleGovernmentLaunchApplied = React.useCallback(() => {
+    setBlueprintRefreshRevision((value) => value + 1);
+    setActivationRevision((value) => value + 1);
+  }, []);
+  const handleBlueprintApplicationStateChange = React.useCallback((applied: boolean, blueprintId: string) => {
+    if (blueprintId === 'government-core') setBlueprintApplied(applied);
+  }, []);
+
+  React.useEffect(() => {
+    setBlueprintApplied(false);
+  }, [tenantSlug]);
 
   if (loading && !tenantSlug && !requestIsInvalid) {
     return (
@@ -127,8 +141,18 @@ const TenantImplementationCenterPage = () => {
         tenantSlug={tenantSlug}
         canApply={canApplyBlueprint}
         compactWhenApplied
+        refreshRevision={blueprintRefreshRevision}
+        onApplicationStateChange={handleBlueprintApplicationStateChange}
         onApplied={handleBlueprintApplied}
       />
+
+      {blueprintApplied ? (
+        <GovernmentMesaUnicaLaunchPanel
+          tenantSlug={tenantSlug}
+          canApply={canApplyBlueprint}
+          onApplied={handleGovernmentLaunchApplied}
+        />
+      ) : null}
 
       <div data-testid="implementation-tenant-scope" data-tenant-slug={tenantSlug}>
         <ChannelActivationChecklist
