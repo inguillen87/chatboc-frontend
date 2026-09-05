@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
+import GovernmentJurisdictionReadinessPanel from '@/components/implementation/GovernmentJurisdictionReadinessPanel';
 import GovernmentMesaUnicaLaunchPanel from '@/components/implementation/GovernmentMesaUnicaLaunchPanel';
 import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
@@ -53,7 +54,10 @@ const TenantImplementationCenterPage = () => {
   const implementationReturnTo = tenantSlug
     ? `/implementacion?tenant_slug=${encodeURIComponent(tenantSlug)}`
     : '/implementacion';
-  const canApplyBlueprint = normalizeRole(user?.rol || user?.role) === 'superadmin';
+  const normalizedUserRole = normalizeRole(user?.rol || user?.role);
+  const canApplyBlueprint = normalizedUserRole === 'superadmin';
+  const canSubmitJurisdictionEvidence = normalizedUserRole === 'tenant_admin';
+  const canReviewJurisdictionEvidence = normalizedUserRole === 'superadmin';
   const handleBlueprintApplied = React.useCallback(() => {
     setActivationRevision((value) => value + 1);
   }, []);
@@ -147,11 +151,18 @@ const TenantImplementationCenterPage = () => {
       />
 
       {blueprintApplied ? (
-        <GovernmentMesaUnicaLaunchPanel
-          tenantSlug={tenantSlug}
-          canApply={canApplyBlueprint}
-          onApplied={handleGovernmentLaunchApplied}
-        />
+        <>
+          <GovernmentMesaUnicaLaunchPanel
+            tenantSlug={tenantSlug}
+            canApply={canApplyBlueprint}
+            onApplied={handleGovernmentLaunchApplied}
+          />
+          <GovernmentJurisdictionReadinessPanel
+            tenantSlug={tenantSlug}
+            canSubmitEvidence={canSubmitJurisdictionEvidence}
+            canReview={canReviewJurisdictionEvidence}
+          />
+        </>
       ) : null}
 
       <div data-testid="implementation-tenant-scope" data-tenant-slug={tenantSlug}>

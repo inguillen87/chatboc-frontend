@@ -23,6 +23,7 @@ const governmentLaunchApi = vi.hoisted(() => ({
 vi.mock('@/api/v2/governmentLaunch', () => governmentLaunchApi);
 
 const channelChecklist = vi.hoisted(() => ({ render: vi.fn() }));
+const jurisdictionPanel = vi.hoisted(() => ({ render: vi.fn() }));
 
 const blueprintDigest = 'a'.repeat(64);
 const requestDigest = 'b'.repeat(64);
@@ -149,6 +150,22 @@ vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
   },
 }));
 
+vi.mock('@/components/implementation/GovernmentJurisdictionReadinessPanel', () => ({
+  default: (props: any) => {
+    jurisdictionPanel.render(props);
+    return (
+      <div
+        data-testid="government-jurisdiction-readiness"
+        data-tenant-slug={props.tenantSlug || ''}
+        data-can-submit={props.canSubmitEvidence ? 'true' : 'false'}
+        data-can-review={props.canReview ? 'true' : 'false'}
+      >
+        Alcance institucional
+      </div>
+    );
+  },
+}));
+
 const governmentLaunchDigest = 'd'.repeat(64);
 const governmentLaunchPreview = {
   contract_version: 'tenant.blueprint.launch.preview.v1',
@@ -248,6 +265,7 @@ describe('TenantImplementationCenterPage', () => {
     governmentLaunchApi.previewGovernmentMesaUnicaLaunch.mockReset().mockResolvedValue(governmentLaunchPreview);
     governmentLaunchApi.applyGovernmentMesaUnicaLaunch.mockReset().mockResolvedValue(governmentLaunchApply);
     channelChecklist.render.mockClear();
+    jurisdictionPanel.render.mockClear();
   });
 
   it('uses the authorized tenant contract without inventing readiness', async () => {
@@ -370,6 +388,33 @@ describe('TenantImplementationCenterPage', () => {
     expect(details).not.toHaveAttribute('open');
     expect(screen.getByText('Mesa única')).toBeInTheDocument();
     expect(screen.getByTestId('government-mesa-unica-launch')).toBeInTheDocument();
+    expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-tenant-slug', 'gobierno-demo');
+    expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-can-submit', 'true');
+    expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-can-review', 'false');
+  });
+
+  it('keeps tenant submission and platform review as separate role-bound actions', async () => {
+    blueprintApi.getTenantBlueprint.mockResolvedValue({
+      ...blueprintDetail,
+      application_receipt: blueprintReceipt,
+    });
+
+    const view = renderPage('/implementacion?tenant_slug=gobierno-demo');
+    const tenantPanel = await screen.findByTestId('government-jurisdiction-readiness');
+    expect(tenantPanel).toHaveAttribute('data-can-submit', 'true');
+    expect(tenantPanel).toHaveAttribute('data-can-review', 'false');
+
+    pageState.user.rol = 'superadmin';
+    view.rerender(
+      <MemoryRouter initialEntries={['/implementacion?tenant_slug=gobierno-demo']}>
+        <TenantImplementationCenterPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-can-submit', 'false');
+      expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-can-review', 'true');
+    });
   });
 
   it('refreshes blueprint and channel journey after a confirmed government launch', async () => {
