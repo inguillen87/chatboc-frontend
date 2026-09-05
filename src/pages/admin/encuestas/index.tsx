@@ -36,6 +36,10 @@ import {
 import { resolveSurveyPublicationFailure, type SurveyPublicationFailure } from '@/utils/surveyPublicationError';
 import { resolveSurveyJurisdictionScope } from '@/utils/surveyJurisdictionScope';
 import { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
+import {
+  getSurveyGovernanceWorkspacePath,
+  isGovernedSurvey,
+} from '@/utils/surveyPublicationLifecycle';
 export { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
 
 type SurveyFocusMode = 'live' | 'comments' | null;
@@ -229,6 +233,10 @@ const AdminSurveysIndex = () => {
   const [kindFilter, setKindFilter] = useState<SurveyWorkspaceKindFilter>('all');
 
   const handlePublish = async (survey: SurveyAdmin) => {
+    if (isGovernedSurvey(survey)) {
+      navigate(getSurveyGovernanceWorkspacePath(survey.id));
+      return;
+    }
     try {
       setPublishingId(survey.id);
       setPublishFailure(null);
@@ -638,9 +646,15 @@ const AdminSurveysIndex = () => {
                       variant="outline"
                       size="sm"
                       className="mt-3"
-                      onClick={() => navigate(`/admin/encuestas/${survey.id}`)}
+                      onClick={() => navigate(
+                        publishFailure.action === 'governance'
+                          ? getSurveyGovernanceWorkspacePath(survey.id)
+                          : `/admin/encuestas/${survey.id}`,
+                      )}
                     >
-                      Revisar configuración
+                      {publishFailure.action === 'governance'
+                        ? 'Revisar y publicar release'
+                        : 'Revisar configuración'}
                     </Button>
                   ) : null}
                 </div>
@@ -668,6 +682,11 @@ const AdminSurveysIndex = () => {
                 onPublish={
                   survey.admin_lifecycle?.capabilities.can_publish && resolveSurveyPublicationEvidenceGate(survey).ready
                     ? () => handlePublish(survey)
+                    : undefined
+                }
+                onManageGovernance={
+                  isGovernedSurvey(survey)
+                    ? () => navigate(getSurveyGovernanceWorkspacePath(survey.id))
                     : undefined
                 }
                 publishing={isPublishing && publishingId === survey.id}

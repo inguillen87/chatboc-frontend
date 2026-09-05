@@ -15,6 +15,10 @@ import { ApiError, getErrorMessage } from '@/utils/api';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
 import { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
 import {
+  getSurveyGovernanceWorkspacePath,
+  isGovernedSurvey,
+} from '@/utils/surveyPublicationLifecycle';
+import {
   SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
   isSurveyResponseDuplicateError,
@@ -67,6 +71,10 @@ const SurveyDetailPage = () => {
   };
 
   const handlePublish = async () => {
+    if (survey && isGovernedSurvey(survey)) {
+      navigate(getSurveyGovernanceWorkspacePath(survey.id));
+      return;
+    }
     if (!publicationGate?.ready) {
       toast({
         title: 'Publicación institucional pendiente',
@@ -146,9 +154,20 @@ const SurveyDetailPage = () => {
     'Podes corregir textos, fechas y configuracion. Para cambiar preguntas u opciones, crea una nueva version editable.';
   const isDraft = survey.admin_lifecycle?.phase === 'draft' ||
     (!survey.admin_lifecycle && survey.estado === 'borrador');
+  const governedSurvey = isGovernedSurvey(survey);
+  const governanceWorkspace = (
+    <section
+      id="survey-governance"
+      aria-label="Revisión y release de publicación"
+      className="scroll-mt-6"
+    >
+      <SurveyGovernancePanel surveyId={survey.id} tenantSlug={tenantSlug} />
+    </section>
+  );
 
   return (
     <div className="space-y-6">
+      {governedSurvey ? governanceWorkspace : null}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="space-y-1">
@@ -207,14 +226,18 @@ const SurveyDetailPage = () => {
             survey={survey}
             tenantSlug={tenantSlug}
             onSave={handleSave}
-            onPublish={survey.admin_lifecycle?.capabilities.can_publish && publicationGate?.ready ? handlePublish : undefined}
+            onPublish={
+              !governedSurvey && survey.admin_lifecycle?.capabilities.can_publish && publicationGate?.ready
+                ? handlePublish
+                : undefined
+            }
             isSaving={isSaving}
             isPublishing={isPublishing}
             structureLocked={structureLocked}
           />
         </CardContent>
       </Card>
-      <SurveyGovernancePanel surveyId={survey.id} tenantSlug={tenantSlug} />
+      {!governedSurvey ? governanceWorkspace : null}
       <SurveyEligibilityAdminPanel surveyId={survey.id} tenantSlug={tenantSlug} />
       <div className="text-sm text-muted-foreground">
         <button className="underline" onClick={() => navigate('/admin/encuestas')}>

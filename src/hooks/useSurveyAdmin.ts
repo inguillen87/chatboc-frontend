@@ -8,7 +8,6 @@ import {
   adminDuplicateSurvey,
   adminGetSurvey,
   adminListSurveys,
-  adminPublishSurvey,
   adminSeedSurvey,
   adminUpdateSurvey,
 } from '@/api/encuestas';
@@ -24,6 +23,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { queryKeys } from '@/lib/queryKeys';
 import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuard';
+import { publishSurveyV2 } from '@/features/surveys/surveysApi';
 
 interface UseSurveyAdminOptions {
   id?: number | null;
@@ -49,7 +49,7 @@ interface UseSurveyAdminResult {
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   duplicateSurvey: (id?: number, payload?: { titulo?: string; slug?: string }) => Promise<SurveyAdmin>;
-  publishSurvey: (id?: number) => Promise<SurveyAdmin>;
+  publishSurvey: (id?: number) => Promise<void>;
   closeSurvey: (id?: number) => Promise<SurveyAdmin>;
   seedSurvey: (
     id: number,
@@ -244,11 +244,13 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     mutationFn: async (payload?: { id?: number }) => {
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
-      const published = await adminPublishSurvey(targetId, requireAdminRequestOptions());
-      queryClient.setQueryData(queryKeys.surveys.admin(targetId, tenantSlug), published);
+      if (!tenantSlug) throw new Error('survey_admin_tenant_required');
+      const published = await publishSurveyV2(targetId, tenantSlug);
+      if (!published || published.id !== String(targetId)) {
+        throw new Error('No pudimos verificar la confirmación de publicación del servidor. Actualizá el listado antes de reintentar.');
+      }
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId, tenantSlug) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
-      return published;
     },
   });
 

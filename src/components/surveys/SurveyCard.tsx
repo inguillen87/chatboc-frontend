@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, CalendarDays, ChevronDown, Edit, LinkIcon, Send, Trash2 } from 'lucide-react';
+import { BarChart3, CalendarDays, ChevronDown, Edit, LinkIcon, Send, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SeedButton } from '@/components/surveys/SeedButton';
@@ -19,6 +19,7 @@ import {
 import type { SurveyAdmin } from '@/types/encuestas';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
+import { isGovernedSurvey } from '@/utils/surveyPublicationLifecycle';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -26,6 +27,7 @@ interface SurveyCardProps {
   onEdit: () => void;
   onAnalytics: () => void;
   onPublish?: () => void;
+  onManageGovernance?: () => void;
   publishing?: boolean;
   onClose?: () => Promise<void> | void;
   closing?: boolean;
@@ -73,7 +75,15 @@ const phaseLabels: Record<string, string> = {
   unknown: 'Estado no disponible',
 };
 
-const getPublishDisabledMessage = (reasonCode: string | null | undefined, status: SurveyAdmin['estado']) => {
+const getPublishDisabledMessage = (
+  reasonCode: string | null | undefined,
+  status: SurveyAdmin['estado'],
+  nextAction?: string | null,
+) => {
+  const declaredNextAction = nextAction?.trim();
+  if (declaredNextAction && !/^[a-z0-9_:-]+$/i.test(declaredNextAction)) {
+    return declaredNextAction;
+  }
   switch (reasonCode) {
     case 'survey_questions_required':
       return 'Agregá al menos una pregunta antes de publicar.';
@@ -107,6 +117,7 @@ export const SurveyCard = ({
   onEdit,
   onAnalytics,
   onPublish,
+  onManageGovernance,
   publishing,
   onClose,
   closing,
@@ -143,11 +154,22 @@ export const SurveyCard = ({
   const opensAt = lifecycle?.schedule.opens_at ?? survey.inicio_at;
   const closesAt = lifecycle?.schedule.closes_at ?? survey.fin_at;
   const assurance = getResultAssurance(survey);
+  const governedDraft = isGovernedSurvey(survey) && lifecycle?.phase === 'draft';
   const publishDisabledMessage = lifecycle && !canPublish
-    ? getPublishDisabledMessage(lifecycle.actions.publish.disabled_reason_code, survey.estado)
+    ? getPublishDisabledMessage(
+        lifecycle.actions.publish.disabled_reason_code,
+        survey.estado,
+        lifecycle.actions.publish.next_action,
+      )
     : null;
   const busy = Boolean(publishing || closing);
-  const primaryAction = canPublish && onPublish ? 'publish' : canViewResults ? 'analytics' : 'edit';
+  const primaryAction = governedDraft && onManageGovernance
+    ? 'governance'
+    : canPublish && onPublish
+      ? 'publish'
+      : canViewResults
+        ? 'analytics'
+        : 'edit';
 
   const seedLabels =
     (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as
@@ -324,6 +346,11 @@ export const SurveyCard = ({
         {primaryAction === 'publish' && onPublish ? (
           <Button size="sm" onClick={onPublish} disabled={publishing} className="inline-flex items-center gap-2">
             <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
+          </Button>
+        ) : null}
+        {primaryAction === 'governance' && onManageGovernance ? (
+          <Button size="sm" onClick={onManageGovernance} disabled={busy} className="inline-flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" /> Revisar y publicar release
           </Button>
         ) : null}
         {primaryAction === 'analytics' ? (

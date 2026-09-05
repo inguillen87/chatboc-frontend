@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
-import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
+import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults, SurveyPublic } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import {
   AmbiguousSurveySubmissionError,
@@ -49,6 +49,68 @@ import {
 } from './surveyAnalyticsRange';
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v2';
+const PUBLIC_PARTICIPATION_FALLBACK = 'Participación ciudadana';
+const PUBLIC_BRAND_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/;
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const asPublicBrandLabel = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length < 2 || normalized.length > 96 || PUBLIC_BRAND_CONTROL_PATTERN.test(normalized)) {
+    return null;
+  }
+  return normalized;
+};
+
+const asTenantSlug = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLocaleLowerCase('es-AR');
+  return /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(normalized) ? normalized : null;
+};
+
+export const resolvePublicSurveyBrandLabel = (
+  survey?: SurveyPublic,
+  requestedTenantSlug?: string | null,
+): string => {
+  if (!survey) return PUBLIC_PARTICIPATION_FALLBACK;
+  const tenant = asRecord(survey.tenant);
+  if (!tenant) return PUBLIC_PARTICIPATION_FALLBACK;
+
+  const payloadTenantSlug = asTenantSlug(tenant.slug);
+  const requestedSlug = asTenantSlug(requestedTenantSlug);
+  const declaredSurveySlug = asTenantSlug(survey.tenant_slug);
+  const requestedSlugWasProvided = typeof requestedTenantSlug === 'string' && requestedTenantSlug.trim().length > 0;
+  const declaredSurveySlugWasProvided = typeof survey.tenant_slug === 'string' && survey.tenant_slug.trim().length > 0;
+  if (
+    !payloadTenantSlug ||
+    (requestedSlugWasProvided && requestedSlug === null) ||
+    (declaredSurveySlugWasProvided && declaredSurveySlug === null) ||
+    (requestedSlug !== null && requestedSlug !== payloadTenantSlug) ||
+    (declaredSurveySlug !== null && declaredSurveySlug !== payloadTenantSlug)
+  ) {
+    return PUBLIC_PARTICIPATION_FALLBACK;
+  }
+
+  const tenantBranding = asRecord(tenant.branding);
+  const candidates = [
+    tenantBranding?.public_name,
+    tenantBranding?.display_name,
+    tenantBranding?.brand_name,
+    tenant?.public_name,
+    tenant?.display_name,
+    tenant?.nombre,
+    tenant?.name,
+  ];
+  for (const candidate of candidates) {
+    const label = asPublicBrandLabel(candidate);
+    if (label) return label;
+  }
+  return PUBLIC_PARTICIPATION_FALLBACK;
+};
 
 const toNonNegativeInteger = (value: unknown): number | null =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -166,6 +228,7 @@ const PublicSurveyPage = () => {
       surveyResources?.demoMode === true ||
       surveyResources?.demo_mode === true,
   );
+  const publicParticipationBrand = resolvePublicSurveyBrandLabel(survey, tenantSlug);
   const shareSubmission = isDemoParticipationSurvey ? null : lastSubmission;
   const shouldRevealLiveResults = Boolean(survey?.mostrar_resultados_envivo);
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
@@ -1344,7 +1407,9 @@ const PublicSurveyPage = () => {
         <div className="space-y-3">
           {isDemoParticipationSurvey ? (
             <header className="rounded-2xl border border-border/70 bg-card px-4 py-4 shadow-sm sm:px-6">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Junín Participa</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+                {publicParticipationBrand}
+              </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{pollTitle}</h1>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 <strong className="text-foreground">Demo no oficial.</strong> La interacción permanece separada de cualquier dato ciudadano o resultado institucional.

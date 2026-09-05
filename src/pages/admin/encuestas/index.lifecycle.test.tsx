@@ -242,6 +242,32 @@ describe('AdminSurveysIndex states', () => {
       nextAction: null,
     });
   });
+
+  it('opens governed drafts in the release workspace without attempting direct publication', () => {
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const publishSurvey = vi.fn();
+    const survey = workspaceInstrument(905, 'Votación con gobernanza', 'draft', 'voting');
+    survey.governance = { mode: 'governed_release', release_required: true };
+    if (!survey.admin_lifecycle) throw new Error('fixture lifecycle required');
+    survey.admin_lifecycle.actions.publish.disabled_reason_code = 'survey_governance_release_required';
+    survey.admin_lifecycle.actions.publish.next_action = 'Revisá y aprobá un release antes de publicar.';
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      surveys: { data: [survey] },
+      surveyListProgress: { loaded: 1, total: 1 },
+      publishSurvey,
+    }));
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar release' }));
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Mocked navigate to: /admin/encuestas/905?section=governance#survey-governance',
+    );
+    expect(screen.getByRole('button', { name: 'Revisar y publicar release' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    expect(publishSurvey).not.toHaveBeenCalled();
+    consoleLogSpy.mockRestore();
+  });
   beforeEach(() => {
     mocks.useSurveyAdmin.mockReset();
     mocks.toast.mockReset();

@@ -70,7 +70,62 @@ vi.mock('@/utils/surveyAnalytics', () => ({
   trackSurveyDemoInteraction: mocks.trackSurveyDemoInteraction,
 }));
 
-import PublicSurveyPage from './[slug]';
+import PublicSurveyPage, { resolvePublicSurveyBrandLabel } from './[slug]';
+import type { SurveyPublic } from '@/types/encuestas';
+
+const publicBrandSurvey = (
+  tenant: SurveyPublic['tenant'],
+  tenantSlug?: string | null,
+): SurveyPublic => ({
+  slug: 'consulta-publica',
+  tenant_slug: tenantSlug,
+  tenant,
+  titulo: 'Consulta pública',
+  tipo: 'opinion',
+  inicio_at: '2026-08-01T00:00:00-03:00',
+  fin_at: null,
+  politica_unicidad: 'libre',
+  preguntas: [],
+});
+
+describe('public survey tenant branding', () => {
+  it.each([
+    ['tdf', 'Gobierno de Tierra del Fuego'],
+    ['mendoza', 'Gobierno de Mendoza'],
+  ])('uses the matching server-owned %s tenant identity', (tenantSlug, tenantName) => {
+    const survey = publicBrandSurvey({ slug: tenantSlug, nombre: tenantName }, tenantSlug);
+
+    expect(resolvePublicSurveyBrandLabel(survey, tenantSlug)).toBe(tenantName);
+  });
+
+  it('uses neutral branding when the response has no server-owned tenant identity', () => {
+    const survey = {
+      ...publicBrandSurvey(null, 'mendoza'),
+      branding: { public_name: 'Junín Participa' },
+      municipio_nombre: 'Municipalidad de Junín',
+    };
+
+    expect(resolvePublicSurveyBrandLabel(survey, 'mendoza')).toBe('Participación ciudadana');
+  });
+
+  it('fails closed when the requested tenant and response tenant do not match', () => {
+    const survey = publicBrandSurvey(
+      { slug: 'tdf', nombre: 'Gobierno de Tierra del Fuego' },
+      'tdf',
+    );
+
+    expect(resolvePublicSurveyBrandLabel(survey, 'mendoza')).toBe('Participación ciudadana');
+  });
+
+  it('fails closed when a supplied tenant selector is malformed', () => {
+    const survey = publicBrandSurvey(
+      { slug: 'mendoza', nombre: 'Gobierno de Mendoza' },
+      'mendoza',
+    );
+
+    expect(resolvePublicSurveyBrandLabel(survey, '../mendoza')).toBe('Participación ciudadana');
+  });
+});
 
 describe('PublicSurveyPage loading experience', () => {
   beforeEach(() => {

@@ -132,6 +132,46 @@ describe('SurveyCard lifecycle actions', () => {
     );
   });
 
+  it('routes a governed draft to release review without exposing direct publication', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false, can_view_results: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_governance_release_required';
+    adminLifecycle.actions.publish.next_action = 'Revisá la política, creá un release y aprobalo antes de publicar.';
+    const item = survey(adminLifecycle);
+    item.governance = { mode: 'governed_release', release_required: true };
+    const onManageGovernance = vi.fn();
+    const onPublish = vi.fn();
+
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={item}
+        onPublish={onPublish}
+        onManageGovernance={onManageGovernance}
+      />,
+    );
+
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'Revisá la política, creá un release y aprobalo antes de publicar.',
+    );
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar release' }));
+    expect(onManageGovernance).toHaveBeenCalledTimes(1);
+    expect(onPublish).not.toHaveBeenCalled();
+  });
+
+  it('never renders a machine next_action as operator copy', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_questions_required';
+    adminLifecycle.actions.publish.next_action = 'add_required_question_then_retry';
+
+    render(<SurveyCard {...baseProps} survey={survey(adminLifecycle)} />);
+
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'Agregá al menos una pregunta antes de publicar.',
+    );
+    expect(screen.queryByText('add_required_question_then_retry')).toBeNull();
+  });
+
   it('explains jurisdiction conflicts without offering publication', () => {
     const adminLifecycle = lifecycle('draft', { can_publish: false });
     adminLifecycle.actions.publish.disabled_reason_code = 'survey_jurisdiction_binding_conflict';

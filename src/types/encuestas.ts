@@ -404,6 +404,13 @@ export interface SurveyPublic {
   id?: number;
   /** Authoritative tenant selector required when public slugs are reused across organizations. */
   tenant_slug?: string | null;
+  /** Server-owned public tenant identity used for white-label presentation. */
+  tenant?: {
+    slug: string;
+    nombre: string;
+    branding?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
   /** Durable builder document that materialized this survey, when applicable. */
   document_ref?: string | null;
   slug: string;
@@ -645,6 +652,7 @@ export interface SurveyAdminLifecycleAction {
   irreversible?: boolean;
   required_capabilities?: string[];
   disabled_reason_code?: string | null;
+  next_action?: string | null;
 }
 
 export interface SurveyAdminLifecycle {
