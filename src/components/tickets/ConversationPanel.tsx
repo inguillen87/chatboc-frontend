@@ -112,12 +112,24 @@ type ComposerActionMutationVariables = {
   scopeKey: string;
   ticketId: string;
   tenantSlug?: string | null;
+  tenantId?: string | number | null;
+  expectedSourceModel?: 'TenantTicket' | 'MunicipioTicket';
+  expectedTicketId?: string | number;
   detailEndpoint: string;
 };
 
 type ComposerActionAttempt = {
   key: string;
   clientMessageId: string;
+};
+
+export type ApprovedWhatsAppTemplate = {
+  registryId: number;
+  name: string;
+  language: string | null;
+  category: string | null;
+  bodyPreview: string;
+  variableKeys: string[];
 };
 
 const LOCATION_COMPOSER_ACTION_IDS = new Set(['share_location', 'send_location']);
@@ -133,8 +145,11 @@ const normalizeComposerTicketId = (value: unknown): string | null => {
   return (match?.[1] || raw).trim() || null;
 };
 
-const exactComposerSourceModel = (value: unknown): 'TenantTicket' | 'MunicipioTicket' | null =>
-  value === 'TenantTicket' || value === 'MunicipioTicket' ? value : null;
+const exactComposerSourceModel = (value: unknown): 'TenantTicket' | 'MunicipioTicket' | null => {
+  if (value === 'TenantTicket' || value === 'tenant_ticket') return 'TenantTicket';
+  if (value === 'MunicipioTicket' || value === 'municipio_ticket') return 'MunicipioTicket';
+  return null;
+};
 
 const getComposerDetailIdentityBlockReason = (
   selected: Ticket | null | undefined,
@@ -150,11 +165,78 @@ const getComposerDetailIdentityBlockReason = (
   if (!selectedSource || detailSource !== selectedSource || !selectedId || !detailIds.length || detailIds.some((id) => id !== selectedId)) {
     return 'El detalle recibido no coincide con el ticket seleccionado. Las acciones permanecen bloqueadas.';
   }
+  const detailTenantSlug = readTrimmedString(item.tenant_slug)?.toLowerCase() || null;
+  const selectedTenantSlug = readTrimmedString(selected.tenant_slug)?.toLowerCase() || null;
+  if (detailTenantSlug && (!selectedTenantSlug || detailTenantSlug !== selectedTenantSlug)) {
+    return 'El detalle recibido pertenece a otro tenant. Las acciones permanecen bloqueadas.';
+  }
+  const detailTenantId = item.tenant_id == null ? null : String(item.tenant_id).trim();
+  const selectedTenantId = selected.tenant_id == null ? null : String(selected.tenant_id).trim();
+  if (detailTenantId && (!selectedTenantId || detailTenantId !== selectedTenantId)) {
+    return 'El detalle recibido pertenece a otro tenant. Las acciones permanecen bloqueadas.';
+  }
   return null;
 };
 
 const normalizeComposerActionToken = (value: unknown): string =>
   String(value ?? '').trim().toLowerCase();
+
+const readRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const readTrimmedString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+const TEMPLATE_VARIABLE_PATTERN = /\{\{\s*(\d{1,3})\s*\}\}/g;
+
+const extractApprovedTemplateVariableKeys = (bodyPreview: string): string[] => {
+  const keys = new Set<string>();
+  for (const match of bodyPreview.matchAll(TEMPLATE_VARIABLE_PATTERN)) {
+    const index = Number(match[1]);
+    if (Number.isInteger(index) && index > 0 && index <= 100) keys.add(String(index));
+  }
+  return [...keys].sort((left, right) => Number(left) - Number(right));
+};
+
+export const getApprovedWhatsAppTemplates = (
+  replyContract?: Record<string, unknown> | null,
+): ApprovedWhatsAppTemplate[] => {
+  const whatsapp = readRecord(replyContract?.whatsapp);
+  const serviceWindow = readRecord(whatsapp.service_window);
+  const candidate = whatsapp.approved_templates ?? serviceWindow.approved_templates;
+  if (!Array.isArray(candidate)) return [];
+
+  return candidate.flatMap((entry) => {
+    const template = readRecord(entry);
+    const registryId = Number(template.id ?? template.registry_id ?? template.template_registry_id);
+    const name = readTrimmedString(template.name ?? template.label);
+    const bodyPreview = readTrimmedString(
+      template.body_preview ?? template.body ?? template.text ?? template.preview,
+    );
+    if (!Number.isInteger(registryId) || registryId <= 0 || !name || !bodyPreview) return [];
+    return [{
+      registryId,
+      name,
+      language: readTrimmedString(template.language),
+      category: readTrimmedString(template.category),
+      bodyPreview,
+      variableKeys: extractApprovedTemplateVariableKeys(bodyPreview),
+    }];
+  });
+};
+
+export const renderApprovedWhatsAppTemplate = (
+  template: ApprovedWhatsAppTemplate,
+  variables: Record<string, string>,
+): string => template.bodyPreview.replace(
+  TEMPLATE_VARIABLE_PATTERN,
+  (placeholder, key: string) => variables[key]?.trim() || placeholder,
+);
 
 const normalizeReplySourceModel = (value: unknown): string => {
   const normalized = normalizeComposerActionToken(value);
@@ -230,8 +312,9 @@ const getReplyActionBlockReason = (
   publishedBlockReason: string | null = null,
 ): string | null => {
   if (contractBlockReason) return contractBlockReason;
+  if (publishedBlockReason) return publishedBlockReason;
   if (!action) {
-    return publishedBlockReason || 'El backend no publicó una acción segura de respuesta para este ticket. Revisá su asignación, estado y canal.';
+    return 'El backend no publicó una acción segura de respuesta para este ticket. Revisá su asignación, estado y canal.';
   }
   const actionDisabledReason = getActionDisabledReason(
     action,
@@ -261,15 +344,13 @@ const getReplyActionBlockReason = (
 export const getPublishedReplyBlockReason = (
   replyContract?: OmnichannelReplyContract,
   sourceModel?: unknown,
+  ticketId?: unknown,
+  tenantSlug?: unknown,
+  tenantId?: unknown,
 ): string | null => {
   if (!replyContract) return null;
   if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
     return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
-  }
-  const publishedSourceModel = normalizeReplySourceModel(replyContract.source_model);
-  const selectedSourceModel = normalizeReplySourceModel(sourceModel);
-  if (!publishedSourceModel || (selectedSourceModel && publishedSourceModel !== selectedSourceModel)) {
-    return 'El contrato de respuesta no coincide con el expediente seleccionado.';
   }
   if (replyContract.enabled !== true) {
     return getHumanReplyReason(
@@ -277,6 +358,26 @@ export const getPublishedReplyBlockReason = (
       replyContract.disabled_reason,
       'El backend no habilitó la respuesta para este ticket.',
     );
+  }
+  const publishedSourceModel = exactComposerSourceModel(replyContract.source_model);
+  const selectedSourceModel = exactComposerSourceModel(sourceModel);
+  if (!publishedSourceModel || !selectedSourceModel || publishedSourceModel !== selectedSourceModel) {
+    return 'El contrato de respuesta no coincide con el expediente seleccionado.';
+  }
+  const publishedTicketId = normalizeComposerTicketId(replyContract.ticket_id);
+  const selectedTicketId = normalizeComposerTicketId(ticketId);
+  if (!publishedTicketId || !selectedTicketId || publishedTicketId !== selectedTicketId) {
+    return 'El contrato de respuesta no coincide con el expediente seleccionado.';
+  }
+  const publishedTenantSlug = readTrimmedString(replyContract.tenant_slug)?.toLowerCase() || null;
+  const selectedTenantSlug = readTrimmedString(tenantSlug)?.toLowerCase() || null;
+  if (publishedTenantSlug && (!selectedTenantSlug || publishedTenantSlug !== selectedTenantSlug)) {
+    return 'El contrato de respuesta no coincide con el tenant seleccionado.';
+  }
+  const publishedTenantId = replyContract.tenant_id == null ? null : String(replyContract.tenant_id).trim();
+  const selectedTenantId = tenantId == null ? null : String(tenantId).trim();
+  if (publishedTenantId && (!selectedTenantId || publishedTenantId !== selectedTenantId)) {
+    return 'El contrato de respuesta no coincide con el tenant seleccionado.';
   }
   const textCapability = replyContract.supported_message_types?.text;
   if (textCapability?.enabled !== true) {
@@ -376,6 +477,18 @@ export const createComposerActionAttemptKey = (
 
 export const TENANT_TICKET_INVALIDATION_DEBOUNCE_MS = 180;
 
+export const isReplyDeliveryInvalidation = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const envelope = value as Record<string, unknown>;
+  const payload = envelope.payload && typeof envelope.payload === 'object'
+    ? envelope.payload as Record<string, unknown>
+    : envelope;
+  return payload.contract_version === 'tenant_ticket.reply_delivery.realtime.v1' &&
+    payload.resource === 'reply_deliveries' &&
+    payload.reason === 'delivery_status_changed' &&
+    payload.refetch === true;
+};
+
 const formatRelativeTime = (input?: Date | null) => {
   if (!input) {
     return 'Sin actividad reciente';
@@ -449,6 +562,100 @@ const normalizeResponseTemplateSourceModel = (
     return normalized;
   }
   return null;
+};
+
+export const getComposerReplyResponseIdentityBlockReason = (
+  item: OmnichannelInboxDetailV2['item'] | null | undefined,
+  expected: {
+    sourceModel?: 'TenantTicket' | 'MunicipioTicket';
+    ticketId?: string | number;
+    tenantSlug?: string | null;
+    tenantId?: string | number | null;
+  },
+): string | null => {
+  if (!item || !expected.sourceModel || !expected.ticketId) {
+    return 'La respuesta no confirmó la identidad exacta del ticket.';
+  }
+  const responseSource = exactComposerSourceModel(item.source_model);
+  const responseIds = [item.ticket_id, item.legacy_id, item.id]
+    .map(normalizeComposerTicketId)
+    .filter((value): value is string => Boolean(value));
+  const expectedId = normalizeComposerTicketId(expected.ticketId);
+  if (!responseSource || responseSource !== expected.sourceModel || !expectedId || !responseIds.length || responseIds.some((id) => id !== expectedId)) {
+    return 'La respuesta no coincide con la identidad source_model + ticket_id enviada.';
+  }
+  const responseTenantSlug = readTrimmedString(item.tenant_slug)?.toLowerCase() || null;
+  const expectedTenantSlug = readTrimmedString(expected.tenantSlug)?.toLowerCase() || null;
+  if (responseTenantSlug && (!expectedTenantSlug || responseTenantSlug !== expectedTenantSlug)) {
+    return 'La respuesta pertenece a otro tenant.';
+  }
+  const responseTenantId = item.tenant_id == null ? null : String(item.tenant_id).trim();
+  const expectedTenantId = expected.tenantId == null ? null : String(expected.tenantId).trim();
+  if (responseTenantId && (!expectedTenantId || responseTenantId !== expectedTenantId)) {
+    return 'La respuesta pertenece a otro tenant.';
+  }
+  return null;
+};
+
+type WhatsAppServiceWindowStatus = 'open' | 'expired' | 'unknown';
+
+const readOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  const token = normalizeComposerActionToken(value);
+  if (['1', 'true', 'yes', 'si'].includes(token)) return true;
+  if (['0', 'false', 'no'].includes(token)) return false;
+  return undefined;
+};
+
+export const getWhatsAppServiceWindowView = (
+  replyContract?: Record<string, unknown> | null,
+) => {
+  const whatsapp = readRecord(replyContract?.whatsapp);
+  const serviceWindow = readRecord(whatsapp.service_window);
+  const rawStatus = normalizeComposerActionToken(serviceWindow.status);
+  const status: WhatsAppServiceWindowStatus =
+    rawStatus === 'open' || rawStatus === 'expired' ? rawStatus : 'unknown';
+  const recipientAvailable = readOptionalBoolean(whatsapp.recipient_available);
+  const freeFormAllowed =
+    readOptionalBoolean(whatsapp.free_form_allowed) ??
+    readOptionalBoolean(serviceWindow.free_form_allowed) ??
+    status === 'open';
+  const templateRequired =
+    readOptionalBoolean(whatsapp.template_required) ??
+    readOptionalBoolean(serviceWindow.template_required) ??
+    status !== 'open';
+  const approvedTemplateCount = getApprovedWhatsAppTemplates(replyContract).length;
+  const expiresAtValue = serviceWindow.expires_at ?? whatsapp.expires_at;
+  const expiresAt = expiresAtValue == null ? null : String(expiresAtValue);
+  const blocksFreeForm = recipientAvailable === false || !freeFormAllowed || templateRequired;
+
+  if (recipientAvailable === false) {
+    return {
+      status, expiresAt, recipientAvailable, freeFormAllowed: false, templateRequired,
+      approvedTemplateCount, blocksFreeForm: true, tone: 'warning' as const,
+      title: 'Sin número de WhatsApp',
+      detail: 'Este ticket no tiene un número válido. No se habilita ninguna respuesta externa.',
+    };
+  }
+  if (status === 'open' && !blocksFreeForm) {
+    return {
+      status, expiresAt, recipientAvailable, freeFormAllowed, templateRequired,
+      approvedTemplateCount, blocksFreeForm, tone: 'success' as const,
+      title: 'Ventana de atención abierta',
+      detail: expiresAt
+        ? `Podés responder libremente por WhatsApp hasta ${new Date(expiresAt).toLocaleString()}.`
+        : 'Podés responder libremente dentro de la ventana de atención de 24 horas.',
+    };
+  }
+  return {
+    status, expiresAt, recipientAvailable, freeFormAllowed, templateRequired,
+    approvedTemplateCount, blocksFreeForm, tone: 'warning' as const,
+    title: 'Se requiere una plantilla aprobada',
+    detail: approvedTemplateCount
+      ? 'La ventana de 24 horas está cerrada. Elegí una plantilla aprobada para responder.'
+      : 'La ventana de 24 horas está cerrada y el backend no publicó plantillas aprobadas.',
+  };
 };
 
 export const formatReplyDeliveryChannel = (channel: string) => {
@@ -543,67 +750,92 @@ export const applyPublicRecipientReadConfirmation = (
   };
 };
 
+export type ReplyDeliveryStage =
+  | 'saved'
+  | 'queued'
+  | 'provider_accepted'
+  | 'delivered'
+  | 'read'
+  | 'failed'
+  | 'uncertain';
+
+const normalizeDeliveryToken = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+export const getReplyDeliveryStage = (delivery: TicketReplyDeliveryStatus): ReplyDeliveryStage => {
+  const channel = normalizeDeliveryToken(delivery.channel);
+  const finalStatus = normalizeDeliveryToken(delivery.final_delivery?.status);
+  const finalSource = normalizeDeliveryToken(delivery.final_delivery?.authoritative_source);
+  const status = normalizeDeliveryToken(delivery.status);
+  const evidenceStage = normalizeDeliveryToken(delivery.evidence_stage);
+  const mode = normalizeDeliveryToken(delivery.mode);
+  const reason = normalizeDeliveryToken(delivery.reason);
+  const isWhatsApp = channel === 'whatsapp';
+  const providerCallbackIsAuthoritative = finalSource === 'provider_status_callback';
+
+  if (!isWhatsApp && delivery.recipient_read_confirmed) return 'read';
+  if (!isWhatsApp && delivery.recipient_room_emitted && delivery.recipient_presence_confirmed && delivery.reply_status === 'sent_to_live_chat') {
+    return 'delivered';
+  }
+  if (providerCallbackIsAuthoritative && finalStatus === 'read') return 'read';
+  if (providerCallbackIsAuthoritative && finalStatus === 'delivered') return 'delivered';
+  if (providerCallbackIsAuthoritative && ['failed', 'undelivered'].includes(finalStatus)) return 'failed';
+  if ((reason.includes('failed') || reason.includes('uncertain')) && !providerCallbackIsAuthoritative) return 'uncertain';
+  if (!delivery.external_dispatch && (channel === 'crm' || ['timeline_only', 'internal_event'].includes(mode))) return 'saved';
+  if (finalStatus === 'provider_accepted' || status === 'provider_accepted' || evidenceStage === 'provider_accepted') return 'provider_accepted';
+  if (
+    ['queued', 'queued_for_delivery'].includes(finalStatus) ||
+    ['queued', 'queued_for_delivery', 'durably_staged'].includes(status) ||
+    evidenceStage === 'durably_staged' || mode === 'durable_queue'
+  ) return 'queued';
+  if (
+    ['saved', 'local_saved', 'saved_to_crm', 'saved_to_timeline'].includes(finalStatus) ||
+    ['saved', 'local_saved', 'saved_to_crm', 'saved_to_timeline'].includes(status) ||
+    ['timeline_only', 'internal_event'].includes(mode)
+  ) return 'saved';
+  if (finalStatus || delivery.external_dispatch || ['accepted', 'sent', 'send_uncertain'].includes(status) || reason.includes('failed') || reason.includes('uncertain')) {
+    return 'uncertain';
+  }
+  return 'saved';
+};
+
+const REPLY_DELIVERY_PROGRESS: Record<Exclude<ReplyDeliveryStage, 'failed' | 'uncertain'>, number> = {
+  saved: 0, queued: 1, provider_accepted: 2, delivered: 3, read: 4,
+};
+
+export const preserveReplyDeliveryProgress = (
+  current: TicketReplyDeliveryStatus | null,
+  incoming: TicketReplyDeliveryStatus | null,
+): TicketReplyDeliveryStatus | null => {
+  if (!current) return incoming;
+  if (!incoming) return current;
+  const currentEventId = current.event_id == null ? null : String(current.event_id);
+  const incomingEventId = incoming.event_id == null ? null : String(incoming.event_id);
+  if (currentEventId && incomingEventId && currentEventId !== incomingEventId) return incoming;
+  const currentStage = getReplyDeliveryStage(current);
+  const incomingStage = getReplyDeliveryStage(incoming);
+  if (incomingStage === 'failed') return incoming;
+  if (currentStage === 'failed') return current;
+  if (incomingStage === 'uncertain') {
+    return ['queued', 'provider_accepted', 'delivered', 'read'].includes(currentStage) ? current : incoming;
+  }
+  if (currentStage === 'uncertain') return incoming;
+  return REPLY_DELIVERY_PROGRESS[incomingStage] < REPLY_DELIVERY_PROGRESS[currentStage] ? current : incoming;
+};
+
 export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
   const channel = formatReplyDeliveryChannel(delivery.channel);
-  const failed = delivery.reason.includes('failed') || delivery.status.includes('error');
-
-  if (delivery.recipient_read_confirmed && delivery.status === 'sent') {
-    return {
-      tone: 'success' as const,
-      title: 'Leido por el ciudadano',
-      detail: 'El read-state publico confirma lectura del ultimo mensaje enviado.',
-    };
-  }
-
-  if (delivery.external_dispatch) {
-    return {
-      tone: 'muted' as const,
-      title: 'Despacho registrado, entrega sin confirmar',
-      detail: `El canal ${channel} aceptó el despacho y el CRM lo registró; falta la confirmación autoritativa de entrega.`,
-    };
-  }
-
-  if (delivery.mode === 'durable_queue' || delivery.reply_status === 'queued_for_delivery') {
-    return {
-      tone: 'muted' as const,
-      title: 'En cola para WhatsApp',
-      detail: delivery.operator_message || 'El mensaje quedó en cola durable; la entrega final depende de la confirmación del proveedor.',
-    };
-  }
-
-  if (
-    delivery.recipient_room_emitted &&
-    delivery.recipient_presence_confirmed &&
-    delivery.reply_status === 'sent_to_live_chat'
-  ) {
-    return {
-      tone: 'muted' as const,
-      title: 'Visible con presencia activa',
-      detail: 'La sala reportó presencia pública al emitir el evento; la entrega y la lectura aún no fueron confirmadas.',
-    };
-  }
-
-  if (delivery.socket_emitted) {
-    return {
-      tone: failed ? 'warning' as const : 'muted' as const,
-      title: failed ? 'Emitido y guardado, entrega sin confirmar' : 'Emitido y guardado',
-      detail: delivery.operator_message || 'El socket emitio el evento, pero no habia presencia publica activa confirmada.',
-    };
-  }
-
-  if (failed) {
-    return {
-      tone: 'warning' as const,
-      title: 'Guardado, entrega sin confirmar',
-      detail: delivery.operator_message || 'El mensaje quedo en CRM, pero no se confirmo el canal externo.',
-    };
-  }
-
-  return {
-    tone: 'muted' as const,
-    title: 'Guardado en CRM',
-    detail: delivery.operator_message || 'No se confirmo WhatsApp ni chat en vivo para esta accion.',
+  const stage = getReplyDeliveryStage(delivery);
+  if (delivery.recipient_available === false) return {
+    tone: 'warning' as const, stage: 'saved' as const, title: 'Sin número de WhatsApp',
+    detail: 'La actividad puede quedar auditada en el CRM, pero no existe un número válido para una entrega externa.', retryable: false,
   };
+  if (stage === 'read') return { tone: 'success' as const, stage, title: 'Leído', detail: 'El proveedor confirmó que la persona leyó la respuesta.', retryable: false };
+  if (stage === 'delivered') return { tone: 'success' as const, stage, title: delivery.channel === 'live_socket' ? 'Entregado en chat en vivo' : 'Entregado', detail: `La entrega en ${channel} fue confirmada y quedó auditada en el CRM.`, retryable: false };
+  if (stage === 'provider_accepted') return { tone: 'muted' as const, stage, title: 'Aceptado por el proveedor', detail: 'WhatsApp aceptó el mensaje. La entrega final todavía depende del callback del proveedor.', retryable: false };
+  if (stage === 'queued') return { tone: 'muted' as const, stage, title: 'En cola para entregar', detail: delivery.operator_message || 'La respuesta quedó guardada y encolada. Aún no hay aceptación ni entrega confirmada.', retryable: false };
+  if (stage === 'failed') return { tone: 'warning' as const, stage, title: 'Entrega fallida', detail: delivery.final_delivery?.error_code ? `El proveedor confirmó el fallo (código ${delivery.final_delivery.error_code}).` : 'El proveedor confirmó que la entrega no se completó.', retryable: true };
+  if (stage === 'uncertain') return { tone: 'warning' as const, stage, title: 'Estado de entrega por confirmar', detail: delivery.operator_message || 'La respuesta está auditada en el CRM, pero no hay callback autoritativo de WhatsApp.', retryable: true };
+  return { tone: 'muted' as const, stage, title: 'Guardado en CRM', detail: delivery.operator_message || 'La respuesta quedó registrada. Todavía no fue aceptada por el proveedor.', retryable: false };
 };
 
 export const shouldShowTicketClaimAction = (isDetailsVisible: boolean): boolean =>
@@ -777,10 +1009,8 @@ export const getComposerChannelView = ({
   replyContract?: OmnichannelReplyContract;
 }) => {
   const normalized = normalizeReplyChannel(channel);
-  const lastDeliveryFailed = Boolean(
-    lastReplyDelivery &&
-      (lastReplyDelivery.reason.includes('failed') || lastReplyDelivery.status.includes('error')),
-  );
+  const lastDeliveryStage = lastReplyDelivery ? getReplyDeliveryStage(lastReplyDelivery) : null;
+  const lastDeliveryFailed = lastDeliveryStage === 'failed' || lastDeliveryStage === 'uncertain';
 
   if (lastDeliveryFailed) {
     return {
@@ -1210,6 +1440,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [selectedApprovedTemplateId, setSelectedApprovedTemplateId] = useState('');
+  const [approvedTemplateVariables, setApprovedTemplateVariables] = useState<Record<string, string>>({});
   const [composerToolsOpen, setComposerToolsOpen] = useState(false);
   const [lastComposerActionResult, setLastComposerActionResult] = useState<ComposerActionResult | null>(null);
   const [shareActionDialogKind, setShareActionDialogKind] = useState<TicketShareActionKind | null>(null);
@@ -1465,6 +1697,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     [publishedComposerActions],
   );
   const composerReplyContract = composerActionContractQuery.data?.item.reply_contract;
+  const isTenantTicketWhatsApp = isTenantTicketSourceModel(selectedTicket?.source_model) &&
+    normalizeReplyChannel(activeChannel) === 'whatsapp';
+  const whatsappServiceWindow = getWhatsAppServiceWindowView(composerReplyContract);
+  const approvedWhatsAppTemplates = useMemo(
+    () => getApprovedWhatsAppTemplates(composerReplyContract),
+    [composerReplyContract],
+  );
+  const selectedApprovedTemplate = approvedWhatsAppTemplates.find(
+    (template) => String(template.registryId) === selectedApprovedTemplateId,
+  ) ?? null;
   const authoritativeReplyRequired = isAuthoritativeReplySourceModel(selectedTicket?.source_model);
   const authoritativeAttachmentMustFailClosed =
     isTenantTicketSourceModel(selectedTicket?.source_model) ||
@@ -1479,13 +1721,32 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       : composerActionContractQuery.isError
         ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
         : detailIdentityBlockReason;
-  const replyBlockReason = authoritativeReplyRequired
+  const baseReplyBlockReason = authoritativeReplyRequired
     ? getReplyActionBlockReason(
         replyAction,
         actionContractBlockReason,
-        getPublishedReplyBlockReason(composerReplyContract, selectedTicket?.source_model),
+        getPublishedReplyBlockReason(
+          composerReplyContract,
+          selectedTicket?.source_model,
+          selectedTicket?.id,
+          responseTemplateTenantSlug,
+          selectedTicket?.tenant_id,
+        ),
       )
     : null;
+  const replyBlockReason = baseReplyBlockReason || (
+    isTenantTicketWhatsApp && whatsappServiceWindow.recipientAvailable === false
+      ? 'Sin número de WhatsApp: el backend no publicó un destinatario disponible.'
+      : null
+  );
+  const freeFormReplyBlockReason = replyBlockReason || (
+    isTenantTicketWhatsApp && whatsappServiceWindow.blocksFreeForm
+      ? 'La ventana de 24 horas está cerrada. Usá una plantilla aprobada.'
+      : null
+  );
+  const templateReplyBlockReason = !isTenantTicketWhatsApp
+    ? 'Las plantillas aprobadas sólo están disponibles para TenantTicket en WhatsApp.'
+    : replyBlockReason || (approvedWhatsAppTemplates.length ? null : 'No hay plantillas aprobadas disponibles para este tenant.');
   const tenantAttachmentBlockReason = authoritativeAttachmentMustFailClosed
     ? actionContractBlockReason ||
       (attachmentAction
@@ -1510,27 +1771,68 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       ? getTicketShareActionBlockReason('form', formAction, composerReplyContract)
       : 'Este ticket no publicó una acción backend compatible para compartir formularios.'
   );
+  const latestAuthoritativeReplyDelivery = composerActionItem?.reply_deliveries?.at(-1);
+
+  useEffect(() => {
+    const record = latestAuthoritativeReplyDelivery;
+    if (!record?.delivery) return;
+    const normalized = normalizeTicketReplyDelivery({
+      contract_version: record.delivery.contract_version,
+      event_id: record.event_id,
+      channel: record.channel || activeChannel,
+      status: record.delivery.status || 'saved',
+      reason: 'detail_reply_delivery',
+      mode: 'real_message',
+      external_dispatch: true,
+      final_delivery: record.delivery,
+      timeline_updated: true,
+      reply_status: 'saved_to_timeline',
+    });
+    if (normalized) setLastReplyDelivery((current) => preserveReplyDeliveryProgress(current, normalized));
+  }, [activeChannel, latestAuthoritativeReplyDelivery]);
   const composerActionMutation = useMutation<
     OmnichannelInboxActionV2,
     unknown,
     ComposerActionMutationVariables
   >({
-    mutationFn: (variables: ComposerActionMutationVariables) => postOmnichannelInboxActionV2(
-      variables.ticketId,
-      {
-        action: variables.actionKind === 'reply' ? 'reply' : variables.action.id,
-        endpoint: variables.action.endpoint,
-        payload: {
-          ...buildSaasActionPayload(variables.action),
-          ...variables.actionPayload,
-          source_model: composerActionSourceModel,
-          ...(variables.actionKind === 'reply' || variables.actionKind === 'handoff'
-            ? {}
-            : { ticket_id: selectedTicket?.id }),
-        },
-      },
-      variables.tenantSlug,
-    ),
+    mutationFn: async (variables: ComposerActionMutationVariables) => {
+      const actionRequest = {
+          action: variables.actionKind === 'reply' ? 'reply' : variables.action.id,
+          endpoint: variables.action.endpoint,
+          payload: {
+            ...buildSaasActionPayload(variables.action),
+            ...variables.actionPayload,
+            source_model: variables.expectedSourceModel,
+            ...(variables.actionKind === 'handoff'
+              ? {}
+              : { ticket_id: variables.expectedTicketId }),
+          },
+        };
+      const result = variables.tenantId == null
+        ? await postOmnichannelInboxActionV2(
+            variables.ticketId,
+            actionRequest,
+            variables.tenantSlug,
+          )
+        : await postOmnichannelInboxActionV2(
+            variables.ticketId,
+            actionRequest,
+            variables.tenantSlug,
+            variables.tenantId,
+          );
+      if (variables.actionKind === 'reply') {
+        const identityBlockReason = getComposerReplyResponseIdentityBlockReason(result.ticket, {
+          sourceModel: variables.expectedSourceModel,
+          ticketId: variables.expectedTicketId,
+          tenantSlug: variables.tenantSlug,
+          tenantId: variables.tenantId,
+        });
+        if (identityBlockReason) {
+          throw new ApiError(identityBlockReason, 502, { code: 'reply_response_identity_mismatch' });
+        }
+      }
+      return result;
+    },
     onSuccess: (result, variables) => {
       if (activeComposerActionScopeRef.current !== variables.scopeKey) return;
       queryClient.setQueryData<OmnichannelInboxDetailV2>(
@@ -1542,9 +1844,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }),
       );
       setLastComposerActionResult({ scopeKey: variables.scopeKey, result });
+      if (variables.actionKind === 'reply') {
+        const normalizedDelivery = normalizeTicketReplyDelivery(result.delivery);
+        if (normalizedDelivery) {
+          setLastReplyDelivery((current) => preserveReplyDeliveryProgress(current, normalizedDelivery));
+        }
+      }
       setConversationInvalidationVersion((version) => version + 1);
       if (variables.actionKind !== 'handoff') setShareActionDialogKind(null);
-      if (variables.attemptKey) {
+      const replyDeliveryStage = variables.actionKind === 'reply'
+        ? (() => {
+            const normalized = normalizeTicketReplyDelivery(result.delivery);
+            return normalized ? getReplyDeliveryStage(normalized) : 'uncertain';
+          })()
+        : null;
+      if (variables.attemptKey && replyDeliveryStage !== 'uncertain') {
         const attemptRef = variables.actionKind === 'reply'
           ? replyActionAttemptRef
           : composerActionAttemptRef;
@@ -1628,6 +1942,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       scopeKey: composerActionScopeKey,
       ticketId: composerActionTicketId,
       tenantSlug: responseTemplateTenantSlug,
+      tenantId: selectedTicket?.tenant_id,
+      expectedSourceModel: composerActionSourceModel,
+      expectedTicketId: selectedTicket?.id,
       detailEndpoint: composerActionDetailEndpoint,
     });
   }, [
@@ -1968,6 +2285,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     composerActionAttemptRef.current = null;
     replyActionAttemptRef.current = null;
     setTemplatePickerOpen(false);
+    setSelectedApprovedTemplateId('');
+    setApprovedTemplateVariables({});
     setComposerToolsOpen(false);
     setShareActionDialogKind(null);
     setLastComposerActionResult(null);
@@ -2130,11 +2449,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }, TENANT_TICKET_INVALIDATION_DEBOUNCE_MS);
     };
 
+    const handleReplyDeliveryInvalidation = (data: unknown) => {
+      if (!isReplyDeliveryInvalidation(data)) return;
+      void queryClient.invalidateQueries({ queryKey: composerActionQueryKey });
+    };
+
     safeOn(socket, 'new_comment', handleNewComment);
     safeOn(socket, 'new_chat_message', handleNewComment);
     safeOn(socket, 'conversation.message.created', handleNewComment);
     safeOn(socket, 'legacy.new_chat_message', handleNewComment);
     safeOn(socket, 'ticket_update', handleTenantTicketInvalidation);
+    safeOn(socket, 'ticket.reply.delivery.updated', handleReplyDeliveryInvalidation);
     safeOn(socket, 'ticket.presence.changed', handlePresenceChanged);
     safeOn(socket, 'conversation.message.read', handleMessageRead);
 
@@ -2144,6 +2469,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         socket.off('conversation.message.created', handleNewComment);
         socket.off('legacy.new_chat_message', handleNewComment);
         socket.off('ticket_update', handleTenantTicketInvalidation);
+        socket.off('ticket.reply.delivery.updated', handleReplyDeliveryInvalidation);
         socket.off('ticket.presence.changed', handlePresenceChanged);
         socket.off('conversation.message.read', handleMessageRead);
         if (invalidationRefreshTimerRef.current !== null) {
@@ -2152,7 +2478,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
         socket.emit('leave', { room: ticketRoom });
     };
-  }, [selectedConversationKey, selectedTicketId, selectedTicketSocketRoom, selectedTicketType, socket]);
+  }, [composerActionQueryKey, queryClient, selectedConversationKey, selectedTicketId, selectedTicketSocketRoom, selectedTicketType, socket]);
 
   useEffect(() => {
     if (!selectedConversationKey || selectedTicketId === null || !selectedTicketType) return;
@@ -2257,8 +2583,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     setAttachmentPreview(null);
   };
 
-  const handleSendMessage = async (payload?: Partial<SendPayload>) => {
-    const text = payload?.text ?? messageRef.current;
+  const handleSendMessage = async (payload?: Partial<SendPayload> & {
+    approvedTemplate?: ApprovedWhatsAppTemplate;
+    templateVariables?: Record<string, string>;
+  }) => {
+    const approvedTemplate = payload?.approvedTemplate;
+    const templateVariables = payload?.templateVariables || {};
+    const text = approvedTemplate
+      ? renderApprovedWhatsAppTemplate(approvedTemplate, templateVariables)
+      : payload?.text ?? messageRef.current;
     if (!text.trim() && !payload?.attachmentInfo && !attachmentPreview) return;
     if (!selectedTicket || !user) return;
     const sendScopeKey = activeConversationScopeKey;
@@ -2266,7 +2599,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (!sendScopeKey || !sendDraftStorageKey) return;
     const sendScopeEpoch = conversationScopeEpochRef.current;
     const ticketSnapshot = selectedTicket;
-    const usesComposerDraft = payload?.text == null;
+    const usesComposerDraft = payload?.text == null && !approvedTemplate;
     const isSendScopeCurrent = () => (
       activeConversationScopeRef.current === sendScopeKey &&
       conversationScopeEpochRef.current === sendScopeEpoch
@@ -2275,6 +2608,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
     if (authoritativeAttachmentMustFailClosed && hasAttachment) {
       toast.error(tenantAttachmentBlockReason || 'El adjunto permanece bloqueado hasta que el backend publique soporte seguro.');
+      return;
+    }
+    if (approvedTemplate) {
+      if (templateReplyBlockReason) {
+        toast.error(templateReplyBlockReason);
+        return;
+      }
+      const missingVariables = approvedTemplate.variableKeys.filter((key) => !templateVariables[key]?.trim());
+      if (missingVariables.length) {
+        toast.error(`Completá ${missingVariables.map((key) => `la variable ${key}`).join(', ')}.`);
+        return;
+      }
+    } else if (freeFormReplyBlockReason) {
+      toast.error(freeFormReplyBlockReason);
       return;
     }
 
@@ -2295,6 +2642,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         body: normalizedText,
         message: normalizedText,
         visibility: 'public',
+        ...(approvedTemplate ? {
+          template_registry_id: approvedTemplate.registryId,
+          template_variables: templateVariables,
+        } : {}),
         ticket_id: composerActionTicketId,
       };
       replyAttemptKey = createComposerActionAttemptKey(
@@ -2319,6 +2670,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         body: normalizedText,
         message: normalizedText,
         visibility: 'public',
+        ...(approvedTemplate ? {
+          template_registry_id: approvedTemplate.registryId,
+          template_variables: templateVariables,
+        } : {}),
         client_message_id: attempt.clientMessageId,
       };
     }
@@ -2373,6 +2728,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             scopeKey: composerActionScopeKey,
             ticketId: composerActionTicketId,
             tenantSlug: responseTemplateTenantSlug,
+            tenantId: ticketSnapshot.tenant_id,
+            expectedSourceModel: composerActionSourceModel,
+            expectedTicketId: ticketSnapshot.id,
             detailEndpoint: composerActionDetailEndpoint,
           });
         })()
@@ -2389,6 +2747,35 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             tenantSlug: ticketSnapshot.tenant_slug,
           },
         );
+      const authoritativeDelivery = authoritativeReplyRequired
+        ? normalizeTicketReplyDelivery((response as OmnichannelInboxActionV2)?.delivery)
+        : null;
+      if (authoritativeReplyRequired && (!authoritativeDelivery || getReplyDeliveryStage(authoritativeDelivery) === 'uncertain')) {
+        pendingDraftsByScopeRef.current.delete(sendScopeKey);
+        if (usesComposerDraft) persistConversationDraft(sendDraftStorageKey, draftMessage);
+        if (isSendScopeCurrent()) {
+          if (!authoritativeDelivery) {
+            setLastReplyDelivery(normalizeTicketReplyDelivery({
+              contract_version: 'tenant_ticket.reply_delivery.v1',
+              mode: 'real_message',
+              channel: activeChannel,
+              status: 'send_uncertain',
+              reason: 'http_2xx_without_delivery_evidence',
+              external_dispatch: false,
+              timeline_updated: false,
+              reply_status: 'unknown',
+              operator_message: 'El backend respondió sin evidencia de entrega. Se conserva la misma identidad para reconciliar o reintentar.',
+            }));
+          }
+          setMessages((previous) => previous.filter((item) => item.id !== optimisticMessage.id));
+          if (usesComposerDraft) {
+            messageRef.current = draftMessage;
+            setMessage(draftMessage);
+          }
+          toast.warning('El backend respondió, pero el resultado sigue incierto. Revisá y reintentá con la misma identidad.');
+        }
+        return;
+      }
       if (usesComposerDraft) {
         pendingDraftsByScopeRef.current.delete(sendScopeKey);
         removeConversationDraft(sendDraftStorageKey, draftMessage);
@@ -2428,7 +2815,26 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         persistConversationDraft(sendDraftStorageKey, draftMessage);
       }
       if (!isSendScopeCurrent()) return;
-      toast.error(getErrorMessage(error, 'No se pudo enviar el mensaje.'));
+      if (authoritativeReplyRequired && !isDefinitiveComposerActionError(error)) {
+        setLastReplyDelivery(normalizeTicketReplyDelivery({
+          contract_version: 'tenant_ticket.reply_delivery.v1',
+          mode: 'real_message',
+          channel: activeChannel,
+          status: 'send_uncertain',
+          reason: 'request_result_unknown',
+          external_dispatch: false,
+          timeline_updated: false,
+          reply_status: 'unknown',
+          operator_message: 'No se pudo confirmar el resultado. Revisá el estado antes de reintentar; se conservará la misma identidad idempotente.',
+        }));
+        toast.warning('No se pudo confirmar el resultado. Podés reintentar de forma segura con la misma identidad.');
+      } else {
+        toast.error(getErrorMessage(error, 'No se pudo enviar el mensaje.'));
+      }
+      if (approvedTemplate) {
+        setSelectedApprovedTemplateId('');
+        setApprovedTemplateVariables({});
+      }
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
       if (usesComposerDraft && !messageRef.current) {
         const restoredDraft = readConversationDraft(sendDraftStorageKey);
@@ -3009,6 +3415,81 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           )}
           data-testid="ticket-composer-context"
         >
+          {isTenantTicketWhatsApp ? (
+            <div className="mb-2 space-y-2" data-testid="whatsapp-service-window">
+              <div className={cn(
+                'rounded-[8px] border px-2.5 py-2 text-xs',
+                whatsappServiceWindow.tone === 'success'
+                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+              )}>
+                <p className="font-semibold">{whatsappServiceWindow.title}</p>
+                <p>{whatsappServiceWindow.detail}</p>
+              </div>
+              {whatsappServiceWindow.recipientAvailable !== false && approvedWhatsAppTemplates.length ? (
+                <div className="rounded-[8px] border border-border/70 bg-muted/30 p-2.5">
+                  <label className="block text-xs font-semibold" htmlFor="approved-whatsapp-template">
+                    Plantilla aprobada de WhatsApp
+                  </label>
+                  <select
+                    id="approved-whatsapp-template"
+                    aria-label="Plantilla aprobada de WhatsApp"
+                    className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                    value={selectedApprovedTemplateId}
+                    onChange={(event) => {
+                      setSelectedApprovedTemplateId(event.target.value);
+                      setApprovedTemplateVariables({});
+                    }}
+                    disabled={Boolean(templateReplyBlockReason) || isSending}
+                  >
+                    <option value="">Elegir plantilla aprobada</option>
+                    {approvedWhatsAppTemplates.map((template) => (
+                      <option key={template.registryId} value={template.registryId}>{template.name}</option>
+                    ))}
+                  </select>
+                  {selectedApprovedTemplate ? (
+                    <div className="mt-2 space-y-2">
+                      {selectedApprovedTemplate.variableKeys.map((key) => (
+                        <label className="block text-xs" key={key}>
+                          Variable {key} de la plantilla
+                          <input
+                            aria-label={`Variable ${key} de la plantilla`}
+                            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                            value={approvedTemplateVariables[key] || ''}
+                            onChange={(event) => setApprovedTemplateVariables((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))}
+                            disabled={isSending}
+                          />
+                        </label>
+                      ))}
+                      <p className="rounded-md bg-background/70 p-2 text-xs">
+                        {renderApprovedWhatsAppTemplate(selectedApprovedTemplate, approvedTemplateVariables)}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void handleSendMessage({
+                          approvedTemplate: selectedApprovedTemplate,
+                          templateVariables: approvedTemplateVariables,
+                        })}
+                        disabled={isSending || Boolean(templateReplyBlockReason) || selectedApprovedTemplate.variableKeys.some((key) => !approvedTemplateVariables[key]?.trim())}
+                        aria-label="Enviar plantilla"
+                      >
+                        Enviar plantilla
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : whatsappServiceWindow.recipientAvailable !== false && whatsappServiceWindow.blocksFreeForm ? (
+                <div data-testid="whatsapp-approved-templates-unavailable" className="rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-900 dark:text-amber-100">
+                  <p className="font-semibold">Plantillas no disponibles</p>
+                  <p>El backend no publicó una plantilla aprobada para responder fuera de la ventana de 24 horas.</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {attachmentPreview && (
             <div className="relative mb-1.5 flex w-full items-center gap-2 rounded-[8px] bg-muted p-1.5 sm:mb-2 sm:gap-3 sm:p-2">
               {attachmentPreview.previewUrl ? (
@@ -3119,11 +3600,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             rows={1}
             value={message}
             onChange={(e) => updateActiveDraft(e.target.value)}
-            disabled={listening || isSending}
+            disabled={listening || isSending || Boolean(freeFormReplyBlockReason)}
             onKeyDown={handleComposerKeyDown}
             maxLength={1000}
             aria-label="Responder ticket"
-            aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : undefined}
+            aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : isTenantTicketWhatsApp ? 'whatsapp-service-window' : undefined}
           />
           <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-9 [&_button]:!rounded-[7px]">
             {!tenantAttachmentBlockReason ? (
@@ -3328,11 +3809,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               disabled={
                 isSending ||
                 composerActionMutation.isPending ||
-                Boolean(replyBlockReason) ||
+                Boolean(freeFormReplyBlockReason) ||
                 (!message.trim() && !attachmentPreview)
               }
-              title={replyBlockReason || undefined}
-              aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : undefined}
+              title={freeFormReplyBlockReason || undefined}
+              aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : isTenantTicketWhatsApp ? 'whatsapp-service-window' : undefined}
               aria-label="Enviar mensaje"
             >
               {isSending ? (

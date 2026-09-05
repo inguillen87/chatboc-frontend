@@ -226,6 +226,8 @@ export interface OmnichannelInboxItem {
   id: string;
   legacy_id?: string;
   ticket_id?: string;
+  tenant_id?: string | number;
+  tenant_slug?: string;
   nro_ticket?: string;
   source_model?: string;
   legacy_kind?: string;
@@ -260,6 +262,7 @@ export interface OmnichannelInboxItem {
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
   reply_contract?: OmnichannelReplyContract;
+  reply_deliveries?: OmnichannelReplyDeliveryRecord[];
   source_metadata?: UnknownRecord;
   handoff?: UnknownRecord;
   live_chat?: OmnichannelLiveChatStatus;
@@ -295,6 +298,8 @@ export interface OmnichannelInboxActionPayload {
   client_message_id?: string;
   idempotency_key?: string;
   visibility?: string;
+  template_registry_id?: string | number;
+  template_variables?: UnknownRecord;
   payload?: UnknownRecord;
 }
 
@@ -348,8 +353,20 @@ const requireExactArtifactIdentity = (
 };
 
 export interface OmnichannelFinalDeliveryEvidence {
+  contract_version?: string;
   status?: string;
   authoritative_source?: string;
+  provider_message_id?: string | null;
+  provider_status?: string | null;
+  error_code?: string | null;
+  updated_at?: string | null;
+  raw?: unknown;
+}
+
+export interface OmnichannelReplyDeliveryRecord {
+  event_id?: string;
+  channel?: string;
+  delivery?: OmnichannelFinalDeliveryEvidence;
   raw?: unknown;
 }
 
@@ -438,6 +455,8 @@ export interface OmnichannelActionDelivery {
   timeline_updated?: boolean;
   reply_status?: string;
   evidence_stage?: string;
+  reply_event_id?: string | number;
+  recipient_available?: boolean;
   final_delivery?: OmnichannelFinalDeliveryEvidence;
   idempotency?: OmnichannelReplyIdempotencyEvidence;
   outbox?: OmnichannelReplyOutboxEvidence;
@@ -1455,6 +1474,38 @@ const normalizeReplyCapability = (value: unknown): OmnichannelReplyCapability | 
   };
 };
 
+const normalizeReplyDeliveryEvidence = (
+  value: unknown,
+): OmnichannelFinalDeliveryEvidence | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    contract_version: asString(value.contract_version),
+    status: asString(value.status),
+    authoritative_source: asString(value.authoritative_source),
+    provider_message_id: value.provider_message_id == null ? null : asString(value.provider_message_id),
+    provider_status: value.provider_status == null ? null : asString(value.provider_status),
+    error_code: value.error_code == null ? null : asString(value.error_code),
+    updated_at: value.updated_at == null ? null : asString(value.updated_at),
+    raw: value,
+  };
+};
+
+const normalizeReplyDeliveryRecords = (value: unknown): OmnichannelReplyDeliveryRecord[] =>
+  (Array.isArray(value) ? value : [])
+    .map((candidate): OmnichannelReplyDeliveryRecord | null => {
+      if (!isRecord(candidate)) return null;
+      const deliveryCandidate = getFirst(candidate, ['delivery', 'final_delivery']) ?? candidate;
+      const delivery = normalizeReplyDeliveryEvidence(deliveryCandidate);
+      if (!delivery) return null;
+      return {
+        event_id: asString(getFirst(candidate, ['event_id', 'eventId'])),
+        channel: asString(candidate.channel),
+        delivery,
+        raw: candidate,
+      };
+    })
+    .filter((record): record is OmnichannelReplyDeliveryRecord => Boolean(record));
+
 export const normalizeOmnichannelReplyContract = (
   value: unknown,
 ): OmnichannelReplyContract | undefined => {
@@ -1556,6 +1607,8 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     id,
     legacy_id: asString(getFirst(value, ['legacy_id', 'legacyId'])),
     ticket_id: ticketId,
+    tenant_id: asNumber(getFirst(value, ['tenant_id', 'tenantId'])) ?? asString(getFirst(value, ['tenant_id', 'tenantId'])),
+    tenant_slug: asString(getFirst(value, ['tenant_slug', 'tenantSlug'])),
     nro_ticket: asString(getFirst(value, ['nro_ticket', 'ticket_number'])),
     source_model: asString(getFirst(value, ['source_model', 'sourceModel'])),
     legacy_kind: asString(getFirst(value, ['legacy_kind', 'legacyKind'])),
@@ -1593,6 +1646,9 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
     reply_contract: replyContract,
+    reply_deliveries: normalizeReplyDeliveryRecords(
+      getFirst(value, ['reply_deliveries', 'replyDeliveries']),
+    ),
     source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
     handoff: value.handoff ? asRecord(value.handoff) : undefined,
     live_chat: normalizeLiveChatStatus(value.live_chat),
@@ -1639,6 +1695,7 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
   const outbox = asRecord(value.outbox);
   const evidence = asRecord(value.evidence);
   const deliveryResults = asRecord(value.delivery_results);
+  const deliverySkipped = asRecord(value.delivery_skipped);
   return {
     contract_version: asString(value.contract_version),
     legacy_contract_version: asString(value.legacy_contract_version),
@@ -1659,12 +1716,12 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
     timeline_updated: asBoolean(value.timeline_updated),
     reply_status: asString(value.reply_status),
     evidence_stage: asString(value.evidence_stage),
+    reply_event_id: asNumber(value.reply_event_id) ?? asString(value.reply_event_id),
+    recipient_available: asBoolean(value.recipient_available) ?? (
+      deliverySkipped.whatsapp === 'contact_phone_missing' ? false : undefined
+    ),
     final_delivery: Object.keys(finalDelivery).length
-      ? {
-          status: asString(finalDelivery.status),
-          authoritative_source: asString(finalDelivery.authoritative_source),
-          raw: finalDelivery,
-        }
+      ? normalizeReplyDeliveryEvidence(finalDelivery)
       : undefined,
     idempotency: Object.keys(idempotency).length
       ? {
@@ -1706,7 +1763,7 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
     requested_channels: asArray(value.requested_channels)
       .map(asString)
       .filter((channel): channel is string => Boolean(channel)),
-    delivery_skipped: isRecord(value.delivery_skipped) ? value.delivery_skipped : undefined,
+    delivery_skipped: Object.keys(deliverySkipped).length ? deliverySkipped : undefined,
     admin_surface: asString(value.admin_surface),
     source_model: asString(value.source_model),
     operator_message: asString(value.operator_message),
@@ -2360,6 +2417,7 @@ export const postOmnichannelInboxActionV2 = async (
   ticketId: string,
   payload: OmnichannelInboxActionPayload,
   tenantSlug?: string | null,
+  expectedTenantId?: string | number | null,
 ) => {
   const encodedTicketId = encodeURIComponent(ticketId);
   const nestedPayload =
@@ -2370,7 +2428,7 @@ export const postOmnichannelInboxActionV2 = async (
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
   const normalizedAction = payload.action.trim().toLowerCase();
-  const artifactIdentity = ARTIFACT_ACTION_IDS.has(normalizedAction)
+  const actionIdentity = (normalizedAction === 'reply' || ARTIFACT_ACTION_IDS.has(normalizedAction))
     ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
     : null;
   if (
@@ -2441,19 +2499,48 @@ export const postOmnichannelInboxActionV2 = async (
       requestOptions,
     );
   }
-  const normalized = normalizeOmnichannelInboxActionV2(response, ticketId);
-  if (artifactIdentity) {
-    const responseSource = normalized.ticket.source_model;
-    const responseId = normalizeActionTicketIdentity(
-      normalized.ticket.ticket_id ?? normalized.ticket.legacy_id ?? normalized.ticket.id,
+  if (actionIdentity) {
+    const rawResponse = getSource(response);
+    const rawResponseRecord = asRecord(rawResponse);
+    const rawTicketRecord = asRecord(
+      getFirst(rawResponseRecord, ['ticket', 'item', 'conversation', 'data']) ?? rawResponse,
     );
-    if (responseSource !== artifactIdentity.sourceModel || responseId !== artifactIdentity.ticketId) {
+    const responseSources = [rawTicketRecord.source_model, rawResponseRecord.source_model]
+      .map(asString)
+      .filter((value): value is string => Boolean(value));
+    const responseIds = [rawTicketRecord.ticket_id, rawTicketRecord.legacy_id, rawTicketRecord.id]
+      .map(normalizeActionTicketIdentity)
+      .filter((value): value is string => Boolean(value));
+    const hasExactReplyTicketId = normalizedAction !== 'reply' || (
+      Boolean(normalizeActionTicketIdentity(rawTicketRecord.ticket_id)) &&
+      normalizeActionTicketIdentity(rawTicketRecord.ticket_id) === actionIdentity.ticketId
+    );
+    const responseTenantSlug = asString(
+      rawTicketRecord.tenant_slug ?? rawResponseRecord.tenant_slug,
+    )?.toLowerCase();
+    const selectedTenantSlug = asString(tenantSlug)?.toLowerCase();
+    const responseTenantId = normalizeActionTicketIdentity(
+      rawTicketRecord.tenant_id ?? rawResponseRecord.tenant_id,
+    );
+    const selectedTenantId = normalizeActionTicketIdentity(expectedTenantId);
+    const tenantMismatch =
+      (Boolean(responseTenantSlug) && responseTenantSlug !== selectedTenantSlug) ||
+      (Boolean(responseTenantId) && responseTenantId !== selectedTenantId);
+    if (
+      responseSources.length === 0 ||
+      responseSources.some((source) => source !== actionIdentity.sourceModel) ||
+      responseIds.length === 0 ||
+      responseIds.some((responseId) => responseId !== actionIdentity.ticketId) ||
+      !hasExactReplyTicketId ||
+      tenantMismatch
+    ) {
+      const isReplyIdentityMismatch = normalizedAction === 'reply';
       throw new ApiError(
         'La respuesta backend no coincide con el ticket seleccionado; se descartó por seguridad.',
-        409,
-        { code: 'artifact_response_identity_mismatch' },
+        isReplyIdentityMismatch ? 502 : 409,
+        { code: isReplyIdentityMismatch ? 'reply_response_identity_mismatch' : 'artifact_response_identity_mismatch' },
       );
     }
   }
-  return normalized;
+  return normalizeOmnichannelInboxActionV2(response, ticketId);
 };

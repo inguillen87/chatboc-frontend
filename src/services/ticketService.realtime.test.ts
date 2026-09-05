@@ -327,14 +327,14 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
-  it('routes authenticated TenantTicket v2 text replies to the v2 public comments contract', async () => {
+  it('routes only explicitly internal TenantTicket notes to the v2 comments contract', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'tickets.v2.comment',
       ok: true,
       comment: {
         id: 1,
         body: 'Estamos revisando tu reclamo.',
-        visibility: 'public',
+        visibility: 'internal',
         created_at: '2026-07-04T12:00:00.000Z',
       },
     });
@@ -354,6 +354,7 @@ describe('ticketService realtime normalization', () => {
           source_model: 'TenantTicket',
           comments_endpoint: '/api/v2/tickets/378430/comments',
         } as any,
+        visibility: 'internal',
       },
     );
 
@@ -362,7 +363,7 @@ describe('ticketService realtime normalization', () => {
       method: 'POST',
       body: {
         body: 'Estamos revisando tu reclamo.',
-        visibility: 'public',
+        visibility: 'internal',
       },
       tenantSlug: 'junin',
     });
@@ -372,6 +373,32 @@ describe('ticketService realtime normalization', () => {
       actor_type: 'agent',
       es_admin: true,
     });
+  });
+
+  it('never treats TenantTicket comments as a fallback for an external reply', async () => {
+    await expect(sendMessage(
+      378430,
+      'municipio',
+      'Estamos revisando tu reclamo.',
+      undefined,
+      undefined,
+      {
+        tenantSlug: 'junin',
+        ticket: {
+          id: 378430,
+          tipo: 'municipio',
+          tenant_slug: 'junin',
+          channel: 'whatsapp',
+          source_model: 'TenantTicket',
+          comments_endpoint: '/api/v2/tickets/378430/comments',
+        } as any,
+      },
+    )).rejects.toMatchObject({
+      status: 409,
+      data: { code: 'tenant_ticket_external_reply_requires_v2_action' },
+    });
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it('uses the PyME legacy detail endpoint when the selected ticket is PyME', async () => {

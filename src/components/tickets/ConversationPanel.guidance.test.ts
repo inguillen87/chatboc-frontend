@@ -6,9 +6,15 @@ import {
   getConversationScrollBehavior,
   getComposerActionDeliveryView,
   getComposerChannelView,
+  getApprovedWhatsAppTemplates,
   getPublishedReplyBlockReason,
+  getReplyDeliveryStage,
   getReplyDeliveryView,
+  getWhatsAppServiceWindowView,
   hasPublicRecipientPresence,
+  isReplyDeliveryInvalidation,
+  preserveReplyDeliveryProgress,
+  renderApprovedWhatsAppTemplate,
   shouldShowOperationalTimelineInChat,
 } from './ConversationPanel';
 import { buildOperationalReplyDraft } from './ticketOperationalGuidance';
@@ -229,9 +235,9 @@ describe('reply delivery evidence', () => {
     }));
 
     expect(formatReplyDeliveryChannel('whatsapp')).toBe('WhatsApp');
-    expect(view.tone).toBe('muted');
-    expect(view.title).toBe('Despacho registrado, entrega sin confirmar');
-    expect(view.detail).toContain('WhatsApp');
+    expect(view.tone).toBe('warning');
+    expect(view.title).toBe('Estado de entrega por confirmar');
+    expect(view.title).not.toMatch(/enviado/i);
   });
 
   it('uses reply_contract.v1 to explain CRM-only delivery without blocking a reply', () => {
@@ -262,6 +268,15 @@ describe('reply delivery evidence', () => {
 
   it('fails closed on unknown reply contract versions and source mismatches', () => {
     expect(getPublishedReplyBlockReason({
+      contract_version: 'inbox.reply_contract.v1',
+      ticket_id: '419',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      enabled: true,
+      supported_message_types: { text: { enabled: true } },
+    }, 'MunicipioTicket', '419')).toMatch(/no coincide/i);
+
+    expect(getPublishedReplyBlockReason({
       contract_version: 'inbox.reply_contract.v2',
       source_model: 'MunicipioTicket',
       enabled: true,
@@ -279,11 +294,21 @@ describe('reply delivery evidence', () => {
     expect(getPublishedReplyBlockReason({
       contract_version: 'inbox.reply_contract.v1',
       source_model: 'MunicipioTicket',
+      ticket_id: '419',
       endpoint: '/api/v2/inbox/omnichannel/actions',
       method: 'POST',
       enabled: true,
       supported_message_types: { text: { enabled: true } },
-    }, 'municipio')).toBeNull();
+    }, 'MunicipioTicket', '419')).toBeNull();
+
+    expect(getPublishedReplyBlockReason({
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'TenantTicket',
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      method: 'POST',
+      enabled: true,
+      supported_message_types: { text: { enabled: true } },
+    }, 'TenantTicket', '77')).toMatch(/no coincide/i);
   });
 
   it('labels durable queue evidence without claiming provider delivery', () => {
@@ -306,7 +331,7 @@ describe('reply delivery evidence', () => {
       },
     });
 
-    expect(replyView.title).toBe('En cola para WhatsApp');
+    expect(replyView.title).toBe('En cola para entregar');
     expect(replyView.detail).toContain('cola durable');
     expect(actionView).toMatchObject({
       tone: 'queued',
@@ -416,11 +441,11 @@ describe('reply delivery evidence', () => {
       operator_message: 'Guardado en CRM sin canal externo confirmado.',
     }));
 
-    expect(emittedView.title).toBe('Emitido y guardado');
+    expect(emittedView.title).toBe('Guardado en CRM');
     expect(emittedView.tone).toBe('muted');
-    expect(deliveredView.title).toBe('Visible con presencia activa');
-    expect(deliveredView.tone).toBe('muted');
-    expect(readView.title).toBe('Leido por el ciudadano');
+    expect(deliveredView.title).toBe('Entregado en chat en vivo');
+    expect(deliveredView.tone).toBe('success');
+    expect(readView.title).toBe('Leído');
     expect(readView.tone).toBe('success');
     expect(crmView.title).toBe('Guardado en CRM');
     expect(crmView.tone).toBe('muted');
@@ -488,7 +513,65 @@ describe('reply delivery evidence', () => {
     }));
 
     expect(view.tone).toBe('warning');
-    expect(view.title).toBe('Guardado, entrega sin confirmar');
+    expect(view.title).toBe('Estado de entrega por confirmar');
     expect(view.detail).toContain('fallo la entrega externa');
+  });
+
+  it('does not regress delivery evidence during a stale detail refetch', () => {
+    const queued = deliveryStatus({ event_id: 91, mode: 'durable_queue', channel: 'whatsapp', status: 'durably_staged', evidence_stage: 'durably_staged', external_dispatch: true });
+    const accepted = deliveryStatus({
+      ...queued,
+      status: 'provider_accepted',
+      evidence_stage: 'provider_accepted',
+      final_delivery: { status: 'provider_accepted', authoritative_source: 'domain_effect_outbox' },
+    });
+    const staleSaved = deliveryStatus({ event_id: 91, channel: 'whatsapp', status: 'saved', reason: 'detail_reply_delivery' });
+
+    expect(preserveReplyDeliveryProgress(queued, staleSaved)).toBe(queued);
+    expect(preserveReplyDeliveryProgress(accepted, queued)).toBe(accepted);
+  });
+
+  it('advances provider acceptance to delivered and read only from provider callback', () => {
+    const accepted = deliveryStatus({
+      event_id: 91,
+      mode: 'real_message',
+      channel: 'whatsapp',
+      status: 'provider_accepted',
+      external_dispatch: true,
+      final_delivery: { status: 'provider_accepted', authoritative_source: 'domain_effect_outbox' },
+    });
+    const delivered = deliveryStatus({
+      ...accepted,
+      final_delivery: { status: 'delivered', authoritative_source: 'provider_status_callback' },
+    });
+    const read = deliveryStatus({
+      ...delivered,
+      final_delivery: { status: 'read', authoritative_source: 'provider_status_callback' },
+    });
+
+    expect(getReplyDeliveryStage(accepted)).toBe('provider_accepted');
+    expect(getReplyDeliveryStage(delivered)).toBe('delivered');
+    expect(getReplyDeliveryStage(read)).toBe('read');
+  });
+
+  it('distinguishes the 24-hour window, recipient absence and approved templates', () => {
+    const contract = {
+      whatsapp: {
+        recipient_available: true,
+        service_window: { status: 'expired' },
+        free_form_allowed: false,
+        template_required: true,
+        approved_templates: [{ id: 31, name: 'Seguimiento', body_preview: 'Reclamo {{1}}: {{2}}.' }],
+      },
+    };
+    const templates = getApprovedWhatsAppTemplates(contract);
+    expect(getWhatsAppServiceWindowView(contract)).toMatchObject({ blocksFreeForm: true, approvedTemplateCount: 1, title: 'Se requiere una plantilla aprobada' });
+    expect(renderApprovedWhatsAppTemplate(templates[0], { 1: 'M-419', 2: 'cuadrilla asignada' })).toBe('Reclamo M-419: cuadrilla asignada.');
+    expect(getWhatsAppServiceWindowView({ whatsapp: { ...contract.whatsapp, recipient_available: false } })).toMatchObject({ recipientAvailable: false, title: 'Sin número de WhatsApp' });
+  });
+
+  it('accepts only the PII-free delivery invalidation contract', () => {
+    expect(isReplyDeliveryInvalidation({ contract_version: 'tenant_ticket.reply_delivery.realtime.v1', resource: 'reply_deliveries', reason: 'delivery_status_changed', refetch: true })).toBe(true);
+    expect(isReplyDeliveryInvalidation({ contract_version: 'tenant_ticket.reply_delivery.realtime.v1', resource: 'reply_deliveries', reason: 'other', refetch: true })).toBe(false);
   });
 });

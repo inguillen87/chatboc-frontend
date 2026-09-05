@@ -1129,6 +1129,7 @@ export const isTicketHistoryDeliveryErrorResult = (
 
 export type TicketReplyDeliveryStatus = {
     contract_version: string;
+    event_id?: string | number;
     legacy_contract_version?: string;
     mode: 'real_message' | 'timeline_only' | 'internal_event' | string;
     channel: string;
@@ -1145,6 +1146,20 @@ export type TicketReplyDeliveryStatus = {
     reply_status: string;
     admin_surface?: string;
     operator_message?: string;
+    delivery_mode?: string;
+    evidence_stage?: string;
+    recipient_available?: boolean;
+    final_delivery?: {
+        contract_version?: string;
+        status?: string;
+        authoritative_source?: string;
+        provider_message_id?: string | null;
+        provider_status?: string | null;
+        error_code?: string | null;
+        updated_at?: string | null;
+    };
+    idempotency?: Record<string, unknown>;
+    outbox?: Record<string, unknown>;
     delivery_results: {
         email: boolean;
         sms: boolean;
@@ -1165,8 +1180,14 @@ export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryS
     }
 
     const payload = raw as Record<string, any>;
+    const rawFinalDelivery = payload.final_delivery && typeof payload.final_delivery === 'object'
+        ? payload.final_delivery as Record<string, any>
+        : {};
     const rawResults = payload.delivery_results && typeof payload.delivery_results === 'object'
         ? payload.delivery_results as Record<string, any>
+        : {};
+    const rawSkipped = payload.delivery_skipped && typeof payload.delivery_skipped === 'object'
+        ? payload.delivery_skipped as Record<string, any>
         : {};
 
     const socketEmitted = normalizeDeliveryBoolean(payload.socket_emitted) || normalizeDeliveryBoolean(rawResults.socket);
@@ -1179,6 +1200,7 @@ export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryS
 
     return {
         contract_version: String(payload.contract_version || 'tickets.agent_reply_delivery.v1'),
+        event_id: payload.reply_event_id ?? payload.event_id,
         legacy_contract_version: payload.legacy_contract_version
             ? String(payload.legacy_contract_version)
             : undefined,
@@ -1199,6 +1221,36 @@ export const normalizeTicketReplyDelivery = (raw: unknown): TicketReplyDeliveryS
         reply_status: String(payload.reply_status || 'saved_to_timeline'),
         admin_surface: payload.admin_surface ? String(payload.admin_surface) : undefined,
         operator_message: payload.operator_message ? String(payload.operator_message) : undefined,
+        delivery_mode: payload.delivery_mode ? String(payload.delivery_mode) : undefined,
+        evidence_stage: payload.evidence_stage ? String(payload.evidence_stage) : undefined,
+        recipient_available: typeof payload.recipient_available === 'boolean'
+            ? payload.recipient_available
+            : rawSkipped.whatsapp === 'contact_phone_missing'
+              ? false
+              : undefined,
+        final_delivery: Object.keys(rawFinalDelivery).length
+            ? {
+                contract_version: rawFinalDelivery.contract_version ? String(rawFinalDelivery.contract_version) : undefined,
+                status: rawFinalDelivery.status ? String(rawFinalDelivery.status) : undefined,
+                authoritative_source: rawFinalDelivery.authoritative_source
+                    ? String(rawFinalDelivery.authoritative_source)
+                    : undefined,
+                provider_message_id: rawFinalDelivery.provider_message_id == null
+                    ? null
+                    : String(rawFinalDelivery.provider_message_id),
+                provider_status: rawFinalDelivery.provider_status == null
+                    ? null
+                    : String(rawFinalDelivery.provider_status),
+                error_code: rawFinalDelivery.error_code == null ? null : String(rawFinalDelivery.error_code),
+                updated_at: rawFinalDelivery.updated_at == null ? null : String(rawFinalDelivery.updated_at),
+            }
+            : undefined,
+        idempotency: payload.idempotency && typeof payload.idempotency === 'object'
+            ? payload.idempotency as Record<string, unknown>
+            : undefined,
+        outbox: payload.outbox && typeof payload.outbox === 'object'
+            ? payload.outbox as Record<string, unknown>
+            : undefined,
         delivery_results: {
             email: normalizeDeliveryBoolean(rawResults.email),
             sms: normalizeDeliveryBoolean(rawResults.sms),
@@ -1909,13 +1961,20 @@ export const sendMessage = async (
     comentario: string,
     files?: File[],
     buttons?: Button[],
-    opts?: { public?: boolean; pin?: string; ticket?: TicketEndpointContext | null; tenantSlug?: string | null }
+    opts?: {
+        public?: boolean;
+        pin?: string;
+        ticket?: TicketEndpointContext | null;
+        tenantSlug?: string | null;
+        visibility?: 'internal' | 'public';
+    }
 ): Promise<any> => {
     try {
         const hasFiles = Boolean(files && files.length > 0);
         const hasButtons = Boolean(buttons && buttons.length > 0);
+        const isAuthenticatedTenantV2 = isTenantTicketV2(opts?.ticket) && !opts?.public;
         const shouldUseTenantV2Comment =
-            isTenantTicketV2(opts?.ticket) && !opts?.public && !hasFiles && !hasButtons;
+            isAuthenticatedTenantV2 && opts?.visibility === 'internal' && !hasFiles && !hasButtons;
 
         if (shouldUseTenantV2Comment) {
             const endpoint = resolveTenantTicketV2Endpoint(ticketId, opts?.ticket, 'comments');
@@ -1923,7 +1982,7 @@ export const sendMessage = async (
                 method: 'POST',
                 body: {
                     body: comentario,
-                    visibility: 'public',
+                    visibility: 'internal',
                 },
                 tenantSlug: opts?.tenantSlug || opts?.ticket?.tenant_slug || undefined,
             });
@@ -1942,6 +2001,20 @@ export const sendMessage = async (
                     comment: responseComment,
                   }
                 : response;
+        }
+
+        if (isAuthenticatedTenantV2) {
+            throw new ApiError(
+                opts?.visibility === 'internal'
+                    ? 'Los comentarios internos con adjuntos o botones no están publicados por este contrato.'
+                    : 'Las respuestas externas de TenantTicket deben usar la acción omnicanal reply autorizada.',
+                409,
+                {
+                    code: opts?.visibility === 'internal'
+                        ? 'tenant_ticket_internal_comment_payload_unsupported'
+                        : 'tenant_ticket_external_reply_requires_v2_action',
+                },
+            );
         }
 
         let body: any;
