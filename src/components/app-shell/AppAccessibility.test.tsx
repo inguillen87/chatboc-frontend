@@ -9,6 +9,7 @@ vi.mock('@/components/chat/AccessibilityToggle', () => ({
     <button type="button" className={className}>Accesibilidad</button>
   ),
   applyAccessibilityPrefs: vi.fn(),
+  persistAccessibilityPrefs: vi.fn(),
   readAccessibilityPrefs: vi.fn(() => ({})),
 }));
 
