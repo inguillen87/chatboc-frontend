@@ -2,6 +2,7 @@ import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import { requestDemoCatalog } from '@/services/demoCatalogRequest';
 import { normalizeDemoResourceUrlsDeep } from '@/utils/demoResourceUrls';
+import { retryTransientRead } from '@/utils/retryTransientRead';
 import { persistDemoRuntimeStorage } from './demoStorage';
 import { normalizeRequestedDemoTenantSlug } from './demoTenantSelection';
 import type {
@@ -54,17 +55,19 @@ export const getDemoAdminPreview = async (params: {
   if (params.presentation_mode) query.set('presentation_mode', params.presentation_mode);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const demoSessionId = params.demo_session_id?.trim();
-  return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
-    baseUrlOverride: '/api',
-    ...(demoSessionId
-      ? {
-          headers: {
-            'X-Demo-Session-Id': demoSessionId,
-            'X-Demo-Session': demoSessionId,
-          },
-        }
-      : {}),
-  });
+  return retryTransientRead(() =>
+    demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
+      baseUrlOverride: '/api',
+      ...(demoSessionId
+        ? {
+            headers: {
+              'X-Demo-Session-Id': demoSessionId,
+              'X-Demo-Session': demoSessionId,
+            },
+          }
+        : {}),
+    }),
+  );
 };
 
 export const createDemoSession = async (
@@ -255,9 +258,11 @@ export const getDemoWhatsappSandbox = async (
   if (params.source) query.set('source', String(params.source));
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return normalizeDemoWhatsappSandboxResponse(
-    await demoApi.get<DemoWhatsappSandboxResponse>(`/api/v2/demo/whatsapp-sandbox${suffix}`, {
-      baseUrlOverride: '/api',
-    }),
+    await retryTransientRead(() =>
+      demoApi.get<DemoWhatsappSandboxResponse>(`/api/v2/demo/whatsapp-sandbox${suffix}`, {
+        baseUrlOverride: '/api',
+      }),
+    ),
   );
 };
 

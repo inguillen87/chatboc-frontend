@@ -2070,7 +2070,7 @@ const Demo = () => {
   );
 
   useEffect(() => {
-    if (!sectorSeleccionado) {
+    if (!sectorSeleccionado || demoSessionLoading) {
       setDemoAdminPreview(null);
       return;
     }
@@ -2093,7 +2093,7 @@ const Demo = () => {
     return () => {
       active = false;
     };
-  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
+  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, demoSessionLoading, sectorSeleccionado]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;

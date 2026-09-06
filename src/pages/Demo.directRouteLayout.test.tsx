@@ -154,13 +154,6 @@ describe('Demo direct-route layout stability', () => {
     expect(screen.queryByTestId('demo-rubro-selector')).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sector: 'gobierno',
-          tenant_slug: 'junin',
-          presentation_mode: 'executive',
-        }),
-      );
       expect(demoApiMocks.createDemoSession).toHaveBeenCalledWith(
         expect.objectContaining({
           sector: 'gobierno',
@@ -169,14 +162,7 @@ describe('Demo direct-route layout stability', () => {
         }),
       );
     });
-
-    await act(async () => {
-      resolvePreview(preview);
-    });
-
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
-    ).toBeVisible();
+    expect(demoApiMocks.getDemoAdminPreview).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveSession({
@@ -188,6 +174,23 @@ describe('Demo direct-route layout stability', () => {
       });
     });
 
+    await waitFor(() => {
+      expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sector: 'gobierno',
+          tenant_slug: 'junin',
+          presentation_mode: 'executive',
+        }),
+      );
+    });
+
+    await act(async () => {
+      resolvePreview(preview);
+    });
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
+    ).toBeVisible();
     await waitFor(() => {
       expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'ready');
       expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'false');
@@ -235,6 +238,20 @@ describe('Demo direct-route layout stability', () => {
           tenant_slug: 'junin',
         }),
       );
+    });
+    expect(demoApiMocks.getDemoAdminPreview).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSession({
+        tenant_slug: 'junin',
+        workspace: {
+          title: 'Gestión ciudadana',
+          chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+        },
+      });
+    });
+
+    await waitFor(() => {
       expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
         expect.objectContaining({
           sector: 'gobierno',
@@ -251,16 +268,6 @@ describe('Demo direct-route layout stability', () => {
     expect(
       await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
     ).toBeVisible();
-
-    await act(async () => {
-      resolveSession({
-        tenant_slug: 'junin',
-        workspace: {
-          title: 'Gestión ciudadana',
-          chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
-        },
-      });
-    });
 
     await waitFor(() => {
       expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'ready');
@@ -299,7 +306,7 @@ describe('Demo direct-route layout stability', () => {
         expect.objectContaining({ tenant_slug: 'municipio' }),
       );
       expect(demoApiMocks.getDemoAdminPreview).toHaveBeenCalledWith(
-        expect.objectContaining({ tenant_slug: 'municipio' }),
+        expect.objectContaining({ tenant_slug: 'junin' }),
       );
     });
 
