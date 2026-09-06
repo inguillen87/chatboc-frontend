@@ -1,13 +1,13 @@
 import React from 'react';
-import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
 import GovernmentJurisdictionReadinessPanel from '@/components/implementation/GovernmentJurisdictionReadinessPanel';
 import GovernmentMesaUnicaLaunchPanel from '@/components/implementation/GovernmentMesaUnicaLaunchPanel';
 import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
+import TenantProvisioningReadinessPanel from '@/components/implementation/TenantProvisioningReadinessPanel';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
@@ -111,8 +111,8 @@ const TenantImplementationCenterPage = () => {
     <section className="mx-auto w-full max-w-6xl space-y-5 py-6">
       <EnterprisePageHeader
         badge="Implementación"
-        title="Preparar la solución para operar"
-        description="Un único lugar para revisar identidad, accesibilidad, canales, operación, participación y salida productiva sin perder el contexto del tenant."
+        title="Preparar la organización para operar"
+        description="Marca, equipo, contenido, canales y controles de salida en un recorrido institucional reutilizable."
         meta={`Contexto de trabajo: ${tenantLabel || tenantSlug}`}
         actions={(
           <Button asChild variant="outline">
@@ -124,31 +124,18 @@ const TenantImplementationCenterPage = () => {
         )}
       />
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300">
-            <ShieldCheck className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground">Estado publicado por la plataforma</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Los avances, bloqueos y próximos pasos provienen del contrato del backend. Un frente no publicado nunca se presenta como listo.
-            </p>
-          </div>
-        </div>
-        <Badge variant="outline" className="w-fit shrink-0 bg-background/70">
-          Sin estados inferidos
-        </Badge>
-      </div>
+      <TenantProvisioningReadinessPanel tenantSlug={tenantSlug} />
 
-      <TenantBlueprintProvisioningPanel
-        tenantSlug={tenantSlug}
-        canApply={canApplyBlueprint}
-        compactWhenApplied
-        refreshRevision={blueprintRefreshRevision}
-        onApplicationStateChange={handleBlueprintApplicationStateChange}
-        onApplied={handleBlueprintApplied}
-      />
+      <div id="configuracion-base" className="scroll-mt-24">
+        <TenantBlueprintProvisioningPanel
+          tenantSlug={tenantSlug}
+          canApply={canApplyBlueprint}
+          compactWhenApplied
+          refreshRevision={blueprintRefreshRevision}
+          onApplicationStateChange={handleBlueprintApplicationStateChange}
+          onApplied={handleBlueprintApplied}
+        />
+      </div>
 
       {blueprintApplied ? (
         <>
@@ -165,7 +152,12 @@ const TenantImplementationCenterPage = () => {
         </>
       ) : null}
 
-      <div data-testid="implementation-tenant-scope" data-tenant-slug={tenantSlug}>
+      <div
+        id="controles-salida"
+        className="scroll-mt-24"
+        data-testid="implementation-tenant-scope"
+        data-tenant-slug={tenantSlug}
+      >
         <ChannelActivationChecklist
           key={`${tenantSlug}:${activationRevision}`}
           tenantSlug={tenantSlug}

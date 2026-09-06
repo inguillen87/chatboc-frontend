@@ -24,6 +24,7 @@ vi.mock('@/api/v2/governmentLaunch', () => governmentLaunchApi);
 
 const channelChecklist = vi.hoisted(() => ({ render: vi.fn() }));
 const jurisdictionPanel = vi.hoisted(() => ({ render: vi.fn() }));
+const provisioningReadiness = vi.hoisted(() => ({ render: vi.fn() }));
 
 const blueprintDigest = 'a'.repeat(64);
 const requestDigest = 'b'.repeat(64);
@@ -150,6 +151,17 @@ vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
   },
 }));
 
+vi.mock('@/components/implementation/TenantProvisioningReadinessPanel', () => ({
+  default: (props: any) => {
+    provisioningReadiness.render(props);
+    return (
+      <div data-testid="tenant-provisioning-readiness" data-tenant-slug={props.tenantSlug || ''}>
+        Estado de implementación vigente
+      </div>
+    );
+  },
+}));
+
 vi.mock('@/components/implementation/GovernmentJurisdictionReadinessPanel', () => ({
   default: (props: any) => {
     jurisdictionPanel.render(props);
@@ -266,14 +278,14 @@ describe('TenantImplementationCenterPage', () => {
     governmentLaunchApi.applyGovernmentMesaUnicaLaunch.mockReset().mockResolvedValue(governmentLaunchApply);
     channelChecklist.render.mockClear();
     jurisdictionPanel.render.mockClear();
+    provisioningReadiness.render.mockClear();
   });
 
   it('uses the authorized tenant contract without inventing readiness', async () => {
     renderPage('/implementacion?tenant_slug=gobierno-demo');
 
-    expect(screen.getByRole('heading', { name: /preparar la solución para operar/i })).toBeInTheDocument();
-    expect(screen.getByText(/un frente no publicado nunca se presenta como listo/i)).toBeInTheDocument();
-    expect(screen.getByText(/sin estados inferidos/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /preparar la organización para operar/i })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-provisioning-readiness')).toHaveAttribute('data-tenant-slug', 'gobierno-demo');
     expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-tenant-slug', 'gobierno-demo');
     expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-initial-tenant', 'gobierno-demo');
     expect(screen.getByTestId('channel-activation-checklist')).toHaveAttribute('data-presentation', 'launch-journey');

@@ -293,8 +293,8 @@ export default function ProfileWorkspaceNavigation({
             ? [
                 {
                   id: "implementation",
-                  label: "Implementación y salida",
-                  description: "Avances, bloqueos y próximos pasos publicados por la plataforma.",
+                  label: "Centro de implementación",
+                  description: "Marca, equipo, contenido, canales y certificación.",
                   icon: Rocket,
                   action: onOpenImplementation,
                 },

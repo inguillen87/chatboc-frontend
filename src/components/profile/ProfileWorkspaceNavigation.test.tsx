@@ -114,7 +114,7 @@ describe("ProfileWorkspaceNavigation", () => {
     expect(onOpenSurveys).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Implementación y salida/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Centro de implementación/i }));
     expect(onOpenImplementation).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
@@ -151,7 +151,7 @@ describe("ProfileWorkspaceNavigation", () => {
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
     expect(screen.queryByRole("menuitem", { name: /Equipo y permisos/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /Implementación y salida/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Centro de implementación/i })).not.toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Inteligencia" }), { key: "Enter" });
