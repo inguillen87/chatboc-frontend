@@ -42,7 +42,6 @@ import { useCapabilities } from "@/context/CapabilitiesContext";
 import { useSessionAuthority } from "@/components/access/SessionAuthorityContext";
 import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
-import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -62,12 +61,10 @@ interface AdminNavLink {
 }
 
 const landingNavItems = [
-  { id: "problemas", label: "Problemas" },
-  { id: "solucion", label: "Solución" },
-  { id: "como-funciona", label: "Cómo funciona" },
-  { id: "precios", label: "Precios" },
-  { id: "publico-objetivo", label: "Sectores" },
-  { id: "cta", label: "Empezar" },
+  { id: "sistema-operativo", label: "Plataforma" },
+  { id: "solucion", label: "Soluciones" },
+  { id: "demos", label: "Casos" },
+  { id: "precios", label: "Planes" },
 ];
 
 const MOBILE_MENU_ID = "chatboc-mobile-navigation";
@@ -83,31 +80,6 @@ const getScrollBehavior = (): ScrollBehavior => {
 
 const isRecord = (value: unknown): value is Record<string, any> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const readLandingNavItems = (navigation: unknown) => {
-  const rawItems = (() => {
-    if (Array.isArray(navigation)) return navigation;
-    if (isRecord(navigation)) {
-      if (Array.isArray(navigation.items)) return navigation.items;
-      if (Array.isArray(navigation.links)) return navigation.links;
-    }
-    return [];
-  })();
-
-  const items = rawItems
-    .map((item) => {
-      if (!isRecord(item)) return null;
-      const label = String(item.label || item.title || item.name || "").trim();
-      const target = String(item.id || item.section_id || item.href || item.to || item.route || "").trim();
-      if (!label || !target) return null;
-      const id = target.replace(/^\/?#/, "").replace(/^\/+/, "");
-      return { id, label };
-    })
-    .filter((item): item is (typeof landingNavItems)[number] => Boolean(item))
-    .filter((item) => item.id.toLowerCase() !== "opinar" && item.label.toLowerCase() !== "opinar");
-
-  return items.length ? items : landingNavItems;
-};
 
 const parseStoredUser = (raw: string | null) => {
   if (!raw) return null;
@@ -133,7 +105,6 @@ const Navbar: React.FC = () => {
   const { hasVerifiedSession } = useSessionAuthority();
 
   const isLanding = location.pathname === "/";
-  const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
   const hasPersistedSession = hasValidStoredToken || hasPersistedClerkSession();
   const isLoggedIn = Boolean(
@@ -141,10 +112,6 @@ const Navbar: React.FC = () => {
       (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
   );
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
-  const resolvedLandingNavItems = useMemo(
-    () => readLandingNavItems(landingExperience?.navigation),
-    [landingExperience],
-  );
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
     [isLoggedIn],
@@ -378,8 +345,8 @@ const Navbar: React.FC = () => {
         </button>
 
         {isLanding ? (
-          <nav className="hidden flex-1 items-center justify-center gap-1 md:flex">
-            {resolvedLandingNavItems.map((item) => (
+          <nav aria-label="Navegación principal" className="hidden flex-1 items-center justify-center gap-1 md:flex">
+            {landingNavItems.map((item) => (
               <button key={item.id} onClick={() => scrollToSection(item.id)} className={navButtonClass}>
                 {item.label}
               </button>
@@ -388,18 +355,20 @@ const Navbar: React.FC = () => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          <RouterLink
-            to={cartPath}
-            className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
-            aria-label="Ver carrito"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            {cartCount > 0 ? (
-              <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
-                {cartCount}
-              </span>
-            ) : null}
-          </RouterLink>
+          {!isLanding ? (
+            <RouterLink
+              to={cartPath}
+              className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
+              aria-label="Ver carrito"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              {cartCount > 0 ? (
+                <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
+                  {cartCount}
+                </span>
+              ) : null}
+            </RouterLink>
+          ) : null}
 
           {isLoggedIn ? (
             <DropdownMenu>
@@ -499,7 +468,7 @@ const Navbar: React.FC = () => {
                 Iniciar sesión
               </RouterLink>
               <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
-                Prueba gratuita
+                Ver demo
               </RouterLink>
             </>
           )}
@@ -536,21 +505,23 @@ const Navbar: React.FC = () => {
         >
           <div className="flex flex-col gap-1 text-foreground">
             {isLanding
-              ? resolvedLandingNavItems.map((item) => (
+              ? landingNavItems.map((item) => (
                   <button key={item.id} onClick={() => scrollToSection(item.id)} className={mobileItemClass}>
                     {item.label}
                   </button>
                 ))
               : null}
-            <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
-              <ShoppingCart className="h-4 w-4" />
-              Carrito
-              {cartCount > 0 ? (
-                <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
-                  {cartCount}
-                </span>
-              ) : null}
-            </RouterLink>
+            {!isLanding ? (
+              <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                <ShoppingCart className="h-4 w-4" />
+                Carrito
+                {cartCount > 0 ? (
+                  <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
+                    {cartCount}
+                  </span>
+                ) : null}
+              </RouterLink>
+            ) : null}
 
             {isLoggedIn ? (
               <>
@@ -630,7 +601,7 @@ const Navbar: React.FC = () => {
                   onClick={() => setMenuOpen(false)}
                   className="chatboc-cta-primary mt-1 rounded-[8px] px-4 py-2 text-center text-sm font-semibold"
                 >
-                  Prueba gratuita
+                  Ver demo
                 </RouterLink>
               </>
             )}

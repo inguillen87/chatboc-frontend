@@ -1,7 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import HeroSection from './HeroSection';
 
@@ -104,6 +104,78 @@ describe('HeroSection backend-driven conversation demo', () => {
     expect(screen.getByText('Pedido creado')).toBeTruthy();
   });
 
+  it('keeps the primary page action stable when the selected demo publishes its own action', () => {
+    render(
+      <MemoryRouter>
+        <HeroSection
+          experience={{
+            hero: {
+              primary_cta: { label: 'Ver demo institucional', href: '/demo' },
+              conversation_demo: {
+                flows: [
+                  {
+                    id: 'gobierno-reclamo',
+                    user_message: 'Quiero iniciar un reclamo.',
+                    agent_message: 'El reclamo quedo listo.',
+                    action: { label: 'Reclamo creado', status: 'Listo' },
+                    cta: { label: 'Abrir reclamo', href: '/perfil?tab=tickets' },
+                    result: { kind: 'ticket', traceable: true },
+                  },
+                ],
+              },
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Ver demo institucional' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Abrir reclamo' })).not.toBeInTheDocument();
+  });
+
+  it('does not replace the selected conversation while a person is reading it', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <MemoryRouter>
+          <HeroSection
+            experience={{
+              hero: {
+                conversation_demo: {
+                  flows: [
+                    {
+                      id: 'primero',
+                      label: 'Primer caso',
+                      user_message: 'Primer mensaje',
+                      agent_message: 'Primera respuesta',
+                      action: { label: 'Primer resultado', status: 'Listo' },
+                      result: { kind: 'ticket', traceable: true },
+                    },
+                    {
+                      id: 'segundo',
+                      label: 'Segundo caso',
+                      user_message: 'Segundo mensaje',
+                      agent_message: 'Segunda respuesta',
+                      action: { label: 'Segundo resultado', status: 'Listo' },
+                      result: { kind: 'order', traceable: true },
+                    },
+                  ],
+                },
+              },
+            }}
+          />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByText('Primer resultado')).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(30_000));
+      expect(screen.getByText('Primer resultado')).toBeInTheDocument();
+      expect(screen.queryByText('Segundo resultado')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('names a single scrollable conversation as a keyboard-focusable region', () => {
     render(
       <MemoryRouter>
@@ -133,6 +205,8 @@ describe('HeroSection backend-driven conversation demo', () => {
       'tabindex',
       '0',
     );
-    expect(screen.getByRole('group', { name: 'Chatboc.ar Meta Tech Provider' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Integraciones disponibles por configuración' })).toBeTruthy();
+    expect(screen.queryByText('Chatboc verificado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Meta Business Partners')).not.toBeInTheDocument();
   });
 });

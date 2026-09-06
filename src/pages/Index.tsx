@@ -1,18 +1,17 @@
 import React, { useEffect } from "react";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
 import HeroSection from "@/components/sections/HeroSection";
-import ConsultingDifferenceSection from "@/components/sections/ConsultingDifferenceSection";
 import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
-import ProblemsSection from "@/components/sections/ProblemsSection";
 import SolutionSection from "@/components/sections/SolutionSection";
 import HowItWorksSection from "@/components/sections/HowItWorksSection";
 import PricingSection from "@/components/sections/PricingSection";
-import TargetSection from "@/components/sections/TargetSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
-import TestimonialsSection from "@/components/sections/TestimonialsSection";
 import CtaSection from "@/components/sections/CtaSection";
-import ComingSoonSection from "@/components/sections/ComingSoonSection";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
+
+const LegacyLandingAnchor = ({ id }: { id: string }) => (
+  <span id={id} aria-hidden="true" className="block h-0 scroll-mt-24 overflow-hidden" />
+);
 
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
@@ -38,20 +37,18 @@ const Index = () => {
   return (
     <>
       <div className="bg-background scroll-smooth">
-        <section id="inicio">
-          <HeroSection experience={landingExperience} />
-        </section>
-        <ConsultingDifferenceSection />
+        <HeroSection experience={landingExperience} />
+        <LegacyLandingAnchor id="diferencia-chatboc" />
+        <LegacyLandingAnchor id="problemas" />
         <SaaSOperatingSystemSection />
-        <ProblemsSection />
         <SolutionSection />
-        <HowItWorksSection />
-        <TargetSection />
+        <LegacyLandingAnchor id="publico-objetivo" />
+        <LegacyLandingAnchor id="senales-valor" />
         <DemoShowcaseSection />
-        <TestimonialsSection />
+        <HowItWorksSection />
+        <LegacyLandingAnchor id="modulos" />
         <PricingSection />
         <CtaSection />
-        <ComingSoonSection />
       </div>
       {showWidget && null}
     </>

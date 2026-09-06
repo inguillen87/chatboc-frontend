@@ -292,6 +292,30 @@ describe('Navbar account menu routing', () => {
     expect(screen.queryByRole('link', { name: /^Reclamos$/i })).not.toBeInTheDocument();
   });
 
+  it('keeps the public landing navigation concise and the demo CTA stable', () => {
+    useUserMock.mockReturnValue({ user: null });
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'disabled',
+      hasBearerSession: false,
+      hasVerifiedSession: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    const navigation = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(navigation).toHaveTextContent('Plataforma');
+    expect(navigation).toHaveTextContent('Soluciones');
+    expect(navigation).toHaveTextContent('Casos');
+    expect(navigation).toHaveTextContent('Planes');
+    expect(navigation.querySelectorAll('button')).toHaveLength(4);
+    expect(screen.getByRole('link', { name: 'Ver demo' })).toHaveAttribute('href', '/demo');
+    expect(screen.queryByRole('link', { name: 'Ver carrito' })).not.toBeInTheDocument();
+  });
+
   it('exposes a keyboard-safe mobile navigation disclosure and coordinates the accessibility dock', () => {
     const { unmount } = render(
       <MemoryRouter initialEntries={['/']}>

@@ -66,7 +66,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("solution")}
+                  onClick={() => scrollToSection("solucion")}
                 >
                   Que hace
                 </button>
@@ -75,7 +75,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("pricing")}
+                  onClick={() => scrollToSection("precios")}
                 >
                   Planes
                 </button>
