@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useLocation } from 'react-router-dom';
-import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
+import { resolvePublicDemoPreloadTarget } from '@/config/publicPresentationRoutes';
 
 import {
   followTenant as followTenantRequest,
@@ -90,7 +90,7 @@ const isTenantIndependentPath = (pathname: string) => {
   return (
     normalized === '/superadmin' ||
     normalized.startsWith('/superadmin/') ||
-    isDisabilityAIAgentDemoPath(normalized)
+    resolvePublicDemoPreloadTarget(normalized) !== null
   );
 };
 const PORTAL_SECTION_SEGMENTS = new Set([
