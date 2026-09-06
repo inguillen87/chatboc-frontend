@@ -213,6 +213,33 @@ test.describe('Chatboc smoke e2e', () => {
     expect(realtimeRequests).toEqual([]);
   });
 
+  test('hero y accesos demo de login permanecen dentro de 390px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+
+    const heroPreview = page.locator('#inicio .chatboc-hero-preview');
+    await expect(heroPreview).toBeVisible();
+    const heroBox = await heroPreview.boundingBox();
+
+    expect(heroBox).not.toBeNull();
+    expect(heroBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((heroBox?.x ?? 0) + (heroBox?.width ?? 0)).toBeLessThanOrEqual(391);
+    await expectNoHorizontalOverflow(page);
+
+    await page.goto('/login');
+    const demoButtons = page.getByRole('button', { name: /^Abrir Demo (colegio|gobierno|empresa)$/i });
+    await expect(demoButtons).toHaveCount(3);
+
+    for (const button of await demoButtons.all()) {
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(391);
+    }
+    await expectNoHorizontalOverflow(page);
+  });
+
   test('demo muestra los tres pilares y abre experiencia educativa', async ({ page }) => {
     const catalogRequests: string[] = [];
     page.on('request', (request) => {

@@ -993,8 +993,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           {showHeroPreview && (
           <div className="relative min-w-0">
             <div className="chatboc-hero-aura !opacity-50 motion-reduce:hidden" aria-hidden="true" />
-            <div className="chatboc-hero-stage !min-h-0 !p-0">
-              <div className="chatboc-hero-preview before:!hidden after:!hidden !m-0 !w-full !max-w-[43rem] !transform-none !rounded-[24px] !p-px">
+            <div className="chatboc-hero-stage !min-h-0 !w-full !min-w-0 !grid-cols-[minmax(0,1fr)] !p-0">
+              <div className="chatboc-hero-preview before:!hidden after:!hidden !m-0 !w-full !min-w-0 !max-w-full !transform-none !rounded-[24px] !p-px lg:!max-w-[43rem]">
               {activeFlow && (
                 <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} !h-[31rem] !min-h-0 !rounded-[23px] sm:!h-[30rem]`}>
 
